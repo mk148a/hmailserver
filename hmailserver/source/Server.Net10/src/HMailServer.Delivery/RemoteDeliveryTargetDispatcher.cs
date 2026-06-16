@@ -45,6 +45,11 @@ public sealed class RemoteDeliveryTargetDispatcher : IDeliveryTargetDispatcher
         }
 
         var endpoint = await _endpointResolver.ResolveAsync(targetBatch.Target, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(message.RuleBindAddress))
+        {
+            endpoint = endpoint with { LocalBindAddress = message.RuleBindAddress };
+        }
+
         var result = await _smtpClient.SendAsync(
             new RemoteSmtpSendRequest(
                 endpoint,

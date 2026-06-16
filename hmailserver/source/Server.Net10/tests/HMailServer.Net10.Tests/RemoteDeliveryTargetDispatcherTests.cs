@@ -56,6 +56,27 @@ public sealed class RemoteDeliveryTargetDispatcherTests
     }
 
     [TestMethod]
+    public async Task DispatchAsync_PassesRuleBindAddressToRemoteEndpoint()
+    {
+        var message = CreateMessage(ruleBindAddress: "192.0.2.25");
+        var batch = new DeliveryTargetBatch(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+            message.Recipients);
+        var smtpClient = new FakeRemoteSmtpClient(RemoteSmtpSendResult.Success());
+        var dispatcher = new RemoteDeliveryTargetDispatcher(
+            new FakeEndpointResolver(new RemoteSmtpEndpoint("mx.example.net", 25, RemoteSmtpConnectionSecurity.None)),
+            new FakeContentSource("Subject: Test\r\n\r\nHello\r\n"u8.ToArray()),
+            smtpClient,
+            new RemoteDeliveryOptions("mail.local.test", TimeSpan.FromMinutes(2)));
+
+        var result = await dispatcher.DispatchAsync(message, batch, CancellationToken.None);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsNotNull(smtpClient.LastRequest);
+        Assert.AreEqual("192.0.2.25", smtpClient.LastRequest.Endpoint.LocalBindAddress);
+    }
+
+    [TestMethod]
     public async Task DispatchAsync_DefersWhenContentCannotBeLoaded()
     {
         var message = CreateMessage();
@@ -76,7 +97,7 @@ public sealed class RemoteDeliveryTargetDispatcherTests
         StringAssert.Contains(result.Error, "content");
     }
 
-    private static DeliveryQueuedMessage CreateMessage() =>
+    private static DeliveryQueuedMessage CreateMessage(string? ruleBindAddress = null) =>
         new(
             new MessageIdentity(100, 0, 0, 0),
             "queue.eml",
@@ -89,7 +110,8 @@ public sealed class RemoteDeliveryTargetDispatcherTests
             [
                 new DeliveryQueueRecipient(1, "user1@example.net", "user1@example.net", LocalAccountId: 0),
                 new DeliveryQueueRecipient(2, "user2@example.net", "user2@example.net", LocalAccountId: 0)
-            ]);
+            ],
+            RuleBindAddress: ruleBindAddress);
 
     private sealed class FakeEndpointResolver : IRemoteSmtpEndpointResolver
     {

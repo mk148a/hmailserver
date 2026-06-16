@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Globalization;
+using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
@@ -287,7 +288,7 @@ public sealed class TcpRemoteSmtpTransportFactory : IRemoteSmtpTransportFactory
         RemoteSmtpEndpoint endpoint,
         CancellationToken cancellationToken)
     {
-        var client = new TcpClient();
+        var client = CreateTcpClient(endpoint);
         try
         {
             await client.ConnectAsync(endpoint.Host, endpoint.Port, cancellationToken).ConfigureAwait(false);
@@ -298,6 +299,26 @@ public sealed class TcpRemoteSmtpTransportFactory : IRemoteSmtpTransportFactory
             client.Dispose();
             throw;
         }
+    }
+
+    private static TcpClient CreateTcpClient(RemoteSmtpEndpoint endpoint)
+    {
+        if (IPAddress.TryParse(endpoint.LocalBindAddress?.Trim(), out var localAddress))
+        {
+            var client = new TcpClient(localAddress.AddressFamily);
+            try
+            {
+                client.Client.Bind(new IPEndPoint(localAddress, 0));
+                return client;
+            }
+            catch
+            {
+                client.Dispose();
+                throw;
+            }
+        }
+
+        return new TcpClient();
     }
 }
 

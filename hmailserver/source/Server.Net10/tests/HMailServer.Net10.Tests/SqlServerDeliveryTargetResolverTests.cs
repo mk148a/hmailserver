@@ -18,5 +18,7 @@ public sealed class SqlServerDeliveryTargetResolverTests
         StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectRoutesSql, "routeuseauthentication");
         StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectRoutesSql, "routeauthenticationusername");
         StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectRoutesSql, "routeauthenticationpassword");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectRouteByIdSql, "FROM hm_routes");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectRouteByIdSql, "WHERE routeid = @RouteId");
     }
 }

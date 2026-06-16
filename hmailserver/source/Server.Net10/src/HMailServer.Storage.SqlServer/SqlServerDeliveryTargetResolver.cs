@@ -22,6 +22,21 @@ FROM hm_routes
 ORDER BY routedomainname ASC;
 """;
 
+    public const string SelectRouteByIdSql = """
+SELECT
+    routeid,
+    routedomainname,
+    routetargetsmthost,
+    routetargetsmtport,
+    routeconnectionsecurity,
+    routetreatsecurityaslocal,
+    routeuseauthentication,
+    routeauthenticationusername,
+    routeauthenticationpassword
+FROM hm_routes
+WHERE routeid = @RouteId;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDeliveryTargetResolver(SqlServerConnectionFactory connectionFactory)
@@ -36,13 +51,18 @@ ORDER BY routedomainname ASC;
         ArgumentNullException.ThrowIfNull(message);
 
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var forcedRoute = message.RuleForcedRouteId > 0
+            ? await LoadRouteByIdAsync(connection, message.RuleForcedRouteId, cancellationToken).ConfigureAwait(false)
+            : null;
         var groups = new Dictionary<string, TargetGroup>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var recipient in message.Recipients)
         {
             var target = recipient.LocalAccountId > 0
                 ? CreateLocalTarget(recipient)
-                : await CreateRemoteOrRouteTargetAsync(connection, recipient, cancellationToken).ConfigureAwait(false);
+                : forcedRoute is not null
+                    ? CreateForcedRouteTarget(recipient, forcedRoute)
+                    : await CreateRemoteOrRouteTargetAsync(connection, recipient, cancellationToken).ConfigureAwait(false);
             var groupKey = target.Key;
             if (!groups.TryGetValue(groupKey, out var group))
             {
@@ -68,6 +88,21 @@ ORDER BY routedomainname ASC;
             Key: "local:" + recipient.LocalAccountId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             DomainName: domainName,
             LocalAccountId: recipient.LocalAccountId);
+    }
+
+    private static DeliveryTarget CreateForcedRouteTarget(
+        DeliveryQueueRecipient recipient,
+        RouteInfo route)
+    {
+        var domainName = TrySplitAddress(recipient.Address, out _, out var domain)
+            ? domain
+            : route.DomainName;
+        var resolution = route.ToResolution();
+        return new DeliveryTarget(
+            DeliveryTargetKind.Route,
+            Key: "route:" + route.RouteId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            DomainName: domainName,
+            Route: resolution);
     }
 
     private static async ValueTask<DeliveryTarget> CreateRemoteOrRouteTargetAsync(
@@ -106,16 +141,7 @@ ORDER BY routedomainname ASC;
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var route = new RouteInfo(
-                reader.GetInt32(0),
-                reader.GetString(1),
-                reader.GetString(2),
-                Convert.ToInt32(reader.GetValue(3), System.Globalization.CultureInfo.InvariantCulture),
-                Convert.ToInt32(reader.GetValue(4), System.Globalization.CultureInfo.InvariantCulture),
-                ToBoolean(reader.GetValue(5)),
-                ToBoolean(reader.GetValue(6)),
-                reader.GetString(7),
-                DecryptRoutePassword(reader.GetString(8)));
+            var route = ReadRouteInfo(reader);
             if (WildcardMatchNoCase(route.DomainName, domainName))
             {
                 return route;
@@ -124,6 +150,34 @@ ORDER BY routedomainname ASC;
 
         return null;
     }
+
+    private static async ValueTask<RouteInfo?> LoadRouteByIdAsync(
+        SqlConnection connection,
+        int routeId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(SelectRouteByIdSql, connection);
+        command.Parameters.Add("@RouteId", SqlDbType.Int).Value = routeId;
+        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        return ReadRouteInfo(reader);
+    }
+
+    private static RouteInfo ReadRouteInfo(SqlDataReader reader) =>
+        new(
+            reader.GetInt32(0),
+            reader.GetString(1),
+            reader.GetString(2),
+            Convert.ToInt32(reader.GetValue(3), System.Globalization.CultureInfo.InvariantCulture),
+            Convert.ToInt32(reader.GetValue(4), System.Globalization.CultureInfo.InvariantCulture),
+            ToBoolean(reader.GetValue(5)),
+            ToBoolean(reader.GetValue(6)),
+            reader.GetString(7),
+            DecryptRoutePassword(reader.GetString(8)));
 
     private static bool TrySplitAddress(
         string address,

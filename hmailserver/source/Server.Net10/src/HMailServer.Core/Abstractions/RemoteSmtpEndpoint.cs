@@ -6,4 +6,5 @@ public sealed record RemoteSmtpEndpoint(
     RemoteSmtpConnectionSecurity ConnectionSecurity,
     bool RequiresAuthentication = false,
     string AuthenticationUsername = "",
-    string AuthenticationPassword = "");
+    string AuthenticationPassword = "",
+    string? LocalBindAddress = null);
