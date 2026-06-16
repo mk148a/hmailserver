@@ -251,6 +251,85 @@ public sealed class SqlServerSmtpRuleProcessorTests
     }
 
     [TestMethod]
+    public void ApplyRules_ReplyCreatesAutoSubmittedGeneratedMessage()
+    {
+        var request = CreateRequest("Subject: Needs reply\r\n\r\nOriginal body\r\n");
+        var rule = CreateRule(
+            criteria: new SmtpRuleCriterion(
+                Id: 68,
+                UsePredefinedField: true,
+                PredefinedField: SmtpRuleCriteriaField.Subject,
+                HeaderName: string.Empty,
+                MatchType: SmtpRuleMatchType.Contains,
+                MatchValue: "reply"),
+            actions: new SmtpRuleAction(
+                Id: 69,
+                Type: SmtpRuleActionType.Reply,
+                SortOrder: 1,
+                ImapFolder: string.Empty,
+                Subject: "Auto reply",
+                FromName: "Support",
+                FromAddress: "support@example.test",
+                To: string.Empty,
+                Body: "Thanks for the message.",
+                FileName: string.Empty,
+                ScriptFunction: string.Empty,
+                HeaderName: string.Empty,
+                Value: string.Empty,
+                RouteId: 0,
+                AbortSpamFlagged: false));
+
+        var result = SqlServerSmtpRuleProcessor.ApplyRules(request, new[] { rule });
+
+        Assert.AreEqual(1, result.GeneratedMessages.Count);
+        var generated = result.GeneratedMessages[0];
+        Assert.AreEqual("support@example.test", generated.MailFrom);
+        Assert.AreEqual("sender@example.test", generated.Recipients.Single().Address);
+        using var stream = new MemoryStream(generated.MessageData);
+        var message = MimeMessage.Load(stream);
+        Assert.AreEqual("support@example.test", message.From.Mailboxes.Single().Address);
+        Assert.AreEqual("sender@example.test", message.To.Mailboxes.Single().Address);
+        Assert.AreEqual("Auto reply", message.Subject);
+        Assert.AreEqual("Thanks for the message.", (message.TextBody ?? string.Empty).TrimEnd('\r', '\n'));
+        Assert.AreEqual("auto-replied", message.Headers["Auto-Submitted"]);
+        Assert.AreEqual("1", message.Headers["X-hMailServer-LoopCount"]);
+    }
+
+    [TestMethod]
+    public void ApplyRules_ReplySkipsAutoSubmittedMessages()
+    {
+        var request = CreateRequest("Subject: Needs reply\r\nAuto-Submitted: auto-generated\r\n\r\nOriginal body\r\n");
+        var rule = CreateRule(
+            criteria: new SmtpRuleCriterion(
+                Id: 72,
+                UsePredefinedField: true,
+                PredefinedField: SmtpRuleCriteriaField.Subject,
+                HeaderName: string.Empty,
+                MatchType: SmtpRuleMatchType.Contains,
+                MatchValue: "reply"),
+            actions: new SmtpRuleAction(
+                Id: 73,
+                Type: SmtpRuleActionType.Reply,
+                SortOrder: 1,
+                ImapFolder: string.Empty,
+                Subject: "Auto reply",
+                FromName: "Support",
+                FromAddress: "support@example.test",
+                To: string.Empty,
+                Body: "Thanks for the message.",
+                FileName: string.Empty,
+                ScriptFunction: string.Empty,
+                HeaderName: string.Empty,
+                Value: string.Empty,
+                RouteId: 0,
+                AbortSpamFlagged: false));
+
+        var result = SqlServerSmtpRuleProcessor.ApplyRules(request, new[] { rule });
+
+        Assert.AreEqual(0, result.GeneratedMessages.Count);
+    }
+
+    [TestMethod]
     public void ApplyRules_CreateCopyCopiesCurrentRecipientsAndSetsCopyRuleHeader()
     {
         var request = CreateRequest(

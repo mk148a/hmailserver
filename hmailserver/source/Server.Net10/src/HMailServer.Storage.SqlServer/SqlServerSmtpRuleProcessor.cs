@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using HMailServer.Core.Abstractions;
 using Microsoft.Data.SqlClient;
 using MimeKit;
+using MimeKit.Utils;
 
 namespace HMailServer.Storage.SqlServer;
 
@@ -169,6 +170,14 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
                                     request.MailFrom,
                                     forwardRecipients,
                                     context.CreateGeneratedMessageData()));
+                        }
+
+                        break;
+
+                    case SmtpRuleActionType.Reply:
+                        if (context.TryCreateReply(action, ruleLoopLimit, out var replyMessage))
+                        {
+                            generatedMessages.Add(replyMessage);
                         }
 
                         break;
@@ -532,6 +541,53 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
         public bool CanGenerate(int ruleLoopLimit) =>
             ruleLoopLimit <= 0 || GetRuleLoopCount() < ruleLoopLimit;
 
+        public bool TryCreateReply(
+            SmtpRuleAction action,
+            int ruleLoopLimit,
+            out SmtpRuleGeneratedMessage generatedMessage)
+        {
+            generatedMessage = default!;
+            if (!CanGenerate(ruleLoopLimit) || IsAutoSubmitted())
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(_request.MailFrom) ||
+                !TryCreateRuleRecipients(_request.MailFrom, out var replyRecipients))
+            {
+                return false;
+            }
+
+            var reply = new MimeMessage
+            {
+                MessageId = MimeUtils.GenerateMessageId(),
+                Date = DateTimeOffset.UtcNow,
+                Subject = action.Subject ?? string.Empty,
+                Body = new TextPart("plain") { Text = action.Body ?? string.Empty }
+            };
+
+            if (TryCreateMailbox(action.FromName, action.FromAddress, out var fromAddress))
+            {
+                reply.From.Add(fromAddress);
+            }
+
+            if (TryCreateMailbox(string.Empty, replyRecipients[0].Address, out var toAddress))
+            {
+                reply.To.Add(toAddress);
+            }
+
+            SetHeader(reply, "Auto-Submitted", "auto-replied");
+            SetHeader(reply, RuleLoopCountHeader, (GetRuleLoopCount() + 1).ToString(CultureInfo.InvariantCulture));
+
+            using var output = new MemoryStream();
+            reply.WriteTo(output);
+            generatedMessage = new SmtpRuleGeneratedMessage(
+                string.IsNullOrWhiteSpace(action.FromAddress) ? string.Empty : action.FromAddress.Trim(),
+                replyRecipients,
+                output.ToArray());
+            return true;
+        }
+
         public void SetHeader(
             string headerName,
             string value)
@@ -584,6 +640,35 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
             return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var loopCount)
                 ? loopCount
                 : 0;
+        }
+
+        private bool IsAutoSubmitted()
+        {
+            var value = GetHeader("Auto-Submitted");
+            return !string.IsNullOrWhiteSpace(value) &&
+                   !string.Equals(value.Trim(), "no", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryCreateMailbox(
+            string displayName,
+            string address,
+            out MailboxAddress mailbox)
+        {
+            mailbox = default!;
+            if (string.IsNullOrWhiteSpace(address))
+            {
+                return false;
+            }
+
+            try
+            {
+                mailbox = new MailboxAddress(displayName ?? string.Empty, address.Trim());
+                return true;
+            }
+            catch (ParseException)
+            {
+                return false;
+            }
         }
 
         private static void SetHeader(

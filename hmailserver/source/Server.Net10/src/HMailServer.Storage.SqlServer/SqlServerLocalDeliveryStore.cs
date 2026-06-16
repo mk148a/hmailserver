@@ -279,7 +279,10 @@ VALUES
 
         if (result.DropMessage)
         {
-            return new AccountRuleApplicationResult(DropMessage: true, MessageSize: 0);
+            return new AccountRuleApplicationResult(
+                DropMessage: true,
+                MessageSize: 0,
+                GeneratedMessages: result.GeneratedMessages);
         }
 
         if (!ReferenceEquals(result.MessageData, messageData))
