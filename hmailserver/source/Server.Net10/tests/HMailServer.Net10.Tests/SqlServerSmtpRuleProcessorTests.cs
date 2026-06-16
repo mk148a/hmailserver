@@ -330,6 +330,101 @@ public sealed class SqlServerSmtpRuleProcessorTests
     }
 
     [TestMethod]
+    public void ApplyRules_ScriptFunctionExecutorCanMutateMessage()
+    {
+        var request = CreateRequest("Subject: Script\r\n\r\nBody\r\n");
+        SmtpRuleScriptExecutionRequest? capturedRequest = null;
+        var executor = new FakeScriptExecutor(scriptRequest =>
+        {
+            capturedRequest = scriptRequest;
+            using var input = new MemoryStream(scriptRequest.MessageData);
+            var message = MimeMessage.Load(input);
+            message.Headers.Add("X-Script-Function", scriptRequest.FunctionName);
+            using var output = new MemoryStream();
+            message.WriteTo(output);
+            return SmtpRuleScriptExecutionResult.Continue(output.ToArray());
+        });
+        var rule = CreateRule(
+            criteria: new SmtpRuleCriterion(
+                Id: 74,
+                UsePredefinedField: true,
+                PredefinedField: SmtpRuleCriteriaField.Subject,
+                HeaderName: string.Empty,
+                MatchType: SmtpRuleMatchType.Contains,
+                MatchValue: "Script"),
+            actions: new SmtpRuleAction(
+                Id: 75,
+                Type: SmtpRuleActionType.ScriptFunction,
+                SortOrder: 1,
+                ImapFolder: string.Empty,
+                Subject: string.Empty,
+                FromName: string.Empty,
+                FromAddress: string.Empty,
+                To: string.Empty,
+                Body: string.Empty,
+                FileName: string.Empty,
+                ScriptFunction: "Rule_Custom",
+                HeaderName: string.Empty,
+                Value: string.Empty,
+                RouteId: 0,
+                AbortSpamFlagged: false));
+
+        var result = SqlServerSmtpRuleProcessor.ApplyRules(
+            request,
+            new[] { rule },
+            scriptExecutor: executor);
+
+        Assert.IsTrue(result.Accepted);
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual("Rule_Custom", capturedRequest.FunctionName);
+        Assert.AreEqual(1, capturedRequest.RuleId);
+        Assert.AreEqual("sender@example.test", capturedRequest.MailFrom);
+        using var stream = new MemoryStream(result.MessageData);
+        var message = MimeMessage.Load(stream);
+        Assert.AreEqual("Rule_Custom", message.Headers["X-Script-Function"]);
+    }
+
+    [TestMethod]
+    public void ApplyRules_ScriptFunctionFailureRejectsMessage()
+    {
+        var request = CreateRequest("Subject: Script\r\n\r\nBody\r\n");
+        var executor = new FakeScriptExecutor(_ =>
+            SmtpRuleScriptExecutionResult.Failure("550 blocked by script"));
+        var rule = CreateRule(
+            criteria: new SmtpRuleCriterion(
+                Id: 76,
+                UsePredefinedField: true,
+                PredefinedField: SmtpRuleCriteriaField.Subject,
+                HeaderName: string.Empty,
+                MatchType: SmtpRuleMatchType.Contains,
+                MatchValue: "Script"),
+            actions: new SmtpRuleAction(
+                Id: 77,
+                Type: SmtpRuleActionType.ScriptFunction,
+                SortOrder: 1,
+                ImapFolder: string.Empty,
+                Subject: string.Empty,
+                FromName: string.Empty,
+                FromAddress: string.Empty,
+                To: string.Empty,
+                Body: string.Empty,
+                FileName: string.Empty,
+                ScriptFunction: "Rule_Block",
+                HeaderName: string.Empty,
+                Value: string.Empty,
+                RouteId: 0,
+                AbortSpamFlagged: false));
+
+        var result = SqlServerSmtpRuleProcessor.ApplyRules(
+            request,
+            new[] { rule },
+            scriptExecutor: executor);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("550 blocked by script", result.FailureResponse);
+    }
+
+    [TestMethod]
     public void ApplyRules_CreateCopyCopiesCurrentRecipientsAndSetsCopyRuleHeader()
     {
         var request = CreateRequest(
@@ -523,4 +618,19 @@ public sealed class SqlServerSmtpRuleProcessorTests
             Value: value,
             RouteId: 0,
             AbortSpamFlagged: false);
+
+    private sealed class FakeScriptExecutor : ISmtpRuleScriptExecutor
+    {
+        private readonly Func<SmtpRuleScriptExecutionRequest, SmtpRuleScriptExecutionResult> _execute;
+
+        public FakeScriptExecutor(Func<SmtpRuleScriptExecutionRequest, SmtpRuleScriptExecutionResult> execute)
+        {
+            _execute = execute;
+        }
+
+        public SmtpRuleScriptExecutionResult Execute(
+            SmtpRuleScriptExecutionRequest request,
+            CancellationToken cancellationToken) =>
+            _execute(request);
+    }
 }

@@ -70,13 +70,23 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly SmtpRuleProcessorOptions _options;
+    private readonly ISmtpRuleScriptExecutor? _scriptExecutor;
 
     public SqlServerSmtpRuleProcessor(
         SqlServerConnectionFactory connectionFactory,
         SmtpRuleProcessorOptions? options = null)
+        : this(connectionFactory, options, scriptExecutor: null)
+    {
+    }
+
+    public SqlServerSmtpRuleProcessor(
+        SqlServerConnectionFactory connectionFactory,
+        SmtpRuleProcessorOptions? options,
+        ISmtpRuleScriptExecutor? scriptExecutor)
     {
         _connectionFactory = connectionFactory;
         _options = options ?? new SmtpRuleProcessorOptions();
+        _scriptExecutor = scriptExecutor;
         ArgumentOutOfRangeException.ThrowIfNegative(_options.RuleLoopLimit);
     }
 
@@ -87,7 +97,7 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
         ArgumentNullException.ThrowIfNull(request);
 
         var rules = await LoadRulesForAccountAsync(accountId: 0, cancellationToken).ConfigureAwait(false);
-        return ApplyRules(request, rules, cancellationToken, _options.RuleLoopLimit);
+        return ApplyRules(request, rules, cancellationToken, _options.RuleLoopLimit, _scriptExecutor);
     }
 
     public async ValueTask<SmtpRuleProcessingResult> ProcessAccountAsync(
@@ -99,14 +109,16 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
         ArgumentNullException.ThrowIfNull(request);
 
         var rules = await LoadRulesForAccountAsync(accountId, cancellationToken).ConfigureAwait(false);
-        return ApplyRules(request, rules, cancellationToken, _options.RuleLoopLimit);
+        return ApplyRules(request, rules, cancellationToken, _options.RuleLoopLimit, _scriptExecutor, accountId);
     }
 
     public static SmtpRuleProcessingResult ApplyRules(
         SmtpReceiveRequest request,
         IReadOnlyList<SmtpRuleDefinition> rules,
         CancellationToken cancellationToken = default,
-        int ruleLoopLimit = 5)
+        int ruleLoopLimit = 5,
+        ISmtpRuleScriptExecutor? scriptExecutor = null,
+        int accountId = 0)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(rules);
@@ -151,6 +163,42 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
 
                     case SmtpRuleActionType.SetHeaderValue:
                         context.SetHeader(action.HeaderName, action.Value);
+                        break;
+
+                    case SmtpRuleActionType.ScriptFunction:
+                        if (scriptExecutor is not null &&
+                            !string.IsNullOrWhiteSpace(action.ScriptFunction))
+                        {
+                            var scriptResult = scriptExecutor.Execute(
+                                new SmtpRuleScriptExecutionRequest(
+                                    action.ScriptFunction,
+                                    rule.Id,
+                                    rule.Name,
+                                    accountId,
+                                    request.MailFrom,
+                                    request.Recipients,
+                                    context.GetMessageData()),
+                                cancellationToken);
+                            if (!scriptResult.Accepted)
+                            {
+                                return SmtpRuleProcessingResult.Failure(
+                                    string.IsNullOrWhiteSpace(scriptResult.FailureResponse)
+                                        ? "451 Requested action aborted: local error in processing"
+                                        : scriptResult.FailureResponse,
+                                    scriptResult.MessageData ?? context.GetMessageData());
+                            }
+
+                            if (scriptResult.MessageData is not null)
+                            {
+                                context.ReplaceMessageData(scriptResult.MessageData);
+                            }
+
+                            if (scriptResult.DropMessage)
+                            {
+                                dropMessage = true;
+                            }
+                        }
+
                         break;
 
                     case SmtpRuleActionType.MoveToImapFolder:
@@ -486,6 +534,7 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
     private sealed class RuleMessageContext
     {
         private readonly SmtpReceiveRequest _request;
+        private byte[]? _messageDataOverride;
         private MimeMessage? _message;
         private bool _messageChanged;
 
@@ -521,7 +570,7 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
                 SmtpRuleCriteriaField.Cc => _message?.Cc.ToString() ?? string.Empty,
                 SmtpRuleCriteriaField.Subject => _message?.Subject ?? string.Empty,
                 SmtpRuleCriteriaField.Body => string.Concat(_message?.TextBody ?? string.Empty, _message?.HtmlBody ?? string.Empty),
-                SmtpRuleCriteriaField.MessageSize => _request.MessageData.LongLength.ToString(CultureInfo.InvariantCulture),
+                SmtpRuleCriteriaField.MessageSize => GetMessageData().LongLength.ToString(CultureInfo.InvariantCulture),
                 SmtpRuleCriteriaField.RecipientList => string.Join(';', _request.Recipients.Select(static recipient => recipient.Address)),
                 SmtpRuleCriteriaField.DeliveryAttempts => "1",
                 _ => string.Empty
@@ -607,11 +656,26 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
             _messageChanged = true;
         }
 
+        public void ReplaceMessageData(byte[] messageData)
+        {
+            _messageDataOverride = messageData;
+            _messageChanged = false;
+            try
+            {
+                using var stream = new MemoryStream(messageData, writable: false);
+                _message = MimeMessage.Load(stream);
+            }
+            catch (FormatException)
+            {
+                _message = null;
+            }
+        }
+
         public byte[] GetMessageData()
         {
             if (!_messageChanged || _message is null)
             {
-                return _request.MessageData;
+                return _messageDataOverride ?? _request.MessageData;
             }
 
             using var output = new MemoryStream();
