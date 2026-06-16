@@ -1,81 +1,26 @@
-using System.Data;
 using HMailServer.Core.Abstractions;
-using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
 public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 {
-    public const string InsertQueuedMessageSql = """
-INSERT INTO hm_messages
-(
-    messageaccountid,
-    messagefolderid,
-    messagefilename,
-    messagetype,
-    messagefrom,
-    messagesize,
-    messagecurnooftries,
-    messagenexttrytime,
-    messageflags,
-    messagecreatetime,
-    messagelocked,
-    messageuid
-)
-OUTPUT INSERTED.messageid
-VALUES
-(
-    0,
-    0,
-    @MessageFileName,
-    1,
-    @MessageFrom,
-    @MessageSize,
-    0,
-    CONVERT(datetime, '1901-01-01', 120),
-    @MessageFlags,
-    @MessageCreateTime,
-    1,
-    0
-);
-""";
+    public const string InsertQueuedMessageSql = SqlServerSmtpQueueWriter.InsertQueuedMessageSql;
 
-    public const string InsertRecipientSql = """
-INSERT INTO hm_messagerecipients
-(
-    recipientmessageid,
-    recipientaddress,
-    recipientlocalaccountid,
-    recipientoriginaladdress
-)
-VALUES
-(
-    @MessageId,
-    @RecipientAddress,
-    @LocalAccountId,
-    @OriginalAddress
-);
-""";
+    public const string InsertRecipientSql = SqlServerSmtpQueueWriter.InsertRecipientSql;
 
-    public const string UnlockQueuedMessageSql = """
-UPDATE hm_messages
-SET messagelocked = 0
-WHERE
-    messageid = @MessageId
-    AND messagetype = 1;
-""";
+    public const string UnlockQueuedMessageSql = SqlServerSmtpQueueWriter.UnlockQueuedMessageSql;
 
-    private const byte RecentFlag = 32;
-
-    private readonly SqlServerConnectionFactory _connectionFactory;
-    private readonly MessageFilePathResolver _pathResolver;
+    private readonly SqlServerSmtpQueueWriter _queueWriter;
+    private readonly ISmtpRuleProcessor? _ruleProcessor;
 
     public SqlServerSmtpMessageReceiver(
         SqlServerConnectionFactory connectionFactory,
-        MessageFilePathResolver pathResolver)
+        MessageFilePathResolver pathResolver,
+        ISmtpRuleProcessor? ruleProcessor = null,
+        SqlServerSmtpQueueWriter? queueWriter = null)
     {
-        _connectionFactory = connectionFactory;
-        _pathResolver = pathResolver;
+        _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
+        _ruleProcessor = ruleProcessor;
     }
 
     public async ValueTask<SmtpReceiveResult> ReceiveAsync(
@@ -89,126 +34,66 @@ WHERE
             return SmtpReceiveResult.Failure("554 No valid recipients");
         }
 
-        var messageFileName = Guid.NewGuid().ToString("N") + ".eml";
-        var messagePath = _pathResolver.Resolve(
-            messageFileName,
-            accountId: 0,
-            folderId: 0,
-            accountAddress: null);
-        if (messagePath is null)
+        if (_ruleProcessor is not null)
         {
-            return SmtpReceiveResult.Failure("451 Requested action aborted: local error in processing");
-        }
+            var ruleResult = await _ruleProcessor.ProcessAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!ruleResult.Accepted)
+            {
+                return SmtpReceiveResult.Failure(
+                    string.IsNullOrWhiteSpace(ruleResult.FailureResponse)
+                        ? "451 Requested action aborted: local error in processing"
+                        : ruleResult.FailureResponse);
+            }
 
-        var directory = Path.GetDirectoryName(messagePath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
+            if (ruleResult.DropMessage)
+            {
+                await EnqueueGeneratedMessagesAsync(ruleResult, request.ReceivedUtc, cancellationToken).ConfigureAwait(false);
+                return SmtpReceiveResult.Success();
+            }
 
-        await File.WriteAllBytesAsync(messagePath, request.MessageData, cancellationToken).ConfigureAwait(false);
+            await EnqueueGeneratedMessagesAsync(ruleResult, request.ReceivedUtc, cancellationToken).ConfigureAwait(false);
+            request = request with { MessageData = ruleResult.MessageData };
+        }
 
         try
         {
-            await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-            await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                var messageId = await InsertQueuedMessageAsync(
-                    connection,
-                    transaction,
-                    request,
-                    messageFileName,
-                    cancellationToken).ConfigureAwait(false);
-                foreach (var recipient in request.Recipients)
-                {
-                    await InsertRecipientAsync(
-                        connection,
-                        transaction,
-                        messageId,
-                        recipient,
-                        cancellationToken).ConfigureAwait(false);
-                }
-
-                await UnlockQueuedMessageAsync(connection, transaction, messageId, cancellationToken).ConfigureAwait(false);
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-                return SmtpReceiveResult.Success();
-            }
-            catch
-            {
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-                throw;
-            }
+            await _queueWriter
+                .EnqueueAsync(
+                    new SmtpQueueWriteRequest(
+                        request.MailFrom,
+                        request.Recipients,
+                        request.MessageData,
+                        request.ReceivedUtc),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return SmtpReceiveResult.Success();
         }
         catch (OperationCanceledException)
         {
-            TryDelete(messagePath);
             throw;
         }
         catch (Exception)
         {
-            TryDelete(messagePath);
             return SmtpReceiveResult.Failure("451 Requested action aborted: local error in processing");
         }
     }
 
-    private static async ValueTask<long> InsertQueuedMessageAsync(
-        SqlConnection connection,
-        SqlTransaction transaction,
-        SmtpReceiveRequest request,
-        string messageFileName,
+    private async ValueTask EnqueueGeneratedMessagesAsync(
+        SmtpRuleProcessingResult ruleResult,
+        DateTimeOffset receivedUtc,
         CancellationToken cancellationToken)
     {
-        await using var command = new SqlCommand(InsertQueuedMessageSql, connection, transaction);
-        command.Parameters.Add("@MessageFileName", SqlDbType.NVarChar, 255).Value = messageFileName;
-        command.Parameters.Add("@MessageFrom", SqlDbType.NVarChar, 255).Value = request.MailFrom;
-        command.Parameters.Add("@MessageSize", SqlDbType.BigInt).Value = request.MessageData.LongLength;
-        command.Parameters.Add("@MessageFlags", SqlDbType.TinyInt).Value = RecentFlag;
-        command.Parameters.Add("@MessageCreateTime", SqlDbType.DateTime).Value = request.ReceivedUtc.UtcDateTime;
-        var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-        return Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
-    }
-
-    private static async ValueTask InsertRecipientAsync(
-        SqlConnection connection,
-        SqlTransaction transaction,
-        long messageId,
-        SmtpResolvedRecipient recipient,
-        CancellationToken cancellationToken)
-    {
-        await using var command = new SqlCommand(InsertRecipientSql, connection, transaction);
-        command.Parameters.Add("@MessageId", SqlDbType.BigInt).Value = messageId;
-        command.Parameters.Add("@RecipientAddress", SqlDbType.NVarChar, 255).Value = recipient.Address;
-        command.Parameters.Add("@LocalAccountId", SqlDbType.Int).Value = recipient.LocalAccountId;
-        command.Parameters.Add("@OriginalAddress", SqlDbType.NVarChar, 255).Value = recipient.OriginalAddress;
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    private static async ValueTask UnlockQueuedMessageAsync(
-        SqlConnection connection,
-        SqlTransaction transaction,
-        long messageId,
-        CancellationToken cancellationToken)
-    {
-        await using var command = new SqlCommand(UnlockQueuedMessageSql, connection, transaction);
-        command.Parameters.Add("@MessageId", SqlDbType.BigInt).Value = messageId;
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
+        foreach (var message in ruleResult.GeneratedMessages)
         {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
+            await _queueWriter
+                .EnqueueAsync(
+                    new SmtpQueueWriteRequest(
+                        message.MailFrom,
+                        message.Recipients,
+                        message.MessageData,
+                        receivedUtc),
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 }
