@@ -39,6 +39,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SMTP `MoveToIMAPFolder` rule action for local delivery resolves destinations through the IMAP mailbox store, moves the per-account/public-folder file when needed, and allocates UID in the rule-selected folder.
 - Done: SMTP `Forward` and `CreateCopy` rule actions submit generated messages through the atomic queue writer, increment `X-hMailServer-LoopCount`, honor the rule loop limit, and preserve generated-message recipients.
 - Done: SMTP `SendUsingRoute` and `BindToAddress` global rule actions persist delivery metadata, force remote recipients through the selected route, and bind remote SMTP sockets to the rule-selected local IP address.
+- Done: SMTP `Reply` rule action generates auto-replied queue messages, skips auto-submitted sources, increments rule loop count, and works for global and account-level rules.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -85,7 +86,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `MoveToIMAPFolder` for local delivery using rule-selected existing private/public IMAP folders.
    - Done: `Forward` and `CreateCopy` queue submissions with generated-message loop-count protection.
    - Done: `SendUsingRoute` and `BindToAddress` delivery metadata for global rules, including forced route target resolution and local socket bind for remote SMTP.
-   - Remaining: remaining rule action (`Reply`) and scripting.
+   - Done: `Reply` generated response action with Auto-Submitted and rule loop protection.
+   - Remaining: scripting.
    - Delivery queue worker remaining: delivery status observability and richer bounce templates.
 
 4. POP3 and external fetch.
@@ -114,4 +116,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Implement the remaining non-script SMTP rule action: `Reply`.
+Implement SMTP rule scripting parity.
