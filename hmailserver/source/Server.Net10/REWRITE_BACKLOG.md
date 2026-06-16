@@ -40,6 +40,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SMTP `Forward` and `CreateCopy` rule actions submit generated messages through the atomic queue writer, increment `X-hMailServer-LoopCount`, honor the rule loop limit, and preserve generated-message recipients.
 - Done: SMTP `SendUsingRoute` and `BindToAddress` global rule actions persist delivery metadata, force remote recipients through the selected route, and bind remote SMTP sockets to the rule-selected local IP address.
 - Done: SMTP `Reply` rule action generates auto-replied queue messages, skips auto-submitted sources, increments rule loop count, and works for global and account-level rules.
+- Done: SMTP `ScriptFunction` rule action plumbing now calls a pluggable executor boundary that can mutate message bytes, drop a message, or reject processing.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -87,7 +88,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `Forward` and `CreateCopy` queue submissions with generated-message loop-count protection.
    - Done: `SendUsingRoute` and `BindToAddress` delivery metadata for global rules, including forced route target resolution and local socket bind for remote SMTP.
    - Done: `Reply` generated response action with Auto-Submitted and rule loop protection.
-   - Remaining: scripting.
+   - Done: `ScriptFunction` executor boundary inside the rule processor.
+   - Remaining: Windows-only isolated VBScript/JScript host, legacy script object model, and event scripting hooks.
    - Delivery queue worker remaining: delivery status observability and richer bounce templates.
 
 4. POP3 and external fetch.
@@ -116,4 +118,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Implement SMTP rule scripting parity.
+Implement the Windows-only isolated VBScript/JScript host behind the SMTP rule script executor boundary.
