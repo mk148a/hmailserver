@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>HMailServer.Security</AssemblyName>
+    <RootNamespace>HMailServer.Security</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\Server\Common\Util\BlowFish.h2" LogicalName="HMailServer.Security.Legacy.BlowFish.h2" />
+  </ItemGroup>
+</Project>

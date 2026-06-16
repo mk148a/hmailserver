@@ -100,7 +100,13 @@ namespace HM
          { 
             if (write_result) 
                timer.cancel(); 
+
+            if (timer_result && !write_result)
+               socket_.cancel();
          } 
+
+         if (!write_result)
+            return false;
 
          // Check if an error has been set.
          if (*write_result) 
@@ -139,7 +145,13 @@ namespace HM
          { 
             if (read_result) 
                timer.cancel(); 
+
+            if (timer_result && !read_result)
+               socket_.cancel();
          } 
+
+         if (!read_result)
+            return false;
 
          // Check if an error has been set.
          if (*read_result) 

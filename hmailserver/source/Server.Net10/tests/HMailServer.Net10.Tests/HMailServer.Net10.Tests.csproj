@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>HMailServer.Net10.Tests</AssemblyName>
+    <RootNamespace>HMailServer.Net10.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.2.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.2.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\HMailServer.Indexing\HMailServer.Indexing.csproj" />
+    <ProjectReference Include="..\..\src\HMailServer.Delivery\HMailServer.Delivery.csproj" />
+    <ProjectReference Include="..\..\src\HMailServer.Protocols\HMailServer.Protocols.csproj" />
+    <ProjectReference Include="..\..\src\HMailServer.Security\HMailServer.Security.csproj" />
+    <ProjectReference Include="..\..\src\HMailServer.Search.SqlServer\HMailServer.Search.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\HMailServer.Storage.SqlServer\HMailServer.Storage.SqlServer.csproj" />
+  </ItemGroup>
+</Project>

@@ -85,8 +85,9 @@ namespace HM
             break;
 
          bArray.integer = htonl(static_cast<uint32_t>(pBuf->GetSize()));
-         // Send the request.
-         if (!commandConnection.Write(to_string(bArray.byte[0]) + to_string(bArray.byte[1]) + to_string(bArray.byte[2]) + to_string(bArray.byte[3])))
+         ByteBuffer chunkSize;
+         chunkSize.Add(bArray.byte, sizeof(bArray.byte));
+         if (!commandConnection.Write(chunkSize))
             return VirusScanningResult("ClamAVVirusScanner::Scan", "Unable to write packet size to stream port.");
 
          if (!commandConnection.Write(*pBuf))
@@ -94,7 +95,9 @@ namespace HM
       }
 
       bArray.integer = 0;
-      if (!commandConnection.Write(to_string(bArray.byte[0]) + to_string(bArray.byte[1]) + to_string(bArray.byte[2]) + to_string(bArray.byte[3])))
+      ByteBuffer endOfStream;
+      endOfStream.Add(bArray.byte, sizeof(bArray.byte));
+      if (!commandConnection.Write(endOfStream))
          return VirusScanningResult("ClamAVVirusScanner::Scan", "Unable to write end of stream.");
 
       AnsiString readData;

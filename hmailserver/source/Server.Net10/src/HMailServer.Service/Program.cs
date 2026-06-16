@@ -1,0 +1,253 @@
+using HMailServer.Service;
+using System.Net;
+using HMailServer.Core.Abstractions;
+using HMailServer.Delivery;
+using HMailServer.Indexing;
+using HMailServer.Protocols.Imap;
+using HMailServer.Protocols.Smtp;
+using HMailServer.Search.SqlServer;
+using HMailServer.Security;
+using HMailServer.Storage.SqlServer;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using System.Security.Cryptography.X509Certificates;
+
+var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddWindowsService(options => options.ServiceName = "hMailServer");
+
+var connectionString = builder.Configuration["ConnectionStrings:hMailServer"]
+    ?? builder.Configuration["HMAILSERVER_SQLSERVER_CONNECTION"]
+    ?? throw new InvalidOperationException("Missing SQL Server connection string.");
+
+var dataDirectory = builder.Configuration["DataDirectory"]
+    ?? builder.Configuration["HMAILSERVER_DATA_DIRECTORY"]
+    ?? throw new InvalidOperationException("Missing hMailServer data directory.");
+
+var leaseOwner = $"{Environment.MachineName}-{Environment.ProcessId}";
+var imapOptions = new ImapTcpListenerOptions
+{
+    Enabled = ReadBool(builder.Configuration["Imap:Enabled"] ?? builder.Configuration["HMAILSERVER_IMAP_ENABLED"], defaultValue: false),
+    ListenAddress = IPAddress.Parse(builder.Configuration["Imap:BindAddress"] ?? builder.Configuration["HMAILSERVER_IMAP_BIND_ADDRESS"] ?? "0.0.0.0"),
+    Port = ReadInt(builder.Configuration["Imap:Port"] ?? builder.Configuration["HMAILSERVER_IMAP_PORT"], defaultValue: 143),
+    Backlog = ReadInt(builder.Configuration["Imap:Backlog"] ?? builder.Configuration["HMAILSERVER_IMAP_BACKLOG"], defaultValue: 512),
+    MaxConcurrentConnections = ReadInt(
+        builder.Configuration["Imap:MaxConcurrentConnections"] ?? builder.Configuration["HMAILSERVER_IMAP_MAX_CONNECTIONS"],
+        defaultValue: 1000)
+};
+var smtpOptions = new SmtpTcpListenerOptions
+{
+    Enabled = ReadBool(builder.Configuration["Smtp:Enabled"] ?? builder.Configuration["HMAILSERVER_SMTP_ENABLED"], defaultValue: false),
+    ListenAddress = IPAddress.Parse(builder.Configuration["Smtp:BindAddress"] ?? builder.Configuration["HMAILSERVER_SMTP_BIND_ADDRESS"] ?? "0.0.0.0"),
+    Port = ReadInt(builder.Configuration["Smtp:Port"] ?? builder.Configuration["HMAILSERVER_SMTP_PORT"], defaultValue: 25),
+    Backlog = ReadInt(builder.Configuration["Smtp:Backlog"] ?? builder.Configuration["HMAILSERVER_SMTP_BACKLOG"], defaultValue: 512),
+    MaxConcurrentConnections = ReadInt(
+        builder.Configuration["Smtp:MaxConcurrentConnections"] ?? builder.Configuration["HMAILSERVER_SMTP_MAX_CONNECTIONS"],
+        defaultValue: 1000)
+};
+var smtpSessionOptions = new SmtpSessionOptions
+{
+    ServerName = builder.Configuration["Smtp:ServerName"]
+        ?? builder.Configuration["HMAILSERVER_SMTP_SERVER_NAME"]
+        ?? Environment.MachineName,
+    MaxMessageBytes = ReadLong(
+        builder.Configuration["Smtp:MaxMessageBytes"] ?? builder.Configuration["HMAILSERVER_SMTP_MAX_MESSAGE_BYTES"],
+        defaultValue: 20L * 1024 * 1024),
+    RequireTlsForAuthentication = ReadBool(
+        builder.Configuration["Smtp:RequireTlsForAuthentication"] ?? builder.Configuration["HMAILSERVER_SMTP_REQUIRE_TLS_FOR_AUTH"],
+        defaultValue: false)
+};
+var smtpTlsCertificate = LoadCertificate(
+    builder.Configuration["Smtp:TlsCertificatePath"] ?? builder.Configuration["HMAILSERVER_SMTP_TLS_CERTIFICATE_PATH"],
+    builder.Configuration["Smtp:TlsCertificatePassword"] ?? builder.Configuration["HMAILSERVER_SMTP_TLS_CERTIFICATE_PASSWORD"]);
+var imapAccountId = ReadNullableInt(builder.Configuration["Imap:AccountId"] ?? builder.Configuration["HMAILSERVER_IMAP_ACCOUNT_ID"]);
+var imapFolderId = ReadNullableInt(builder.Configuration["Imap:FolderId"] ?? builder.Configuration["HMAILSERVER_IMAP_FOLDER_ID"]);
+var mailboxOptions = new SqlServerImapMailboxStoreOptions
+{
+    HierarchyDelimiter = builder.Configuration["Imap:HierarchyDelimiter"]
+        ?? builder.Configuration["HMAILSERVER_IMAP_HIERARCHY_DELIMITER"]
+        ?? ".",
+    PublicFolderName = builder.Configuration["Imap:PublicFolderName"]
+        ?? builder.Configuration["HMAILSERVER_IMAP_PUBLIC_FOLDER_NAME"]
+        ?? "#Public",
+    UseAcl = ReadBool(builder.Configuration["Imap:UseAcl"] ?? builder.Configuration["HMAILSERVER_IMAP_USE_ACL"], defaultValue: true)
+};
+var idleOptions = new ImapIdlePollingOptions
+{
+    PollInterval = TimeSpan.FromMilliseconds(
+        ReadInt(builder.Configuration["Imap:IdlePollMilliseconds"] ?? builder.Configuration["HMAILSERVER_IMAP_IDLE_POLL_MS"], defaultValue: 5000))
+};
+var imapSessionOptions = new ImapSessionOptions
+{
+    RequireTlsForAuthentication = ReadBool(
+        builder.Configuration["Imap:RequireTlsForAuthentication"] ?? builder.Configuration["HMAILSERVER_IMAP_REQUIRE_TLS_FOR_AUTH"],
+        defaultValue: false)
+};
+
+if ((imapAccountId is null) != (imapFolderId is null))
+{
+    throw new InvalidOperationException("Imap:AccountId and Imap:FolderId must be provided together when a fixed preselected IMAP context is used.");
+}
+
+builder.Services.AddSingleton(new SqlServerConnectionFactory(connectionString));
+builder.Services.AddSingleton(imapOptions);
+builder.Services.AddSingleton(smtpOptions);
+builder.Services.AddSingleton(imapSessionOptions);
+builder.Services.AddSingleton(smtpSessionOptions);
+builder.Services.AddSingleton(mailboxOptions);
+builder.Services.AddSingleton(idleOptions);
+builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));
+builder.Services.AddSingleton(MessageSearchBackfillOptions.Default(leaseOwner));
+builder.Services.AddSingleton<SqlServerImapSearchPlanner>();
+builder.Services.AddSingleton<SqlServerImapSortPlanner>();
+builder.Services.AddSingleton<SqlServerFullTextSearchHealthCheck>();
+builder.Services.AddSingleton<MessageFilePathResolver>();
+builder.Services.AddSingleton<IMessageSearchIndex, SqlServerMessageSearchIndex>();
+builder.Services.AddSingleton<IMessageSortIndex, SqlServerMessageSortIndex>();
+builder.Services.AddSingleton<IImapSequenceNumberResolver, SqlServerImapSequenceNumberResolver>();
+builder.Services.AddSingleton<IImapAccountAuthenticator, SqlServerImapAccountAuthenticator>();
+builder.Services.AddSingleton<SqlServerImapMailboxStore>();
+builder.Services.AddSingleton<IImapMailboxStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
+builder.Services.AddSingleton<IImapMailboxDiscoveryStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
+builder.Services.AddSingleton<IImapAclStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
+builder.Services.AddSingleton<IImapMessageFetchStore, SqlServerImapMessageFetchStore>();
+builder.Services.AddSingleton<IImapMessageMutationStore, SqlServerImapMessageMutationStore>();
+builder.Services.AddSingleton<IImapMessageCopyStore, SqlServerImapMessageCopyStore>();
+builder.Services.AddSingleton<IImapMessageAppendStore, SqlServerImapMessageAppendStore>();
+builder.Services.AddSingleton<IImapIdleNotifier, PollingImapIdleNotifier>();
+builder.Services.AddSingleton<IImapQuotaStore, SqlServerImapQuotaStore>();
+builder.Services.AddSingleton<IImapRecentFlagStore, SqlServerImapRecentFlagStore>();
+builder.Services.AddSingleton<ISmtpMessageReceiver, SqlServerSmtpMessageReceiver>();
+builder.Services.AddSingleton<ISmtpRecipientValidator, SqlServerSmtpRecipientValidator>();
+builder.Services.AddSingleton<IDeliveryQueueLeaseStore, SqlServerDeliveryQueueLeaseStore>();
+builder.Services.AddSingleton<IDeliveryQueueMessageStore, SqlServerDeliveryQueueMessageStore>();
+builder.Services.AddSingleton<IDeliveryQueueRecipientStore, SqlServerDeliveryQueueRecipientStore>();
+builder.Services.AddSingleton<IDeliveryTargetResolver, SqlServerDeliveryTargetResolver>();
+builder.Services.AddSingleton<ILocalDeliveryStore, SqlServerLocalDeliveryStore>();
+builder.Services.AddSingleton(DeliveryBounceOptions.Default(smtpSessionOptions.ServerName));
+builder.Services.AddSingleton<IDeliveryBounceStore, SqlServerDeliveryBounceStore>();
+builder.Services.AddSingleton<IDeliveryMessageContentSource, DeliveryMessageContentSource>();
+builder.Services.AddSingleton<IDnsMxResolver, SystemDnsMxResolver>();
+builder.Services.AddSingleton(RemoteSmtpEndpointResolverOptions.Default);
+builder.Services.AddSingleton(DomainConcurrencyOptions.Default);
+builder.Services.AddSingleton<IRemoteSmtpEndpointResolver, RemoteSmtpEndpointResolver>();
+builder.Services.AddSingleton<IRemoteSmtpTransportFactory, TcpRemoteSmtpTransportFactory>();
+builder.Services.AddSingleton<IRemoteSmtpClient, SmtpRemoteDeliveryClient>();
+builder.Services.AddSingleton(RemoteDeliveryOptions.Default(smtpSessionOptions.ServerName));
+builder.Services.AddSingleton(DeliveryQueueProcessorOptions.Default(leaseOwner));
+builder.Services.AddSingleton<LocalDeliveryTargetDispatcher>();
+builder.Services.AddSingleton<RemoteDeliveryTargetDispatcher>();
+builder.Services.AddSingleton(static serviceProvider =>
+    new DomainConcurrencyDeliveryTargetDispatcher(
+        serviceProvider.GetRequiredService<RemoteDeliveryTargetDispatcher>(),
+        serviceProvider.GetRequiredService<DomainConcurrencyOptions>()));
+builder.Services.AddSingleton<IDeliveryTargetDispatcher>(static serviceProvider =>
+    new CompositeDeliveryTargetDispatcher(
+        serviceProvider.GetRequiredService<LocalDeliveryTargetDispatcher>(),
+        serviceProvider.GetRequiredService<DomainConcurrencyDeliveryTargetDispatcher>()));
+builder.Services.AddSingleton<DeliveryQueueProcessor>();
+builder.Services.AddSingleton<IImapConnectionStreamFactory, PlainImapConnectionStreamFactory>();
+builder.Services.AddSingleton<ISmtpConnectionStreamFactory>(_ =>
+    smtpTlsCertificate is null
+        ? new PlainSmtpConnectionStreamFactory()
+        : new StartTlsSmtpConnectionStreamFactory(
+            () => TlsServerAuthenticationOptionsFactory.Create(smtpTlsCertificate)));
+builder.Services.AddSingleton<IImapSessionContextProvider>(
+    new FixedImapSessionContextProvider(
+        imapAccountId is { } accountId && imapFolderId is { } folderId
+            ? new ImapSessionContext(accountId, folderId)
+            : new ImapSessionContext()));
+builder.Services.AddSingleton<IMessageSearchBackfillStore, SqlServerMessageSearchBackfillStore>();
+builder.Services.AddSingleton<IMessageSearchDocumentSource, MessageFileSearchDocumentSource>();
+builder.Services.AddSingleton<ImapSearchCommandParser>();
+builder.Services.AddSingleton<ImapSearchExecutor>();
+builder.Services.AddSingleton<ImapSearchCommandHandler>();
+builder.Services.AddSingleton<ImapSortCommandParser>();
+builder.Services.AddSingleton<ImapSortExecutor>();
+builder.Services.AddSingleton<ImapSortCommandHandler>();
+builder.Services.AddSingleton<ImapFetchCommandParser>();
+builder.Services.AddSingleton<ImapFetchCommandHandler>();
+builder.Services.AddSingleton<ImapStatusCommandParser>();
+builder.Services.AddSingleton<ImapStatusCommandHandler>();
+builder.Services.AddSingleton<ImapStoreCommandParser>();
+builder.Services.AddSingleton<ImapStoreCommandHandler>();
+builder.Services.AddSingleton<ImapExpungeCommandHandler>();
+builder.Services.AddSingleton<ImapCopyCommandParser>();
+builder.Services.AddSingleton<ImapCopyCommandHandler>();
+builder.Services.AddSingleton<ImapAppendCommandParser>();
+builder.Services.AddSingleton<ImapAppendCommandHandler>();
+builder.Services.AddSingleton<ImapAclCommandHandler>();
+builder.Services.AddSingleton<ImapQuotaCommandHandler>();
+builder.Services.AddSingleton(serviceProvider => new ImapListCommandHandler(
+    serviceProvider.GetRequiredService<IImapMailboxDiscoveryStore>(),
+    mailboxOptions.HierarchyDelimiter));
+builder.Services.AddSingleton<ImapSession>();
+builder.Services.AddSingleton<ImapTcpListener>();
+builder.Services.AddSingleton<SmtpSession>();
+builder.Services.AddSingleton<SmtpTcpListener>();
+builder.Services.AddSingleton<MessageSearchBackfillProcessor>();
+builder.Services.AddHostedService<ServerBootstrapper>();
+builder.Services.AddHostedService<MessageSearchBackfillHostedService>();
+builder.Services.AddHostedService<ImapTcpListenerHostedService>();
+builder.Services.AddHostedService<SmtpTcpListenerHostedService>();
+
+await builder.Build().RunAsync().ConfigureAwait(false);
+
+static bool ReadBool(string? value, bool defaultValue)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return defaultValue;
+    }
+
+    return bool.Parse(value);
+}
+
+static int ReadInt(string? value, int defaultValue)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return defaultValue;
+    }
+
+    return int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+}
+
+static int? ReadNullableInt(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return null;
+    }
+
+    return int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+}
+
+static long ReadLong(string? value, long defaultValue)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return defaultValue;
+    }
+
+    return long.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+}
+
+static X509Certificate2? LoadCertificate(string? path, string? password)
+{
+    if (string.IsNullOrWhiteSpace(path))
+    {
+        return null;
+    }
+
+    var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+        path,
+        password,
+        X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet,
+        loaderLimits: null);
+    if (!certificate.HasPrivateKey)
+    {
+        throw new InvalidOperationException("SMTP TLS certificate must include a private key.");
+    }
+
+    return certificate;
+}

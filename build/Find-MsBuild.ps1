@@ -1,6 +1,6 @@
 function Find-MsBuild {
     param(
-        [string]$VsWhereMinVersion = '[16.0,17.0)'
+        [string]$VsWhereMinVersion = '[16.0,18.0)'
     )
 
     $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"

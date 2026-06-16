@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>HMailServer.Core</AssemblyName>
+    <RootNamespace>HMailServer.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

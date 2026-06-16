@@ -30,8 +30,8 @@ namespace HM
       SetTimeout(calculator.Calculate(IniFileSettings::Instance()->GetSAMinTimeout(), IniFileSettings::Instance()->GetSAMaxTimeout()));
             
       message_file_ = sFile;
-	   spam_dsize_ = -1;
-	   message_size_ = -1;
+      spam_dsize_ = 0;
+      message_size_ = -1;
 
       test_completed_ = false;
    }
@@ -148,7 +148,16 @@ namespace HM
          result_ = std::shared_ptr<File>(new File);
          result_->Open(FileUtilities::GetTempFileName(), File::OTAppend);
 
-         spam_dsize_ = ParseFirstBuffer_(pBuf);
+         int parsedContentLength = ParseFirstBuffer_(pBuf);
+         if (parsedContentLength <= 0)
+         {
+            LOG_DEBUG("The response from SpamAssasin was not valid. Aborting and keeping the original message file.");
+            Cleanup_();
+            test_completed_ = true;
+            return;
+         }
+
+         spam_dsize_ = static_cast<size_t>(parsedContentLength);
       }
 
       // Append output to the file
@@ -217,6 +226,12 @@ namespace HM
       AnsiString spamAssassinHeader(pBuffer->GetCharBuffer(), headerLength);
 
       std::vector<AnsiString> headerLines = StringParser::SplitString(spamAssassinHeader, "\r\n");
+      if (headerLines.size() < 2)
+      {
+         LOG_DEBUG("The response from SpamAssasin was not valid. Aborting. Expected status and Content-Length headers.\r\n");
+         return -1;
+      }
+
       AnsiString firstLine = headerLines[0];
       AnsiString secondLine = headerLines[1];
 
@@ -252,6 +267,12 @@ namespace HM
       {
         LOG_DEBUG(Formatter::Format("The response from SpamAssasin was not valid. Aborting. Content-Length header not properly formatted. Expected: Content-Length:<value>, Got: {0}\r\n", secondLine));
 	     return -1;
+      }
+
+      if (contentLength <= 0)
+      {
+         LOG_DEBUG(Formatter::Format("The response from SpamAssasin was not valid. Aborting. Content-Length must be positive, Got: {0}\r\n", secondLine));
+         return -1;
       }
 
       // Remove the SA header lines from the result.

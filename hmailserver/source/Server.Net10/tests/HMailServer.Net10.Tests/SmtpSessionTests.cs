@@ -1,0 +1,542 @@
+using System.Text;
+using HMailServer.Core.Abstractions;
+using HMailServer.Protocols.Smtp;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+namespace HMailServer.Net10.Tests;
+
+[TestClass]
+public sealed class SmtpSessionTests
+{
+    [TestMethod]
+    public async Task RunAsync_HandlesEhloNoopRsetAndQuit()
+    {
+        await using var stream = new DuplexMemoryStream("EHLO client.example\r\nNOOP\r\nRSET\r\nQUIT\r\n");
+        var session = new SmtpSession(new SmtpSessionOptions { ServerName = "mx.example.test" });
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "220 hMailServer .NET 10 ESMTP ready\r\n");
+        StringAssert.Contains(output, "250-mx.example.test\r\n250-SIZE 20971520\r\n250 HELP\r\n");
+        StringAssert.Contains(output, "250 OK\r\n250 OK\r\n");
+        StringAssert.Contains(output, "221 mx.example.test closing connection\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_HandlesHelo()
+    {
+        await using var stream = new DuplexMemoryStream("HELO client.example\r\nQUIT\r\n");
+        var session = new SmtpSession(new SmtpSessionOptions { ServerName = "mx.example.test" });
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "250 mx.example.test\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RejectsEhloWithoutHostName()
+    {
+        await using var stream = new DuplexMemoryStream("EHLO\r\nQUIT\r\n");
+        var session = new SmtpSession();
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "501 Syntax: EHLO hostname\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_StagesMailRcptAndDataThroughReceiver()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nMAIL FROM:<sender@example.test> SIZE=18\r\nRCPT TO:<recipient@example.test>\r\nDATA\r\nSubject: Test\r\n\r\n..Body\r\n.\r\nQUIT\r\n");
+        var receiver = new FakeMessageReceiver();
+        var session = new SmtpSession(
+            new SmtpSessionOptions { ServerName = "mx.example.test" },
+            receiver);
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "250 OK\r\n250 OK\r\n");
+        StringAssert.Contains(output, "354 Start mail input; end with <CRLF>.<CRLF>\r\n");
+        StringAssert.Contains(output, "250 Queued\r\n");
+        Assert.IsNotNull(receiver.LastRequest);
+        Assert.AreEqual("client.example", receiver.LastRequest.HeloHost);
+        Assert.IsTrue(receiver.LastRequest.IsExtendedSmtp);
+        Assert.AreEqual("sender@example.test", receiver.LastRequest.MailFrom);
+        CollectionAssert.AreEqual(new[] { "recipient@example.test" }, receiver.LastRequest.Recipients.Select(static recipient => recipient.Address).ToArray());
+        Assert.AreEqual(18L, receiver.LastRequest.DeclaredSize);
+        Assert.AreEqual("Subject: Test\r\n\r\n.Body\r\n", Encoding.Latin1.GetString(receiver.LastRequest.MessageData));
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RejectsRecipientWhenValidatorRejects()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nMAIL FROM:<sender@example.test>\r\nRCPT TO:<missing@example.test>\r\nQUIT\r\n");
+        var receiver = new FakeMessageReceiver();
+        var validator = new FakeRecipientValidator(SmtpRecipientValidationResult.Reject("550 Unknown user"));
+        var session = new SmtpSession(
+            new SmtpSessionOptions(),
+            receiver,
+            validator);
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "550 Unknown user\r\n");
+        Assert.IsNull(receiver.LastRequest);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_StoresResolvedRecipientFromValidator()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nMAIL FROM:<sender@example.test>\r\nRCPT TO:<user+tag@example.test>\r\nDATA\r\nSubject: Test\r\n.\r\nQUIT\r\n");
+        var receiver = new FakeMessageReceiver();
+        var validator = new FakeRecipientValidator(
+            SmtpRecipientValidationResult.Accept(
+                new SmtpResolvedRecipient(
+                    "user@example.test",
+                    "user+tag@example.test",
+                    LocalAccountId: 42,
+                    IsLocal: true)));
+        var session = new SmtpSession(
+            new SmtpSessionOptions(),
+            receiver,
+            validator);
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        Assert.IsNotNull(receiver.LastRequest);
+        var recipient = receiver.LastRequest.Recipients.Single();
+        Assert.AreEqual("user@example.test", recipient.Address);
+        Assert.AreEqual("user+tag@example.test", recipient.OriginalAddress);
+        Assert.AreEqual(42, recipient.LocalAccountId);
+        Assert.IsTrue(recipient.IsLocal);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_StoresRouteResolvedRecipientFromValidator()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nMAIL FROM:<sender@example.test>\r\nRCPT TO:<user@route.example>\r\nDATA\r\nSubject: Test\r\n.\r\nQUIT\r\n");
+        var receiver = new FakeMessageReceiver();
+        var validator = new FakeRecipientValidator(
+            SmtpRecipientValidationResult.Accept(
+                new SmtpResolvedRecipient(
+                    "user@route.example",
+                    "user@route.example",
+                    LocalAccountId: 0,
+                    IsLocal: true,
+                    Route: new SmtpRouteResolution(
+                        RouteId: 9,
+                        DomainName: "*.route.example",
+                        TargetHost: "relay.route.example",
+                        TargetPort: 2525,
+                        ConnectionSecurity: 1,
+                        TreatRecipientAsLocal: true))));
+        var session = new SmtpSession(
+            new SmtpSessionOptions(),
+            receiver,
+            validator);
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        Assert.IsNotNull(receiver.LastRequest);
+        var recipient = receiver.LastRequest.Recipients.Single();
+        Assert.IsTrue(recipient.IsRouteRecipient);
+        Assert.IsTrue(recipient.RouteTreatsRecipientAsLocal);
+        Assert.AreEqual(9, recipient.Route?.RouteId);
+        Assert.AreEqual("relay.route.example", recipient.Route?.TargetHost);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RejectsMailWhenDeclaredSizeExceedsLimit()
+    {
+        await using var stream = new DuplexMemoryStream("EHLO client.example\r\nMAIL FROM:<sender@example.test> SIZE=11\r\nQUIT\r\n");
+        var receiver = new FakeMessageReceiver();
+        var session = new SmtpSession(
+            new SmtpSessionOptions { MaxMessageBytes = 10 },
+            receiver);
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "552 Message size exceeds fixed maximum message size\r\n");
+        Assert.IsNull(receiver.LastRequest);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RejectsDataWhenActualSizeExceedsLimitAndDrainsMessage()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nMAIL FROM:<sender@example.test>\r\nRCPT TO:<recipient@example.test>\r\nDATA\r\n123456\r\n.\r\nNOOP\r\nQUIT\r\n");
+        var receiver = new FakeMessageReceiver();
+        var session = new SmtpSession(
+            new SmtpSessionOptions { MaxMessageBytes = 5 },
+            receiver);
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "354 Start mail input; end with <CRLF>.<CRLF>\r\n");
+        StringAssert.Contains(output, "552 Message size exceeds fixed maximum message size\r\n250 OK\r\n");
+        Assert.IsNull(receiver.LastRequest);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RejectsRcptAndDataOutOfSequence()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nRCPT TO:<recipient@example.test>\r\nDATA\r\nQUIT\r\n");
+        var session = new SmtpSession();
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "503 Need MAIL command\r\n");
+        StringAssert.Contains(output, "503 Need MAIL command\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_ReturnsTemporaryFailureWhenReceiverIsNotConfigured()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nMAIL FROM:<sender@example.test>\r\nRCPT TO:<recipient@example.test>\r\nDATA\r\nSubject: Test\r\n.\r\nQUIT\r\n");
+        var session = new SmtpSession();
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "451 Requested action aborted: local error in processing\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_AuthPlainEnablesAuthenticatedRelay()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "secret");
+        await using var stream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nMAIL FROM:<user@example.test>\r\nRCPT TO:<remote@example.net>\r\nDATA\r\nSubject: Test\r\n.\r\nQUIT\r\n");
+        var receiver = new FakeMessageReceiver();
+        var validator = new AuthenticatedRelayValidator();
+        var session = new SmtpSession(
+            new SmtpSessionOptions(),
+            receiver,
+            validator,
+            new FakeAccountAuthenticator());
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "250-AUTH PLAIN LOGIN\r\n");
+        StringAssert.Contains(output, "235 Authentication successful\r\n");
+        StringAssert.Contains(output, "250 Queued\r\n");
+        Assert.IsTrue(validator.LastRequest?.SenderAuthenticated);
+        Assert.IsNotNull(receiver.LastRequest);
+        Assert.AreEqual("remote@example.net", receiver.LastRequest.Recipients.Single().Address);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_AdvertisesStartTlsWhenProviderSupportsUpgrade()
+    {
+        await using var stream = new DuplexMemoryStream("EHLO client.example\r\nQUIT\r\n");
+        var startTlsProvider = new FakeStartTlsProvider(stream.CreateContinuation("QUIT\r\n"));
+        var session = new SmtpSession(new SmtpSessionOptions { ServerName = "mx.example.test" });
+
+        await session.RunAsync(stream, startTlsProvider, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "250-STARTTLS\r\n");
+        Assert.AreEqual(0, startTlsProvider.UpgradeCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_StartTlsUpgradesStreamAndResetsHeloState()
+    {
+        await using var stream = new DuplexMemoryStream("EHLO client.example\r\nSTARTTLS\r\n");
+        var startTlsProvider = new FakeStartTlsProvider(
+            stream.CreateContinuation("MAIL FROM:<sender@example.test>\r\nEHLO secure.example\r\nQUIT\r\n"));
+        var session = new SmtpSession(new SmtpSessionOptions { ServerName = "mx.example.test" });
+
+        await session.RunAsync(stream, startTlsProvider, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "250-STARTTLS\r\n");
+        StringAssert.Contains(output, "220 Ready to start TLS\r\n");
+        StringAssert.Contains(output, "503 Send HELO/EHLO first\r\n");
+        StringAssert.Contains(output, "250-mx.example.test\r\n250-SIZE 20971520\r\n250 HELP\r\n");
+        Assert.AreEqual(1, startTlsProvider.UpgradeCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RejectsStartTlsWhenUnavailable()
+    {
+        await using var stream = new DuplexMemoryStream("STARTTLS\r\nQUIT\r\n");
+        var session = new SmtpSession(new SmtpSessionOptions { ServerName = "mx.example.test" });
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "454 TLS not available\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RequiresStartTlsBeforeAuthenticationWhenConfigured()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "secret");
+        await using var stream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nQUIT\r\n");
+        var session = new SmtpSession(
+            new SmtpSessionOptions { RequireTlsForAuthentication = true },
+            messageReceiver: null,
+            recipientValidator: null,
+            accountAuthenticator: new FakeAccountAuthenticator());
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        Assert.IsFalse(output.Contains("250-AUTH PLAIN LOGIN\r\n", StringComparison.Ordinal));
+        StringAssert.Contains(output, "530 Must issue STARTTLS first\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_AllowsAuthenticationAfterStartTlsWhenTlsIsRequired()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "secret");
+        await using var stream = new DuplexMemoryStream("EHLO client.example\r\nSTARTTLS\r\n");
+        var startTlsProvider = new FakeStartTlsProvider(
+            stream.CreateContinuation($"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nQUIT\r\n"));
+        var session = new SmtpSession(
+            new SmtpSessionOptions { RequireTlsForAuthentication = true },
+            messageReceiver: null,
+            recipientValidator: null,
+            accountAuthenticator: new FakeAccountAuthenticator());
+
+        await session.RunAsync(stream, startTlsProvider, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "250-STARTTLS\r\n");
+        StringAssert.Contains(output, "250-AUTH PLAIN LOGIN\r\n");
+        StringAssert.Contains(output, "235 Authentication successful\r\n");
+        Assert.AreEqual(1, startTlsProvider.UpgradeCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_AuthLoginAuthenticatesWithChallengeFlow()
+    {
+        await using var stream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH LOGIN\r\n{EncodeAuthToken("user@example.test")}\r\n{EncodeAuthToken("secret")}\r\nQUIT\r\n");
+        var session = new SmtpSession(
+            new SmtpSessionOptions(),
+            messageReceiver: null,
+            recipientValidator: null,
+            accountAuthenticator: new FakeAccountAuthenticator());
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "334 VXNlcm5hbWU6\r\n");
+        StringAssert.Contains(output, "334 UGFzc3dvcmQ6\r\n");
+        StringAssert.Contains(output, "235 Authentication successful\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_AuthPlainRejectsInvalidCredentials()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "wrong");
+        await using var stream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nQUIT\r\n");
+        var session = new SmtpSession(
+            new SmtpSessionOptions(),
+            messageReceiver: null,
+            recipientValidator: null,
+            accountAuthenticator: new FakeAccountAuthenticator());
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "535 Authentication failed\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_WritesSyntaxErrorForInvalidLineTerminator()
+    {
+        await using var stream = new DuplexMemoryStream("NOOP\n");
+        var session = new SmtpSession();
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "500 Protocol line ended without CRLF terminator.\r\n");
+    }
+
+    private static string EncodeAuthPlain(string username, string password) =>
+        Convert.ToBase64String(Encoding.UTF8.GetBytes(string.Concat('\0', username, '\0', password)));
+
+    private static string EncodeAuthToken(string value) =>
+        Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
+
+    private sealed class DuplexMemoryStream : Stream
+    {
+        private readonly MemoryStream _input;
+        private readonly MemoryStream _output;
+        private readonly bool _ownsOutput;
+
+        public DuplexMemoryStream(string input)
+            : this(input, new MemoryStream(), ownsOutput: true)
+        {
+        }
+
+        private DuplexMemoryStream(
+            string input,
+            MemoryStream output,
+            bool ownsOutput)
+        {
+            _input = new MemoryStream(Encoding.ASCII.GetBytes(input));
+            _output = output;
+            _ownsOutput = ownsOutput;
+        }
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => true;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public string GetOutputText() => Encoding.ASCII.GetString(_output.ToArray());
+
+        public DuplexMemoryStream CreateContinuation(string input) =>
+            new(input, _output, ownsOutput: false);
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => _input.Read(buffer, offset, count);
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(_input.Read(buffer.Span));
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => _output.Write(buffer, offset, count);
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _output.Write(buffer.Span);
+            return ValueTask.CompletedTask;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _input.Dispose();
+                if (_ownsOutput)
+                {
+                    _output.Dispose();
+                }
+            }
+
+            base.Dispose(disposing);
+        }
+    }
+
+    private sealed class FakeStartTlsProvider : ISmtpStartTlsStreamProvider
+    {
+        private readonly Stream _upgradedStream;
+
+        public FakeStartTlsProvider(Stream upgradedStream)
+        {
+            _upgradedStream = upgradedStream;
+        }
+
+        public bool SupportsStartTls => true;
+
+        public int UpgradeCount { get; private set; }
+
+        public ValueTask<Stream> UpgradeToTlsAsync(
+            Stream stream,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            UpgradeCount++;
+            return ValueTask.FromResult(_upgradedStream);
+        }
+    }
+
+    private sealed class FakeMessageReceiver : ISmtpMessageReceiver
+    {
+        public SmtpReceiveRequest? LastRequest { get; private set; }
+
+        public ValueTask<SmtpReceiveResult> ReceiveAsync(
+            SmtpReceiveRequest request,
+            CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            return ValueTask.FromResult(SmtpReceiveResult.Success());
+        }
+    }
+
+    private sealed class FakeRecipientValidator : ISmtpRecipientValidator
+    {
+        private readonly SmtpRecipientValidationResult _result;
+
+        public FakeRecipientValidator(SmtpRecipientValidationResult result)
+        {
+            _result = result;
+        }
+
+        public ValueTask<SmtpRecipientValidationResult> ValidateAsync(
+            SmtpRecipientValidationRequest request,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(_result);
+    }
+
+    private sealed class AuthenticatedRelayValidator : ISmtpRecipientValidator
+    {
+        public SmtpRecipientValidationRequest? LastRequest { get; private set; }
+
+        public ValueTask<SmtpRecipientValidationResult> ValidateAsync(
+            SmtpRecipientValidationRequest request,
+            CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            return ValueTask.FromResult(
+                request.SenderAuthenticated
+                    ? SmtpRecipientValidationResult.Accept(
+                        new SmtpResolvedRecipient(
+                            request.RecipientAddress,
+                            request.RecipientAddress,
+                            LocalAccountId: 0,
+                            IsLocal: false))
+                    : SmtpRecipientValidationResult.Reject("550 Relay not permitted"));
+        }
+    }
+
+    private sealed class FakeAccountAuthenticator : IImapAccountAuthenticator
+    {
+        public ValueTask<ImapAuthenticationResult> AuthenticateAsync(
+            string username,
+            string password,
+            CancellationToken cancellationToken)
+        {
+            if (username == "user@example.test" && password == "secret")
+            {
+                return ValueTask.FromResult(
+                    ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(77, username)));
+            }
+
+            return ValueTask.FromResult(ImapAuthenticationResult.Failure("Invalid user name or password."));
+        }
+    }
+}
