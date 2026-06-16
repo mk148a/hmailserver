@@ -17,6 +17,10 @@ public sealed class SqlServerSmtpMessageReceiverTests
         StringAssert.Contains(SqlServerSmtpMessageReceiver.InsertQueuedMessageSql, "1,");
         StringAssert.Contains(SqlServerSmtpMessageReceiver.InsertQueuedMessageSql, "messagelocked");
         StringAssert.Contains(SqlServerSmtpMessageReceiver.InsertQueuedMessageSql, "messageuid");
+        StringAssert.Contains(SqlServerSmtpMessageReceiver.InsertQueuedMessageSql, "messageruleforcedrouteid");
+        StringAssert.Contains(SqlServerSmtpMessageReceiver.InsertQueuedMessageSql, "@RuleForcedRouteId");
+        StringAssert.Contains(SqlServerSmtpMessageReceiver.InsertQueuedMessageSql, "messagerulebindaddress");
+        StringAssert.Contains(SqlServerSmtpMessageReceiver.InsertQueuedMessageSql, "@RuleBindAddress");
         StringAssert.Contains(SqlServerSmtpMessageReceiver.InsertRecipientSql, "INSERT INTO hm_messagerecipients");
         StringAssert.Contains(SqlServerSmtpMessageReceiver.InsertRecipientSql, "recipientlocalaccountid");
         StringAssert.Contains(SqlServerSmtpMessageReceiver.InsertRecipientSql, "@LocalAccountId");

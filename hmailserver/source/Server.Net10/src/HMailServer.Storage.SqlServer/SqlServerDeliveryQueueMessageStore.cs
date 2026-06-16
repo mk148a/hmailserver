@@ -17,7 +17,9 @@ SELECT TOP (1)
     messagesize,
     messagecreatetime,
     messageflags,
-    messagecurnooftries
+    messagecurnooftries,
+    messageruleforcedrouteid,
+    messagerulebindaddress
 FROM hm_messages
 WHERE
     messageid = @MessageId
@@ -93,7 +95,9 @@ ORDER BY recipientid ASC;
             new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(7), DateTimeKind.Utc)),
             Convert.ToByte(reader.GetValue(8), System.Globalization.CultureInfo.InvariantCulture),
             Convert.ToInt32(reader.GetValue(9), System.Globalization.CultureInfo.InvariantCulture),
-            Array.Empty<DeliveryQueueRecipient>());
+            Array.Empty<DeliveryQueueRecipient>(),
+            reader.IsDBNull(10) ? 0 : reader.GetInt32(10),
+            reader.IsDBNull(11) ? null : reader.GetString(11));
     }
 
     private static async ValueTask<IReadOnlyList<DeliveryQueueRecipient>> LoadRecipientsAsync(

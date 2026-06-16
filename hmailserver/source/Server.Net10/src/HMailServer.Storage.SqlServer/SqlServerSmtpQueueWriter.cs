@@ -20,7 +20,9 @@ INSERT INTO hm_messages
     messageflags,
     messagecreatetime,
     messagelocked,
-    messageuid
+    messageuid,
+    messageruleforcedrouteid,
+    messagerulebindaddress
 )
 OUTPUT INSERTED.messageid
 VALUES
@@ -36,7 +38,9 @@ VALUES
     @MessageFlags,
     @MessageCreateTime,
     1,
-    0
+    0,
+    @RuleForcedRouteId,
+    @RuleBindAddress
 );
 """;
 
@@ -158,6 +162,12 @@ WHERE
         command.Parameters.Add("@MessageSize", SqlDbType.BigInt).Value = request.MessageData.LongLength;
         command.Parameters.Add("@MessageFlags", SqlDbType.TinyInt).Value = RecentFlag;
         command.Parameters.Add("@MessageCreateTime", SqlDbType.DateTime).Value = request.ReceivedUtc.UtcDateTime;
+        command.Parameters.Add("@RuleForcedRouteId", SqlDbType.Int).Value = request.RuleForcedRouteId > 0
+            ? request.RuleForcedRouteId
+            : (object)DBNull.Value;
+        command.Parameters.Add("@RuleBindAddress", SqlDbType.NVarChar, 64).Value = string.IsNullOrWhiteSpace(request.RuleBindAddress)
+            ? (object)DBNull.Value
+            : request.RuleBindAddress;
         var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
     }

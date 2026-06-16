@@ -197,6 +197,60 @@ public sealed class SqlServerSmtpRuleProcessorTests
     }
 
     [TestMethod]
+    public void ApplyRules_ReturnsForcedRouteAndBindAddressActions()
+    {
+        var request = CreateRequest("Subject: Route\r\n\r\nBody\r\n");
+        var rule = CreateRule(
+            criteria: new SmtpRuleCriterion(
+                Id: 65,
+                UsePredefinedField: true,
+                PredefinedField: SmtpRuleCriteriaField.Subject,
+                HeaderName: string.Empty,
+                MatchType: SmtpRuleMatchType.Contains,
+                MatchValue: "Route"),
+            actions:
+            [
+                new SmtpRuleAction(
+                    Id: 66,
+                    Type: SmtpRuleActionType.SendUsingRoute,
+                    SortOrder: 1,
+                    ImapFolder: string.Empty,
+                    Subject: string.Empty,
+                    FromName: string.Empty,
+                    FromAddress: string.Empty,
+                    To: string.Empty,
+                    Body: string.Empty,
+                    FileName: string.Empty,
+                    ScriptFunction: string.Empty,
+                    HeaderName: string.Empty,
+                    Value: string.Empty,
+                    RouteId: 42,
+                    AbortSpamFlagged: false),
+                new SmtpRuleAction(
+                    Id: 67,
+                    Type: SmtpRuleActionType.BindToAddress,
+                    SortOrder: 2,
+                    ImapFolder: string.Empty,
+                    Subject: string.Empty,
+                    FromName: string.Empty,
+                    FromAddress: string.Empty,
+                    To: string.Empty,
+                    Body: string.Empty,
+                    FileName: string.Empty,
+                    ScriptFunction: string.Empty,
+                    HeaderName: string.Empty,
+                    Value: " 192.0.2.25 ",
+                    RouteId: 0,
+                    AbortSpamFlagged: false)
+            ]);
+
+        var result = SqlServerSmtpRuleProcessor.ApplyRules(request, new[] { rule });
+
+        Assert.AreEqual(42, result.ForcedRouteId);
+        Assert.AreEqual("192.0.2.25", result.BindToAddress);
+    }
+
+    [TestMethod]
     public void ApplyRules_CreateCopyCopiesCurrentRecipientsAndSetsCopyRuleHeader()
     {
         var request = CreateRequest(
@@ -269,6 +323,61 @@ public sealed class SqlServerSmtpRuleProcessorTests
         var result = SqlServerSmtpRuleProcessor.ApplyRules(request, new[] { rule });
 
         Assert.AreEqual(0, result.GeneratedMessages.Count);
+    }
+
+    [TestMethod]
+    public void ApplyRules_DeleteKeepsGeneratedForwardMessages()
+    {
+        var request = CreateRequest("Subject: Forward and drop\r\n\r\nBody\r\n");
+        var rule = CreateRule(
+            criteria: new SmtpRuleCriterion(
+                Id: 90,
+                UsePredefinedField: true,
+                PredefinedField: SmtpRuleCriteriaField.Subject,
+                HeaderName: string.Empty,
+                MatchType: SmtpRuleMatchType.Contains,
+                MatchValue: "Forward"),
+            actions:
+            [
+                new SmtpRuleAction(
+                    Id: 91,
+                    Type: SmtpRuleActionType.Forward,
+                    SortOrder: 1,
+                    ImapFolder: string.Empty,
+                    Subject: string.Empty,
+                    FromName: string.Empty,
+                    FromAddress: string.Empty,
+                    To: "archive@example.test",
+                    Body: string.Empty,
+                    FileName: string.Empty,
+                    ScriptFunction: string.Empty,
+                    HeaderName: string.Empty,
+                    Value: string.Empty,
+                    RouteId: 0,
+                    AbortSpamFlagged: false),
+                new SmtpRuleAction(
+                    Id: 92,
+                    Type: SmtpRuleActionType.Delete,
+                    SortOrder: 2,
+                    ImapFolder: string.Empty,
+                    Subject: string.Empty,
+                    FromName: string.Empty,
+                    FromAddress: string.Empty,
+                    To: string.Empty,
+                    Body: string.Empty,
+                    FileName: string.Empty,
+                    ScriptFunction: string.Empty,
+                    HeaderName: string.Empty,
+                    Value: string.Empty,
+                    RouteId: 0,
+                    AbortSpamFlagged: false)
+            ]);
+
+        var result = SqlServerSmtpRuleProcessor.ApplyRules(request, new[] { rule });
+
+        Assert.IsTrue(result.DropMessage);
+        Assert.AreEqual(1, result.GeneratedMessages.Count);
+        Assert.AreEqual("archive@example.test", result.GeneratedMessages[0].Recipients.Single().Address);
     }
 
     [TestMethod]

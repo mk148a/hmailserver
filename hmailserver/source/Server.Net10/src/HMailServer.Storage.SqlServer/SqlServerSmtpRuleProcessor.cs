@@ -118,6 +118,8 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
         var context = RuleMessageContext.Create(request);
         var dropMessage = false;
         string? moveToImapFolder = null;
+        var forcedRouteId = 0;
+        string? bindToAddress = null;
         var generatedMessages = new List<SmtpRuleGeneratedMessage>();
         var continueRuleProcessing = true;
         foreach (var rule in rules)
@@ -183,14 +185,35 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
                         }
 
                         break;
+
+                    case SmtpRuleActionType.SendUsingRoute:
+                        if (action.RouteId is > 0 and <= int.MaxValue)
+                        {
+                            forcedRouteId = (int)action.RouteId;
+                        }
+
+                        break;
+
+                    case SmtpRuleActionType.BindToAddress:
+                        if (!string.IsNullOrWhiteSpace(action.Value))
+                        {
+                            bindToAddress = action.Value.Trim();
+                        }
+
+                        break;
                 }
             }
         }
 
         var messageData = context.GetMessageData();
         return dropMessage
-            ? SmtpRuleProcessingResult.Drop(messageData)
-            : SmtpRuleProcessingResult.Continue(messageData, moveToImapFolder, generatedMessages);
+            ? SmtpRuleProcessingResult.Drop(messageData, generatedMessages)
+            : SmtpRuleProcessingResult.Continue(
+                messageData,
+                moveToImapFolder,
+                generatedMessages,
+                forcedRouteId,
+                bindToAddress);
     }
 
     private async ValueTask<IReadOnlyList<SmtpRuleDefinition>> LoadRulesForAccountAsync(

@@ -8,4 +8,6 @@ public sealed record DeliveryQueuedMessage(
     DateTimeOffset CreatedUtc,
     byte Flags,
     int CurrentRetryCount,
-    IReadOnlyList<DeliveryQueueRecipient> Recipients);
+    IReadOnlyList<DeliveryQueueRecipient> Recipients,
+    int RuleForcedRouteId = 0,
+    string? RuleBindAddress = null);

@@ -4,6 +4,12 @@ if COL_LENGTH('hm_messages', 'messageleaseowner') is null
 if COL_LENGTH('hm_messages', 'messageleaseexpiresutc') is null
    alter table hm_messages add messageleaseexpiresutc datetime2(3) null
 
+if COL_LENGTH('hm_messages', 'messageruleforcedrouteid') is null
+   alter table hm_messages add messageruleforcedrouteid int null
+
+if COL_LENGTH('hm_messages', 'messagerulebindaddress') is null
+   alter table hm_messages add messagerulebindaddress nvarchar(64) null
+
 if not exists (select * from sys.indexes where name = 'idx_hm_messages_delivery_lease' and object_id = object_id('hm_messages'))
    create index idx_hm_messages_delivery_lease
       on hm_messages (messagetype, messagelocked, messagenexttrytime, messageleaseexpiresutc)

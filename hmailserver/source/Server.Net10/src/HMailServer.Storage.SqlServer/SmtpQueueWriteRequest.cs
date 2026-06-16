@@ -6,4 +6,6 @@ public sealed record SmtpQueueWriteRequest(
     string MailFrom,
     IReadOnlyList<SmtpResolvedRecipient> Recipients,
     byte[] MessageData,
-    DateTimeOffset ReceivedUtc);
+    DateTimeOffset ReceivedUtc,
+    int RuleForcedRouteId = 0,
+    string? RuleBindAddress = null);

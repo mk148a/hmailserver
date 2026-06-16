@@ -15,6 +15,8 @@ public sealed class SqlServerDeliveryQueueMessageStoreTests
         StringAssert.Contains(SqlServerDeliveryQueueMessageStore.SelectQueuedMessageSql, "messagecreatetime");
         StringAssert.Contains(SqlServerDeliveryQueueMessageStore.SelectQueuedMessageSql, "messageflags");
         StringAssert.Contains(SqlServerDeliveryQueueMessageStore.SelectQueuedMessageSql, "messagecurnooftries");
+        StringAssert.Contains(SqlServerDeliveryQueueMessageStore.SelectQueuedMessageSql, "messageruleforcedrouteid");
+        StringAssert.Contains(SqlServerDeliveryQueueMessageStore.SelectQueuedMessageSql, "messagerulebindaddress");
         StringAssert.Contains(SqlServerDeliveryQueueMessageStore.SelectQueuedRecipientsSql, "FROM hm_messagerecipients");
         StringAssert.Contains(SqlServerDeliveryQueueMessageStore.SelectQueuedRecipientsSql, "recipientlocalaccountid");
         StringAssert.Contains(SqlServerDeliveryQueueMessageStore.SelectQueuedRecipientsSql, "ORDER BY recipientid ASC");

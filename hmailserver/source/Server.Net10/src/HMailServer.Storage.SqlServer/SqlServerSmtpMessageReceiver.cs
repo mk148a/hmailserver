@@ -34,6 +34,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
             return SmtpReceiveResult.Failure("554 No valid recipients");
         }
 
+        var ruleForcedRouteId = 0;
+        string? ruleBindAddress = null;
         if (_ruleProcessor is not null)
         {
             var ruleResult = await _ruleProcessor.ProcessAsync(request, cancellationToken).ConfigureAwait(false);
@@ -53,6 +55,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 
             await EnqueueGeneratedMessagesAsync(ruleResult, request.ReceivedUtc, cancellationToken).ConfigureAwait(false);
             request = request with { MessageData = ruleResult.MessageData };
+            ruleForcedRouteId = ruleResult.ForcedRouteId;
+            ruleBindAddress = ruleResult.BindToAddress;
         }
 
         try
@@ -63,7 +67,9 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
                         request.MailFrom,
                         request.Recipients,
                         request.MessageData,
-                        request.ReceivedUtc),
+                        request.ReceivedUtc,
+                        ruleForcedRouteId,
+                        ruleBindAddress),
                     cancellationToken)
                 .ConfigureAwait(false);
             return SmtpReceiveResult.Success();
