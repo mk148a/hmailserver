@@ -14,6 +14,7 @@ public sealed class SqlServerLocalDeliveryStoreTests
         StringAssert.Contains(SqlServerLocalDeliveryStore.AllocateInboxUidSql, "UPDATE hm_imapfolders WITH (UPDLOCK, ROWLOCK)");
         StringAssert.Contains(SqlServerLocalDeliveryStore.AllocateInboxUidSql, "folderparentid = -1");
         StringAssert.Contains(SqlServerLocalDeliveryStore.AllocateInboxUidSql, "LOWER(foldername) = 'inbox'");
+        StringAssert.Contains(SqlServerLocalDeliveryStore.AllocateFolderUidSql, "folderid = @FolderId");
         StringAssert.Contains(SqlServerLocalDeliveryStore.InsertDeliveredMessageSql, "messagetype");
         StringAssert.Contains(SqlServerLocalDeliveryStore.InsertDeliveredMessageSql, "2,");
         StringAssert.Contains(SqlServerLocalDeliveryStore.InsertDeliveredMessageSql, "messageuid");

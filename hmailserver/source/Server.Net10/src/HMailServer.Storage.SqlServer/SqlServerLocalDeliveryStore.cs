@@ -23,6 +23,15 @@ WHERE
     AND LOWER(foldername) = 'inbox';
 """;
 
+    public const string AllocateFolderUidSql = """
+UPDATE hm_imapfolders WITH (UPDLOCK, ROWLOCK)
+SET foldercurrentuid = foldercurrentuid + 1
+OUTPUT INSERTED.folderid, INSERTED.foldercurrentuid
+WHERE
+    folderaccountid = @AccountId
+    AND folderid = @FolderId;
+""";
+
     public const string InsertDeliveredMessageSql = """
 INSERT INTO hm_messages
 (
@@ -84,13 +93,22 @@ VALUES
 
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly MessageFilePathResolver _pathResolver;
+    private readonly ISmtpAccountRuleProcessor? _accountRuleProcessor;
+    private readonly IImapMailboxStore? _mailboxStore;
+    private readonly SqlServerSmtpQueueWriter? _queueWriter;
 
     public SqlServerLocalDeliveryStore(
         SqlServerConnectionFactory connectionFactory,
-        MessageFilePathResolver pathResolver)
+        MessageFilePathResolver pathResolver,
+        ISmtpAccountRuleProcessor? accountRuleProcessor = null,
+        IImapMailboxStore? mailboxStore = null,
+        SqlServerSmtpQueueWriter? queueWriter = null)
     {
         _connectionFactory = connectionFactory;
         _pathResolver = pathResolver;
+        _accountRuleProcessor = accountRuleProcessor;
+        _mailboxStore = mailboxStore;
+        _queueWriter = queueWriter;
     }
 
     public async ValueTask<LocalDeliveryResult> DeliverAsync(
@@ -143,21 +161,66 @@ VALUES
         }
 
         await CopyFileAsync(sourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
+        var deliveredMessageSize = message.Size;
+        LocalDeliveryDestination? ruleDestination = null;
+
+        if (_accountRuleProcessor is not null)
+        {
+            var accountRuleResult = await ApplyAccountRulesAsync(
+                message,
+                targetBatch,
+                accountId,
+                destinationPath,
+                cancellationToken).ConfigureAwait(false);
+            await EnqueueGeneratedMessagesAsync(
+                accountRuleResult.GeneratedMessages ?? [],
+                message.CreatedUtc,
+                cancellationToken).ConfigureAwait(false);
+            if (accountRuleResult.DropMessage)
+            {
+                TryDelete(destinationPath);
+                return new LocalDeliveryResult(
+                    new MessageIdentity(0, accountId, 0, 0),
+                    targetBatch.Recipients.Count);
+            }
+
+            deliveredMessageSize = accountRuleResult.MessageSize;
+            ruleDestination = await ResolveRuleDestinationAsync(
+                accountId,
+                accountAddress,
+                destinationFileName,
+                destinationPath,
+                accountRuleResult.MoveToImapFolder,
+                cancellationToken).ConfigureAwait(false);
+            if (ruleDestination is not null)
+            {
+                destinationPath = ruleDestination.MessagePath;
+            }
+        }
 
         try
         {
             await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var allocation = await AllocateInboxUidAsync(connection, transaction, accountId, cancellationToken).ConfigureAwait(false);
+                var deliveryAccountId = ruleDestination?.AccountId ?? accountId;
+                var allocation = ruleDestination is null
+                    ? await AllocateInboxUidAsync(connection, transaction, accountId, cancellationToken).ConfigureAwait(false)
+                    : await AllocateFolderUidAsync(
+                        connection,
+                        transaction,
+                        ruleDestination.AccountId,
+                        ruleDestination.FolderId,
+                        cancellationToken).ConfigureAwait(false);
                 var messageId = await InsertDeliveredMessageAsync(
                     connection,
                     transaction,
                     message,
-                    accountId,
+                    deliveryAccountId,
                     allocation.FolderId,
                     destinationFileName,
                     allocation.Uid,
+                    deliveredMessageSize,
                     cancellationToken).ConfigureAwait(false);
                 await QueueForIndexingAsync(connection, transaction, messageId, cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -177,6 +240,128 @@ VALUES
             TryDelete(destinationPath);
             throw;
         }
+    }
+
+    private async ValueTask<AccountRuleApplicationResult> ApplyAccountRulesAsync(
+        DeliveryQueuedMessage message,
+        DeliveryTargetBatch targetBatch,
+        int accountId,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        var messageData = await File.ReadAllBytesAsync(destinationPath, cancellationToken).ConfigureAwait(false);
+        var recipients = targetBatch.Recipients
+            .Select(static recipient => new SmtpResolvedRecipient(
+                recipient.Address,
+                recipient.OriginalAddress,
+                recipient.LocalAccountId,
+                IsLocal: true))
+            .ToArray();
+        var request = new SmtpReceiveRequest(
+            HeloHost: string.Empty,
+            IsExtendedSmtp: true,
+            MailFrom: message.FromAddress,
+            Recipients: recipients,
+            DeclaredSize: message.Size,
+            MessageData: messageData,
+            ReceivedUtc: message.CreatedUtc);
+
+        var result = await _accountRuleProcessor!
+            .ProcessAccountAsync(accountId, request, cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.Accepted)
+        {
+            throw new InvalidOperationException(
+                string.IsNullOrWhiteSpace(result.FailureResponse)
+                    ? "Account rule processing failed."
+                    : result.FailureResponse);
+        }
+
+        if (result.DropMessage)
+        {
+            return new AccountRuleApplicationResult(DropMessage: true, MessageSize: 0);
+        }
+
+        if (!ReferenceEquals(result.MessageData, messageData))
+        {
+            await File.WriteAllBytesAsync(destinationPath, result.MessageData, cancellationToken).ConfigureAwait(false);
+        }
+
+        return new AccountRuleApplicationResult(
+            DropMessage: false,
+            result.MessageData.LongLength,
+            result.MoveToImapFolder,
+            result.GeneratedMessages);
+    }
+
+    private async ValueTask EnqueueGeneratedMessagesAsync(
+        IReadOnlyList<SmtpRuleGeneratedMessage> generatedMessages,
+        DateTimeOffset receivedUtc,
+        CancellationToken cancellationToken)
+    {
+        if (_queueWriter is null || generatedMessages.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var message in generatedMessages)
+        {
+            await _queueWriter
+                .EnqueueAsync(
+                    new SmtpQueueWriteRequest(
+                        message.MailFrom,
+                        message.Recipients,
+                        message.MessageData,
+                        receivedUtc),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask<LocalDeliveryDestination?> ResolveRuleDestinationAsync(
+        int accountId,
+        string accountAddress,
+        string messageFileName,
+        string currentPath,
+        string? moveToImapFolder,
+        CancellationToken cancellationToken)
+    {
+        if (_mailboxStore is null || string.IsNullOrWhiteSpace(moveToImapFolder))
+        {
+            return null;
+        }
+
+        var mailbox = await _mailboxStore
+            .SelectMailboxAsync(accountId, moveToImapFolder, readOnly: false, cancellationToken)
+            .ConfigureAwait(false);
+        if (mailbox is null || mailbox.IsReadOnly)
+        {
+            return null;
+        }
+
+        var destinationAccountAddress = mailbox.AccountId == accountId ? accountAddress : null;
+        var destinationPath = _pathResolver.Resolve(
+            messageFileName,
+            mailbox.AccountId,
+            mailbox.FolderId,
+            destinationAccountAddress);
+        if (destinationPath is null)
+        {
+            return null;
+        }
+
+        if (!destinationPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase))
+        {
+            var directory = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.Move(currentPath, destinationPath);
+        }
+
+        return new LocalDeliveryDestination(mailbox.AccountId, mailbox.FolderId, destinationPath);
     }
 
     private static async ValueTask<string?> LoadAccountAddressAsync(
@@ -208,6 +393,26 @@ VALUES
         return new InboxAllocation(reader.GetInt32(0), reader.GetInt64(1));
     }
 
+    private static async ValueTask<InboxAllocation> AllocateFolderUidAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        int accountId,
+        int folderId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(AllocateFolderUidSql, connection, transaction);
+        command.Parameters.Add("@AccountId", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@FolderId", SqlDbType.Int).Value = folderId;
+
+        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("Rule destination IMAP folder could not allocate a UID.");
+        }
+
+        return new InboxAllocation(reader.GetInt32(0), reader.GetInt64(1));
+    }
+
     private static async ValueTask<long> InsertDeliveredMessageAsync(
         SqlConnection connection,
         SqlTransaction transaction,
@@ -216,6 +421,7 @@ VALUES
         int folderId,
         string messageFileName,
         long uid,
+        long messageSize,
         CancellationToken cancellationToken)
     {
         await using var command = new SqlCommand(InsertDeliveredMessageSql, connection, transaction);
@@ -223,7 +429,7 @@ VALUES
         command.Parameters.Add("@FolderId", SqlDbType.Int).Value = folderId;
         command.Parameters.Add("@MessageFileName", SqlDbType.NVarChar, 255).Value = messageFileName;
         command.Parameters.Add("@MessageFrom", SqlDbType.NVarChar, 255).Value = message.FromAddress;
-        command.Parameters.Add("@MessageSize", SqlDbType.BigInt).Value = message.Size;
+        command.Parameters.Add("@MessageSize", SqlDbType.BigInt).Value = messageSize;
         command.Parameters.Add("@MessageFlags", SqlDbType.TinyInt).Value = (byte)(message.Flags | ImapMessageFlags.Recent);
         command.Parameters.Add("@MessageCreateTime", SqlDbType.DateTime).Value = message.CreatedUtc.UtcDateTime;
         command.Parameters.Add("@MessageUid", SqlDbType.BigInt).Value = uid;
@@ -270,4 +476,15 @@ VALUES
     }
 
     private sealed record InboxAllocation(int FolderId, long Uid);
+
+    private sealed record AccountRuleApplicationResult(
+        bool DropMessage,
+        long MessageSize,
+        string? MoveToImapFolder = null,
+        IReadOnlyList<SmtpRuleGeneratedMessage>? GeneratedMessages = null);
+
+    private sealed record LocalDeliveryDestination(
+        int AccountId,
+        int FolderId,
+        string MessagePath);
 }

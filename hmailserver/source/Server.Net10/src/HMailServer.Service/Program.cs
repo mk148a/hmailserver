@@ -59,6 +59,12 @@ var smtpSessionOptions = new SmtpSessionOptions
 var smtpTlsCertificate = LoadCertificate(
     builder.Configuration["Smtp:TlsCertificatePath"] ?? builder.Configuration["HMAILSERVER_SMTP_TLS_CERTIFICATE_PATH"],
     builder.Configuration["Smtp:TlsCertificatePassword"] ?? builder.Configuration["HMAILSERVER_SMTP_TLS_CERTIFICATE_PASSWORD"]);
+var smtpRuleOptions = new SmtpRuleProcessorOptions
+{
+    RuleLoopLimit = ReadInt(
+        builder.Configuration["Smtp:RuleLoopLimit"] ?? builder.Configuration["HMAILSERVER_SMTP_RULE_LOOP_LIMIT"],
+        defaultValue: 5)
+};
 var imapAccountId = ReadNullableInt(builder.Configuration["Imap:AccountId"] ?? builder.Configuration["HMAILSERVER_IMAP_ACCOUNT_ID"]);
 var imapFolderId = ReadNullableInt(builder.Configuration["Imap:FolderId"] ?? builder.Configuration["HMAILSERVER_IMAP_FOLDER_ID"]);
 var mailboxOptions = new SqlServerImapMailboxStoreOptions
@@ -95,6 +101,7 @@ builder.Services.AddSingleton(imapSessionOptions);
 builder.Services.AddSingleton(smtpSessionOptions);
 builder.Services.AddSingleton(mailboxOptions);
 builder.Services.AddSingleton(idleOptions);
+builder.Services.AddSingleton(smtpRuleOptions);
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));
 builder.Services.AddSingleton(MessageSearchBackfillOptions.Default(leaseOwner));
 builder.Services.AddSingleton<SqlServerImapSearchPlanner>();
@@ -116,6 +123,10 @@ builder.Services.AddSingleton<IImapMessageAppendStore, SqlServerImapMessageAppen
 builder.Services.AddSingleton<IImapIdleNotifier, PollingImapIdleNotifier>();
 builder.Services.AddSingleton<IImapQuotaStore, SqlServerImapQuotaStore>();
 builder.Services.AddSingleton<IImapRecentFlagStore, SqlServerImapRecentFlagStore>();
+builder.Services.AddSingleton<SqlServerSmtpQueueWriter>();
+builder.Services.AddSingleton<SqlServerSmtpRuleProcessor>();
+builder.Services.AddSingleton<ISmtpRuleProcessor>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerSmtpRuleProcessor>());
+builder.Services.AddSingleton<ISmtpAccountRuleProcessor>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerSmtpRuleProcessor>());
 builder.Services.AddSingleton<ISmtpMessageReceiver, SqlServerSmtpMessageReceiver>();
 builder.Services.AddSingleton<ISmtpRecipientValidator, SqlServerSmtpRecipientValidator>();
 builder.Services.AddSingleton<IDeliveryQueueLeaseStore, SqlServerDeliveryQueueLeaseStore>();
