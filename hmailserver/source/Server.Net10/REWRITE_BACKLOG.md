@@ -34,6 +34,10 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SMTP remote DNS/MX resolution using system DNS servers, MX preference ordering, TTL/negative caching, domain fallback, and per-domain/route concurrency limiting.
 - Done: SMTP delivery retry/backoff classification, recipient-level queue cleanup after successful batches, permanent-failure bounce submission, and retry-limit bounce handling.
 - Done: SMTP server-side STARTTLS capability, stream upgrade, session reset after TLS negotiation, TLS-required AUTH policy, and PFX certificate loading.
+- Done: SMTP global rule queue-acceptance hook backed by legacy `hm_rules` / criteria / actions tables, with criteria matching plus `Delete`, `SetHeaderValue`, and `StopRuleProcessing`.
+- Done: SMTP account-level local-delivery rule hook applies `Delete`, `SetHeaderValue`, and `StopRuleProcessing` to each per-account message copy before DB insert/index queueing.
+- Done: SMTP `MoveToIMAPFolder` rule action for local delivery resolves destinations through the IMAP mailbox store, moves the per-account/public-folder file when needed, and allocates UID in the rule-selected folder.
+- Done: SMTP `Forward` and `CreateCopy` rule actions submit generated messages through the atomic queue writer, increment `X-hMailServer-LoopCount`, honor the rule loop limit, and preserve generated-message recipients.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -75,7 +79,11 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: DNS/MX resolution cache and per-domain/route concurrency gate for remote delivery.
    - Done: retry/backoff classification with 4xx transient / 5xx permanent SMTP semantics, retry-limit bounce handling, and recipient-level queue cleanup to avoid duplicate delivery.
    - Done: server-side STARTTLS with `SslStream`, capability advertising, post-upgrade session reset, TLS-required AUTH policy, and service-level PFX certificate loading.
-   - Remaining: rules, scripting.
+   - Done: global SMTP rules before queue acceptance for common criteria plus `Delete`, `SetHeaderValue`, and `StopRuleProcessing`.
+   - Done: account-level/local-delivery rules for per-account message copies with `Delete`, `SetHeaderValue`, and `StopRuleProcessing`.
+   - Done: `MoveToIMAPFolder` for local delivery using rule-selected existing private/public IMAP folders.
+   - Done: `Forward` and `CreateCopy` queue submissions with generated-message loop-count protection.
+   - Remaining: remaining rule actions (`Reply`, `SendUsingRoute`, `BindToAddress`) and scripting.
    - Delivery queue worker remaining: delivery status observability and richer bounce templates.
 
 4. POP3 and external fetch.
@@ -104,4 +112,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Implement SMTP rules pipeline hooks before queue acceptance and local/remote delivery.
+Implement remaining non-script SMTP rule actions, starting with `SendUsingRoute` and `BindToAddress` delivery metadata.
