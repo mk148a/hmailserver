@@ -49,7 +49,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SMTP `OnSMTPData(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs after DATA is read and before receiver/queue processing, can mutate/drop/reject messages, and maps legacy rejection responses.
 - Done: SMTP `OnAcceptMessage(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs before global rule processing, can mutate/drop/reject messages, exposes basic client context, and maps legacy `Result.Value`/`Result.Message` rejection responses.
 - Done: SMTP `OnTooManyInvalidCommands(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs when the configured invalid-command disconnect threshold is exceeded.
-- Done: SMTP delivery queue `OnDeliveryStart(HMAILSERVER_MESSAGE)` and `OnDeliverMessage(HMAILSERVER_MESSAGE)` event hooks run before target resolution, can mutate/drop messages, and persist queue-file mutations.
+- Done: SMTP delivery queue `OnDeliveryStart(HMAILSERVER_MESSAGE)`, `OnDeliverMessage(HMAILSERVER_MESSAGE)`, and `OnDeliveryFailed(HMAILSERVER_MESSAGE, recipient, error)` event hooks run with queue-file mutation persistence where applicable.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -107,8 +107,9 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `OnAcceptMessage` protocol event hook before global rule processing with `HMAILSERVER_CLIENT`, `HMAILSERVER_MESSAGE`, and legacy `Result.Value`/`Result.Message` rejection handling.
    - Done: `OnTooManyInvalidCommands` protocol event hook plus disconnect-invalid-clients/maximum-incorrect-commands session policy.
    - Done: delivery queue `OnDeliveryStart` and `OnDeliverMessage` script hooks before target resolution with queue-file mutation persistence and legacy `Result.Value = 1` drop handling.
+   - Done: delivery queue `OnDeliveryFailed` script hook for final failed recipients with legacy recipient/error arguments.
    - Remaining: full legacy script object model and remaining protocol/delivery event scripting hooks.
-   - Delivery queue worker remaining: `OnDeliveryFailed` event hook, delivery status observability, and richer bounce templates.
+   - Delivery queue worker remaining: delivery status observability and richer bounce templates.
 
 4. POP3 and external fetch.
    - POP3 listener/session, UIDL/LIST/RETR/DELE parity.
@@ -136,4 +137,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue delivery/protocol event scripting hooks beyond `OnClientConnect`, `OnHELO`, `OnClientLogon`, `OnRecipientUnknown`, `OnSMTPData`, `OnAcceptMessage`, `OnTooManyInvalidCommands`, `OnDeliveryStart`, and `OnDeliverMessage`; next up is `OnDeliveryFailed(HMAILSERVER_MESSAGE, recipient, error)`, then fill the remaining legacy script object model surface behind the process-isolated script host.
+Continue remaining protocol/authentication scripting hooks beyond the completed SMTP and delivery queue events; next up is IMAP/POP3-style `OnClientLogon(HMAILSERVER_CLIENT)` and `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)`, then fill the remaining legacy script object model surface behind the process-isolated script host.
