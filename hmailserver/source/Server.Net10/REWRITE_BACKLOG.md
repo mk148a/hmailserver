@@ -43,6 +43,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SMTP `ScriptFunction` rule action plumbing now calls a pluggable executor boundary that can mutate message bytes, drop a message, or reject processing.
 - Done: Windows-only process-isolated SMTP rule script executor runs `EventHandlers.vbs`/`.js` through `cscript.exe`, timeboxes execution, round-trips message file mutations, exposes file-backed scalar, recipient, and attachment facades, and fails closed when the script runner does not return status.
 - Done: SMTP `OnHELO(HMAILSERVER_CLIENT)` event hook runs before HELO/EHLO success responses and maps legacy `Result.Value`/`Result.Message` rejection responses.
+- Done: SMTP `OnSMTPData(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs after DATA is read and before receiver/queue processing, can mutate/drop/reject messages, and maps legacy rejection responses.
 - Done: SMTP `OnAcceptMessage(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs before global rule processing, can mutate/drop/reject messages, exposes basic client context, and maps legacy `Result.Value`/`Result.Message` rejection responses.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
@@ -94,6 +95,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `ScriptFunction` executor boundary inside the rule processor.
    - Done: Windows-only process-isolated VBScript/JScript host for SMTP rule functions with file-backed scalar message facade (`FileName`, `DropMessage`, `RejectReason`, IDs/state placeholders, size, delivery attempt, charset, body type checks, common envelope fields, body fields, header value access, message header collection, and `Save`), envelope recipient collection facade, and attachment collection facade.
    - Done: `OnHELO` protocol event hook before HELO/EHLO success responses with `HMAILSERVER_CLIENT` and legacy `Result.Value`/`Result.Message` rejection handling.
+   - Done: `OnSMTPData` protocol event hook after DATA is read and before receiver/queue processing with message mutation/drop/reject handling.
    - Done: `OnAcceptMessage` protocol event hook before global rule processing with `HMAILSERVER_CLIENT`, `HMAILSERVER_MESSAGE`, and legacy `Result.Value`/`Result.Message` rejection handling.
    - Remaining: full legacy script object model and remaining protocol event scripting hooks.
    - Delivery queue worker remaining: delivery status observability and richer bounce templates.
@@ -124,4 +126,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue protocol event scripting hooks beyond `OnHELO` and `OnAcceptMessage`, then fill the remaining legacy script object model surface behind the process-isolated script host.
+Continue protocol event scripting hooks beyond `OnHELO`, `OnSMTPData`, and `OnAcceptMessage`, then fill the remaining legacy script object model surface behind the process-isolated script host.
