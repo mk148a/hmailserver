@@ -10,6 +10,8 @@ public sealed class DeliveryQueueProcessor
     private readonly IDeliveryTargetDispatcher _targetDispatcher;
     private readonly IDeliveryQueueRecipientStore _recipientStore;
     private readonly IDeliveryBounceStore _bounceStore;
+    private readonly IDeliveryEventScriptExecutor? _deliveryEventScriptExecutor;
+    private readonly IDeliveryMessageContentStore? _messageContentStore;
 
     public DeliveryQueueProcessor(
         IDeliveryQueueLeaseStore leaseStore,
@@ -17,7 +19,9 @@ public sealed class DeliveryQueueProcessor
         IDeliveryTargetResolver targetResolver,
         IDeliveryTargetDispatcher targetDispatcher,
         IDeliveryQueueRecipientStore recipientStore,
-        IDeliveryBounceStore bounceStore)
+        IDeliveryBounceStore bounceStore,
+        IDeliveryEventScriptExecutor? deliveryEventScriptExecutor = null,
+        IDeliveryMessageContentStore? messageContentStore = null)
     {
         _leaseStore = leaseStore;
         _messageStore = messageStore;
@@ -25,6 +29,8 @@ public sealed class DeliveryQueueProcessor
         _targetDispatcher = targetDispatcher;
         _recipientStore = recipientStore;
         _bounceStore = bounceStore;
+        _deliveryEventScriptExecutor = deliveryEventScriptExecutor;
+        _messageContentStore = messageContentStore;
     }
 
     public async ValueTask<int> RunBatchAsync(
@@ -66,6 +72,48 @@ public sealed class DeliveryQueueProcessor
                 await _leaseStore.ReleaseAsync(identity.MessageId, options.LeaseOwner, cancellationToken).ConfigureAwait(false);
                 return;
             }
+
+            var deliveryStart = await RunMessageDeliveryEventAsync(
+                "OnDeliveryStart",
+                message,
+                cancellationToken).ConfigureAwait(false);
+            if (!deliveryStart.Succeeded)
+            {
+                await DeferAfterDeliveryEventFailureAsync(
+                    identity,
+                    options,
+                    cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (deliveryStart.DropMessage)
+            {
+                await _leaseStore.CompleteAsync(identity.MessageId, options.LeaseOwner, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            message = deliveryStart.Message;
+
+            var deliverMessage = await RunMessageDeliveryEventAsync(
+                "OnDeliverMessage",
+                message,
+                cancellationToken).ConfigureAwait(false);
+            if (!deliverMessage.Succeeded)
+            {
+                await DeferAfterDeliveryEventFailureAsync(
+                    identity,
+                    options,
+                    cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (deliverMessage.DropMessage)
+            {
+                await _leaseStore.CompleteAsync(identity.MessageId, options.LeaseOwner, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            message = deliverMessage.Message;
 
             var targetBatches = await _targetResolver.ResolveAsync(message, cancellationToken).ConfigureAwait(false);
             if (targetBatches.Count == 0)
@@ -128,6 +176,86 @@ public sealed class DeliveryQueueProcessor
         }
     }
 
+    private async ValueTask<DeliveryEventOutcome> RunMessageDeliveryEventAsync(
+        string eventName,
+        DeliveryQueuedMessage message,
+        CancellationToken cancellationToken)
+    {
+        if (_deliveryEventScriptExecutor is null)
+        {
+            return DeliveryEventOutcome.Continue(message);
+        }
+
+        if (_messageContentStore is null)
+        {
+            return DeliveryEventOutcome.Failure(message);
+        }
+
+        var messageData = await _messageContentStore.TryLoadAsync(message, cancellationToken).ConfigureAwait(false);
+        if (messageData is null)
+        {
+            return DeliveryEventOutcome.Failure(message);
+        }
+
+        var result = _deliveryEventScriptExecutor.Execute(
+            new DeliveryEventScriptExecutionRequest(
+                eventName,
+                message.FromAddress,
+                ToResolvedRecipients(message.Recipients),
+                messageData),
+            cancellationToken);
+        if (!result.Succeeded)
+        {
+            return DeliveryEventOutcome.Failure(message);
+        }
+
+        var resultData = result.MessageData ?? messageData;
+        if (!resultData.AsSpan().SequenceEqual(messageData))
+        {
+            var saved = await _messageContentStore.TrySaveAsync(message, resultData, cancellationToken).ConfigureAwait(false);
+            if (!saved)
+            {
+                return DeliveryEventOutcome.Failure(message);
+            }
+        }
+
+        var updatedMessage = resultData.LongLength == message.Size
+            ? message
+            : message with { Size = resultData.LongLength };
+
+        return result.DropMessage
+            ? DeliveryEventOutcome.Drop(updatedMessage)
+            : DeliveryEventOutcome.Continue(updatedMessage);
+    }
+
+    private async ValueTask DeferAfterDeliveryEventFailureAsync(
+        MessageIdentity identity,
+        DeliveryQueueProcessorOptions options,
+        CancellationToken cancellationToken) =>
+        await _leaseStore.DeferAsync(
+            identity.MessageId,
+            options.LeaseOwner,
+            options.RetryDelay,
+            incrementRetryCount: true,
+            cancellationToken).ConfigureAwait(false);
+
+    private static SmtpResolvedRecipient[] ToResolvedRecipients(
+        IReadOnlyList<DeliveryQueueRecipient> recipients)
+    {
+        var resolvedRecipients = new SmtpResolvedRecipient[recipients.Count];
+        for (var index = 0; index < recipients.Count; index++)
+        {
+            var recipient = recipients[index];
+            resolvedRecipients[index] = new SmtpResolvedRecipient(
+                recipient.Address,
+                recipient.OriginalAddress,
+                recipient.LocalAccountId,
+                recipient.LocalAccountId > 0);
+        }
+
+        return resolvedRecipients;
+    }
+
     private async ValueTask DeleteRecipientsAsync(
         DeliveryQueuedMessage message,
         string leaseOwner,
@@ -163,5 +291,20 @@ public sealed class DeliveryQueueProcessor
         var multiplier = Math.Pow(2, Math.Max(0, currentRetryCount));
         var ticks = checked((long)Math.Min(options.MaxRetryDelay.Ticks, options.RetryDelay.Ticks * multiplier));
         return TimeSpan.FromTicks(ticks);
+    }
+
+    private sealed record DeliveryEventOutcome(
+        bool Succeeded,
+        DeliveryQueuedMessage Message,
+        bool DropMessage)
+    {
+        public static DeliveryEventOutcome Continue(DeliveryQueuedMessage message) =>
+            new(Succeeded: true, message, DropMessage: false);
+
+        public static DeliveryEventOutcome Drop(DeliveryQueuedMessage message) =>
+            new(Succeeded: true, message, DropMessage: true);
+
+        public static DeliveryEventOutcome Failure(DeliveryQueuedMessage message) =>
+            new(Succeeded: false, message, DropMessage: false);
     }
 }

@@ -836,6 +836,74 @@ End Sub
         }
     }
 
+    [TestMethod]
+    public void Execute_RunsVbScriptDeliveryEventAndMapsResultValueToDrop()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnDeliveryStart(oMessage)
+   oMessage.HeaderValue("X-Delivery-Event") = "start"
+   oMessage.Save
+   Result.Value = 1
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateDeliveryEventRequest("Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            Assert.IsTrue(result.DropMessage);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "X-Delivery-Event: start\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_DeliveryEventIgnoresSmtpRejectResultValues()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnDeliveryStart(oMessage)
+   Result.Value = 2
+   Result.Message = "smtp-only"
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateDeliveryEventRequest("Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            Assert.IsFalse(result.DropMessage);
+            Assert.IsNotNull(result.MessageData);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
     private static WindowsScriptRuleExecutor CreateExecutor(
         string eventDirectory,
         string cscriptPath,
@@ -885,6 +953,17 @@ End Sub
             recipients ?? CreateRecipients(),
             messageData,
             argumentShape);
+
+    private static DeliveryEventScriptExecutionRequest CreateDeliveryEventRequest(
+        byte[] messageData,
+        IReadOnlyList<SmtpResolvedRecipient>? recipients = null,
+        string mailFrom = "sender@example.test",
+        string eventName = "OnDeliveryStart") =>
+        new(
+            eventName,
+            mailFrom,
+            recipients ?? CreateRecipients(),
+            messageData);
 
     private static IReadOnlyList<SmtpResolvedRecipient> CreateRecipients() =>
         [

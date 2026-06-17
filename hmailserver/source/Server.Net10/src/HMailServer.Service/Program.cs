@@ -131,6 +131,7 @@ if (scriptingOptions.Enabled)
     builder.Services.AddSingleton<WindowsScriptRuleExecutor>();
     builder.Services.AddSingleton<ISmtpRuleScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
     builder.Services.AddSingleton<ISmtpEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
+    builder.Services.AddSingleton<IDeliveryEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
 }
 
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));
@@ -167,7 +168,9 @@ builder.Services.AddSingleton<IDeliveryTargetResolver, SqlServerDeliveryTargetRe
 builder.Services.AddSingleton<ILocalDeliveryStore, SqlServerLocalDeliveryStore>();
 builder.Services.AddSingleton(DeliveryBounceOptions.Default(smtpSessionOptions.ServerName));
 builder.Services.AddSingleton<IDeliveryBounceStore, SqlServerDeliveryBounceStore>();
-builder.Services.AddSingleton<IDeliveryMessageContentSource, DeliveryMessageContentSource>();
+builder.Services.AddSingleton<DeliveryMessageContentSource>();
+builder.Services.AddSingleton<IDeliveryMessageContentSource>(static serviceProvider => serviceProvider.GetRequiredService<DeliveryMessageContentSource>());
+builder.Services.AddSingleton<IDeliveryMessageContentStore>(static serviceProvider => serviceProvider.GetRequiredService<DeliveryMessageContentSource>());
 builder.Services.AddSingleton<IDnsMxResolver, SystemDnsMxResolver>();
 builder.Services.AddSingleton(RemoteSmtpEndpointResolverOptions.Default);
 builder.Services.AddSingleton(DomainConcurrencyOptions.Default);

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text;
 using HMailServer.Core.Abstractions;
 using HMailServer.Delivery;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -133,6 +134,103 @@ public sealed class DeliveryQueueProcessorTests
         Assert.AreEqual(14, leaseStore.CompletedMessageId);
         Assert.IsNull(leaseStore.DeferredMessageId);
         Assert.AreEqual("451 Temporary failure.", bounceStore.LastFailureDescription);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_DropsMessageWhenOnDeliveryStartRequestsDrop()
+    {
+        var identity = new MessageIdentity(15, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var dispatcher = new FakeTargetDispatcher();
+        var eventExecutor = new FakeDeliveryEventScriptExecutor(
+            DeliveryEventScriptExecutionResult.Drop());
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            new FakeTargetResolver(
+                new DeliveryTargetBatch(
+                    new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                    message.Recipients)),
+            dispatcher,
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            eventExecutor,
+            new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n"));
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        Assert.AreEqual(15, leaseStore.CompletedMessageId);
+        Assert.IsNull(leaseStore.DeferredMessageId);
+        Assert.AreEqual(0, dispatcher.Dispatched.Count);
+        CollectionAssert.AreEqual(new[] { "OnDeliveryStart" }, eventExecutor.EventNames);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_RunsDeliveryEventsBeforeDispatchAndPersistsMutations()
+    {
+        var identity = new MessageIdentity(16, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var dispatcher = new FakeTargetDispatcher(DeliveryTargetDispatchResult.Success());
+        var contentStore = new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n");
+        var eventExecutor = new FakeDeliveryEventScriptExecutor(
+            request => DeliveryEventScriptExecutionResult.Continue(
+                Encoding.ASCII.GetBytes(
+                    Encoding.ASCII.GetString(request.MessageData) +
+                    "X-" + request.EventName + ": yes\r\n")));
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            new FakeTargetResolver(
+                new DeliveryTargetBatch(
+                    new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                    [message.Recipients[1]])),
+            dispatcher,
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            eventExecutor,
+            contentStore);
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        CollectionAssert.AreEqual(new[] { "OnDeliveryStart", "OnDeliverMessage" }, eventExecutor.EventNames);
+        StringAssert.Contains(contentStore.Text, "X-OnDeliveryStart: yes");
+        StringAssert.Contains(contentStore.Text, "X-OnDeliverMessage: yes");
+        Assert.AreEqual(contentStore.Bytes.LongLength, dispatcher.Messages[0].Size);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_DefersLeaseWhenDeliveryEventFails()
+    {
+        var identity = new MessageIdentity(17, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var dispatcher = new FakeTargetDispatcher();
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            new FakeTargetResolver(
+                new DeliveryTargetBatch(
+                    new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                    [message.Recipients[1]])),
+            dispatcher,
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            new FakeDeliveryEventScriptExecutor(
+                DeliveryEventScriptExecutionResult.Failure("Script failed.")),
+            new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n"));
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        Assert.AreEqual(17, leaseStore.DeferredMessageId);
+        Assert.AreEqual(TimeSpan.FromMinutes(2), leaseStore.DeferredRetryDelay);
+        Assert.IsTrue(leaseStore.DeferredIncrementRetryCount);
+        Assert.IsNull(leaseStore.CompletedMessageId);
+        Assert.AreEqual(0, dispatcher.Dispatched.Count);
     }
 
     [TestMethod]
@@ -289,11 +387,14 @@ public sealed class DeliveryQueueProcessorTests
 
         public List<DeliveryTargetBatch> Dispatched { get; } = [];
 
+        public List<DeliveryQueuedMessage> Messages { get; } = [];
+
         public ValueTask<DeliveryTargetDispatchResult> DispatchAsync(
             DeliveryQueuedMessage message,
             DeliveryTargetBatch targetBatch,
             CancellationToken cancellationToken)
         {
+            Messages.Add(message);
             Dispatched.Add(targetBatch);
             return ValueTask.FromResult(
                 _results.Count == 0
@@ -334,6 +435,67 @@ public sealed class DeliveryQueueProcessorTests
             LastFailureDescription = failureDescription;
             LastFailedRecipients = failedRecipients;
             return ValueTask.FromResult(DeliveryBounceResult.SubmittedResult());
+        }
+    }
+
+    private sealed class FakeDeliveryEventScriptExecutor : IDeliveryEventScriptExecutor
+    {
+        private readonly Queue<DeliveryEventScriptExecutionResult>? _results;
+        private readonly Func<DeliveryEventScriptExecutionRequest, DeliveryEventScriptExecutionResult>? _handler;
+        private readonly List<string> _eventNames = [];
+
+        public FakeDeliveryEventScriptExecutor(params DeliveryEventScriptExecutionResult[] results)
+        {
+            _results = new Queue<DeliveryEventScriptExecutionResult>(results);
+        }
+
+        public FakeDeliveryEventScriptExecutor(
+            Func<DeliveryEventScriptExecutionRequest, DeliveryEventScriptExecutionResult> handler)
+        {
+            _handler = handler;
+        }
+
+        public string[] EventNames => _eventNames.ToArray();
+
+        public DeliveryEventScriptExecutionResult Execute(
+            DeliveryEventScriptExecutionRequest request,
+            CancellationToken cancellationToken)
+        {
+            _eventNames.Add(request.EventName);
+            if (_handler is not null)
+            {
+                return _handler(request);
+            }
+
+            return _results is { Count: > 0 }
+                ? _results.Dequeue()
+                : DeliveryEventScriptExecutionResult.Continue(request.MessageData);
+        }
+    }
+
+    private sealed class FakeMessageContentStore : IDeliveryMessageContentStore
+    {
+        public FakeMessageContentStore(string text)
+        {
+            Bytes = Encoding.ASCII.GetBytes(text);
+        }
+
+        public byte[] Bytes { get; private set; }
+
+        public string Text => Encoding.ASCII.GetString(Bytes);
+
+        public ValueTask<byte[]?> TryLoadAsync(
+            DeliveryQueuedMessage message,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<byte[]?>(Bytes);
+
+        public ValueTask<bool> TrySaveAsync(
+            DeliveryQueuedMessage message,
+            byte[] messageData,
+            CancellationToken cancellationToken)
+        {
+            Bytes = messageData;
+            return ValueTask.FromResult(true);
         }
     }
 }
