@@ -125,6 +125,68 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_RunsOnClientLogonAfterSuccessfulLogin()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN \"user@example.test\" \"secret\"\r\nA002 LOGOUT\r\n");
+        var eventExecutor = new CapturingSmtpEventScriptExecutor();
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            eventScriptExecutor: eventExecutor);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(
+                IsSecureConnection: true,
+                ClientIPAddress: "203.0.113.10",
+                ClientPort: 14301,
+                SessionId: 99),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 OK LOGIN completed\r\n");
+        var request = eventExecutor.Requests.Single();
+        Assert.AreEqual("OnClientLogon", request.EventName);
+        Assert.AreEqual(SmtpEventScriptArgumentShape.ClientOnly, request.ArgumentShape);
+        Assert.AreEqual("user@example.test", request.Client.Username);
+        Assert.AreEqual("203.0.113.10", request.Client.IPAddress);
+        Assert.AreEqual(14301, request.Client.Port);
+        Assert.AreEqual(99, request.Client.SessionId);
+        Assert.IsTrue(request.Client.IsAuthenticated);
+        Assert.IsTrue(request.Client.IsEncryptedConnection);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RunsOnClientLogonAfterFailedLogin()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN \"user@example.test\" \"wrong\"\r\nA002 LOGOUT\r\n");
+        var eventExecutor = new CapturingSmtpEventScriptExecutor();
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            eventScriptExecutor: eventExecutor);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(
+                ClientIPAddress: "203.0.113.11",
+                ClientPort: 14302,
+                SessionId: 100),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Invalid user name or password.\r\n");
+        var request = eventExecutor.Requests.Single();
+        Assert.AreEqual("OnClientLogon", request.EventName);
+        Assert.AreEqual("user@example.test", request.Client.Username);
+        Assert.AreEqual("203.0.113.11", request.Client.IPAddress);
+        Assert.AreEqual(14302, request.Client.Port);
+        Assert.AreEqual(100, request.Client.SessionId);
+        Assert.IsFalse(request.Client.IsAuthenticated);
+        Assert.IsFalse(request.Client.IsEncryptedConnection);
+    }
+
+    [TestMethod]
     public async Task RunAsync_AuthenticatePlainAcceptsLegacyTabDelimitedToken()
     {
         var token = EncodeSaslPlain(string.Empty, "user@example.test", "secret", '\t');
@@ -677,7 +739,8 @@ public sealed class ImapSessionTests
         IImapAclStore? aclStore = null,
         IImapQuotaStore? quotaStore = null,
         IImapRecentFlagStore? recentFlagStore = null,
-        ImapSessionOptions? options = null)
+        ImapSessionOptions? options = null,
+        ISmtpEventScriptExecutor? eventScriptExecutor = null)
     {
         var executor = new ImapSearchExecutor(searchIndex);
         var handler = new ImapSearchCommandHandler(new ImapSearchCommandParser(), executor);
@@ -729,7 +792,8 @@ public sealed class ImapSessionTests
             recentFlagStore: recentFlagStore,
             options: options,
             accountAuthenticator: authenticator,
-            mailboxStore: mailboxStore);
+            mailboxStore: mailboxStore,
+            eventScriptExecutor: eventScriptExecutor);
     }
 
     private sealed class CapturingSearchIndex : IMessageSearchIndex
@@ -816,6 +880,21 @@ public sealed class ImapSessionTests
             }
 
             return ValueTask.FromResult(ImapAuthenticationResult.Failure("Invalid user name or password."));
+        }
+    }
+
+    private sealed class CapturingSmtpEventScriptExecutor : ISmtpEventScriptExecutor
+    {
+        private readonly List<SmtpEventScriptExecutionRequest> _requests = [];
+
+        public IReadOnlyList<SmtpEventScriptExecutionRequest> Requests => _requests;
+
+        public SmtpRuleScriptExecutionResult Execute(
+            SmtpEventScriptExecutionRequest request,
+            CancellationToken cancellationToken)
+        {
+            _requests.Add(request);
+            return SmtpRuleScriptExecutionResult.Continue(request.MessageData);
         }
     }
 

@@ -16,6 +16,7 @@ public sealed class ImapTcpListener
     private readonly SemaphoreSlim _connectionSlots;
     private readonly ConcurrentDictionary<Task, byte> _sessions = new();
     private readonly TaskCompletionSource<IPEndPoint> _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private long _nextSessionId;
 
     public ImapTcpListener(
         ImapSession session,
@@ -103,7 +104,9 @@ public sealed class ImapTcpListener
         {
             using (client)
             {
-                var context = await _contextProvider.GetContextAsync(cancellationToken).ConfigureAwait(false);
+                var context = AddConnectionContext(
+                    await _contextProvider.GetContextAsync(cancellationToken).ConfigureAwait(false),
+                    client);
                 await using var stream = await _streamFactory.OpenStreamAsync(client, cancellationToken).ConfigureAwait(false);
                 await _session.RunAsync(stream, context, cancellationToken).ConfigureAwait(false);
             }
@@ -168,6 +171,19 @@ public sealed class ImapTcpListener
         client.NoDelay = _options.NoDelay;
         client.ReceiveBufferSize = _options.ReceiveBufferBytes;
         client.SendBufferSize = _options.SendBufferBytes;
+    }
+
+    private ImapSessionContext AddConnectionContext(
+        ImapSessionContext context,
+        TcpClient client)
+    {
+        var remoteEndPoint = client.Client.RemoteEndPoint as IPEndPoint;
+        return context with
+        {
+            ClientIPAddress = remoteEndPoint?.Address.ToString() ?? string.Empty,
+            ClientPort = remoteEndPoint?.Port ?? 0,
+            SessionId = Interlocked.Increment(ref _nextSessionId)
+        };
     }
 
     private static void ValidateOptions(ImapTcpListenerOptions options)

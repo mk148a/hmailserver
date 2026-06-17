@@ -8,6 +8,7 @@ public sealed class ImapSession
 {
     private static readonly Encoding ResponseEncoding = Encoding.ASCII;
     private static readonly Encoding SaslPlainEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+    private static readonly byte[] EmptyEventMessageData = Array.Empty<byte>();
 
     private readonly ImapSearchCommandHandler _searchCommandHandler;
     private readonly ImapSortCommandHandler? _sortCommandHandler;
@@ -25,6 +26,7 @@ public sealed class ImapSession
     private readonly ImapSessionOptions _options;
     private readonly IImapAccountAuthenticator? _accountAuthenticator;
     private readonly IImapMailboxStore? _mailboxStore;
+    private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
 
     public ImapSession(
         ImapSearchCommandHandler searchCommandHandler,
@@ -42,7 +44,8 @@ public sealed class ImapSession
         IImapRecentFlagStore? recentFlagStore = null,
         ImapSessionOptions? options = null,
         IImapAccountAuthenticator? accountAuthenticator = null,
-        IImapMailboxStore? mailboxStore = null)
+        IImapMailboxStore? mailboxStore = null,
+        ISmtpEventScriptExecutor? eventScriptExecutor = null)
     {
         _searchCommandHandler = searchCommandHandler;
         _sortCommandHandler = sortCommandHandler;
@@ -60,6 +63,7 @@ public sealed class ImapSession
         _options = options ?? new ImapSessionOptions();
         _accountAuthenticator = accountAuthenticator;
         _mailboxStore = mailboxStore;
+        _eventScriptExecutor = eventScriptExecutor;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
     }
 
@@ -834,7 +838,10 @@ public sealed class ImapSession
         CancellationToken cancellationToken)
     {
         var result = await authenticator.AuthenticateAsync(username, password, cancellationToken).ConfigureAwait(false);
-        if (!result.Succeeded || result.Account is null)
+        var isAuthenticated = result.Succeeded && result.Account is not null;
+        RunClientLogonEvent(state, username, isAuthenticated, cancellationToken);
+
+        if (!isAuthenticated)
         {
             var message = string.IsNullOrWhiteSpace(result.FailureMessage)
                 ? "Invalid user name or password."
@@ -846,6 +853,45 @@ public sealed class ImapSession
         state.Account = result.Account;
         state.SelectedMailbox = null;
         await WriteTaggedAsync(stream, tag, successResponse, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void RunClientLogonEvent(
+        SessionState state,
+        string username,
+        bool isAuthenticated,
+        CancellationToken cancellationToken)
+    {
+        if (_eventScriptExecutor is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _eventScriptExecutor.Execute(
+                new SmtpEventScriptExecutionRequest(
+                    "OnClientLogon",
+                    new SmtpEventScriptClient(
+                        username,
+                        state.ClientIPAddress,
+                        state.ClientPort,
+                        state.SessionId,
+                        HeloHost: string.Empty,
+                        IsAuthenticated: isAuthenticated,
+                        IsEncryptedConnection: state.IsSecureConnection),
+                    MailFrom: string.Empty,
+                    Recipients: [],
+                    EmptyEventMessageData,
+                    SmtpEventScriptArgumentShape.ClientOnly),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private string FormatCapabilityResponse(string tag, SessionState state)
@@ -1091,6 +1137,9 @@ public sealed class ImapSession
         public SessionState(ImapSessionContext context)
         {
             IsSecureConnection = context.IsSecureConnection;
+            ClientIPAddress = context.ClientIPAddress;
+            ClientPort = context.ClientPort;
+            SessionId = context.SessionId;
 
             if (context.AccountId is { } accountId)
             {
@@ -1119,5 +1168,11 @@ public sealed class ImapSession
         public IReadOnlySet<long>? RecentUids { get; set; }
 
         public bool IsSecureConnection { get; }
+
+        public string ClientIPAddress { get; }
+
+        public int ClientPort { get; }
+
+        public long SessionId { get; }
     }
 }
