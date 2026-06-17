@@ -546,7 +546,10 @@ public sealed class SmtpSession
             state.Recipients.ToArray(),
             state.DeclaredSize,
             data.MessageData,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            AuthenticatedUsername: state.AuthenticatedAccount?.Address ?? string.Empty,
+            IsAuthenticated: state.AuthenticatedAccount is not null,
+            IsEncryptedConnection: state.IsSecureConnection);
         SmtpReceiveResult result;
         try
         {

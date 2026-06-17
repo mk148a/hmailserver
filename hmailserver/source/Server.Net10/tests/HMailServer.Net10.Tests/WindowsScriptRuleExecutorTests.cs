@@ -661,6 +661,136 @@ End Sub
         }
     }
 
+    [TestMethod]
+    public void Execute_RunsVbScriptOnAcceptMessageWithClientFacade()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnAcceptMessage(oClient, oMessage)
+   If oClient.HELO <> "client.example" Then
+      Result.Value = 2
+      Result.Message = "helo missing"
+      Exit Sub
+   End If
+   If oClient.Username <> "user@example.test" Then
+      Result.Value = 2
+      Result.Message = "username missing"
+      Exit Sub
+   End If
+   If Not oClient.IsAuthenticated Then
+      Result.Value = 2
+      Result.Message = "auth missing"
+      Exit Sub
+   End If
+   If Not oClient.IsEncryptedConnection Then
+      Result.Value = 2
+      Result.Message = "tls missing"
+      Exit Sub
+   End If
+
+   oMessage.HeaderValue("X-OnAccept") = oClient.Username
+   oMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateEventRequest(
+                    "Subject: Event\r\n\r\nBody\r\n"u8.ToArray(),
+                    new SmtpEventScriptClient(
+                        "user@example.test",
+                        "127.0.0.1",
+                        Port: 25,
+                        SessionId: 123,
+                        HeloHost: "client.example",
+                        IsAuthenticated: true,
+                        IsEncryptedConnection: true)),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "X-OnAccept: user@example.test\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_RunsJScriptOnAcceptMessageResultReject()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnAcceptMessage(oClient, oMessage) {
+  Result.Value = 2;
+  Result.Message = "blocked";
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateEventRequest("Subject: Reject\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsFalse(result.Accepted);
+            Assert.AreEqual("554 blocked", result.FailureResponse);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_ContinuesWhenOptionalSmtpEventIsMissing()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnClientConnect(oClient)
+   Result.Value = 2
+   Result.Message = "wrong event"
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateEventRequest("Subject: Missing\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsFalse(result.DropMessage);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "Subject: Missing");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
     private static WindowsScriptRuleExecutor CreateExecutor(
         string eventDirectory,
         string cscriptPath,
@@ -687,6 +817,25 @@ End Sub
             AccountId: 0,
             MailFrom: mailFrom,
             Recipients: recipients ?? [],
+            messageData);
+
+    private static SmtpEventScriptExecutionRequest CreateEventRequest(
+        byte[] messageData,
+        SmtpEventScriptClient? client = null,
+        IReadOnlyList<SmtpResolvedRecipient>? recipients = null,
+        string mailFrom = "sender@example.test") =>
+        new(
+            "OnAcceptMessage",
+            client ?? new SmtpEventScriptClient(
+                Username: string.Empty,
+                IPAddress: "127.0.0.1",
+                Port: 25,
+                SessionId: 0,
+                HeloHost: "client.example",
+                IsAuthenticated: false,
+                IsEncryptedConnection: false),
+            mailFrom,
+            recipients ?? CreateRecipients(),
             messageData);
 
     private static IReadOnlyList<SmtpResolvedRecipient> CreateRecipients() =>

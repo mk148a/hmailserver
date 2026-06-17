@@ -12,15 +12,18 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 
     private readonly SqlServerSmtpQueueWriter _queueWriter;
     private readonly ISmtpRuleProcessor? _ruleProcessor;
+    private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
 
     public SqlServerSmtpMessageReceiver(
         SqlServerConnectionFactory connectionFactory,
         MessageFilePathResolver pathResolver,
         ISmtpRuleProcessor? ruleProcessor = null,
+        ISmtpEventScriptExecutor? eventScriptExecutor = null,
         SqlServerSmtpQueueWriter? queueWriter = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
         _ruleProcessor = ruleProcessor;
+        _eventScriptExecutor = eventScriptExecutor;
     }
 
     public async ValueTask<SmtpReceiveResult> ReceiveAsync(
@@ -32,6 +35,42 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         if (request.Recipients.Count == 0)
         {
             return SmtpReceiveResult.Failure("554 No valid recipients");
+        }
+
+        if (_eventScriptExecutor is not null)
+        {
+            var eventResult = _eventScriptExecutor.Execute(
+                new SmtpEventScriptExecutionRequest(
+                    "OnAcceptMessage",
+                    new SmtpEventScriptClient(
+                        request.AuthenticatedUsername,
+                        request.ClientIPAddress,
+                        request.ClientPort,
+                        request.SessionId,
+                        request.HeloHost,
+                        request.IsAuthenticated,
+                        request.IsEncryptedConnection),
+                    request.MailFrom,
+                    request.Recipients,
+                    request.MessageData),
+                cancellationToken);
+            if (!eventResult.Accepted)
+            {
+                return SmtpReceiveResult.Failure(
+                    string.IsNullOrWhiteSpace(eventResult.FailureResponse)
+                        ? "451 Requested action aborted: local error in processing"
+                        : eventResult.FailureResponse);
+            }
+
+            if (eventResult.DropMessage)
+            {
+                return SmtpReceiveResult.Success();
+            }
+
+            if (eventResult.MessageData is not null)
+            {
+                request = request with { MessageData = eventResult.MessageData };
+            }
         }
 
         var ruleForcedRouteId = 0;

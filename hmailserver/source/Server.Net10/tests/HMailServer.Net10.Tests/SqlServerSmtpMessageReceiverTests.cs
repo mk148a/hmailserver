@@ -57,18 +57,123 @@ public sealed class SqlServerSmtpMessageReceiverTests
         Assert.IsNull(result.FailureResponse);
     }
 
+    [TestMethod]
+    public async Task ReceiveAsync_ReturnsFailureBeforeRuleProcessingWhenAcceptEventRejects()
+    {
+        var ruleProcessorCalled = false;
+        SmtpEventScriptExecutionRequest? capturedEventRequest = null;
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            new FakeRuleProcessor(
+                request =>
+                {
+                    ruleProcessorCalled = true;
+                    return SmtpRuleProcessingResult.Drop(request.MessageData);
+                }),
+            new FakeEventScriptExecutor(
+                request =>
+                {
+                    capturedEventRequest = request;
+                    return SmtpRuleScriptExecutionResult.Failure("554 blocked by event");
+                }));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Reject\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 blocked by event", result.FailureResponse);
+        Assert.IsFalse(ruleProcessorCalled);
+        Assert.IsNotNull(capturedEventRequest);
+        Assert.AreEqual("OnAcceptMessage", capturedEventRequest.EventName);
+        Assert.AreEqual("client.example", capturedEventRequest.Client.HeloHost);
+        Assert.AreEqual("user@example.test", capturedEventRequest.Client.Username);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_PassesAcceptEventMutatedMessageToRuleProcessor()
+    {
+        var mutatedMessage = Encoding.Latin1.GetBytes("Subject: Mutated\r\nX-Event: yes\r\n\r\nBody\r\n");
+        SmtpReceiveRequest? capturedRuleRequest = null;
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            new FakeRuleProcessor(
+                request =>
+                {
+                    capturedRuleRequest = request;
+                    return SmtpRuleProcessingResult.Drop(request.MessageData);
+                }),
+            new FakeEventScriptExecutor(
+                _ => SmtpRuleScriptExecutionResult.Continue(mutatedMessage)));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsTrue(result.Accepted, result.FailureResponse);
+        Assert.IsNotNull(capturedRuleRequest);
+        StringAssert.Contains(
+            Encoding.Latin1.GetString(capturedRuleRequest.MessageData),
+            "X-Event: yes");
+    }
+
+    private static SmtpReceiveRequest CreateRequest(byte[] messageData) =>
+        new(
+            HeloHost: "client.example",
+            IsExtendedSmtp: true,
+            MailFrom: "sender@example.test",
+            Recipients:
+            [
+                new SmtpResolvedRecipient(
+                    "recipient@example.test",
+                    "recipient@example.test",
+                    LocalAccountId: 0,
+                    IsLocal: false)
+            ],
+            DeclaredSize: null,
+            MessageData: messageData,
+            ReceivedUtc: DateTimeOffset.UtcNow,
+            ClientIPAddress: "127.0.0.1",
+            ClientPort: 25,
+            SessionId: 123,
+            AuthenticatedUsername: "user@example.test",
+            IsAuthenticated: true,
+            IsEncryptedConnection: true);
+
     private sealed class FakeRuleProcessor : ISmtpRuleProcessor
     {
-        private readonly SmtpRuleProcessingResult _result;
+        private readonly Func<SmtpReceiveRequest, SmtpRuleProcessingResult> _process;
 
         public FakeRuleProcessor(SmtpRuleProcessingResult result)
         {
-            _result = result;
+            _process = _ => result;
+        }
+
+        public FakeRuleProcessor(Func<SmtpReceiveRequest, SmtpRuleProcessingResult> process)
+        {
+            _process = process;
         }
 
         public ValueTask<SmtpRuleProcessingResult> ProcessAsync(
             SmtpReceiveRequest request,
             CancellationToken cancellationToken) =>
-            ValueTask.FromResult(_result);
+            ValueTask.FromResult(_process(request));
+    }
+
+    private sealed class FakeEventScriptExecutor : ISmtpEventScriptExecutor
+    {
+        private readonly Func<SmtpEventScriptExecutionRequest, SmtpRuleScriptExecutionResult> _execute;
+
+        public FakeEventScriptExecutor(Func<SmtpEventScriptExecutionRequest, SmtpRuleScriptExecutionResult> execute)
+        {
+            _execute = execute;
+        }
+
+        public SmtpRuleScriptExecutionResult Execute(
+            SmtpEventScriptExecutionRequest request,
+            CancellationToken cancellationToken) =>
+            _execute(request);
     }
 }

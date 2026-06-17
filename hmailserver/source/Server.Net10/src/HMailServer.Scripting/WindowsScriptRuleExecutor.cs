@@ -7,7 +7,7 @@ using MimeKit;
 
 namespace HMailServer.Scripting;
 
-public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
+public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor, ISmtpEventScriptExecutor
 {
     private readonly WindowsScriptRuleExecutorOptions _options;
 
@@ -22,6 +22,37 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        return ExecuteCore(
+            new ScriptExecutionSpec(
+                request.FunctionName,
+                request.MailFrom,
+                request.Recipients,
+                request.MessageData,
+                Client: null,
+                Invocation: ScriptInvocation.RuleFunction),
+            cancellationToken);
+    }
+
+    public SmtpRuleScriptExecutionResult Execute(
+        SmtpEventScriptExecutionRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ExecuteCore(
+            new ScriptExecutionSpec(
+                request.EventName,
+                request.MailFrom,
+                request.Recipients,
+                request.MessageData,
+                request.Client,
+                ScriptInvocation.OptionalSmtpEvent),
+            cancellationToken);
+    }
+
+    private SmtpRuleScriptExecutionResult ExecuteCore(
+        ScriptExecutionSpec spec,
+        CancellationToken cancellationToken)
+    {
         if (!_options.Enabled)
         {
             return SmtpRuleScriptExecutionResult.Continue();
@@ -32,7 +63,7 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
             return SmtpRuleScriptExecutionResult.Failure("SMTP rule scripting requires Windows.");
         }
 
-        if (!ScriptFunctionNameRegex().IsMatch(request.FunctionName))
+        if (!ScriptFunctionNameRegex().IsMatch(spec.FunctionName))
         {
             return SmtpRuleScriptExecutionResult.Failure("Invalid SMTP rule script function name.");
         }
@@ -59,29 +90,33 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
             var attachmentManifestPath = Path.Combine(tempDirectory, "attachments.tsv");
             var attachmentOperationPath = Path.Combine(tempDirectory, "attachment-operations.tsv");
             var runnerPath = Path.Combine(tempDirectory, language.Extension == "vbs" ? "runner.vbs" : "runner.js");
-            File.WriteAllBytes(messagePath, request.MessageData);
+            File.WriteAllBytes(messagePath, spec.MessageData);
             WriteAttachmentManifest(messagePath, attachmentDirectory, attachmentManifestPath);
             File.WriteAllText(
                 runnerPath,
                 language.Extension == "vbs"
                     ? CreateVbScriptRunner(
                         scriptPath,
-                        request.FunctionName,
+                        spec.FunctionName,
                         messagePath,
                         statusPath,
                         attachmentManifestPath,
                         attachmentOperationPath,
-                        request.MailFrom,
-                        request.Recipients)
+                        spec.MailFrom,
+                        spec.Recipients,
+                        spec.Client,
+                        spec.Invocation)
                     : CreateJScriptRunner(
                         scriptPath,
-                        request.FunctionName,
+                        spec.FunctionName,
                         messagePath,
                         statusPath,
                         attachmentManifestPath,
                         attachmentOperationPath,
-                        request.MailFrom,
-                        request.Recipients),
+                        spec.MailFrom,
+                        spec.Recipients,
+                        spec.Client,
+                        spec.Invocation),
                 Encoding.Unicode);
 
             var processResult = RunScript(runnerPath, cancellationToken);
@@ -98,7 +133,7 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
 
             var messageData = File.Exists(messagePath)
                 ? File.ReadAllBytes(messagePath)
-                : request.MessageData;
+                : spec.MessageData;
             if (!status.Found)
             {
                 return SmtpRuleScriptExecutionResult.Failure(
@@ -123,7 +158,7 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
         {
             return SmtpRuleScriptExecutionResult.Failure(
                 "SMTP rule script execution failed: " + ex.Message,
-                request.MessageData);
+                spec.MessageData);
         }
         finally
         {
@@ -459,10 +494,30 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
         string attachmentManifestPath,
         string attachmentOperationPath,
         string mailFrom,
-        IReadOnlyList<SmtpResolvedRecipient> recipients)
+        IReadOnlyList<SmtpResolvedRecipient> recipients,
+        SmtpEventScriptClient? client,
+        ScriptInvocation invocation)
     {
         return $$"""
 ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
+
+Class HMailServerRuleClient
+   Public Username
+   Public IPAddress
+   Public Port
+   Public SessionID
+   Public HELO
+   Public IsAuthenticated
+   Public IsEncryptedConnection
+   Public CipherVersion
+   Public CipherName
+   Public CipherBits
+End Class
+
+Class HMailServerRuleResult
+   Public Value
+   Public Message
+End Class
 
 Class HMailServerRuleRecipient
    Public Address
@@ -1334,7 +1389,16 @@ HMAILSERVER_MESSAGE.Attachments.Load "{{EscapeVbScript(attachmentManifestPath)}}
 HMAILSERVER_MESSAGE.FromAddress = "{{EscapeVbScript(mailFrom)}}"
 {{CreateVbScriptRecipientSeeds(recipients)}}
 
-Call {{functionName}}(HMAILSERVER_MESSAGE)
+Dim HMAILSERVER_CLIENT
+Set HMAILSERVER_CLIENT = New HMailServerRuleClient
+{{CreateVbScriptClientSeed(client)}}
+
+Dim Result
+Set Result = New HMailServerRuleResult
+Result.Value = 0
+Result.Message = ""
+
+{{CreateVbScriptInvocation(functionName, invocation)}}
 
 Dim hMailServerRuleStatusFileSystem, hMailServerRuleStatusFile
 Set hMailServerRuleStatusFileSystem = CreateObject("Scripting.FileSystemObject")
@@ -1344,7 +1408,16 @@ If HMAILSERVER_MESSAGE.DropMessage Then
 Else
    hMailServerRuleStatusFile.WriteLine "DropMessage=0"
 End If
-hMailServerRuleStatusFile.WriteLine "RejectReason=" & Replace(Replace(CStr(HMAILSERVER_MESSAGE.RejectReason), vbCr, " "), vbLf, " ")
+Dim hMailServerRuleRejectReason
+hMailServerRuleRejectReason = CStr(HMAILSERVER_MESSAGE.RejectReason)
+If Result.Value = 1 Then
+   hMailServerRuleRejectReason = "554 Rejected"
+ElseIf Result.Value = 2 Then
+   hMailServerRuleRejectReason = "554 " & CStr(Result.Message)
+ElseIf Result.Value = 3 Then
+   hMailServerRuleRejectReason = "453 " & CStr(Result.Message)
+End If
+hMailServerRuleStatusFile.WriteLine "RejectReason=" & Replace(Replace(hMailServerRuleRejectReason, vbCr, " "), vbLf, " ")
 hMailServerRuleStatusFile.Close
 """;
     }
@@ -1357,7 +1430,9 @@ hMailServerRuleStatusFile.Close
         string attachmentManifestPath,
         string attachmentOperationPath,
         string mailFrom,
-        IReadOnlyList<SmtpResolvedRecipient> recipients)
+        IReadOnlyList<SmtpResolvedRecipient> recipients,
+        SmtpEventScriptClient? client,
+        ScriptInvocation invocation)
     {
         return $$"""
 var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
@@ -1863,13 +1938,40 @@ HMAILSERVER_MESSAGE.Load();
 HMAILSERVER_MESSAGE.FromAddress = "{{EscapeJScript(mailFrom)}}";
 {{CreateJScriptRecipientSeeds(recipients)}}
 
+var HMAILSERVER_CLIENT = {
+  Username: "",
+  IPAddress: "",
+  Port: 0,
+  SessionID: 0,
+  HELO: "",
+  IsAuthenticated: false,
+  IsEncryptedConnection: false,
+  CipherVersion: "",
+  CipherName: "",
+  CipherBits: 0
+};
+{{CreateJScriptClientSeed(client)}}
+
+var Result = {
+  Value: 0,
+  Message: ""
+};
+
 var hMailServerRuleScriptFile = hMailServerRuleFileSystem.OpenTextFile("{{EscapeJScript(scriptPath)}}", 1, false);
 eval(hMailServerRuleScriptFile.ReadAll());
 hMailServerRuleScriptFile.Close();
-{{functionName}}(HMAILSERVER_MESSAGE);
+{{CreateJScriptInvocation(functionName, invocation)}}
 var hMailServerRuleStatusFile = hMailServerRuleFileSystem.CreateTextFile("{{EscapeJScript(statusPath)}}", true, false);
 hMailServerRuleStatusFile.WriteLine(HMAILSERVER_MESSAGE.DropMessage ? "DropMessage=1" : "DropMessage=0");
-hMailServerRuleStatusFile.WriteLine("RejectReason=" + String(HMAILSERVER_MESSAGE.RejectReason || "").replace(/[\r\n]/g, " "));
+var hMailServerRuleRejectReason = String(HMAILSERVER_MESSAGE.RejectReason || "");
+if (Result.Value === 1) {
+  hMailServerRuleRejectReason = "554 Rejected";
+} else if (Result.Value === 2) {
+  hMailServerRuleRejectReason = "554 " + String(Result.Message || "");
+} else if (Result.Value === 3) {
+  hMailServerRuleRejectReason = "453 " + String(Result.Message || "");
+}
+hMailServerRuleStatusFile.WriteLine("RejectReason=" + hMailServerRuleRejectReason.replace(/[\r\n]/g, " "));
 hMailServerRuleStatusFile.Close();
 """;
     }
@@ -1919,6 +2021,127 @@ hMailServerRuleStatusFile.Close();
 
         return builder.ToString();
     }
+
+    private static string CreateVbScriptClientSeed(SmtpEventScriptClient? client)
+    {
+        var builder = new StringBuilder();
+        AppendVbScriptAssignment(builder, "Username", client?.Username ?? string.Empty);
+        AppendVbScriptAssignment(builder, "IPAddress", client?.IPAddress ?? string.Empty);
+        AppendVbScriptAssignment(builder, "Port", client?.Port ?? 0);
+        AppendVbScriptAssignment(builder, "SessionID", client?.SessionId ?? 0);
+        AppendVbScriptAssignment(builder, "HELO", client?.HeloHost ?? string.Empty);
+        AppendVbScriptAssignment(builder, "IsAuthenticated", client?.IsAuthenticated ?? false);
+        AppendVbScriptAssignment(builder, "IsEncryptedConnection", client?.IsEncryptedConnection ?? false);
+        AppendVbScriptAssignment(builder, "CipherVersion", client?.CipherVersion ?? string.Empty);
+        AppendVbScriptAssignment(builder, "CipherName", client?.CipherName ?? string.Empty);
+        AppendVbScriptAssignment(builder, "CipherBits", client?.CipherBits ?? 0);
+        return builder.ToString();
+    }
+
+    private static string CreateJScriptClientSeed(SmtpEventScriptClient? client)
+    {
+        var builder = new StringBuilder();
+        AppendJScriptAssignment(builder, "Username", client?.Username ?? string.Empty);
+        AppendJScriptAssignment(builder, "IPAddress", client?.IPAddress ?? string.Empty);
+        AppendJScriptAssignment(builder, "Port", client?.Port ?? 0);
+        AppendJScriptAssignment(builder, "SessionID", client?.SessionId ?? 0);
+        AppendJScriptAssignment(builder, "HELO", client?.HeloHost ?? string.Empty);
+        AppendJScriptAssignment(builder, "IsAuthenticated", client?.IsAuthenticated ?? false);
+        AppendJScriptAssignment(builder, "IsEncryptedConnection", client?.IsEncryptedConnection ?? false);
+        AppendJScriptAssignment(builder, "CipherVersion", client?.CipherVersion ?? string.Empty);
+        AppendJScriptAssignment(builder, "CipherName", client?.CipherName ?? string.Empty);
+        AppendJScriptAssignment(builder, "CipherBits", client?.CipherBits ?? 0);
+        return builder.ToString();
+    }
+
+    private static string CreateVbScriptInvocation(string functionName, ScriptInvocation invocation) =>
+        invocation == ScriptInvocation.RuleFunction
+            ? $"Call {functionName}(HMAILSERVER_MESSAGE)"
+            : string.Join(
+                Environment.NewLine,
+                "Dim hMailServerEventHandler",
+                "On Error Resume Next",
+                $"Set hMailServerEventHandler = GetRef(\"{EscapeVbScript(functionName)}\")",
+                "If Err.Number <> 0 Then",
+                "   Err.Clear",
+                "   On Error GoTo 0",
+                "Else",
+                "   On Error GoTo 0",
+                "   hMailServerEventHandler HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE",
+                "End If");
+
+    private static string CreateJScriptInvocation(string functionName, ScriptInvocation invocation)
+    {
+        return invocation == ScriptInvocation.RuleFunction
+            ? $$"""
+if (typeof {{functionName}} !== "function") {
+  throw new Error("Script function not found: {{EscapeJScript(functionName)}}");
+}
+{{functionName}}(HMAILSERVER_MESSAGE);
+"""
+            : $$"""
+if (typeof {{functionName}} === "function") {
+  {{functionName}}(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE);
+}
+""";
+    }
+
+    private static void AppendVbScriptAssignment(StringBuilder builder, string name, string value)
+    {
+        builder.Append("HMAILSERVER_CLIENT.")
+            .Append(name)
+            .Append(" = \"")
+            .Append(EscapeVbScript(value))
+            .AppendLine("\"");
+    }
+
+    private static void AppendVbScriptAssignment(StringBuilder builder, string name, int value) =>
+        builder.Append("HMAILSERVER_CLIENT.")
+            .Append(name)
+            .Append(" = ")
+            .AppendLine(value.ToString(CultureInfo.InvariantCulture));
+
+    private static void AppendVbScriptAssignment(StringBuilder builder, string name, long value) =>
+        builder.Append("HMAILSERVER_CLIENT.")
+            .Append(name)
+            .Append(" = ")
+            .AppendLine(value.ToString(CultureInfo.InvariantCulture));
+
+    private static void AppendVbScriptAssignment(StringBuilder builder, string name, bool value) =>
+        builder.Append("HMAILSERVER_CLIENT.")
+            .Append(name)
+            .Append(" = ")
+            .AppendLine(value ? "True" : "False");
+
+    private static void AppendJScriptAssignment(StringBuilder builder, string name, string value)
+    {
+        builder.Append("HMAILSERVER_CLIENT.")
+            .Append(name)
+            .Append(" = \"")
+            .Append(EscapeJScript(value))
+            .AppendLine("\";");
+    }
+
+    private static void AppendJScriptAssignment(StringBuilder builder, string name, int value) =>
+        builder.Append("HMAILSERVER_CLIENT.")
+            .Append(name)
+            .Append(" = ")
+            .Append(value.ToString(CultureInfo.InvariantCulture))
+            .AppendLine(";");
+
+    private static void AppendJScriptAssignment(StringBuilder builder, string name, long value) =>
+        builder.Append("HMAILSERVER_CLIENT.")
+            .Append(name)
+            .Append(" = ")
+            .Append(value.ToString(CultureInfo.InvariantCulture))
+            .AppendLine(";");
+
+    private static void AppendJScriptAssignment(StringBuilder builder, string name, bool value) =>
+        builder.Append("HMAILSERVER_CLIENT.")
+            .Append(name)
+            .Append(" = ")
+            .Append(value ? "true" : "false")
+            .AppendLine(";");
 
     private static ScriptLanguage? NormalizeLanguage(string value)
     {
@@ -1980,6 +2203,20 @@ hMailServerRuleStatusFile.Close();
 
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.CultureInvariant)]
     private static partial Regex ScriptFunctionNameRegex();
+
+    private enum ScriptInvocation
+    {
+        RuleFunction,
+        OptionalSmtpEvent
+    }
+
+    private sealed record ScriptExecutionSpec(
+        string FunctionName,
+        string MailFrom,
+        IReadOnlyList<SmtpResolvedRecipient> Recipients,
+        byte[] MessageData,
+        SmtpEventScriptClient? Client,
+        ScriptInvocation Invocation);
 
     private sealed record ScriptLanguage(string Name, string Extension);
 

@@ -7,4 +7,10 @@ public sealed record SmtpReceiveRequest(
     IReadOnlyList<SmtpResolvedRecipient> Recipients,
     long? DeclaredSize,
     byte[] MessageData,
-    DateTimeOffset ReceivedUtc);
+    DateTimeOffset ReceivedUtc,
+    string ClientIPAddress = "",
+    int ClientPort = 0,
+    long SessionId = 0,
+    string AuthenticatedUsername = "",
+    bool IsAuthenticated = false,
+    bool IsEncryptedConnection = false);

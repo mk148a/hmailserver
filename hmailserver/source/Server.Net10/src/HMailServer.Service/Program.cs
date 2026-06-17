@@ -122,7 +122,9 @@ builder.Services.AddSingleton(smtpRuleOptions);
 builder.Services.AddSingleton(scriptingOptions);
 if (scriptingOptions.Enabled)
 {
-    builder.Services.AddSingleton<ISmtpRuleScriptExecutor, WindowsScriptRuleExecutor>();
+    builder.Services.AddSingleton<WindowsScriptRuleExecutor>();
+    builder.Services.AddSingleton<ISmtpRuleScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
+    builder.Services.AddSingleton<ISmtpEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
 }
 
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));
