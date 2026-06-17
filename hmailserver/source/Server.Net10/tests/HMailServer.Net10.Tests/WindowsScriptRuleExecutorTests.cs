@@ -52,6 +52,152 @@ End Sub
     }
 
     [TestMethod]
+    public void Execute_ExposesLegacyMessageFacadeToVbScript()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_UpdateMessage(obMessage)
+   If obMessage.Subject <> "Original" Then
+      obMessage.RejectReason = "subject not loaded"
+      Exit Sub
+   End If
+   If obMessage.From <> "Sender <sender@example.test>" Then
+      obMessage.RejectReason = "from not loaded"
+      Exit Sub
+   End If
+   If obMessage.To <> "dest@example.test" Then
+      obMessage.RejectReason = "to not loaded"
+      Exit Sub
+   End If
+   If obMessage.CC <> "copy@example.test" Then
+      obMessage.RejectReason = "cc not loaded"
+      Exit Sub
+   End If
+   If obMessage.HeaderValue("X-Folded") <> "one two" Then
+      obMessage.RejectReason = "folded header not loaded"
+      Exit Sub
+   End If
+
+   obMessage.Subject = "Changed"
+   obMessage.From = "Updated <updated@example.test>"
+   obMessage.To = "next@example.test"
+   obMessage.CC = "copy2@example.test"
+   obMessage.Body = "Changed body" & vbCrLf
+   obMessage.HeaderValue("X-Legacy") = "yes"
+   obMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateMessage",
+                    Encoding.ASCII.GetBytes(
+                        "From: Sender <sender@example.test>\r\n" +
+                        "To: dest@example.test\r\n" +
+                        "CC: copy@example.test\r\n" +
+                        "Subject: Original\r\n" +
+                        "X-Folded: one\r\n two\r\n" +
+                        "\r\n" +
+                        "Original body\r\n")),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "Subject: Changed\r\n");
+            StringAssert.Contains(messageText, "From: Updated <updated@example.test>\r\n");
+            StringAssert.Contains(messageText, "To: next@example.test\r\n");
+            StringAssert.Contains(messageText, "Cc: copy2@example.test\r\n");
+            StringAssert.Contains(messageText, "X-Legacy: yes\r\n");
+            StringAssert.Contains(messageText, "\r\n\r\nChanged body\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_ExposesLegacyMessageFacadeToJScript()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_UpdateMessage(obMessage) {
+  if (obMessage.Subject !== "Original") {
+    obMessage.RejectReason = "subject not loaded";
+    return;
+  }
+  if (obMessage.From !== "Sender <sender@example.test>") {
+    obMessage.RejectReason = "from not loaded";
+    return;
+  }
+  if (obMessage.To !== "dest@example.test") {
+    obMessage.RejectReason = "to not loaded";
+    return;
+  }
+  if (obMessage.CC !== "copy@example.test") {
+    obMessage.RejectReason = "cc not loaded";
+    return;
+  }
+  if (obMessage.HeaderValue("X-Folded") !== "one two") {
+    obMessage.RejectReason = "folded header not loaded";
+    return;
+  }
+
+  obMessage.Subject = "Changed JS";
+  obMessage.From = "JS Sender <js@example.test>";
+  obMessage.To = "js-next@example.test";
+  obMessage.CC = "js-copy@example.test";
+  obMessage.Body = "Changed JS body\r\n";
+  obMessage.SetHeaderValue("X-JScript", "yes");
+  obMessage.Save();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateMessage",
+                    Encoding.ASCII.GetBytes(
+                        "From: Sender <sender@example.test>\r\n" +
+                        "To: dest@example.test\r\n" +
+                        "CC: copy@example.test\r\n" +
+                        "Subject: Original\r\n" +
+                        "X-Folded: one\r\n two\r\n" +
+                        "\r\n" +
+                        "Original body\r\n")),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "Subject: Changed JS\r\n");
+            StringAssert.Contains(messageText, "From: JS Sender <js@example.test>\r\n");
+            StringAssert.Contains(messageText, "To: js-next@example.test\r\n");
+            StringAssert.Contains(messageText, "Cc: js-copy@example.test\r\n");
+            StringAssert.Contains(messageText, "X-JScript: yes\r\n");
+            StringAssert.Contains(messageText, "\r\n\r\nChanged JS body\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_ReturnsDropOrRejectStateSetByVbScript()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -96,12 +242,13 @@ End Sub
 
     private static WindowsScriptRuleExecutor CreateExecutor(
         string eventDirectory,
-        string cscriptPath) =>
+        string cscriptPath,
+        string language = "VBScript") =>
         new(
             new WindowsScriptRuleExecutorOptions
             {
                 Enabled = true,
-                Language = "VBScript",
+                Language = language,
                 EventDirectory = eventDirectory,
                 Timeout = TimeSpan.FromSeconds(5),
                 CScriptPath = cscriptPath

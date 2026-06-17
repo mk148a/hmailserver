@@ -73,6 +73,13 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
             var messageData = File.Exists(messagePath)
                 ? File.ReadAllBytes(messagePath)
                 : request.MessageData;
+            if (!status.Found)
+            {
+                return SmtpRuleScriptExecutionResult.Failure(
+                    "SMTP rule script execution did not return status.",
+                    messageData);
+            }
+
             if (!string.IsNullOrWhiteSpace(status.RejectReason))
             {
                 return SmtpRuleScriptExecutionResult.Failure(status.RejectReason, messageData);
@@ -173,7 +180,7 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
     {
         if (!File.Exists(statusPath))
         {
-            return new ScriptStatus(false, string.Empty);
+            return new ScriptStatus(Found: false, DropMessage: false, RejectReason: string.Empty);
         }
 
         var dropMessage = false;
@@ -190,7 +197,7 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
             }
         }
 
-        return new ScriptStatus(dropMessage, rejectReason);
+        return new ScriptStatus(Found: true, dropMessage, rejectReason);
     }
 
     private static string CreateVbScriptRunner(
@@ -206,6 +213,317 @@ Class HMailServerRuleMessage
    Public FileName
    Public DropMessage
    Public RejectReason
+   Private m_headers
+   Private m_body
+   Private m_htmlBody
+   Private m_subject
+   Private m_from
+   Private m_fromAddress
+   Private m_to
+   Private m_cc
+   Private m_date
+
+   Public Sub Load()
+      Dim messageText
+      messageText = ReadAllText(FileName)
+      SplitMessage messageText, m_headers, m_body
+      m_subject = HeaderValue("Subject")
+      m_from = HeaderValue("From")
+      m_fromAddress = m_from
+      m_to = HeaderValue("To")
+      m_cc = HeaderValue("Cc")
+      If Len(m_cc) = 0 Then
+         m_cc = HeaderValue("CC")
+      End If
+      m_date = HeaderValue("Date")
+      If InStr(1, HeaderValue("Content-Type"), "text/html", vbTextCompare) > 0 Then
+         m_htmlBody = m_body
+      Else
+         m_htmlBody = ""
+      End If
+   End Sub
+
+   Public Sub RefreshContent()
+      Load
+   End Sub
+
+   Public Sub Save()
+      Dim headers, messageBody
+      headers = m_headers
+      headers = SetHeaderLine(headers, "Subject", m_subject)
+      headers = SetHeaderLine(headers, "From", m_from)
+      headers = SetHeaderLine(headers, "To", m_to)
+      headers = SetHeaderLine(headers, "Cc", m_cc)
+      headers = SetHeaderLine(headers, "Date", m_date)
+      messageBody = m_body
+      If Len(m_htmlBody) > 0 And InStr(1, GetHeaderLine(headers, "Content-Type"), "text/html", vbTextCompare) > 0 Then
+         messageBody = m_htmlBody
+      End If
+      WriteAllText FileName, headers & vbCrLf & vbCrLf & messageBody
+      m_headers = headers
+   End Sub
+
+   Public Property Get Subject()
+      Subject = m_subject
+   End Property
+
+   Public Property Let Subject(value)
+      m_subject = CStr(value)
+   End Property
+
+   Public Property Get [From]()
+      [From] = m_from
+   End Property
+
+   Public Property Let [From](value)
+      m_from = CStr(value)
+      m_fromAddress = m_from
+   End Property
+
+   Public Property Get FromAddress()
+      FromAddress = m_fromAddress
+   End Property
+
+   Public Property Let FromAddress(value)
+      m_fromAddress = CStr(value)
+      m_from = m_fromAddress
+   End Property
+
+   Public Property Get [To]()
+      [To] = m_to
+   End Property
+
+   Public Property Let [To](value)
+      m_to = CStr(value)
+   End Property
+
+   Public Property Get Recipients()
+      Recipients = m_to
+   End Property
+
+   Public Property Let Recipients(value)
+      m_to = CStr(value)
+   End Property
+
+   Public Property Get CC()
+      CC = m_cc
+   End Property
+
+   Public Property Let CC(value)
+      m_cc = CStr(value)
+   End Property
+
+   Public Property Get [Date]()
+      [Date] = m_date
+   End Property
+
+   Public Property Let [Date](value)
+      m_date = CStr(value)
+   End Property
+
+   Public Property Get Body()
+      Body = m_body
+   End Property
+
+   Public Property Let Body(value)
+      m_body = CStr(value)
+   End Property
+
+   Public Property Get HTMLBody()
+      HTMLBody = m_htmlBody
+   End Property
+
+   Public Property Let HTMLBody(value)
+      m_htmlBody = CStr(value)
+   End Property
+
+   Public Property Get HeaderValue(fieldName)
+      HeaderValue = GetHeaderLine(m_headers, CStr(fieldName))
+   End Property
+
+   Public Property Let HeaderValue(fieldName, fieldValue)
+      SetHeaderValue fieldName, fieldValue
+   End Property
+
+   Public Sub SetHeaderValue(fieldName, fieldValue)
+      Dim name
+      name = LCase(CStr(fieldName))
+      m_headers = SetHeaderLine(m_headers, CStr(fieldName), CStr(fieldValue))
+      Select Case name
+         Case "subject"
+            m_subject = CStr(fieldValue)
+         Case "from"
+            m_from = CStr(fieldValue)
+            m_fromAddress = m_from
+         Case "to"
+            m_to = CStr(fieldValue)
+         Case "cc"
+            m_cc = CStr(fieldValue)
+         Case "date"
+            m_date = CStr(fieldValue)
+      End Select
+   End Sub
+
+   Private Function ReadAllText(path)
+      Dim fileSystem, textFile
+      Set fileSystem = CreateObject("Scripting.FileSystemObject")
+      If Not fileSystem.FileExists(path) Then
+         ReadAllText = ""
+         Exit Function
+      End If
+      Set textFile = fileSystem.OpenTextFile(path, 1, False)
+      ReadAllText = textFile.ReadAll
+      textFile.Close
+   End Function
+
+   Private Sub WriteAllText(path, value)
+      Dim fileSystem, textFile
+      Set fileSystem = CreateObject("Scripting.FileSystemObject")
+      Set textFile = fileSystem.CreateTextFile(path, True, False)
+      textFile.Write CStr(value)
+      textFile.Close
+   End Sub
+
+   Private Sub SplitMessage(messageText, ByRef headers, ByRef body)
+      Dim normalized, markerPosition
+      normalized = NormalizeLineBreaks(messageText)
+      markerPosition = InStr(1, normalized, vbCrLf & vbCrLf, vbBinaryCompare)
+      If markerPosition > 0 Then
+         headers = Left(normalized, markerPosition - 1)
+         body = Mid(normalized, markerPosition + 4)
+      Else
+         headers = normalized
+         body = ""
+      End If
+   End Sub
+
+   Private Function NormalizeLineBreaks(value)
+      Dim text
+      text = CStr(value)
+      text = Replace(text, vbCrLf, vbLf)
+      text = Replace(text, vbCr, vbLf)
+      NormalizeLineBreaks = Replace(text, vbLf, vbCrLf)
+   End Function
+
+   Private Function GetHeaderLine(headers, fieldName)
+      Dim lines, index, line, colon, target, collecting, currentValue
+      target = LCase(CStr(fieldName))
+      lines = Split(NormalizeLineBreaks(headers), vbCrLf)
+      collecting = False
+      currentValue = ""
+      For index = 0 To UBound(lines)
+         line = lines(index)
+         If Len(line) > 0 Then
+            If IsContinuationLine(line) Then
+               If collecting Then
+                  currentValue = currentValue & " " & Trim(line)
+               End If
+            Else
+               If collecting Then
+                  GetHeaderLine = currentValue
+                  Exit Function
+               End If
+               collecting = False
+               colon = InStr(1, line, ":", vbBinaryCompare)
+               If colon > 1 Then
+                  If LCase(Trim(Left(line, colon - 1))) = target Then
+                     collecting = True
+                     currentValue = Trim(Mid(line, colon + 1))
+                  End If
+               End If
+            End If
+         Else
+            If collecting Then
+               GetHeaderLine = currentValue
+               Exit Function
+            End If
+            collecting = False
+         End If
+      Next
+      If collecting Then
+         GetHeaderLine = currentValue
+      Else
+         GetHeaderLine = ""
+      End If
+   End Function
+
+   Private Function SetHeaderLine(headers, fieldName, fieldValue)
+      Dim lines, index, line, colon, target, output, updated, skipContinuation
+      target = LCase(CStr(fieldName))
+      lines = Split(NormalizeLineBreaks(headers), vbCrLf)
+      output = ""
+      updated = False
+      skipContinuation = False
+      For index = 0 To UBound(lines)
+         line = lines(index)
+         If Len(line) = 0 Then
+            ' skip
+         ElseIf skipContinuation Then
+            If Not IsContinuationLine(line) Then
+               skipContinuation = False
+               colon = InStr(1, line, ":", vbBinaryCompare)
+               If colon > 1 Then
+                  If LCase(Trim(Left(line, colon - 1))) = target Then
+                     If Not updated And Len(CStr(fieldValue)) > 0 Then
+                        output = AppendHeaderLine(output, CanonicalHeaderName(fieldName) & ": " & SanitizeHeaderValue(fieldValue))
+                     End If
+                     updated = True
+                     skipContinuation = True
+                  Else
+                     output = AppendHeaderLine(output, line)
+                  End If
+               Else
+                  output = AppendHeaderLine(output, line)
+               End If
+            End If
+         Else
+            skipContinuation = False
+            colon = InStr(1, line, ":", vbBinaryCompare)
+            If colon > 1 Then
+               If LCase(Trim(Left(line, colon - 1))) = target Then
+                  If Not updated And Len(CStr(fieldValue)) > 0 Then
+                     output = AppendHeaderLine(output, CanonicalHeaderName(fieldName) & ": " & SanitizeHeaderValue(fieldValue))
+                  End If
+                  updated = True
+                  skipContinuation = True
+               Else
+                  output = AppendHeaderLine(output, line)
+               End If
+            Else
+               output = AppendHeaderLine(output, line)
+            End If
+         End If
+      Next
+      If Not updated And Len(CStr(fieldValue)) > 0 Then
+         output = AppendHeaderLine(output, CanonicalHeaderName(fieldName) & ": " & SanitizeHeaderValue(fieldValue))
+      End If
+      SetHeaderLine = output
+   End Function
+
+   Private Function IsContinuationLine(line)
+      IsContinuationLine = Left(line, 1) = " " Or Left(line, 1) = vbTab
+   End Function
+
+   Private Function AppendHeaderLine(existing, line)
+      If Len(existing) > 0 Then
+         AppendHeaderLine = existing & vbCrLf & line
+      Else
+         AppendHeaderLine = line
+      End If
+   End Function
+
+   Private Function CanonicalHeaderName(fieldName)
+      Select Case LCase(CStr(fieldName))
+         Case "cc"
+            CanonicalHeaderName = "Cc"
+         Case Else
+            CanonicalHeaderName = CStr(fieldName)
+      End Select
+   End Function
+
+   Private Function SanitizeHeaderValue(value)
+      SanitizeHeaderValue = Replace(Replace(CStr(value), vbCr, " "), vbLf, " ")
+   End Function
 End Class
 
 Dim HMAILSERVER_MESSAGE
@@ -213,6 +531,7 @@ Set HMAILSERVER_MESSAGE = New HMailServerRuleMessage
 HMAILSERVER_MESSAGE.FileName = "{{EscapeVbScript(messagePath)}}"
 HMAILSERVER_MESSAGE.DropMessage = False
 HMAILSERVER_MESSAGE.RejectReason = ""
+HMAILSERVER_MESSAGE.Load
 
 Call {{functionName}}(HMAILSERVER_MESSAGE)
 
@@ -236,12 +555,182 @@ hMailServerRuleStatusFile.Close
         string statusPath)
     {
         return $$"""
+var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
+
+function hMailServerRuleReadAllText(path) {
+  if (!hMailServerRuleFileSystem.FileExists(path)) {
+    return "";
+  }
+  var textFile = hMailServerRuleFileSystem.OpenTextFile(path, 1, false);
+  var value = textFile.ReadAll();
+  textFile.Close();
+  return value;
+}
+
+function hMailServerRuleWriteAllText(path, value) {
+  var textFile = hMailServerRuleFileSystem.CreateTextFile(path, true, false);
+  textFile.Write(String(value || ""));
+  textFile.Close();
+}
+
+function hMailServerRuleNormalizeLineBreaks(value) {
+  return String(value || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n/g, "\r\n");
+}
+
+function hMailServerRuleSplitMessage(value) {
+  var normalized = hMailServerRuleNormalizeLineBreaks(value);
+  var marker = normalized.indexOf("\r\n\r\n");
+  if (marker < 0) {
+    return { headers: normalized, body: "" };
+  }
+  return {
+    headers: normalized.substring(0, marker),
+    body: normalized.substring(marker + 4)
+  };
+}
+
+function hMailServerRuleIsContinuation(line) {
+  return line.length > 0 && (line.charAt(0) === " " || line.charAt(0) === "\t");
+}
+
+function hMailServerRuleGetHeader(headers, fieldName) {
+  var target = String(fieldName || "").toLowerCase();
+  var lines = hMailServerRuleNormalizeLineBreaks(headers).split("\r\n");
+  var collecting = false;
+  var currentValue = "";
+  for (var index = 0; index < lines.length; index++) {
+    var line = lines[index];
+    if (hMailServerRuleIsContinuation(line)) {
+      if (collecting) {
+        currentValue += " " + line.replace(/^\s+/, "");
+      }
+      continue;
+    }
+    if (collecting) {
+      return currentValue;
+    }
+    collecting = false;
+    var colon = line.indexOf(":");
+    if (colon > 0 && line.substring(0, colon).replace(/^\s+|\s+$/g, "").toLowerCase() === target) {
+      collecting = true;
+      currentValue = line.substring(colon + 1).replace(/^\s+|\s+$/g, "");
+    }
+  }
+  return collecting ? currentValue : "";
+}
+
+function hMailServerRuleAppendHeaderLine(existing, line) {
+  return existing ? existing + "\r\n" + line : line;
+}
+
+function hMailServerRuleCanonicalHeaderName(fieldName) {
+  return String(fieldName || "").toLowerCase() === "cc" ? "Cc" : String(fieldName || "");
+}
+
+function hMailServerRuleSanitizeHeaderValue(value) {
+  return String(value || "").replace(/[\r\n]/g, " ");
+}
+
+function hMailServerRuleSetHeader(headers, fieldName, fieldValue) {
+  var target = String(fieldName || "").toLowerCase();
+  var value = String(fieldValue || "");
+  var lines = hMailServerRuleNormalizeLineBreaks(headers).split("\r\n");
+  var output = "";
+  var updated = false;
+  var skipContinuation = false;
+  for (var index = 0; index < lines.length; index++) {
+    var line = lines[index];
+    if (!line) {
+      continue;
+    }
+    if (skipContinuation && hMailServerRuleIsContinuation(line)) {
+      continue;
+    }
+    skipContinuation = false;
+    var colon = line.indexOf(":");
+    if (colon > 0 && line.substring(0, colon).replace(/^\s+|\s+$/g, "").toLowerCase() === target) {
+      if (!updated && value.length > 0) {
+        output = hMailServerRuleAppendHeaderLine(output, hMailServerRuleCanonicalHeaderName(fieldName) + ": " + hMailServerRuleSanitizeHeaderValue(value));
+      }
+      updated = true;
+      skipContinuation = true;
+      continue;
+    }
+    output = hMailServerRuleAppendHeaderLine(output, line);
+  }
+  if (!updated && value.length > 0) {
+    output = hMailServerRuleAppendHeaderLine(output, hMailServerRuleCanonicalHeaderName(fieldName) + ": " + hMailServerRuleSanitizeHeaderValue(value));
+  }
+  return output;
+}
+
 var HMAILSERVER_MESSAGE = {
   FileName: "{{EscapeJScript(messagePath)}}",
   DropMessage: false,
-  RejectReason: ""
+  RejectReason: "",
+  Subject: "",
+  From: "",
+  FromAddress: "",
+  To: "",
+  Recipients: "",
+  CC: "",
+  Date: "",
+  Body: "",
+  HTMLBody: "",
+  _headers: "",
+  Load: function() {
+    var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this.FileName));
+    this._headers = parsed.headers;
+    this.Body = parsed.body;
+    this.Subject = this.HeaderValue("Subject");
+    this.From = this.HeaderValue("From");
+    this.FromAddress = this.From;
+    this.To = this.HeaderValue("To");
+    this.Recipients = this.To;
+    this.CC = this.HeaderValue("Cc") || this.HeaderValue("CC");
+    this.Date = this.HeaderValue("Date");
+    this.HTMLBody = hMailServerRuleGetHeader(this._headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0 ? this.Body : "";
+  },
+  RefreshContent: function() {
+    this.Load();
+  },
+  HeaderValue: function(fieldName) {
+    return hMailServerRuleGetHeader(this._headers, fieldName);
+  },
+  SetHeaderValue: function(fieldName, fieldValue) {
+    this._headers = hMailServerRuleSetHeader(this._headers, fieldName, fieldValue);
+    var name = String(fieldName || "").toLowerCase();
+    if (name === "subject") {
+      this.Subject = String(fieldValue || "");
+    } else if (name === "from") {
+      this.From = String(fieldValue || "");
+      this.FromAddress = this.From;
+    } else if (name === "to") {
+      this.To = String(fieldValue || "");
+      this.Recipients = this.To;
+    } else if (name === "cc") {
+      this.CC = String(fieldValue || "");
+    } else if (name === "date") {
+      this.Date = String(fieldValue || "");
+    }
+  },
+  Save: function() {
+    var headers = this._headers;
+    headers = hMailServerRuleSetHeader(headers, "Subject", this.Subject);
+    headers = hMailServerRuleSetHeader(headers, "From", this.From);
+    headers = hMailServerRuleSetHeader(headers, "To", this.To);
+    headers = hMailServerRuleSetHeader(headers, "Cc", this.CC);
+    headers = hMailServerRuleSetHeader(headers, "Date", this.Date);
+    var messageBody = this.Body;
+    if (this.HTMLBody && hMailServerRuleGetHeader(headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0) {
+      messageBody = this.HTMLBody;
+    }
+    hMailServerRuleWriteAllText(this.FileName, headers + "\r\n\r\n" + messageBody);
+    this._headers = headers;
+  }
 };
-var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
+HMAILSERVER_MESSAGE.Load();
+
 var hMailServerRuleScriptFile = hMailServerRuleFileSystem.OpenTextFile("{{EscapeJScript(scriptPath)}}", 1, false);
 eval(hMailServerRuleScriptFile.ReadAll());
 hMailServerRuleScriptFile.Close();
@@ -316,7 +805,7 @@ hMailServerRuleStatusFile.Close();
 
     private sealed record ScriptLanguage(string Name, string Extension);
 
-    private sealed record ScriptStatus(bool DropMessage, string RejectReason);
+    private sealed record ScriptStatus(bool Found, bool DropMessage, string RejectReason);
 
     private sealed record ProcessResult(bool Succeeded, string Error);
 }
