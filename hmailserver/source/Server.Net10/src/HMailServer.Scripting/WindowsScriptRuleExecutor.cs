@@ -689,6 +689,11 @@ Class HMailServerRuleMessage
    Public FileName
    Public DropMessage
    Public RejectReason
+   Public ID
+   Public UID
+   Public State
+   Public DeliveryAttempt
+   Public InternalDate
    Private m_headers
    Private m_body
    Private m_htmlBody
@@ -698,12 +703,20 @@ Class HMailServerRuleMessage
    Private m_to
    Private m_cc
    Private m_date
+   Private m_charset
+   Private m_encodeFields
    Private m_recipients
    Private m_attachments
 
    Private Sub Class_Initialize()
       Set m_recipients = New HMailServerRuleRecipients
       Set m_attachments = New HMailServerRuleAttachments
+      ID = 0
+      UID = 0
+      State = 0
+      DeliveryAttempt = 1
+      InternalDate = Now
+      m_encodeFields = True
    End Sub
 
    Public Sub Load()
@@ -719,6 +732,7 @@ Class HMailServerRuleMessage
          m_cc = HeaderValue("CC")
       End If
       m_date = HeaderValue("Date")
+      m_charset = ExtractCharset(HeaderValue("Content-Type"))
       If InStr(1, HeaderValue("Content-Type"), "text/html", vbTextCompare) > 0 Then
          m_htmlBody = m_body
       Else
@@ -738,6 +752,9 @@ Class HMailServerRuleMessage
       headers = SetHeaderLine(headers, "To", m_to)
       headers = SetHeaderLine(headers, "Cc", m_cc)
       headers = SetHeaderLine(headers, "Date", m_date)
+      If Len(m_charset) > 0 Then
+         headers = SetHeaderLine(headers, "Content-Type", ApplyCharset(GetHeaderLine(headers, "Content-Type"), m_charset))
+      End If
       messageBody = m_body
       If Len(m_htmlBody) > 0 And InStr(1, GetHeaderLine(headers, "Content-Type"), "text/html", vbTextCompare) > 0 Then
          messageBody = m_htmlBody
@@ -825,6 +842,38 @@ Class HMailServerRuleMessage
    Public Property Let HeaderValue(fieldName, fieldValue)
       SetHeaderValue fieldName, fieldValue
    End Property
+
+   Public Property Get Size()
+      Dim fileSystem, file
+      Set fileSystem = CreateObject("Scripting.FileSystemObject")
+      If fileSystem.FileExists(FileName) Then
+         Set file = fileSystem.GetFile(FileName)
+         Size = CLng((CDbl(file.Size) + 1023) / 1024)
+      Else
+         Size = 0
+      End If
+   End Property
+
+   Public Property Get Charset()
+      Charset = m_charset
+   End Property
+
+   Public Property Let Charset(value)
+      m_charset = CStr(value)
+      m_headers = SetHeaderLine(m_headers, "Content-Type", ApplyCharset(HeaderValue("Content-Type"), m_charset))
+   End Property
+
+   Public Property Get EncodeFields()
+      EncodeFields = m_encodeFields
+   End Property
+
+   Public Property Let EncodeFields(value)
+      m_encodeFields = CBool(value)
+   End Property
+
+   Public Function HasBodyType(bodyType)
+      HasBodyType = InStr(1, m_headers & vbCrLf & m_body, CStr(bodyType), vbTextCompare) > 0
+   End Function
 
    Public Sub AddRecipient(name, address)
       Dim displayAddress
@@ -1025,6 +1074,32 @@ Class HMailServerRuleMessage
       SanitizeHeaderValue = Replace(Replace(CStr(value), vbCr, " "), vbLf, " ")
    End Function
 
+   Private Function ExtractCharset(contentType)
+      Dim parts, index, part
+      parts = Split(CStr(contentType), ";")
+      For index = 0 To UBound(parts)
+         part = Trim(parts(index))
+         If LCase(Left(part, 8)) = "charset=" Then
+            ExtractCharset = Replace(Mid(part, 9), Chr(34), "")
+            Exit Function
+         End If
+      Next
+      ExtractCharset = ""
+   End Function
+
+   Private Function ApplyCharset(contentType, charset)
+      Dim baseContentType
+      baseContentType = Trim(Split(CStr(contentType), ";")(0))
+      If Len(baseContentType) = 0 Then
+         baseContentType = "text/plain"
+      End If
+      If Len(CStr(charset)) > 0 Then
+         ApplyCharset = baseContentType & "; charset=" & SanitizeHeaderValue(charset)
+      Else
+         ApplyCharset = baseContentType
+      End If
+   End Function
+
    Private Function FormatRecipientForHeader(name, address)
       If Len(CStr(name)) > 0 Then
          FormatRecipientForHeader = Chr(34) & Replace(CStr(name), Chr(34), "'") & Chr(34) & " <" & CStr(address) & ">"
@@ -1218,6 +1293,32 @@ function hMailServerRuleFormatRecipientForHeader(name, address) {
   return String(address || "");
 }
 
+function hMailServerRuleExtractCharset(contentType) {
+  var parts = String(contentType || "").split(";");
+  for (var index = 0; index < parts.length; index++) {
+    var part = parts[index].replace(/^\s+|\s+$/g, "");
+    if (part.toLowerCase().indexOf("charset=") === 0) {
+      return part.substring(8).replace(/"/g, "");
+    }
+  }
+  return "";
+}
+
+function hMailServerRuleApplyCharset(contentType, charset) {
+  var baseContentType = String(contentType || "").split(";")[0].replace(/^\s+|\s+$/g, "");
+  if (!baseContentType) {
+    baseContentType = "text/plain";
+  }
+  return charset ? baseContentType + "; charset=" + hMailServerRuleSanitizeHeaderValue(charset) : baseContentType;
+}
+
+function hMailServerRuleGetMessageSize(fileName) {
+  if (!hMailServerRuleFileSystem.FileExists(fileName)) {
+    return 0;
+  }
+  return Math.ceil(Number(hMailServerRuleFileSystem.GetFile(fileName).Size || 0) / 1024);
+}
+
 function hMailServerRuleAppendAttachmentOperation(operationPath, name, value) {
   if (!operationPath) {
     return;
@@ -1307,6 +1408,12 @@ var HMAILSERVER_MESSAGE = {
   FileName: "{{EscapeJScript(messagePath)}}",
   DropMessage: false,
   RejectReason: "",
+  ID: 0,
+  UID: 0,
+  State: 0,
+  Size: 0,
+  DeliveryAttempt: 1,
+  InternalDate: new Date(),
   Subject: "",
   From: "",
   FromAddress: "",
@@ -1314,6 +1421,8 @@ var HMAILSERVER_MESSAGE = {
   Recipients: hMailServerRuleCreateRecipients(),
   CC: "",
   Date: "",
+  Charset: "",
+  EncodeFields: true,
   Body: "",
   HTMLBody: "",
   Attachments: hMailServerRuleCreateAttachments(
@@ -1324,11 +1433,13 @@ var HMAILSERVER_MESSAGE = {
     var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this.FileName));
     this._headers = parsed.headers;
     this.Body = parsed.body;
+    this.Size = hMailServerRuleGetMessageSize(this.FileName);
     this.Subject = this.HeaderValue("Subject");
     this.From = this.HeaderValue("From");
     this.To = this.HeaderValue("To");
     this.CC = this.HeaderValue("Cc") || this.HeaderValue("CC");
     this.Date = this.HeaderValue("Date");
+    this.Charset = hMailServerRuleExtractCharset(this.HeaderValue("Content-Type"));
     this.HTMLBody = hMailServerRuleGetHeader(this._headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0 ? this.Body : "";
   },
   RefreshContent: function() {
@@ -1359,6 +1470,9 @@ var HMAILSERVER_MESSAGE = {
     headers = hMailServerRuleSetHeader(headers, "To", this.To);
     headers = hMailServerRuleSetHeader(headers, "Cc", this.CC);
     headers = hMailServerRuleSetHeader(headers, "Date", this.Date);
+    if (this.Charset) {
+      headers = hMailServerRuleSetHeader(headers, "Content-Type", hMailServerRuleApplyCharset(hMailServerRuleGetHeader(headers, "Content-Type"), this.Charset));
+    }
     var messageBody = this.Body;
     if (this.HTMLBody && hMailServerRuleGetHeader(headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0) {
       messageBody = this.HTMLBody;
@@ -1377,6 +1491,13 @@ var HMAILSERVER_MESSAGE = {
     this.CC = "";
     this._headers = hMailServerRuleSetHeader(this._headers, "To", "");
     this._headers = hMailServerRuleSetHeader(this._headers, "Cc", "");
+  },
+  HasBodyType: function(bodyType) {
+    return (this._headers + "\r\n" + this.Body).toLowerCase().indexOf(String(bodyType || "").toLowerCase()) >= 0;
+  },
+  SetCharset: function(charset) {
+    this.Charset = String(charset || "");
+    this._headers = hMailServerRuleSetHeader(this._headers, "Content-Type", hMailServerRuleApplyCharset(this.HeaderValue("Content-Type"), this.Charset));
   }
 };
 HMAILSERVER_MESSAGE.Load();

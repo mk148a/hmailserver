@@ -83,11 +83,32 @@ Sub Rule_UpdateMessage(obMessage)
       obMessage.RejectReason = "folded header not loaded"
       Exit Sub
    End If
+   If obMessage.Size <= 0 Then
+      obMessage.RejectReason = "size not loaded"
+      Exit Sub
+   End If
+   If obMessage.DeliveryAttempt <> 1 Then
+      obMessage.RejectReason = "delivery attempt not loaded"
+      Exit Sub
+   End If
+   If Not obMessage.EncodeFields Then
+      obMessage.RejectReason = "encode fields not loaded"
+      Exit Sub
+   End If
+   If Not obMessage.HasBodyType("text/plain") Then
+      obMessage.RejectReason = "body type not loaded"
+      Exit Sub
+   End If
+   If obMessage.Charset <> "us-ascii" Then
+      obMessage.RejectReason = "charset not loaded"
+      Exit Sub
+   End If
 
    obMessage.Subject = "Changed"
    obMessage.From = "Updated <updated@example.test>"
    obMessage.To = "next@example.test"
    obMessage.CC = "copy2@example.test"
+   obMessage.Charset = "utf-8"
    obMessage.Body = "Changed body" & vbCrLf
    obMessage.HeaderValue("X-Legacy") = "yes"
    obMessage.Save
@@ -104,6 +125,7 @@ End Sub
                         "To: dest@example.test\r\n" +
                         "CC: copy@example.test\r\n" +
                         "Subject: Original\r\n" +
+                        "Content-Type: text/plain; charset=us-ascii\r\n" +
                         "X-Folded: one\r\n two\r\n" +
                         "\r\n" +
                         "Original body\r\n")),
@@ -116,6 +138,7 @@ End Sub
             StringAssert.Contains(messageText, "From: Updated <updated@example.test>\r\n");
             StringAssert.Contains(messageText, "To: next@example.test\r\n");
             StringAssert.Contains(messageText, "Cc: copy2@example.test\r\n");
+            StringAssert.Contains(messageText, "Content-Type: text/plain; charset=utf-8\r\n");
             StringAssert.Contains(messageText, "X-Legacy: yes\r\n");
             StringAssert.Contains(messageText, "\r\n\r\nChanged body\r\n");
         }
@@ -156,11 +179,32 @@ function Rule_UpdateMessage(obMessage) {
     obMessage.RejectReason = "folded header not loaded";
     return;
   }
+  if (obMessage.Size <= 0) {
+    obMessage.RejectReason = "size not loaded";
+    return;
+  }
+  if (obMessage.DeliveryAttempt !== 1) {
+    obMessage.RejectReason = "delivery attempt not loaded";
+    return;
+  }
+  if (!obMessage.EncodeFields) {
+    obMessage.RejectReason = "encode fields not loaded";
+    return;
+  }
+  if (!obMessage.HasBodyType("text/plain")) {
+    obMessage.RejectReason = "body type not loaded";
+    return;
+  }
+  if (obMessage.Charset !== "us-ascii") {
+    obMessage.RejectReason = "charset not loaded";
+    return;
+  }
 
   obMessage.Subject = "Changed JS";
   obMessage.From = "JS Sender <js@example.test>";
   obMessage.To = "js-next@example.test";
   obMessage.CC = "js-copy@example.test";
+  obMessage.Charset = "utf-8";
   obMessage.Body = "Changed JS body\r\n";
   obMessage.SetHeaderValue("X-JScript", "yes");
   obMessage.Save();
@@ -177,6 +221,7 @@ function Rule_UpdateMessage(obMessage) {
                         "To: dest@example.test\r\n" +
                         "CC: copy@example.test\r\n" +
                         "Subject: Original\r\n" +
+                        "Content-Type: text/plain; charset=us-ascii\r\n" +
                         "X-Folded: one\r\n two\r\n" +
                         "\r\n" +
                         "Original body\r\n")),
@@ -189,6 +234,7 @@ function Rule_UpdateMessage(obMessage) {
             StringAssert.Contains(messageText, "From: JS Sender <js@example.test>\r\n");
             StringAssert.Contains(messageText, "To: js-next@example.test\r\n");
             StringAssert.Contains(messageText, "Cc: js-copy@example.test\r\n");
+            StringAssert.Contains(messageText, "Content-Type: text/plain; charset=utf-8\r\n");
             StringAssert.Contains(messageText, "X-JScript: yes\r\n");
             StringAssert.Contains(messageText, "\r\n\r\nChanged JS body\r\n");
         }
