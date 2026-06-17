@@ -44,6 +44,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: Windows-only process-isolated SMTP rule script executor runs `EventHandlers.vbs`/`.js` through `cscript.exe`, timeboxes execution, round-trips message file mutations, exposes file-backed scalar, recipient, and attachment facades, and fails closed when the script runner does not return status.
 - Done: SMTP `OnClientConnect(HMAILSERVER_CLIENT)` event hook runs before the greeting and can close the connection on legacy `Result.Value = 1`.
 - Done: SMTP `OnHELO(HMAILSERVER_CLIENT)` event hook runs before HELO/EHLO success responses and maps legacy `Result.Value`/`Result.Message` rejection responses.
+- Done: SMTP `OnClientLogon(HMAILSERVER_CLIENT)` event hook runs after AUTH attempts and exposes attempted username plus authenticated state.
 - Done: SMTP `OnSMTPData(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs after DATA is read and before receiver/queue processing, can mutate/drop/reject messages, and maps legacy rejection responses.
 - Done: SMTP `OnAcceptMessage(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs before global rule processing, can mutate/drop/reject messages, exposes basic client context, and maps legacy `Result.Value`/`Result.Message` rejection responses.
 - Done: modern TLS option factory and spam/virus protocol helpers.
@@ -97,6 +98,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: Windows-only process-isolated VBScript/JScript host for SMTP rule functions with file-backed scalar message facade (`FileName`, `DropMessage`, `RejectReason`, IDs/state placeholders, size, delivery attempt, charset, body type checks, common envelope fields, body fields, header value access, message header collection, and `Save`), envelope recipient collection facade, and attachment collection facade.
    - Done: `OnClientConnect` protocol event hook before SMTP greeting with connection-close handling for legacy `Result.Value = 1`.
    - Done: `OnHELO` protocol event hook before HELO/EHLO success responses with `HMAILSERVER_CLIENT` and legacy `Result.Value`/`Result.Message` rejection handling.
+   - Done: `OnClientLogon` protocol event hook after successful and failed SMTP AUTH attempts with attempted username and authenticated state.
    - Done: `OnSMTPData` protocol event hook after DATA is read and before receiver/queue processing with message mutation/drop/reject handling.
    - Done: `OnAcceptMessage` protocol event hook before global rule processing with `HMAILSERVER_CLIENT`, `HMAILSERVER_MESSAGE`, and legacy `Result.Value`/`Result.Message` rejection handling.
    - Remaining: full legacy script object model and remaining protocol event scripting hooks.
@@ -128,4 +130,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue protocol event scripting hooks beyond `OnClientConnect`, `OnHELO`, `OnSMTPData`, and `OnAcceptMessage`, then fill the remaining legacy script object model surface behind the process-isolated script host.
+Continue protocol event scripting hooks beyond `OnClientConnect`, `OnHELO`, `OnClientLogon`, `OnSMTPData`, and `OnAcceptMessage`, then fill the remaining legacy script object model surface behind the process-isolated script host.
