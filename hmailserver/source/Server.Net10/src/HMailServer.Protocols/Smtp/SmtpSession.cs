@@ -661,6 +661,35 @@ public sealed class SmtpSession
             return SmtpDispatchResult.Continue;
         }
 
+        var messageData = data.MessageData;
+        var smtpDataEventResult = ExecuteSmtpEvent(
+            "OnSMTPData",
+            state,
+            SmtpEventScriptArgumentShape.ClientAndMessage,
+            messageData,
+            cancellationToken);
+        if (!smtpDataEventResult.Accepted)
+        {
+            state.ResetTransaction();
+            await WriteAsync(
+                stream,
+                NormalizeSmtpEventFailureResponse(smtpDataEventResult.FailureResponse) + "\r\n",
+                cancellationToken).ConfigureAwait(false);
+            return SmtpDispatchResult.Continue;
+        }
+
+        if (smtpDataEventResult.DropMessage)
+        {
+            state.ResetTransaction();
+            await WriteAsync(stream, "250 Queued\r\n", cancellationToken).ConfigureAwait(false);
+            return SmtpDispatchResult.Continue;
+        }
+
+        if (smtpDataEventResult.MessageData is not null)
+        {
+            messageData = smtpDataEventResult.MessageData;
+        }
+
         if (_messageReceiver is null)
         {
             state.ResetTransaction();
@@ -674,7 +703,7 @@ public sealed class SmtpSession
             state.MailFrom,
             state.Recipients.ToArray(),
             state.DeclaredSize,
-            data.MessageData,
+            messageData,
             DateTimeOffset.UtcNow,
             ClientIPAddress: state.ClientIPAddress,
             ClientPort: state.ClientPort,

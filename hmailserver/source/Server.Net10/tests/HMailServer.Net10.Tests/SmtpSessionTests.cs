@@ -135,6 +135,62 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_PassesOnSmtpDataMutatedMessageToReceiver()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nMAIL FROM:<sender@example.test>\r\nRCPT TO:<recipient@example.test>\r\nDATA\r\nSubject: Original\r\n\r\nBody\r\n.\r\nQUIT\r\n");
+        var receiver = new FakeMessageReceiver();
+        var mutatedMessage = Encoding.Latin1.GetBytes("Subject: Mutated\r\nX-SMTPData: yes\r\n\r\nBody\r\n");
+        SmtpEventScriptExecutionRequest? capturedRequest = null;
+        var session = new SmtpSession(
+            new SmtpSessionOptions { ServerName = "mx.example.test" },
+            receiver,
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                request =>
+                {
+                    if (request.EventName != "OnSMTPData")
+                    {
+                        return SmtpRuleScriptExecutionResult.Continue(request.MessageData);
+                    }
+
+                    capturedRequest = request;
+                    return SmtpRuleScriptExecutionResult.Continue(mutatedMessage);
+                }));
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "250 Queued\r\n");
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual(SmtpEventScriptArgumentShape.ClientAndMessage, capturedRequest.ArgumentShape);
+        Assert.IsNotNull(receiver.LastRequest);
+        StringAssert.Contains(
+            Encoding.Latin1.GetString(receiver.LastRequest.MessageData),
+            "X-SMTPData: yes\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_ReturnsFailureBeforeReceiverWhenOnSmtpDataRejects()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nMAIL FROM:<sender@example.test>\r\nRCPT TO:<recipient@example.test>\r\nDATA\r\nSubject: Block\r\n\r\nBody\r\n.\r\nQUIT\r\n");
+        var receiver = new FakeMessageReceiver();
+        var session = new SmtpSession(
+            new SmtpSessionOptions { ServerName = "mx.example.test" },
+            receiver,
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                request => request.EventName == "OnSMTPData"
+                    ? SmtpRuleScriptExecutionResult.Failure("554 data blocked")
+                    : SmtpRuleScriptExecutionResult.Continue(request.MessageData)));
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "554 data blocked\r\n");
+        Assert.IsFalse(output.Contains("250 Queued\r\n", StringComparison.Ordinal));
+        Assert.IsNull(receiver.LastRequest);
+    }
+
+    [TestMethod]
     public async Task RunAsync_RejectsRecipientWhenValidatorRejects()
     {
         await using var stream = new DuplexMemoryStream(
