@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using HMailServer.Core.Abstractions;
+using MimeKit;
 
 namespace HMailServer.Scripting;
 
@@ -54,8 +55,12 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
         {
             var messagePath = Path.Combine(tempDirectory, "message.eml");
             var statusPath = Path.Combine(tempDirectory, "status.txt");
+            var attachmentDirectory = Path.Combine(tempDirectory, "attachments");
+            var attachmentManifestPath = Path.Combine(tempDirectory, "attachments.tsv");
+            var attachmentOperationPath = Path.Combine(tempDirectory, "attachment-operations.tsv");
             var runnerPath = Path.Combine(tempDirectory, language.Extension == "vbs" ? "runner.vbs" : "runner.js");
             File.WriteAllBytes(messagePath, request.MessageData);
+            WriteAttachmentManifest(messagePath, attachmentDirectory, attachmentManifestPath);
             File.WriteAllText(
                 runnerPath,
                 language.Extension == "vbs"
@@ -64,6 +69,8 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
                         request.FunctionName,
                         messagePath,
                         statusPath,
+                        attachmentManifestPath,
+                        attachmentOperationPath,
                         request.MailFrom,
                         request.Recipients)
                     : CreateJScriptRunner(
@@ -71,6 +78,8 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
                         request.FunctionName,
                         messagePath,
                         statusPath,
+                        attachmentManifestPath,
+                        attachmentOperationPath,
                         request.MailFrom,
                         request.Recipients),
                 Encoding.Unicode);
@@ -82,6 +91,11 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
             }
 
             var status = ReadStatus(statusPath);
+            if (status.Found)
+            {
+                ApplyAttachmentOperations(messagePath, attachmentOperationPath);
+            }
+
             var messageData = File.Exists(messagePath)
                 ? File.ReadAllBytes(messagePath)
                 : request.MessageData;
@@ -212,11 +226,238 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
         return new ScriptStatus(Found: true, dropMessage, rejectReason);
     }
 
+    private static void WriteAttachmentManifest(
+        string messagePath,
+        string attachmentDirectory,
+        string manifestPath)
+    {
+        Directory.CreateDirectory(attachmentDirectory);
+
+        MimeMessage message;
+        try
+        {
+            using var input = File.OpenRead(messagePath);
+            message = MimeMessage.Load(input);
+        }
+        catch (FormatException)
+        {
+            File.WriteAllText(manifestPath, string.Empty, Encoding.UTF8);
+            return;
+        }
+
+        using var manifest = new StreamWriter(manifestPath, append: false, Encoding.UTF8);
+        var index = 0;
+        foreach (var attachment in message.Attachments)
+        {
+            var fileName = GetAttachmentFileName(attachment, index);
+            var attachmentPath = Path.Combine(
+                attachmentDirectory,
+                index.ToString(CultureInfo.InvariantCulture) + "-" + SanitizeFileName(fileName));
+            using (var output = File.Create(attachmentPath))
+            {
+                if (attachment is MimePart part && part.Content is not null)
+                {
+                    part.Content.DecodeTo(output);
+                }
+                else
+                {
+                    attachment.WriteTo(output);
+                }
+            }
+
+            var size = new FileInfo(attachmentPath).Length;
+            manifest.Write(index.ToString(CultureInfo.InvariantCulture));
+            manifest.Write('\t');
+            manifest.Write(ToManifestField(fileName));
+            manifest.Write('\t');
+            manifest.Write(size.ToString(CultureInfo.InvariantCulture));
+            manifest.Write('\t');
+            manifest.WriteLine(ToManifestField(attachmentPath));
+            index++;
+        }
+    }
+
+    private static void ApplyAttachmentOperations(
+        string messagePath,
+        string operationPath)
+    {
+        if (!File.Exists(operationPath))
+        {
+            return;
+        }
+
+        var operations = File.ReadAllLines(operationPath, Encoding.UTF8);
+        if (operations.Length == 0)
+        {
+            return;
+        }
+
+        MimeMessage message;
+        using (var input = File.OpenRead(messagePath))
+        {
+            message = MimeMessage.Load(input);
+        }
+
+        foreach (var operationLine in operations)
+        {
+            if (string.IsNullOrWhiteSpace(operationLine))
+            {
+                continue;
+            }
+
+            var fields = operationLine.Split('\t', 2);
+            var operation = fields[0];
+            var value = fields.Length > 1 ? fields[1] : string.Empty;
+            if (operation.Equals("Clear", StringComparison.OrdinalIgnoreCase))
+            {
+                RemoveAllAttachments(message.Body);
+            }
+            else if (operation.Equals("DeleteIndex", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index))
+            {
+                var currentIndex = 0;
+                RemoveAttachmentAt(message.Body, index, ref currentIndex);
+            }
+            else if (operation.Equals("Add", StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(value))
+            {
+                AddAttachment(message, value);
+            }
+        }
+
+        using var output = File.Create(messagePath);
+        message.WriteTo(output);
+    }
+
+    private static void AddAttachment(
+        MimeMessage message,
+        string path)
+    {
+        var attachmentBytes = File.ReadAllBytes(path);
+        var attachment = new MimePart("application", "octet-stream")
+        {
+            Content = new MimeContent(new MemoryStream(attachmentBytes)),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            FileName = Path.GetFileName(path)
+        };
+
+        if (message.Body is Multipart multipart &&
+            multipart.ContentType.MediaSubtype.Equals("mixed", StringComparison.OrdinalIgnoreCase))
+        {
+            multipart.Add(attachment);
+            return;
+        }
+
+        var mixed = new Multipart("mixed");
+        if (message.Body is not null)
+        {
+            mixed.Add(message.Body);
+        }
+
+        mixed.Add(attachment);
+        message.Body = mixed;
+    }
+
+    private static void RemoveAllAttachments(MimeEntity? entity)
+    {
+        if (entity is not Multipart multipart)
+        {
+            return;
+        }
+
+        for (var index = multipart.Count - 1; index >= 0; index--)
+        {
+            var child = multipart[index];
+            if (IsAttachmentEntity(child))
+            {
+                multipart.RemoveAt(index);
+            }
+            else
+            {
+                RemoveAllAttachments(child);
+            }
+        }
+    }
+
+    private static bool RemoveAttachmentAt(
+        MimeEntity? entity,
+        int targetIndex,
+        ref int currentIndex)
+    {
+        if (entity is not Multipart multipart)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < multipart.Count; index++)
+        {
+            var child = multipart[index];
+            if (IsAttachmentEntity(child))
+            {
+                if (currentIndex == targetIndex)
+                {
+                    multipart.RemoveAt(index);
+                    return true;
+                }
+
+                currentIndex++;
+            }
+            else if (RemoveAttachmentAt(child, targetIndex, ref currentIndex))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsAttachmentEntity(MimeEntity entity) =>
+        entity.ContentDisposition?.Disposition.Equals(
+            ContentDisposition.Attachment,
+            StringComparison.OrdinalIgnoreCase) == true ||
+        !string.IsNullOrWhiteSpace(entity.ContentDisposition?.FileName) ||
+        !string.IsNullOrWhiteSpace(entity.ContentType.Name);
+
+    private static string GetAttachmentFileName(
+        MimeEntity entity,
+        int index)
+    {
+        var fileName = entity.ContentDisposition?.FileName;
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            fileName = entity.ContentType.Name;
+        }
+
+        return string.IsNullOrWhiteSpace(fileName)
+            ? "attachment-" + index.ToString(CultureInfo.InvariantCulture) + ".dat"
+            : fileName;
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(fileName.Length);
+        foreach (var character in fileName)
+        {
+            builder.Append(Array.IndexOf(invalid, character) >= 0 ? '_' : character);
+        }
+
+        return builder.Length == 0 ? "attachment.dat" : builder.ToString();
+    }
+
+    private static string ToManifestField(string value) =>
+        value.Replace('\t', ' ')
+            .Replace('\r', ' ')
+            .Replace('\n', ' ');
+
     private static string CreateVbScriptRunner(
         string scriptPath,
         string functionName,
         string messagePath,
         string statusPath,
+        string attachmentManifestPath,
+        string attachmentOperationPath,
         string mailFrom,
         IReadOnlyList<SmtpResolvedRecipient> recipients)
     {
@@ -293,6 +534,157 @@ Class HMailServerRuleRecipients
    End Function
 End Class
 
+Class HMailServerRuleAttachment
+   Public FileName
+   Public Size
+   Private m_sourcePath
+   Private m_owner
+   Private m_index
+
+   Public Sub Initialize(owner, index, attachmentFileName, attachmentSize, sourcePath)
+      Set m_owner = owner
+      m_index = index
+      FileName = attachmentFileName
+      Size = CLng(attachmentSize)
+      m_sourcePath = sourcePath
+   End Sub
+
+   Public Sub SaveAs(path)
+      Dim fileSystem
+      Set fileSystem = CreateObject("Scripting.FileSystemObject")
+      fileSystem.CopyFile m_sourcePath, CStr(path), True
+   End Sub
+
+   Public Sub Delete()
+      m_owner.DeleteAt m_index
+   End Sub
+End Class
+
+Class HMailServerRuleAttachments
+   Private m_fileNames
+   Private m_sizes
+   Private m_sourcePaths
+   Private m_count
+   Private m_operationPath
+
+   Private Sub Class_Initialize()
+      m_count = 0
+      m_operationPath = ""
+      ReDim m_fileNames(0)
+      ReDim m_sizes(0)
+      ReDim m_sourcePaths(0)
+   End Sub
+
+   Public Sub Load(manifestPath, operationPath)
+      m_operationPath = operationPath
+      ClearInMemory
+
+      Dim fileSystem
+      Set fileSystem = CreateObject("Scripting.FileSystemObject")
+      If Not fileSystem.FileExists(manifestPath) Then
+         Exit Sub
+      End If
+
+      Dim manifestFile, line, fields
+      Set manifestFile = fileSystem.OpenTextFile(manifestPath, 1, False)
+      Do Until manifestFile.AtEndOfStream
+         line = manifestFile.ReadLine
+         fields = Split(line, vbTab)
+         If UBound(fields) >= 3 Then
+            AddInMemory fields(1), CLng(fields(2)), fields(3)
+         End If
+      Loop
+      manifestFile.Close
+   End Sub
+
+   Public Property Get Count()
+      Count = m_count
+   End Property
+
+   Public Function Item(index)
+      If index < 0 Or index >= m_count Then
+         Set Item = Nothing
+         Exit Function
+      End If
+
+      Dim attachment
+      Set attachment = New HMailServerRuleAttachment
+      attachment.Initialize Me, index, m_fileNames(index), m_sizes(index), m_sourcePaths(index)
+      Set Item = attachment
+   End Function
+
+   Public Sub Clear()
+      ClearInMemory
+      AppendOperation "Clear", ""
+   End Sub
+
+   Public Sub Add(path)
+      Dim fileSystem, file
+      Set fileSystem = CreateObject("Scripting.FileSystemObject")
+      If Not fileSystem.FileExists(path) Then
+         Exit Sub
+      End If
+
+      Set file = fileSystem.GetFile(path)
+      AddInMemory file.Name, CLng(file.Size), CStr(path)
+      AppendOperation "Add", CStr(path)
+   End Sub
+
+   Public Sub DeleteAt(index)
+      If index < 0 Or index >= m_count Then
+         Exit Sub
+      End If
+
+      Dim removeIndex
+      AppendOperation "DeleteIndex", CStr(index)
+      For removeIndex = index To m_count - 2
+         m_fileNames(removeIndex) = m_fileNames(removeIndex + 1)
+         m_sizes(removeIndex) = m_sizes(removeIndex + 1)
+         m_sourcePaths(removeIndex) = m_sourcePaths(removeIndex + 1)
+      Next
+      m_count = m_count - 1
+      If m_count = 0 Then
+         ClearInMemory
+      Else
+         ReDim Preserve m_fileNames(m_count - 1)
+         ReDim Preserve m_sizes(m_count - 1)
+         ReDim Preserve m_sourcePaths(m_count - 1)
+      End If
+   End Sub
+
+   Private Sub AddInMemory(fileName, size, sourcePath)
+      If m_count > 0 Then
+         ReDim Preserve m_fileNames(m_count)
+         ReDim Preserve m_sizes(m_count)
+         ReDim Preserve m_sourcePaths(m_count)
+      End If
+
+      m_fileNames(m_count) = CStr(fileName)
+      m_sizes(m_count) = CLng(size)
+      m_sourcePaths(m_count) = CStr(sourcePath)
+      m_count = m_count + 1
+   End Sub
+
+   Private Sub ClearInMemory()
+      m_count = 0
+      ReDim m_fileNames(0)
+      ReDim m_sizes(0)
+      ReDim m_sourcePaths(0)
+   End Sub
+
+   Private Sub AppendOperation(name, value)
+      If Len(m_operationPath) = 0 Then
+         Exit Sub
+      End If
+
+      Dim fileSystem, operationFile
+      Set fileSystem = CreateObject("Scripting.FileSystemObject")
+      Set operationFile = fileSystem.OpenTextFile(m_operationPath, 8, True)
+      operationFile.WriteLine name & vbTab & Replace(Replace(CStr(value), vbCr, " "), vbLf, " ")
+      operationFile.Close
+   End Sub
+End Class
+
 Class HMailServerRuleMessage
    Public FileName
    Public DropMessage
@@ -307,9 +699,11 @@ Class HMailServerRuleMessage
    Private m_cc
    Private m_date
    Private m_recipients
+   Private m_attachments
 
    Private Sub Class_Initialize()
       Set m_recipients = New HMailServerRuleRecipients
+      Set m_attachments = New HMailServerRuleAttachments
    End Sub
 
    Public Sub Load()
@@ -386,6 +780,10 @@ Class HMailServerRuleMessage
 
    Public Property Get Recipients()
       Set Recipients = m_recipients
+   End Property
+
+   Public Property Get Attachments()
+      Set Attachments = m_attachments
    End Property
 
    Public Property Get CC()
@@ -642,6 +1040,7 @@ HMAILSERVER_MESSAGE.FileName = "{{EscapeVbScript(messagePath)}}"
 HMAILSERVER_MESSAGE.DropMessage = False
 HMAILSERVER_MESSAGE.RejectReason = ""
 HMAILSERVER_MESSAGE.Load
+HMAILSERVER_MESSAGE.Attachments.Load "{{EscapeVbScript(attachmentManifestPath)}}", "{{EscapeVbScript(attachmentOperationPath)}}"
 HMAILSERVER_MESSAGE.FromAddress = "{{EscapeVbScript(mailFrom)}}"
 {{CreateVbScriptRecipientSeeds(recipients)}}
 
@@ -665,6 +1064,8 @@ hMailServerRuleStatusFile.Close
         string functionName,
         string messagePath,
         string statusPath,
+        string attachmentManifestPath,
+        string attachmentOperationPath,
         string mailFrom,
         IReadOnlyList<SmtpResolvedRecipient> recipients)
     {
@@ -817,6 +1218,91 @@ function hMailServerRuleFormatRecipientForHeader(name, address) {
   return String(address || "");
 }
 
+function hMailServerRuleAppendAttachmentOperation(operationPath, name, value) {
+  if (!operationPath) {
+    return;
+  }
+  var operationFile = hMailServerRuleFileSystem.OpenTextFile(operationPath, 8, true);
+  operationFile.WriteLine(String(name || "") + "\t" + String(value || "").replace(/[\r\n]/g, " "));
+  operationFile.Close();
+}
+
+function hMailServerRuleCreateAttachment(owner, index, fileName, size, sourcePath) {
+  return {
+    FileName: String(fileName || ""),
+    Size: Number(size || 0),
+    SaveAs: function(path) {
+      hMailServerRuleFileSystem.CopyFile(sourcePath, String(path || ""), true);
+    },
+    Delete: function() {
+      owner.DeleteAt(index);
+    }
+  };
+}
+
+function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
+  var collection = {
+    _items: [],
+    Count: 0,
+    Load: function() {
+      this._items = [];
+      this.Count = 0;
+      if (!hMailServerRuleFileSystem.FileExists(manifestPath)) {
+        return;
+      }
+      var manifestFile = hMailServerRuleFileSystem.OpenTextFile(manifestPath, 1, false);
+      while (!manifestFile.AtEndOfStream) {
+        var fields = manifestFile.ReadLine().split("\t");
+        if (fields.length >= 4) {
+          this._items.push({
+            FileName: fields[1],
+            Size: Number(fields[2] || 0),
+            SourcePath: fields[3]
+          });
+        }
+      }
+      manifestFile.Close();
+      this.Count = this._items.length;
+    },
+    Item: function(index) {
+      if (index < 0 || index >= this._items.length) {
+        return null;
+      }
+      var item = this._items[index];
+      return hMailServerRuleCreateAttachment(this, index, item.FileName, item.Size, item.SourcePath);
+    },
+    Clear: function() {
+      this._items = [];
+      this.Count = 0;
+      hMailServerRuleAppendAttachmentOperation(operationPath, "Clear", "");
+    },
+    Add: function(path) {
+      var filePath = String(path || "");
+      if (!hMailServerRuleFileSystem.FileExists(filePath)) {
+        return;
+      }
+      var file = hMailServerRuleFileSystem.GetFile(filePath);
+      this._items.push({
+        FileName: file.Name,
+        Size: Number(file.Size || 0),
+        SourcePath: filePath
+      });
+      this.Count = this._items.length;
+      hMailServerRuleAppendAttachmentOperation(operationPath, "Add", filePath);
+    },
+    DeleteAt: function(index) {
+      if (index < 0 || index >= this._items.length) {
+        return;
+      }
+      hMailServerRuleAppendAttachmentOperation(operationPath, "DeleteIndex", String(index));
+      this._items.splice(index, 1);
+      this.Count = this._items.length;
+    }
+  };
+  collection.Load();
+  return collection;
+}
+
 var HMAILSERVER_MESSAGE = {
   FileName: "{{EscapeJScript(messagePath)}}",
   DropMessage: false,
@@ -830,6 +1316,9 @@ var HMAILSERVER_MESSAGE = {
   Date: "",
   Body: "",
   HTMLBody: "",
+  Attachments: hMailServerRuleCreateAttachments(
+    "{{EscapeJScript(attachmentManifestPath)}}",
+    "{{EscapeJScript(attachmentOperationPath)}}"),
   _headers: "",
   Load: function() {
     var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this.FileName));

@@ -2,6 +2,7 @@ using System.Text;
 using HMailServer.Core.Abstractions;
 using HMailServer.Scripting;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using MimeKit;
 
 namespace HMailServer.Net10.Tests;
 
@@ -339,6 +340,114 @@ function Rule_UpdateRecipients(obMessage) {
     }
 
     [TestMethod]
+    public void Execute_ExposesAttachmentCollectionToVbScript()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_UpdateAttachments(obMessage)
+   If obMessage.Attachments.Count <> 1 Then
+      obMessage.RejectReason = "attachment count not loaded"
+      Exit Sub
+   End If
+
+   Dim attachment, savedPath, fileSystem, savedFile, savedText
+   Set attachment = obMessage.Attachments.Item(0)
+   If attachment.FileName <> "hello.txt" Then
+      obMessage.RejectReason = "attachment filename not loaded"
+      Exit Sub
+   End If
+   If attachment.Size <> 5 Then
+      obMessage.RejectReason = "attachment size not loaded"
+      Exit Sub
+   End If
+
+   savedPath = obMessage.FileName & ".saved.txt"
+   attachment.SaveAs savedPath
+   Set fileSystem = CreateObject("Scripting.FileSystemObject")
+   Set savedFile = fileSystem.OpenTextFile(savedPath, 1, False)
+   savedText = savedFile.ReadAll
+   savedFile.Close
+   If savedText <> "Hello" Then
+      obMessage.RejectReason = "attachment save failed"
+      Exit Sub
+   End If
+
+   obMessage.Attachments.Clear
+   obMessage.Attachments.Add savedPath
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateAttachments",
+                    CreateMultipartMessage(("hello.txt", "Hello"))),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var attachments = LoadAttachments(result.MessageData);
+            Assert.AreEqual(1, attachments.Count);
+            Assert.AreEqual("Hello", ReadAttachmentText(attachments[0]));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_ExposesAttachmentDeleteToJScript()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_DeleteAttachment(obMessage) {
+  if (obMessage.Attachments.Count !== 2) {
+    obMessage.RejectReason = "attachment count not loaded";
+    return;
+  }
+  if (obMessage.Attachments.Item(1).FileName !== "remove.txt") {
+    obMessage.RejectReason = "attachment filename not loaded";
+    return;
+  }
+
+  obMessage.Attachments.Item(1).Delete();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_DeleteAttachment",
+                    CreateMultipartMessage(("keep.txt", "Keep"), ("remove.txt", "Remove"))),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var attachments = LoadAttachments(result.MessageData);
+            Assert.AreEqual(1, attachments.Count);
+            Assert.AreEqual("keep.txt", GetAttachmentFileName(attachments[0]));
+            Assert.AreEqual("Keep", ReadAttachmentText(attachments[0]));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_ReturnsDropOrRejectStateSetByVbScript()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -422,6 +531,58 @@ End Sub
                 LocalAccountId: 0,
                 IsLocal: false)
         ];
+
+    private static byte[] CreateMultipartMessage(
+        params (string FileName, string Text)[] attachments)
+    {
+        var message = new MimeMessage();
+        message.From.Add(MailboxAddress.Parse("sender@example.test"));
+        message.To.Add(MailboxAddress.Parse("dest@example.test"));
+        message.Subject = "Attachments";
+
+        var builder = new BodyBuilder
+        {
+            TextBody = "Body"
+        };
+        foreach (var attachment in attachments)
+        {
+            builder.Attachments.Add(
+                attachment.FileName,
+                Encoding.ASCII.GetBytes(attachment.Text));
+        }
+
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+        return output.ToArray();
+    }
+
+    private static List<MimeEntity> LoadAttachments(byte[] messageData)
+    {
+        using var input = new MemoryStream(messageData);
+        var message = MimeMessage.Load(input);
+        return [.. message.Attachments];
+    }
+
+    private static string GetAttachmentFileName(MimeEntity attachment) =>
+        attachment.ContentDisposition?.FileName ??
+        attachment.ContentType.Name ??
+        string.Empty;
+
+    private static string ReadAttachmentText(MimeEntity attachment)
+    {
+        using var output = new MemoryStream();
+        if (attachment is MimePart part && part.Content is not null)
+        {
+            part.Content.DecodeTo(output);
+        }
+        else
+        {
+            attachment.WriteTo(output);
+        }
+
+        return Encoding.ASCII.GetString(output.ToArray());
+    }
 
     private static string GetCscriptPathOrInconclusive()
     {
