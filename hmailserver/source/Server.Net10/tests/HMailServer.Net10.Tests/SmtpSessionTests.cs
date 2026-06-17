@@ -333,6 +333,40 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_FiresOnTooManyInvalidCommandsAndDisconnects()
+    {
+        await using var stream = new DuplexMemoryStream("EHLO client.example\r\nBAD\r\nNOPE\r\nNOOP\r\n");
+        SmtpEventScriptExecutionRequest? capturedRequest = null;
+        var session = new SmtpSession(
+            new SmtpSessionOptions
+            {
+                ServerName = "mx.example.test",
+                DisconnectInvalidClients = true,
+                MaximumIncorrectCommands = 1
+            },
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                request =>
+                {
+                    if (request.EventName == "OnTooManyInvalidCommands")
+                    {
+                        capturedRequest = request;
+                    }
+
+                    return SmtpRuleScriptExecutionResult.Continue(request.MessageData);
+                }));
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "502 Command not implemented\r\n");
+        StringAssert.Contains(output, "Too many invalid commands. Bye!\r\n");
+        Assert.IsFalse(output.Contains("250 OK\r\n", StringComparison.Ordinal));
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual(SmtpEventScriptArgumentShape.ClientAndMessage, capturedRequest.ArgumentShape);
+        Assert.AreEqual("client.example", capturedRequest.Client.HeloHost);
+    }
+
+    [TestMethod]
     public async Task RunAsync_ReturnsTemporaryFailureWhenReceiverIsNotConfigured()
     {
         await using var stream = new DuplexMemoryStream(

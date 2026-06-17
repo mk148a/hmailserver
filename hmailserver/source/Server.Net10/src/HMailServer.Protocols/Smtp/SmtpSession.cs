@@ -31,6 +31,7 @@ public sealed class SmtpSession
         _eventScriptExecutor = eventScriptExecutor;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
         ArgumentOutOfRangeException.ThrowIfNegative(_options.MaxMessageBytes);
+        ArgumentOutOfRangeException.ThrowIfNegative(_options.MaximumIncorrectCommands);
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.ServerName);
     }
 
@@ -80,7 +81,11 @@ public sealed class SmtpSession
                 }
                 catch (InvalidDataException ex)
                 {
-                    await WriteAsync(stream, $"500 {SanitizeResponseText(ex.Message)}\r\n", cancellationToken).ConfigureAwait(false);
+                    await WriteSmtpResponseAsync(
+                        stream,
+                        state,
+                        $"500 {SanitizeResponseText(ex.Message)}",
+                        cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
@@ -91,7 +96,16 @@ public sealed class SmtpSession
 
                 if (!TryParseCommand(line, out var command, out var arguments))
                 {
-                    await WriteAsync(stream, "500 Syntax error, command unrecognized\r\n", cancellationToken).ConfigureAwait(false);
+                    await WriteSmtpResponseAsync(
+                        stream,
+                        state,
+                        "500 Syntax error, command unrecognized",
+                        cancellationToken).ConfigureAwait(false);
+                    if (state.PendingDisconnect)
+                    {
+                        return;
+                    }
+
                     continue;
                 }
 
@@ -104,6 +118,11 @@ public sealed class SmtpSession
                     arguments,
                     cancellationToken).ConfigureAwait(false);
                 if (result == SmtpDispatchResult.Close)
+                {
+                    return;
+                }
+
+                if (state.PendingDisconnect)
                 {
                     return;
                 }
@@ -161,7 +180,7 @@ public sealed class SmtpSession
             case "EHLO":
                 if (string.IsNullOrWhiteSpace(arguments))
                 {
-                    await WriteAsync(stream, "501 Syntax: EHLO hostname\r\n", cancellationToken).ConfigureAwait(false);
+                    await WriteSmtpResponseAsync(stream, state, "501 Syntax: EHLO hostname", cancellationToken).ConfigureAwait(false);
                     return SmtpDispatchResult.Continue;
                 }
 
@@ -180,7 +199,7 @@ public sealed class SmtpSession
             case "HELO":
                 if (string.IsNullOrWhiteSpace(arguments))
                 {
-                    await WriteAsync(stream, "501 Syntax: HELO hostname\r\n", cancellationToken).ConfigureAwait(false);
+                    await WriteSmtpResponseAsync(stream, state, "501 Syntax: HELO hostname", cancellationToken).ConfigureAwait(false);
                     return SmtpDispatchResult.Continue;
                 }
 
@@ -230,7 +249,7 @@ public sealed class SmtpSession
                 return SmtpDispatchResult.Close;
 
             default:
-                await WriteAsync(stream, "502 Command not implemented\r\n", cancellationToken).ConfigureAwait(false);
+                await WriteSmtpResponseAsync(stream, state, "502 Command not implemented", cancellationToken).ConfigureAwait(false);
                 return SmtpDispatchResult.Continue;
         }
     }
@@ -257,6 +276,40 @@ public sealed class SmtpSession
             cancellationToken).ConfigureAwait(false);
         return false;
     }
+
+    private async ValueTask WriteSmtpResponseAsync(
+        Stream stream,
+        SessionState state,
+        string response,
+        CancellationToken cancellationToken)
+    {
+        var line = response.TrimEnd('\r', '\n');
+        if (IsPermanentNegativeResponse(line))
+        {
+            state.InvalidCommandCount++;
+            if (_options.DisconnectInvalidClients &&
+                state.InvalidCommandCount > _options.MaximumIncorrectCommands)
+            {
+                await WriteAsync(stream, "Too many invalid commands. Bye!\r\n", cancellationToken).ConfigureAwait(false);
+                ExecuteSmtpEvent(
+                    "OnTooManyInvalidCommands",
+                    state,
+                    SmtpEventScriptArgumentShape.ClientAndMessage,
+                    EmptyEventMessageData,
+                    cancellationToken);
+                state.RequestDisconnect();
+                return;
+            }
+        }
+
+        await WriteAsync(stream, line + "\r\n", cancellationToken).ConfigureAwait(false);
+    }
+
+    private static bool IsPermanentNegativeResponse(string response) =>
+        response.Length >= 3 &&
+        response[0] == '5' &&
+        char.IsDigit(response[1]) &&
+        char.IsDigit(response[2]);
 
     private SmtpRuleScriptExecutionResult ExecuteSmtpEvent(
         string eventName,
@@ -330,19 +383,19 @@ public sealed class SmtpSession
     {
         if (!state.HasHelo)
         {
-            await WriteAsync(stream, "503 Send HELO/EHLO first\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "503 Send HELO/EHLO first", cancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (!TryParsePathParameter(arguments, "FROM:", out var sender, out var remainingArguments))
         {
-            await WriteAsync(stream, "501 Syntax: MAIL FROM:<address>\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "501 Syntax: MAIL FROM:<address>", cancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (!TryParseMailParameters(remainingArguments, out var declaredSize, out var failureResponse))
         {
-            await WriteAsync(stream, failureResponse, cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, failureResponse, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -350,7 +403,7 @@ public sealed class SmtpSession
             _options.MaxMessageBytes > 0 &&
             size > _options.MaxMessageBytes)
         {
-            await WriteAsync(stream, "552 Message size exceeds fixed maximum message size\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "552 Message size exceeds fixed maximum message size", cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -368,13 +421,13 @@ public sealed class SmtpSession
     {
         if (!string.IsNullOrWhiteSpace(arguments))
         {
-            await WriteAsync(stream, "501 Syntax: STARTTLS\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "501 Syntax: STARTTLS", cancellationToken).ConfigureAwait(false);
             return SmtpDispatchResult.Continue;
         }
 
         if (state.IsSecureConnection)
         {
-            await WriteAsync(stream, "503 TLS is already active\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "503 TLS is already active", cancellationToken).ConfigureAwait(false);
             return SmtpDispatchResult.Continue;
         }
 
@@ -386,7 +439,7 @@ public sealed class SmtpSession
 
         if (state.MailFrom is not null || state.Recipients.Count > 0)
         {
-            await WriteAsync(stream, "503 Bad sequence of commands\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "503 Bad sequence of commands", cancellationToken).ConfigureAwait(false);
             return SmtpDispatchResult.Continue;
         }
 
@@ -403,19 +456,19 @@ public sealed class SmtpSession
     {
         if (!state.HasHelo)
         {
-            await WriteAsync(stream, "503 Send EHLO/HELO first\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "503 Send EHLO/HELO first", cancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (!IsAuthenticationAllowed(state))
         {
-            await WriteAsync(stream, "530 Must issue STARTTLS first\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "530 Must issue STARTTLS first", cancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (state.AuthenticatedAccount is not null)
         {
-            await WriteAsync(stream, "503 Already authenticated\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "503 Already authenticated", cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -428,7 +481,7 @@ public sealed class SmtpSession
         var authParts = arguments.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (authParts.Length == 0)
         {
-            await WriteAsync(stream, "501 Syntax: AUTH mechanism [initial-response]\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "501 Syntax: AUTH mechanism [initial-response]", cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -454,7 +507,7 @@ public sealed class SmtpSession
                 return;
 
             default:
-                await WriteAsync(stream, "504 Unrecognized authentication type\r\n", cancellationToken).ConfigureAwait(false);
+                await WriteSmtpResponseAsync(stream, state, "504 Unrecognized authentication type", cancellationToken).ConfigureAwait(false);
                 return;
         }
     }
@@ -480,13 +533,13 @@ public sealed class SmtpSession
 
         if (response.Equals("*", StringComparison.Ordinal))
         {
-            await WriteAsync(stream, "501 Authentication canceled\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "501 Authentication canceled", cancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (!TryParsePlainCredentials(response, out var username, out var password, out var errorResponse))
         {
-            await WriteAsync(stream, errorResponse + "\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, errorResponse, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -514,13 +567,13 @@ public sealed class SmtpSession
 
         if (encodedUsername.Equals("*", StringComparison.Ordinal))
         {
-            await WriteAsync(stream, "501 Authentication canceled\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "501 Authentication canceled", cancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (!TryDecodeAuthToken(encodedUsername, out var username, out var usernameError))
         {
-            await WriteAsync(stream, usernameError + "\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, usernameError, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -533,13 +586,13 @@ public sealed class SmtpSession
 
         if (encodedPassword.Equals("*", StringComparison.Ordinal))
         {
-            await WriteAsync(stream, "501 Authentication canceled\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "501 Authentication canceled", cancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (!TryDecodeAuthToken(encodedPassword, out var password, out var passwordError))
         {
-            await WriteAsync(stream, passwordError + "\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, passwordError, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -567,7 +620,7 @@ public sealed class SmtpSession
             cancellationToken);
         if (!result.Succeeded || result.Account is null)
         {
-            await WriteAsync(stream, "535 Authentication failed\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "535 Authentication failed", cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -622,19 +675,19 @@ public sealed class SmtpSession
     {
         if (state.MailFrom is null)
         {
-            await WriteAsync(stream, "503 Need MAIL command\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "503 Need MAIL command", cancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (!TryParsePathParameter(arguments, "TO:", out var recipient, out _))
         {
-            await WriteAsync(stream, "501 Syntax: RCPT TO:<address>\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "501 Syntax: RCPT TO:<address>", cancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(recipient))
         {
-            await WriteAsync(stream, "501 Recipient address is required\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "501 Recipient address is required", cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -658,7 +711,7 @@ public sealed class SmtpSession
                     cancellationToken);
             }
 
-            await WriteAsync(stream, response + "\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, response, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -684,19 +737,19 @@ public sealed class SmtpSession
     {
         if (!string.IsNullOrWhiteSpace(arguments))
         {
-            await WriteAsync(stream, "501 Syntax: DATA\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "501 Syntax: DATA", cancellationToken).ConfigureAwait(false);
             return SmtpDispatchResult.Continue;
         }
 
         if (state.MailFrom is null)
         {
-            await WriteAsync(stream, "503 Need MAIL command\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "503 Need MAIL command", cancellationToken).ConfigureAwait(false);
             return SmtpDispatchResult.Continue;
         }
 
         if (state.Recipients.Count == 0)
         {
-            await WriteAsync(stream, "503 Need RCPT command\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "503 Need RCPT command", cancellationToken).ConfigureAwait(false);
             return SmtpDispatchResult.Continue;
         }
 
@@ -711,7 +764,7 @@ public sealed class SmtpSession
         if (data.SizeExceeded)
         {
             state.ResetTransaction();
-            await WriteAsync(stream, "552 Message size exceeds fixed maximum message size\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, "552 Message size exceeds fixed maximum message size", cancellationToken).ConfigureAwait(false);
             return SmtpDispatchResult.Continue;
         }
 
@@ -787,7 +840,7 @@ public sealed class SmtpSession
             var response = string.IsNullOrWhiteSpace(result.FailureResponse)
                 ? "451 Requested action aborted: local error in processing"
                 : SanitizeResponseText(result.FailureResponse);
-            await WriteAsync(stream, response + "\r\n", cancellationToken).ConfigureAwait(false);
+            await WriteSmtpResponseAsync(stream, state, response, cancellationToken).ConfigureAwait(false);
             return SmtpDispatchResult.Continue;
         }
 
@@ -1135,6 +1188,10 @@ public sealed class SmtpSession
 
         public bool IsSecureConnection { get; private set; }
 
+        public int InvalidCommandCount { get; set; }
+
+        public bool PendingDisconnect { get; private set; }
+
         public string? MailFrom { get; private set; }
 
         public long? DeclaredSize { get; private set; }
@@ -1175,6 +1232,11 @@ public sealed class SmtpSession
             MailFrom = null;
             DeclaredSize = null;
             Recipients.Clear();
+        }
+
+        public void RequestDisconnect()
+        {
+            PendingDisconnect = true;
         }
     }
 }

@@ -55,7 +55,13 @@ var smtpSessionOptions = new SmtpSessionOptions
         defaultValue: 20L * 1024 * 1024),
     RequireTlsForAuthentication = ReadBool(
         builder.Configuration["Smtp:RequireTlsForAuthentication"] ?? builder.Configuration["HMAILSERVER_SMTP_REQUIRE_TLS_FOR_AUTH"],
-        defaultValue: false)
+        defaultValue: false),
+    DisconnectInvalidClients = ReadBool(
+        builder.Configuration["Smtp:DisconnectInvalidClients"] ?? builder.Configuration["HMAILSERVER_SMTP_DISCONNECT_INVALID_CLIENTS"],
+        defaultValue: false),
+    MaximumIncorrectCommands = ReadInt(
+        builder.Configuration["Smtp:MaximumIncorrectCommands"] ?? builder.Configuration["HMAILSERVER_SMTP_MAXIMUM_INCORRECT_COMMANDS"],
+        defaultValue: 100)
 };
 var smtpTlsCertificate = LoadCertificate(
     builder.Configuration["Smtp:TlsCertificatePath"] ?? builder.Configuration["HMAILSERVER_SMTP_TLS_CERTIFICATE_PATH"],
