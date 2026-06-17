@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>HMailServer.Scripting</AssemblyName>
+    <RootNamespace>HMailServer.Scripting</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\HMailServer.Core\HMailServer.Core.csproj" />
+  </ItemGroup>
+</Project>

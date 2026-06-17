@@ -14,6 +14,7 @@
     <ProjectReference Include="..\..\src\HMailServer.Indexing\HMailServer.Indexing.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Delivery\HMailServer.Delivery.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Protocols\HMailServer.Protocols.csproj" />
+    <ProjectReference Include="..\..\src\HMailServer.Scripting\HMailServer.Scripting.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Security\HMailServer.Security.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Search.SqlServer\HMailServer.Search.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Storage.SqlServer\HMailServer.Storage.SqlServer.csproj" />

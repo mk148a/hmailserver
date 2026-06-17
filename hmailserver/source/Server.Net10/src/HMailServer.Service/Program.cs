@@ -5,6 +5,7 @@ using HMailServer.Delivery;
 using HMailServer.Indexing;
 using HMailServer.Protocols.Imap;
 using HMailServer.Protocols.Smtp;
+using HMailServer.Scripting;
 using HMailServer.Search.SqlServer;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
@@ -65,6 +66,22 @@ var smtpRuleOptions = new SmtpRuleProcessorOptions
         builder.Configuration["Smtp:RuleLoopLimit"] ?? builder.Configuration["HMAILSERVER_SMTP_RULE_LOOP_LIMIT"],
         defaultValue: 5)
 };
+var scriptingOptions = new WindowsScriptRuleExecutorOptions
+{
+    Enabled = ReadBool(
+        builder.Configuration["Scripting:Enabled"] ?? builder.Configuration["HMAILSERVER_SCRIPTING_ENABLED"],
+        defaultValue: false),
+    Language = builder.Configuration["Scripting:Language"]
+        ?? builder.Configuration["HMAILSERVER_SCRIPTING_LANGUAGE"]
+        ?? "VBScript",
+    EventDirectory = builder.Configuration["Scripting:EventDirectory"]
+        ?? builder.Configuration["HMAILSERVER_SCRIPT_EVENT_DIRECTORY"]
+        ?? Path.Combine(AppContext.BaseDirectory, "Events"),
+    Timeout = TimeSpan.FromMilliseconds(
+        ReadInt(
+            builder.Configuration["Scripting:TimeoutMilliseconds"] ?? builder.Configuration["HMAILSERVER_SCRIPT_TIMEOUT_MS"],
+            defaultValue: 5000))
+};
 var imapAccountId = ReadNullableInt(builder.Configuration["Imap:AccountId"] ?? builder.Configuration["HMAILSERVER_IMAP_ACCOUNT_ID"]);
 var imapFolderId = ReadNullableInt(builder.Configuration["Imap:FolderId"] ?? builder.Configuration["HMAILSERVER_IMAP_FOLDER_ID"]);
 var mailboxOptions = new SqlServerImapMailboxStoreOptions
@@ -102,6 +119,12 @@ builder.Services.AddSingleton(smtpSessionOptions);
 builder.Services.AddSingleton(mailboxOptions);
 builder.Services.AddSingleton(idleOptions);
 builder.Services.AddSingleton(smtpRuleOptions);
+builder.Services.AddSingleton(scriptingOptions);
+if (scriptingOptions.Enabled)
+{
+    builder.Services.AddSingleton<ISmtpRuleScriptExecutor, WindowsScriptRuleExecutor>();
+}
+
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));
 builder.Services.AddSingleton(MessageSearchBackfillOptions.Default(leaseOwner));
 builder.Services.AddSingleton<SqlServerImapSearchPlanner>();
