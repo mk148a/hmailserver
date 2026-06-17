@@ -13,7 +13,13 @@ SELECT TOP (1)
     a.accountaddress,
     a.accountpassword,
     a.accountpwencryption,
-    a.accountisad
+    a.accountisad,
+    a.accountactive,
+    a.accountdomainid,
+    a.accountmaxsize,
+    a.accountpersonfirstname,
+    a.accountpersonlastname,
+    a.accountadminlevel
 FROM hm_accounts AS a
 INNER JOIN hm_domains AS d
     ON d.domainid = a.accountdomainid
@@ -32,10 +38,14 @@ WHERE accountid = @AccountId;
     private const string InvalidUserNameOrPassword = "Invalid user name or password.";
 
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly IClientPasswordValidationScriptExecutor? _passwordValidationScriptExecutor;
 
-    public SqlServerImapAccountAuthenticator(SqlServerConnectionFactory connectionFactory)
+    public SqlServerImapAccountAuthenticator(
+        SqlServerConnectionFactory connectionFactory,
+        IClientPasswordValidationScriptExecutor? passwordValidationScriptExecutor = null)
     {
         _connectionFactory = connectionFactory;
+        _passwordValidationScriptExecutor = passwordValidationScriptExecutor;
     }
 
     public async ValueTask<ImapAuthenticationResult> AuthenticateAsync(
@@ -63,6 +73,29 @@ WHERE accountid = @AccountId;
         var storedPassword = reader.GetString(2);
         var encryptionType = (LegacyPasswordEncryptionType)reader.GetByte(3);
         var isActiveDirectoryAccount = reader.GetInt32(4) != 0;
+        var account = new ScriptAccount(
+            accountId,
+            accountAddress,
+            Active: reader.GetInt32(5) != 0,
+            isActiveDirectoryAccount,
+            DomainId: reader.GetInt32(6),
+            MaxSizeMegabytes: reader.GetInt32(7),
+            PersonFirstName: reader.IsDBNull(8) ? string.Empty : reader.GetString(8),
+            PersonLastName: reader.IsDBNull(9) ? string.Empty : reader.GetString(9),
+            AdminLevel: reader.GetInt32(10));
+
+        var scriptDecision = RunPasswordValidationScript(account, password, cancellationToken);
+        if (scriptDecision == ClientPasswordValidationScriptDecision.Accept)
+        {
+            await reader.DisposeAsync().ConfigureAwait(false);
+            await UpdateLastLogonAsync(connection, accountId, cancellationToken).ConfigureAwait(false);
+            return ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(accountId, accountAddress));
+        }
+
+        if (scriptDecision == ClientPasswordValidationScriptDecision.Reject)
+        {
+            return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
+        }
 
         if (isActiveDirectoryAccount)
         {
@@ -78,6 +111,32 @@ WHERE accountid = @AccountId;
         await UpdateLastLogonAsync(connection, accountId, cancellationToken).ConfigureAwait(false);
 
         return ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(accountId, accountAddress));
+    }
+
+    private ClientPasswordValidationScriptDecision RunPasswordValidationScript(
+        ScriptAccount account,
+        string password,
+        CancellationToken cancellationToken)
+    {
+        if (_passwordValidationScriptExecutor is null)
+        {
+            return ClientPasswordValidationScriptDecision.Continue;
+        }
+
+        try
+        {
+            return _passwordValidationScriptExecutor.Execute(
+                new ClientPasswordValidationScriptRequest(account, password),
+                cancellationToken).Decision;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return ClientPasswordValidationScriptDecision.Continue;
+        }
     }
 
     private static async ValueTask UpdateLastLogonAsync(

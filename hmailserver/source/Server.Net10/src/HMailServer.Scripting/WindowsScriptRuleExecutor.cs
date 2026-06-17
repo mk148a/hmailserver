@@ -7,7 +7,11 @@ using MimeKit;
 
 namespace HMailServer.Scripting;
 
-public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor, ISmtpEventScriptExecutor, IDeliveryEventScriptExecutor
+public sealed partial class WindowsScriptRuleExecutor :
+    ISmtpRuleScriptExecutor,
+    ISmtpEventScriptExecutor,
+    IDeliveryEventScriptExecutor,
+    IClientPasswordValidationScriptExecutor
 {
     private readonly WindowsScriptRuleExecutorOptions _options;
 
@@ -84,6 +88,61 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor,
         return result.DropMessage
             ? DeliveryEventScriptExecutionResult.Drop(result.MessageData)
             : DeliveryEventScriptExecutionResult.Continue(result.MessageData);
+    }
+
+    public ClientPasswordValidationScriptResult Execute(
+        ClientPasswordValidationScriptRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!_options.Enabled || !OperatingSystem.IsWindows())
+        {
+            return ClientPasswordValidationScriptResult.Continue();
+        }
+
+        var language = NormalizeLanguage(_options.Language);
+        if (language is null)
+        {
+            return ClientPasswordValidationScriptResult.Continue();
+        }
+
+        var scriptPath = GetScriptPath(language);
+        if (!File.Exists(scriptPath))
+        {
+            return ClientPasswordValidationScriptResult.Continue();
+        }
+
+        var tempDirectory = Path.Combine(Path.GetTempPath(), "hmailserver-script-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+        try
+        {
+            var statusPath = Path.Combine(tempDirectory, "status.txt");
+            var runnerPath = Path.Combine(tempDirectory, language.Extension == "vbs" ? "runner.vbs" : "runner.js");
+            File.WriteAllText(
+                runnerPath,
+                language.Extension == "vbs"
+                    ? CreateVbScriptClientPasswordRunner(scriptPath, statusPath, request.Account, request.Password)
+                    : CreateJScriptClientPasswordRunner(scriptPath, statusPath, request.Account, request.Password),
+                Encoding.Unicode);
+
+            var processResult = RunScript(runnerPath, cancellationToken);
+            return processResult.Succeeded
+                ? ReadClientPasswordValidationStatus(statusPath)
+                : ClientPasswordValidationScriptResult.Continue();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return ClientPasswordValidationScriptResult.Continue();
+        }
+        finally
+        {
+            TryDeleteDirectory(tempDirectory);
+        }
     }
 
     private SmtpRuleScriptExecutionResult ExecuteCore(
@@ -302,6 +361,40 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor,
         }
 
         return new ScriptStatus(Found: true, dropMessage, rejectReason);
+    }
+
+    private static ClientPasswordValidationScriptResult ReadClientPasswordValidationStatus(string statusPath)
+    {
+        if (!File.Exists(statusPath))
+        {
+            return ClientPasswordValidationScriptResult.Continue();
+        }
+
+        foreach (var line in File.ReadAllLines(statusPath))
+        {
+            if (!line.StartsWith("ResultValue=", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!int.TryParse(
+                    line["ResultValue=".Length..],
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var value))
+            {
+                return ClientPasswordValidationScriptResult.Continue();
+            }
+
+            return value switch
+            {
+                0 => ClientPasswordValidationScriptResult.Accept(),
+                1 => ClientPasswordValidationScriptResult.Reject(),
+                _ => ClientPasswordValidationScriptResult.Continue()
+            };
+        }
+
+        return ClientPasswordValidationScriptResult.Continue();
     }
 
     private static void WriteAttachmentManifest(
@@ -528,6 +621,107 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor,
         value.Replace('\t', ' ')
             .Replace('\r', ' ')
             .Replace('\n', ' ');
+
+    private static string CreateVbScriptClientPasswordRunner(
+        string scriptPath,
+        string statusPath,
+        ScriptAccount account,
+        string password)
+    {
+        return $$"""
+ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
+
+Class HMailServerScriptAccount
+   Public ID
+   Public Address
+   Public Active
+   Public IsAD
+   Public DomainID
+   Public MaxSize
+   Public PersonFirstName
+   Public PersonLastName
+   Public AdminLevel
+End Class
+
+Class HMailServerRuleResult
+   Public Value
+   Public Message
+End Class
+
+Dim HMAILSERVER_ACCOUNT
+Set HMAILSERVER_ACCOUNT = New HMailServerScriptAccount
+HMAILSERVER_ACCOUNT.ID = {{account.AccountId.ToString(CultureInfo.InvariantCulture)}}
+HMAILSERVER_ACCOUNT.Address = "{{EscapeVbScript(account.Address)}}"
+HMAILSERVER_ACCOUNT.Active = {{(account.Active ? "True" : "False")}}
+HMAILSERVER_ACCOUNT.IsAD = {{(account.IsActiveDirectoryAccount ? "True" : "False")}}
+HMAILSERVER_ACCOUNT.DomainID = {{account.DomainId.ToString(CultureInfo.InvariantCulture)}}
+HMAILSERVER_ACCOUNT.MaxSize = {{account.MaxSizeMegabytes.ToString(CultureInfo.InvariantCulture)}}
+HMAILSERVER_ACCOUNT.PersonFirstName = "{{EscapeVbScript(account.PersonFirstName)}}"
+HMAILSERVER_ACCOUNT.PersonLastName = "{{EscapeVbScript(account.PersonLastName)}}"
+HMAILSERVER_ACCOUNT.AdminLevel = {{account.AdminLevel.ToString(CultureInfo.InvariantCulture)}}
+
+Dim Result
+Set Result = New HMailServerRuleResult
+Result.Value = 2
+Result.Message = ""
+
+Dim hMailServerEventHandler
+On Error Resume Next
+Set hMailServerEventHandler = GetRef("OnClientValidatePassword")
+If Err.Number <> 0 Then
+   Err.Clear
+   On Error GoTo 0
+Else
+   On Error GoTo 0
+   Call hMailServerEventHandler(HMAILSERVER_ACCOUNT, "{{EscapeVbScript(password)}}")
+End If
+
+Dim hMailServerRuleStatusFileSystem, hMailServerRuleStatusFile
+Set hMailServerRuleStatusFileSystem = CreateObject("Scripting.FileSystemObject")
+Set hMailServerRuleStatusFile = hMailServerRuleStatusFileSystem.CreateTextFile("{{EscapeVbScript(statusPath)}}", True, False)
+hMailServerRuleStatusFile.WriteLine "ResultValue=" & CStr(Result.Value)
+hMailServerRuleStatusFile.Close
+""";
+    }
+
+    private static string CreateJScriptClientPasswordRunner(
+        string scriptPath,
+        string statusPath,
+        ScriptAccount account,
+        string password)
+    {
+        return $$"""
+var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
+var hMailServerRuleScriptFile = hMailServerRuleFileSystem.OpenTextFile("{{EscapeJScript(scriptPath)}}", 1, false);
+eval(hMailServerRuleScriptFile.ReadAll());
+hMailServerRuleScriptFile.Close();
+
+var HMAILSERVER_ACCOUNT = {
+  ID: {{account.AccountId.ToString(CultureInfo.InvariantCulture)}},
+  Address: "{{EscapeJScript(account.Address)}}",
+  Active: {{(account.Active ? "true" : "false")}},
+  IsAD: {{(account.IsActiveDirectoryAccount ? "true" : "false")}},
+  DomainID: {{account.DomainId.ToString(CultureInfo.InvariantCulture)}},
+  MaxSize: {{account.MaxSizeMegabytes.ToString(CultureInfo.InvariantCulture)}},
+  PersonFirstName: "{{EscapeJScript(account.PersonFirstName)}}",
+  PersonLastName: "{{EscapeJScript(account.PersonLastName)}}",
+  AdminLevel: {{account.AdminLevel.ToString(CultureInfo.InvariantCulture)}}
+};
+
+var Result = {
+  Value: 2,
+  Message: ""
+};
+
+if (typeof OnClientValidatePassword === "function") {
+  OnClientValidatePassword(HMAILSERVER_ACCOUNT, "{{EscapeJScript(password)}}");
+}
+
+var hMailServerRuleStatusFile = hMailServerRuleFileSystem.CreateTextFile("{{EscapeJScript(statusPath)}}", true, false);
+hMailServerRuleStatusFile.WriteLine("ResultValue=" + String(Result.Value));
+hMailServerRuleStatusFile.Close();
+""";
+    }
 
     private static string CreateVbScriptRunner(
         string scriptPath,

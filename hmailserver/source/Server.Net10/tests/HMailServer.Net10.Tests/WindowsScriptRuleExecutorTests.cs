@@ -944,6 +944,70 @@ End Sub
         }
     }
 
+    [TestMethod]
+    public void Execute_RunsVbScriptClientValidatePasswordAccept()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnClientValidatePassword(oAccount, password)
+   If oAccount.Address = "user@example.test" And password = "script-secret" Then
+      Result.Value = 0
+   Else
+      Result.Value = 1
+   End If
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest("script-secret"),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Accept, result.Decision);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_RunsJScriptClientValidatePasswordReject()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnClientValidatePassword(oAccount, password) {
+  if (oAccount.ID === 77 && password === "bad") {
+    Result.Value = 1;
+  }
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest("bad"),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Reject, result.Decision);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
     private static WindowsScriptRuleExecutor CreateExecutor(
         string eventDirectory,
         string cscriptPath,
@@ -1010,6 +1074,22 @@ End Sub
             argumentShape,
             recipientAddress,
             errorMessage);
+
+    private static ClientPasswordValidationScriptRequest CreatePasswordValidationRequest(
+        string password,
+        ScriptAccount? account = null) =>
+        new(
+            account ?? new ScriptAccount(
+                AccountId: 77,
+                Address: "user@example.test",
+                Active: true,
+                IsActiveDirectoryAccount: false,
+                DomainId: 12,
+                MaxSizeMegabytes: 1024,
+                PersonFirstName: "Test",
+                PersonLastName: "User",
+                AdminLevel: 0),
+            password);
 
     private static IReadOnlyList<SmtpResolvedRecipient> CreateRecipients() =>
         [

@@ -13,6 +13,11 @@ public sealed class SqlServerImapAuthAndMailboxTests
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "INNER JOIN hm_domains AS d");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountactive <> 0");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "d.domainactive <> 0");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountdomainid");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountmaxsize");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountpersonfirstname");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountpersonlastname");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountadminlevel");
     }
 
     [TestMethod]

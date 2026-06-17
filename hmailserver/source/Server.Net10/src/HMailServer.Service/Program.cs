@@ -132,6 +132,7 @@ if (scriptingOptions.Enabled)
     builder.Services.AddSingleton<ISmtpRuleScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
     builder.Services.AddSingleton<ISmtpEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
     builder.Services.AddSingleton<IDeliveryEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
+    builder.Services.AddSingleton<IClientPasswordValidationScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
 }
 
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));
