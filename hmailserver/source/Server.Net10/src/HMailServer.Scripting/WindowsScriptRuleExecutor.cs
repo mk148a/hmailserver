@@ -59,8 +59,20 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
             File.WriteAllText(
                 runnerPath,
                 language.Extension == "vbs"
-                    ? CreateVbScriptRunner(scriptPath, request.FunctionName, messagePath, statusPath)
-                    : CreateJScriptRunner(scriptPath, request.FunctionName, messagePath, statusPath),
+                    ? CreateVbScriptRunner(
+                        scriptPath,
+                        request.FunctionName,
+                        messagePath,
+                        statusPath,
+                        request.MailFrom,
+                        request.Recipients)
+                    : CreateJScriptRunner(
+                        scriptPath,
+                        request.FunctionName,
+                        messagePath,
+                        statusPath,
+                        request.MailFrom,
+                        request.Recipients),
                 Encoding.Unicode);
 
             var processResult = RunScript(runnerPath, cancellationToken);
@@ -204,10 +216,82 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor
         string scriptPath,
         string functionName,
         string messagePath,
-        string statusPath)
+        string statusPath,
+        string mailFrom,
+        IReadOnlyList<SmtpResolvedRecipient> recipients)
     {
         return $$"""
 ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
+
+Class HMailServerRuleRecipient
+   Public Address
+   Public OriginalAddress
+   Public IsLocalUser
+End Class
+
+Class HMailServerRuleRecipients
+   Private m_addresses
+   Private m_originalAddresses
+   Private m_isLocalUsers
+   Private m_count
+
+   Private Sub Class_Initialize()
+      m_count = 0
+      ReDim m_addresses(0)
+      ReDim m_originalAddresses(0)
+      ReDim m_isLocalUsers(0)
+   End Sub
+
+   Public Property Get Count()
+      Count = m_count
+   End Property
+
+   Public Function Item(index)
+      If index < 0 Or index >= m_count Then
+         Set Item = Nothing
+         Exit Function
+      End If
+
+      Dim recipient
+      Set recipient = New HMailServerRuleRecipient
+      recipient.Address = m_addresses(index)
+      recipient.OriginalAddress = m_originalAddresses(index)
+      recipient.IsLocalUser = m_isLocalUsers(index)
+      Set Item = recipient
+   End Function
+
+   Public Sub Add(address, originalAddress, isLocalUser)
+      If m_count > 0 Then
+         ReDim Preserve m_addresses(m_count)
+         ReDim Preserve m_originalAddresses(m_count)
+         ReDim Preserve m_isLocalUsers(m_count)
+      End If
+
+      m_addresses(m_count) = CStr(address)
+      m_originalAddresses(m_count) = CStr(originalAddress)
+      m_isLocalUsers(m_count) = CBool(isLocalUser)
+      m_count = m_count + 1
+   End Sub
+
+   Public Sub Clear()
+      m_count = 0
+      ReDim m_addresses(0)
+      ReDim m_originalAddresses(0)
+      ReDim m_isLocalUsers(0)
+   End Sub
+
+   Public Function ToHeaderValue()
+      Dim index, value
+      value = ""
+      For index = 0 To m_count - 1
+         If Len(value) > 0 Then
+            value = value & ", "
+         End If
+         value = value & m_addresses(index)
+      Next
+      ToHeaderValue = value
+   End Function
+End Class
 
 Class HMailServerRuleMessage
    Public FileName
@@ -222,6 +306,11 @@ Class HMailServerRuleMessage
    Private m_to
    Private m_cc
    Private m_date
+   Private m_recipients
+
+   Private Sub Class_Initialize()
+      Set m_recipients = New HMailServerRuleRecipients
+   End Sub
 
    Public Sub Load()
       Dim messageText
@@ -277,7 +366,6 @@ Class HMailServerRuleMessage
 
    Public Property Let [From](value)
       m_from = CStr(value)
-      m_fromAddress = m_from
    End Property
 
    Public Property Get FromAddress()
@@ -286,7 +374,6 @@ Class HMailServerRuleMessage
 
    Public Property Let FromAddress(value)
       m_fromAddress = CStr(value)
-      m_from = m_fromAddress
    End Property
 
    Public Property Get [To]()
@@ -298,11 +385,7 @@ Class HMailServerRuleMessage
    End Property
 
    Public Property Get Recipients()
-      Recipients = m_to
-   End Property
-
-   Public Property Let Recipients(value)
-      m_to = CStr(value)
+      Set Recipients = m_recipients
    End Property
 
    Public Property Get CC()
@@ -344,6 +427,25 @@ Class HMailServerRuleMessage
    Public Property Let HeaderValue(fieldName, fieldValue)
       SetHeaderValue fieldName, fieldValue
    End Property
+
+   Public Sub AddRecipient(name, address)
+      Dim displayAddress
+      m_recipients.Add address, address, False
+      displayAddress = FormatRecipientForHeader(name, address)
+      If Len(m_to) > 0 Then
+         m_to = m_to & ", " & displayAddress
+      Else
+         m_to = displayAddress
+      End If
+   End Sub
+
+   Public Sub ClearRecipients()
+      m_recipients.Clear
+      m_to = ""
+      m_cc = ""
+      m_headers = SetHeaderLine(m_headers, "To", "")
+      m_headers = SetHeaderLine(m_headers, "Cc", "")
+   End Sub
 
    Public Sub SetHeaderValue(fieldName, fieldValue)
       Dim name
@@ -524,6 +626,14 @@ Class HMailServerRuleMessage
    Private Function SanitizeHeaderValue(value)
       SanitizeHeaderValue = Replace(Replace(CStr(value), vbCr, " "), vbLf, " ")
    End Function
+
+   Private Function FormatRecipientForHeader(name, address)
+      If Len(CStr(name)) > 0 Then
+         FormatRecipientForHeader = Chr(34) & Replace(CStr(name), Chr(34), "'") & Chr(34) & " <" & CStr(address) & ">"
+      Else
+         FormatRecipientForHeader = CStr(address)
+      End If
+   End Function
 End Class
 
 Dim HMAILSERVER_MESSAGE
@@ -532,6 +642,8 @@ HMAILSERVER_MESSAGE.FileName = "{{EscapeVbScript(messagePath)}}"
 HMAILSERVER_MESSAGE.DropMessage = False
 HMAILSERVER_MESSAGE.RejectReason = ""
 HMAILSERVER_MESSAGE.Load
+HMAILSERVER_MESSAGE.FromAddress = "{{EscapeVbScript(mailFrom)}}"
+{{CreateVbScriptRecipientSeeds(recipients)}}
 
 Call {{functionName}}(HMAILSERVER_MESSAGE)
 
@@ -552,7 +664,9 @@ hMailServerRuleStatusFile.Close
         string scriptPath,
         string functionName,
         string messagePath,
-        string statusPath)
+        string statusPath,
+        string mailFrom,
+        IReadOnlyList<SmtpResolvedRecipient> recipients)
     {
         return $$"""
 var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
@@ -664,6 +778,45 @@ function hMailServerRuleSetHeader(headers, fieldName, fieldValue) {
   return output;
 }
 
+function hMailServerRuleCreateRecipients() {
+  return {
+    _items: [],
+    Count: 0,
+    Item: function(index) {
+      if (index < 0 || index >= this._items.length) {
+        return null;
+      }
+      return this._items[index];
+    },
+    Add: function(address, originalAddress, isLocalUser) {
+      this._items.push({
+        Address: String(address || ""),
+        OriginalAddress: String(originalAddress || address || ""),
+        IsLocalUser: Boolean(isLocalUser)
+      });
+      this.Count = this._items.length;
+    },
+    Clear: function() {
+      this._items = [];
+      this.Count = 0;
+    },
+    ToHeaderValue: function() {
+      var values = [];
+      for (var index = 0; index < this._items.length; index++) {
+        values.push(this._items[index].Address);
+      }
+      return values.join(", ");
+    }
+  };
+}
+
+function hMailServerRuleFormatRecipientForHeader(name, address) {
+  if (String(name || "").length > 0) {
+    return "\"" + String(name).replace(/"/g, "'") + "\" <" + String(address || "") + ">";
+  }
+  return String(address || "");
+}
+
 var HMAILSERVER_MESSAGE = {
   FileName: "{{EscapeJScript(messagePath)}}",
   DropMessage: false,
@@ -672,7 +825,7 @@ var HMAILSERVER_MESSAGE = {
   From: "",
   FromAddress: "",
   To: "",
-  Recipients: "",
+  Recipients: hMailServerRuleCreateRecipients(),
   CC: "",
   Date: "",
   Body: "",
@@ -684,9 +837,7 @@ var HMAILSERVER_MESSAGE = {
     this.Body = parsed.body;
     this.Subject = this.HeaderValue("Subject");
     this.From = this.HeaderValue("From");
-    this.FromAddress = this.From;
     this.To = this.HeaderValue("To");
-    this.Recipients = this.To;
     this.CC = this.HeaderValue("Cc") || this.HeaderValue("CC");
     this.Date = this.HeaderValue("Date");
     this.HTMLBody = hMailServerRuleGetHeader(this._headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0 ? this.Body : "";
@@ -704,10 +855,8 @@ var HMAILSERVER_MESSAGE = {
       this.Subject = String(fieldValue || "");
     } else if (name === "from") {
       this.From = String(fieldValue || "");
-      this.FromAddress = this.From;
     } else if (name === "to") {
       this.To = String(fieldValue || "");
-      this.Recipients = this.To;
     } else if (name === "cc") {
       this.CC = String(fieldValue || "");
     } else if (name === "date") {
@@ -727,9 +876,23 @@ var HMAILSERVER_MESSAGE = {
     }
     hMailServerRuleWriteAllText(this.FileName, headers + "\r\n\r\n" + messageBody);
     this._headers = headers;
+  },
+  AddRecipient: function(name, address) {
+    this.Recipients.Add(address, address, false);
+    var displayAddress = hMailServerRuleFormatRecipientForHeader(name, address);
+    this.To = this.To ? this.To + ", " + displayAddress : displayAddress;
+  },
+  ClearRecipients: function() {
+    this.Recipients.Clear();
+    this.To = "";
+    this.CC = "";
+    this._headers = hMailServerRuleSetHeader(this._headers, "To", "");
+    this._headers = hMailServerRuleSetHeader(this._headers, "Cc", "");
   }
 };
 HMAILSERVER_MESSAGE.Load();
+HMAILSERVER_MESSAGE.FromAddress = "{{EscapeJScript(mailFrom)}}";
+{{CreateJScriptRecipientSeeds(recipients)}}
 
 var hMailServerRuleScriptFile = hMailServerRuleFileSystem.OpenTextFile("{{EscapeJScript(scriptPath)}}", 1, false);
 eval(hMailServerRuleScriptFile.ReadAll());
@@ -740,6 +903,52 @@ hMailServerRuleStatusFile.WriteLine(HMAILSERVER_MESSAGE.DropMessage ? "DropMessa
 hMailServerRuleStatusFile.WriteLine("RejectReason=" + String(HMAILSERVER_MESSAGE.RejectReason || "").replace(/[\r\n]/g, " "));
 hMailServerRuleStatusFile.Close();
 """;
+    }
+
+    private static string CreateVbScriptRecipientSeeds(
+        IReadOnlyList<SmtpResolvedRecipient> recipients)
+    {
+        if (recipients.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        foreach (var recipient in recipients)
+        {
+            builder.Append("HMAILSERVER_MESSAGE.Recipients.Add \"")
+                .Append(EscapeVbScript(recipient.Address))
+                .Append("\", \"")
+                .Append(EscapeVbScript(recipient.OriginalAddress))
+                .Append("\", ")
+                .Append(recipient.IsLocal ? "True" : "False")
+                .AppendLine();
+        }
+
+        return builder.ToString();
+    }
+
+    private static string CreateJScriptRecipientSeeds(
+        IReadOnlyList<SmtpResolvedRecipient> recipients)
+    {
+        if (recipients.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        foreach (var recipient in recipients)
+        {
+            builder.Append("HMAILSERVER_MESSAGE.Recipients.Add(\"")
+                .Append(EscapeJScript(recipient.Address))
+                .Append("\", \"")
+                .Append(EscapeJScript(recipient.OriginalAddress))
+                .Append("\", ")
+                .Append(recipient.IsLocal ? "true" : "false")
+                .AppendLine(");");
+        }
+
+        return builder.ToString();
     }
 
     private static ScriptLanguage? NormalizeLanguage(string value)

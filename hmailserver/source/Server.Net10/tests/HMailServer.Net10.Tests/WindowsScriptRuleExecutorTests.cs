@@ -198,6 +198,147 @@ function Rule_UpdateMessage(obMessage) {
     }
 
     [TestMethod]
+    public void Execute_ExposesRecipientCollectionToVbScript()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_UpdateRecipients(obMessage)
+   If obMessage.FromAddress <> "sender@example.test" Then
+      obMessage.RejectReason = "from address not loaded"
+      Exit Sub
+   End If
+   If obMessage.Recipients.Count <> 2 Then
+      obMessage.RejectReason = "recipient count not loaded"
+      Exit Sub
+   End If
+
+   Dim firstRecipient, secondRecipient
+   Set firstRecipient = obMessage.Recipients.Item(0)
+   Set secondRecipient = obMessage.Recipients.Item(1)
+   If firstRecipient.Address <> "local@example.test" Then
+      obMessage.RejectReason = "first recipient not loaded"
+      Exit Sub
+   End If
+   If Not firstRecipient.IsLocalUser Then
+      obMessage.RejectReason = "local flag not loaded"
+      Exit Sub
+   End If
+   If secondRecipient.OriginalAddress <> "Alias <alias@example.test>" Then
+      obMessage.RejectReason = "original recipient not loaded"
+      Exit Sub
+   End If
+
+   obMessage.ClearRecipients
+   obMessage.AddRecipient "Added User", "added@example.test"
+   If obMessage.Recipients.Count <> 1 Then
+      obMessage.RejectReason = "recipient add failed"
+      Exit Sub
+   End If
+   If obMessage.Recipients.Item(0).Address <> "added@example.test" Then
+      obMessage.RejectReason = "added recipient not loaded"
+      Exit Sub
+   End If
+   obMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateRecipients",
+                    "To: old@example.test\r\nCc: copy@example.test\r\nSubject: Recipients\r\n\r\nBody\r\n"u8.ToArray(),
+                    CreateRecipients()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "To: \"Added User\" <added@example.test>\r\n");
+            Assert.IsFalse(messageText.Contains("Cc:", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_ExposesRecipientCollectionToJScript()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_UpdateRecipients(obMessage) {
+  if (obMessage.FromAddress !== "sender@example.test") {
+    obMessage.RejectReason = "from address not loaded";
+    return;
+  }
+  if (obMessage.Recipients.Count !== 2) {
+    obMessage.RejectReason = "recipient count not loaded";
+    return;
+  }
+
+  var firstRecipient = obMessage.Recipients.Item(0);
+  var secondRecipient = obMessage.Recipients.Item(1);
+  if (firstRecipient.Address !== "local@example.test") {
+    obMessage.RejectReason = "first recipient not loaded";
+    return;
+  }
+  if (!firstRecipient.IsLocalUser) {
+    obMessage.RejectReason = "local flag not loaded";
+    return;
+  }
+  if (secondRecipient.OriginalAddress !== "Alias <alias@example.test>") {
+    obMessage.RejectReason = "original recipient not loaded";
+    return;
+  }
+
+  obMessage.ClearRecipients();
+  obMessage.AddRecipient("Added JS", "added-js@example.test");
+  if (obMessage.Recipients.Count !== 1) {
+    obMessage.RejectReason = "recipient add failed";
+    return;
+  }
+  if (obMessage.Recipients.Item(0).Address !== "added-js@example.test") {
+    obMessage.RejectReason = "added recipient not loaded";
+    return;
+  }
+  obMessage.Save();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateRecipients",
+                    "To: old@example.test\r\nCc: copy@example.test\r\nSubject: Recipients\r\n\r\nBody\r\n"u8.ToArray(),
+                    CreateRecipients()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "To: \"Added JS\" <added-js@example.test>\r\n");
+            Assert.IsFalse(messageText.Contains("Cc:", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_ReturnsDropOrRejectStateSetByVbScript()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -256,15 +397,31 @@ End Sub
 
     private static SmtpRuleScriptExecutionRequest CreateRequest(
         string functionName,
-        byte[] messageData) =>
+        byte[] messageData,
+        IReadOnlyList<SmtpResolvedRecipient>? recipients = null,
+        string mailFrom = "sender@example.test") =>
         new(
             functionName,
             RuleId: 1,
             RuleName: "rule",
             AccountId: 0,
-            MailFrom: "sender@example.test",
-            Recipients: [],
+            MailFrom: mailFrom,
+            Recipients: recipients ?? [],
             messageData);
+
+    private static IReadOnlyList<SmtpResolvedRecipient> CreateRecipients() =>
+        [
+            new(
+                "local@example.test",
+                "local@example.test",
+                LocalAccountId: 42,
+                IsLocal: true),
+            new(
+                "alias-target@example.test",
+                "Alias <alias@example.test>",
+                LocalAccountId: 0,
+                IsLocal: false)
+        ];
 
     private static string GetCscriptPathOrInconclusive()
     {
