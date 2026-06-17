@@ -648,6 +648,16 @@ public sealed class SmtpSession
             var response = string.IsNullOrWhiteSpace(validation.FailureResponse)
                 ? "550 Recipient rejected"
                 : SanitizeResponseText(validation.FailureResponse);
+            if (IsUnknownRecipientResponse(response))
+            {
+                ExecuteSmtpEvent(
+                    "OnRecipientUnknown",
+                    state,
+                    SmtpEventScriptArgumentShape.ClientAndMessage,
+                    EmptyEventMessageData,
+                    cancellationToken);
+            }
+
             await WriteAsync(stream, response + "\r\n", cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -817,6 +827,10 @@ public sealed class SmtpSession
             return SmtpRecipientValidationResult.Reject("451 Requested action aborted: local error in processing");
         }
     }
+
+    private static bool IsUnknownRecipientResponse(string response) =>
+        response.Equals("550 Unknown user", StringComparison.OrdinalIgnoreCase) ||
+        response.Equals("Unknown user", StringComparison.OrdinalIgnoreCase);
 
     private async ValueTask<SmtpDataReadResult> ReadMessageDataAsync(
         LineProtocolReader reader,

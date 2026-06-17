@@ -197,15 +197,29 @@ public sealed class SmtpSessionTests
             "EHLO client.example\r\nMAIL FROM:<sender@example.test>\r\nRCPT TO:<missing@example.test>\r\nQUIT\r\n");
         var receiver = new FakeMessageReceiver();
         var validator = new FakeRecipientValidator(SmtpRecipientValidationResult.Reject("550 Unknown user"));
+        SmtpEventScriptExecutionRequest? capturedRequest = null;
         var session = new SmtpSession(
             new SmtpSessionOptions(),
             receiver,
-            validator);
+            validator,
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                request =>
+                {
+                    if (request.EventName == "OnRecipientUnknown")
+                    {
+                        capturedRequest = request;
+                    }
+
+                    return SmtpRuleScriptExecutionResult.Continue(request.MessageData);
+                }));
 
         await session.RunAsync(stream, CancellationToken.None);
 
         StringAssert.Contains(stream.GetOutputText(), "550 Unknown user\r\n");
         Assert.IsNull(receiver.LastRequest);
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual(SmtpEventScriptArgumentShape.ClientAndMessage, capturedRequest.ArgumentShape);
+        Assert.AreEqual("client.example", capturedRequest.Client.HeloHost);
     }
 
     [TestMethod]
