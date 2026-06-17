@@ -14,10 +14,16 @@ public sealed class SqlServerImapAuthAndMailboxTests
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountactive <> 0");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "d.domainactive <> 0");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountdomainid");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountaddomain");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountadusername");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountmaxsize");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountpersonfirstname");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountpersonlastname");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountadminlevel");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountvacationmessageon");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountforwardenabled");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountenablesignature");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountlastlogontime");
     }
 
     [TestMethod]

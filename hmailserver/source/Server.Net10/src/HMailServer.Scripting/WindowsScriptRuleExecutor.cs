@@ -637,10 +637,26 @@ Class HMailServerScriptAccount
    Public Active
    Public IsAD
    Public DomainID
+   Public ADDomain
+   Public ADUsername
    Public MaxSize
    Public PersonFirstName
    Public PersonLastName
    Public AdminLevel
+   Public VacationMessageIsOn
+   Public VacationMessage
+   Public VacationSubject
+   Public VacationMessageExpires
+   Public VacationMessageExpiresDate
+   Public VacationMessageAbortSpamFlagged
+   Public ForwardEnabled
+   Public ForwardAddress
+   Public ForwardKeepOriginal
+   Public ForwardAbortSpamFlagged
+   Public SignatureEnabled
+   Public SignaturePlainText
+   Public SignatureHTML
+   Public LastLogonTime
 End Class
 
 Class HMailServerRuleResult
@@ -655,10 +671,26 @@ HMAILSERVER_ACCOUNT.Address = "{{EscapeVbScript(account.Address)}}"
 HMAILSERVER_ACCOUNT.Active = {{(account.Active ? "True" : "False")}}
 HMAILSERVER_ACCOUNT.IsAD = {{(account.IsActiveDirectoryAccount ? "True" : "False")}}
 HMAILSERVER_ACCOUNT.DomainID = {{account.DomainId.ToString(CultureInfo.InvariantCulture)}}
+HMAILSERVER_ACCOUNT.ADDomain = "{{EscapeVbScript(account.ActiveDirectoryDomain)}}"
+HMAILSERVER_ACCOUNT.ADUsername = "{{EscapeVbScript(account.ActiveDirectoryUsername)}}"
 HMAILSERVER_ACCOUNT.MaxSize = {{account.MaxSizeMegabytes.ToString(CultureInfo.InvariantCulture)}}
 HMAILSERVER_ACCOUNT.PersonFirstName = "{{EscapeVbScript(account.PersonFirstName)}}"
 HMAILSERVER_ACCOUNT.PersonLastName = "{{EscapeVbScript(account.PersonLastName)}}"
 HMAILSERVER_ACCOUNT.AdminLevel = {{account.AdminLevel.ToString(CultureInfo.InvariantCulture)}}
+HMAILSERVER_ACCOUNT.VacationMessageIsOn = {{(account.VacationMessageIsOn ? "True" : "False")}}
+HMAILSERVER_ACCOUNT.VacationMessage = "{{EscapeVbScript(account.VacationMessage)}}"
+HMAILSERVER_ACCOUNT.VacationSubject = "{{EscapeVbScript(account.VacationSubject)}}"
+HMAILSERVER_ACCOUNT.VacationMessageExpires = {{(account.VacationMessageExpires ? "True" : "False")}}
+HMAILSERVER_ACCOUNT.VacationMessageExpiresDate = "{{EscapeVbScript(account.VacationMessageExpiresDate)}}"
+HMAILSERVER_ACCOUNT.VacationMessageAbortSpamFlagged = {{(account.VacationMessageAbortSpamFlagged ? "True" : "False")}}
+HMAILSERVER_ACCOUNT.ForwardEnabled = {{(account.ForwardEnabled ? "True" : "False")}}
+HMAILSERVER_ACCOUNT.ForwardAddress = "{{EscapeVbScript(account.ForwardAddress)}}"
+HMAILSERVER_ACCOUNT.ForwardKeepOriginal = {{(account.ForwardKeepOriginal ? "True" : "False")}}
+HMAILSERVER_ACCOUNT.ForwardAbortSpamFlagged = {{(account.ForwardAbortSpamFlagged ? "True" : "False")}}
+HMAILSERVER_ACCOUNT.SignatureEnabled = {{(account.SignatureEnabled ? "True" : "False")}}
+HMAILSERVER_ACCOUNT.SignaturePlainText = "{{EscapeVbScript(account.SignaturePlainText)}}"
+HMAILSERVER_ACCOUNT.SignatureHTML = "{{EscapeVbScript(account.SignatureHtml)}}"
+HMAILSERVER_ACCOUNT.LastLogonTime = "{{EscapeVbScript(account.LastLogonTime)}}"
 
 Dim Result
 Set Result = New HMailServerRuleResult
@@ -702,10 +734,26 @@ var HMAILSERVER_ACCOUNT = {
   Active: {{(account.Active ? "true" : "false")}},
   IsAD: {{(account.IsActiveDirectoryAccount ? "true" : "false")}},
   DomainID: {{account.DomainId.ToString(CultureInfo.InvariantCulture)}},
+  ADDomain: "{{EscapeJScript(account.ActiveDirectoryDomain)}}",
+  ADUsername: "{{EscapeJScript(account.ActiveDirectoryUsername)}}",
   MaxSize: {{account.MaxSizeMegabytes.ToString(CultureInfo.InvariantCulture)}},
   PersonFirstName: "{{EscapeJScript(account.PersonFirstName)}}",
   PersonLastName: "{{EscapeJScript(account.PersonLastName)}}",
-  AdminLevel: {{account.AdminLevel.ToString(CultureInfo.InvariantCulture)}}
+  AdminLevel: {{account.AdminLevel.ToString(CultureInfo.InvariantCulture)}},
+  VacationMessageIsOn: {{(account.VacationMessageIsOn ? "true" : "false")}},
+  VacationMessage: "{{EscapeJScript(account.VacationMessage)}}",
+  VacationSubject: "{{EscapeJScript(account.VacationSubject)}}",
+  VacationMessageExpires: {{(account.VacationMessageExpires ? "true" : "false")}},
+  VacationMessageExpiresDate: "{{EscapeJScript(account.VacationMessageExpiresDate)}}",
+  VacationMessageAbortSpamFlagged: {{(account.VacationMessageAbortSpamFlagged ? "true" : "false")}},
+  ForwardEnabled: {{(account.ForwardEnabled ? "true" : "false")}},
+  ForwardAddress: "{{EscapeJScript(account.ForwardAddress)}}",
+  ForwardKeepOriginal: {{(account.ForwardKeepOriginal ? "true" : "false")}},
+  ForwardAbortSpamFlagged: {{(account.ForwardAbortSpamFlagged ? "true" : "false")}},
+  SignatureEnabled: {{(account.SignatureEnabled ? "true" : "false")}},
+  SignaturePlainText: "{{EscapeJScript(account.SignaturePlainText)}}",
+  SignatureHTML: "{{EscapeJScript(account.SignatureHtml)}}",
+  LastLogonTime: "{{EscapeJScript(account.LastLogonTime)}}"
 };
 
 var Result = {

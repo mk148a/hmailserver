@@ -16,10 +16,26 @@ SELECT TOP (1)
     a.accountisad,
     a.accountactive,
     a.accountdomainid,
+    a.accountaddomain,
+    a.accountadusername,
     a.accountmaxsize,
     a.accountpersonfirstname,
     a.accountpersonlastname,
-    a.accountadminlevel
+    a.accountadminlevel,
+    a.accountvacationmessageon,
+    a.accountvacationmessage,
+    a.accountvacationsubject,
+    a.accountvacationexpires,
+    a.accountvacationexpiredate,
+    a.accountvacationabortspamflagged,
+    a.accountforwardenabled,
+    a.accountforwardaddress,
+    a.accountforwardkeeporiginal,
+    a.accountforwardabortspamflagged,
+    a.accountenablesignature,
+    a.accountsignatureplaintext,
+    a.accountsignaturehtml,
+    a.accountlastlogontime
 FROM hm_accounts AS a
 INNER JOIN hm_domains AS d
     ON d.domainid = a.accountdomainid
@@ -79,10 +95,26 @@ WHERE accountid = @AccountId;
             Active: reader.GetInt32(5) != 0,
             isActiveDirectoryAccount,
             DomainId: reader.GetInt32(6),
-            MaxSizeMegabytes: reader.GetInt32(7),
-            PersonFirstName: reader.IsDBNull(8) ? string.Empty : reader.GetString(8),
-            PersonLastName: reader.IsDBNull(9) ? string.Empty : reader.GetString(9),
-            AdminLevel: reader.GetInt32(10));
+            ActiveDirectoryDomain: GetStringOrEmpty(reader, 7),
+            ActiveDirectoryUsername: GetStringOrEmpty(reader, 8),
+            MaxSizeMegabytes: reader.GetInt32(9),
+            PersonFirstName: GetStringOrEmpty(reader, 10),
+            PersonLastName: GetStringOrEmpty(reader, 11),
+            AdminLevel: reader.GetInt32(12),
+            VacationMessageIsOn: reader.GetInt32(13) != 0,
+            VacationMessage: GetStringOrEmpty(reader, 14),
+            VacationSubject: GetStringOrEmpty(reader, 15),
+            VacationMessageExpires: reader.GetInt32(16) != 0,
+            VacationMessageExpiresDate: GetStringOrEmpty(reader, 17),
+            VacationMessageAbortSpamFlagged: reader.GetInt32(18) != 0,
+            ForwardEnabled: reader.GetInt32(19) != 0,
+            ForwardAddress: GetStringOrEmpty(reader, 20),
+            ForwardKeepOriginal: reader.GetInt32(21) != 0,
+            ForwardAbortSpamFlagged: reader.GetInt32(22) != 0,
+            SignatureEnabled: reader.GetInt32(23) != 0,
+            SignaturePlainText: GetStringOrEmpty(reader, 24),
+            SignatureHtml: GetStringOrEmpty(reader, 25),
+            LastLogonTime: GetStringOrEmpty(reader, 26));
 
         var scriptDecision = RunPasswordValidationScript(account, password, cancellationToken);
         if (scriptDecision == ClientPasswordValidationScriptDecision.Accept)
@@ -148,4 +180,7 @@ WHERE accountid = @AccountId;
         command.Parameters.Add("@AccountId", SqlDbType.Int).Value = accountId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    private static string GetStringOrEmpty(SqlDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
 }

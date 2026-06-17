@@ -955,7 +955,10 @@ End Sub
                 Path.Combine(eventDirectory, "EventHandlers.vbs"),
                 """
 Sub OnClientValidatePassword(oAccount, password)
-   If oAccount.Address = "user@example.test" And password = "script-secret" Then
+   If oAccount.Address = "user@example.test" And password = "script-secret" _
+      And oAccount.ForwardEnabled And oAccount.ForwardAddress = "forward@example.net" _
+      And oAccount.SignatureEnabled And oAccount.SignatureHTML = "<p>HTML</p>" _
+      And oAccount.VacationMessageIsOn And oAccount.LastLogonTime = "2026-01-02 03:04:05" Then
       Result.Value = 0
    Else
       Result.Value = 1
@@ -1085,10 +1088,26 @@ function OnClientValidatePassword(oAccount, password) {
                 Active: true,
                 IsActiveDirectoryAccount: false,
                 DomainId: 12,
+                ActiveDirectoryDomain: "EXAMPLE",
+                ActiveDirectoryUsername: "user",
                 MaxSizeMegabytes: 1024,
                 PersonFirstName: "Test",
                 PersonLastName: "User",
-                AdminLevel: 0),
+                AdminLevel: 0,
+                VacationMessageIsOn: true,
+                VacationMessage: "Away",
+                VacationSubject: "Out",
+                VacationMessageExpires: true,
+                VacationMessageExpiresDate: "2026-12-31",
+                VacationMessageAbortSpamFlagged: true,
+                ForwardEnabled: true,
+                ForwardAddress: "forward@example.net",
+                ForwardKeepOriginal: true,
+                ForwardAbortSpamFlagged: true,
+                SignatureEnabled: true,
+                SignaturePlainText: "Plain",
+                SignatureHtml: "<p>HTML</p>",
+                LastLogonTime: "2026-01-02 03:04:05"),
             password);
 
     private static IReadOnlyList<SmtpResolvedRecipient> CreateRecipients() =>
