@@ -356,6 +356,49 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_RunsOnClientLogonAfterSuccessfulAuth()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "secret");
+        await using var stream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nQUIT\r\n");
+        SmtpEventScriptExecutionRequest? capturedRequest = null;
+        var session = new SmtpSession(
+            new SmtpSessionOptions(),
+            messageReceiver: null,
+            recipientValidator: null,
+            accountAuthenticator: new FakeAccountAuthenticator(),
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                request =>
+                {
+                    if (request.EventName == "OnClientLogon")
+                    {
+                        capturedRequest = request;
+                    }
+
+                    return SmtpRuleScriptExecutionResult.Continue(request.MessageData);
+                }));
+
+        await session.RunAsync(
+            stream,
+            startTlsStreamProvider: null,
+            connectionContext: new SmtpSessionConnectionContext(
+                ClientIPAddress: "203.0.113.11",
+                ClientPort: 2525,
+                SessionId: 77),
+            cancellationToken: CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "235 Authentication successful\r\n");
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual("OnClientLogon", capturedRequest.EventName);
+        Assert.AreEqual(SmtpEventScriptArgumentShape.ClientOnly, capturedRequest.ArgumentShape);
+        Assert.AreEqual("user@example.test", capturedRequest.Client.Username);
+        Assert.IsTrue(capturedRequest.Client.IsAuthenticated);
+        Assert.AreEqual("client.example", capturedRequest.Client.HeloHost);
+        Assert.AreEqual("203.0.113.11", capturedRequest.Client.IPAddress);
+        Assert.AreEqual(77, capturedRequest.Client.SessionId);
+    }
+
+    [TestMethod]
     public async Task RunAsync_AdvertisesStartTlsWhenProviderSupportsUpgrade()
     {
         await using var stream = new DuplexMemoryStream("EHLO client.example\r\nQUIT\r\n");
@@ -463,15 +506,29 @@ public sealed class SmtpSessionTests
         var authToken = EncodeAuthPlain("user@example.test", "wrong");
         await using var stream = new DuplexMemoryStream(
             $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nQUIT\r\n");
+        SmtpEventScriptExecutionRequest? capturedRequest = null;
         var session = new SmtpSession(
             new SmtpSessionOptions(),
             messageReceiver: null,
             recipientValidator: null,
-            accountAuthenticator: new FakeAccountAuthenticator());
+            accountAuthenticator: new FakeAccountAuthenticator(),
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                request =>
+                {
+                    if (request.EventName == "OnClientLogon")
+                    {
+                        capturedRequest = request;
+                    }
+
+                    return SmtpRuleScriptExecutionResult.Continue(request.MessageData);
+                }));
 
         await session.RunAsync(stream, CancellationToken.None);
 
         StringAssert.Contains(stream.GetOutputText(), "535 Authentication failed\r\n");
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual("user@example.test", capturedRequest.Client.Username);
+        Assert.IsFalse(capturedRequest.Client.IsAuthenticated);
     }
 
     [TestMethod]

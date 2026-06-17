@@ -560,6 +560,11 @@ public sealed class SmtpSession
         }
 
         var result = await _accountAuthenticator.AuthenticateAsync(username, password, cancellationToken).ConfigureAwait(false);
+        RunClientLogonEvent(
+            state,
+            username,
+            result.Succeeded && result.Account is not null,
+            cancellationToken);
         if (!result.Succeeded || result.Account is null)
         {
             await WriteAsync(stream, "535 Authentication failed\r\n", cancellationToken).ConfigureAwait(false);
@@ -568,6 +573,45 @@ public sealed class SmtpSession
 
         state.AuthenticatedAccount = result.Account;
         await WriteAsync(stream, "235 Authentication successful\r\n", cancellationToken).ConfigureAwait(false);
+    }
+
+    private void RunClientLogonEvent(
+        SessionState state,
+        string username,
+        bool isAuthenticated,
+        CancellationToken cancellationToken)
+    {
+        if (_eventScriptExecutor is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _eventScriptExecutor.Execute(
+                new SmtpEventScriptExecutionRequest(
+                    "OnClientLogon",
+                    new SmtpEventScriptClient(
+                        username,
+                        state.ClientIPAddress,
+                        state.ClientPort,
+                        state.SessionId,
+                        state.HeloHost,
+                        isAuthenticated,
+                        state.IsSecureConnection),
+                    MailFrom: string.Empty,
+                    Recipients: [],
+                    EmptyEventMessageData,
+                    SmtpEventScriptArgumentShape.ClientOnly),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private async ValueTask HandleRecipientAsync(
