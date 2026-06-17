@@ -100,8 +100,9 @@ public sealed class SmtpTcpListener
         {
             using (client)
             {
+                var connectionContext = CreateConnectionContext(client);
                 await using var stream = await _streamFactory.OpenStreamAsync(client, cancellationToken).ConfigureAwait(false);
-                await _session.RunAsync(stream, _streamFactory, cancellationToken).ConfigureAwait(false);
+                await _session.RunAsync(stream, _streamFactory, connectionContext, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -164,6 +165,14 @@ public sealed class SmtpTcpListener
         client.NoDelay = _options.NoDelay;
         client.ReceiveBufferSize = _options.ReceiveBufferBytes;
         client.SendBufferSize = _options.SendBufferBytes;
+    }
+
+    private static SmtpSessionConnectionContext CreateConnectionContext(TcpClient client)
+    {
+        var remoteEndPoint = client.Client.RemoteEndPoint as IPEndPoint;
+        return new SmtpSessionConnectionContext(
+            remoteEndPoint?.Address.ToString() ?? string.Empty,
+            remoteEndPoint?.Port ?? 0);
     }
 
     private static void ValidateOptions(SmtpTcpListenerOptions options)

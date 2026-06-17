@@ -67,7 +67,35 @@ public sealed class SmtpSessionTests
         Assert.AreEqual("sender@example.test", receiver.LastRequest.MailFrom);
         CollectionAssert.AreEqual(new[] { "recipient@example.test" }, receiver.LastRequest.Recipients.Select(static recipient => recipient.Address).ToArray());
         Assert.AreEqual(18L, receiver.LastRequest.DeclaredSize);
+        Assert.AreEqual(string.Empty, receiver.LastRequest.ClientIPAddress);
+        Assert.AreEqual(0, receiver.LastRequest.ClientPort);
+        Assert.IsTrue(receiver.LastRequest.SessionId > 0);
         Assert.AreEqual("Subject: Test\r\n\r\n.Body\r\n", Encoding.Latin1.GetString(receiver.LastRequest.MessageData));
+    }
+
+    [TestMethod]
+    public async Task RunAsync_PassesConnectionContextThroughReceiver()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nMAIL FROM:<sender@example.test>\r\nRCPT TO:<recipient@example.test>\r\nDATA\r\nSubject: Test\r\n\r\nBody\r\n.\r\nQUIT\r\n");
+        var receiver = new FakeMessageReceiver();
+        var session = new SmtpSession(
+            new SmtpSessionOptions { ServerName = "mx.example.test" },
+            receiver);
+
+        await session.RunAsync(
+            stream,
+            startTlsStreamProvider: null,
+            connectionContext: new SmtpSessionConnectionContext(
+                ClientIPAddress: "203.0.113.10",
+                ClientPort: 2525,
+                SessionId: 99),
+            cancellationToken: CancellationToken.None);
+
+        Assert.IsNotNull(receiver.LastRequest);
+        Assert.AreEqual("203.0.113.10", receiver.LastRequest.ClientIPAddress);
+        Assert.AreEqual(2525, receiver.LastRequest.ClientPort);
+        Assert.AreEqual(99, receiver.LastRequest.SessionId);
     }
 
     [TestMethod]

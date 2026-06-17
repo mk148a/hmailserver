@@ -13,6 +13,7 @@ public sealed class SmtpSession
     private readonly ISmtpMessageReceiver? _messageReceiver;
     private readonly ISmtpRecipientValidator? _recipientValidator;
     private readonly IImapAccountAuthenticator? _accountAuthenticator;
+    private long _nextSessionId;
 
     public SmtpSession(
         SmtpSessionOptions? options = null,
@@ -44,11 +45,24 @@ public sealed class SmtpSession
         ISmtpStartTlsStreamProvider? startTlsStreamProvider,
         CancellationToken cancellationToken)
     {
+        await RunAsync(
+            stream,
+            startTlsStreamProvider,
+            connectionContext: null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask RunAsync(
+        Stream stream,
+        ISmtpStartTlsStreamProvider? startTlsStreamProvider,
+        SmtpSessionConnectionContext? connectionContext,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(stream);
 
         await WriteAsync(stream, _options.Greeting, cancellationToken).ConfigureAwait(false);
 
-        var state = new SessionState();
+        var state = new SessionState(CreateConnectionContext(connectionContext));
         LineProtocolReader? reader = null;
         try
         {
@@ -114,6 +128,20 @@ public sealed class SmtpSession
 
     private LineProtocolReader CreateReader(Stream stream) =>
         new(stream, _options.MaxLineBytes, ProtocolEncoding);
+
+    private SmtpSessionConnectionContext CreateConnectionContext(SmtpSessionConnectionContext? context)
+    {
+        var sessionId = context?.SessionId ?? 0;
+        if (sessionId <= 0)
+        {
+            sessionId = Interlocked.Increment(ref _nextSessionId);
+        }
+
+        return new SmtpSessionConnectionContext(
+            context?.ClientIPAddress ?? string.Empty,
+            context?.ClientPort ?? 0,
+            sessionId);
+    }
 
     private async ValueTask<SmtpDispatchResult> DispatchAsync(
         Stream stream,
@@ -547,6 +575,9 @@ public sealed class SmtpSession
             state.DeclaredSize,
             data.MessageData,
             DateTimeOffset.UtcNow,
+            ClientIPAddress: state.ClientIPAddress,
+            ClientPort: state.ClientPort,
+            SessionId: state.SessionId,
             AuthenticatedUsername: state.AuthenticatedAccount?.Address ?? string.Empty,
             IsAuthenticated: state.AuthenticatedAccount is not null,
             IsEncryptedConnection: state.IsSecureConnection);
@@ -895,6 +926,19 @@ public sealed class SmtpSession
 
     private sealed class SessionState
     {
+        public SessionState(SmtpSessionConnectionContext connectionContext)
+        {
+            ClientIPAddress = connectionContext.ClientIPAddress;
+            ClientPort = connectionContext.ClientPort;
+            SessionId = connectionContext.SessionId;
+        }
+
+        public string ClientIPAddress { get; }
+
+        public int ClientPort { get; }
+
+        public long SessionId { get; }
+
         public string HeloHost { get; private set; } = string.Empty;
 
         public bool IsExtendedSmtp { get; private set; }
