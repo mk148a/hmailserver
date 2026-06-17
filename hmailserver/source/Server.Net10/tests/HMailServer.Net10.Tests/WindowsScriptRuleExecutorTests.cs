@@ -245,6 +245,131 @@ function Rule_UpdateMessage(obMessage) {
     }
 
     [TestMethod]
+    public void Execute_ExposesHeaderCollectionToVbScript()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_UpdateHeaders(obMessage)
+   If obMessage.Headers.Count <> 5 Then
+      obMessage.RejectReason = "header count not loaded"
+      Exit Sub
+   End If
+
+   Dim firstHeader, foldedHeader, removeHeader
+   Set firstHeader = obMessage.Headers.Item(0)
+   If firstHeader.Name <> "From" Then
+      obMessage.RejectReason = "header item not loaded"
+      Exit Sub
+   End If
+
+   Set foldedHeader = obMessage.Headers.ItemByName("X-Folded")
+   If foldedHeader.Value <> "one two" Then
+      obMessage.RejectReason = "folded header object not loaded"
+      Exit Sub
+   End If
+   foldedHeader.Value = "changed"
+
+   Set removeHeader = obMessage.Headers.ItemByName("X-Remove")
+   removeHeader.Delete
+   obMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateHeaders",
+                    Encoding.ASCII.GetBytes(
+                        "From: Sender <sender@example.test>\r\n" +
+                        "To: dest@example.test\r\n" +
+                        "Subject: Headers\r\n" +
+                        "X-Folded: one\r\n two\r\n" +
+                        "X-Remove: gone\r\n" +
+                        "\r\n" +
+                        "Body\r\n")),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "X-Folded: changed\r\n");
+            Assert.IsFalse(messageText.Contains("X-Remove:", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_ExposesHeaderCollectionToJScript()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_UpdateHeaders(obMessage) {
+  if (obMessage.Headers.Count !== 5) {
+    obMessage.RejectReason = "header count not loaded";
+    return;
+  }
+
+  var firstHeader = obMessage.Headers.Item(0);
+  if (firstHeader.Name !== "From") {
+    obMessage.RejectReason = "header item not loaded";
+    return;
+  }
+
+  var foldedHeader = obMessage.Headers.ItemByName("X-Folded");
+  if (foldedHeader.Value !== "one two") {
+    obMessage.RejectReason = "folded header object not loaded";
+    return;
+  }
+  foldedHeader.Value = "changed-js";
+
+  var removeHeader = obMessage.Headers.ItemByName("X-Remove");
+  removeHeader.Delete();
+  obMessage.Save();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateHeaders",
+                    Encoding.ASCII.GetBytes(
+                        "From: Sender <sender@example.test>\r\n" +
+                        "To: dest@example.test\r\n" +
+                        "Subject: Headers\r\n" +
+                        "X-Folded: one\r\n two\r\n" +
+                        "X-Remove: gone\r\n" +
+                        "\r\n" +
+                        "Body\r\n")),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "X-Folded: changed-js\r\n");
+            Assert.IsFalse(messageText.Contains("X-Remove:", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_ExposesRecipientCollectionToVbScript()
     {
         var cscript = GetCscriptPathOrInconclusive();

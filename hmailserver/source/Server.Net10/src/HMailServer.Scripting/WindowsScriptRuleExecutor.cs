@@ -685,6 +685,89 @@ Class HMailServerRuleAttachments
    End Sub
 End Class
 
+Class HMailServerRuleMessageHeader
+   Private m_owner
+   Private m_index
+   Private m_name
+   Private m_value
+   Private m_deleted
+
+   Public Sub Initialize(owner, index, headerName, headerValue)
+      Set m_owner = owner
+      m_index = index
+      m_name = CStr(headerName)
+      m_value = CStr(headerValue)
+      m_deleted = False
+   End Sub
+
+   Public Property Get Name()
+      Name = m_name
+   End Property
+
+   Public Property Let Name(newValue)
+      m_name = CStr(newValue)
+      If Not m_deleted Then
+         m_owner.SetHeaderAt m_index, m_name, m_value
+      End If
+   End Property
+
+   Public Property Get Value()
+      Value = m_value
+   End Property
+
+   Public Property Let Value(newValue)
+      m_value = CStr(newValue)
+      If Not m_deleted Then
+         m_owner.SetHeaderAt m_index, m_name, m_value
+      End If
+   End Property
+
+   Public Sub Delete()
+      If Not m_deleted Then
+         m_owner.DeleteHeaderAt m_index
+         m_deleted = True
+      End If
+   End Sub
+End Class
+
+Class HMailServerRuleMessageHeaders
+   Private m_owner
+
+   Public Sub Initialize(owner)
+      Set m_owner = owner
+   End Sub
+
+   Public Property Get Count()
+      Count = m_owner.GetHeaderCount()
+   End Property
+
+   Public Function Item(index)
+      If index < 0 Or index >= Count Then
+         Set Item = Nothing
+         Exit Function
+      End If
+
+      Dim header
+      Set header = New HMailServerRuleMessageHeader
+      header.Initialize m_owner, index, m_owner.GetHeaderNameAt(index), m_owner.GetHeaderValueAt(index)
+      Set Item = header
+   End Function
+
+   Public Function ItemByName(name)
+      Dim index
+      index = m_owner.FindHeaderIndexByName(CStr(name))
+      If index < 0 Then
+         Set ItemByName = Nothing
+         Exit Function
+      End If
+
+      Set ItemByName = Item(index)
+   End Function
+
+   Public Sub Commit()
+   End Sub
+End Class
+
 Class HMailServerRuleMessage
    Public FileName
    Public DropMessage
@@ -707,10 +790,13 @@ Class HMailServerRuleMessage
    Private m_encodeFields
    Private m_recipients
    Private m_attachments
+   Private m_messageHeaders
 
    Private Sub Class_Initialize()
       Set m_recipients = New HMailServerRuleRecipients
       Set m_attachments = New HMailServerRuleAttachments
+      Set m_messageHeaders = New HMailServerRuleMessageHeaders
+      m_messageHeaders.Initialize Me
       ID = 0
       UID = 0
       State = 0
@@ -746,6 +832,7 @@ Class HMailServerRuleMessage
 
    Public Sub Save()
       Dim headers, messageBody
+      m_messageHeaders.Commit
       headers = m_headers
       headers = SetHeaderLine(headers, "Subject", m_subject)
       headers = SetHeaderLine(headers, "From", m_from)
@@ -801,6 +888,10 @@ Class HMailServerRuleMessage
 
    Public Property Get Attachments()
       Set Attachments = m_attachments
+   End Property
+
+   Public Property Get Headers()
+      Set Headers = m_messageHeaders
    End Property
 
    Public Property Get CC()
@@ -898,19 +989,83 @@ Class HMailServerRuleMessage
       Dim name
       name = LCase(CStr(fieldName))
       m_headers = SetHeaderLine(m_headers, CStr(fieldName), CStr(fieldValue))
-      Select Case name
-         Case "subject"
-            m_subject = CStr(fieldValue)
-         Case "from"
-            m_from = CStr(fieldValue)
-            m_fromAddress = m_from
-         Case "to"
-            m_to = CStr(fieldValue)
-         Case "cc"
-            m_cc = CStr(fieldValue)
-         Case "date"
-            m_date = CStr(fieldValue)
-      End Select
+      SyncCommonHeader fieldName, fieldValue
+   End Sub
+
+   Public Function GetHeaderCount()
+      Dim names, values, count
+      BuildHeaderArrays names, values, count
+      GetHeaderCount = count
+   End Function
+
+   Public Function GetHeaderNameAt(index)
+      Dim names, values, count
+      BuildHeaderArrays names, values, count
+      If index >= 0 And index < count Then
+         GetHeaderNameAt = names(index)
+      Else
+         GetHeaderNameAt = ""
+      End If
+   End Function
+
+   Public Function GetHeaderValueAt(index)
+      Dim names, values, count
+      BuildHeaderArrays names, values, count
+      If index >= 0 And index < count Then
+         GetHeaderValueAt = values(index)
+      Else
+         GetHeaderValueAt = ""
+      End If
+   End Function
+
+   Public Function FindHeaderIndexByName(fieldName)
+      Dim names, values, count, index, target
+      target = LCase(CStr(fieldName))
+      BuildHeaderArrays names, values, count
+      For index = 0 To count - 1
+         If LCase(names(index)) = target Then
+            FindHeaderIndexByName = index
+            Exit Function
+         End If
+      Next
+      FindHeaderIndexByName = -1
+   End Function
+
+   Public Sub SetHeaderAt(index, fieldName, fieldValue)
+      Dim names, values, count, itemIndex, output
+      BuildHeaderArrays names, values, count
+      If index < 0 Or index >= count Then
+         Exit Sub
+      End If
+
+      names(index) = CStr(fieldName)
+      values(index) = CStr(fieldValue)
+      output = ""
+      For itemIndex = 0 To count - 1
+         If Len(values(itemIndex)) > 0 Then
+            output = AppendHeaderLine(output, CanonicalHeaderName(names(itemIndex)) & ": " & SanitizeHeaderValue(values(itemIndex)))
+         End If
+      Next
+      m_headers = output
+      SyncCommonHeader fieldName, fieldValue
+   End Sub
+
+   Public Sub DeleteHeaderAt(index)
+      Dim names, values, count, itemIndex, output
+      BuildHeaderArrays names, values, count
+      If index < 0 Or index >= count Then
+         Exit Sub
+      End If
+
+      output = ""
+      For itemIndex = 0 To count - 1
+         If itemIndex <> index Then
+            output = AppendHeaderLine(output, CanonicalHeaderName(names(itemIndex)) & ": " & SanitizeHeaderValue(values(itemIndex)))
+         Else
+            SyncCommonHeader names(itemIndex), ""
+         End If
+      Next
+      m_headers = output
    End Sub
 
    Private Function ReadAllText(path)
@@ -1048,6 +1203,66 @@ Class HMailServerRuleMessage
       End If
       SetHeaderLine = output
    End Function
+
+   Private Sub BuildHeaderArrays(ByRef names, ByRef values, ByRef count)
+      Dim lines, index, line, colon, currentName, currentValue
+      count = 0
+      ReDim names(0)
+      ReDim values(0)
+      currentName = ""
+      currentValue = ""
+      lines = Split(NormalizeLineBreaks(m_headers), vbCrLf)
+      For index = 0 To UBound(lines)
+         line = lines(index)
+         If Len(line) > 0 Then
+            If IsContinuationLine(line) Then
+               If Len(currentName) > 0 Then
+                  currentValue = currentValue & " " & Trim(line)
+               End If
+            Else
+               If Len(currentName) > 0 Then
+                  AddHeaderArrayItem names, values, count, currentName, currentValue
+               End If
+               colon = InStr(1, line, ":", vbBinaryCompare)
+               If colon > 1 Then
+                  currentName = Trim(Left(line, colon - 1))
+                  currentValue = Trim(Mid(line, colon + 1))
+               Else
+                  currentName = ""
+                  currentValue = ""
+               End If
+            End If
+         End If
+      Next
+      If Len(currentName) > 0 Then
+         AddHeaderArrayItem names, values, count, currentName, currentValue
+      End If
+   End Sub
+
+   Private Sub AddHeaderArrayItem(ByRef names, ByRef values, ByRef count, headerName, headerValue)
+      ReDim Preserve names(count)
+      ReDim Preserve values(count)
+      names(count) = CStr(headerName)
+      values(count) = CStr(headerValue)
+      count = count + 1
+   End Sub
+
+   Private Sub SyncCommonHeader(fieldName, fieldValue)
+      Select Case LCase(CStr(fieldName))
+         Case "subject"
+            m_subject = CStr(fieldValue)
+         Case "from"
+            m_from = CStr(fieldValue)
+         Case "to"
+            m_to = CStr(fieldValue)
+         Case "cc"
+            m_cc = CStr(fieldValue)
+         Case "date"
+            m_date = CStr(fieldValue)
+         Case "content-type"
+            m_charset = ExtractCharset(CStr(fieldValue))
+      End Select
+   End Sub
 
    Private Function IsContinuationLine(line)
       IsContinuationLine = Left(line, 1) = " " Or Left(line, 1) = vbTab
@@ -1254,6 +1469,161 @@ function hMailServerRuleSetHeader(headers, fieldName, fieldValue) {
   return output;
 }
 
+function hMailServerRuleParseHeaderItems(headers) {
+  var lines = hMailServerRuleNormalizeLineBreaks(headers).split("\r\n");
+  var items = [];
+  var current = null;
+  for (var index = 0; index < lines.length; index++) {
+    var line = lines[index];
+    if (!line) {
+      continue;
+    }
+    if (hMailServerRuleIsContinuation(line)) {
+      if (current !== null) {
+        current.Value += " " + line.replace(/^\s+/, "");
+      }
+      continue;
+    }
+    var colon = line.indexOf(":");
+    if (colon > 0) {
+      current = {
+        Name: line.substring(0, colon).replace(/^\s+|\s+$/g, ""),
+        Value: line.substring(colon + 1).replace(/^\s+|\s+$/g, "")
+      };
+      items.push(current);
+    } else {
+      current = null;
+    }
+  }
+  return items;
+}
+
+function hMailServerRuleRebuildHeaderItems(items) {
+  var output = "";
+  for (var index = 0; index < items.length; index++) {
+    if (String(items[index].Value || "").length > 0) {
+      output = hMailServerRuleAppendHeaderLine(output, hMailServerRuleCanonicalHeaderName(items[index].Name) + ": " + hMailServerRuleSanitizeHeaderValue(items[index].Value));
+    }
+  }
+  return output;
+}
+
+function hMailServerRuleSetHeaderAt(headers, index, fieldName, fieldValue) {
+  var items = hMailServerRuleParseHeaderItems(headers);
+  if (index < 0 || index >= items.length) {
+    return headers;
+  }
+  items[index] = {
+    Name: String(fieldName || ""),
+    Value: String(fieldValue || "")
+  };
+  return hMailServerRuleRebuildHeaderItems(items);
+}
+
+function hMailServerRuleDeleteHeaderAt(headers, index) {
+  var items = hMailServerRuleParseHeaderItems(headers);
+  if (index < 0 || index >= items.length) {
+    return headers;
+  }
+  items.splice(index, 1);
+  return hMailServerRuleRebuildHeaderItems(items);
+}
+
+function hMailServerRuleSyncMessageHeaderFields(message) {
+  message.Subject = message.HeaderValue("Subject");
+  message.From = message.HeaderValue("From");
+  message.To = message.HeaderValue("To");
+  message.CC = message.HeaderValue("Cc") || message.HeaderValue("CC");
+  message.Date = message.HeaderValue("Date");
+  message.Charset = hMailServerRuleExtractCharset(message.HeaderValue("Content-Type"));
+  if (message.Headers) {
+    message.Headers.Refresh();
+  }
+}
+
+function hMailServerRuleSyncCommonHeaderField(message, fieldName, fieldValue) {
+  var name = String(fieldName || "").toLowerCase();
+  var value = String(fieldValue || "");
+  if (name === "subject") {
+    message.Subject = value;
+  } else if (name === "from") {
+    message.From = value;
+  } else if (name === "to") {
+    message.To = value;
+  } else if (name === "cc") {
+    message.CC = value;
+  } else if (name === "date") {
+    message.Date = value;
+  } else if (name === "content-type") {
+    message.Charset = hMailServerRuleExtractCharset(value);
+  }
+  if (message.Headers) {
+    message.Headers.Refresh();
+  }
+}
+
+function hMailServerRuleCreateHeader(owner, collection, index, name, value) {
+  var header = {
+    Name: String(name || ""),
+    Value: String(value || ""),
+    _index: index,
+    _deleted: false,
+    Delete: function() {
+      this._deleted = true;
+    }
+  };
+  collection._issued.push(header);
+  return header;
+}
+
+function hMailServerRuleCreateHeaders(owner) {
+  return {
+    _owner: owner,
+    _items: [],
+    _issued: [],
+    Count: 0,
+    Refresh: function() {
+      this._items = hMailServerRuleParseHeaderItems(this._owner._headers);
+      this.Count = this._items.length;
+    },
+    Item: function(index) {
+      this.Refresh();
+      if (index < 0 || index >= this._items.length) {
+        return null;
+      }
+      var item = this._items[index];
+      return hMailServerRuleCreateHeader(this._owner, this, index, item.Name, item.Value);
+    },
+    ItemByName: function(name) {
+      this.Refresh();
+      var target = String(name || "").toLowerCase();
+      for (var index = 0; index < this._items.length; index++) {
+        if (String(this._items[index].Name || "").toLowerCase() === target) {
+          return hMailServerRuleCreateHeader(this._owner, this, index, this._items[index].Name, this._items[index].Value);
+        }
+      }
+      return null;
+    },
+    Commit: function() {
+      if (this._issued.length === 0) {
+        this.Refresh();
+        return;
+      }
+      for (var index = 0; index < this._issued.length; index++) {
+        var header = this._issued[index];
+        if (header._deleted) {
+          this._owner._headers = hMailServerRuleDeleteHeaderAt(this._owner._headers, header._index);
+        } else {
+          this._owner._headers = hMailServerRuleSetHeaderAt(this._owner._headers, header._index, header.Name, header.Value);
+        }
+      }
+      this._issued = [];
+      this.Refresh();
+      hMailServerRuleSyncMessageHeaderFields(this._owner);
+    }
+  };
+}
+
 function hMailServerRuleCreateRecipients() {
   return {
     _items: [],
@@ -1428,18 +1798,14 @@ var HMAILSERVER_MESSAGE = {
   Attachments: hMailServerRuleCreateAttachments(
     "{{EscapeJScript(attachmentManifestPath)}}",
     "{{EscapeJScript(attachmentOperationPath)}}"),
+  Headers: null,
   _headers: "",
   Load: function() {
     var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this.FileName));
     this._headers = parsed.headers;
     this.Body = parsed.body;
     this.Size = hMailServerRuleGetMessageSize(this.FileName);
-    this.Subject = this.HeaderValue("Subject");
-    this.From = this.HeaderValue("From");
-    this.To = this.HeaderValue("To");
-    this.CC = this.HeaderValue("Cc") || this.HeaderValue("CC");
-    this.Date = this.HeaderValue("Date");
-    this.Charset = hMailServerRuleExtractCharset(this.HeaderValue("Content-Type"));
+    hMailServerRuleSyncMessageHeaderFields(this);
     this.HTMLBody = hMailServerRuleGetHeader(this._headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0 ? this.Body : "";
   },
   RefreshContent: function() {
@@ -1450,20 +1816,12 @@ var HMAILSERVER_MESSAGE = {
   },
   SetHeaderValue: function(fieldName, fieldValue) {
     this._headers = hMailServerRuleSetHeader(this._headers, fieldName, fieldValue);
-    var name = String(fieldName || "").toLowerCase();
-    if (name === "subject") {
-      this.Subject = String(fieldValue || "");
-    } else if (name === "from") {
-      this.From = String(fieldValue || "");
-    } else if (name === "to") {
-      this.To = String(fieldValue || "");
-    } else if (name === "cc") {
-      this.CC = String(fieldValue || "");
-    } else if (name === "date") {
-      this.Date = String(fieldValue || "");
-    }
+    hMailServerRuleSyncCommonHeaderField(this, fieldName, fieldValue);
   },
   Save: function() {
+    if (this.Headers) {
+      this.Headers.Commit();
+    }
     var headers = this._headers;
     headers = hMailServerRuleSetHeader(headers, "Subject", this.Subject);
     headers = hMailServerRuleSetHeader(headers, "From", this.From);
@@ -1500,6 +1858,7 @@ var HMAILSERVER_MESSAGE = {
     this._headers = hMailServerRuleSetHeader(this._headers, "Content-Type", hMailServerRuleApplyCharset(this.HeaderValue("Content-Type"), this.Charset));
   }
 };
+HMAILSERVER_MESSAGE.Headers = hMailServerRuleCreateHeaders(HMAILSERVER_MESSAGE);
 HMAILSERVER_MESSAGE.Load();
 HMAILSERVER_MESSAGE.FromAddress = "{{EscapeJScript(mailFrom)}}";
 {{CreateJScriptRecipientSeeds(recipients)}}
