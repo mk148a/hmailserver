@@ -22,7 +22,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: IMAP recent flag lifecycle: SELECT captures and clears DB `\Recent`, EXAMINE preserves it, SEARCH/SORT use session recent UID snapshots, and APPEND/COPY/MOVE update selected-mailbox snapshots.
 - Done: IMAP SASL PLAIN with initial response and continuation flow, plus TLS-required authentication policy hooks.
 - Done: IMAP `OnClientLogon(HMAILSERVER_CLIENT)` event hook runs after successful and failed authentication attempts and exposes endpoint/session/TLS metadata.
-- Done: shared IMAP/SMTP `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)` event hook runs before built-in password verification with legacy accept/reject/continue decisions.
+- Done: shared IMAP/SMTP `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)` event hook runs before built-in password verification with legacy accept/reject/continue decisions and expanded scalar account facade fields.
 - Done: SMTP TCP listener/session skeleton with bounded connection handling and `EHLO`/`HELO`/`NOOP`/`RSET`/`QUIT` responses.
 - Done: SMTP `MAIL`/`RCPT`/`DATA` receive staging with dot-terminator handling, dot-stuffing, size limits, and `ISmtpMessageReceiver` storage boundary.
 - Done: SQL-backed SMTP receive store persists inbound DATA to the hMailServer data directory, inserts locked `hm_messages` queue rows, writes `hm_messagerecipients`, and unlocks atomically.
@@ -66,8 +66,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: UIDVALIDITY, UIDNEXT, RECENT/UNSEEN counters.
    - Done: SASL PLAIN authentication with SASL-IR and TLS-required auth policy.
    - Done: `OnClientLogon(HMAILSERVER_CLIENT)` script hook after successful and failed IMAP authentication attempts.
-   - Done: shared `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)` script hook with minimal account facade.
-   - Remaining: Auto-ban, richer account facade parity, Active Directory auth, and master user.
+   - Done: shared `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)` script hook with expanded scalar account facade.
+   - Remaining: Auto-ban, deeper account facade collections/methods, Active Directory auth, and master user.
 
 2. IMAP command parity beyond SEARCH.
    - Done: FETCH/UID FETCH for `FLAGS`, `UID`, `RFC822.SIZE`, `INTERNALDATE`, `ENVELOPE`, `BODYSTRUCTURE`, `BODY[]`, `BODY.PEEK[]`, and `RFC822`.
@@ -141,4 +141,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue remaining authentication and script-object parity beyond the completed SMTP, IMAP logon, validate-password, and delivery queue events; next up is richer `HMAILSERVER_ACCOUNT` facade coverage and POP3/external-fetch script-event parity.
+Continue remaining authentication and script-object parity beyond the completed SMTP, IMAP logon, validate-password, and delivery queue events; next up is POP3/external-fetch script-event parity, then deeper legacy account facade collections/methods.
