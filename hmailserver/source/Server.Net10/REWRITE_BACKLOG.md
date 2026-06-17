@@ -21,6 +21,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: Shared IMAP sequence-set parser used by SEARCH, FETCH, STORE, COPY, and MOVE.
 - Done: IMAP recent flag lifecycle: SELECT captures and clears DB `\Recent`, EXAMINE preserves it, SEARCH/SORT use session recent UID snapshots, and APPEND/COPY/MOVE update selected-mailbox snapshots.
 - Done: IMAP SASL PLAIN with initial response and continuation flow, plus TLS-required authentication policy hooks.
+- Done: IMAP `OnClientLogon(HMAILSERVER_CLIENT)` event hook runs after successful and failed authentication attempts and exposes endpoint/session/TLS metadata.
 - Done: SMTP TCP listener/session skeleton with bounded connection handling and `EHLO`/`HELO`/`NOOP`/`RSET`/`QUIT` responses.
 - Done: SMTP `MAIL`/`RCPT`/`DATA` receive staging with dot-terminator handling, dot-stuffing, size limits, and `ISmtpMessageReceiver` storage boundary.
 - Done: SQL-backed SMTP receive store persists inbound DATA to the hMailServer data directory, inserts locked `hm_messages` queue rows, writes `hm_messagerecipients`, and unlocks atomically.
@@ -63,7 +64,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: Public folder ACL inheritance for read and read/write selection.
    - Done: UIDVALIDITY, UIDNEXT, RECENT/UNSEEN counters.
    - Done: SASL PLAIN authentication with SASL-IR and TLS-required auth policy.
-   - Remaining: Auto-ban, script events, Active Directory auth, and master user.
+   - Done: `OnClientLogon(HMAILSERVER_CLIENT)` script hook after successful and failed IMAP authentication attempts.
+   - Remaining: Auto-ban, remaining authentication script events, Active Directory auth, and master user.
 
 2. IMAP command parity beyond SEARCH.
    - Done: FETCH/UID FETCH for `FLAGS`, `UID`, `RFC822.SIZE`, `INTERNALDATE`, `ENVELOPE`, `BODYSTRUCTURE`, `BODY[]`, `BODY.PEEK[]`, and `RFC822`.
@@ -137,4 +139,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue remaining protocol/authentication scripting hooks beyond the completed SMTP and delivery queue events; next up is IMAP/POP3-style `OnClientLogon(HMAILSERVER_CLIENT)` and `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)`, then fill the remaining legacy script object model surface behind the process-isolated script host.
+Continue remaining authentication scripting hooks beyond the completed SMTP, IMAP logon, and delivery queue events; next up is `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)`, then fill the remaining legacy script object model surface behind the process-isolated script host.
