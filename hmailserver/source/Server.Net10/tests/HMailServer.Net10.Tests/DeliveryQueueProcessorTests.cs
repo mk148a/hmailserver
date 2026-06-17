@@ -234,6 +234,42 @@ public sealed class DeliveryQueueProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_RunsDeliveryFailedEventBeforeBouncingRecipients()
+    {
+        var identity = new MessageIdentity(18, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var eventExecutor = new FakeDeliveryEventScriptExecutor(
+            request => DeliveryEventScriptExecutionResult.Continue(request.MessageData));
+        var bounceStore = new FakeBounceStore();
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            new FakeTargetResolver(
+                new DeliveryTargetBatch(
+                    new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                    [message.Recipients[1]])),
+            new FakeTargetDispatcher(
+                DeliveryTargetDispatchResult.PermanentFailure("550 No such user.")),
+            new FakeRecipientStore(),
+            bounceStore,
+            eventExecutor,
+            new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n"));
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        CollectionAssert.AreEqual(
+            new[] { "OnDeliveryStart", "OnDeliverMessage", "OnDeliveryFailed" },
+            eventExecutor.EventNames);
+        var failedEvent = eventExecutor.Requests.Single(request => request.EventName == "OnDeliveryFailed");
+        Assert.AreEqual("user@remote.test", failedEvent.RecipientAddress);
+        Assert.AreEqual("550 No such user.", failedEvent.ErrorMessage);
+        Assert.AreEqual("550 No such user.", bounceStore.LastFailureDescription);
+        Assert.AreEqual(18, leaseStore.CompletedMessageId);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_ReleasesLeaseWhenLeasedMessageCannotBeLoaded()
     {
         var identity = new MessageIdentity(12, 0, 0, 0);
@@ -443,6 +479,7 @@ public sealed class DeliveryQueueProcessorTests
         private readonly Queue<DeliveryEventScriptExecutionResult>? _results;
         private readonly Func<DeliveryEventScriptExecutionRequest, DeliveryEventScriptExecutionResult>? _handler;
         private readonly List<string> _eventNames = [];
+        private readonly List<DeliveryEventScriptExecutionRequest> _requests = [];
 
         public FakeDeliveryEventScriptExecutor(params DeliveryEventScriptExecutionResult[] results)
         {
@@ -457,11 +494,14 @@ public sealed class DeliveryQueueProcessorTests
 
         public string[] EventNames => _eventNames.ToArray();
 
+        public IReadOnlyList<DeliveryEventScriptExecutionRequest> Requests => _requests;
+
         public DeliveryEventScriptExecutionResult Execute(
             DeliveryEventScriptExecutionRequest request,
             CancellationToken cancellationToken)
         {
             _eventNames.Add(request.EventName);
+            _requests.Add(request);
             if (_handler is not null)
             {
                 return _handler(request);

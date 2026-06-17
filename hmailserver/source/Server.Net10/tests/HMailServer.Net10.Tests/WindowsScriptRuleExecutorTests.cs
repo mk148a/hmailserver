@@ -904,6 +904,46 @@ End Sub
         }
     }
 
+    [TestMethod]
+    public void Execute_RunsVbScriptDeliveryFailedEventWithRecipientAndError()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnDeliveryFailed(oMessage, recipient, errorMessage)
+   oMessage.HeaderValue("X-Failed-Recipient") = recipient
+   oMessage.HeaderValue("X-Failed-Error") = errorMessage
+   oMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateDeliveryEventRequest(
+                    "Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray(),
+                    eventName: "OnDeliveryFailed",
+                    argumentShape: DeliveryEventScriptArgumentShape.MessageRecipientAndError,
+                    recipientAddress: "user@example.net",
+                    errorMessage: "550 No such user."),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "X-Failed-Recipient: user@example.net\r\n");
+            StringAssert.Contains(messageText, "X-Failed-Error: 550 No such user.\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
     private static WindowsScriptRuleExecutor CreateExecutor(
         string eventDirectory,
         string cscriptPath,
@@ -958,12 +998,18 @@ End Sub
         byte[] messageData,
         IReadOnlyList<SmtpResolvedRecipient>? recipients = null,
         string mailFrom = "sender@example.test",
-        string eventName = "OnDeliveryStart") =>
+        string eventName = "OnDeliveryStart",
+        DeliveryEventScriptArgumentShape argumentShape = DeliveryEventScriptArgumentShape.MessageOnly,
+        string recipientAddress = "",
+        string errorMessage = "") =>
         new(
             eventName,
             mailFrom,
             recipients ?? CreateRecipients(),
-            messageData);
+            messageData,
+            argumentShape,
+            recipientAddress,
+            errorMessage);
 
     private static IReadOnlyList<SmtpResolvedRecipient> CreateRecipients() =>
         [

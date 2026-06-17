@@ -137,6 +137,11 @@ public sealed class DeliveryQueueProcessor
 
                 if (ShouldBounce(message, result, options))
                 {
+                    message = await RunDeliveryFailedEventsAsync(
+                        message,
+                        targetBatch.Recipients,
+                        result.Error ?? "Delivery failed.",
+                        cancellationToken).ConfigureAwait(false);
                     await _bounceStore.SubmitBounceAsync(
                         message,
                         targetBatch.Recipients,
@@ -226,6 +231,61 @@ public sealed class DeliveryQueueProcessor
         return result.DropMessage
             ? DeliveryEventOutcome.Drop(updatedMessage)
             : DeliveryEventOutcome.Continue(updatedMessage);
+    }
+
+    private async ValueTask<DeliveryQueuedMessage> RunDeliveryFailedEventsAsync(
+        DeliveryQueuedMessage message,
+        IReadOnlyList<DeliveryQueueRecipient> failedRecipients,
+        string failureDescription,
+        CancellationToken cancellationToken)
+    {
+        if (_deliveryEventScriptExecutor is null ||
+            _messageContentStore is null ||
+            failedRecipients.Count == 0)
+        {
+            return message;
+        }
+
+        var messageData = await _messageContentStore.TryLoadAsync(message, cancellationToken).ConfigureAwait(false);
+        if (messageData is null)
+        {
+            return message;
+        }
+
+        foreach (var failedRecipient in failedRecipients)
+        {
+            var result = _deliveryEventScriptExecutor.Execute(
+                new DeliveryEventScriptExecutionRequest(
+                    "OnDeliveryFailed",
+                    message.FromAddress,
+                    ToResolvedRecipients(message.Recipients),
+                    messageData,
+                    DeliveryEventScriptArgumentShape.MessageRecipientAndError,
+                    failedRecipient.Address,
+                    failureDescription),
+                cancellationToken);
+            if (!result.Succeeded)
+            {
+                continue;
+            }
+
+            var resultData = result.MessageData ?? messageData;
+            if (resultData.AsSpan().SequenceEqual(messageData))
+            {
+                continue;
+            }
+
+            var saved = await _messageContentStore.TrySaveAsync(message, resultData, cancellationToken).ConfigureAwait(false);
+            if (!saved)
+            {
+                continue;
+            }
+
+            messageData = resultData;
+            message = message with { Size = resultData.LongLength };
+        }
+
+        return message;
     }
 
     private async ValueTask DeferAfterDeliveryEventFailureAsync(
