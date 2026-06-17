@@ -41,6 +41,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SMTP `SendUsingRoute` and `BindToAddress` global rule actions persist delivery metadata, force remote recipients through the selected route, and bind remote SMTP sockets to the rule-selected local IP address.
 - Done: SMTP `Reply` rule action generates auto-replied queue messages, skips auto-submitted sources, increments rule loop count, and works for global and account-level rules.
 - Done: SMTP `ScriptFunction` rule action plumbing now calls a pluggable executor boundary that can mutate message bytes, drop a message, or reject processing.
+- Done: Windows-only process-isolated SMTP rule script executor runs `EventHandlers.vbs`/`.js` through `cscript.exe`, timeboxes execution, round-trips message file mutations, and exposes a minimal `FileName`/`DropMessage`/`RejectReason` message facade.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -89,7 +90,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `SendUsingRoute` and `BindToAddress` delivery metadata for global rules, including forced route target resolution and local socket bind for remote SMTP.
    - Done: `Reply` generated response action with Auto-Submitted and rule loop protection.
    - Done: `ScriptFunction` executor boundary inside the rule processor.
-   - Remaining: Windows-only isolated VBScript/JScript host, legacy script object model, and event scripting hooks.
+   - Done: Windows-only process-isolated VBScript/JScript host for SMTP rule functions with minimal message facade.
+   - Remaining: full legacy script object model and event scripting hooks.
    - Delivery queue worker remaining: delivery status observability and richer bounce templates.
 
 4. POP3 and external fetch.
@@ -118,4 +120,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Implement the Windows-only isolated VBScript/JScript host behind the SMTP rule script executor boundary.
+Implement the full legacy script object model behind the SMTP rule script executor, then add protocol event scripting hooks.
