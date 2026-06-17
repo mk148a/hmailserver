@@ -90,7 +90,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `SendUsingRoute` and `BindToAddress` delivery metadata for global rules, including forced route target resolution and local socket bind for remote SMTP.
    - Done: `Reply` generated response action with Auto-Submitted and rule loop protection.
    - Done: `ScriptFunction` executor boundary inside the rule processor.
-   - Done: Windows-only process-isolated VBScript/JScript host for SMTP rule functions with file-backed scalar message facade (`FileName`, `DropMessage`, `RejectReason`, headers, common envelope fields, body fields, and `Save`), envelope recipient collection facade, and attachment collection facade.
+   - Done: Windows-only process-isolated VBScript/JScript host for SMTP rule functions with file-backed scalar message facade (`FileName`, `DropMessage`, `RejectReason`, IDs/state placeholders, size, delivery attempt, charset, body type checks, headers, common envelope fields, body fields, and `Save`), envelope recipient collection facade, and attachment collection facade.
    - Remaining: full legacy script object model and event scripting hooks.
    - Delivery queue worker remaining: delivery status observability and richer bounce templates.
 
