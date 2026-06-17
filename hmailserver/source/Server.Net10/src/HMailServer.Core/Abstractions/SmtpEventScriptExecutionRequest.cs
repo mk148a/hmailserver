@@ -5,4 +5,5 @@ public sealed record SmtpEventScriptExecutionRequest(
     SmtpEventScriptClient Client,
     string MailFrom,
     IReadOnlyList<SmtpResolvedRecipient> Recipients,
-    byte[] MessageData);
+    byte[] MessageData,
+    SmtpEventScriptArgumentShape ArgumentShape = SmtpEventScriptArgumentShape.ClientAndMessage);

@@ -8,23 +8,27 @@ public sealed class SmtpSession
     private static readonly Encoding ResponseEncoding = Encoding.ASCII;
     private static readonly Encoding ProtocolEncoding = Encoding.Latin1;
     private static readonly Encoding AuthEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+    private static readonly byte[] EmptyEventMessageData = "Subject: hMailServer event\r\n\r\n"u8.ToArray();
 
     private readonly SmtpSessionOptions _options;
     private readonly ISmtpMessageReceiver? _messageReceiver;
     private readonly ISmtpRecipientValidator? _recipientValidator;
     private readonly IImapAccountAuthenticator? _accountAuthenticator;
+    private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
     private long _nextSessionId;
 
     public SmtpSession(
         SmtpSessionOptions? options = null,
         ISmtpMessageReceiver? messageReceiver = null,
         ISmtpRecipientValidator? recipientValidator = null,
-        IImapAccountAuthenticator? accountAuthenticator = null)
+        IImapAccountAuthenticator? accountAuthenticator = null,
+        ISmtpEventScriptExecutor? eventScriptExecutor = null)
     {
         _options = options ?? new SmtpSessionOptions();
         _messageReceiver = messageReceiver;
         _recipientValidator = recipientValidator;
         _accountAuthenticator = accountAuthenticator;
+        _eventScriptExecutor = eventScriptExecutor;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
         ArgumentOutOfRangeException.ThrowIfNegative(_options.MaxMessageBytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.ServerName);
@@ -161,11 +165,16 @@ public sealed class SmtpSession
                     return SmtpDispatchResult.Continue;
                 }
 
+                state.SetHelo(arguments, isExtendedSmtp: true);
+                if (!await RunHeloEventAsync(stream, state, cancellationToken).ConfigureAwait(false))
+                {
+                    return SmtpDispatchResult.Continue;
+                }
+
                 await WriteAsync(
                     stream,
                     FormatEhloResponse(state, startTlsStreamProvider),
                     cancellationToken).ConfigureAwait(false);
-                state.SetHelo(arguments, isExtendedSmtp: true);
                 return SmtpDispatchResult.Continue;
 
             case "HELO":
@@ -175,8 +184,13 @@ public sealed class SmtpSession
                     return SmtpDispatchResult.Continue;
                 }
 
-                await WriteAsync(stream, $"250 {SanitizeResponseText(_options.ServerName)}\r\n", cancellationToken).ConfigureAwait(false);
                 state.SetHelo(arguments, isExtendedSmtp: false);
+                if (!await RunHeloEventAsync(stream, state, cancellationToken).ConfigureAwait(false))
+                {
+                    return SmtpDispatchResult.Continue;
+                }
+
+                await WriteAsync(stream, $"250 {SanitizeResponseText(_options.ServerName)}\r\n", cancellationToken).ConfigureAwait(false);
                 return SmtpDispatchResult.Continue;
 
             case "NOOP":
@@ -219,6 +233,93 @@ public sealed class SmtpSession
                 await WriteAsync(stream, "502 Command not implemented\r\n", cancellationToken).ConfigureAwait(false);
                 return SmtpDispatchResult.Continue;
         }
+    }
+
+    private async ValueTask<bool> RunHeloEventAsync(
+        Stream stream,
+        SessionState state,
+        CancellationToken cancellationToken)
+    {
+        var result = ExecuteSmtpEvent(
+            "OnHELO",
+            state,
+            SmtpEventScriptArgumentShape.ClientOnly,
+            EmptyEventMessageData,
+            cancellationToken);
+        if (result.Accepted)
+        {
+            return true;
+        }
+
+        await WriteAsync(
+            stream,
+            NormalizeSmtpEventFailureResponse(result.FailureResponse) + "\r\n",
+            cancellationToken).ConfigureAwait(false);
+        return false;
+    }
+
+    private SmtpRuleScriptExecutionResult ExecuteSmtpEvent(
+        string eventName,
+        SessionState state,
+        SmtpEventScriptArgumentShape argumentShape,
+        byte[] messageData,
+        CancellationToken cancellationToken)
+    {
+        if (_eventScriptExecutor is null)
+        {
+            return SmtpRuleScriptExecutionResult.Continue(messageData);
+        }
+
+        try
+        {
+            return _eventScriptExecutor.Execute(
+                new SmtpEventScriptExecutionRequest(
+                    eventName,
+                    CreateEventClient(state),
+                    state.MailFrom ?? string.Empty,
+                    state.Recipients,
+                    messageData,
+                    argumentShape),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return SmtpRuleScriptExecutionResult.Failure("451 Requested action aborted: local error in processing", messageData);
+        }
+    }
+
+    private static SmtpEventScriptClient CreateEventClient(SessionState state) =>
+        new(
+            state.AuthenticatedAccount?.Address ?? string.Empty,
+            state.ClientIPAddress,
+            state.ClientPort,
+            state.SessionId,
+            state.HeloHost,
+            state.AuthenticatedAccount is not null,
+            state.IsSecureConnection);
+
+    private static string NormalizeSmtpEventFailureResponse(string? response)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+        {
+            return "451 Requested action aborted: local error in processing";
+        }
+
+        var sanitized = SanitizeResponseText(response.Trim());
+        if (sanitized.Length >= 4 &&
+            char.IsDigit(sanitized[0]) &&
+            char.IsDigit(sanitized[1]) &&
+            char.IsDigit(sanitized[2]) &&
+            sanitized[3] == ' ')
+        {
+            return sanitized;
+        }
+
+        return "451 Requested action aborted: local error in processing";
     }
 
     private async ValueTask HandleMailAsync(

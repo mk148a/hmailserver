@@ -29,7 +29,8 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor,
                 request.Recipients,
                 request.MessageData,
                 Client: null,
-                Invocation: ScriptInvocation.RuleFunction),
+                Invocation: ScriptInvocation.RuleFunction,
+                ArgumentShape: SmtpEventScriptArgumentShape.ClientAndMessage),
             cancellationToken);
     }
 
@@ -45,7 +46,8 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor,
                 request.Recipients,
                 request.MessageData,
                 request.Client,
-                ScriptInvocation.OptionalSmtpEvent),
+                ScriptInvocation.OptionalSmtpEvent,
+                request.ArgumentShape),
             cancellationToken);
     }
 
@@ -105,7 +107,8 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor,
                         spec.MailFrom,
                         spec.Recipients,
                         spec.Client,
-                        spec.Invocation)
+                        spec.Invocation,
+                        spec.ArgumentShape)
                     : CreateJScriptRunner(
                         scriptPath,
                         spec.FunctionName,
@@ -116,7 +119,8 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor,
                         spec.MailFrom,
                         spec.Recipients,
                         spec.Client,
-                        spec.Invocation),
+                        spec.Invocation,
+                        spec.ArgumentShape),
                 Encoding.Unicode);
 
             var processResult = RunScript(runnerPath, cancellationToken);
@@ -496,7 +500,8 @@ public sealed partial class WindowsScriptRuleExecutor : ISmtpRuleScriptExecutor,
         string mailFrom,
         IReadOnlyList<SmtpResolvedRecipient> recipients,
         SmtpEventScriptClient? client,
-        ScriptInvocation invocation)
+        ScriptInvocation invocation,
+        SmtpEventScriptArgumentShape argumentShape)
     {
         return $$"""
 ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
@@ -1398,7 +1403,7 @@ Set Result = New HMailServerRuleResult
 Result.Value = 0
 Result.Message = ""
 
-{{CreateVbScriptInvocation(functionName, invocation)}}
+{{CreateVbScriptInvocation(functionName, invocation, argumentShape)}}
 
 Dim hMailServerRuleStatusFileSystem, hMailServerRuleStatusFile
 Set hMailServerRuleStatusFileSystem = CreateObject("Scripting.FileSystemObject")
@@ -1432,7 +1437,8 @@ hMailServerRuleStatusFile.Close
         string mailFrom,
         IReadOnlyList<SmtpResolvedRecipient> recipients,
         SmtpEventScriptClient? client,
-        ScriptInvocation invocation)
+        ScriptInvocation invocation,
+        SmtpEventScriptArgumentShape argumentShape)
     {
         return $$"""
 var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
@@ -1960,7 +1966,7 @@ var Result = {
 var hMailServerRuleScriptFile = hMailServerRuleFileSystem.OpenTextFile("{{EscapeJScript(scriptPath)}}", 1, false);
 eval(hMailServerRuleScriptFile.ReadAll());
 hMailServerRuleScriptFile.Close();
-{{CreateJScriptInvocation(functionName, invocation)}}
+{{CreateJScriptInvocation(functionName, invocation, argumentShape)}}
 var hMailServerRuleStatusFile = hMailServerRuleFileSystem.CreateTextFile("{{EscapeJScript(statusPath)}}", true, false);
 hMailServerRuleStatusFile.WriteLine(HMAILSERVER_MESSAGE.DropMessage ? "DropMessage=1" : "DropMessage=0");
 var hMailServerRuleRejectReason = String(HMAILSERVER_MESSAGE.RejectReason || "");
@@ -2054,7 +2060,10 @@ hMailServerRuleStatusFile.Close();
         return builder.ToString();
     }
 
-    private static string CreateVbScriptInvocation(string functionName, ScriptInvocation invocation) =>
+    private static string CreateVbScriptInvocation(
+        string functionName,
+        ScriptInvocation invocation,
+        SmtpEventScriptArgumentShape argumentShape) =>
         invocation == ScriptInvocation.RuleFunction
             ? $"Call {functionName}(HMAILSERVER_MESSAGE)"
             : string.Join(
@@ -2067,10 +2076,15 @@ hMailServerRuleStatusFile.Close();
                 "   On Error GoTo 0",
                 "Else",
                 "   On Error GoTo 0",
-                "   hMailServerEventHandler HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE",
+                argumentShape == SmtpEventScriptArgumentShape.ClientOnly
+                    ? "   Call hMailServerEventHandler(HMAILSERVER_CLIENT)"
+                    : "   Call hMailServerEventHandler(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)",
                 "End If");
 
-    private static string CreateJScriptInvocation(string functionName, ScriptInvocation invocation)
+    private static string CreateJScriptInvocation(
+        string functionName,
+        ScriptInvocation invocation,
+        SmtpEventScriptArgumentShape argumentShape)
     {
         return invocation == ScriptInvocation.RuleFunction
             ? $$"""
@@ -2078,6 +2092,12 @@ if (typeof {{functionName}} !== "function") {
   throw new Error("Script function not found: {{EscapeJScript(functionName)}}");
 }
 {{functionName}}(HMAILSERVER_MESSAGE);
+"""
+            : argumentShape == SmtpEventScriptArgumentShape.ClientOnly
+                ? $$"""
+if (typeof {{functionName}} === "function") {
+  {{functionName}}(HMAILSERVER_CLIENT);
+}
 """
             : $$"""
 if (typeof {{functionName}} === "function") {
@@ -2216,7 +2236,8 @@ if (typeof {{functionName}} === "function") {
         IReadOnlyList<SmtpResolvedRecipient> Recipients,
         byte[] MessageData,
         SmtpEventScriptClient? Client,
-        ScriptInvocation Invocation);
+        ScriptInvocation Invocation,
+        SmtpEventScriptArgumentShape ArgumentShape);
 
     private sealed record ScriptLanguage(string Name, string Extension);
 

@@ -35,6 +35,42 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_RunsOnHeloEventBeforeEhloResponse()
+    {
+        await using var stream = new DuplexMemoryStream("EHLO bad.example\r\nNOOP\r\nQUIT\r\n");
+        SmtpEventScriptExecutionRequest? capturedRequest = null;
+        var session = new SmtpSession(
+            new SmtpSessionOptions { ServerName = "mx.example.test" },
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                request =>
+                {
+                    capturedRequest = request;
+                    return SmtpRuleScriptExecutionResult.Failure("554 bad helo");
+                }));
+
+        await session.RunAsync(
+            stream,
+            startTlsStreamProvider: null,
+            connectionContext: new SmtpSessionConnectionContext(
+                ClientIPAddress: "203.0.113.10",
+                ClientPort: 2525,
+                SessionId: 42),
+            cancellationToken: CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "554 bad helo\r\n");
+        Assert.IsFalse(output.Contains("250-mx.example.test\r\n", StringComparison.Ordinal));
+        StringAssert.Contains(output, "250 OK\r\n");
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual("OnHELO", capturedRequest.EventName);
+        Assert.AreEqual(SmtpEventScriptArgumentShape.ClientOnly, capturedRequest.ArgumentShape);
+        Assert.AreEqual("bad.example", capturedRequest.Client.HeloHost);
+        Assert.AreEqual("203.0.113.10", capturedRequest.Client.IPAddress);
+        Assert.AreEqual(2525, capturedRequest.Client.Port);
+        Assert.AreEqual(42, capturedRequest.Client.SessionId);
+    }
+
+    [TestMethod]
     public async Task RunAsync_RejectsEhloWithoutHostName()
     {
         await using var stream = new DuplexMemoryStream("EHLO\r\nQUIT\r\n");
@@ -513,6 +549,21 @@ public sealed class SmtpSessionTests
             LastRequest = request;
             return ValueTask.FromResult(SmtpReceiveResult.Success());
         }
+    }
+
+    private sealed class FakeEventScriptExecutor : ISmtpEventScriptExecutor
+    {
+        private readonly Func<SmtpEventScriptExecutionRequest, SmtpRuleScriptExecutionResult> _execute;
+
+        public FakeEventScriptExecutor(Func<SmtpEventScriptExecutionRequest, SmtpRuleScriptExecutionResult> execute)
+        {
+            _execute = execute;
+        }
+
+        public SmtpRuleScriptExecutionResult Execute(
+            SmtpEventScriptExecutionRequest request,
+            CancellationToken cancellationToken) =>
+            _execute(request);
     }
 
     private sealed class FakeRecipientValidator : ISmtpRecipientValidator

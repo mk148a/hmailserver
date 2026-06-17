@@ -757,6 +757,51 @@ function OnAcceptMessage(oClient, oMessage) {
     }
 
     [TestMethod]
+    public void Execute_RunsVbScriptClientOnlySmtpEvent()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnHELO(oClient)
+   If oClient.HELO <> "client.example" Then
+      Result.Value = 2
+      Result.Message = "helo missing"
+      Exit Sub
+   End If
+   If oClient.IPAddress <> "127.0.0.1" Then
+      Result.Value = 2
+      Result.Message = "ip missing"
+      Exit Sub
+   End If
+
+   Result.Value = 3
+   Result.Message = "try later"
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateEventRequest(
+                    "Subject: HELO\r\n\r\n"u8.ToArray(),
+                    eventName: "OnHELO",
+                    argumentShape: SmtpEventScriptArgumentShape.ClientOnly),
+                CancellationToken.None);
+
+            Assert.IsFalse(result.Accepted);
+            Assert.AreEqual("453 try later", result.FailureResponse);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_ContinuesWhenOptionalSmtpEventIsMissing()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -823,9 +868,11 @@ End Sub
         byte[] messageData,
         SmtpEventScriptClient? client = null,
         IReadOnlyList<SmtpResolvedRecipient>? recipients = null,
-        string mailFrom = "sender@example.test") =>
+        string mailFrom = "sender@example.test",
+        string eventName = "OnAcceptMessage",
+        SmtpEventScriptArgumentShape argumentShape = SmtpEventScriptArgumentShape.ClientAndMessage) =>
         new(
-            "OnAcceptMessage",
+            eventName,
             client ?? new SmtpEventScriptClient(
                 Username: string.Empty,
                 IPAddress: "127.0.0.1",
@@ -836,7 +883,8 @@ End Sub
                 IsEncryptedConnection: false),
             mailFrom,
             recipients ?? CreateRecipients(),
-            messageData);
+            messageData,
+            argumentShape);
 
     private static IReadOnlyList<SmtpResolvedRecipient> CreateRecipients() =>
         [
