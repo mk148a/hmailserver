@@ -48,6 +48,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SMTP `OnRecipientUnknown(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs for unknown RCPT targets.
 - Done: SMTP `OnSMTPData(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs after DATA is read and before receiver/queue processing, can mutate/drop/reject messages, and maps legacy rejection responses.
 - Done: SMTP `OnAcceptMessage(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs before global rule processing, can mutate/drop/reject messages, exposes basic client context, and maps legacy `Result.Value`/`Result.Message` rejection responses.
+- Done: SMTP `OnTooManyInvalidCommands(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs when the configured invalid-command disconnect threshold is exceeded.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -103,6 +104,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `OnRecipientUnknown` protocol event hook for unknown RCPT validation failures.
    - Done: `OnSMTPData` protocol event hook after DATA is read and before receiver/queue processing with message mutation/drop/reject handling.
    - Done: `OnAcceptMessage` protocol event hook before global rule processing with `HMAILSERVER_CLIENT`, `HMAILSERVER_MESSAGE`, and legacy `Result.Value`/`Result.Message` rejection handling.
+   - Done: `OnTooManyInvalidCommands` protocol event hook plus disconnect-invalid-clients/maximum-incorrect-commands session policy.
    - Remaining: full legacy script object model and remaining protocol event scripting hooks.
    - Delivery queue worker remaining: delivery status observability and richer bounce templates.
 
@@ -132,4 +134,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue protocol event scripting hooks beyond `OnClientConnect`, `OnHELO`, `OnClientLogon`, `OnRecipientUnknown`, `OnSMTPData`, and `OnAcceptMessage`, then fill the remaining legacy script object model surface behind the process-isolated script host.
+Continue protocol event scripting hooks beyond `OnClientConnect`, `OnHELO`, `OnClientLogon`, `OnRecipientUnknown`, `OnSMTPData`, `OnAcceptMessage`, and `OnTooManyInvalidCommands`, then fill the remaining legacy script object model surface behind the process-isolated script host.
