@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using HMailServer.Core.Abstractions;
 using HMailServer.Protocols.Smtp;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -60,7 +61,55 @@ public sealed class SmtpTcpListenerTests
         await StopListenerAsync(runTask, cts);
     }
 
-    private static SmtpTcpListener CreateListener(int maxConcurrentConnections)
+    [TestMethod]
+    public async Task RunAsync_RunsOnClientConnectBeforeGreetingAndCanReject()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        SmtpEventScriptExecutionRequest? capturedRequest = null;
+        var callCount = 0;
+        var listener = CreateListener(
+            maxConcurrentConnections: 1,
+            new FakeEventScriptExecutor(
+                request =>
+                {
+                    callCount++;
+                    capturedRequest = request;
+                    return callCount == 1
+                        ? SmtpRuleScriptExecutionResult.Failure("554 Rejected")
+                        : SmtpRuleScriptExecutionResult.Continue(request.MessageData);
+                }));
+        var runTask = listener.RunAsync(cts.Token);
+        var endpoint = await listener.Started.WaitAsync(cts.Token);
+
+        using (var rejectedClient = new TcpClient())
+        {
+            await rejectedClient.ConnectAsync(endpoint.Address, endpoint.Port, cts.Token);
+            await using var rejectedStream = rejectedClient.GetStream();
+            using var rejectedReader = CreateReader(rejectedStream);
+
+            Assert.IsNull(await ReadLineAsync(rejectedReader, cts.Token));
+        }
+
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual("OnClientConnect", capturedRequest.EventName);
+        Assert.AreEqual(SmtpEventScriptArgumentShape.ClientOnly, capturedRequest.ArgumentShape);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(capturedRequest.Client.IPAddress));
+        Assert.IsTrue(capturedRequest.Client.Port > 0);
+        Assert.IsTrue(capturedRequest.Client.SessionId > 0);
+
+        using var acceptedClient = new TcpClient();
+        await acceptedClient.ConnectAsync(endpoint.Address, endpoint.Port, cts.Token);
+        await using var acceptedStream = acceptedClient.GetStream();
+        using var acceptedReader = CreateReader(acceptedStream);
+
+        Assert.AreEqual("220 hMailServer .NET 10 ESMTP ready", await ReadLineAsync(acceptedReader, cts.Token));
+
+        await StopListenerAsync(runTask, cts);
+    }
+
+    private static SmtpTcpListener CreateListener(
+        int maxConcurrentConnections,
+        ISmtpEventScriptExecutor? eventScriptExecutor = null)
     {
         var session = new SmtpSession(new SmtpSessionOptions { ServerName = "mx.example.test" });
         return new SmtpTcpListener(
@@ -73,7 +122,8 @@ public sealed class SmtpTcpListenerTests
                 Backlog = 16,
                 MaxConcurrentConnections = maxConcurrentConnections,
                 ShutdownGracePeriod = TimeSpan.FromSeconds(1)
-            });
+            },
+            eventScriptExecutor);
     }
 
     private static StreamReader CreateReader(Stream stream) =>
@@ -102,5 +152,20 @@ public sealed class SmtpTcpListenerTests
     {
         await cts.CancelAsync();
         await runTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+    }
+
+    private sealed class FakeEventScriptExecutor : ISmtpEventScriptExecutor
+    {
+        private readonly Func<SmtpEventScriptExecutionRequest, SmtpRuleScriptExecutionResult> _execute;
+
+        public FakeEventScriptExecutor(Func<SmtpEventScriptExecutionRequest, SmtpRuleScriptExecutionResult> execute)
+        {
+            _execute = execute;
+        }
+
+        public SmtpRuleScriptExecutionResult Execute(
+            SmtpEventScriptExecutionRequest request,
+            CancellationToken cancellationToken) =>
+            _execute(request);
     }
 }
