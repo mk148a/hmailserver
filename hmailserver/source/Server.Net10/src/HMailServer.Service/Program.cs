@@ -245,6 +245,7 @@ builder.Services.AddSingleton<SqlServerDeliveryQueueStatusMaintenanceStore>();
 if (deliveryStatusSqlEnabled)
 {
     builder.Services.AddSingleton<IDeliveryQueueStatusObserver, SqlServerDeliveryQueueStatusObserver>();
+    builder.Services.AddSingleton<IDeliveryQueueStatusMetricsStore, SqlServerDeliveryQueueStatusMetricsStore>();
 }
 else
 {
