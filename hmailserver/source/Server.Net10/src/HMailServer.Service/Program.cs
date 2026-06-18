@@ -4,6 +4,7 @@ using HMailServer.Core.Abstractions;
 using HMailServer.Delivery;
 using HMailServer.Indexing;
 using HMailServer.Protocols.Imap;
+using HMailServer.Protocols.Pop3;
 using HMailServer.Protocols.Smtp;
 using HMailServer.Scripting;
 using HMailServer.Search.SqlServer;
@@ -43,6 +44,16 @@ var smtpOptions = new SmtpTcpListenerOptions
     Backlog = ReadInt(builder.Configuration["Smtp:Backlog"] ?? builder.Configuration["HMAILSERVER_SMTP_BACKLOG"], defaultValue: 512),
     MaxConcurrentConnections = ReadInt(
         builder.Configuration["Smtp:MaxConcurrentConnections"] ?? builder.Configuration["HMAILSERVER_SMTP_MAX_CONNECTIONS"],
+        defaultValue: 1000)
+};
+var pop3Options = new Pop3TcpListenerOptions
+{
+    Enabled = ReadBool(builder.Configuration["Pop3:Enabled"] ?? builder.Configuration["HMAILSERVER_POP3_ENABLED"], defaultValue: false),
+    ListenAddress = IPAddress.Parse(builder.Configuration["Pop3:BindAddress"] ?? builder.Configuration["HMAILSERVER_POP3_BIND_ADDRESS"] ?? "0.0.0.0"),
+    Port = ReadInt(builder.Configuration["Pop3:Port"] ?? builder.Configuration["HMAILSERVER_POP3_PORT"], defaultValue: 110),
+    Backlog = ReadInt(builder.Configuration["Pop3:Backlog"] ?? builder.Configuration["HMAILSERVER_POP3_BACKLOG"], defaultValue: 512),
+    MaxConcurrentConnections = ReadInt(
+        builder.Configuration["Pop3:MaxConcurrentConnections"] ?? builder.Configuration["HMAILSERVER_POP3_MAX_CONNECTIONS"],
         defaultValue: 1000)
 };
 var smtpSessionOptions = new SmtpSessionOptions
@@ -120,8 +131,10 @@ if ((imapAccountId is null) != (imapFolderId is null))
 builder.Services.AddSingleton(new SqlServerConnectionFactory(connectionString));
 builder.Services.AddSingleton(imapOptions);
 builder.Services.AddSingleton(smtpOptions);
+builder.Services.AddSingleton(pop3Options);
 builder.Services.AddSingleton(imapSessionOptions);
 builder.Services.AddSingleton(smtpSessionOptions);
+builder.Services.AddSingleton(new Pop3SessionOptions());
 builder.Services.AddSingleton(mailboxOptions);
 builder.Services.AddSingleton(idleOptions);
 builder.Services.AddSingleton(smtpRuleOptions);
@@ -156,6 +169,7 @@ builder.Services.AddSingleton<IImapMessageAppendStore, SqlServerImapMessageAppen
 builder.Services.AddSingleton<IImapIdleNotifier, PollingImapIdleNotifier>();
 builder.Services.AddSingleton<IImapQuotaStore, SqlServerImapQuotaStore>();
 builder.Services.AddSingleton<IImapRecentFlagStore, SqlServerImapRecentFlagStore>();
+builder.Services.AddSingleton<IPop3MailboxStore, SqlServerPop3MailboxStore>();
 builder.Services.AddSingleton<SqlServerSmtpQueueWriter>();
 builder.Services.AddSingleton<SqlServerSmtpRuleProcessor>();
 builder.Services.AddSingleton<ISmtpRuleProcessor>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerSmtpRuleProcessor>());
@@ -192,6 +206,7 @@ builder.Services.AddSingleton<IDeliveryTargetDispatcher>(static serviceProvider 
         serviceProvider.GetRequiredService<DomainConcurrencyDeliveryTargetDispatcher>()));
 builder.Services.AddSingleton<DeliveryQueueProcessor>();
 builder.Services.AddSingleton<IImapConnectionStreamFactory, PlainImapConnectionStreamFactory>();
+builder.Services.AddSingleton<IPop3ConnectionStreamFactory, PlainPop3ConnectionStreamFactory>();
 builder.Services.AddSingleton<ISmtpConnectionStreamFactory>(_ =>
     smtpTlsCertificate is null
         ? new PlainSmtpConnectionStreamFactory()
@@ -228,12 +243,15 @@ builder.Services.AddSingleton(serviceProvider => new ImapListCommandHandler(
     mailboxOptions.HierarchyDelimiter));
 builder.Services.AddSingleton<ImapSession>();
 builder.Services.AddSingleton<ImapTcpListener>();
+builder.Services.AddSingleton<Pop3Session>();
+builder.Services.AddSingleton<Pop3TcpListener>();
 builder.Services.AddSingleton<SmtpSession>();
 builder.Services.AddSingleton<SmtpTcpListener>();
 builder.Services.AddSingleton<MessageSearchBackfillProcessor>();
 builder.Services.AddHostedService<ServerBootstrapper>();
 builder.Services.AddHostedService<MessageSearchBackfillHostedService>();
 builder.Services.AddHostedService<ImapTcpListenerHostedService>();
+builder.Services.AddHostedService<Pop3TcpListenerHostedService>();
 builder.Services.AddHostedService<SmtpTcpListenerHostedService>();
 
 await builder.Build().RunAsync().ConfigureAwait(false);
