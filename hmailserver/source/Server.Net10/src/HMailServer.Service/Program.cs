@@ -224,6 +224,21 @@ var spamPolicyEnabled = spamPolicyOptions.AddSpamHeader
     || spamPolicyOptions.PrependSubject
     || spamPolicyOptions.SpamMarkThreshold > 0
     || spamPolicyOptions.SpamDeleteThreshold > 0;
+var attachmentPolicyOptions = new MessageAttachmentPolicyOptions
+{
+    Enabled = ReadBool(
+        builder.Configuration["Antivirus:AttachmentBlocking:Enabled"]
+            ?? builder.Configuration["HMAILSERVER_ATTACHMENT_BLOCKING_ENABLED"],
+        defaultValue: false),
+    BlockedWildcards = ReadList(
+        builder.Configuration["Antivirus:AttachmentBlocking:Wildcards"]
+            ?? builder.Configuration["HMAILSERVER_ATTACHMENT_BLOCKING_WILDCARDS"]),
+    ReplacementTextTemplate = builder.Configuration["Antivirus:AttachmentBlocking:ReplacementTextTemplate"]
+        ?? builder.Configuration["HMAILSERVER_ATTACHMENT_BLOCKING_REPLACEMENT_TEXT"]
+        ?? "The attachment %MACRO_FILE% was removed because it matched an attachment blocking rule."
+};
+var attachmentPolicyEnabled = attachmentPolicyOptions.Enabled
+    && attachmentPolicyOptions.BlockedWildcards.Count > 0;
 var smtpSessionOptions = new SmtpSessionOptions
 {
     ServerName = builder.Configuration["Smtp:ServerName"]
@@ -330,6 +345,7 @@ builder.Services.AddSingleton(smtpRuleOptions);
 builder.Services.AddSingleton(scriptingOptions);
 builder.Services.AddSingleton(spamAssassinOptions);
 builder.Services.AddSingleton(spamPolicyOptions);
+builder.Services.AddSingleton(attachmentPolicyOptions);
 if (scriptingOptions.Enabled)
 {
     builder.Services.AddSingleton<WindowsScriptRuleExecutor>();
@@ -352,6 +368,10 @@ if (spamAssassinEnabled)
 if (spamPolicyEnabled)
 {
     builder.Services.AddSingleton<IMessageSpamPolicy, MessageSpamPolicy>();
+}
+if (attachmentPolicyEnabled)
+{
+    builder.Services.AddSingleton<IMessageAttachmentPolicy, MimeMessageAttachmentPolicy>();
 }
 
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));
@@ -523,6 +543,19 @@ static int? ReadNullableInt(string? value)
     }
 
     return int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+}
+
+static IReadOnlyList<string> ReadList(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return [];
+    }
+
+    return value
+        .Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
 }
 
 static long ReadLong(string? value, long defaultValue)

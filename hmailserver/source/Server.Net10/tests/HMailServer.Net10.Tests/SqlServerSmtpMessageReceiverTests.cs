@@ -3,6 +3,7 @@ using HMailServer.Core.Abstractions;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using MimeKit;
 
 namespace HMailServer.Net10.Tests;
 
@@ -191,6 +192,34 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_AppliesAttachmentPolicyBeforeAntivirusScan()
+    {
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("After-Attachment-Policy-Test"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            attachmentPolicy: new MimeMessageAttachmentPolicy(
+                new MessageAttachmentPolicyOptions
+                {
+                    Enabled = true,
+                    BlockedWildcards = [".exe"],
+                    ReplacementTextTemplate = "Blocked: %MACRO_FILE%"
+                }));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest(CreateMessageWithAttachment("evil.exe", "MZ")),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Virus detected: After-Attachment-Policy-Test", result.FailureResponse);
+        var attachment = (TextPart)GetSingleAttachment(antivirusScanner.ScannedMessages.Single());
+        Assert.AreEqual("evil.exe.txt", attachment.FileName);
+        Assert.AreEqual("Blocked: evil.exe", attachment.Text);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_AppliesSpamPolicyHeadersBeforeAntivirusScan()
     {
         var spamProcessedMessage = Encoding.Latin1.GetBytes(
@@ -336,6 +365,37 @@ public sealed class SqlServerSmtpMessageReceiverTests
             AuthenticatedUsername: "user@example.test",
             IsAuthenticated: true,
             IsEncryptedConnection: true);
+
+    private static byte[] CreateMessageWithAttachment(string fileName, string content)
+    {
+        var message = new MimeMessage();
+        message.From.Add(MailboxAddress.Parse("sender@example.test"));
+        message.To.Add(MailboxAddress.Parse("recipient@example.test"));
+        message.Subject = "Attachment";
+
+        var multipart = new Multipart("mixed")
+        {
+            new TextPart("plain") { Text = "Body" },
+            new MimePart("application", "octet-stream")
+            {
+                FileName = fileName,
+                ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+                Content = new MimeContent(new MemoryStream(Encoding.ASCII.GetBytes(content)))
+            }
+        };
+        message.Body = multipart;
+
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+        return output.ToArray();
+    }
+
+    private static MimeEntity GetSingleAttachment(byte[] messageData)
+    {
+        using var input = new MemoryStream(messageData, writable: false);
+        var message = MimeMessage.Load(input);
+        return message.Attachments.Single();
+    }
 
     private sealed class FakeRuleProcessor : ISmtpRuleProcessor
     {

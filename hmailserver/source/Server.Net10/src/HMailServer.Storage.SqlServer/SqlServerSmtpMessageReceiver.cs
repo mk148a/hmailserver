@@ -16,6 +16,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly IMessageAntivirusScanner? _antivirusScanner;
     private readonly IMessageSpamScanner? _spamScanner;
     private readonly IMessageSpamPolicy? _spamPolicy;
+    private readonly IMessageAttachmentPolicy? _attachmentPolicy;
 
     public SqlServerSmtpMessageReceiver(
         SqlServerConnectionFactory connectionFactory,
@@ -25,7 +26,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         SqlServerSmtpQueueWriter? queueWriter = null,
         IMessageAntivirusScanner? antivirusScanner = null,
         IMessageSpamScanner? spamScanner = null,
-        IMessageSpamPolicy? spamPolicy = null)
+        IMessageSpamPolicy? spamPolicy = null,
+        IMessageAttachmentPolicy? attachmentPolicy = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
         _ruleProcessor = ruleProcessor;
@@ -33,6 +35,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _antivirusScanner = antivirusScanner;
         _spamScanner = spamScanner;
         _spamPolicy = spamPolicy;
+        _attachmentPolicy = attachmentPolicy;
     }
 
     public async ValueTask<SmtpReceiveResult> ReceiveAsync(
@@ -115,6 +118,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 
         request = spamScanResult.Request;
         var messageFlags = spamScanResult.MessageFlags;
+
+        request = await RunAttachmentPolicyAsync(request, cancellationToken).ConfigureAwait(false);
 
         var antivirusFailure = await RunAntivirusScanAsync(request, cancellationToken).ConfigureAwait(false);
         if (antivirusFailure is not null)
@@ -199,6 +204,34 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         catch
         {
             return new SpamScanApplicationResult(request, SmtpQueueWriteRequest.RecentFlag);
+        }
+    }
+
+    private async ValueTask<SmtpReceiveRequest> RunAttachmentPolicyAsync(
+        SmtpReceiveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_attachmentPolicy is null)
+        {
+            return request;
+        }
+
+        try
+        {
+            var result = await _attachmentPolicy
+                .ApplyAsync(request.MessageData, cancellationToken)
+                .ConfigureAwait(false);
+            return result.Modified
+                ? request with { MessageData = result.MessageData }
+                : request;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return request;
         }
     }
 
