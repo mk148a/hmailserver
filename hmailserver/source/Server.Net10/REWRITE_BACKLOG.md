@@ -59,6 +59,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: POP3 process-local mailbox lock manager prevents concurrent sessions from opening the same account mailbox and releases locks on session end.
 - Done: SQL auto-ban recorder mirrors legacy failed-logon settings, records `hm_logon_failures`, clears expired failures, creates deny `hm_securityranges` rows when the threshold is reached, and is wired into IMAP/SMTP/POP3 failed authentication paths.
 - Done: POP3 implicit TLS listener wiring uses `SslStream` and configured PFX certificates before the session greeting.
+- Done: POP3 `OnClientLogon(HMAILSERVER_CLIENT)` event hook runs after successful and failed authentication attempts and exposes endpoint/session/TLS metadata.
 - Done: SQL Server external fetch account store leases due legacy `hm_fetchaccounts`, defers inactive account/domain rows, decrypts legacy Blowfish passwords, and tracks `hm_fetchaccounts_uids`.
 - Done: external fetch MIME/Received recipient resolution uses the SMTP recipient validator and applies legacy local/route recipient filtering.
 - Done: modern TLS option factory and spam/virus protocol helpers.
@@ -145,6 +146,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `CAPA` advertises current POP3 capabilities and `TOP` returns headers plus requested body lines without loading the full message.
    - Done: process-local mailbox lock parity for one POP3 session per account mailbox.
    - Done: implicit TLS listener stream factory and service certificate configuration for POP3.
+   - Done: `OnClientLogon(HMAILSERVER_CLIENT)` script hook after successful and failed POP3 authentication attempts.
    - Done: SQL Server external fetch account lease/UID store for existing `hm_fetchaccounts` and `hm_fetchaccounts_uids`.
    - Done: external fetch processor core that leases accounts, uses a bounded POP3 session abstraction, removes stale UID rows, runs `OnExternalAccountDownload` for new and already-known remote UIDs, queues accepted messages through the SMTP receiver path, and applies legacy remote delete retention decisions.
    - Done: external POP3 network session factory and hosted worker scheduling with plain, implicit TLS, and STLS modes, plus UIDL/RETR/DELE/QUIT loopback protocol coverage.
