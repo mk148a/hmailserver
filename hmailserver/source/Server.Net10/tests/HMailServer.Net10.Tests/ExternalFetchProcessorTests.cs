@@ -16,7 +16,13 @@ public sealed class ExternalFetchProcessorTests
         var store = new FakeExternalFetchAccountStore(account);
         var session = new FakeExternalFetchSession(
             new ExternalFetchRemoteMessage(1, "uid-1", Size: 64),
-            "From: sender@example.net\r\nTo: user@example.test\r\nSubject: fetched\r\n\r\nBody\r\n"u8.ToArray());
+            ToAsciiBytes(
+                "Received: from pop3.example.test by hmail; Thu, 02 Jan 2025 03:04:05 +0000\r\n" +
+                "From: sender@example.net\r\n" +
+                "To: user@example.test\r\n" +
+                "Subject: fetched\r\n" +
+                "\r\n" +
+                "Body\r\n"));
         var receiver = new FakeSmtpMessageReceiver();
         var script = new FakeExternalAccountDownloadScriptExecutor(
             request => ExternalAccountDownloadScriptExecutionResult.Continue(
@@ -34,6 +40,9 @@ public sealed class ExternalFetchProcessorTests
         Assert.AreEqual("uid-1", store.AddedUids.Single());
         Assert.AreEqual(1, receiver.Requests.Count);
         Assert.AreEqual("sender@example.net", receiver.Requests[0].MailFrom);
+        Assert.AreEqual(
+            DateTimeOffset.Parse("2025-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture),
+            receiver.Requests[0].ReceivedUtc);
         Assert.AreEqual("user@example.test", receiver.Requests[0].Recipients.Single().Address);
         Assert.AreEqual(42, receiver.Requests[0].Recipients.Single().LocalAccountId);
         StringAssert.Contains(Encoding.ASCII.GetString(receiver.Requests[0].MessageData), "X-Script: uid-1\r\n");
@@ -129,6 +138,9 @@ public sealed class ExternalFetchProcessorTests
         var message = Encoding.ASCII.GetString(messageData);
         return Encoding.ASCII.GetBytes($"{name}: {value}\r\n" + message);
     }
+
+    private static byte[] ToAsciiBytes(string value) =>
+        Encoding.ASCII.GetBytes(value);
 
     private sealed class FakeExternalFetchAccountStore : IExternalFetchAccountStore
     {

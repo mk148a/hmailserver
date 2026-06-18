@@ -1,3 +1,4 @@
+using System.Globalization;
 using HMailServer.Core.Abstractions;
 using MimeKit;
 
@@ -250,6 +251,7 @@ public sealed class ExternalFetchProcessor
         byte[] messageData,
         MimeMessage? mimeMessage)
     {
+        var receivedUtc = ResolveReceivedUtc(account, mimeMessage, _timeProvider.GetUtcNow());
         return new SmtpReceiveRequest(
             HeloHost: account.ServerAddress,
             IsExtendedSmtp: true,
@@ -257,7 +259,7 @@ public sealed class ExternalFetchProcessor
             Recipients: ResolveRecipients(account, mimeMessage),
             DeclaredSize: remoteMessage.Size > 0 ? remoteMessage.Size : messageData.LongLength,
             MessageData: messageData,
-            ReceivedUtc: _timeProvider.GetUtcNow(),
+            ReceivedUtc: receivedUtc,
             ClientIPAddress: account.ServerAddress,
             ClientPort: account.ServerPort,
             SessionId: 0,
@@ -285,6 +287,58 @@ public sealed class ExternalFetchProcessor
 
     private static string ExtractMailFrom(MimeMessage? mimeMessage) =>
         mimeMessage?.From.Mailboxes.FirstOrDefault()?.Address ?? string.Empty;
+
+    private static DateTimeOffset ResolveReceivedUtc(
+        ExternalFetchAccountLease account,
+        MimeMessage? mimeMessage,
+        DateTimeOffset fallback)
+    {
+        if (!account.ProcessMimeDate || mimeMessage is null)
+        {
+            return fallback;
+        }
+
+        foreach (var header in mimeMessage.Headers.Where(static header =>
+            header.Field.Equals("Received", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (TryParseReceivedHeaderDate(header.Value, out var receivedDate) &&
+                IsLegacyExternalFetchDate(receivedDate))
+            {
+                return receivedDate.ToUniversalTime();
+            }
+        }
+
+        if (IsLegacyExternalFetchDate(mimeMessage.Date))
+        {
+            return mimeMessage.Date.ToUniversalTime();
+        }
+
+        return fallback;
+    }
+
+    private static bool TryParseReceivedHeaderDate(
+        string headerValue,
+        out DateTimeOffset value)
+    {
+        var dateText = headerValue;
+        var separator = headerValue.LastIndexOf(';');
+        if (separator >= 0 && separator < headerValue.Length - 1)
+        {
+            dateText = headerValue[(separator + 1)..];
+        }
+
+        return DateTimeOffset.TryParse(
+            dateText.Trim(),
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal,
+            out value);
+    }
+
+    private static bool IsLegacyExternalFetchDate(DateTimeOffset value)
+    {
+        var year = value.UtcDateTime.Year;
+        return year is >= 1980 and <= 2040;
+    }
 
     private static IReadOnlyList<SmtpResolvedRecipient> ResolveRecipients(
         ExternalFetchAccountLease account,
