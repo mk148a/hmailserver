@@ -103,6 +103,29 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_TracksUidWhenReceiverPermanentlyRejects()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-spam", Size: 64),
+            "From: sender@example.net\r\nTo: user@example.test\r\nSubject: fetched\r\n\r\nBody\r\n"u8.ToArray());
+        var receiver = new FakeSmtpMessageReceiver(SmtpReceiveResult.Failure("554 Score delete threshold"));
+        var processor = CreateProcessor(store, session, receiver);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsLeased);
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(0, result.AccountsFailed);
+        Assert.AreEqual(1, result.MessagesDownloaded);
+        Assert.AreEqual(0, result.MessagesAccepted);
+        Assert.AreEqual(1, result.KnownUidsAdded);
+        Assert.AreEqual("uid-spam", store.AddedUids.Single());
+        Assert.AreEqual(0, session.DeletedUids.Count);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_SkipsQueueAndTracksUidWhenAntivirusFindsVirus()
     {
         var account = CreateAccount();

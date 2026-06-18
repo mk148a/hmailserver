@@ -192,6 +192,19 @@ public sealed class ExternalFetchProcessor
                 .ConfigureAwait(false);
             if (!receiveResult.Accepted)
             {
+                if (IsPermanentReceiverRejection(receiveResult.FailureResponse))
+                {
+                    var rejectedRetention = await ApplyNewMessageRetentionAsync(
+                        account,
+                        session,
+                        remoteMessage,
+                        scriptResult,
+                        cancellationToken).ConfigureAwait(false);
+                    remoteMessagesDeleted += rejectedRetention.RemoteMessagesDeleted;
+                    knownUidsAdded += rejectedRetention.KnownUidsAdded;
+                    continue;
+                }
+
                 throw new InvalidOperationException(
                     string.IsNullOrWhiteSpace(receiveResult.FailureResponse)
                         ? "External POP3 message receiver rejected the message."
@@ -665,6 +678,21 @@ public sealed class ExternalFetchProcessor
         var createdDate = DateTime.SpecifyKind(createdAt, DateTimeKind.Utc).Date;
         var currentDate = now.UtcDateTime.Date;
         return (currentDate - createdDate).TotalDays > daysToKeep;
+    }
+
+    private static bool IsPermanentReceiverRejection(string? failureResponse)
+    {
+        if (string.IsNullOrWhiteSpace(failureResponse))
+        {
+            return false;
+        }
+
+        var response = failureResponse.TrimStart();
+        return response.Length >= 3
+            && response[0] == '5'
+            && char.IsDigit(response[1])
+            && char.IsDigit(response[2])
+            && (response.Length == 3 || char.IsWhiteSpace(response[3]) || response[3] == '-');
     }
 
     private async ValueTask ReleaseAccountSafelyAsync(
