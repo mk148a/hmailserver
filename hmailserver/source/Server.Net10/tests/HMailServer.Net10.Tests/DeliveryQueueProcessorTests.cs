@@ -146,6 +146,49 @@ public sealed class DeliveryQueueProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_RecordsBounceSkippedReasonAndCompletesLease()
+    {
+        var identity = new MessageIdentity(19, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var resolver = new FakeTargetResolver(
+            new DeliveryTargetBatch(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                [message.Recipients[1]]));
+        var dispatcher = new FakeTargetDispatcher(
+            DeliveryTargetDispatchResult.PermanentFailure("550 No such user."));
+        var recipientStore = new FakeRecipientStore();
+        var bounceStore = new FakeBounceStore(
+            DeliveryBounceResult.Skipped("Original sender is already a mailer daemon address."));
+        var statusObserver = new FakeStatusObserver();
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            resolver,
+            dispatcher,
+            recipientStore,
+            bounceStore,
+            statusObserver: statusObserver);
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        Assert.AreEqual(19, leaseStore.CompletedMessageId);
+        CollectionAssert.AreEqual(new long[] { 2 }, recipientStore.DeletedRecipientIds);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                DeliveryQueueStatusEventKind.MessageLeased,
+                DeliveryQueueStatusEventKind.TargetDeliveryFailedPermanently,
+                DeliveryQueueStatusEventKind.BounceSkipped,
+                DeliveryQueueStatusEventKind.MessageCompleted
+            },
+            statusObserver.Kinds);
+        Assert.AreEqual("Original sender is already a mailer daemon address.", statusObserver.Events[2].Description);
+        Assert.AreEqual(1, statusObserver.Events[2].RecipientCount);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_BouncesTransientFailureWhenRetryLimitIsReached()
     {
         var identity = new MessageIdentity(14, 0, 0, 0);
@@ -507,6 +550,13 @@ public sealed class DeliveryQueueProcessorTests
 
     private sealed class FakeBounceStore : IDeliveryBounceStore
     {
+        private readonly DeliveryBounceResult _result;
+
+        public FakeBounceStore(DeliveryBounceResult? result = null)
+        {
+            _result = result ?? DeliveryBounceResult.SubmittedResult();
+        }
+
         public string? LastFailureDescription { get; private set; }
 
         public IReadOnlyList<DeliveryQueueRecipient>? LastFailedRecipients { get; private set; }
@@ -519,7 +569,7 @@ public sealed class DeliveryQueueProcessorTests
         {
             LastFailureDescription = failureDescription;
             LastFailedRecipients = failedRecipients;
-            return ValueTask.FromResult(DeliveryBounceResult.SubmittedResult());
+            return ValueTask.FromResult(_result);
         }
     }
 

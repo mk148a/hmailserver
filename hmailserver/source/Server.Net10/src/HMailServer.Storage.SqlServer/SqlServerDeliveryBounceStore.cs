@@ -177,8 +177,8 @@ public sealed class SqlServerDeliveryBounceStore : IDeliveryBounceStore
             generatedUtc);
 
         var builder = new StringBuilder();
-        builder.Append("From: ").Append(options.MailerDaemonAddress).Append("\r\n");
-        builder.Append("To: ").Append(originalMessage.FromAddress).Append("\r\n");
+        builder.Append("From: ").Append(SanitizeHeaderValue(options.MailerDaemonAddress)).Append("\r\n");
+        builder.Append("To: ").Append(SanitizeHeaderValue(originalMessage.FromAddress)).Append("\r\n");
         builder.Append("Subject: ").Append(SanitizeHeaderValue(subject)).Append("\r\n");
         builder.Append("Auto-Submitted: auto-replied\r\n");
         builder.Append("Content-Type: text/plain; charset=utf-8\r\n");

@@ -73,6 +73,33 @@ public sealed class SqlServerDeliveryBounceStoreTests
         Assert.IsFalse(text.Contains("Reason=123456789", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void BuildBounceMessage_SanitizesAddressHeaders()
+    {
+        var options = DeliveryBounceOptions.Default("mx.example.test") with
+        {
+            MailerDaemonAddress = "MAILER-DAEMON@mx.example.test\r\nInjected-From: no"
+        };
+        var message = CreateMessage() with
+        {
+            FromAddress = "sender@example.test\r\nInjected-To: no"
+        };
+
+        var bytes = SqlServerDeliveryBounceStore.BuildBounceMessage(
+            options,
+            message,
+            [new DeliveryQueueRecipient(8, "user@remote.test", "user@remote.test", LocalAccountId: 0)],
+            "550 No such user.",
+            DateTimeOffset.Parse("2026-02-03T04:05:06Z", System.Globalization.CultureInfo.InvariantCulture));
+        var text = Encoding.UTF8.GetString(bytes);
+        var headerText = text[..text.IndexOf("\r\n\r\n", StringComparison.Ordinal)];
+
+        StringAssert.Contains(text, "From: MAILER-DAEMON@mx.example.test Injected-From: no\r\n");
+        StringAssert.Contains(text, "To: sender@example.test Injected-To: no\r\n");
+        Assert.IsFalse(headerText.Contains("\r\nInjected-From:", StringComparison.Ordinal));
+        Assert.IsFalse(headerText.Contains("\r\nInjected-To:", StringComparison.Ordinal));
+    }
+
     private static DeliveryQueuedMessage CreateMessage() =>
         new(
             new MessageIdentity(51, 0, 0, 0),
