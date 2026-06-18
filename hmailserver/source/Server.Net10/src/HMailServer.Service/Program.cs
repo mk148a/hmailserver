@@ -265,6 +265,44 @@ var dnsBlockListOptions = new SmtpDnsBlockListOptions
 };
 var dnsBlockListEnabled = dnsBlockListOptions.Enabled
     && dnsBlockListOptions.Zones.Count > 0;
+var urlBlockListOptions = new SmtpUrlBlockListOptions
+{
+    Enabled = ReadBool(
+        builder.Configuration["AntiAbuse:UrlBlockList:Enabled"]
+            ?? builder.Configuration["HMAILSERVER_SURBL_ENABLED"],
+        defaultValue: false),
+    Zones = ReadList(
+        builder.Configuration["AntiAbuse:UrlBlockList:Zones"]
+            ?? builder.Configuration["HMAILSERVER_SURBL_ZONES"]),
+    SkipAuthenticated = ReadBool(
+        builder.Configuration["AntiAbuse:UrlBlockList:SkipAuthenticated"]
+            ?? builder.Configuration["HMAILSERVER_SURBL_SKIP_AUTHENTICATED"],
+        defaultValue: true),
+    Timeout = TimeSpan.FromSeconds(
+        Math.Max(
+            1,
+            ReadInt(
+                builder.Configuration["AntiAbuse:UrlBlockList:TimeoutSeconds"]
+                    ?? builder.Configuration["HMAILSERVER_SURBL_TIMEOUT_SECONDS"],
+                defaultValue: 5))),
+    MaxHosts = Math.Max(
+        1,
+        ReadInt(
+            builder.Configuration["AntiAbuse:UrlBlockList:MaxHosts"]
+                ?? builder.Configuration["HMAILSERVER_SURBL_MAX_HOSTS"],
+            defaultValue: 50)),
+    MaxCandidateDomainsPerHost = Math.Max(
+        1,
+        ReadInt(
+            builder.Configuration["AntiAbuse:UrlBlockList:MaxCandidateDomainsPerHost"]
+                ?? builder.Configuration["HMAILSERVER_SURBL_MAX_CANDIDATE_DOMAINS_PER_HOST"],
+            defaultValue: 3)),
+    RejectionMessageTemplate = builder.Configuration["AntiAbuse:UrlBlockList:RejectionMessageTemplate"]
+        ?? builder.Configuration["HMAILSERVER_SURBL_REJECTION_MESSAGE"]
+        ?? "554 Rejected by URL blocklist {ListHost}"
+};
+var urlBlockListEnabled = urlBlockListOptions.Enabled
+    && urlBlockListOptions.Zones.Count > 0;
 var smtpSessionOptions = new SmtpSessionOptions
 {
     ServerName = builder.Configuration["Smtp:ServerName"]
@@ -373,6 +411,7 @@ builder.Services.AddSingleton(spamAssassinOptions);
 builder.Services.AddSingleton(spamPolicyOptions);
 builder.Services.AddSingleton(attachmentPolicyOptions);
 builder.Services.AddSingleton(dnsBlockListOptions);
+builder.Services.AddSingleton(urlBlockListOptions);
 if (scriptingOptions.Enabled)
 {
     builder.Services.AddSingleton<WindowsScriptRuleExecutor>();
@@ -400,10 +439,17 @@ if (attachmentPolicyEnabled)
 {
     builder.Services.AddSingleton<IMessageAttachmentPolicy, MimeMessageAttachmentPolicy>();
 }
-if (dnsBlockListEnabled)
+if (dnsBlockListEnabled || urlBlockListEnabled)
 {
     builder.Services.AddSingleton<IDnsAddressResolver, SystemDnsAddressResolver>();
+}
+if (dnsBlockListEnabled)
+{
     builder.Services.AddSingleton<ISmtpDnsBlockListChecker, SmtpDnsBlockListChecker>();
+}
+if (urlBlockListEnabled)
+{
+    builder.Services.AddSingleton<ISmtpUrlBlockListChecker, SmtpUrlBlockListChecker>();
 }
 
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));

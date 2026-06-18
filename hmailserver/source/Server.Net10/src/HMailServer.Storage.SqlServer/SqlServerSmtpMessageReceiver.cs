@@ -18,6 +18,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly IMessageSpamPolicy? _spamPolicy;
     private readonly IMessageAttachmentPolicy? _attachmentPolicy;
     private readonly ISmtpDnsBlockListChecker? _dnsBlockListChecker;
+    private readonly ISmtpUrlBlockListChecker? _urlBlockListChecker;
 
     public SqlServerSmtpMessageReceiver(
         SqlServerConnectionFactory connectionFactory,
@@ -29,7 +30,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         IMessageSpamScanner? spamScanner = null,
         IMessageSpamPolicy? spamPolicy = null,
         IMessageAttachmentPolicy? attachmentPolicy = null,
-        ISmtpDnsBlockListChecker? dnsBlockListChecker = null)
+        ISmtpDnsBlockListChecker? dnsBlockListChecker = null,
+        ISmtpUrlBlockListChecker? urlBlockListChecker = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
         _ruleProcessor = ruleProcessor;
@@ -39,6 +41,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _spamPolicy = spamPolicy;
         _attachmentPolicy = attachmentPolicy;
         _dnsBlockListChecker = dnsBlockListChecker;
+        _urlBlockListChecker = urlBlockListChecker;
     }
 
     public async ValueTask<SmtpReceiveResult> ReceiveAsync(
@@ -129,6 +132,12 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         var messageFlags = spamScanResult.MessageFlags;
 
         request = await RunAttachmentPolicyAsync(request, cancellationToken).ConfigureAwait(false);
+
+        var urlBlockListFailure = await RunUrlBlockListCheckAsync(request, cancellationToken).ConfigureAwait(false);
+        if (urlBlockListFailure is not null)
+        {
+            return urlBlockListFailure;
+        }
 
         var antivirusFailure = await RunAntivirusScanAsync(request, cancellationToken).ConfigureAwait(false);
         if (antivirusFailure is not null)
@@ -272,6 +281,37 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         catch
         {
             return request;
+        }
+    }
+
+    private async ValueTask<SmtpReceiveResult?> RunUrlBlockListCheckAsync(
+        SmtpReceiveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_urlBlockListChecker is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var result = await _urlBlockListChecker
+                .CheckAsync(request, cancellationToken)
+                .ConfigureAwait(false);
+            return result.Listed
+                ? SmtpReceiveResult.Failure(
+                    string.IsNullOrWhiteSpace(result.FailureResponse)
+                        ? "554 Rejected by URL blocklist"
+                        : result.FailureResponse)
+                : null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
         }
     }
 

@@ -257,6 +257,36 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_RejectsUrlBlockListHitBeforeAntivirusScan()
+    {
+        var spamScanner = new FakeSpamScanner(
+            MessageSpamScanResult.Clean("Subject: Spam\r\n\r\nBody http://bad.example/\r\n"u8.ToArray()));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("Should-Not-Scan"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            spamScanner: spamScanner,
+            urlBlockListChecker: new FakeUrlBlockListChecker(
+                SmtpUrlBlockListResult.Blocked(
+                    "multi.surbl.test",
+                    "bad.example",
+                    "bad.example.multi.surbl.test",
+                    "127.0.0.2",
+                    "554 Listed by SURBL")));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Original\r\n\r\nBody http://bad.example/\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Listed by SURBL", result.FailureResponse);
+        Assert.AreEqual(1, spamScanner.ScannedMessages.Count);
+        Assert.AreEqual(0, antivirusScanner.ScannedMessages.Count);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_AppliesSpamPolicyHeadersBeforeAntivirusScan()
     {
         var spamProcessedMessage = Encoding.Latin1.GetBytes(
@@ -525,6 +555,21 @@ public sealed class SqlServerSmtpMessageReceiverTests
         }
 
         public ValueTask<SmtpDnsBlockListResult> CheckAsync(
+            SmtpReceiveRequest request,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(_result);
+    }
+
+    private sealed class FakeUrlBlockListChecker : ISmtpUrlBlockListChecker
+    {
+        private readonly SmtpUrlBlockListResult _result;
+
+        public FakeUrlBlockListChecker(SmtpUrlBlockListResult result)
+        {
+            _result = result;
+        }
+
+        public ValueTask<SmtpUrlBlockListResult> CheckAsync(
             SmtpReceiveRequest request,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(_result);
