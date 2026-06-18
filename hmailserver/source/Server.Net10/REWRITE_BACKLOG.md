@@ -53,6 +53,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SMTP `OnTooManyInvalidCommands(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs when the configured invalid-command disconnect threshold is exceeded.
 - Done: SMTP delivery queue `OnDeliveryStart(HMAILSERVER_MESSAGE)`, `OnDeliverMessage(HMAILSERVER_MESSAGE)`, and `OnDeliveryFailed(HMAILSERVER_MESSAGE, recipient, error)` event hooks run with queue-file mutation persistence where applicable.
 - Done: POP3 session command engine for `USER`/`PASS`, `STAT`, `LIST`, `UIDL`, `RETR`, `DELE`, `RSET`, `NOOP`, and `QUIT` over a streaming mailbox-store boundary.
+- Done: SQL Server POP3 mailbox store opens the legacy account Inbox, lists by `messageuid`, streams message files from the data directory, and deletes message/search/metadata rows plus files on committed `DELE`.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -118,7 +119,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 4. POP3 and external fetch.
    - Done: POP3 session command engine with shared account authentication, session-held deletes committed on `QUIT`, `RSET` undo, `LIST`/`UIDL` visibility checks, and streaming `RETR` dot-stuffing.
-   - Remaining: POP3 TCP listener, SQL Server/data-directory mailbox store, `TOP`/`CAPA`, TLS listener wiring, and service configuration.
+   - Done: SQL Server/data-directory POP3 mailbox store for the authenticated account's root `Inbox`, using legacy `messageuid` as UIDL and removing search queue/document plus metadata artifacts on delete.
+   - Remaining: POP3 TCP listener, `TOP`/`CAPA`, TLS listener wiring, and service configuration.
    - Remaining: External POP3 fetch accounts, UID tracking, antivirus/spam pipeline integration.
 
 5. Security and anti-abuse modernization.
@@ -143,4 +145,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue POP3 toward production wiring: SQL Server/data-directory mailbox store and disabled-by-default TCP listener are next, then `TOP`/`CAPA`, external fetch, and remaining authentication/script-object parity.
+Continue POP3 toward production wiring: disabled-by-default TCP listener and service configuration are next, then `TOP`/`CAPA`, external fetch, and remaining authentication/script-object parity.

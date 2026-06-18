@@ -81,7 +81,7 @@ Generated rule messages are written through the same atomic queue writer, increm
 
 ## POP3 Session Engine
 
-The POP3 command engine supports `USER`/`PASS` through the shared account authenticator, then `STAT`, `LIST`, `UIDL`, `RETR`, `DELE`, `RSET`, `NOOP`, and `QUIT` over an `IPop3MailboxStore` boundary. `RETR` streams message content from the store and dot-stuffs on the fly instead of requiring the full message body as a byte array. `DELE` is held in session state and committed to storage only on authenticated `QUIT`; `RSET` clears pending deletes. The TCP listener, SQL Server/data-directory mailbox store, `TOP`/`CAPA`, TLS listener wiring, and external POP3 fetch integration remain on the parity backlog.
+The POP3 command engine supports `USER`/`PASS` through the shared account authenticator, then `STAT`, `LIST`, `UIDL`, `RETR`, `DELE`, `RSET`, `NOOP`, and `QUIT` over an `IPop3MailboxStore` boundary. The SQL Server mailbox store opens the legacy root `Inbox` for the authenticated account, lists `hm_messages` rows in `messageuid` order, exposes `messageuid` as the POP3 UIDL value, streams message files from the hMailServer data directory, and deletes DB/search/metadata rows plus message files when authenticated `QUIT` commits pending `DELE` commands. `RETR` dot-stuffs while streaming instead of requiring the full message body as a byte array. The TCP listener, `TOP`/`CAPA`, TLS listener wiring, and external POP3 fetch integration remain on the parity backlog.
 
 ## Project Layout
 
@@ -90,7 +90,7 @@ The POP3 command engine supports `USER`/`PASS` through the shared account authen
 - `HMailServer.Delivery`: delivery queue processor orchestration over lease/load/target-dispatch boundaries.
 - `HMailServer.Protocols`: `System.IO.Pipelines` line protocol reader, bounded `Channel` work queue primitives, shared IMAP sequence-set parsing, IMAP TCP/session/SEARCH/SORT/FETCH/IDLE/ACL/QUOTA parser/executor/command handler plumbing, the SMTP TCP/session skeleton, and the POP3 session command engine.
 - `HMailServer.Indexing`: SQL Server Full-Text Search backfill processor.
-- `HMailServer.Storage.SqlServer`: SQL Server connection, Full-Text Search readiness, message search/sort indexing, IMAP sequence snapshots, IMAP message fetch storage, and atomic delivery leasing.
+- `HMailServer.Storage.SqlServer`: SQL Server connection, Full-Text Search readiness, message search/sort indexing, IMAP sequence snapshots, IMAP message fetch storage, POP3 Inbox mailbox storage, and atomic delivery leasing.
 - `HMailServer.Search.SqlServer`: IMAP SEARCH and SORT query planners for SQL Server predicates, metadata ordering, and Full-Text Search.
 - `HMailServer.Security`: modern spam/virus protocol helpers.
 - `HMailServer.ComInterop`: additive COM compatibility contracts for new .NET-only capabilities.
