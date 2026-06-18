@@ -58,6 +58,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: POP3 `CAPA` and `TOP` command parity; `TOP` streams headers plus requested body lines with dot-stuffing.
 - Done: POP3 process-local mailbox lock manager prevents concurrent sessions from opening the same account mailbox and releases locks on session end.
 - Done: SQL auto-ban recorder mirrors legacy failed-logon settings, records `hm_logon_failures`, clears expired failures, creates deny `hm_securityranges` rows when the threshold is reached, and is wired into IMAP/SMTP/POP3 failed authentication paths.
+- Done: POP3 implicit TLS listener wiring uses `SslStream` and configured PFX certificates before the session greeting.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -127,7 +128,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: POP3 TCP listener and service configuration via `HMAILSERVER_POP3_ENABLED`, bind address, port, backlog, and max connection settings.
    - Done: `CAPA` advertises current POP3 capabilities and `TOP` returns headers plus requested body lines without loading the full message.
    - Done: process-local mailbox lock parity for one POP3 session per account mailbox.
-   - Remaining: TLS listener wiring.
+   - Done: implicit TLS listener stream factory and service certificate configuration for POP3.
    - Remaining: External POP3 fetch accounts, UID tracking, antivirus/spam pipeline integration.
 
 5. Security and anti-abuse modernization.
@@ -153,4 +154,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue POP3 toward TLS listener wiring, external fetch, and remaining authentication/script-object parity.
+Continue POP3 toward external fetch, UID tracking, antivirus/spam pipeline integration, and remaining authentication/script-object parity.
