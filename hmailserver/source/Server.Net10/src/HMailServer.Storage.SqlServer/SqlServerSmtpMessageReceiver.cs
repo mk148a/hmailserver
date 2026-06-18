@@ -107,7 +107,9 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
             ruleBindAddress = ruleResult.BindToAddress;
         }
 
-        request = await RunSpamScanAsync(request, cancellationToken).ConfigureAwait(false);
+        var spamScanResult = await RunSpamScanAsync(request, cancellationToken).ConfigureAwait(false);
+        request = spamScanResult.Request;
+        var messageFlags = spamScanResult.MessageFlags;
 
         var antivirusFailure = await RunAntivirusScanAsync(request, cancellationToken).ConfigureAwait(false);
         if (antivirusFailure is not null)
@@ -125,7 +127,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
                         request.MessageData,
                         request.ReceivedUtc,
                         ruleForcedRouteId,
-                        ruleBindAddress),
+                        ruleBindAddress,
+                        messageFlags),
                     cancellationToken)
                 .ConfigureAwait(false);
             return SmtpReceiveResult.Success();
@@ -140,13 +143,13 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         }
     }
 
-    private async ValueTask<SmtpReceiveRequest> RunSpamScanAsync(
+    private async ValueTask<SpamScanApplicationResult> RunSpamScanAsync(
         SmtpReceiveRequest request,
         CancellationToken cancellationToken)
     {
         if (_spamScanner is null || !request.EnableSpamScan)
         {
-            return request;
+            return new SpamScanApplicationResult(request, SmtpQueueWriteRequest.RecentFlag);
         }
 
         try
@@ -156,16 +159,22 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
                 .ConfigureAwait(false);
             if (scanResult.MessageData.Length == 0)
             {
-                return request;
+                return new SpamScanApplicationResult(request, SmtpQueueWriteRequest.RecentFlag);
             }
 
             var messageData = scanResult.MessageData;
+            var messageFlags = SmtpQueueWriteRequest.RecentFlag;
             if (_spamPolicy is not null)
             {
-                messageData = _spamPolicy.Apply(messageData, scanResult);
+                var policyResult = _spamPolicy.Apply(messageData, scanResult);
+                messageData = policyResult.MessageData;
+                if (policyResult.MarkAsSpam)
+                {
+                    messageFlags |= SmtpQueueWriteRequest.SpamFlag;
+                }
             }
 
-            return request with { MessageData = messageData };
+            return new SpamScanApplicationResult(request with { MessageData = messageData }, messageFlags);
         }
         catch (OperationCanceledException)
         {
@@ -173,7 +182,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         }
         catch
         {
-            return request;
+            return new SpamScanApplicationResult(request, SmtpQueueWriteRequest.RecentFlag);
         }
     }
 
@@ -243,4 +252,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
                 .ConfigureAwait(false);
         }
     }
+
+    private sealed record SpamScanApplicationResult(
+        SmtpReceiveRequest Request,
+        byte MessageFlags);
 }

@@ -69,8 +69,6 @@ WHERE
     AND messagetype = 1;
 """;
 
-    private const byte RecentFlag = 32;
-
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly MessageFilePathResolver _pathResolver;
 
@@ -160,7 +158,7 @@ WHERE
         command.Parameters.Add("@MessageFileName", SqlDbType.NVarChar, 255).Value = messageFileName;
         command.Parameters.Add("@MessageFrom", SqlDbType.NVarChar, 255).Value = request.MailFrom;
         command.Parameters.Add("@MessageSize", SqlDbType.BigInt).Value = request.MessageData.LongLength;
-        command.Parameters.Add("@MessageFlags", SqlDbType.TinyInt).Value = RecentFlag;
+        command.Parameters.Add("@MessageFlags", SqlDbType.TinyInt).Value = request.MessageFlags;
         command.Parameters.Add("@MessageCreateTime", SqlDbType.DateTime).Value = request.ReceivedUtc.UtcDateTime;
         command.Parameters.Add("@RuleForcedRouteId", SqlDbType.Int).Value = request.RuleForcedRouteId > 0
             ? request.RuleForcedRouteId

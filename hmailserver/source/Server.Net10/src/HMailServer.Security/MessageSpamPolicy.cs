@@ -17,7 +17,7 @@ public sealed class MessageSpamPolicy : IMessageSpamPolicy
         _options = options ?? new MessageSpamPolicyOptions();
     }
 
-    public byte[] Apply(
+    public MessageSpamPolicyResult Apply(
         byte[] messageData,
         MessageSpamScanResult scanResult)
     {
@@ -26,13 +26,15 @@ public sealed class MessageSpamPolicy : IMessageSpamPolicy
 
         if (!scanResult.Succeeded || !IsEnabled(_options))
         {
-            return messageData;
+            return new MessageSpamPolicyResult(messageData, MarkAsSpam: false);
         }
 
+        var markAsSpam = scanResult.IsSpam
+            || (_options.SpamMarkThreshold > 0 && scanResult.Score >= _options.SpamMarkThreshold);
         var editor = MessageHeaderEditor.Parse(messageData);
         var changed = false;
 
-        if (scanResult.IsSpam)
+        if (markAsSpam)
         {
             if (_options.AddSpamHeader)
             {
@@ -55,7 +57,7 @@ public sealed class MessageSpamPolicy : IMessageSpamPolicy
         if (_options.AddReasonHeaders)
         {
             editor.RemoveHeadersByPrefix(ReasonHeaderPrefix);
-            if (scanResult.IsSpam)
+            if (markAsSpam)
             {
                 var details = string.IsNullOrWhiteSpace(scanResult.Details)
                     ? "Tagged as Spam"
@@ -73,11 +75,14 @@ public sealed class MessageSpamPolicy : IMessageSpamPolicy
             changed = true;
         }
 
-        return changed ? editor.ToArray() : messageData;
+        return new MessageSpamPolicyResult(changed ? editor.ToArray() : messageData, markAsSpam);
     }
 
     private static bool IsEnabled(MessageSpamPolicyOptions options) =>
-        options.AddSpamHeader || options.AddReasonHeaders || options.PrependSubject;
+        options.AddSpamHeader
+        || options.AddReasonHeaders
+        || options.PrependSubject
+        || options.SpamMarkThreshold > 0;
 
     private string SanitizeHeaderValue(string value)
     {

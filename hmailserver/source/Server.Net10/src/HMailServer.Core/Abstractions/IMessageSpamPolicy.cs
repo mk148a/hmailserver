@@ -2,7 +2,7 @@ namespace HMailServer.Core.Abstractions;
 
 public interface IMessageSpamPolicy
 {
-    byte[] Apply(
+    MessageSpamPolicyResult Apply(
         byte[] messageData,
         MessageSpamScanResult scanResult);
 }

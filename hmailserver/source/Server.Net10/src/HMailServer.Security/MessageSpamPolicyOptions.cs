@@ -8,6 +8,8 @@ public sealed record MessageSpamPolicyOptions
 
     public bool PrependSubject { get; init; }
 
+    public int SpamMarkThreshold { get; init; }
+
     public string SubjectPrefix { get; init; } = "[SPAM]";
 
     public int MaxHeaderValueLength { get; init; } = 900;
