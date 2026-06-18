@@ -57,6 +57,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: POP3 disabled-by-default TCP listener and Windows service wiring with bounded concurrent connections and plain stream factory boundary.
 - Done: POP3 `CAPA` and `TOP` command parity; `TOP` streams headers plus requested body lines with dot-stuffing.
 - Done: POP3 process-local mailbox lock manager prevents concurrent sessions from opening the same account mailbox and releases locks on session end.
+- Done: SQL auto-ban recorder mirrors legacy failed-logon settings, records `hm_logon_failures`, clears expired failures, and creates deny `hm_securityranges` rows when the threshold is reached.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -72,7 +73,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: SASL PLAIN authentication with SASL-IR and TLS-required auth policy.
    - Done: `OnClientLogon(HMAILSERVER_CLIENT)` script hook after successful and failed IMAP authentication attempts.
    - Done: shared `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)` script hook with expanded scalar account facade.
-   - Remaining: Auto-ban, deeper account facade collections/methods, Active Directory auth, and master user.
+   - Remaining: Failed-login auto-ban protocol wiring, deeper account facade collections/methods, Active Directory auth, and master user.
 
 2. IMAP command parity beyond SEARCH.
    - Done: FETCH/UID FETCH for `FLAGS`, `UID`, `RFC822.SIZE`, `INTERNALDATE`, `ENVELOPE`, `BODYSTRUCTURE`, `BODY[]`, `BODY.PEEK[]`, and `RFC822`.
@@ -126,10 +127,11 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: POP3 TCP listener and service configuration via `HMAILSERVER_POP3_ENABLED`, bind address, port, backlog, and max connection settings.
    - Done: `CAPA` advertises current POP3 capabilities and `TOP` returns headers plus requested body lines without loading the full message.
    - Done: process-local mailbox lock parity for one POP3 session per account mailbox.
-   - Remaining: TLS listener wiring and auto-ban parity.
+   - Remaining: TLS listener wiring and failed-login auto-ban protocol wiring.
    - Remaining: External POP3 fetch accounts, UID tracking, antivirus/spam pipeline integration.
 
 5. Security and anti-abuse modernization.
+   - Done: SQL failed-logon auto-ban recorder preserves legacy settings/table compatibility and deny-range creation semantics.
    - Async/timeboxed ClamAV and SpamAssassin clients.
    - SPF, DKIM, DMARC, DNSBL, SURBL, PTR/MX checks, greylisting, attachment blocking.
    - Implicit TLS stream factories and listener ports; STARTTLS uses OS default TLS policy and online certificate revocation checks.
@@ -151,4 +153,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue POP3 toward security/parity: auto-ban behavior, TLS listener wiring, external fetch, and remaining authentication/script-object parity are next.
+Wire the failed-login auto-ban recorder into IMAP/SMTP/POP3 authentication paths, then continue POP3 toward TLS listener wiring, external fetch, and remaining authentication/script-object parity.
