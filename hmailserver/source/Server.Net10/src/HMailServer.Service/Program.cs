@@ -77,6 +77,9 @@ var smtpSessionOptions = new SmtpSessionOptions
 var smtpTlsCertificate = LoadCertificate(
     builder.Configuration["Smtp:TlsCertificatePath"] ?? builder.Configuration["HMAILSERVER_SMTP_TLS_CERTIFICATE_PATH"],
     builder.Configuration["Smtp:TlsCertificatePassword"] ?? builder.Configuration["HMAILSERVER_SMTP_TLS_CERTIFICATE_PASSWORD"]);
+var pop3TlsCertificate = LoadCertificate(
+    builder.Configuration["Pop3:TlsCertificatePath"] ?? builder.Configuration["HMAILSERVER_POP3_TLS_CERTIFICATE_PATH"],
+    builder.Configuration["Pop3:TlsCertificatePassword"] ?? builder.Configuration["HMAILSERVER_POP3_TLS_CERTIFICATE_PASSWORD"]);
 var smtpRuleOptions = new SmtpRuleProcessorOptions
 {
     RuleLoopLimit = ReadInt(
@@ -208,7 +211,11 @@ builder.Services.AddSingleton<IDeliveryTargetDispatcher>(static serviceProvider 
         serviceProvider.GetRequiredService<DomainConcurrencyDeliveryTargetDispatcher>()));
 builder.Services.AddSingleton<DeliveryQueueProcessor>();
 builder.Services.AddSingleton<IImapConnectionStreamFactory, PlainImapConnectionStreamFactory>();
-builder.Services.AddSingleton<IPop3ConnectionStreamFactory, PlainPop3ConnectionStreamFactory>();
+builder.Services.AddSingleton<IPop3ConnectionStreamFactory>(_ =>
+    pop3TlsCertificate is null
+        ? new PlainPop3ConnectionStreamFactory()
+        : new ImplicitTlsPop3ConnectionStreamFactory(
+            () => TlsServerAuthenticationOptionsFactory.Create(pop3TlsCertificate)));
 builder.Services.AddSingleton<ISmtpConnectionStreamFactory>(_ =>
     smtpTlsCertificate is null
         ? new PlainSmtpConnectionStreamFactory()
@@ -312,7 +319,7 @@ static X509Certificate2? LoadCertificate(string? path, string? password)
         loaderLimits: null);
     if (!certificate.HasPrivateKey)
     {
-        throw new InvalidOperationException("SMTP TLS certificate must include a private key.");
+        throw new InvalidOperationException("TLS certificate must include a private key.");
     }
 
     return certificate;

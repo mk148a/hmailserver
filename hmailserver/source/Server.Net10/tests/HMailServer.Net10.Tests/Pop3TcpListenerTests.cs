@@ -1,8 +1,12 @@
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using HMailServer.Core.Abstractions;
 using HMailServer.Protocols.Pop3;
+using HMailServer.Security;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HMailServer.Net10.Tests;
@@ -61,7 +65,57 @@ public sealed class Pop3TcpListenerTests
         await StopListenerAsync(runTask, cts);
     }
 
-    private static Pop3TcpListener CreateListener(int maxConcurrentConnections)
+    [TestMethod]
+    public async Task RunAsync_AcceptsImplicitTlsClientWhenCertificateIsConfigured()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var rsa = RSA.Create(2048);
+        var request = new CertificateRequest(
+            "CN=hmailserver.test",
+            rsa,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        using var rawCertificate = request.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddDays(-1),
+            DateTimeOffset.UtcNow.AddDays(1));
+        using var certificate = X509CertificateLoader.LoadPkcs12(
+            rawCertificate.Export(X509ContentType.Pkcs12),
+            null,
+            X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet,
+            loaderLimits: null);
+        var listener = CreateListener(
+            maxConcurrentConnections: 10,
+            streamFactory: new ImplicitTlsPop3ConnectionStreamFactory(
+                () => TlsServerAuthenticationOptionsFactory.Create(certificate)));
+        var runTask = listener.RunAsync(cts.Token);
+        var endpoint = await listener.Started.WaitAsync(cts.Token);
+
+        using var client = new TcpClient();
+        await client.ConnectAsync(endpoint.Address, endpoint.Port, cts.Token);
+        await using var tlsStream = new SslStream(
+            client.GetStream(),
+            leaveInnerStreamOpen: false,
+            userCertificateValidationCallback: static (_, _, _, _) => true);
+        await tlsStream.AuthenticateAsClientAsync(
+            new SslClientAuthenticationOptions
+            {
+                TargetHost = "hmailserver.test",
+                CertificateRevocationCheckMode = X509RevocationMode.NoCheck
+            },
+            cts.Token).ConfigureAwait(false);
+        using var reader = CreateReader(tlsStream);
+        await using var writer = CreateWriter(tlsStream);
+
+        Assert.AreEqual("+OK hMailServer .NET 10 POP3 ready", await ReadLineAsync(reader, cts.Token));
+        await WriteLineAsync(writer, "QUIT", cts.Token);
+        Assert.AreEqual("+OK hMailServer POP3 server signing off", await ReadLineAsync(reader, cts.Token));
+
+        await StopListenerAsync(runTask, cts);
+    }
+
+    private static Pop3TcpListener CreateListener(
+        int maxConcurrentConnections,
+        IPop3ConnectionStreamFactory? streamFactory = null)
     {
         var message = Encoding.ASCII.GetBytes("Subject: one\r\n\r\nBody\r\n");
         var session = new Pop3Session(
@@ -69,7 +123,7 @@ public sealed class Pop3TcpListenerTests
             new FakePop3MailboxStore(new StoredMessage(101, "101", message)));
         return new Pop3TcpListener(
             session,
-            new PlainPop3ConnectionStreamFactory(),
+            streamFactory ?? new PlainPop3ConnectionStreamFactory(),
             new Pop3TcpListenerOptions
             {
                 ListenAddress = IPAddress.Loopback,
