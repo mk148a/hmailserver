@@ -60,6 +60,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SQL auto-ban recorder mirrors legacy failed-logon settings, records `hm_logon_failures`, clears expired failures, creates deny `hm_securityranges` rows when the threshold is reached, and is wired into IMAP/SMTP/POP3 failed authentication paths.
 - Done: POP3 implicit TLS listener wiring uses `SslStream` and configured PFX certificates before the session greeting.
 - Done: SQL Server external fetch account store leases due legacy `hm_fetchaccounts`, defers inactive account/domain rows, decrypts legacy Blowfish passwords, and tracks `hm_fetchaccounts_uids`.
+- Done: external fetch MIME/Received recipient resolution uses the SMTP recipient validator and applies legacy local/route recipient filtering.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 - Done: ClamAV antivirus pipeline wiring for SMTP queue acceptance and external POP3 fetch account `UseAntiVirus` scans.
 - Done: async/timeboxed SpamAssassin client and SMTP receiver pipeline wiring, preserving original messages on invalid/partial spamd responses and honoring external fetch account `UseAntiSpam`.
@@ -142,7 +143,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external fetch processor core that leases accounts, uses a bounded POP3 session abstraction, removes stale UID rows, runs `OnExternalAccountDownload` for new and already-known remote UIDs, queues accepted messages through the SMTP receiver path, and applies legacy remote delete retention decisions.
    - Done: external POP3 network session factory and hosted worker scheduling with plain, implicit TLS, and STLS modes, plus UIDL/RETR/DELE/QUIT loopback protocol coverage.
    - Done: external fetch received-time parity from valid `Received` header dates, falling back to `Date` and then current UTC when MIME dates are missing or outside legacy bounds.
-   - Remaining: richer MIME recipient validation/parity and full spam score/header policy parity.
+   - Done: external fetch MIME recipient headers and `Received ... for <recipient>` values resolve through the SQL SMTP recipient validator, then preserve legacy local-account filtering unless route recipients are enabled.
+   - Remaining: additional external fetch edge-case parity and full spam score/header policy parity.
 
 5. Security and anti-abuse modernization.
    - Done: SQL failed-logon auto-ban recorder preserves legacy settings/table compatibility, deny-range creation semantics, and IMAP/SMTP/POP3 threshold-triggered disconnect wiring.
@@ -169,4 +171,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Finish external fetch MIME recipient validation/parity, continue full legacy SMTP script object/event parity, and keep delivery status observability/bounce template parity verified as the queue worker evolves.
+Continue full legacy SMTP script object/event parity, keep delivery status observability/bounce template parity verified as the queue worker evolves, and close remaining external fetch edge cases as they surface.
