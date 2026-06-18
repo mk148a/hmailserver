@@ -61,6 +61,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: POP3 implicit TLS listener wiring uses `SslStream` and configured PFX certificates before the session greeting.
 - Done: SQL Server external fetch account store leases due legacy `hm_fetchaccounts`, defers inactive account/domain rows, decrypts legacy Blowfish passwords, and tracks `hm_fetchaccounts_uids`.
 - Done: modern TLS option factory and spam/virus protocol helpers.
+- Done: ClamAV antivirus pipeline wiring for SMTP queue acceptance and external POP3 fetch account `UseAntiVirus` scans.
 
 ## Production Parity Backlog
 
@@ -140,12 +141,13 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external fetch processor core that leases accounts, uses a bounded POP3 session abstraction, removes stale UID rows, runs `OnExternalAccountDownload` for new and already-known remote UIDs, queues accepted messages through the SMTP receiver path, and applies legacy remote delete retention decisions.
    - Done: external POP3 network session factory and hosted worker scheduling with plain, implicit TLS, and STLS modes, plus UIDL/RETR/DELE/QUIT loopback protocol coverage.
    - Done: external fetch received-time parity from valid `Received` header dates, falling back to `Date` and then current UTC when MIME dates are missing or outside legacy bounds.
-   - Remaining: richer MIME recipient validation/parity and antivirus/spam pipeline integration.
+   - Remaining: richer MIME recipient validation/parity and spam pipeline integration.
 
 5. Security and anti-abuse modernization.
    - Done: SQL failed-logon auto-ban recorder preserves legacy settings/table compatibility, deny-range creation semantics, and IMAP/SMTP/POP3 threshold-triggered disconnect wiring.
    - Done: async/timeboxed ClamAV INSTREAM client with raw network-order chunk framing, bounded streaming, clean/infected/error result parsing, and fake-daemon protocol tests.
-   - Async/timeboxed SpamAssassin client and ClamAV/SpamAssassin pipeline wiring.
+   - Done: ClamAV scanner adapter wired into SMTP receive processing and external POP3 fetch, including fail-closed scan errors, infected-message rejection/skipping, and account-level antivirus enablement.
+   - Async/timeboxed SpamAssassin client and SpamAssassin pipeline wiring.
    - SPF, DKIM, DMARC, DNSBL, SURBL, PTR/MX checks, greylisting, attachment blocking.
    - Implicit TLS stream factories and listener ports; STARTTLS uses OS default TLS policy and online certificate revocation checks.
 
@@ -166,4 +168,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Wire the ClamAV client into the antivirus pipeline, add the SpamAssassin async client, then finish external fetch MIME recipient validation/parity and continue SMTP script object/event parity.
+Add the SpamAssassin async client and spam pipeline wiring, then finish external fetch MIME recipient validation/parity and continue SMTP script object/event parity.
