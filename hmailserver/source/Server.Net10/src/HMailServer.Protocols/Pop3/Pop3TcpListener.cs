@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
 
@@ -101,8 +102,8 @@ public sealed class Pop3TcpListener
         {
             using (client)
             {
-                var connectionContext = CreateConnectionContext(client);
                 await using var stream = await _streamFactory.OpenStreamAsync(client, cancellationToken).ConfigureAwait(false);
+                var connectionContext = CreateConnectionContext(client, isEncryptedConnection: stream is SslStream);
                 await _session.RunAsync(stream, connectionContext, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -168,13 +169,16 @@ public sealed class Pop3TcpListener
         client.SendBufferSize = _options.SendBufferBytes;
     }
 
-    private Pop3SessionConnectionContext CreateConnectionContext(TcpClient client)
+    private Pop3SessionConnectionContext CreateConnectionContext(
+        TcpClient client,
+        bool isEncryptedConnection)
     {
         var remoteEndPoint = client.Client.RemoteEndPoint as IPEndPoint;
         return new Pop3SessionConnectionContext(
             remoteEndPoint?.Address.ToString() ?? string.Empty,
             remoteEndPoint?.Port ?? 0,
-            Interlocked.Increment(ref _nextSessionId));
+            Interlocked.Increment(ref _nextSessionId),
+            isEncryptedConnection);
     }
 
     private static void ValidateOptions(Pop3TcpListenerOptions options)

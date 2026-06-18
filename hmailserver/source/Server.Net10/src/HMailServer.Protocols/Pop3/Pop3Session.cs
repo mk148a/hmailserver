@@ -18,19 +18,22 @@ public sealed class Pop3Session
     private readonly IPop3MailboxLockManager? _mailboxLockManager;
     private readonly Pop3SessionOptions _options;
     private readonly IAutoBanLogonFailureRecorder? _autoBanLogonFailureRecorder;
+    private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
 
     public Pop3Session(
         IImapAccountAuthenticator accountAuthenticator,
         IPop3MailboxStore mailboxStore,
         Pop3SessionOptions? options = null,
         IPop3MailboxLockManager? mailboxLockManager = null,
-        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null)
+        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null,
+        ISmtpEventScriptExecutor? eventScriptExecutor = null)
     {
         _accountAuthenticator = accountAuthenticator;
         _mailboxStore = mailboxStore;
         _mailboxLockManager = mailboxLockManager;
         _options = options ?? new Pop3SessionOptions();
         _autoBanLogonFailureRecorder = autoBanLogonFailureRecorder;
+        _eventScriptExecutor = eventScriptExecutor;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.Greeting);
     }
@@ -250,6 +253,11 @@ public sealed class Pop3Session
             .ConfigureAwait(false);
         if (!result.Succeeded || result.Account is null)
         {
+            RunClientLogonEvent(
+                state,
+                state.PendingUsername,
+                isAuthenticated: false,
+                cancellationToken);
             await WriteErrAsync(
                 stream,
                 SanitizeResponseText(result.FailureMessage.Length == 0
@@ -288,6 +296,11 @@ public sealed class Pop3Session
             }
         }
 
+        RunClientLogonEvent(
+            state,
+            result.Account.Address,
+            isAuthenticated: true,
+            cancellationToken);
         await WriteOkAsync(stream, "Mailbox locked and ready", cancellationToken).ConfigureAwait(false);
         return false;
     }
@@ -296,9 +309,49 @@ public sealed class Pop3Session
         SessionState state,
         string username,
         CancellationToken cancellationToken) =>
-        await _autoBanLogonFailureRecorder
-            .TryRecordFailureAsync(state.ClientIPAddress, username, cancellationToken)
-            .ConfigureAwait(false);
+        _autoBanLogonFailureRecorder is not null
+            && await _autoBanLogonFailureRecorder
+                .TryRecordFailureAsync(state.ClientIPAddress, username, cancellationToken)
+                .ConfigureAwait(false);
+
+    private void RunClientLogonEvent(
+        SessionState state,
+        string username,
+        bool isAuthenticated,
+        CancellationToken cancellationToken)
+    {
+        if (_eventScriptExecutor is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _eventScriptExecutor.Execute(
+                new SmtpEventScriptExecutionRequest(
+                    "OnClientLogon",
+                    new SmtpEventScriptClient(
+                        username,
+                        state.ClientIPAddress,
+                        state.ClientPort,
+                        state.SessionId,
+                        HeloHost: string.Empty,
+                        IsAuthenticated: isAuthenticated,
+                        IsEncryptedConnection: state.IsEncryptedConnection),
+                    MailFrom: string.Empty,
+                    Recipients: [],
+                    MessageData: [],
+                    SmtpEventScriptArgumentShape.ClientOnly),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+        }
+    }
 
     private static async ValueTask HandleStatAsync(
         Stream stream,
@@ -725,6 +778,7 @@ public sealed class Pop3Session
             ClientIPAddress = connectionContext.ClientIPAddress;
             ClientPort = connectionContext.ClientPort;
             SessionId = connectionContext.SessionId;
+            IsEncryptedConnection = connectionContext.IsEncryptedConnection;
         }
 
         public string ClientIPAddress { get; }
@@ -732,6 +786,8 @@ public sealed class Pop3Session
         public int ClientPort { get; }
 
         public long SessionId { get; }
+
+        public bool IsEncryptedConnection { get; }
 
         public string? PendingUsername { get; set; }
 

@@ -108,6 +108,73 @@ public sealed class Pop3SessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_RunsOnClientLogonAfterSuccessfulPass()
+    {
+        var store = new FakePop3MailboxStore(Array.Empty<StoredMessage>());
+        await using var stream = new DuplexMemoryStream(
+            "USER user@example.test\r\n" +
+            "PASS secret\r\n" +
+            "QUIT\r\n");
+        var eventExecutor = new CapturingEventScriptExecutor();
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            store,
+            eventScriptExecutor: eventExecutor);
+
+        await session.RunAsync(
+            stream,
+            new Pop3SessionConnectionContext(
+                ClientIPAddress: "203.0.113.20",
+                ClientPort: 995,
+                SessionId: 45,
+                IsEncryptedConnection: true),
+            CancellationToken.None);
+
+        var request = eventExecutor.Requests.Single();
+        Assert.AreEqual("OnClientLogon", request.EventName);
+        Assert.AreEqual(SmtpEventScriptArgumentShape.ClientOnly, request.ArgumentShape);
+        Assert.AreEqual("user@example.test", request.Client.Username);
+        Assert.AreEqual("203.0.113.20", request.Client.IPAddress);
+        Assert.AreEqual(995, request.Client.Port);
+        Assert.AreEqual(45, request.Client.SessionId);
+        Assert.IsTrue(request.Client.IsAuthenticated);
+        Assert.IsTrue(request.Client.IsEncryptedConnection);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RunsOnClientLogonAfterFailedPass()
+    {
+        var store = new FakePop3MailboxStore(Array.Empty<StoredMessage>());
+        await using var stream = new DuplexMemoryStream(
+            "USER user@example.test\r\n" +
+            "PASS wrong\r\n" +
+            "QUIT\r\n");
+        var eventExecutor = new CapturingEventScriptExecutor();
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            store,
+            eventScriptExecutor: eventExecutor);
+
+        await session.RunAsync(
+            stream,
+            new Pop3SessionConnectionContext(
+                ClientIPAddress: "203.0.113.21",
+                ClientPort: 110,
+                SessionId: 46),
+            CancellationToken.None);
+
+        var request = eventExecutor.Requests.Single();
+        Assert.AreEqual("OnClientLogon", request.EventName);
+        Assert.AreEqual("user@example.test", request.Client.Username);
+        Assert.AreEqual("203.0.113.21", request.Client.IPAddress);
+        Assert.AreEqual(110, request.Client.Port);
+        Assert.AreEqual(46, request.Client.SessionId);
+        Assert.IsFalse(request.Client.IsAuthenticated);
+        Assert.IsFalse(request.Client.IsEncryptedConnection);
+        Assert.AreEqual(0, store.ListCallCount);
+    }
+
+    [TestMethod]
     public async Task RunAsync_DeletesAreInvisibleUntilResetOrQuitCommit()
     {
         var store = new FakePop3MailboxStore(
@@ -317,6 +384,19 @@ public sealed class Pop3SessionTests
         }
 
         public ValueTask ClearOldFailuresAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
+    }
+
+    private sealed class CapturingEventScriptExecutor : ISmtpEventScriptExecutor
+    {
+        public List<SmtpEventScriptExecutionRequest> Requests { get; } = [];
+
+        public SmtpRuleScriptExecutionResult Execute(
+            SmtpEventScriptExecutionRequest request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return SmtpRuleScriptExecutionResult.Continue();
+        }
     }
 
     private sealed class FakePop3MailboxStore : IPop3MailboxStore
