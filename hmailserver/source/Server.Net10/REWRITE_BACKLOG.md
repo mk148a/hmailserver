@@ -68,6 +68,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: optional spam policy pipeline adds legacy `X-hMailServer-Spam`, `X-hMailServer-Reason-*`, and subject-prefix mutations after successful spam scans.
 - Done: spam policy mark threshold sets the legacy `eMFSpam` queue flag (`128`) while preserving the default `\Recent` flag.
 - Done: spam policy delete threshold rejects matching SMTP messages with `554` before antivirus scanning and queue persistence.
+- Done: optional MIME-aware attachment blocking replaces matching SMTP attachments with legacy-style text attachments before antivirus scanning and queue persistence.
 - Done: external POP3 fetch treats permanent SMTP receiver rejections as non-accepted messages with normal UID/remote-delete retention instead of failing the whole account batch.
 - Done: script message facade exposes legacy `Flag(eMessageFlag)` bitmask access over `State` for VBScript/JScript handlers.
 - Done: JScript message facade exposes the legacy `Filename` alias alongside the existing `FileName` path.
@@ -163,7 +164,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: optional hMailServer spam header/subject policy for `X-hMailServer-Spam`, `X-hMailServer-Reason-*`, score header replacement, and subject prefixing.
    - Done: hMailServer spam mark threshold maps scan scores to the legacy spam message flag before queue persistence.
    - Done: hMailServer spam delete/reject threshold maps scan scores to SMTP `554` rejection before antivirus/queue persistence.
-   - Remaining: SPF, DKIM, DMARC, DNSBL, SURBL, PTR/MX checks, greylisting, attachment blocking.
+   - Done: optional attachment blocking policy replaces matching MIME attachments with text notice attachments before antivirus/queue persistence.
+   - Remaining: SPF, DKIM, DMARC, DNSBL, SURBL, PTR/MX checks, greylisting.
    - Implicit TLS stream factories and listener ports; STARTTLS uses OS default TLS policy and online certificate revocation checks.
 
 6. COM/API compatibility.
