@@ -137,7 +137,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: process-local mailbox lock parity for one POP3 session per account mailbox.
    - Done: implicit TLS listener stream factory and service certificate configuration for POP3.
    - Done: SQL Server external fetch account lease/UID store for existing `hm_fetchaccounts` and `hm_fetchaccounts_uids`.
-   - Remaining: External POP3 network fetch worker, message ingestion, delete-after-days cleanup, and antivirus/spam pipeline integration.
+   - Done: external fetch processor core that leases accounts, uses a bounded POP3 session abstraction, removes stale UID rows, runs `OnExternalAccountDownload` for new and already-known remote UIDs, queues accepted messages through the SMTP receiver path, and applies legacy remote delete retention decisions.
+   - Remaining: External POP3 network session factory, hosted-service scheduling, richer MIME recipient/date parity, and antivirus/spam pipeline integration.
 
 5. Security and anti-abuse modernization.
    - Done: SQL failed-logon auto-ban recorder preserves legacy settings/table compatibility, deny-range creation semantics, and IMAP/SMTP/POP3 threshold-triggered disconnect wiring.
@@ -162,4 +163,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue SMTP production pipeline with remaining script object/event parity, then wire the POP3 external fetch network ingestion worker into the lease store and script hook before returning to antivirus/spam pipeline integration.
+Implement the external POP3 network session factory and hosted service around the new processor core, then continue SMTP script object/event parity and return to antivirus/spam pipeline integration.
