@@ -120,8 +120,9 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `OnTooManyInvalidCommands` protocol event hook plus disconnect-invalid-clients/maximum-incorrect-commands session policy.
    - Done: delivery queue `OnDeliveryStart` and `OnDeliverMessage` script hooks before target resolution with queue-file mutation persistence and legacy `Result.Value = 1` drop handling.
    - Done: delivery queue `OnDeliveryFailed` script hook for final failed recipients with legacy recipient/error arguments.
+   - Done: delivery queue status observer boundary with best-effort events for lease, load-missing, target success/defer/final failure, bounce, completion, release, and processing-failure transitions.
    - Remaining: full legacy script object model and remaining protocol/delivery event scripting hooks.
-   - Delivery queue worker remaining: delivery status observability and richer bounce templates.
+   - Delivery queue worker remaining: durable delivery status sink/metrics and richer bounce templates.
 
 4. POP3 and external fetch.
    - Done: POP3 session command engine with shared account authentication, session-held deletes committed on `QUIT`, `RSET` undo, `LIST`/`UIDL` visibility checks, and streaming `RETR` dot-stuffing.
@@ -156,4 +157,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue POP3 toward the external fetch network worker, message ingestion, delete-after-days cleanup, antivirus/spam pipeline integration, and remaining authentication/script-object parity.
+Continue SMTP production pipeline with durable delivery status sink/metrics, richer bounce templates, and remaining script object/event parity, then return to POP3 external fetch ingestion and antivirus/spam pipeline integration.
