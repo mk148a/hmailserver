@@ -12,6 +12,7 @@ public sealed class DeliveryQueueProcessor
     private readonly IDeliveryBounceStore _bounceStore;
     private readonly IDeliveryEventScriptExecutor? _deliveryEventScriptExecutor;
     private readonly IDeliveryMessageContentStore? _messageContentStore;
+    private readonly IDeliveryQueueStatusObserver _statusObserver;
 
     public DeliveryQueueProcessor(
         IDeliveryQueueLeaseStore leaseStore,
@@ -21,7 +22,8 @@ public sealed class DeliveryQueueProcessor
         IDeliveryQueueRecipientStore recipientStore,
         IDeliveryBounceStore bounceStore,
         IDeliveryEventScriptExecutor? deliveryEventScriptExecutor = null,
-        IDeliveryMessageContentStore? messageContentStore = null)
+        IDeliveryMessageContentStore? messageContentStore = null,
+        IDeliveryQueueStatusObserver? statusObserver = null)
     {
         _leaseStore = leaseStore;
         _messageStore = messageStore;
@@ -31,6 +33,7 @@ public sealed class DeliveryQueueProcessor
         _bounceStore = bounceStore;
         _deliveryEventScriptExecutor = deliveryEventScriptExecutor;
         _messageContentStore = messageContentStore;
+        _statusObserver = statusObserver ?? NullDeliveryQueueStatusObserver.Instance;
     }
 
     public async ValueTask<int> RunBatchAsync(
@@ -66,10 +69,27 @@ public sealed class DeliveryQueueProcessor
     {
         try
         {
+            await RecordStatusAsync(
+                DeliveryQueueStatusEventKind.MessageLeased,
+                identity,
+                options,
+                cancellationToken).ConfigureAwait(false);
+
             var message = await _messageStore.TryLoadAsync(identity, options.LeaseOwner, cancellationToken).ConfigureAwait(false);
             if (message is null)
             {
                 await _leaseStore.ReleaseAsync(identity.MessageId, options.LeaseOwner, cancellationToken).ConfigureAwait(false);
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.MessageLoadMissing,
+                    identity,
+                    options,
+                    cancellationToken,
+                    description: "The leased delivery queue message could not be loaded.").ConfigureAwait(false);
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.MessageReleased,
+                    identity,
+                    options,
+                    cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -82,6 +102,7 @@ public sealed class DeliveryQueueProcessor
                 await DeferAfterDeliveryEventFailureAsync(
                     identity,
                     options,
+                    "OnDeliveryStart failed.",
                     cancellationToken).ConfigureAwait(false);
                 return;
             }
@@ -89,6 +110,19 @@ public sealed class DeliveryQueueProcessor
             if (deliveryStart.DropMessage)
             {
                 await _leaseStore.CompleteAsync(identity.MessageId, options.LeaseOwner, cancellationToken).ConfigureAwait(false);
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.MessageDroppedByEvent,
+                    identity,
+                    options,
+                    cancellationToken,
+                    message: deliveryStart.Message,
+                    description: "OnDeliveryStart requested message drop.").ConfigureAwait(false);
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.MessageCompleted,
+                    identity,
+                    options,
+                    cancellationToken,
+                    message: deliveryStart.Message).ConfigureAwait(false);
                 return;
             }
 
@@ -103,6 +137,7 @@ public sealed class DeliveryQueueProcessor
                 await DeferAfterDeliveryEventFailureAsync(
                     identity,
                     options,
+                    "OnDeliverMessage failed.",
                     cancellationToken).ConfigureAwait(false);
                 return;
             }
@@ -110,6 +145,19 @@ public sealed class DeliveryQueueProcessor
             if (deliverMessage.DropMessage)
             {
                 await _leaseStore.CompleteAsync(identity.MessageId, options.LeaseOwner, cancellationToken).ConfigureAwait(false);
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.MessageDroppedByEvent,
+                    identity,
+                    options,
+                    cancellationToken,
+                    message: deliverMessage.Message,
+                    description: "OnDeliverMessage requested message drop.").ConfigureAwait(false);
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.MessageCompleted,
+                    identity,
+                    options,
+                    cancellationToken,
+                    message: deliverMessage.Message).ConfigureAwait(false);
                 return;
             }
 
@@ -119,6 +167,19 @@ public sealed class DeliveryQueueProcessor
             if (targetBatches.Count == 0)
             {
                 await _leaseStore.CompleteAsync(identity.MessageId, options.LeaseOwner, cancellationToken).ConfigureAwait(false);
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.NoDeliveryTargets,
+                    identity,
+                    options,
+                    cancellationToken,
+                    message: message,
+                    description: "No local, route, or remote delivery targets were resolved.").ConfigureAwait(false);
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.MessageCompleted,
+                    identity,
+                    options,
+                    cancellationToken,
+                    message: message).ConfigureAwait(false);
                 return;
             }
 
@@ -132,21 +193,49 @@ public sealed class DeliveryQueueProcessor
                         options.LeaseOwner,
                         targetBatch,
                         cancellationToken).ConfigureAwait(false);
+                    await RecordStatusAsync(
+                        DeliveryQueueStatusEventKind.TargetDeliverySucceeded,
+                        identity,
+                        options,
+                        cancellationToken,
+                        targetBatch,
+                        message).ConfigureAwait(false);
                     continue;
                 }
 
                 if (ShouldBounce(message, result, options))
                 {
+                    var failureDescription = result.Error ?? "Delivery failed.";
                     message = await RunDeliveryFailedEventsAsync(
                         message,
                         targetBatch.Recipients,
-                        result.Error ?? "Delivery failed.",
+                        failureDescription,
                         cancellationToken).ConfigureAwait(false);
-                    await _bounceStore.SubmitBounceAsync(
+                    await RecordStatusAsync(
+                        DeliveryQueueStatusEventKind.TargetDeliveryFailedPermanently,
+                        identity,
+                        options,
+                        cancellationToken,
+                        targetBatch,
+                        message,
+                        failureKind: result.FailureKind,
+                        description: failureDescription).ConfigureAwait(false);
+                    var bounceResult = await _bounceStore.SubmitBounceAsync(
                         message,
                         targetBatch.Recipients,
-                        result.Error ?? "Delivery failed.",
+                        failureDescription,
                         cancellationToken).ConfigureAwait(false);
+                    await RecordStatusAsync(
+                        bounceResult.Submitted
+                            ? DeliveryQueueStatusEventKind.BounceSubmitted
+                            : DeliveryQueueStatusEventKind.BounceSkipped,
+                        identity,
+                        options,
+                        cancellationToken,
+                        targetBatch,
+                        message,
+                        failureKind: result.FailureKind,
+                        description: bounceResult.Reason ?? failureDescription).ConfigureAwait(false);
                     await DeleteRecipientsAsync(
                         message,
                         options.LeaseOwner,
@@ -155,22 +244,48 @@ public sealed class DeliveryQueueProcessor
                     continue;
                 }
 
+                var retryDelay = result.RetryDelay ?? CalculateRetryDelay(message.CurrentRetryCount, options);
                 await _leaseStore.DeferAsync(
                     identity.MessageId,
                     options.LeaseOwner,
-                    result.RetryDelay ?? CalculateRetryDelay(message.CurrentRetryCount, options),
+                    retryDelay,
                     incrementRetryCount: true,
                     cancellationToken).ConfigureAwait(false);
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.TargetDeliveryDeferred,
+                    identity,
+                    options,
+                    cancellationToken,
+                    targetBatch,
+                    message,
+                    retryDelay,
+                    result.FailureKind,
+                    result.Error).ConfigureAwait(false);
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.MessageDeferred,
+                    identity,
+                    options,
+                    cancellationToken,
+                    message: message,
+                    retryDelay: retryDelay,
+                    failureKind: result.FailureKind,
+                    description: result.Error).ConfigureAwait(false);
                 return;
             }
 
             await _leaseStore.CompleteAsync(identity.MessageId, options.LeaseOwner, cancellationToken).ConfigureAwait(false);
+            await RecordStatusAsync(
+                DeliveryQueueStatusEventKind.MessageCompleted,
+                identity,
+                options,
+                cancellationToken,
+                message: message).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch
+        catch (Exception exception)
         {
             await _leaseStore.DeferAsync(
                 identity.MessageId,
@@ -178,6 +293,20 @@ public sealed class DeliveryQueueProcessor
                 options.RetryDelay,
                 incrementRetryCount: true,
                 cancellationToken).ConfigureAwait(false);
+            await RecordStatusAsync(
+                DeliveryQueueStatusEventKind.ProcessingFailed,
+                identity,
+                options,
+                cancellationToken,
+                retryDelay: options.RetryDelay,
+                description: exception.Message).ConfigureAwait(false);
+            await RecordStatusAsync(
+                DeliveryQueueStatusEventKind.MessageDeferred,
+                identity,
+                options,
+                cancellationToken,
+                retryDelay: options.RetryDelay,
+                description: exception.Message).ConfigureAwait(false);
         }
     }
 
@@ -291,13 +420,23 @@ public sealed class DeliveryQueueProcessor
     private async ValueTask DeferAfterDeliveryEventFailureAsync(
         MessageIdentity identity,
         DeliveryQueueProcessorOptions options,
-        CancellationToken cancellationToken) =>
+        string description,
+        CancellationToken cancellationToken)
+    {
         await _leaseStore.DeferAsync(
             identity.MessageId,
             options.LeaseOwner,
             options.RetryDelay,
             incrementRetryCount: true,
             cancellationToken).ConfigureAwait(false);
+        await RecordStatusAsync(
+            DeliveryQueueStatusEventKind.MessageDeferred,
+            identity,
+            options,
+            cancellationToken,
+            retryDelay: options.RetryDelay,
+            description: description).ConfigureAwait(false);
+    }
 
     private static SmtpResolvedRecipient[] ToResolvedRecipients(
         IReadOnlyList<DeliveryQueueRecipient> recipients)
@@ -333,6 +472,43 @@ public sealed class DeliveryQueueProcessor
             leaseOwner,
             recipientIds,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask RecordStatusAsync(
+        DeliveryQueueStatusEventKind kind,
+        MessageIdentity identity,
+        DeliveryQueueProcessorOptions options,
+        CancellationToken cancellationToken,
+        DeliveryTargetBatch? targetBatch = null,
+        DeliveryQueuedMessage? message = null,
+        TimeSpan? retryDelay = null,
+        DeliveryFailureKind? failureKind = null,
+        string? description = null)
+    {
+        try
+        {
+            await _statusObserver.RecordAsync(
+                new DeliveryQueueStatusEvent(
+                    kind,
+                    identity.MessageId,
+                    options.LeaseOwner,
+                    targetBatch?.Target.Key,
+                    targetBatch?.Target.DomainName,
+                    targetBatch?.Target.Kind,
+                    targetBatch?.Recipients.Count ?? 0,
+                    message?.CurrentRetryCount ?? 0,
+                    retryDelay,
+                    failureKind,
+                    description),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+        }
     }
 
     private static bool ShouldBounce(

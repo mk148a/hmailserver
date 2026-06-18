@@ -27,13 +27,15 @@ public sealed class DeliveryQueueProcessorTests
             DeliveryTargetDispatchResult.Success(),
             DeliveryTargetDispatchResult.Success());
         var recipientStore = new FakeRecipientStore();
+        var statusObserver = new FakeStatusObserver();
         var processor = new DeliveryQueueProcessor(
             leaseStore,
             messageStore,
             resolver,
             dispatcher,
             recipientStore,
-            new FakeBounceStore());
+            new FakeBounceStore(),
+            statusObserver: statusObserver);
 
         var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
 
@@ -42,6 +44,17 @@ public sealed class DeliveryQueueProcessorTests
         CollectionAssert.AreEqual(new long[] { 1, 2 }, recipientStore.DeletedRecipientIds);
         Assert.AreEqual(10, leaseStore.CompletedMessageId);
         Assert.IsNull(leaseStore.DeferredMessageId);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                DeliveryQueueStatusEventKind.MessageLeased,
+                DeliveryQueueStatusEventKind.TargetDeliverySucceeded,
+                DeliveryQueueStatusEventKind.TargetDeliverySucceeded,
+                DeliveryQueueStatusEventKind.MessageCompleted
+            },
+            statusObserver.Kinds);
+        Assert.AreEqual("local:42", statusObserver.Events[1].TargetKey);
+        Assert.AreEqual("remote:remote.test", statusObserver.Events[2].TargetKey);
     }
 
     [TestMethod]
@@ -57,13 +70,15 @@ public sealed class DeliveryQueueProcessorTests
                 message.Recipients));
         var dispatcher = new FakeTargetDispatcher(
             DeliveryTargetDispatchResult.TransientFailure("Remote temporary failure.", TimeSpan.FromSeconds(30)));
+        var statusObserver = new FakeStatusObserver();
         var processor = new DeliveryQueueProcessor(
             leaseStore,
             messageStore,
             resolver,
             dispatcher,
             new FakeRecipientStore(),
-            new FakeBounceStore());
+            new FakeBounceStore(),
+            statusObserver: statusObserver);
 
         var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
 
@@ -72,6 +87,17 @@ public sealed class DeliveryQueueProcessorTests
         Assert.AreEqual(TimeSpan.FromSeconds(30), leaseStore.DeferredRetryDelay);
         Assert.IsTrue(leaseStore.DeferredIncrementRetryCount);
         Assert.IsNull(leaseStore.CompletedMessageId);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                DeliveryQueueStatusEventKind.MessageLeased,
+                DeliveryQueueStatusEventKind.TargetDeliveryDeferred,
+                DeliveryQueueStatusEventKind.MessageDeferred
+            },
+            statusObserver.Kinds);
+        Assert.AreEqual(TimeSpan.FromSeconds(30), statusObserver.Events[1].RetryDelay);
+        Assert.AreEqual(DeliveryFailureKind.Transient, statusObserver.Events[1].FailureKind);
+        Assert.AreEqual("Remote temporary failure.", statusObserver.Events[1].Description);
     }
 
     [TestMethod]
@@ -89,13 +115,15 @@ public sealed class DeliveryQueueProcessorTests
             DeliveryTargetDispatchResult.PermanentFailure("550 No such user."));
         var recipientStore = new FakeRecipientStore();
         var bounceStore = new FakeBounceStore();
+        var statusObserver = new FakeStatusObserver();
         var processor = new DeliveryQueueProcessor(
             leaseStore,
             messageStore,
             resolver,
             dispatcher,
             recipientStore,
-            bounceStore);
+            bounceStore,
+            statusObserver: statusObserver);
 
         var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
 
@@ -104,6 +132,17 @@ public sealed class DeliveryQueueProcessorTests
         Assert.IsNull(leaseStore.DeferredMessageId);
         Assert.AreEqual("550 No such user.", bounceStore.LastFailureDescription);
         CollectionAssert.AreEqual(new long[] { 2 }, recipientStore.DeletedRecipientIds);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                DeliveryQueueStatusEventKind.MessageLeased,
+                DeliveryQueueStatusEventKind.TargetDeliveryFailedPermanently,
+                DeliveryQueueStatusEventKind.BounceSubmitted,
+                DeliveryQueueStatusEventKind.MessageCompleted
+            },
+            statusObserver.Kinds);
+        Assert.AreEqual(DeliveryFailureKind.Permanent, statusObserver.Events[1].FailureKind);
+        Assert.AreEqual(1, statusObserver.Events[2].RecipientCount);
     }
 
     [TestMethod]
@@ -277,19 +316,29 @@ public sealed class DeliveryQueueProcessorTests
         var messageStore = new FakeMessageStore(message: null);
         var resolver = new FakeTargetResolver();
         var dispatcher = new FakeTargetDispatcher();
+        var statusObserver = new FakeStatusObserver();
         var processor = new DeliveryQueueProcessor(
             leaseStore,
             messageStore,
             resolver,
             dispatcher,
             new FakeRecipientStore(),
-            new FakeBounceStore());
+            new FakeBounceStore(),
+            statusObserver: statusObserver);
 
         var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
 
         Assert.AreEqual(1, processed);
         Assert.AreEqual(12, leaseStore.ReleasedMessageId);
         Assert.AreEqual(0, dispatcher.Dispatched.Count);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                DeliveryQueueStatusEventKind.MessageLeased,
+                DeliveryQueueStatusEventKind.MessageLoadMissing,
+                DeliveryQueueStatusEventKind.MessageReleased
+            },
+            statusObserver.Kinds);
     }
 
     private static DeliveryQueueProcessorOptions CreateOptions() =>
@@ -471,6 +520,24 @@ public sealed class DeliveryQueueProcessorTests
             LastFailureDescription = failureDescription;
             LastFailedRecipients = failedRecipients;
             return ValueTask.FromResult(DeliveryBounceResult.SubmittedResult());
+        }
+    }
+
+    private sealed class FakeStatusObserver : IDeliveryQueueStatusObserver
+    {
+        private readonly List<DeliveryQueueStatusEvent> _events = [];
+
+        public IReadOnlyList<DeliveryQueueStatusEvent> Events => _events;
+
+        public DeliveryQueueStatusEventKind[] Kinds =>
+            _events.Select(static statusEvent => statusEvent.Kind).ToArray();
+
+        public ValueTask RecordAsync(
+            DeliveryQueueStatusEvent statusEvent,
+            CancellationToken cancellationToken)
+        {
+            _events.Add(statusEvent);
+            return ValueTask.CompletedTask;
         }
     }
 

@@ -200,6 +200,7 @@ builder.Services.AddSingleton<IRemoteSmtpTransportFactory, TcpRemoteSmtpTranspor
 builder.Services.AddSingleton<IRemoteSmtpClient, SmtpRemoteDeliveryClient>();
 builder.Services.AddSingleton(RemoteDeliveryOptions.Default(smtpSessionOptions.ServerName));
 builder.Services.AddSingleton(DeliveryQueueProcessorOptions.Default(leaseOwner));
+builder.Services.AddSingleton<IDeliveryQueueStatusObserver>(NullDeliveryQueueStatusObserver.Instance);
 builder.Services.AddSingleton<LocalDeliveryTargetDispatcher>();
 builder.Services.AddSingleton<RemoteDeliveryTargetDispatcher>();
 builder.Services.AddSingleton(static serviceProvider =>
