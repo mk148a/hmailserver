@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using HMailServer.Core.Abstractions;
 using HMailServer.Protocols.Pop3;
@@ -73,6 +74,37 @@ public sealed class Pop3SessionTests
         StringAssert.Contains(output, "-ERR Invalid user name or password.\r\n");
         Assert.AreEqual(0, store.ListCallCount);
         CollectionAssert.AreEqual(Array.Empty<long>(), store.DeletedMessageIds.ToArray());
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RecordsAutoBanFailureAndDisconnectsWhenThresholdReached()
+    {
+        var store = new FakePop3MailboxStore(Array.Empty<StoredMessage>());
+        await using var stream = new DuplexMemoryStream(
+            "USER user@example.test\r\n" +
+            "PASS wrong\r\n" +
+            "STAT\r\n");
+        var autoBanRecorder = new CapturingAutoBanRecorder(disconnect: true);
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            store,
+            autoBanLogonFailureRecorder: autoBanRecorder);
+
+        await session.RunAsync(
+            stream,
+            new Pop3SessionConnectionContext(
+                ClientIPAddress: "203.0.113.14",
+                ClientPort: 1110,
+                SessionId: 44),
+            CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "-ERR Invalid user name or password.\r\n");
+        Assert.IsFalse(output.Contains("-ERR Authentication required\r\n", StringComparison.Ordinal));
+        var failure = autoBanRecorder.Failures.Single();
+        Assert.AreEqual(IPAddress.Parse("203.0.113.14"), failure.ClientAddress);
+        Assert.AreEqual("user@example.test", failure.Username);
+        Assert.AreEqual(0, store.ListCallCount);
     }
 
     [TestMethod]
@@ -257,6 +289,34 @@ public sealed class Pop3SessionTests
 
             return ValueTask.FromResult(ImapAuthenticationResult.Failure("Invalid user name or password."));
         }
+    }
+
+    private sealed class CapturingAutoBanRecorder : IAutoBanLogonFailureRecorder
+    {
+        private readonly bool _disconnect;
+
+        public CapturingAutoBanRecorder(bool disconnect)
+        {
+            _disconnect = disconnect;
+        }
+
+        public List<(IPAddress ClientAddress, string Username)> Failures { get; } = [];
+
+        public ValueTask<AutoBanLogonFailureResult> RecordFailureAsync(
+            IPAddress clientAddress,
+            string username,
+            CancellationToken cancellationToken)
+        {
+            Failures.Add((clientAddress, username));
+            return ValueTask.FromResult(
+                new AutoBanLogonFailureResult(
+                    Enabled: true,
+                    FailureCount: Failures.Count,
+                    Disconnect: _disconnect,
+                    RangeCreated: _disconnect));
+        }
+
+        public ValueTask ClearOldFailuresAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 
     private sealed class FakePop3MailboxStore : IPop3MailboxStore

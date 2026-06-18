@@ -27,6 +27,7 @@ public sealed class ImapSession
     private readonly IImapAccountAuthenticator? _accountAuthenticator;
     private readonly IImapMailboxStore? _mailboxStore;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
+    private readonly IAutoBanLogonFailureRecorder? _autoBanLogonFailureRecorder;
 
     public ImapSession(
         ImapSearchCommandHandler searchCommandHandler,
@@ -45,7 +46,8 @@ public sealed class ImapSession
         ImapSessionOptions? options = null,
         IImapAccountAuthenticator? accountAuthenticator = null,
         IImapMailboxStore? mailboxStore = null,
-        ISmtpEventScriptExecutor? eventScriptExecutor = null)
+        ISmtpEventScriptExecutor? eventScriptExecutor = null,
+        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null)
     {
         _searchCommandHandler = searchCommandHandler;
         _sortCommandHandler = sortCommandHandler;
@@ -64,6 +66,7 @@ public sealed class ImapSession
         _accountAuthenticator = accountAuthenticator;
         _mailboxStore = mailboxStore;
         _eventScriptExecutor = eventScriptExecutor;
+        _autoBanLogonFailureRecorder = autoBanLogonFailureRecorder;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
     }
 
@@ -144,12 +147,10 @@ public sealed class ImapSession
                 return false;
 
             case "LOGIN":
-                await HandleLoginAsync(stream, state, commandLine, cancellationToken).ConfigureAwait(false);
-                return false;
+                return await HandleLoginAsync(stream, state, commandLine, cancellationToken).ConfigureAwait(false);
 
             case "AUTHENTICATE":
-                await HandleAuthenticateAsync(stream, reader, state, commandLine, cancellationToken).ConfigureAwait(false);
-                return false;
+                return await HandleAuthenticateAsync(stream, reader, state, commandLine, cancellationToken).ConfigureAwait(false);
 
             case "SELECT":
             case "EXAMINE":
@@ -680,7 +681,7 @@ public sealed class ImapSession
         }
     }
 
-    private async ValueTask HandleLoginAsync(
+    private async ValueTask<bool> HandleLoginAsync(
         Stream stream,
         SessionState state,
         ImapCommandLine commandLine,
@@ -689,19 +690,19 @@ public sealed class ImapSession
         if (state.Account is not null)
         {
             await WriteTaggedAsync(stream, commandLine.Tag, "BAD Already authenticated", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         if (!IsAuthenticationAllowed(state))
         {
             await WriteTaggedAsync(stream, commandLine.Tag, "BAD A SSL/TLS-connection is required for authentication.", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         if (_accountAuthenticator is null)
         {
             await WriteTaggedAsync(stream, commandLine.Tag, "NO Authentication backend is not configured", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         IReadOnlyList<string> arguments;
@@ -712,16 +713,16 @@ public sealed class ImapSession
         catch (ImapSearchParseException ex)
         {
             await WriteTaggedAsync(stream, commandLine.Tag, $"BAD {SanitizeResponseText(ex.Message)}", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         if (arguments.Count != 2)
         {
             await WriteTaggedAsync(stream, commandLine.Tag, "BAD LOGIN requires username and password", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
-        await AuthenticateAndSetStateAsync(
+        return await AuthenticateAndSetStateAsync(
             stream,
             state,
             _accountAuthenticator,
@@ -732,7 +733,7 @@ public sealed class ImapSession
             cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask HandleAuthenticateAsync(
+    private async ValueTask<bool> HandleAuthenticateAsync(
         Stream stream,
         LineProtocolReader reader,
         SessionState state,
@@ -742,19 +743,19 @@ public sealed class ImapSession
         if (state.Account is not null)
         {
             await WriteTaggedAsync(stream, commandLine.Tag, "BAD Already authenticated", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         if (!IsAuthenticationAllowed(state))
         {
             await WriteTaggedAsync(stream, commandLine.Tag, "BAD A SSL/TLS-connection is required for authentication.", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         if (_accountAuthenticator is null)
         {
             await WriteTaggedAsync(stream, commandLine.Tag, "NO Authentication backend is not configured", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         IReadOnlyList<string> arguments;
@@ -765,14 +766,14 @@ public sealed class ImapSession
         catch (ImapSearchParseException ex)
         {
             await WriteTaggedAsync(stream, commandLine.Tag, $"BAD {SanitizeResponseText(ex.Message)}", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         if (arguments.Count is < 1 or > 2 ||
             !arguments[0].Equals("PLAIN", StringComparison.OrdinalIgnoreCase))
         {
             await WriteTaggedAsync(stream, commandLine.Tag, "BAD Unsupported Authenticate mechanism", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         string saslResponse;
@@ -786,13 +787,13 @@ public sealed class ImapSession
             var continuation = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
             if (continuation is null)
             {
-                return;
+                return true;
             }
 
             if (continuation.Equals("*", StringComparison.Ordinal))
             {
                 await WriteTaggedAsync(stream, commandLine.Tag, "BAD AUTHENTICATE cancelled", cancellationToken).ConfigureAwait(false);
-                return;
+                return false;
             }
 
             saslResponse = continuation;
@@ -806,17 +807,17 @@ public sealed class ImapSession
                 out var errorMessage))
         {
             await WriteTaggedAsync(stream, commandLine.Tag, $"BAD {errorMessage}", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         if (!string.IsNullOrEmpty(authorizationId) &&
             !authorizationId.Equals(username, StringComparison.OrdinalIgnoreCase))
         {
             await WriteTaggedAsync(stream, commandLine.Tag, "BAD Authorization identity is not supported", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
-        await AuthenticateAndSetStateAsync(
+        return await AuthenticateAndSetStateAsync(
             stream,
             state,
             _accountAuthenticator,
@@ -827,7 +828,7 @@ public sealed class ImapSession
             cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask AuthenticateAndSetStateAsync(
+    private async ValueTask<bool> AuthenticateAndSetStateAsync(
         Stream stream,
         SessionState state,
         IImapAccountAuthenticator authenticator,
@@ -847,13 +848,22 @@ public sealed class ImapSession
                 ? "Invalid user name or password."
                 : result.FailureMessage;
             await WriteTaggedAsync(stream, tag, $"NO {SanitizeResponseText(message)}", cancellationToken).ConfigureAwait(false);
-            return;
+            return await RecordAutoBanFailureAsync(state, username, cancellationToken).ConfigureAwait(false);
         }
 
         state.Account = result.Account;
         state.SelectedMailbox = null;
         await WriteTaggedAsync(stream, tag, successResponse, cancellationToken).ConfigureAwait(false);
+        return false;
     }
+
+    private async ValueTask<bool> RecordAutoBanFailureAsync(
+        SessionState state,
+        string username,
+        CancellationToken cancellationToken) =>
+        await _autoBanLogonFailureRecorder
+            .TryRecordFailureAsync(state.ClientIPAddress, username, cancellationToken)
+            .ConfigureAwait(false);
 
     private void RunClientLogonEvent(
         SessionState state,

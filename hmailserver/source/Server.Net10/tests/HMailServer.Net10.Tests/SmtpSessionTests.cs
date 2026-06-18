@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using HMailServer.Core.Abstractions;
 using HMailServer.Protocols.Smtp;
@@ -580,6 +581,38 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_AuthPlainRecordsAutoBanFailureAndDisconnectsWhenThresholdReached()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "wrong");
+        await using var stream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nNOOP\r\n");
+        var autoBanRecorder = new CapturingAutoBanRecorder(disconnect: true);
+        var session = new SmtpSession(
+            new SmtpSessionOptions(),
+            messageReceiver: null,
+            recipientValidator: null,
+            accountAuthenticator: new FakeAccountAuthenticator(),
+            eventScriptExecutor: null,
+            autoBanLogonFailureRecorder: autoBanRecorder);
+
+        await session.RunAsync(
+            stream,
+            startTlsStreamProvider: null,
+            connectionContext: new SmtpSessionConnectionContext(
+                ClientIPAddress: "203.0.113.13",
+                ClientPort: 2526,
+                SessionId: 43),
+            cancellationToken: CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "535 Authentication failed\r\n");
+        Assert.IsFalse(output.Contains("250 OK\r\n", StringComparison.Ordinal));
+        var failure = autoBanRecorder.Failures.Single();
+        Assert.AreEqual(IPAddress.Parse("203.0.113.13"), failure.ClientAddress);
+        Assert.AreEqual("user@example.test", failure.Username);
+    }
+
+    [TestMethod]
     public async Task RunAsync_WritesSyntaxErrorForInvalidLineTerminator()
     {
         await using var stream = new DuplexMemoryStream("NOOP\n");
@@ -778,5 +811,33 @@ public sealed class SmtpSessionTests
 
             return ValueTask.FromResult(ImapAuthenticationResult.Failure("Invalid user name or password."));
         }
+    }
+
+    private sealed class CapturingAutoBanRecorder : IAutoBanLogonFailureRecorder
+    {
+        private readonly bool _disconnect;
+
+        public CapturingAutoBanRecorder(bool disconnect)
+        {
+            _disconnect = disconnect;
+        }
+
+        public List<(IPAddress ClientAddress, string Username)> Failures { get; } = [];
+
+        public ValueTask<AutoBanLogonFailureResult> RecordFailureAsync(
+            IPAddress clientAddress,
+            string username,
+            CancellationToken cancellationToken)
+        {
+            Failures.Add((clientAddress, username));
+            return ValueTask.FromResult(
+                new AutoBanLogonFailureResult(
+                    Enabled: true,
+                    FailureCount: Failures.Count,
+                    Disconnect: _disconnect,
+                    RangeCreated: _disconnect));
+        }
+
+        public ValueTask ClearOldFailuresAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 }

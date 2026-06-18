@@ -1,3 +1,4 @@
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
 using HMailServer.Core.Abstractions;
@@ -184,6 +185,34 @@ public sealed class ImapSessionTests
         Assert.AreEqual(100, request.Client.SessionId);
         Assert.IsFalse(request.Client.IsAuthenticated);
         Assert.IsFalse(request.Client.IsEncryptedConnection);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RecordsAutoBanFailureAndDisconnectsWhenThresholdReached()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN \"user@example.test\" \"wrong\"\r\nA002 CAPABILITY\r\n");
+        var autoBanRecorder = new CapturingAutoBanRecorder(disconnect: true);
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            eventScriptExecutor: null,
+            autoBanLogonFailureRecorder: autoBanRecorder);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(
+                ClientIPAddress: "203.0.113.12",
+                ClientPort: 14303,
+                SessionId: 101),
+            CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "A001 NO Invalid user name or password.\r\n");
+        Assert.IsFalse(output.Contains("A002", StringComparison.Ordinal));
+        var failure = autoBanRecorder.Failures.Single();
+        Assert.AreEqual(IPAddress.Parse("203.0.113.12"), failure.ClientAddress);
+        Assert.AreEqual("user@example.test", failure.Username);
     }
 
     [TestMethod]
@@ -740,7 +769,8 @@ public sealed class ImapSessionTests
         IImapQuotaStore? quotaStore = null,
         IImapRecentFlagStore? recentFlagStore = null,
         ImapSessionOptions? options = null,
-        ISmtpEventScriptExecutor? eventScriptExecutor = null)
+        ISmtpEventScriptExecutor? eventScriptExecutor = null,
+        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null)
     {
         var executor = new ImapSearchExecutor(searchIndex);
         var handler = new ImapSearchCommandHandler(new ImapSearchCommandParser(), executor);
@@ -793,7 +823,8 @@ public sealed class ImapSessionTests
             options: options,
             accountAuthenticator: authenticator,
             mailboxStore: mailboxStore,
-            eventScriptExecutor: eventScriptExecutor);
+            eventScriptExecutor: eventScriptExecutor,
+            autoBanLogonFailureRecorder: autoBanLogonFailureRecorder);
     }
 
     private sealed class CapturingSearchIndex : IMessageSearchIndex
@@ -881,6 +912,34 @@ public sealed class ImapSessionTests
 
             return ValueTask.FromResult(ImapAuthenticationResult.Failure("Invalid user name or password."));
         }
+    }
+
+    private sealed class CapturingAutoBanRecorder : IAutoBanLogonFailureRecorder
+    {
+        private readonly bool _disconnect;
+
+        public CapturingAutoBanRecorder(bool disconnect)
+        {
+            _disconnect = disconnect;
+        }
+
+        public List<(IPAddress ClientAddress, string Username)> Failures { get; } = [];
+
+        public ValueTask<AutoBanLogonFailureResult> RecordFailureAsync(
+            IPAddress clientAddress,
+            string username,
+            CancellationToken cancellationToken)
+        {
+            Failures.Add((clientAddress, username));
+            return ValueTask.FromResult(
+                new AutoBanLogonFailureResult(
+                    Enabled: true,
+                    FailureCount: Failures.Count,
+                    Disconnect: _disconnect,
+                    RangeCreated: _disconnect));
+        }
+
+        public ValueTask ClearOldFailuresAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 
     private sealed class CapturingSmtpEventScriptExecutor : ISmtpEventScriptExecutor

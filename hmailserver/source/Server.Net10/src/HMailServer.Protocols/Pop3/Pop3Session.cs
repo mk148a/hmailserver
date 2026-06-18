@@ -17,17 +17,20 @@ public sealed class Pop3Session
     private readonly IPop3MailboxStore _mailboxStore;
     private readonly IPop3MailboxLockManager? _mailboxLockManager;
     private readonly Pop3SessionOptions _options;
+    private readonly IAutoBanLogonFailureRecorder? _autoBanLogonFailureRecorder;
 
     public Pop3Session(
         IImapAccountAuthenticator accountAuthenticator,
         IPop3MailboxStore mailboxStore,
         Pop3SessionOptions? options = null,
-        IPop3MailboxLockManager? mailboxLockManager = null)
+        IPop3MailboxLockManager? mailboxLockManager = null,
+        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null)
     {
         _accountAuthenticator = accountAuthenticator;
         _mailboxStore = mailboxStore;
         _mailboxLockManager = mailboxLockManager;
         _options = options ?? new Pop3SessionOptions();
+        _autoBanLogonFailureRecorder = autoBanLogonFailureRecorder;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.Greeting);
     }
@@ -36,11 +39,22 @@ public sealed class Pop3Session
         Stream stream,
         CancellationToken cancellationToken)
     {
+        await RunAsync(
+            stream,
+            connectionContext: null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask RunAsync(
+        Stream stream,
+        Pop3SessionConnectionContext? connectionContext,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(stream);
 
         await WriteAsync(stream, _options.Greeting, cancellationToken).ConfigureAwait(false);
 
-        var state = new SessionState();
+        var state = new SessionState(connectionContext ?? Pop3SessionConnectionContext.Empty);
         await using var reader = new LineProtocolReader(stream, _options.MaxLineBytes);
         try
         {
@@ -100,8 +114,7 @@ public sealed class Pop3Session
                 return false;
 
             case "PASS":
-                await HandlePassAsync(stream, state, arguments, cancellationToken).ConfigureAwait(false);
-                return false;
+                return await HandlePassAsync(stream, state, arguments, cancellationToken).ConfigureAwait(false);
 
             case "CAPA":
                 await WriteAsync(stream, "+OK Capability list follows\r\nUIDL\r\nTOP\r\nUSER\r\n.\r\n", cancellationToken).ConfigureAwait(false);
@@ -208,7 +221,7 @@ public sealed class Pop3Session
         await WriteOkAsync(stream, "User accepted", cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask HandlePassAsync(
+    private async ValueTask<bool> HandlePassAsync(
         Stream stream,
         SessionState state,
         string arguments,
@@ -217,19 +230,19 @@ public sealed class Pop3Session
         if (state.IsAuthenticated)
         {
             await WriteErrAsync(stream, "Already authenticated", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         if (state.PendingUsername is null)
         {
             await WriteErrAsync(stream, "USER required", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         if (arguments.Length == 0)
         {
             await WriteErrAsync(stream, "Syntax: PASS password", cancellationToken).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         var result = await _accountAuthenticator
@@ -243,7 +256,7 @@ public sealed class Pop3Session
                     ? "Invalid user name or password."
                     : result.FailureMessage),
                 cancellationToken).ConfigureAwait(false);
-            return;
+            return await RecordAutoBanFailureAsync(state, state.PendingUsername, cancellationToken).ConfigureAwait(false);
         }
 
         IAsyncDisposable? mailboxLock = null;
@@ -255,7 +268,7 @@ public sealed class Pop3Session
             if (mailboxLock is null)
             {
                 await WriteErrAsync(stream, "Your mailbox is already locked", cancellationToken).ConfigureAwait(false);
-                return;
+                return false;
             }
         }
 
@@ -276,7 +289,16 @@ public sealed class Pop3Session
         }
 
         await WriteOkAsync(stream, "Mailbox locked and ready", cancellationToken).ConfigureAwait(false);
+        return false;
     }
+
+    private async ValueTask<bool> RecordAutoBanFailureAsync(
+        SessionState state,
+        string username,
+        CancellationToken cancellationToken) =>
+        await _autoBanLogonFailureRecorder
+            .TryRecordFailureAsync(state.ClientIPAddress, username, cancellationToken)
+            .ConfigureAwait(false);
 
     private static async ValueTask HandleStatAsync(
         Stream stream,
@@ -697,6 +719,19 @@ public sealed class Pop3Session
     {
         private readonly HashSet<int> _deletedSequenceNumbers = new();
         private IAsyncDisposable? _mailboxLock;
+
+        public SessionState(Pop3SessionConnectionContext connectionContext)
+        {
+            ClientIPAddress = connectionContext.ClientIPAddress;
+            ClientPort = connectionContext.ClientPort;
+            SessionId = connectionContext.SessionId;
+        }
+
+        public string ClientIPAddress { get; }
+
+        public int ClientPort { get; }
+
+        public long SessionId { get; }
 
         public string? PendingUsername { get; set; }
 

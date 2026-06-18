@@ -15,6 +15,7 @@ public sealed class SmtpSession
     private readonly ISmtpRecipientValidator? _recipientValidator;
     private readonly IImapAccountAuthenticator? _accountAuthenticator;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
+    private readonly IAutoBanLogonFailureRecorder? _autoBanLogonFailureRecorder;
     private long _nextSessionId;
 
     public SmtpSession(
@@ -22,13 +23,15 @@ public sealed class SmtpSession
         ISmtpMessageReceiver? messageReceiver = null,
         ISmtpRecipientValidator? recipientValidator = null,
         IImapAccountAuthenticator? accountAuthenticator = null,
-        ISmtpEventScriptExecutor? eventScriptExecutor = null)
+        ISmtpEventScriptExecutor? eventScriptExecutor = null,
+        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null)
     {
         _options = options ?? new SmtpSessionOptions();
         _messageReceiver = messageReceiver;
         _recipientValidator = recipientValidator;
         _accountAuthenticator = accountAuthenticator;
         _eventScriptExecutor = eventScriptExecutor;
+        _autoBanLogonFailureRecorder = autoBanLogonFailureRecorder;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
         ArgumentOutOfRangeException.ThrowIfNegative(_options.MaxMessageBytes);
         ArgumentOutOfRangeException.ThrowIfNegative(_options.MaximumIncorrectCommands);
@@ -621,12 +624,25 @@ public sealed class SmtpSession
         if (!result.Succeeded || result.Account is null)
         {
             await WriteSmtpResponseAsync(stream, state, "535 Authentication failed", cancellationToken).ConfigureAwait(false);
+            if (await RecordAutoBanFailureAsync(state, username, cancellationToken).ConfigureAwait(false))
+            {
+                state.RequestDisconnect();
+            }
+
             return;
         }
 
         state.AuthenticatedAccount = result.Account;
         await WriteAsync(stream, "235 Authentication successful\r\n", cancellationToken).ConfigureAwait(false);
     }
+
+    private async ValueTask<bool> RecordAutoBanFailureAsync(
+        SessionState state,
+        string username,
+        CancellationToken cancellationToken) =>
+        await _autoBanLogonFailureRecorder
+            .TryRecordFailureAsync(state.ClientIPAddress, username, cancellationToken)
+            .ConfigureAwait(false);
 
     private void RunClientLogonEvent(
         SessionState state,

@@ -15,6 +15,7 @@ public sealed class Pop3TcpListener
     private readonly SemaphoreSlim _connectionSlots;
     private readonly ConcurrentDictionary<Task, byte> _sessions = new();
     private readonly TaskCompletionSource<IPEndPoint> _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private long _nextSessionId;
 
     public Pop3TcpListener(
         Pop3Session session,
@@ -100,8 +101,9 @@ public sealed class Pop3TcpListener
         {
             using (client)
             {
+                var connectionContext = CreateConnectionContext(client);
                 await using var stream = await _streamFactory.OpenStreamAsync(client, cancellationToken).ConfigureAwait(false);
-                await _session.RunAsync(stream, cancellationToken).ConfigureAwait(false);
+                await _session.RunAsync(stream, connectionContext, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -164,6 +166,15 @@ public sealed class Pop3TcpListener
         client.NoDelay = _options.NoDelay;
         client.ReceiveBufferSize = _options.ReceiveBufferBytes;
         client.SendBufferSize = _options.SendBufferBytes;
+    }
+
+    private Pop3SessionConnectionContext CreateConnectionContext(TcpClient client)
+    {
+        var remoteEndPoint = client.Client.RemoteEndPoint as IPEndPoint;
+        return new Pop3SessionConnectionContext(
+            remoteEndPoint?.Address.ToString() ?? string.Empty,
+            remoteEndPoint?.Port ?? 0,
+            Interlocked.Increment(ref _nextSessionId));
     }
 
     private static void ValidateOptions(Pop3TcpListenerOptions options)
