@@ -123,8 +123,9 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: delivery queue status observer boundary with best-effort events for lease, load-missing, target success/defer/final failure, bounce, completion, release, and processing-failure transitions.
    - Done: optional SQL Server delivery status sink and additive `hm_delivery_queue_status` migration for durable queue transition history.
    - Done: configurable delivery bounce subject/body templates with queue metadata tokens, failed-recipient formatting, header sanitization, and bounded failure descriptions.
+   - Done: delivery status retention cleanup worker with configurable retention window, interval, and batch size.
    - Remaining: full legacy script object model and remaining protocol/delivery event scripting hooks.
-   - Delivery queue worker remaining: status metrics/retention policy.
+   - Delivery queue worker remaining: status metrics/query surface.
 
 4. POP3 and external fetch.
    - Done: POP3 session command engine with shared account authentication, session-held deletes committed on `QUIT`, `RSET` undo, `LIST`/`UIDL` visibility checks, and streaming `RETR` dot-stuffing.
@@ -159,4 +160,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue SMTP production pipeline with status metrics/retention policy and remaining script object/event parity, then return to POP3 external fetch ingestion and antivirus/spam pipeline integration.
+Continue SMTP production pipeline with status metrics/query surface and remaining script object/event parity, then return to POP3 external fetch ingestion and antivirus/spam pipeline integration.
