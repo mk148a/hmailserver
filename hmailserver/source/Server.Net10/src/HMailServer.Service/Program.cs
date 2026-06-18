@@ -29,6 +29,29 @@ var leaseOwner = $"{Environment.MachineName}-{Environment.ProcessId}";
 var deliveryStatusSqlEnabled = ReadBool(
     builder.Configuration["DeliveryQueue:StatusSqlEnabled"] ?? builder.Configuration["HMAILSERVER_DELIVERY_STATUS_SQL_ENABLED"],
     defaultValue: false);
+var deliveryStatusRetentionDays = Math.Max(
+    0,
+    ReadInt(
+        builder.Configuration["DeliveryQueue:StatusRetentionDays"] ?? builder.Configuration["HMAILSERVER_DELIVERY_STATUS_RETENTION_DAYS"],
+        defaultValue: 30));
+var deliveryStatusCleanupIntervalMinutes = Math.Max(
+    1,
+    ReadInt(
+        builder.Configuration["DeliveryQueue:StatusCleanupIntervalMinutes"]
+            ?? builder.Configuration["HMAILSERVER_DELIVERY_STATUS_CLEANUP_INTERVAL_MINUTES"],
+        defaultValue: 60));
+var deliveryStatusCleanupBatchSize = Math.Max(
+    1,
+    ReadInt(
+        builder.Configuration["DeliveryQueue:StatusCleanupBatchSize"] ?? builder.Configuration["HMAILSERVER_DELIVERY_STATUS_CLEANUP_BATCH_SIZE"],
+        defaultValue: 5000));
+var deliveryStatusMaintenanceOptions = deliveryStatusSqlEnabled && deliveryStatusRetentionDays > 0
+    ? new DeliveryQueueStatusMaintenanceOptions(
+        Enabled: true,
+        Retention: TimeSpan.FromDays(deliveryStatusRetentionDays),
+        CleanupInterval: TimeSpan.FromMinutes(deliveryStatusCleanupIntervalMinutes),
+        BatchSize: deliveryStatusCleanupBatchSize)
+    : DeliveryQueueStatusMaintenanceOptions.Disabled;
 var imapOptions = new ImapTcpListenerOptions
 {
     Enabled = ReadBool(builder.Configuration["Imap:Enabled"] ?? builder.Configuration["HMAILSERVER_IMAP_ENABLED"], defaultValue: false),
@@ -217,6 +240,8 @@ builder.Services.AddSingleton<IRemoteSmtpTransportFactory, TcpRemoteSmtpTranspor
 builder.Services.AddSingleton<IRemoteSmtpClient, SmtpRemoteDeliveryClient>();
 builder.Services.AddSingleton(RemoteDeliveryOptions.Default(smtpSessionOptions.ServerName));
 builder.Services.AddSingleton(DeliveryQueueProcessorOptions.Default(leaseOwner));
+builder.Services.AddSingleton(deliveryStatusMaintenanceOptions);
+builder.Services.AddSingleton<SqlServerDeliveryQueueStatusMaintenanceStore>();
 if (deliveryStatusSqlEnabled)
 {
     builder.Services.AddSingleton<IDeliveryQueueStatusObserver, SqlServerDeliveryQueueStatusObserver>();
@@ -286,6 +311,7 @@ builder.Services.AddSingleton<SmtpTcpListener>();
 builder.Services.AddSingleton<MessageSearchBackfillProcessor>();
 builder.Services.AddHostedService<ServerBootstrapper>();
 builder.Services.AddHostedService<MessageSearchBackfillHostedService>();
+builder.Services.AddHostedService<DeliveryQueueStatusMaintenanceHostedService>();
 builder.Services.AddHostedService<ImapTcpListenerHostedService>();
 builder.Services.AddHostedService<Pop3TcpListenerHostedService>();
 builder.Services.AddHostedService<SmtpTcpListenerHostedService>();
