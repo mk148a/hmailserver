@@ -101,7 +101,7 @@ The POP3 command engine supports `USER`/`PASS` through the shared account authen
 - `HMailServer.Delivery`: delivery queue processor orchestration over lease/load/target-dispatch boundaries.
 - `HMailServer.Protocols`: `System.IO.Pipelines` line protocol reader, bounded `Channel` work queue primitives, shared IMAP sequence-set parsing, IMAP TCP/session/SEARCH/SORT/FETCH/IDLE/ACL/QUOTA parser/executor/command handler plumbing, the SMTP TCP/session skeleton, POP3 TCP/session command engine with implicit TLS stream support, and failed-logon auto-ban disconnect hooks.
 - `HMailServer.Indexing`: SQL Server Full-Text Search backfill processor.
-- `HMailServer.Storage.SqlServer`: SQL Server connection, Full-Text Search readiness, message search/sort indexing, IMAP sequence snapshots, IMAP message fetch storage, POP3 Inbox mailbox storage, external fetch account/UID leasing, failed-logon auto-ban recording, atomic delivery leasing, and optional delivery queue status persistence.
+- `HMailServer.Storage.SqlServer`: SQL Server connection, Full-Text Search readiness, message search/sort indexing, IMAP sequence snapshots, IMAP message fetch storage, POP3 Inbox mailbox storage, external fetch account/UID leasing, failed-logon auto-ban recording, atomic delivery leasing, optional delivery queue status persistence, retention cleanup, and event-kind metrics snapshots.
 - `HMailServer.Search.SqlServer`: IMAP SEARCH and SORT query planners for SQL Server predicates, metadata ordering, and Full-Text Search.
 - `HMailServer.Security`: modern spam/virus protocol helpers.
 - `HMailServer.ComInterop`: additive COM compatibility contracts for new .NET-only capabilities.
