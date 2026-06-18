@@ -183,6 +183,33 @@ var spamAssassinOptions = new SpamAssassinClientOptions
                 ?? builder.Configuration["HMAILSERVER_SPAMASSASSIN_MAX_RESPONSE_BYTES"],
             defaultValue: 100 * 1024 * 1024))
 };
+var spamPolicyOptions = new MessageSpamPolicyOptions
+{
+    AddSpamHeader = ReadBool(
+        builder.Configuration["AntiSpam:Policy:AddSpamHeader"]
+            ?? builder.Configuration["HMAILSERVER_SPAM_POLICY_ADD_HEADER_SPAM"],
+        defaultValue: false),
+    AddReasonHeaders = ReadBool(
+        builder.Configuration["AntiSpam:Policy:AddReasonHeaders"]
+            ?? builder.Configuration["HMAILSERVER_SPAM_POLICY_ADD_REASON_HEADERS"],
+        defaultValue: false),
+    PrependSubject = ReadBool(
+        builder.Configuration["AntiSpam:Policy:PrependSubject"]
+            ?? builder.Configuration["HMAILSERVER_SPAM_POLICY_PREPEND_SUBJECT"],
+        defaultValue: false),
+    SubjectPrefix = builder.Configuration["AntiSpam:Policy:SubjectPrefix"]
+        ?? builder.Configuration["HMAILSERVER_SPAM_POLICY_SUBJECT_PREFIX"]
+        ?? "[SPAM]",
+    MaxHeaderValueLength = Math.Max(
+        64,
+        ReadInt(
+            builder.Configuration["AntiSpam:Policy:MaxHeaderValueLength"]
+                ?? builder.Configuration["HMAILSERVER_SPAM_POLICY_MAX_HEADER_VALUE_LENGTH"],
+            defaultValue: 900))
+};
+var spamPolicyEnabled = spamPolicyOptions.AddSpamHeader
+    || spamPolicyOptions.AddReasonHeaders
+    || spamPolicyOptions.PrependSubject;
 var smtpSessionOptions = new SmtpSessionOptions
 {
     ServerName = builder.Configuration["Smtp:ServerName"]
@@ -288,6 +315,7 @@ builder.Services.AddSingleton(idleOptions);
 builder.Services.AddSingleton(smtpRuleOptions);
 builder.Services.AddSingleton(scriptingOptions);
 builder.Services.AddSingleton(spamAssassinOptions);
+builder.Services.AddSingleton(spamPolicyOptions);
 if (scriptingOptions.Enabled)
 {
     builder.Services.AddSingleton<WindowsScriptRuleExecutor>();
@@ -306,6 +334,10 @@ if (spamAssassinEnabled)
 {
     builder.Services.AddSingleton<SpamAssassinClient>();
     builder.Services.AddSingleton<IMessageSpamScanner, SpamAssassinMessageSpamScanner>();
+}
+if (spamPolicyEnabled)
+{
+    builder.Services.AddSingleton<IMessageSpamPolicy, MessageSpamPolicy>();
 }
 
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));

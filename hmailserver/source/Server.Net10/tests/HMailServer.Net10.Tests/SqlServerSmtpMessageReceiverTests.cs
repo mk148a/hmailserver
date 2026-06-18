@@ -1,5 +1,6 @@
 using System.Text;
 using HMailServer.Core.Abstractions;
+using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -187,6 +188,47 @@ public sealed class SqlServerSmtpMessageReceiverTests
         StringAssert.Contains(
             Encoding.Latin1.GetString(antivirusScanner.ScannedMessages.Single()),
             "X-Spam-Status: Yes");
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_AppliesSpamPolicyHeadersBeforeAntivirusScan()
+    {
+        var spamProcessedMessage = Encoding.Latin1.GetBytes(
+            "Subject: Original\r\nX-hMailServer-Reason-Score: 1\r\n\r\nBody\r\n");
+        var spamScanner = new FakeSpamScanner(
+            MessageSpamScanResult.Spam(
+                spamProcessedMessage,
+                score: 7,
+                details: "Tagged as Spam by SpamAssassin"));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("After-Spam-Policy-Test"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            spamScanner: spamScanner,
+            spamPolicy: new MessageSpamPolicy(
+                new MessageSpamPolicyOptions
+                {
+                    AddSpamHeader = true,
+                    AddReasonHeaders = true,
+                    PrependSubject = true,
+                    SubjectPrefix = "[SPAM]"
+                }));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        var scannedMessage = Encoding.Latin1.GetString(antivirusScanner.ScannedMessages.Single());
+        StringAssert.Contains(scannedMessage, "Subject: [SPAM] Original\r\n");
+        StringAssert.Contains(scannedMessage, "X-hMailServer-Spam: YES\r\n");
+        StringAssert.Contains(
+            scannedMessage,
+            "X-hMailServer-Reason-1: Tagged as Spam by SpamAssassin - (Score: 7)\r\n");
+        StringAssert.Contains(scannedMessage, "X-hMailServer-Reason-Score: 7\r\n");
+        Assert.IsFalse(scannedMessage.Contains("X-hMailServer-Reason-Score: 1", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]

@@ -15,6 +15,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
     private readonly IMessageAntivirusScanner? _antivirusScanner;
     private readonly IMessageSpamScanner? _spamScanner;
+    private readonly IMessageSpamPolicy? _spamPolicy;
 
     public SqlServerSmtpMessageReceiver(
         SqlServerConnectionFactory connectionFactory,
@@ -23,13 +24,15 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
         SqlServerSmtpQueueWriter? queueWriter = null,
         IMessageAntivirusScanner? antivirusScanner = null,
-        IMessageSpamScanner? spamScanner = null)
+        IMessageSpamScanner? spamScanner = null,
+        IMessageSpamPolicy? spamPolicy = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
         _ruleProcessor = ruleProcessor;
         _eventScriptExecutor = eventScriptExecutor;
         _antivirusScanner = antivirusScanner;
         _spamScanner = spamScanner;
+        _spamPolicy = spamPolicy;
     }
 
     public async ValueTask<SmtpReceiveResult> ReceiveAsync(
@@ -151,9 +154,18 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
             var scanResult = await _spamScanner
                 .ScanAsync(request.MessageData, request.MailFrom, cancellationToken)
                 .ConfigureAwait(false);
-            return scanResult.MessageData.Length == 0
-                ? request
-                : request with { MessageData = scanResult.MessageData };
+            if (scanResult.MessageData.Length == 0)
+            {
+                return request;
+            }
+
+            var messageData = scanResult.MessageData;
+            if (_spamPolicy is not null)
+            {
+                messageData = _spamPolicy.Apply(messageData, scanResult);
+            }
+
+            return request with { MessageData = messageData };
         }
         catch (OperationCanceledException)
         {
