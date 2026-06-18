@@ -105,6 +105,36 @@ public sealed class Pop3SessionTests
         CollectionAssert.AreEqual(Array.Empty<long>(), store.DeletedMessageIds.ToArray());
     }
 
+    [TestMethod]
+    public async Task RunAsync_HandlesCapaAndTop()
+    {
+        var message = Encoding.ASCII.GetBytes("Subject: one\r\nX-Test: yes\r\n\r\n.Line\r\nSecond\r\nThird\r\n");
+        var store = new FakePop3MailboxStore(
+            new[]
+            {
+                new StoredMessage(301, "uid-301", message)
+            });
+        await using var stream = new DuplexMemoryStream(
+            "CAPA\r\n" +
+            "USER user@example.test\r\n" +
+            "PASS secret\r\n" +
+            "TOP 1 2\r\n" +
+            "DELE 1\r\n" +
+            "TOP 1 1\r\n" +
+            "QUIT\r\n");
+        var session = new Pop3Session(new FakeAccountAuthenticator(), store);
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "+OK Capability list follows\r\nUIDL\r\nTOP\r\nUSER\r\n.\r\n");
+        StringAssert.Contains(
+            output,
+            $"+OK {message.Length} octets\r\nSubject: one\r\nX-Test: yes\r\n\r\n..Line\r\nSecond\r\n.\r\n");
+        StringAssert.Contains(output, "-ERR No such message\r\n");
+        CollectionAssert.AreEqual(new long[] { 301 }, store.DeletedMessageIds.ToArray());
+    }
+
     private sealed class DuplexMemoryStream : Stream
     {
         private readonly MemoryStream _input;

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Globalization;
 using System.Text;
 using HMailServer.Core.Abstractions;
 
@@ -92,6 +93,10 @@ public sealed class Pop3Session
                 await HandlePassAsync(stream, state, arguments, cancellationToken).ConfigureAwait(false);
                 return false;
 
+            case "CAPA":
+                await WriteAsync(stream, "+OK Capability list follows\r\nUIDL\r\nTOP\r\nUSER\r\n.\r\n", cancellationToken).ConfigureAwait(false);
+                return false;
+
             case "STAT":
                 if (!await RequireAuthenticatedAsync(stream, state, cancellationToken).ConfigureAwait(false))
                 {
@@ -126,6 +131,15 @@ public sealed class Pop3Session
                 }
 
                 await HandleRetrAsync(stream, state, arguments, cancellationToken).ConfigureAwait(false);
+                return false;
+
+            case "TOP":
+                if (!await RequireAuthenticatedAsync(stream, state, cancellationToken).ConfigureAwait(false))
+                {
+                    return false;
+                }
+
+                await HandleTopAsync(stream, state, arguments, cancellationToken).ConfigureAwait(false);
                 return false;
 
             case "DELE":
@@ -338,6 +352,26 @@ public sealed class Pop3Session
         await WriteDotStuffedMessageAsync(messageStream, stream, cancellationToken).ConfigureAwait(false);
     }
 
+    private async ValueTask HandleTopAsync(
+        Stream stream,
+        SessionState state,
+        string arguments,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseTopArguments(arguments, out var sequenceNumber, out var bodyLineCount) ||
+            !TryGetMessageBySequence(state, sequenceNumber, out var message))
+        {
+            await WriteErrAsync(stream, "No such message", cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await using var messageStream = await _mailboxStore
+            .OpenMessageAsync(state.Account!, message.MessageId, cancellationToken)
+            .ConfigureAwait(false);
+        await WriteOkAsync(stream, $"{message.Size} octets", cancellationToken).ConfigureAwait(false);
+        await WriteTopMessageAsync(messageStream, stream, bodyLineCount, cancellationToken).ConfigureAwait(false);
+    }
+
     private static async ValueTask HandleDeleAsync(
         Stream stream,
         SessionState state,
@@ -399,6 +433,23 @@ public sealed class Pop3Session
         var trimmed = arguments.Trim();
         if (!int.TryParse(trimmed, out sequenceNumber) ||
             sequenceNumber <= 0 ||
+            sequenceNumber > state.Messages.Count ||
+            state.IsDeleted(sequenceNumber))
+        {
+            return false;
+        }
+
+        message = state.Messages[sequenceNumber - 1];
+        return true;
+    }
+
+    private static bool TryGetMessageBySequence(
+        SessionState state,
+        int sequenceNumber,
+        out Pop3MessageListing message)
+    {
+        message = default!;
+        if (sequenceNumber <= 0 ||
             sequenceNumber > state.Messages.Count ||
             state.IsDeleted(sequenceNumber))
         {
@@ -476,6 +527,71 @@ public sealed class Pop3Session
         }
     }
 
+    private static async ValueTask WriteTopMessageAsync(
+        Stream source,
+        Stream destination,
+        int bodyLineCount,
+        CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(
+            source,
+            Encoding.Latin1,
+            detectEncodingFromByteOrderMarks: false,
+            bufferSize: 4096,
+            leaveOpen: true);
+        var headerComplete = false;
+        var remainingBodyLines = bodyLineCount;
+
+        while (true)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+            if (line is null)
+            {
+                break;
+            }
+
+            if (headerComplete)
+            {
+                if (remainingBodyLines <= 0)
+                {
+                    break;
+                }
+
+                remainingBodyLines--;
+            }
+            else if (line.Length == 0)
+            {
+                headerComplete = true;
+            }
+
+            if (line.StartsWith(".", StringComparison.Ordinal))
+            {
+                line = "." + line;
+            }
+
+            await WriteLatin1Async(destination, line, cancellationToken).ConfigureAwait(false);
+            await destination.WriteAsync(CrLfBytes, cancellationToken).ConfigureAwait(false);
+        }
+
+        await destination.WriteAsync(MessageTerminatorBytes, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static bool TryParseTopArguments(
+        string arguments,
+        out int sequenceNumber,
+        out int bodyLineCount)
+    {
+        sequenceNumber = 0;
+        bodyLineCount = 0;
+
+        var parts = arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 2 &&
+            int.TryParse(parts[0], CultureInfo.InvariantCulture, out sequenceNumber) &&
+            int.TryParse(parts[1], CultureInfo.InvariantCulture, out bodyLineCount) &&
+            sequenceNumber > 0 &&
+            bodyLineCount >= 0;
+    }
+
     private static bool TryParseCommand(
         string line,
         out string command,
@@ -523,6 +639,15 @@ public sealed class Pop3Session
         CancellationToken cancellationToken)
     {
         var bytes = ResponseEncoding.GetBytes(response);
+        await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async ValueTask WriteLatin1Async(
+        Stream stream,
+        string response,
+        CancellationToken cancellationToken)
+    {
+        var bytes = Encoding.Latin1.GetBytes(response);
         await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
     }
 
