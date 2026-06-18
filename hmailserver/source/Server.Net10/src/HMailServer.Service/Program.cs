@@ -156,6 +156,7 @@ builder.Services.AddSingleton<SqlServerFullTextSearchHealthCheck>();
 builder.Services.AddSingleton<MessageFilePathResolver>();
 builder.Services.AddSingleton<IMessageSearchIndex, SqlServerMessageSearchIndex>();
 builder.Services.AddSingleton<IMessageSortIndex, SqlServerMessageSortIndex>();
+builder.Services.AddSingleton<IAutoBanLogonFailureRecorder, SqlServerAutoBanLogonFailureRecorder>();
 builder.Services.AddSingleton<IImapSequenceNumberResolver, SqlServerImapSequenceNumberResolver>();
 builder.Services.AddSingleton<IImapAccountAuthenticator, SqlServerImapAccountAuthenticator>();
 builder.Services.AddSingleton<SqlServerImapMailboxStore>();
