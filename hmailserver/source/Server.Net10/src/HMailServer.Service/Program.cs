@@ -239,6 +239,32 @@ var attachmentPolicyOptions = new MessageAttachmentPolicyOptions
 };
 var attachmentPolicyEnabled = attachmentPolicyOptions.Enabled
     && attachmentPolicyOptions.BlockedWildcards.Count > 0;
+var dnsBlockListOptions = new SmtpDnsBlockListOptions
+{
+    Enabled = ReadBool(
+        builder.Configuration["AntiAbuse:DnsBlockList:Enabled"]
+            ?? builder.Configuration["HMAILSERVER_DNSBL_ENABLED"],
+        defaultValue: false),
+    Zones = ReadList(
+        builder.Configuration["AntiAbuse:DnsBlockList:Zones"]
+            ?? builder.Configuration["HMAILSERVER_DNSBL_ZONES"]),
+    SkipAuthenticated = ReadBool(
+        builder.Configuration["AntiAbuse:DnsBlockList:SkipAuthenticated"]
+            ?? builder.Configuration["HMAILSERVER_DNSBL_SKIP_AUTHENTICATED"],
+        defaultValue: true),
+    Timeout = TimeSpan.FromSeconds(
+        Math.Max(
+            1,
+            ReadInt(
+                builder.Configuration["AntiAbuse:DnsBlockList:TimeoutSeconds"]
+                    ?? builder.Configuration["HMAILSERVER_DNSBL_TIMEOUT_SECONDS"],
+                defaultValue: 5))),
+    RejectionMessageTemplate = builder.Configuration["AntiAbuse:DnsBlockList:RejectionMessageTemplate"]
+        ?? builder.Configuration["HMAILSERVER_DNSBL_REJECTION_MESSAGE"]
+        ?? "554 Rejected by DNS blocklist {ListHost}"
+};
+var dnsBlockListEnabled = dnsBlockListOptions.Enabled
+    && dnsBlockListOptions.Zones.Count > 0;
 var smtpSessionOptions = new SmtpSessionOptions
 {
     ServerName = builder.Configuration["Smtp:ServerName"]
@@ -346,6 +372,7 @@ builder.Services.AddSingleton(scriptingOptions);
 builder.Services.AddSingleton(spamAssassinOptions);
 builder.Services.AddSingleton(spamPolicyOptions);
 builder.Services.AddSingleton(attachmentPolicyOptions);
+builder.Services.AddSingleton(dnsBlockListOptions);
 if (scriptingOptions.Enabled)
 {
     builder.Services.AddSingleton<WindowsScriptRuleExecutor>();
@@ -372,6 +399,11 @@ if (spamPolicyEnabled)
 if (attachmentPolicyEnabled)
 {
     builder.Services.AddSingleton<IMessageAttachmentPolicy, MimeMessageAttachmentPolicy>();
+}
+if (dnsBlockListEnabled)
+{
+    builder.Services.AddSingleton<IDnsAddressResolver, SystemDnsAddressResolver>();
+    builder.Services.AddSingleton<ISmtpDnsBlockListChecker, SmtpDnsBlockListChecker>();
 }
 
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));

@@ -17,6 +17,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly IMessageSpamScanner? _spamScanner;
     private readonly IMessageSpamPolicy? _spamPolicy;
     private readonly IMessageAttachmentPolicy? _attachmentPolicy;
+    private readonly ISmtpDnsBlockListChecker? _dnsBlockListChecker;
 
     public SqlServerSmtpMessageReceiver(
         SqlServerConnectionFactory connectionFactory,
@@ -27,7 +28,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         IMessageAntivirusScanner? antivirusScanner = null,
         IMessageSpamScanner? spamScanner = null,
         IMessageSpamPolicy? spamPolicy = null,
-        IMessageAttachmentPolicy? attachmentPolicy = null)
+        IMessageAttachmentPolicy? attachmentPolicy = null,
+        ISmtpDnsBlockListChecker? dnsBlockListChecker = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
         _ruleProcessor = ruleProcessor;
@@ -36,6 +38,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _spamScanner = spamScanner;
         _spamPolicy = spamPolicy;
         _attachmentPolicy = attachmentPolicy;
+        _dnsBlockListChecker = dnsBlockListChecker;
     }
 
     public async ValueTask<SmtpReceiveResult> ReceiveAsync(
@@ -47,6 +50,12 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         if (request.Recipients.Count == 0)
         {
             return SmtpReceiveResult.Failure("554 No valid recipients");
+        }
+
+        var dnsBlockListFailure = await RunDnsBlockListCheckAsync(request, cancellationToken).ConfigureAwait(false);
+        if (dnsBlockListFailure is not null)
+        {
+            return dnsBlockListFailure;
         }
 
         if (_eventScriptExecutor is not null)
@@ -150,6 +159,37 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         catch (Exception)
         {
             return SmtpReceiveResult.Failure("451 Requested action aborted: local error in processing");
+        }
+    }
+
+    private async ValueTask<SmtpReceiveResult?> RunDnsBlockListCheckAsync(
+        SmtpReceiveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_dnsBlockListChecker is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var result = await _dnsBlockListChecker
+                .CheckAsync(request, cancellationToken)
+                .ConfigureAwait(false);
+            return result.Listed
+                ? SmtpReceiveResult.Failure(
+                    string.IsNullOrWhiteSpace(result.FailureResponse)
+                        ? "554 Rejected by DNS blocklist"
+                        : result.FailureResponse)
+                : null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
         }
     }
 

@@ -94,6 +94,43 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_RejectsDnsBlockListHitBeforeScriptSpamAndAntivirus()
+    {
+        var eventCalled = false;
+        var spamScanner = new FakeSpamScanner(
+            MessageSpamScanResult.Clean("Subject: Spam\r\n\r\nBody\r\n"u8.ToArray()));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Clean());
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                _ =>
+                {
+                    eventCalled = true;
+                    return SmtpRuleScriptExecutionResult.Continue();
+                }),
+            antivirusScanner: antivirusScanner,
+            spamScanner: spamScanner,
+            dnsBlockListChecker: new FakeDnsBlockListChecker(
+                SmtpDnsBlockListResult.Blocked(
+                    "zen.example.test",
+                    "5.2.0.192.zen.example.test",
+                    "127.0.0.2",
+                    "554 Listed by DNSBL")));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Blocked\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Listed by DNSBL", result.FailureResponse);
+        Assert.IsFalse(eventCalled);
+        Assert.AreEqual(0, spamScanner.ScannedMessages.Count);
+        Assert.AreEqual(0, antivirusScanner.ScannedMessages.Count);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_PassesAcceptEventMutatedMessageToRuleProcessor()
     {
         var mutatedMessage = Encoding.Latin1.GetBytes("Subject: Mutated\r\nX-Event: yes\r\n\r\nBody\r\n");
@@ -476,5 +513,20 @@ public sealed class SqlServerSmtpMessageReceiverTests
             ScannedMessages.Add(messageData.ToArray());
             return ValueTask.FromResult(_scan(messageData));
         }
+    }
+
+    private sealed class FakeDnsBlockListChecker : ISmtpDnsBlockListChecker
+    {
+        private readonly SmtpDnsBlockListResult _result;
+
+        public FakeDnsBlockListChecker(SmtpDnsBlockListResult result)
+        {
+            _result = result;
+        }
+
+        public ValueTask<SmtpDnsBlockListResult> CheckAsync(
+            SmtpReceiveRequest request,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(_result);
     }
 }
