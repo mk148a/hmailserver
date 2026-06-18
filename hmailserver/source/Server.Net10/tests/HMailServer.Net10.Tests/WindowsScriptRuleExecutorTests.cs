@@ -174,6 +174,10 @@ function Rule_UpdateMessage(obMessage) {
     obMessage.RejectReason = "subject not loaded";
     return;
   }
+  if (!obMessage.Filename || obMessage.Filename !== obMessage.FileName) {
+    obMessage.RejectReason = "filename alias not loaded";
+    return;
+  }
   if (obMessage.From !== "Sender <sender@example.test>") {
     obMessage.RejectReason = "from not loaded";
     return;

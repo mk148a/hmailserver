@@ -2342,6 +2342,7 @@ var HMAILSERVER_MESSAGE = null;
 if ("{{hasMessageFlag}}" === "1") {
   HMAILSERVER_MESSAGE = {
     FileName: "{{EscapeJScript(messagePath)}}",
+    Filename: "{{EscapeJScript(messagePath)}}",
     DropMessage: false,
     RejectReason: "",
     ID: 0,
