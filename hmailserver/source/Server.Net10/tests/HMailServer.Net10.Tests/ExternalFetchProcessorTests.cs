@@ -129,21 +129,152 @@ public sealed class ExternalFetchProcessorTests
         Assert.AreEqual(1, antivirus.ScannedMessages.Count);
     }
 
+    [TestMethod]
+    public async Task RunBatchAsync_AddsRecipientFromReceivedForHeader()
+    {
+        var account = CreateAccount(mimeRecipientHeaders: "X-RCPT-TO");
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-received", Size: 64),
+            ToAsciiBytes(
+                "Received: from mx.example by hmail for <alias@example.test>; Thu, 02 Jan 2025 03:04:05 +0000\r\n" +
+                "From: sender@example.net\r\n" +
+                "Subject: fetched\r\n" +
+                "\r\n" +
+                "Body\r\n"));
+        var receiver = new FakeSmtpMessageReceiver();
+        var recipientValidator = new FakeSmtpRecipientValidator(
+            request => SmtpRecipientValidationResult.Accept(
+                new SmtpResolvedRecipient(
+                    "user@example.test",
+                    request.RecipientAddress,
+                    LocalAccountId: 42,
+                    IsLocal: true)));
+        var processor = CreateProcessor(
+            store,
+            session,
+            receiver,
+            recipientValidator: recipientValidator);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.MessagesAccepted);
+        Assert.AreEqual("alias@example.test", recipientValidator.Requests.Single().RecipientAddress);
+        var recipient = receiver.Requests.Single().Recipients.Single();
+        Assert.AreEqual("user@example.test", recipient.Address);
+        Assert.AreEqual("alias@example.test", recipient.OriginalAddress);
+        Assert.AreEqual(42, recipient.LocalAccountId);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_FiltersExternalMimeRecipientsWhenRouteRecipientsDisabled()
+    {
+        var account = CreateAccount(enableRouteRecipients: false);
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-mixed", Size: 64),
+            ToAsciiBytes(
+                "From: sender@example.net\r\n" +
+                "To: user@example.test, external@example.net\r\n" +
+                "Subject: fetched\r\n" +
+                "\r\n" +
+                "Body\r\n"));
+        var receiver = new FakeSmtpMessageReceiver();
+        var recipientValidator = new FakeSmtpRecipientValidator(
+            request => request.RecipientAddress.EndsWith("@example.test", StringComparison.OrdinalIgnoreCase)
+                ? SmtpRecipientValidationResult.Accept(
+                    new SmtpResolvedRecipient(
+                        request.RecipientAddress,
+                        request.RecipientAddress,
+                        LocalAccountId: 42,
+                        IsLocal: true))
+                : SmtpRecipientValidationResult.Accept(
+                    new SmtpResolvedRecipient(
+                        request.RecipientAddress,
+                        request.RecipientAddress,
+                        LocalAccountId: 0,
+                        IsLocal: false)));
+        var processor = CreateProcessor(
+            store,
+            session,
+            receiver,
+            recipientValidator: recipientValidator);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.MessagesAccepted);
+        CollectionAssert.AreEquivalent(
+            new[] { "user@example.test", "external@example.net" },
+            recipientValidator.Requests.Select(static request => request.RecipientAddress).ToArray());
+        Assert.AreEqual("user@example.test", receiver.Requests.Single().Recipients.Single().Address);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_KeepsRouteLocalRecipientWhenRouteRecipientsEnabled()
+    {
+        var account = CreateAccount(enableRouteRecipients: true);
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-route", Size: 64),
+            ToAsciiBytes(
+                "From: sender@example.net\r\n" +
+                "To: routed@example.net\r\n" +
+                "Subject: fetched\r\n" +
+                "\r\n" +
+                "Body\r\n"));
+        var receiver = new FakeSmtpMessageReceiver();
+        var recipientValidator = new FakeSmtpRecipientValidator(
+            request => SmtpRecipientValidationResult.Accept(
+                new SmtpResolvedRecipient(
+                    request.RecipientAddress,
+                    request.RecipientAddress,
+                    LocalAccountId: 0,
+                    IsLocal: true,
+                    Route: new SmtpRouteResolution(
+                        RouteId: 5,
+                        DomainName: "example.net",
+                        TargetHost: "route.example.net",
+                        TargetPort: 25,
+                        ConnectionSecurity: 0,
+                        TreatRecipientAsLocal: true,
+                        RequiresAuthentication: false,
+                        AuthenticationUsername: "",
+                        AuthenticationPassword: ""))));
+        var processor = CreateProcessor(
+            store,
+            session,
+            receiver,
+            recipientValidator: recipientValidator);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.MessagesAccepted);
+        var recipient = receiver.Requests.Single().Recipients.Single();
+        Assert.AreEqual("routed@example.net", recipient.Address);
+        Assert.IsTrue(recipient.IsRouteRecipient);
+        Assert.IsTrue(recipient.IsLocal);
+    }
+
     private static ExternalFetchProcessor CreateProcessor(
         FakeExternalFetchAccountStore store,
         FakeExternalFetchSession session,
         FakeSmtpMessageReceiver receiver,
         IExternalAccountDownloadScriptExecutor? scriptExecutor = null,
-        IMessageAntivirusScanner? antivirusScanner = null) =>
+        IMessageAntivirusScanner? antivirusScanner = null,
+        ISmtpRecipientValidator? recipientValidator = null) =>
         new(
             store,
             new FakeExternalFetchSessionFactory(session),
             receiver,
             scriptExecutor,
             antivirusScanner,
+            recipientValidator,
             timeProvider: new FixedTimeProvider(DateTimeOffset.Parse("2026-01-10T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture)));
 
-    private static ExternalFetchAccountLease CreateAccount(int daysToKeep = 7) =>
+    private static ExternalFetchAccountLease CreateAccount(
+        int daysToKeep = 7,
+        bool enableRouteRecipients = false,
+        string mimeRecipientHeaders = "To,CC,X-RCPT-TO,X-Envelope-To") =>
         new(
             FetchAccountId: 77,
             AccountId: 42,
@@ -160,8 +291,8 @@ public sealed class ExternalFetchProcessorTests
             ConnectionSecurity: ExternalFetchConnectionSecurity.Ssl,
             UseAntiSpam: true,
             UseAntiVirus: true,
-            EnableRouteRecipients: false,
-            MimeRecipientHeaders: "To,CC,X-RCPT-TO,X-Envelope-To",
+            EnableRouteRecipients: enableRouteRecipients,
+            MimeRecipientHeaders: mimeRecipientHeaders,
             AccountAddress: "user@example.test");
 
     private static byte[] AddHeader(byte[] messageData, string name, string value)
@@ -363,6 +494,27 @@ public sealed class ExternalFetchProcessorTests
         {
             ScannedMessages.Add(messageData.ToArray());
             return ValueTask.FromResult(_result);
+        }
+    }
+
+    private sealed class FakeSmtpRecipientValidator : ISmtpRecipientValidator
+    {
+        private readonly Func<SmtpRecipientValidationRequest, SmtpRecipientValidationResult> _validate;
+
+        public FakeSmtpRecipientValidator(
+            Func<SmtpRecipientValidationRequest, SmtpRecipientValidationResult> validate)
+        {
+            _validate = validate;
+        }
+
+        public List<SmtpRecipientValidationRequest> Requests { get; } = [];
+
+        public ValueTask<SmtpRecipientValidationResult> ValidateAsync(
+            SmtpRecipientValidationRequest request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return ValueTask.FromResult(_validate(request));
         }
     }
 

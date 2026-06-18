@@ -387,7 +387,8 @@ builder.Services.AddSingleton(static serviceProvider =>
         serviceProvider.GetRequiredService<IExternalFetchSessionFactory>(),
         serviceProvider.GetRequiredService<ISmtpMessageReceiver>(),
         serviceProvider.GetService<IExternalAccountDownloadScriptExecutor>(),
-        serviceProvider.GetService<IMessageAntivirusScanner>()));
+        serviceProvider.GetService<IMessageAntivirusScanner>(),
+        serviceProvider.GetService<ISmtpRecipientValidator>()));
 builder.Services.AddSingleton<IImapConnectionStreamFactory, PlainImapConnectionStreamFactory>();
 builder.Services.AddSingleton<IPop3ConnectionStreamFactory>(_ =>
     pop3TlsCertificate is null

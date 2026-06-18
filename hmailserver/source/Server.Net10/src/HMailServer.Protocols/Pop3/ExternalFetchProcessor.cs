@@ -11,6 +11,7 @@ public sealed class ExternalFetchProcessor
     private readonly ISmtpMessageReceiver _messageReceiver;
     private readonly IExternalAccountDownloadScriptExecutor? _scriptExecutor;
     private readonly IMessageAntivirusScanner? _antivirusScanner;
+    private readonly ISmtpRecipientValidator? _recipientValidator;
     private readonly TimeProvider _timeProvider;
 
     public ExternalFetchProcessor(
@@ -19,6 +20,7 @@ public sealed class ExternalFetchProcessor
         ISmtpMessageReceiver messageReceiver,
         IExternalAccountDownloadScriptExecutor? scriptExecutor = null,
         IMessageAntivirusScanner? antivirusScanner = null,
+        ISmtpRecipientValidator? recipientValidator = null,
         TimeProvider? timeProvider = null)
     {
         _accountStore = accountStore;
@@ -26,6 +28,7 @@ public sealed class ExternalFetchProcessor
         _messageReceiver = messageReceiver;
         _scriptExecutor = scriptExecutor;
         _antivirusScanner = antivirusScanner;
+        _recipientValidator = recipientValidator;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -178,10 +181,14 @@ public sealed class ExternalFetchProcessor
             }
 
             var mimeMessage = TryLoadMimeMessage(acceptedMessageData);
+            var receiveRequest = await CreateReceiveRequestAsync(
+                account,
+                remoteMessage,
+                acceptedMessageData,
+                mimeMessage,
+                cancellationToken).ConfigureAwait(false);
             var receiveResult = await _messageReceiver
-                .ReceiveAsync(
-                    CreateReceiveRequest(account, remoteMessage, acceptedMessageData, mimeMessage),
-                    cancellationToken)
+                .ReceiveAsync(receiveRequest, cancellationToken)
                 .ConfigureAwait(false);
             if (!receiveResult.Accepted)
             {
@@ -298,18 +305,21 @@ public sealed class ExternalFetchProcessor
         return result;
     }
 
-    private SmtpReceiveRequest CreateReceiveRequest(
+    private async ValueTask<SmtpReceiveRequest> CreateReceiveRequestAsync(
         ExternalFetchAccountLease account,
         ExternalFetchRemoteMessage remoteMessage,
         byte[] messageData,
-        MimeMessage? mimeMessage)
+        MimeMessage? mimeMessage,
+        CancellationToken cancellationToken)
     {
         var receivedUtc = ResolveReceivedUtc(account, mimeMessage, _timeProvider.GetUtcNow());
+        var mailFrom = ExtractMailFrom(mimeMessage);
+        var recipients = await ResolveRecipientsAsync(account, mimeMessage, mailFrom, cancellationToken).ConfigureAwait(false);
         return new SmtpReceiveRequest(
             HeloHost: account.ServerAddress,
             IsExtendedSmtp: true,
-            MailFrom: ExtractMailFrom(mimeMessage),
-            Recipients: ResolveRecipients(account, mimeMessage),
+            MailFrom: mailFrom,
+            Recipients: recipients,
             DeclaredSize: remoteMessage.Size > 0 ? remoteMessage.Size : messageData.LongLength,
             MessageData: messageData,
             ReceivedUtc: receivedUtc,
@@ -395,11 +405,33 @@ public sealed class ExternalFetchProcessor
         return year is >= 1980 and <= 2040;
     }
 
-    private static IReadOnlyList<SmtpResolvedRecipient> ResolveRecipients(
+    private async ValueTask<IReadOnlyList<SmtpResolvedRecipient>> ResolveRecipientsAsync(
+        ExternalFetchAccountLease account,
+        MimeMessage? mimeMessage,
+        string mailFrom,
+        CancellationToken cancellationToken)
+    {
+        var recipients = new List<SmtpResolvedRecipient>();
+        var candidateAddresses = ExtractRecipientCandidates(account, mimeMessage);
+
+        foreach (var address in candidateAddresses)
+        {
+            await AddResolvedRecipientAsync(account, mailFrom, address, recipients, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (recipients.Count == 0)
+        {
+            AddFallbackRecipient(account, recipients);
+        }
+
+        return recipients;
+    }
+
+    private static IReadOnlyList<string> ExtractRecipientCandidates(
         ExternalFetchAccountLease account,
         MimeMessage? mimeMessage)
     {
-        var recipients = new List<SmtpResolvedRecipient>();
+        var candidates = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (mimeMessage is not null &&
@@ -408,25 +440,27 @@ public sealed class ExternalFetchProcessor
         {
             foreach (var headerName in SplitMimeRecipientHeaders(account.MimeRecipientHeaders))
             {
-                var headerValue = mimeMessage.Headers[headerName];
-                if (string.IsNullOrWhiteSpace(headerValue))
+                foreach (var header in mimeMessage.Headers.Where(header =>
+                    header.Field.Equals(headerName, StringComparison.OrdinalIgnoreCase)))
                 {
-                    continue;
+                    foreach (var mailbox in ParseMailboxes(header.Value))
+                    {
+                        AddCandidate(mailbox.Address, candidates, seen);
+                    }
                 }
+            }
 
-                foreach (var mailbox in ParseMailboxes(headerValue))
+            foreach (var header in mimeMessage.Headers.Where(static header =>
+                header.Field.Equals("Received", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (TryExtractRecipientFromReceivedHeader(header.Value, out var receivedRecipient))
                 {
-                    AddRecipient(account, mailbox.Address, recipients, seen);
+                    AddCandidate(receivedRecipient, candidates, seen);
                 }
             }
         }
 
-        if (recipients.Count == 0)
-        {
-            AddRecipient(account, GetFallbackRecipientAddress(account), recipients, seen, forceLocal: true);
-        }
-
-        return recipients;
+        return candidates;
     }
 
     private static IEnumerable<string> SplitMimeRecipientHeaders(string value) =>
@@ -450,35 +484,151 @@ public sealed class ExternalFetchProcessor
         }
     }
 
-    private static void AddRecipient(
+    private async ValueTask AddResolvedRecipientAsync(
         ExternalFetchAccountLease account,
+        string mailFrom,
         string address,
         List<SmtpResolvedRecipient> recipients,
-        HashSet<string> seen,
-        bool forceLocal = false)
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(address))
         {
             return;
         }
 
-        var isAccountAddress = address.Equals(account.AccountAddress, StringComparison.OrdinalIgnoreCase);
-        if (!forceLocal && !isAccountAddress && !account.EnableRouteRecipients)
+        if (_recipientValidator is null)
+        {
+            AddLegacyFallbackResolvedRecipient(account, address, recipients);
+            return;
+        }
+
+        var result = await _recipientValidator
+            .ValidateAsync(
+                new SmtpRecipientValidationRequest(mailFrom, address, SenderAuthenticated: true),
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.Accepted)
         {
             return;
         }
 
-        if (!seen.Add(address))
+        foreach (var recipient in result.Recipients)
+        {
+            if (!ShouldKeepResolvedRecipient(account, recipient))
+            {
+                continue;
+            }
+
+            AddResolvedRecipient(recipients, recipient);
+        }
+    }
+
+    private static void AddLegacyFallbackResolvedRecipient(
+        ExternalFetchAccountLease account,
+        string address,
+        List<SmtpResolvedRecipient> recipients)
+    {
+        var isAccountAddress = address.Equals(account.AccountAddress, StringComparison.OrdinalIgnoreCase);
+        if (!isAccountAddress && !account.EnableRouteRecipients)
+        {
+            return;
+        }
+
+        AddResolvedRecipient(
+            recipients,
+            new SmtpResolvedRecipient(
+                address,
+                address,
+                isAccountAddress ? account.AccountId : 0,
+                isAccountAddress));
+    }
+
+    private static bool ShouldKeepResolvedRecipient(
+        ExternalFetchAccountLease account,
+        SmtpResolvedRecipient recipient) =>
+        account.EnableRouteRecipients
+            ? recipient.IsLocal
+            : recipient.LocalAccountId > 0;
+
+    private static void AddResolvedRecipient(
+        List<SmtpResolvedRecipient> recipients,
+        SmtpResolvedRecipient recipient)
+    {
+        if (recipients.Any(existing =>
+            existing.Address.Equals(recipient.Address, StringComparison.OrdinalIgnoreCase) &&
+            existing.OriginalAddress.Equals(recipient.OriginalAddress, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        recipients.Add(recipient);
+    }
+
+    private static void AddFallbackRecipient(
+        ExternalFetchAccountLease account,
+        List<SmtpResolvedRecipient> recipients)
+    {
+        var fallbackAddress = GetFallbackRecipientAddress(account);
+        if (string.IsNullOrWhiteSpace(fallbackAddress))
         {
             return;
         }
 
         recipients.Add(
             new SmtpResolvedRecipient(
-                address,
-                address,
-                forceLocal || isAccountAddress ? account.AccountId : 0,
-                forceLocal || isAccountAddress));
+                fallbackAddress,
+                fallbackAddress,
+                account.AccountId,
+                IsLocal: true));
+    }
+
+    private static void AddCandidate(
+        string address,
+        List<string> candidates,
+        HashSet<string> seen)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            return;
+        }
+
+        var normalized = address.Trim();
+        if (seen.Add(normalized))
+        {
+            candidates.Add(normalized);
+        }
+    }
+
+    private static bool TryExtractRecipientFromReceivedHeader(
+        string headerValue,
+        out string recipient)
+    {
+        recipient = string.Empty;
+        var lastSemicolon = headerValue.LastIndexOf(';');
+        if (lastSemicolon < 0)
+        {
+            return false;
+        }
+
+        var firstPart = headerValue[..lastSemicolon];
+        var forPosition = firstPart.LastIndexOf("for ", StringComparison.OrdinalIgnoreCase);
+        if (forPosition < 0)
+        {
+            return false;
+        }
+
+        recipient = firstPart[(forPosition + 4)..]
+            .Trim(' ', '\r', '\n', '\t')
+            .Replace("<", string.Empty, StringComparison.Ordinal)
+            .Replace(">", string.Empty, StringComparison.Ordinal)
+            .Replace(" ", string.Empty, StringComparison.Ordinal);
+        return IsPlausibleEmailAddress(recipient);
+    }
+
+    private static bool IsPlausibleEmailAddress(string address)
+    {
+        var at = address.IndexOf('@');
+        return at > 0 && at < address.Length - 1;
     }
 
     private static string GetFallbackRecipientAddress(ExternalFetchAccountLease account) =>
