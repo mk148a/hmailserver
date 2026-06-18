@@ -1037,6 +1037,102 @@ End Sub
     }
 
     [TestMethod]
+    public void Execute_RunsVbScriptExternalAccountDownloadWithFetchAccountAndMessage()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnExternalAccountDownload(oFetchAccount, oMessage, uid)
+   If oFetchAccount.ID <> 77 Then Err.Raise 1001, "test", "fetch account id"
+   If oFetchAccount.AccountID <> 42 Then Err.Raise 1002, "test", "account id"
+   If oFetchAccount.Name <> "External POP3" Then Err.Raise 1003, "test", "name"
+   If oFetchAccount.ServerAddress <> "pop3.example.test" Then Err.Raise 1004, "test", "server"
+   If oFetchAccount.Port <> 995 Then Err.Raise 1005, "test", "port"
+   If oFetchAccount.Username <> "external-user" Then Err.Raise 1006, "test", "username"
+   If Not oFetchAccount.Enabled Then Err.Raise 1007, "test", "enabled"
+   If Not oFetchAccount.UseSSL Then Err.Raise 1008, "test", "ssl"
+   If oFetchAccount.ConnectionSecurity <> 1 Then Err.Raise 1009, "test", "connection security"
+   If uid <> "remote-uid-1" Then Err.Raise 1010, "test", "uid"
+   If oMessage Is Nothing Then Err.Raise 1011, "test", "message"
+
+   oMessage.HeaderValue("X-External-UID") = uid
+   oMessage.Save
+   Result.Value = 2
+   Result.Parameter = 5
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateExternalAccountDownloadRequest(
+                    "Subject: External\r\n\r\nBody\r\n"u8.ToArray(),
+                    remoteUid: "remote-uid-1"),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            Assert.AreEqual(ExternalAccountDownloadDeleteAction.DeleteAfterDays, result.DeleteAction);
+            Assert.AreEqual(5, result.DeleteAfterDays);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "X-External-UID: remote-uid-1\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_RunsJScriptExternalAccountDownloadWithNullMessage()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnExternalAccountDownload(fetchAccount, message, uid) {
+  if (message !== null) throw new Error("message");
+  if (fetchAccount.ID !== 77) throw new Error("fetch account id");
+  if (fetchAccount.AccountID !== 42) throw new Error("account id");
+  if (fetchAccount.Name !== "External POP3") throw new Error("name");
+  if (fetchAccount.MIMERecipientHeaders !== "To,CC") throw new Error("headers");
+  if (fetchAccount.ProcessMIMERecipients !== true) throw new Error("process recipients");
+  if (fetchAccount.ProcessMIMEDate !== true) throw new Error("process date");
+  if (fetchAccount.UseAntiSpam !== true) throw new Error("spam");
+  if (fetchAccount.UseAntiVirus !== true) throw new Error("virus");
+  if (fetchAccount.EnableRouteRecipients !== true) throw new Error("routes");
+  if (uid !== "remote-uid-2") throw new Error("uid");
+  Result.Value = 3;
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateExternalAccountDownloadRequest(
+                    messageData: null,
+                    remoteUid: "remote-uid-2"),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            Assert.AreEqual(ExternalAccountDownloadDeleteAction.NeverDelete, result.DeleteAction);
+            Assert.IsNull(result.MessageData);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_RunsVbScriptClientValidatePasswordAccept()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -1179,6 +1275,40 @@ function OnClientValidatePassword(oAccount, password) {
             messageState,
             deliveryAttempt,
             internalDateUtc);
+
+    private static ExternalAccountDownloadScriptExecutionRequest CreateExternalAccountDownloadRequest(
+        byte[]? messageData,
+        string remoteUid,
+        ExternalFetchAccountLease? account = null) =>
+        new(
+            account ?? CreateExternalFetchAccount(),
+            remoteUid,
+            messageData,
+            MessageId: 123,
+            MessageUid: 456,
+            MessageState: 32,
+            DeliveryAttempt: 4,
+            InternalDateUtc: DateTimeOffset.Parse("2026-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture));
+
+    private static ExternalFetchAccountLease CreateExternalFetchAccount() =>
+        new(
+            FetchAccountId: 77,
+            AccountId: 42,
+            Name: "External POP3",
+            ServerAddress: "pop3.example.test",
+            ServerPort: 995,
+            ServerType: ExternalFetchServerType.Pop3,
+            Username: "external-user",
+            Password: "external-password",
+            MinutesBetweenFetch: 10,
+            DaysToKeep: 14,
+            ProcessMimeRecipients: true,
+            ProcessMimeDate: true,
+            ConnectionSecurity: ExternalFetchConnectionSecurity.Ssl,
+            UseAntiSpam: true,
+            UseAntiVirus: true,
+            EnableRouteRecipients: true,
+            MimeRecipientHeaders: "To,CC");
 
     private static ClientPasswordValidationScriptRequest CreatePasswordValidationRequest(
         string password,

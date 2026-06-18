@@ -11,6 +11,7 @@ public sealed partial class WindowsScriptRuleExecutor :
     ISmtpRuleScriptExecutor,
     ISmtpEventScriptExecutor,
     IDeliveryEventScriptExecutor,
+    IExternalAccountDownloadScriptExecutor,
     IClientPasswordValidationScriptExecutor
 {
     private readonly WindowsScriptRuleExecutorOptions _options;
@@ -92,6 +93,53 @@ public sealed partial class WindowsScriptRuleExecutor :
             ? DeliveryEventScriptExecutionResult.Drop(result.MessageData)
             : DeliveryEventScriptExecutionResult.Continue(result.MessageData);
     }
+
+    public ExternalAccountDownloadScriptExecutionResult Execute(
+        ExternalAccountDownloadScriptExecutionRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var result = ExecuteCore(
+            new ScriptExecutionSpec(
+                "OnExternalAccountDownload",
+                MailFrom: string.Empty,
+                Recipients: Array.Empty<SmtpResolvedRecipient>(),
+                request.MessageData,
+                Client: null,
+                ScriptInvocation.OptionalExternalAccountDownload,
+                ScriptArgumentShape.FetchAccountMessageAndUid,
+                DeliveryRecipientAddress: string.Empty,
+                DeliveryErrorMessage: string.Empty,
+                MessageMetadata: ToScriptMessageMetadata(request),
+                FetchAccount: request.Account,
+                ExternalAccountRemoteUid: request.RemoteUid),
+            cancellationToken);
+
+        if (!result.Accepted)
+        {
+            return ExternalAccountDownloadScriptExecutionResult.Failure(
+                result.FailureResponse ?? "External account download script execution failed.",
+                result.MessageData);
+        }
+
+        return ToExternalAccountDownloadResult(
+            result.ResultValue,
+            result.ResultParameter,
+            result.MessageData);
+    }
+
+    private static ExternalAccountDownloadScriptExecutionResult ToExternalAccountDownloadResult(
+        int resultValue,
+        int resultParameter,
+        byte[]? messageData) =>
+        resultValue switch
+        {
+            1 => ExternalAccountDownloadScriptExecutionResult.DeleteImmediately(messageData),
+            2 => ExternalAccountDownloadScriptExecutionResult.DeleteAfter(resultParameter, messageData),
+            3 => ExternalAccountDownloadScriptExecutionResult.NeverDelete(messageData),
+            _ => ExternalAccountDownloadScriptExecutionResult.Continue(messageData)
+        };
 
     public ClientPasswordValidationScriptResult Execute(
         ClientPasswordValidationScriptRequest request,
@@ -189,8 +237,12 @@ public sealed partial class WindowsScriptRuleExecutor :
             var attachmentManifestPath = Path.Combine(tempDirectory, "attachments.tsv");
             var attachmentOperationPath = Path.Combine(tempDirectory, "attachment-operations.tsv");
             var runnerPath = Path.Combine(tempDirectory, language.Extension == "vbs" ? "runner.vbs" : "runner.js");
-            File.WriteAllBytes(messagePath, spec.MessageData);
-            WriteAttachmentManifest(messagePath, attachmentDirectory, attachmentManifestPath);
+            var hasMessage = spec.MessageData is not null;
+            if (spec.MessageData is { } messageBytes)
+            {
+                File.WriteAllBytes(messagePath, messageBytes);
+                WriteAttachmentManifest(messagePath, attachmentDirectory, attachmentManifestPath);
+            }
             File.WriteAllText(
                 runnerPath,
                 language.Extension == "vbs"
@@ -207,6 +259,9 @@ public sealed partial class WindowsScriptRuleExecutor :
                         spec.Invocation,
                         spec.ArgumentShape,
                         spec.MessageMetadata,
+                        spec.FetchAccount,
+                        spec.ExternalAccountRemoteUid,
+                        hasMessage,
                         spec.DeliveryRecipientAddress,
                         spec.DeliveryErrorMessage)
                     : CreateJScriptRunner(
@@ -222,6 +277,9 @@ public sealed partial class WindowsScriptRuleExecutor :
                         spec.Invocation,
                         spec.ArgumentShape,
                         spec.MessageMetadata,
+                        spec.FetchAccount,
+                        spec.ExternalAccountRemoteUid,
+                        hasMessage,
                         spec.DeliveryRecipientAddress,
                         spec.DeliveryErrorMessage),
                 Encoding.Unicode);
@@ -233,12 +291,12 @@ public sealed partial class WindowsScriptRuleExecutor :
             }
 
             var status = ReadStatus(statusPath);
-            if (status.Found)
+            if (status.Found && hasMessage)
             {
                 ApplyAttachmentOperations(messagePath, attachmentOperationPath);
             }
 
-            var messageData = File.Exists(messagePath)
+            var messageData = hasMessage && File.Exists(messagePath)
                 ? File.ReadAllBytes(messagePath)
                 : spec.MessageData;
             if (!status.Found)
@@ -253,9 +311,10 @@ public sealed partial class WindowsScriptRuleExecutor :
                 return SmtpRuleScriptExecutionResult.Failure(status.RejectReason, messageData);
             }
 
-            return status.DropMessage
+            var outcome = status.DropMessage
                 ? SmtpRuleScriptExecutionResult.Drop(messageData)
                 : SmtpRuleScriptExecutionResult.Continue(messageData);
+            return outcome.WithResult(status.ResultValue, status.ResultParameter);
         }
         catch (OperationCanceledException)
         {
@@ -290,6 +349,14 @@ public sealed partial class WindowsScriptRuleExecutor :
             InternalDateUtc: DateTimeOffset.UtcNow);
 
     private static ScriptMessageMetadata ToScriptMessageMetadata(DeliveryEventScriptExecutionRequest request) =>
+        new(
+            request.MessageId,
+            request.MessageUid,
+            request.MessageState,
+            Math.Max(1, request.DeliveryAttempt),
+            request.InternalDateUtc ?? DateTimeOffset.UtcNow);
+
+    private static ScriptMessageMetadata ToScriptMessageMetadata(ExternalAccountDownloadScriptExecutionRequest request) =>
         new(
             request.MessageId,
             request.MessageUid,
@@ -364,11 +431,18 @@ public sealed partial class WindowsScriptRuleExecutor :
     {
         if (!File.Exists(statusPath))
         {
-            return new ScriptStatus(Found: false, DropMessage: false, RejectReason: string.Empty);
+            return new ScriptStatus(
+                Found: false,
+                DropMessage: false,
+                RejectReason: string.Empty,
+                ResultValue: 0,
+                ResultParameter: 0);
         }
 
         var dropMessage = false;
         var rejectReason = string.Empty;
+        var resultValue = 0;
+        var resultParameter = 0;
         foreach (var line in File.ReadAllLines(statusPath))
         {
             if (line.Equals("DropMessage=1", StringComparison.OrdinalIgnoreCase))
@@ -379,9 +453,30 @@ public sealed partial class WindowsScriptRuleExecutor :
             {
                 rejectReason = line["RejectReason=".Length..];
             }
+            else if (line.StartsWith("ResultValue=", StringComparison.OrdinalIgnoreCase))
+            {
+                _ = int.TryParse(
+                    line["ResultValue=".Length..],
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out resultValue);
+            }
+            else if (line.StartsWith("ResultParameter=", StringComparison.OrdinalIgnoreCase))
+            {
+                _ = int.TryParse(
+                    line["ResultParameter=".Length..],
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out resultParameter);
+            }
         }
 
-        return new ScriptStatus(Found: true, dropMessage, rejectReason);
+        return new ScriptStatus(
+            Found: true,
+            dropMessage,
+            rejectReason,
+            resultValue,
+            resultParameter);
     }
 
     private static ClientPasswordValidationScriptResult ReadClientPasswordValidationStatus(string statusPath)
@@ -682,6 +777,7 @@ End Class
 
 Class HMailServerRuleResult
    Public Value
+   Public Parameter
    Public Message
 End Class
 
@@ -805,10 +901,15 @@ hMailServerRuleStatusFile.Close();
         ScriptInvocation invocation,
         ScriptArgumentShape argumentShape,
         ScriptMessageMetadata messageMetadata,
+        ExternalFetchAccountLease? fetchAccount,
+        string externalAccountRemoteUid,
+        bool hasMessage,
         string deliveryRecipientAddress,
         string deliveryErrorMessage)
     {
         var isDeliveryEvent = invocation == ScriptInvocation.OptionalDeliveryEvent ? "1" : "0";
+        var hasMessageFlag = hasMessage ? "1" : "0";
+        var usesSmtpRejectResult = invocation is ScriptInvocation.RuleFunction or ScriptInvocation.OptionalSmtpEvent ? "1" : "0";
         return $$"""
 ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
 
@@ -827,7 +928,30 @@ End Class
 
 Class HMailServerRuleResult
    Public Value
+   Public Parameter
    Public Message
+End Class
+
+Class HMailServerRuleFetchAccount
+   Public ID
+   Public AccountID
+   Public Name
+   Public ServerAddress
+   Public Port
+   Public ServerType
+   Public Username
+   Public Password
+   Public MinutesBetweenFetch
+   Public DaysToKeepMessages
+   Public Enabled
+   Public MIMERecipientHeaders
+   Public ProcessMIMERecipients
+   Public ProcessMIMEDate
+   Public UseSSL
+   Public ConnectionSecurity
+   Public UseAntiSpam
+   Public UseAntiVirus
+   Public EnableRouteRecipients
 End Class
 
 Class HMailServerRuleRecipient
@@ -1691,19 +1815,30 @@ Class HMailServerRuleMessage
 End Class
 
 Dim HMAILSERVER_MESSAGE
-Set HMAILSERVER_MESSAGE = New HMailServerRuleMessage
-HMAILSERVER_MESSAGE.FileName = "{{EscapeVbScript(messagePath)}}"
-HMAILSERVER_MESSAGE.DropMessage = False
-HMAILSERVER_MESSAGE.RejectReason = ""
-HMAILSERVER_MESSAGE.Load
-HMAILSERVER_MESSAGE.Attachments.Load "{{EscapeVbScript(attachmentManifestPath)}}", "{{EscapeVbScript(attachmentOperationPath)}}"
-HMAILSERVER_MESSAGE.FromAddress = "{{EscapeVbScript(mailFrom)}}"
-HMAILSERVER_MESSAGE.ID = {{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}}
-HMAILSERVER_MESSAGE.UID = {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}}
-HMAILSERVER_MESSAGE.State = {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}}
-HMAILSERVER_MESSAGE.DeliveryAttempt = {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}}
-HMAILSERVER_MESSAGE.InternalDate = {{CreateVbScriptDateExpression(messageMetadata.InternalDateUtc)}}
+If "{{hasMessageFlag}}" = "1" Then
+   Set HMAILSERVER_MESSAGE = New HMailServerRuleMessage
+   HMAILSERVER_MESSAGE.FileName = "{{EscapeVbScript(messagePath)}}"
+   HMAILSERVER_MESSAGE.DropMessage = False
+   HMAILSERVER_MESSAGE.RejectReason = ""
+   HMAILSERVER_MESSAGE.Load
+   HMAILSERVER_MESSAGE.Attachments.Load "{{EscapeVbScript(attachmentManifestPath)}}", "{{EscapeVbScript(attachmentOperationPath)}}"
+   HMAILSERVER_MESSAGE.FromAddress = "{{EscapeVbScript(mailFrom)}}"
+   HMAILSERVER_MESSAGE.ID = {{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}}
+   HMAILSERVER_MESSAGE.UID = {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}}
+   HMAILSERVER_MESSAGE.State = {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}}
+   HMAILSERVER_MESSAGE.DeliveryAttempt = {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}}
+   HMAILSERVER_MESSAGE.InternalDate = {{CreateVbScriptDateExpression(messageMetadata.InternalDateUtc)}}
 {{CreateVbScriptRecipientSeeds(recipients)}}
+Else
+   Set HMAILSERVER_MESSAGE = Nothing
+End If
+
+Dim HMAILSERVER_FETCHACCOUNT
+Set HMAILSERVER_FETCHACCOUNT = New HMailServerRuleFetchAccount
+{{CreateVbScriptFetchAccountSeed(fetchAccount)}}
+
+Dim hMailServerRuleExternalAccountRemoteUid
+hMailServerRuleExternalAccountRemoteUid = "{{EscapeVbScript(externalAccountRemoteUid)}}"
 
 Dim hMailServerRuleDeliveryRecipient
 hMailServerRuleDeliveryRecipient = "{{EscapeVbScript(deliveryRecipientAddress)}}"
@@ -1717,6 +1852,7 @@ Set HMAILSERVER_CLIENT = New HMailServerRuleClient
 Dim Result
 Set Result = New HMailServerRuleResult
 Result.Value = 0
+Result.Parameter = 0
 Result.Message = ""
 
 {{CreateVbScriptInvocation(functionName, invocation, argumentShape)}}
@@ -1724,18 +1860,20 @@ Result.Message = ""
 Dim hMailServerRuleStatusFileSystem, hMailServerRuleStatusFile
 Set hMailServerRuleStatusFileSystem = CreateObject("Scripting.FileSystemObject")
 Set hMailServerRuleStatusFile = hMailServerRuleStatusFileSystem.CreateTextFile("{{EscapeVbScript(statusPath)}}", True, False)
-If "{{isDeliveryEvent}}" = "1" And Result.Value = 1 Then
+If "{{isDeliveryEvent}}" = "1" And "{{hasMessageFlag}}" = "1" And Result.Value = 1 Then
    HMAILSERVER_MESSAGE.DropMessage = True
 End If
-If HMAILSERVER_MESSAGE.DropMessage Then
+If "{{hasMessageFlag}}" = "1" And HMAILSERVER_MESSAGE.DropMessage Then
    hMailServerRuleStatusFile.WriteLine "DropMessage=1"
 Else
    hMailServerRuleStatusFile.WriteLine "DropMessage=0"
 End If
 Dim hMailServerRuleRejectReason
 hMailServerRuleRejectReason = ""
-If "{{isDeliveryEvent}}" <> "1" Then
-   hMailServerRuleRejectReason = CStr(HMAILSERVER_MESSAGE.RejectReason)
+If "{{usesSmtpRejectResult}}" = "1" Then
+   If "{{hasMessageFlag}}" = "1" Then
+      hMailServerRuleRejectReason = CStr(HMAILSERVER_MESSAGE.RejectReason)
+   End If
    If Result.Value = 1 Then
       hMailServerRuleRejectReason = "554 Rejected"
    ElseIf Result.Value = 2 Then
@@ -1745,6 +1883,8 @@ If "{{isDeliveryEvent}}" <> "1" Then
    End If
 End If
 hMailServerRuleStatusFile.WriteLine "RejectReason=" & Replace(Replace(hMailServerRuleRejectReason, vbCr, " "), vbLf, " ")
+hMailServerRuleStatusFile.WriteLine "ResultValue=" & CStr(Result.Value)
+hMailServerRuleStatusFile.WriteLine "ResultParameter=" & CStr(Result.Parameter)
 hMailServerRuleStatusFile.Close
 """;
     }
@@ -1762,10 +1902,15 @@ hMailServerRuleStatusFile.Close
         ScriptInvocation invocation,
         ScriptArgumentShape argumentShape,
         ScriptMessageMetadata messageMetadata,
+        ExternalFetchAccountLease? fetchAccount,
+        string externalAccountRemoteUid,
+        bool hasMessage,
         string deliveryRecipientAddress,
         string deliveryErrorMessage)
     {
         var isDeliveryEvent = invocation == ScriptInvocation.OptionalDeliveryEvent ? "1" : "0";
+        var hasMessageFlag = hasMessage ? "1" : "0";
+        var usesSmtpRejectResult = invocation is ScriptInvocation.RuleFunction or ScriptInvocation.OptionalSmtpEvent ? "1" : "0";
         return $$"""
 var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
 
@@ -2181,99 +2326,105 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
   return collection;
 }
 
-var HMAILSERVER_MESSAGE = {
-  FileName: "{{EscapeJScript(messagePath)}}",
-  DropMessage: false,
-  RejectReason: "",
-  ID: 0,
-  UID: 0,
-  State: 0,
-  Size: 0,
-  DeliveryAttempt: 1,
-  InternalDate: new Date(),
-  Subject: "",
-  From: "",
-  FromAddress: "",
-  To: "",
-  Recipients: hMailServerRuleCreateRecipients(),
-  CC: "",
-  Date: "",
-  Charset: "",
-  EncodeFields: true,
-  Body: "",
-  HTMLBody: "",
-  Attachments: hMailServerRuleCreateAttachments(
-    "{{EscapeJScript(attachmentManifestPath)}}",
-    "{{EscapeJScript(attachmentOperationPath)}}"),
-  Headers: null,
-  _headers: "",
-  Load: function() {
-    var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this.FileName));
-    this._headers = parsed.headers;
-    this.Body = parsed.body;
-    this.Size = hMailServerRuleGetMessageSize(this.FileName);
-    hMailServerRuleSyncMessageHeaderFields(this);
-    this.HTMLBody = hMailServerRuleGetHeader(this._headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0 ? this.Body : "";
-  },
-  RefreshContent: function() {
-    this.Load();
-  },
-  HeaderValue: function(fieldName) {
-    return hMailServerRuleGetHeader(this._headers, fieldName);
-  },
-  SetHeaderValue: function(fieldName, fieldValue) {
-    this._headers = hMailServerRuleSetHeader(this._headers, fieldName, fieldValue);
-    hMailServerRuleSyncCommonHeaderField(this, fieldName, fieldValue);
-  },
-  Save: function() {
-    if (this.Headers) {
-      this.Headers.Commit();
+var HMAILSERVER_MESSAGE = null;
+if ("{{hasMessageFlag}}" === "1") {
+  HMAILSERVER_MESSAGE = {
+    FileName: "{{EscapeJScript(messagePath)}}",
+    DropMessage: false,
+    RejectReason: "",
+    ID: 0,
+    UID: 0,
+    State: 0,
+    Size: 0,
+    DeliveryAttempt: 1,
+    InternalDate: new Date(),
+    Subject: "",
+    From: "",
+    FromAddress: "",
+    To: "",
+    Recipients: hMailServerRuleCreateRecipients(),
+    CC: "",
+    Date: "",
+    Charset: "",
+    EncodeFields: true,
+    Body: "",
+    HTMLBody: "",
+    Attachments: hMailServerRuleCreateAttachments(
+      "{{EscapeJScript(attachmentManifestPath)}}",
+      "{{EscapeJScript(attachmentOperationPath)}}"),
+    Headers: null,
+    _headers: "",
+    Load: function() {
+      var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this.FileName));
+      this._headers = parsed.headers;
+      this.Body = parsed.body;
+      this.Size = hMailServerRuleGetMessageSize(this.FileName);
+      hMailServerRuleSyncMessageHeaderFields(this);
+      this.HTMLBody = hMailServerRuleGetHeader(this._headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0 ? this.Body : "";
+    },
+    RefreshContent: function() {
+      this.Load();
+    },
+    HeaderValue: function(fieldName) {
+      return hMailServerRuleGetHeader(this._headers, fieldName);
+    },
+    SetHeaderValue: function(fieldName, fieldValue) {
+      this._headers = hMailServerRuleSetHeader(this._headers, fieldName, fieldValue);
+      hMailServerRuleSyncCommonHeaderField(this, fieldName, fieldValue);
+    },
+    Save: function() {
+      if (this.Headers) {
+        this.Headers.Commit();
+      }
+      var headers = this._headers;
+      headers = hMailServerRuleSetHeader(headers, "Subject", this.Subject);
+      headers = hMailServerRuleSetHeader(headers, "From", this.From);
+      headers = hMailServerRuleSetHeader(headers, "To", this.To);
+      headers = hMailServerRuleSetHeader(headers, "Cc", this.CC);
+      headers = hMailServerRuleSetHeader(headers, "Date", this.Date);
+      if (this.Charset) {
+        headers = hMailServerRuleSetHeader(headers, "Content-Type", hMailServerRuleApplyCharset(hMailServerRuleGetHeader(headers, "Content-Type"), this.Charset));
+      }
+      var messageBody = this.Body;
+      if (this.HTMLBody && hMailServerRuleGetHeader(headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0) {
+        messageBody = this.HTMLBody;
+      }
+      hMailServerRuleWriteAllText(this.FileName, headers + "\r\n\r\n" + messageBody);
+      this._headers = headers;
+    },
+    AddRecipient: function(name, address) {
+      this.Recipients.Add(address, address, false);
+      var displayAddress = hMailServerRuleFormatRecipientForHeader(name, address);
+      this.To = this.To ? this.To + ", " + displayAddress : displayAddress;
+    },
+    ClearRecipients: function() {
+      this.Recipients.Clear();
+      this.To = "";
+      this.CC = "";
+      this._headers = hMailServerRuleSetHeader(this._headers, "To", "");
+      this._headers = hMailServerRuleSetHeader(this._headers, "Cc", "");
+    },
+    HasBodyType: function(bodyType) {
+      return (this._headers + "\r\n" + this.Body).toLowerCase().indexOf(String(bodyType || "").toLowerCase()) >= 0;
+    },
+    SetCharset: function(charset) {
+      this.Charset = String(charset || "");
+      this._headers = hMailServerRuleSetHeader(this._headers, "Content-Type", hMailServerRuleApplyCharset(this.HeaderValue("Content-Type"), this.Charset));
     }
-    var headers = this._headers;
-    headers = hMailServerRuleSetHeader(headers, "Subject", this.Subject);
-    headers = hMailServerRuleSetHeader(headers, "From", this.From);
-    headers = hMailServerRuleSetHeader(headers, "To", this.To);
-    headers = hMailServerRuleSetHeader(headers, "Cc", this.CC);
-    headers = hMailServerRuleSetHeader(headers, "Date", this.Date);
-    if (this.Charset) {
-      headers = hMailServerRuleSetHeader(headers, "Content-Type", hMailServerRuleApplyCharset(hMailServerRuleGetHeader(headers, "Content-Type"), this.Charset));
-    }
-    var messageBody = this.Body;
-    if (this.HTMLBody && hMailServerRuleGetHeader(headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0) {
-      messageBody = this.HTMLBody;
-    }
-    hMailServerRuleWriteAllText(this.FileName, headers + "\r\n\r\n" + messageBody);
-    this._headers = headers;
-  },
-  AddRecipient: function(name, address) {
-    this.Recipients.Add(address, address, false);
-    var displayAddress = hMailServerRuleFormatRecipientForHeader(name, address);
-    this.To = this.To ? this.To + ", " + displayAddress : displayAddress;
-  },
-  ClearRecipients: function() {
-    this.Recipients.Clear();
-    this.To = "";
-    this.CC = "";
-    this._headers = hMailServerRuleSetHeader(this._headers, "To", "");
-    this._headers = hMailServerRuleSetHeader(this._headers, "Cc", "");
-  },
-  HasBodyType: function(bodyType) {
-    return (this._headers + "\r\n" + this.Body).toLowerCase().indexOf(String(bodyType || "").toLowerCase()) >= 0;
-  },
-  SetCharset: function(charset) {
-    this.Charset = String(charset || "");
-    this._headers = hMailServerRuleSetHeader(this._headers, "Content-Type", hMailServerRuleApplyCharset(this.HeaderValue("Content-Type"), this.Charset));
-  }
-};
-HMAILSERVER_MESSAGE.Headers = hMailServerRuleCreateHeaders(HMAILSERVER_MESSAGE);
-HMAILSERVER_MESSAGE.Load();
-HMAILSERVER_MESSAGE.FromAddress = "{{EscapeJScript(mailFrom)}}";
-HMAILSERVER_MESSAGE.ID = {{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}};
-HMAILSERVER_MESSAGE.UID = {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}};
-HMAILSERVER_MESSAGE.State = {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}};
-HMAILSERVER_MESSAGE.DeliveryAttempt = {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}};
-HMAILSERVER_MESSAGE.InternalDate = {{CreateJScriptUtcDateExpression(messageMetadata.InternalDateUtc)}};
+  };
+  HMAILSERVER_MESSAGE.Headers = hMailServerRuleCreateHeaders(HMAILSERVER_MESSAGE);
+  HMAILSERVER_MESSAGE.Load();
+  HMAILSERVER_MESSAGE.FromAddress = "{{EscapeJScript(mailFrom)}}";
+  HMAILSERVER_MESSAGE.ID = {{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}};
+  HMAILSERVER_MESSAGE.UID = {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}};
+  HMAILSERVER_MESSAGE.State = {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}};
+  HMAILSERVER_MESSAGE.DeliveryAttempt = {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}};
+  HMAILSERVER_MESSAGE.InternalDate = {{CreateJScriptUtcDateExpression(messageMetadata.InternalDateUtc)}};
 {{CreateJScriptRecipientSeeds(recipients)}}
+}
+
+var HMAILSERVER_FETCHACCOUNT = {{CreateJScriptFetchAccountObject(fetchAccount)}};
+var hMailServerRuleExternalAccountRemoteUid = "{{EscapeJScript(externalAccountRemoteUid)}}";
 
 var hMailServerRuleDeliveryRecipient = "{{EscapeJScript(deliveryRecipientAddress)}}";
 var hMailServerRuleDeliveryErrorMessage = "{{EscapeJScript(deliveryErrorMessage)}}";
@@ -2294,6 +2445,7 @@ var HMAILSERVER_CLIENT = {
 
 var Result = {
   Value: 0,
+  Parameter: 0,
   Message: ""
 };
 
@@ -2302,13 +2454,15 @@ eval(hMailServerRuleScriptFile.ReadAll());
 hMailServerRuleScriptFile.Close();
 {{CreateJScriptInvocation(functionName, invocation, argumentShape)}}
 var hMailServerRuleStatusFile = hMailServerRuleFileSystem.CreateTextFile("{{EscapeJScript(statusPath)}}", true, false);
-if ("{{isDeliveryEvent}}" === "1" && Result.Value === 1) {
+if ("{{isDeliveryEvent}}" === "1" && "{{hasMessageFlag}}" === "1" && Result.Value === 1) {
   HMAILSERVER_MESSAGE.DropMessage = true;
 }
-hMailServerRuleStatusFile.WriteLine(HMAILSERVER_MESSAGE.DropMessage ? "DropMessage=1" : "DropMessage=0");
+hMailServerRuleStatusFile.WriteLine("{{hasMessageFlag}}" === "1" && HMAILSERVER_MESSAGE.DropMessage ? "DropMessage=1" : "DropMessage=0");
 var hMailServerRuleRejectReason = "";
-if ("{{isDeliveryEvent}}" !== "1") {
-  hMailServerRuleRejectReason = String(HMAILSERVER_MESSAGE.RejectReason || "");
+if ("{{usesSmtpRejectResult}}" === "1") {
+  if ("{{hasMessageFlag}}" === "1") {
+    hMailServerRuleRejectReason = String(HMAILSERVER_MESSAGE.RejectReason || "");
+  }
   if (Result.Value === 1) {
     hMailServerRuleRejectReason = "554 Rejected";
   } else if (Result.Value === 2) {
@@ -2318,6 +2472,8 @@ if ("{{isDeliveryEvent}}" !== "1") {
   }
 }
 hMailServerRuleStatusFile.WriteLine("RejectReason=" + hMailServerRuleRejectReason.replace(/[\r\n]/g, " "));
+hMailServerRuleStatusFile.WriteLine("ResultValue=" + String(Result.Value));
+hMailServerRuleStatusFile.WriteLine("ResultParameter=" + String(Result.Parameter || 0));
 hMailServerRuleStatusFile.Close();
 """;
     }
@@ -2366,6 +2522,63 @@ hMailServerRuleStatusFile.Close();
         }
 
         return builder.ToString();
+    }
+
+    private static string CreateVbScriptFetchAccountSeed(ExternalFetchAccountLease? account)
+    {
+        var connectionSecurity = account?.ConnectionSecurity ?? ExternalFetchConnectionSecurity.None;
+        var builder = new StringBuilder();
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "ID", account?.FetchAccountId ?? 0);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "AccountID", account?.AccountId ?? 0);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "Name", account?.Name ?? string.Empty);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "ServerAddress", account?.ServerAddress ?? string.Empty);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "Port", account?.ServerPort ?? 0);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "ServerType", (int)(account?.ServerType ?? ExternalFetchServerType.Pop3));
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "Username", account?.Username ?? string.Empty);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "Password", account?.Password ?? string.Empty);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "MinutesBetweenFetch", account?.MinutesBetweenFetch ?? 0);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "DaysToKeepMessages", account?.DaysToKeep ?? 0);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "Enabled", account is not null);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "MIMERecipientHeaders", account?.MimeRecipientHeaders ?? string.Empty);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "ProcessMIMERecipients", account?.ProcessMimeRecipients ?? false);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "ProcessMIMEDate", account?.ProcessMimeDate ?? false);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "UseSSL", connectionSecurity == ExternalFetchConnectionSecurity.Ssl);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "ConnectionSecurity", (int)connectionSecurity);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "UseAntiSpam", account?.UseAntiSpam ?? false);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "UseAntiVirus", account?.UseAntiVirus ?? false);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "EnableRouteRecipients", account?.EnableRouteRecipients ?? false);
+        return builder.ToString();
+    }
+
+    private static string CreateJScriptFetchAccountObject(ExternalFetchAccountLease? account)
+    {
+        var connectionSecurity = account?.ConnectionSecurity ?? ExternalFetchConnectionSecurity.None;
+        string[] properties =
+        [
+            $"  ID: {ToInvariant(account?.FetchAccountId ?? 0)}",
+            $"  AccountID: {ToInvariant(account?.AccountId ?? 0)}",
+            $"  Name: \"{EscapeJScript(account?.Name ?? string.Empty)}\"",
+            $"  ServerAddress: \"{EscapeJScript(account?.ServerAddress ?? string.Empty)}\"",
+            $"  Port: {ToInvariant(account?.ServerPort ?? 0)}",
+            $"  ServerType: {ToInvariant((int)(account?.ServerType ?? ExternalFetchServerType.Pop3))}",
+            $"  Username: \"{EscapeJScript(account?.Username ?? string.Empty)}\"",
+            $"  Password: \"{EscapeJScript(account?.Password ?? string.Empty)}\"",
+            $"  MinutesBetweenFetch: {ToInvariant(account?.MinutesBetweenFetch ?? 0)}",
+            $"  DaysToKeepMessages: {ToInvariant(account?.DaysToKeep ?? 0)}",
+            $"  Enabled: {(account is not null ? "true" : "false")}",
+            $"  MIMERecipientHeaders: \"{EscapeJScript(account?.MimeRecipientHeaders ?? string.Empty)}\"",
+            $"  ProcessMIMERecipients: {ToJScriptBoolean(account?.ProcessMimeRecipients ?? false)}",
+            $"  ProcessMIMEDate: {ToJScriptBoolean(account?.ProcessMimeDate ?? false)}",
+            $"  UseSSL: {ToJScriptBoolean(connectionSecurity == ExternalFetchConnectionSecurity.Ssl)}",
+            $"  ConnectionSecurity: {ToInvariant((int)connectionSecurity)}",
+            $"  UseAntiSpam: {ToJScriptBoolean(account?.UseAntiSpam ?? false)}",
+            $"  UseAntiVirus: {ToJScriptBoolean(account?.UseAntiVirus ?? false)}",
+            $"  EnableRouteRecipients: {ToJScriptBoolean(account?.EnableRouteRecipients ?? false)}"
+        ];
+
+        return "{" + Environment.NewLine +
+            string.Join("," + Environment.NewLine, properties) +
+            Environment.NewLine + "}";
     }
 
     private static string CreateVbScriptClientSeed(SmtpEventScriptClient? client)
@@ -2449,6 +2662,12 @@ if (typeof {{functionName}} === "function") {
   {{functionName}}(HMAILSERVER_MESSAGE, hMailServerRuleDeliveryRecipient, hMailServerRuleDeliveryErrorMessage);
 }
 """
+                    : argumentShape == ScriptArgumentShape.FetchAccountMessageAndUid
+                        ? $$"""
+if (typeof {{functionName}} === "function") {
+  {{functionName}}(HMAILSERVER_FETCHACCOUNT, HMAILSERVER_MESSAGE, hMailServerRuleExternalAccountRemoteUid);
+}
+"""
                     : $$"""
 if (typeof {{functionName}} === "function") {
   {{functionName}}(HMAILSERVER_MESSAGE);
@@ -2462,6 +2681,7 @@ if (typeof {{functionName}} === "function") {
             ScriptArgumentShape.ClientOnly => "   Call hMailServerEventHandler(HMAILSERVER_CLIENT)",
             ScriptArgumentShape.ClientAndMessage => "   Call hMailServerEventHandler(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)",
             ScriptArgumentShape.MessageRecipientAndError => "   Call hMailServerEventHandler(HMAILSERVER_MESSAGE, hMailServerRuleDeliveryRecipient, hMailServerRuleDeliveryErrorMessage)",
+            ScriptArgumentShape.FetchAccountMessageAndUid => "   Call hMailServerEventHandler(HMAILSERVER_FETCHACCOUNT, HMAILSERVER_MESSAGE, hMailServerRuleExternalAccountRemoteUid)",
             _ => "   Call hMailServerEventHandler(HMAILSERVER_MESSAGE)"
         };
 
@@ -2488,6 +2708,30 @@ if (typeof {{functionName}} === "function") {
 
     private static void AppendVbScriptAssignment(StringBuilder builder, string name, bool value) =>
         builder.Append("HMAILSERVER_CLIENT.")
+            .Append(name)
+            .Append(" = ")
+            .AppendLine(value ? "True" : "False");
+
+    private static void AppendVbScriptObjectAssignment(StringBuilder builder, string objectName, string name, string value)
+    {
+        builder.Append(objectName)
+            .Append('.')
+            .Append(name)
+            .Append(" = \"")
+            .Append(EscapeVbScript(value))
+            .AppendLine("\"");
+    }
+
+    private static void AppendVbScriptObjectAssignment(StringBuilder builder, string objectName, string name, int value) =>
+        builder.Append(objectName)
+            .Append('.')
+            .Append(name)
+            .Append(" = ")
+            .AppendLine(ToInvariant(value));
+
+    private static void AppendVbScriptObjectAssignment(StringBuilder builder, string objectName, string name, bool value) =>
+        builder.Append(objectName)
+            .Append('.')
             .Append(name)
             .Append(" = ")
             .AppendLine(value ? "True" : "False");
@@ -2521,6 +2765,12 @@ if (typeof {{functionName}} === "function") {
             .Append(" = ")
             .Append(value ? "true" : "false")
             .AppendLine(";");
+
+    private static string ToInvariant(int value) =>
+        value.ToString(CultureInfo.InvariantCulture);
+
+    private static string ToJScriptBoolean(bool value) =>
+        value ? "true" : "false";
 
     private static ScriptLanguage? NormalizeLanguage(string value)
     {
@@ -2613,7 +2863,8 @@ if (typeof {{functionName}} === "function") {
     {
         RuleFunction,
         OptionalSmtpEvent,
-        OptionalDeliveryEvent
+        OptionalDeliveryEvent,
+        OptionalExternalAccountDownload
     }
 
     private enum ScriptArgumentShape
@@ -2621,20 +2872,23 @@ if (typeof {{functionName}} === "function") {
         ClientOnly,
         ClientAndMessage,
         MessageOnly,
-        MessageRecipientAndError
+        MessageRecipientAndError,
+        FetchAccountMessageAndUid
     }
 
     private sealed record ScriptExecutionSpec(
         string FunctionName,
         string MailFrom,
         IReadOnlyList<SmtpResolvedRecipient> Recipients,
-        byte[] MessageData,
+        byte[]? MessageData,
         SmtpEventScriptClient? Client,
         ScriptInvocation Invocation,
         ScriptArgumentShape ArgumentShape,
         string DeliveryRecipientAddress,
         string DeliveryErrorMessage,
-        ScriptMessageMetadata MessageMetadata);
+        ScriptMessageMetadata MessageMetadata,
+        ExternalFetchAccountLease? FetchAccount = null,
+        string ExternalAccountRemoteUid = "");
 
     private sealed record ScriptMessageMetadata(
         long Id,
@@ -2645,7 +2899,12 @@ if (typeof {{functionName}} === "function") {
 
     private sealed record ScriptLanguage(string Name, string Extension);
 
-    private sealed record ScriptStatus(bool Found, bool DropMessage, string RejectReason);
+    private sealed record ScriptStatus(
+        bool Found,
+        bool DropMessage,
+        string RejectReason,
+        int ResultValue,
+        int ResultParameter);
 
     private sealed record ProcessResult(bool Succeeded, string Error);
 }
