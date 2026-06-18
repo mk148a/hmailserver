@@ -162,6 +162,84 @@ public sealed class SqlServerSmtpMessageReceiverTests
             "X-Event: yes");
     }
 
+    [TestMethod]
+    public async Task ReceiveAsync_PassesSpamProcessedMessageToAntivirusScan()
+    {
+        var spamProcessedMessage = Encoding.Latin1.GetBytes(
+            "X-Spam-Status: Yes, score=7.1 required=5.0\r\nSubject: Spam\r\n\r\nBody\r\n");
+        var spamScanner = new FakeSpamScanner(
+            MessageSpamScanResult.Spam(spamProcessedMessage, score: 7));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("After-Spam-Test"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            spamScanner: spamScanner);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Virus detected: After-Spam-Test", result.FailureResponse);
+        Assert.AreEqual(1, spamScanner.ScannedMessages.Count);
+        StringAssert.Contains(
+            Encoding.Latin1.GetString(antivirusScanner.ScannedMessages.Single()),
+            "X-Spam-Status: Yes");
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_PreservesOriginalMessageWhenSpamScannerThrows()
+    {
+        var spamScanner = new FakeSpamScanner(
+            _ => throw new IOException("spamd failed"));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("Original-Test"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            spamScanner: spamScanner);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        StringAssert.Contains(
+            Encoding.Latin1.GetString(antivirusScanner.ScannedMessages.Single()),
+            "Subject: Original");
+        Assert.IsFalse(
+            Encoding.Latin1.GetString(antivirusScanner.ScannedMessages.Single())
+                .Contains("X-Spam-Status", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_SkipsSpamScannerWhenRequestDisablesIt()
+    {
+        var spamProcessedMessage = Encoding.Latin1.GetBytes("X-Spam-Status: Yes\r\nSubject: Spam\r\n\r\nBody\r\n");
+        var spamScanner = new FakeSpamScanner(
+            MessageSpamScanResult.Spam(spamProcessedMessage, score: 5));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("No-Spam-Scan-Test"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            spamScanner: spamScanner);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Original\r\n\r\nBody\r\n"u8.ToArray()) with { EnableSpamScan = false },
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual(0, spamScanner.ScannedMessages.Count);
+        StringAssert.Contains(
+            Encoding.Latin1.GetString(antivirusScanner.ScannedMessages.Single()),
+            "Subject: Original");
+    }
+
     private static SmtpReceiveRequest CreateRequest(byte[] messageData) =>
         new(
             HeloHost: "client.example",
@@ -237,6 +315,32 @@ public sealed class SqlServerSmtpMessageReceiverTests
         {
             ScannedMessages.Add(messageData.ToArray());
             return ValueTask.FromResult(_result);
+        }
+    }
+
+    private sealed class FakeSpamScanner : IMessageSpamScanner
+    {
+        private readonly Func<ReadOnlyMemory<byte>, MessageSpamScanResult> _scan;
+
+        public FakeSpamScanner(MessageSpamScanResult result)
+            : this(_ => result)
+        {
+        }
+
+        public FakeSpamScanner(Func<ReadOnlyMemory<byte>, MessageSpamScanResult> scan)
+        {
+            _scan = scan;
+        }
+
+        public List<byte[]> ScannedMessages { get; } = [];
+
+        public ValueTask<MessageSpamScanResult> ScanAsync(
+            ReadOnlyMemory<byte> messageData,
+            string envelopeFrom,
+            CancellationToken cancellationToken)
+        {
+            ScannedMessages.Add(messageData.ToArray());
+            return ValueTask.FromResult(_scan(messageData));
         }
     }
 }

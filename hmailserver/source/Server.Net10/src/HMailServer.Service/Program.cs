@@ -150,6 +150,39 @@ var clamAvOptions = new ClamAvInstreamClientOptions
                 ?? builder.Configuration["HMAILSERVER_CLAMAV_CHUNK_SIZE_BYTES"],
             defaultValue: 64 * 1024))
 };
+var spamAssassinEnabled = ReadBool(
+    builder.Configuration["AntiSpam:SpamAssassin:Enabled"] ?? builder.Configuration["HMAILSERVER_SPAMASSASSIN_ENABLED"],
+    defaultValue: false);
+var spamAssassinOptions = new SpamAssassinClientOptions
+{
+    Host = builder.Configuration["AntiSpam:SpamAssassin:Host"]
+        ?? builder.Configuration["HMAILSERVER_SPAMASSASSIN_HOST"]
+        ?? "127.0.0.1",
+    Port = Math.Max(
+        1,
+        ReadInt(
+            builder.Configuration["AntiSpam:SpamAssassin:Port"] ?? builder.Configuration["HMAILSERVER_SPAMASSASSIN_PORT"],
+            defaultValue: 783)),
+    Timeout = TimeSpan.FromSeconds(
+        Math.Max(
+            1,
+            ReadInt(
+                builder.Configuration["AntiSpam:SpamAssassin:TimeoutSeconds"]
+                    ?? builder.Configuration["HMAILSERVER_SPAMASSASSIN_TIMEOUT_SECONDS"],
+                defaultValue: 30))),
+    MaxResponseHeaderBytes = Math.Max(
+        1024,
+        ReadInt(
+            builder.Configuration["AntiSpam:SpamAssassin:MaxResponseHeaderBytes"]
+                ?? builder.Configuration["HMAILSERVER_SPAMASSASSIN_MAX_RESPONSE_HEADER_BYTES"],
+            defaultValue: 16 * 1024)),
+    MaxResponseBytes = Math.Max(
+        1024,
+        ReadInt(
+            builder.Configuration["AntiSpam:SpamAssassin:MaxResponseBytes"]
+                ?? builder.Configuration["HMAILSERVER_SPAMASSASSIN_MAX_RESPONSE_BYTES"],
+            defaultValue: 100 * 1024 * 1024))
+};
 var smtpSessionOptions = new SmtpSessionOptions
 {
     ServerName = builder.Configuration["Smtp:ServerName"]
@@ -254,6 +287,7 @@ builder.Services.AddSingleton(mailboxOptions);
 builder.Services.AddSingleton(idleOptions);
 builder.Services.AddSingleton(smtpRuleOptions);
 builder.Services.AddSingleton(scriptingOptions);
+builder.Services.AddSingleton(spamAssassinOptions);
 if (scriptingOptions.Enabled)
 {
     builder.Services.AddSingleton<WindowsScriptRuleExecutor>();
@@ -267,6 +301,11 @@ if (clamAvEnabled)
 {
     builder.Services.AddSingleton<ClamAvInstreamClient>();
     builder.Services.AddSingleton<IMessageAntivirusScanner, ClamAvMessageAntivirusScanner>();
+}
+if (spamAssassinEnabled)
+{
+    builder.Services.AddSingleton<SpamAssassinClient>();
+    builder.Services.AddSingleton<IMessageSpamScanner, SpamAssassinMessageSpamScanner>();
 }
 
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));

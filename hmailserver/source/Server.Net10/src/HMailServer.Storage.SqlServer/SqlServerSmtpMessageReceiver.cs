@@ -14,6 +14,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly ISmtpRuleProcessor? _ruleProcessor;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
     private readonly IMessageAntivirusScanner? _antivirusScanner;
+    private readonly IMessageSpamScanner? _spamScanner;
 
     public SqlServerSmtpMessageReceiver(
         SqlServerConnectionFactory connectionFactory,
@@ -21,12 +22,14 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         ISmtpRuleProcessor? ruleProcessor = null,
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
         SqlServerSmtpQueueWriter? queueWriter = null,
-        IMessageAntivirusScanner? antivirusScanner = null)
+        IMessageAntivirusScanner? antivirusScanner = null,
+        IMessageSpamScanner? spamScanner = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
         _ruleProcessor = ruleProcessor;
         _eventScriptExecutor = eventScriptExecutor;
         _antivirusScanner = antivirusScanner;
+        _spamScanner = spamScanner;
     }
 
     public async ValueTask<SmtpReceiveResult> ReceiveAsync(
@@ -101,6 +104,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
             ruleBindAddress = ruleResult.BindToAddress;
         }
 
+        request = await RunSpamScanAsync(request, cancellationToken).ConfigureAwait(false);
+
         var antivirusFailure = await RunAntivirusScanAsync(request, cancellationToken).ConfigureAwait(false);
         if (antivirusFailure is not null)
         {
@@ -129,6 +134,34 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         catch (Exception)
         {
             return SmtpReceiveResult.Failure("451 Requested action aborted: local error in processing");
+        }
+    }
+
+    private async ValueTask<SmtpReceiveRequest> RunSpamScanAsync(
+        SmtpReceiveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_spamScanner is null || !request.EnableSpamScan)
+        {
+            return request;
+        }
+
+        try
+        {
+            var scanResult = await _spamScanner
+                .ScanAsync(request.MessageData, request.MailFrom, cancellationToken)
+                .ConfigureAwait(false);
+            return scanResult.MessageData.Length == 0
+                ? request
+                : request with { MessageData = scanResult.MessageData };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return request;
         }
     }
 

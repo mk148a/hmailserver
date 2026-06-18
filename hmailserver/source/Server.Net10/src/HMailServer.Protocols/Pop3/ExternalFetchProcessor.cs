@@ -319,7 +319,8 @@ public sealed class ExternalFetchProcessor
             AuthenticatedUsername: account.Username,
             IsAuthenticated: true,
             IsEncryptedConnection: account.ConnectionSecurity != ExternalFetchConnectionSecurity.None,
-            EnableAntivirusScan: account.UseAntiVirus);
+            EnableAntivirusScan: account.UseAntiVirus,
+            EnableSpamScan: account.UseAntiSpam);
     }
 
     private static MimeMessage? TryLoadMimeMessage(byte[] messageData)

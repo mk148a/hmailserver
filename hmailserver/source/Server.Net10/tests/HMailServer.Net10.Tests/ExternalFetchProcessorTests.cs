@@ -45,6 +45,8 @@ public sealed class ExternalFetchProcessorTests
             receiver.Requests[0].ReceivedUtc);
         Assert.AreEqual("user@example.test", receiver.Requests[0].Recipients.Single().Address);
         Assert.AreEqual(42, receiver.Requests[0].Recipients.Single().LocalAccountId);
+        Assert.IsTrue(receiver.Requests[0].EnableSpamScan);
+        Assert.IsTrue(receiver.Requests[0].EnableAntivirusScan);
         StringAssert.Contains(Encoding.ASCII.GetString(receiver.Requests[0].MessageData), "X-Script: uid-1\r\n");
         Assert.AreEqual("uid-1", script.Requests.Single().RemoteUid);
         Assert.IsNotNull(script.Requests.Single().MessageData);
