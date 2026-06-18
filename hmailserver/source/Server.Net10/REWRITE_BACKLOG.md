@@ -125,6 +125,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: configurable delivery bounce subject/body templates with queue metadata tokens, failed-recipient formatting, header sanitization, and bounded failure descriptions.
    - Done: delivery status retention cleanup worker with configurable retention window, interval, and batch size.
    - Done: delivery status metrics query surface for event-kind counts over a requested time window.
+   - Done: delivery event script message metadata seeds real queue ID, UID, state, delivery attempt, and internal date for VBScript/JScript handlers.
    - Remaining: full legacy script object model and remaining protocol/delivery event scripting hooks.
 
 4. POP3 and external fetch.
