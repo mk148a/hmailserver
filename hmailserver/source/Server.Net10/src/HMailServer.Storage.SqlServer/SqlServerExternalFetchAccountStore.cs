@@ -12,43 +12,26 @@ public sealed class SqlServerExternalFetchAccountStore : IExternalFetchAccountSt
 ;WITH Candidates AS
 (
     SELECT TOP (@BatchSize)
-        faid,
-        faaccountid,
-        faaccountname,
-        faserveraddress,
-        faserverport,
-        faservertype,
-        fausername,
-        fapassword,
-        faminutes,
-        fadaystokeep,
-        faprocessmimerecipients,
-        faprocessmimedate,
-        faconnectionsecurity,
-        fauseantispam,
-        fauseantivirus,
-        faenablerouterecipients,
-        famimerecipientheaders,
-        falocked
-    FROM hm_fetchaccounts WITH (UPDLOCK, READPAST, ROWLOCK)
+        fa.faid
+    FROM hm_fetchaccounts AS fa WITH (UPDLOCK, READPAST, ROWLOCK)
     WHERE
-        faactive <> 0
-        AND falocked = 0
-        AND fanexttry <= SYSUTCDATETIME()
+        fa.faactive <> 0
+        AND fa.falocked = 0
+        AND fa.fanexttry <= SYSUTCDATETIME()
         AND EXISTS
         (
             SELECT 1
             FROM hm_accounts AS a
             INNER JOIN hm_domains AS d ON d.domainid = a.accountdomainid
             WHERE
-                a.accountid = hm_fetchaccounts.faaccountid
+                a.accountid = fa.faaccountid
                 AND a.accountactive <> 0
                 AND d.domainactive <> 0
         )
-    ORDER BY faid ASC
+    ORDER BY fa.faid ASC
 )
-UPDATE Candidates
-SET falocked = 1
+UPDATE fa
+SET fa.falocked = 1
 OUTPUT
     inserted.faid,
     inserted.faaccountid,
@@ -66,7 +49,15 @@ OUTPUT
     inserted.fauseantispam,
     inserted.fauseantivirus,
     inserted.faenablerouterecipients,
-    inserted.famimerecipientheaders;
+    inserted.famimerecipientheaders,
+    a.accountaddress
+FROM hm_fetchaccounts AS fa
+INNER JOIN Candidates AS c ON c.faid = fa.faid
+INNER JOIN hm_accounts AS a ON a.accountid = fa.faaccountid
+INNER JOIN hm_domains AS d ON d.domainid = a.accountdomainid
+WHERE
+    a.accountactive <> 0
+    AND d.domainactive <> 0;
 """;
 
     public const string DeferInactiveAccountsSql = """
@@ -283,7 +274,8 @@ SELECT @@ROWCOUNT;
             UseAntiSpam: ReadTinyIntBoolean(reader, 13),
             UseAntiVirus: ReadTinyIntBoolean(reader, 14),
             EnableRouteRecipients: ReadTinyIntBoolean(reader, 15),
-            MimeRecipientHeaders: reader.GetString(16));
+            MimeRecipientHeaders: reader.GetString(16),
+            AccountAddress: reader.GetString(17));
     }
 
     private static bool ReadTinyIntBoolean(SqlDataReader reader, int ordinal) =>

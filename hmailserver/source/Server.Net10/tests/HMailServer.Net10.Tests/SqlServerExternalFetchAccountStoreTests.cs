@@ -12,7 +12,7 @@ public sealed class SqlServerExternalFetchAccountStoreTests
     {
         var sql = SqlServerExternalFetchAccountStore.LeaseReadyAccountsSql;
 
-        StringAssert.Contains(sql, "FROM hm_fetchaccounts WITH (UPDLOCK, READPAST, ROWLOCK)");
+        StringAssert.Contains(sql, "FROM hm_fetchaccounts AS fa WITH (UPDLOCK, READPAST, ROWLOCK)");
         StringAssert.Contains(sql, "faactive <> 0");
         StringAssert.Contains(sql, "falocked = 0");
         StringAssert.Contains(sql, "fanexttry <= SYSUTCDATETIME()");
@@ -20,11 +20,12 @@ public sealed class SqlServerExternalFetchAccountStoreTests
         StringAssert.Contains(sql, "accountactive <> 0");
         StringAssert.Contains(sql, "INNER JOIN hm_domains AS d");
         StringAssert.Contains(sql, "domainactive <> 0");
-        StringAssert.Contains(sql, "UPDATE Candidates");
-        StringAssert.Contains(sql, "SET falocked = 1");
+        StringAssert.Contains(sql, "UPDATE fa");
+        StringAssert.Contains(sql, "SET fa.falocked = 1");
         StringAssert.Contains(sql, "OUTPUT");
         StringAssert.Contains(sql, "inserted.faid");
         StringAssert.Contains(sql, "inserted.faconnectionsecurity");
+        StringAssert.Contains(sql, "a.accountaddress");
     }
 
     [TestMethod]

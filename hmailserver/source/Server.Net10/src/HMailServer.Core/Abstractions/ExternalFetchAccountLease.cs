@@ -17,4 +17,5 @@ public sealed record ExternalFetchAccountLease(
     bool UseAntiSpam,
     bool UseAntiVirus,
     bool EnableRouteRecipients,
-    string MimeRecipientHeaders);
+    string MimeRecipientHeaders,
+    string AccountAddress = "");
