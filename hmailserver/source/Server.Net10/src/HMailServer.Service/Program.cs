@@ -170,6 +170,7 @@ builder.Services.AddSingleton<IImapIdleNotifier, PollingImapIdleNotifier>();
 builder.Services.AddSingleton<IImapQuotaStore, SqlServerImapQuotaStore>();
 builder.Services.AddSingleton<IImapRecentFlagStore, SqlServerImapRecentFlagStore>();
 builder.Services.AddSingleton<IPop3MailboxStore, SqlServerPop3MailboxStore>();
+builder.Services.AddSingleton<IPop3MailboxLockManager, InMemoryPop3MailboxLockManager>();
 builder.Services.AddSingleton<SqlServerSmtpQueueWriter>();
 builder.Services.AddSingleton<SqlServerSmtpRuleProcessor>();
 builder.Services.AddSingleton<ISmtpRuleProcessor>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerSmtpRuleProcessor>());

@@ -15,15 +15,18 @@ public sealed class Pop3Session
 
     private readonly IImapAccountAuthenticator _accountAuthenticator;
     private readonly IPop3MailboxStore _mailboxStore;
+    private readonly IPop3MailboxLockManager? _mailboxLockManager;
     private readonly Pop3SessionOptions _options;
 
     public Pop3Session(
         IImapAccountAuthenticator accountAuthenticator,
         IPop3MailboxStore mailboxStore,
-        Pop3SessionOptions? options = null)
+        Pop3SessionOptions? options = null,
+        IPop3MailboxLockManager? mailboxLockManager = null)
     {
         _accountAuthenticator = accountAuthenticator;
         _mailboxStore = mailboxStore;
+        _mailboxLockManager = mailboxLockManager;
         _options = options ?? new Pop3SessionOptions();
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.Greeting);
@@ -39,40 +42,47 @@ public sealed class Pop3Session
 
         var state = new SessionState();
         await using var reader = new LineProtocolReader(stream, _options.MaxLineBytes);
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            string? line;
-            try
+            while (!cancellationToken.IsCancellationRequested)
             {
-                line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (InvalidDataException ex)
-            {
-                await WriteErrAsync(stream, SanitizeResponseText(ex.Message), cancellationToken).ConfigureAwait(false);
-                return;
-            }
+                string? line;
+                try
+                {
+                    line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (InvalidDataException ex)
+                {
+                    await WriteErrAsync(stream, SanitizeResponseText(ex.Message), cancellationToken).ConfigureAwait(false);
+                    return;
+                }
 
-            if (line is null)
-            {
-                return;
-            }
+                if (line is null)
+                {
+                    return;
+                }
 
-            if (!TryParseCommand(line, out var command, out var arguments))
-            {
-                await WriteErrAsync(stream, "Syntax error, command unrecognized", cancellationToken).ConfigureAwait(false);
-                continue;
-            }
+                if (!TryParseCommand(line, out var command, out var arguments))
+                {
+                    await WriteErrAsync(stream, "Syntax error, command unrecognized", cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
 
-            var shouldClose = await DispatchAsync(
-                stream,
-                state,
-                command,
-                arguments,
-                cancellationToken).ConfigureAwait(false);
-            if (shouldClose)
-            {
-                return;
+                var shouldClose = await DispatchAsync(
+                    stream,
+                    state,
+                    command,
+                    arguments,
+                    cancellationToken).ConfigureAwait(false);
+                if (shouldClose)
+                {
+                    return;
+                }
             }
+        }
+        finally
+        {
+            await state.ReleaseMailboxLockAsync().ConfigureAwait(false);
         }
     }
 
@@ -236,10 +246,35 @@ public sealed class Pop3Session
             return;
         }
 
-        var messages = await _mailboxStore
-            .ListMessagesAsync(result.Account, cancellationToken)
-            .ConfigureAwait(false);
-        state.SetAuthenticated(result.Account, messages);
+        IAsyncDisposable? mailboxLock = null;
+        if (_mailboxLockManager is not null)
+        {
+            mailboxLock = await _mailboxLockManager
+                .TryAcquireAsync(result.Account, cancellationToken)
+                .ConfigureAwait(false);
+            if (mailboxLock is null)
+            {
+                await WriteErrAsync(stream, "Your mailbox is already locked", cancellationToken).ConfigureAwait(false);
+                return;
+            }
+        }
+
+        try
+        {
+            var messages = await _mailboxStore
+                .ListMessagesAsync(result.Account, cancellationToken)
+                .ConfigureAwait(false);
+            state.SetAuthenticated(result.Account, messages, mailboxLock);
+            mailboxLock = null;
+        }
+        finally
+        {
+            if (mailboxLock is not null)
+            {
+                await mailboxLock.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+
         await WriteOkAsync(stream, "Mailbox locked and ready", cancellationToken).ConfigureAwait(false);
     }
 
@@ -661,6 +696,7 @@ public sealed class Pop3Session
     private sealed class SessionState
     {
         private readonly HashSet<int> _deletedSequenceNumbers = new();
+        private IAsyncDisposable? _mailboxLock;
 
         public string? PendingUsername { get; set; }
 
@@ -672,10 +708,12 @@ public sealed class Pop3Session
 
         public void SetAuthenticated(
             ImapAuthenticatedAccount account,
-            IReadOnlyList<Pop3MessageListing> messages)
+            IReadOnlyList<Pop3MessageListing> messages,
+            IAsyncDisposable? mailboxLock)
         {
             Account = account;
             Messages = messages;
+            _mailboxLock = mailboxLock;
             _deletedSequenceNumbers.Clear();
         }
 
@@ -700,6 +738,18 @@ public sealed class Pop3Session
             }
 
             return messageIds;
+        }
+
+        public async ValueTask ReleaseMailboxLockAsync()
+        {
+            if (_mailboxLock is null)
+            {
+                return;
+            }
+
+            var mailboxLock = _mailboxLock;
+            _mailboxLock = null;
+            await mailboxLock.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

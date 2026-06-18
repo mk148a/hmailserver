@@ -135,6 +135,53 @@ public sealed class Pop3SessionTests
         CollectionAssert.AreEqual(new long[] { 301 }, store.DeletedMessageIds.ToArray());
     }
 
+    [TestMethod]
+    public async Task RunAsync_RejectsPassWhenMailboxIsAlreadyLocked()
+    {
+        var store = new FakePop3MailboxStore(Array.Empty<StoredMessage>());
+        var lockManager = new RejectingMailboxLockManager();
+        await using var stream = new DuplexMemoryStream(
+            "USER user@example.test\r\n" +
+            "PASS secret\r\n" +
+            "STAT\r\n" +
+            "QUIT\r\n");
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            store,
+            mailboxLockManager: lockManager);
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "-ERR Your mailbox is already locked\r\n");
+        StringAssert.Contains(output, "-ERR Authentication required\r\n");
+        Assert.AreEqual(1, lockManager.AttemptCount);
+        Assert.AreEqual(0, store.ListCallCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_ReleasesMailboxLockWhenSessionEnds()
+    {
+        var store = new FakePop3MailboxStore(Array.Empty<StoredMessage>());
+        var lockManager = new InMemoryPop3MailboxLockManager();
+        await using var stream = new DuplexMemoryStream(
+            "USER user@example.test\r\n" +
+            "PASS secret\r\n" +
+            "QUIT\r\n");
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            store,
+            mailboxLockManager: lockManager);
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var lease = await lockManager
+            .TryAcquireAsync(new ImapAuthenticatedAccount(77, "user@example.test"), CancellationToken.None)
+            .ConfigureAwait(false);
+        Assert.IsNotNull(lease);
+        await lease.DisposeAsync().ConfigureAwait(false);
+    }
+
     private sealed class DuplexMemoryStream : Stream
     {
         private readonly MemoryStream _input;
@@ -256,6 +303,19 @@ public sealed class Pop3SessionTests
         {
             DeletedMessageIds.AddRange(messageIds);
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class RejectingMailboxLockManager : IPop3MailboxLockManager
+    {
+        public int AttemptCount { get; private set; }
+
+        public ValueTask<IAsyncDisposable?> TryAcquireAsync(
+            ImapAuthenticatedAccount account,
+            CancellationToken cancellationToken)
+        {
+            AttemptCount++;
+            return ValueTask.FromResult<IAsyncDisposable?>(null);
         }
     }
 
