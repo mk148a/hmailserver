@@ -12,13 +12,18 @@ public static class SpamAssassinResponseValidator
         }
 
         const string prefix = "Content-length:";
-        if (!lines[1].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        foreach (var line in lines.Skip(1))
         {
-            return false;
+            if (!line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = line[prefix.Length..].Trim();
+            return int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out contentLength)
+                && contentLength > 0;
         }
 
-        var value = lines[1][prefix.Length..].Trim();
-        return int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out contentLength)
-            && contentLength > 0;
+        return false;
     }
 }
