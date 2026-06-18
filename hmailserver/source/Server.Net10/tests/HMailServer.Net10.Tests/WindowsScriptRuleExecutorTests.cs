@@ -873,6 +873,98 @@ End Sub
     }
 
     [TestMethod]
+    public void Execute_RunsVbScriptDeliveryEventWithQueueMetadata()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnDeliveryStart(oMessage)
+   If oMessage.ID <> 123 Then Err.Raise 1001, "test", "message id"
+   If oMessage.UID <> 456 Then Err.Raise 1002, "test", "message uid"
+   If oMessage.State <> 32 Then Err.Raise 1003, "test", "message state"
+   If oMessage.DeliveryAttempt <> 4 Then Err.Raise 1004, "test", "delivery attempt"
+   If Year(oMessage.InternalDate) <> 2026 Then Err.Raise 1005, "test", "internal date"
+   oMessage.HeaderValue("X-Queue-ID") = CStr(oMessage.ID)
+   oMessage.HeaderValue("X-Queue-Attempt") = CStr(oMessage.DeliveryAttempt)
+   oMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateDeliveryEventRequest(
+                    "Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray(),
+                    messageId: 123,
+                    messageUid: 456,
+                    messageState: 32,
+                    deliveryAttempt: 4,
+                    internalDateUtc: DateTimeOffset.Parse("2026-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture)),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "X-Queue-ID: 123\r\n");
+            StringAssert.Contains(messageText, "X-Queue-Attempt: 4\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_RunsJScriptDeliveryEventWithQueueMetadata()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnDeliveryStart(oMessage) {
+  if (oMessage.ID !== 123) throw new Error("message id");
+  if (oMessage.UID !== 456) throw new Error("message uid");
+  if (oMessage.State !== 32) throw new Error("message state");
+  if (oMessage.DeliveryAttempt !== 4) throw new Error("delivery attempt");
+  if (oMessage.InternalDate.getUTCFullYear() !== 2026) throw new Error("internal date");
+  oMessage.SetHeaderValue("X-Queue-ID", String(oMessage.ID));
+  oMessage.SetHeaderValue("X-Queue-Attempt", String(oMessage.DeliveryAttempt));
+  oMessage.Save();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, language: "JScript");
+
+            var result = executor.Execute(
+                CreateDeliveryEventRequest(
+                    "Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray(),
+                    messageId: 123,
+                    messageUid: 456,
+                    messageState: 32,
+                    deliveryAttempt: 4,
+                    internalDateUtc: DateTimeOffset.Parse("2026-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture)),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "X-Queue-ID: 123\r\n");
+            StringAssert.Contains(messageText, "X-Queue-Attempt: 4\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_DeliveryEventIgnoresSmtpRejectResultValues()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -1068,7 +1160,12 @@ function OnClientValidatePassword(oAccount, password) {
         string eventName = "OnDeliveryStart",
         DeliveryEventScriptArgumentShape argumentShape = DeliveryEventScriptArgumentShape.MessageOnly,
         string recipientAddress = "",
-        string errorMessage = "") =>
+        string errorMessage = "",
+        long messageId = 0,
+        long messageUid = 0,
+        int messageState = 0,
+        int deliveryAttempt = 1,
+        DateTimeOffset? internalDateUtc = null) =>
         new(
             eventName,
             mailFrom,
@@ -1076,7 +1173,12 @@ function OnClientValidatePassword(oAccount, password) {
             messageData,
             argumentShape,
             recipientAddress,
-            errorMessage);
+            errorMessage,
+            messageId,
+            messageUid,
+            messageState,
+            deliveryAttempt,
+            internalDateUtc);
 
     private static ClientPasswordValidationScriptRequest CreatePasswordValidationRequest(
         string password,

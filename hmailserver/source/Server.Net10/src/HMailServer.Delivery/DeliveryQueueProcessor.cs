@@ -336,7 +336,12 @@ public sealed class DeliveryQueueProcessor
                 eventName,
                 message.FromAddress,
                 ToResolvedRecipients(message.Recipients),
-                messageData),
+                messageData,
+                MessageId: message.Identity.MessageId,
+                MessageUid: message.Identity.Uid,
+                MessageState: message.Flags,
+                DeliveryAttempt: message.CurrentRetryCount + 1,
+                InternalDateUtc: message.CreatedUtc),
             cancellationToken);
         if (!result.Succeeded)
         {
@@ -391,7 +396,12 @@ public sealed class DeliveryQueueProcessor
                     messageData,
                     DeliveryEventScriptArgumentShape.MessageRecipientAndError,
                     failedRecipient.Address,
-                    failureDescription),
+                    failureDescription,
+                    MessageId: message.Identity.MessageId,
+                    MessageUid: message.Identity.Uid,
+                    MessageState: message.Flags,
+                    DeliveryAttempt: message.CurrentRetryCount + 1,
+                    InternalDateUtc: message.CreatedUtc),
                 cancellationToken);
             if (!result.Succeeded)
             {

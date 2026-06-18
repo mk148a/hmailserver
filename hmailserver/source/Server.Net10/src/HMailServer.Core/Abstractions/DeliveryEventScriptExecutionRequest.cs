@@ -7,4 +7,9 @@ public sealed record DeliveryEventScriptExecutionRequest(
     byte[] MessageData,
     DeliveryEventScriptArgumentShape ArgumentShape = DeliveryEventScriptArgumentShape.MessageOnly,
     string RecipientAddress = "",
-    string ErrorMessage = "");
+    string ErrorMessage = "",
+    long MessageId = 0,
+    long MessageUid = 0,
+    int MessageState = 0,
+    int DeliveryAttempt = 1,
+    DateTimeOffset? InternalDateUtc = null);

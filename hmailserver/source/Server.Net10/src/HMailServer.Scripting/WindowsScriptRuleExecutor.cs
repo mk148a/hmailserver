@@ -36,7 +36,8 @@ public sealed partial class WindowsScriptRuleExecutor :
                 Invocation: ScriptInvocation.RuleFunction,
                 ArgumentShape: ScriptArgumentShape.ClientAndMessage,
                 DeliveryRecipientAddress: string.Empty,
-                DeliveryErrorMessage: string.Empty),
+                DeliveryErrorMessage: string.Empty,
+                MessageMetadata: CreateDefaultMessageMetadata()),
             cancellationToken);
     }
 
@@ -55,7 +56,8 @@ public sealed partial class WindowsScriptRuleExecutor :
                 ScriptInvocation.OptionalSmtpEvent,
                 ToScriptArgumentShape(request.ArgumentShape),
                 DeliveryRecipientAddress: string.Empty,
-                DeliveryErrorMessage: string.Empty),
+                DeliveryErrorMessage: string.Empty,
+                MessageMetadata: CreateDefaultMessageMetadata()),
             cancellationToken);
     }
 
@@ -75,7 +77,8 @@ public sealed partial class WindowsScriptRuleExecutor :
                 Invocation: ScriptInvocation.OptionalDeliveryEvent,
                 ArgumentShape: ToScriptArgumentShape(request.ArgumentShape),
                 request.RecipientAddress,
-                request.ErrorMessage),
+                request.ErrorMessage,
+                ToScriptMessageMetadata(request)),
             cancellationToken);
 
         if (!result.Accepted)
@@ -203,6 +206,7 @@ public sealed partial class WindowsScriptRuleExecutor :
                         spec.Client,
                         spec.Invocation,
                         spec.ArgumentShape,
+                        spec.MessageMetadata,
                         spec.DeliveryRecipientAddress,
                         spec.DeliveryErrorMessage)
                     : CreateJScriptRunner(
@@ -217,6 +221,7 @@ public sealed partial class WindowsScriptRuleExecutor :
                         spec.Client,
                         spec.Invocation,
                         spec.ArgumentShape,
+                        spec.MessageMetadata,
                         spec.DeliveryRecipientAddress,
                         spec.DeliveryErrorMessage),
                 Encoding.Unicode);
@@ -275,6 +280,22 @@ public sealed partial class WindowsScriptRuleExecutor :
             : _options.EventDirectory;
         return Path.Combine(eventDirectory, "EventHandlers." + language.Extension);
     }
+
+    private static ScriptMessageMetadata CreateDefaultMessageMetadata() =>
+        new(
+            Id: 0,
+            Uid: 0,
+            State: 0,
+            DeliveryAttempt: 1,
+            InternalDateUtc: DateTimeOffset.UtcNow);
+
+    private static ScriptMessageMetadata ToScriptMessageMetadata(DeliveryEventScriptExecutionRequest request) =>
+        new(
+            request.MessageId,
+            request.MessageUid,
+            request.MessageState,
+            Math.Max(1, request.DeliveryAttempt),
+            request.InternalDateUtc ?? DateTimeOffset.UtcNow);
 
     private ProcessResult RunScript(
         string runnerPath,
@@ -783,6 +804,7 @@ hMailServerRuleStatusFile.Close();
         SmtpEventScriptClient? client,
         ScriptInvocation invocation,
         ScriptArgumentShape argumentShape,
+        ScriptMessageMetadata messageMetadata,
         string deliveryRecipientAddress,
         string deliveryErrorMessage)
     {
@@ -1676,6 +1698,11 @@ HMAILSERVER_MESSAGE.RejectReason = ""
 HMAILSERVER_MESSAGE.Load
 HMAILSERVER_MESSAGE.Attachments.Load "{{EscapeVbScript(attachmentManifestPath)}}", "{{EscapeVbScript(attachmentOperationPath)}}"
 HMAILSERVER_MESSAGE.FromAddress = "{{EscapeVbScript(mailFrom)}}"
+HMAILSERVER_MESSAGE.ID = {{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}}
+HMAILSERVER_MESSAGE.UID = {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}}
+HMAILSERVER_MESSAGE.State = {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}}
+HMAILSERVER_MESSAGE.DeliveryAttempt = {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}}
+HMAILSERVER_MESSAGE.InternalDate = {{CreateVbScriptDateExpression(messageMetadata.InternalDateUtc)}}
 {{CreateVbScriptRecipientSeeds(recipients)}}
 
 Dim hMailServerRuleDeliveryRecipient
@@ -1734,6 +1761,7 @@ hMailServerRuleStatusFile.Close
         SmtpEventScriptClient? client,
         ScriptInvocation invocation,
         ScriptArgumentShape argumentShape,
+        ScriptMessageMetadata messageMetadata,
         string deliveryRecipientAddress,
         string deliveryErrorMessage)
     {
@@ -2240,6 +2268,11 @@ var HMAILSERVER_MESSAGE = {
 HMAILSERVER_MESSAGE.Headers = hMailServerRuleCreateHeaders(HMAILSERVER_MESSAGE);
 HMAILSERVER_MESSAGE.Load();
 HMAILSERVER_MESSAGE.FromAddress = "{{EscapeJScript(mailFrom)}}";
+HMAILSERVER_MESSAGE.ID = {{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}};
+HMAILSERVER_MESSAGE.UID = {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}};
+HMAILSERVER_MESSAGE.State = {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}};
+HMAILSERVER_MESSAGE.DeliveryAttempt = {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}};
+HMAILSERVER_MESSAGE.InternalDate = {{CreateJScriptUtcDateExpression(messageMetadata.InternalDateUtc)}};
 {{CreateJScriptRecipientSeeds(recipients)}}
 
 var hMailServerRuleDeliveryRecipient = "{{EscapeJScript(deliveryRecipientAddress)}}";
@@ -2523,6 +2556,22 @@ if (typeof {{functionName}} === "function") {
         value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("\"", "\\\"", StringComparison.Ordinal);
 
+    private static string CreateVbScriptDateExpression(DateTimeOffset value)
+    {
+        var utc = value.UtcDateTime;
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"DateSerial({utc.Year}, {utc.Month}, {utc.Day}) + TimeSerial({utc.Hour}, {utc.Minute}, {utc.Second})");
+    }
+
+    private static string CreateJScriptUtcDateExpression(DateTimeOffset value)
+    {
+        var utc = value.UtcDateTime;
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"new Date(Date.UTC({utc.Year}, {utc.Month - 1}, {utc.Day}, {utc.Hour}, {utc.Minute}, {utc.Second}))");
+    }
+
     private static string QuoteArgument(string value) =>
         "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 
@@ -2584,7 +2633,15 @@ if (typeof {{functionName}} === "function") {
         ScriptInvocation Invocation,
         ScriptArgumentShape ArgumentShape,
         string DeliveryRecipientAddress,
-        string DeliveryErrorMessage);
+        string DeliveryErrorMessage,
+        ScriptMessageMetadata MessageMetadata);
+
+    private sealed record ScriptMessageMetadata(
+        long Id,
+        long Uid,
+        int State,
+        int DeliveryAttempt,
+        DateTimeOffset InternalDateUtc);
 
     private sealed record ScriptLanguage(string Name, string Extension);
 
