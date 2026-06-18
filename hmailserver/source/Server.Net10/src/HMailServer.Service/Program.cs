@@ -82,6 +82,47 @@ var pop3Options = new Pop3TcpListenerOptions
         builder.Configuration["Pop3:MaxConcurrentConnections"] ?? builder.Configuration["HMAILSERVER_POP3_MAX_CONNECTIONS"],
         defaultValue: 1000)
 };
+var externalFetchEnabled = ReadBool(
+    builder.Configuration["ExternalFetch:Enabled"] ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_ENABLED"],
+    defaultValue: true);
+var externalFetchProcessorOptions = new ExternalFetchProcessorOptions(
+    BatchSize: Math.Max(
+        1,
+        ReadInt(
+            builder.Configuration["ExternalFetch:BatchSize"] ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_BATCH_SIZE"],
+            defaultValue: 10)),
+    MaxMessagesPerAccount: Math.Max(
+        1,
+        ReadInt(
+            builder.Configuration["ExternalFetch:MaxMessagesPerAccount"]
+                ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_MAX_MESSAGES_PER_ACCOUNT"],
+            defaultValue: 100)));
+var externalFetchHostedServiceOptions = new ExternalFetchHostedServiceOptions(
+    PollInterval: TimeSpan.FromSeconds(
+        Math.Max(
+            1,
+            ReadInt(
+                builder.Configuration["ExternalFetch:PollIntervalSeconds"]
+                    ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_POLL_INTERVAL_SECONDS"],
+                defaultValue: 30))));
+var externalFetchPop3ClientOptions = new ExternalFetchPop3ClientOptions
+{
+    ReceiveBufferBytes = Math.Max(
+        1024,
+        ReadInt(
+            builder.Configuration["ExternalFetch:ReceiveBufferBytes"]
+                ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_RECEIVE_BUFFER_BYTES"],
+            defaultValue: 64 * 1024)),
+    SendBufferBytes = Math.Max(
+        1024,
+        ReadInt(
+            builder.Configuration["ExternalFetch:SendBufferBytes"]
+                ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_SEND_BUFFER_BYTES"],
+            defaultValue: 64 * 1024)),
+    NoDelay = ReadBool(
+        builder.Configuration["ExternalFetch:NoDelay"] ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_NO_DELAY"],
+        defaultValue: true)
+};
 var smtpSessionOptions = new SmtpSessionOptions
 {
     ServerName = builder.Configuration["Smtp:ServerName"]
@@ -175,6 +216,9 @@ builder.Services.AddSingleton(new SqlServerConnectionFactory(connectionString));
 builder.Services.AddSingleton(imapOptions);
 builder.Services.AddSingleton(smtpOptions);
 builder.Services.AddSingleton(pop3Options);
+builder.Services.AddSingleton(externalFetchProcessorOptions);
+builder.Services.AddSingleton(externalFetchHostedServiceOptions);
+builder.Services.AddSingleton(externalFetchPop3ClientOptions);
 builder.Services.AddSingleton(imapSessionOptions);
 builder.Services.AddSingleton(smtpSessionOptions);
 builder.Services.AddSingleton(new Pop3SessionOptions());
@@ -217,6 +261,7 @@ builder.Services.AddSingleton<IImapRecentFlagStore, SqlServerImapRecentFlagStore
 builder.Services.AddSingleton<IPop3MailboxStore, SqlServerPop3MailboxStore>();
 builder.Services.AddSingleton<IPop3MailboxLockManager, InMemoryPop3MailboxLockManager>();
 builder.Services.AddSingleton<IExternalFetchAccountStore, SqlServerExternalFetchAccountStore>();
+builder.Services.AddSingleton<IExternalFetchSessionFactory, TcpExternalFetchSessionFactory>();
 builder.Services.AddSingleton<SqlServerSmtpQueueWriter>();
 builder.Services.AddSingleton<SqlServerSmtpRuleProcessor>();
 builder.Services.AddSingleton<ISmtpRuleProcessor>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerSmtpRuleProcessor>());
@@ -264,6 +309,12 @@ builder.Services.AddSingleton<IDeliveryTargetDispatcher>(static serviceProvider 
         serviceProvider.GetRequiredService<LocalDeliveryTargetDispatcher>(),
         serviceProvider.GetRequiredService<DomainConcurrencyDeliveryTargetDispatcher>()));
 builder.Services.AddSingleton<DeliveryQueueProcessor>();
+builder.Services.AddSingleton(static serviceProvider =>
+    new ExternalFetchProcessor(
+        serviceProvider.GetRequiredService<IExternalFetchAccountStore>(),
+        serviceProvider.GetRequiredService<IExternalFetchSessionFactory>(),
+        serviceProvider.GetRequiredService<ISmtpMessageReceiver>(),
+        serviceProvider.GetService<IExternalAccountDownloadScriptExecutor>()));
 builder.Services.AddSingleton<IImapConnectionStreamFactory, PlainImapConnectionStreamFactory>();
 builder.Services.AddSingleton<IPop3ConnectionStreamFactory>(_ =>
     pop3TlsCertificate is null
@@ -314,6 +365,10 @@ builder.Services.AddSingleton<MessageSearchBackfillProcessor>();
 builder.Services.AddHostedService<ServerBootstrapper>();
 builder.Services.AddHostedService<MessageSearchBackfillHostedService>();
 builder.Services.AddHostedService<DeliveryQueueStatusMaintenanceHostedService>();
+if (externalFetchEnabled)
+{
+    builder.Services.AddHostedService<ExternalFetchHostedService>();
+}
 builder.Services.AddHostedService<ImapTcpListenerHostedService>();
 builder.Services.AddHostedService<Pop3TcpListenerHostedService>();
 builder.Services.AddHostedService<SmtpTcpListenerHostedService>();
