@@ -52,6 +52,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SMTP `OnAcceptMessage(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs before global rule processing, can mutate/drop/reject messages, exposes basic client context, and maps legacy `Result.Value`/`Result.Message` rejection responses.
 - Done: SMTP `OnTooManyInvalidCommands(HMAILSERVER_CLIENT, HMAILSERVER_MESSAGE)` event hook runs when the configured invalid-command disconnect threshold is exceeded.
 - Done: SMTP delivery queue `OnDeliveryStart(HMAILSERVER_MESSAGE)`, `OnDeliverMessage(HMAILSERVER_MESSAGE)`, and `OnDeliveryFailed(HMAILSERVER_MESSAGE, recipient, error)` event hooks run with queue-file mutation persistence where applicable.
+- Done: POP3 session command engine for `USER`/`PASS`, `STAT`, `LIST`, `UIDL`, `RETR`, `DELE`, `RSET`, `NOOP`, and `QUIT` over a streaming mailbox-store boundary.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -116,8 +117,9 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Delivery queue worker remaining: delivery status observability and richer bounce templates.
 
 4. POP3 and external fetch.
-   - POP3 listener/session, UIDL/LIST/RETR/DELE parity.
-   - External POP3 fetch accounts, UID tracking, antivirus/spam pipeline integration.
+   - Done: POP3 session command engine with shared account authentication, session-held deletes committed on `QUIT`, `RSET` undo, `LIST`/`UIDL` visibility checks, and streaming `RETR` dot-stuffing.
+   - Remaining: POP3 TCP listener, SQL Server/data-directory mailbox store, `TOP`/`CAPA`, TLS listener wiring, and service configuration.
+   - Remaining: External POP3 fetch accounts, UID tracking, antivirus/spam pipeline integration.
 
 5. Security and anti-abuse modernization.
    - Async/timeboxed ClamAV and SpamAssassin clients.
@@ -141,4 +143,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue remaining authentication and script-object parity beyond the completed SMTP, IMAP logon, validate-password, and delivery queue events; next up is POP3/external-fetch script-event parity, then deeper legacy account facade collections/methods.
+Continue POP3 toward production wiring: SQL Server/data-directory mailbox store and disabled-by-default TCP listener are next, then `TOP`/`CAPA`, external fetch, and remaining authentication/script-object parity.
