@@ -51,7 +51,12 @@ public sealed class SqlServerDeliveryBounceStore : IDeliveryBounceStore
             return DeliveryBounceResult.Skipped("Original sender address is invalid.");
         }
 
-        var messageData = BuildBounceMessage(originalMessage, failedRecipients, failureDescription);
+        var messageData = BuildBounceMessage(
+            _options,
+            originalMessage,
+            failedRecipients,
+            failureDescription,
+            DateTimeOffset.UtcNow);
         var messageFileName = Guid.NewGuid().ToString("N") + ".eml";
         var messagePath = _pathResolver.Resolve(messageFileName, accountId: 0, folderId: 0, accountAddress: null);
         if (messagePath is null)
@@ -141,31 +146,126 @@ public sealed class SqlServerDeliveryBounceStore : IDeliveryBounceStore
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private byte[] BuildBounceMessage(
+    public static byte[] BuildBounceMessage(
+        DeliveryBounceOptions options,
         DeliveryQueuedMessage originalMessage,
         IReadOnlyList<DeliveryQueueRecipient> failedRecipients,
-        string failureDescription)
+        string failureDescription,
+        DateTimeOffset generatedUtc)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(originalMessage);
+        ArgumentNullException.ThrowIfNull(failedRecipients);
+
+        var recipientsText = FormatRecipients(failedRecipients);
+        var truncatedFailureDescription = Truncate(
+            NormalizeBodyLineEndings(failureDescription),
+            Math.Max(0, options.MaxFailureDescriptionLength));
+        var subject = RenderTemplate(
+            options.SubjectTemplate,
+            options,
+            originalMessage,
+            recipientsText,
+            truncatedFailureDescription,
+            generatedUtc);
+        var body = RenderTemplate(
+            options.BodyTemplate,
+            options,
+            originalMessage,
+            recipientsText,
+            truncatedFailureDescription,
+            generatedUtc);
+
         var builder = new StringBuilder();
-        builder.Append("From: ").Append(_options.MailerDaemonAddress).Append("\r\n");
+        builder.Append("From: ").Append(options.MailerDaemonAddress).Append("\r\n");
         builder.Append("To: ").Append(originalMessage.FromAddress).Append("\r\n");
-        builder.Append("Subject: ").Append(_options.Subject).Append("\r\n");
+        builder.Append("Subject: ").Append(SanitizeHeaderValue(subject)).Append("\r\n");
         builder.Append("Auto-Submitted: auto-replied\r\n");
         builder.Append("Content-Type: text/plain; charset=utf-8\r\n");
-        builder.Append("Date: ").Append(DateTimeOffset.UtcNow.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append("\r\n");
+        builder.Append("X-hMailServer-Queue-Message-Id: ").Append(originalMessage.Identity.MessageId).Append("\r\n");
+        builder.Append("X-hMailServer-Delivery-Attempt: ").Append(originalMessage.CurrentRetryCount).Append("\r\n");
+        builder.Append("X-hMailServer-Failed-Recipients: ")
+            .Append(SanitizeHeaderValue(Truncate(string.Join(", ", failedRecipients.Select(static recipient => recipient.Address)), 900)))
+            .Append("\r\n");
+        builder.Append("Date: ").Append(generatedUtc.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append("\r\n");
         builder.Append("\r\n");
-        builder.Append("Your message could not be delivered.\r\n\r\n");
-        builder.Append("Original queue message id: ").Append(originalMessage.Identity.MessageId).Append("\r\n");
-        builder.Append("Recipients:\r\n");
-        foreach (var recipient in failedRecipients)
+        builder.Append(NormalizeBodyLineEndings(body));
+        if (builder.Length < 2 || builder[^2] != '\r' || builder[^1] != '\n')
         {
-            builder.Append(" - ").Append(recipient.Address).Append("\r\n");
+            builder.Append("\r\n");
         }
 
-        builder.Append("\r\nReason:\r\n");
-        builder.Append(failureDescription).Append("\r\n");
         return Encoding.UTF8.GetBytes(builder.ToString());
     }
+
+    private static string RenderTemplate(
+        string template,
+        DeliveryBounceOptions options,
+        DeliveryQueuedMessage originalMessage,
+        string recipientsText,
+        string failureDescription,
+        DateTimeOffset generatedUtc)
+    {
+        var rendered = string.IsNullOrEmpty(template)
+            ? DeliveryBounceOptions.DefaultBodyTemplate
+            : template;
+        return rendered
+            .Replace("{ServerName}", options.ServerName, StringComparison.Ordinal)
+            .Replace("{MessageId}", originalMessage.Identity.MessageId.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{Sender}", originalMessage.FromAddress, StringComparison.Ordinal)
+            .Replace("{FileName}", originalMessage.FileName, StringComparison.Ordinal)
+            .Replace("{Size}", originalMessage.Size.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{CreatedUtc}", originalMessage.CreatedUtc.UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{RetryCount}", originalMessage.CurrentRetryCount.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{Recipients}", recipientsText, StringComparison.Ordinal)
+            .Replace("{FailureDescription}", failureDescription, StringComparison.Ordinal)
+            .Replace("{GeneratedUtc}", generatedUtc.UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    private static string FormatRecipients(IReadOnlyList<DeliveryQueueRecipient> failedRecipients)
+    {
+        if (failedRecipients.Count == 0)
+        {
+            return " - (no failed recipients were provided)";
+        }
+
+        var builder = new StringBuilder();
+        foreach (var recipient in failedRecipients)
+        {
+            builder.Append(" - ").Append(recipient.Address);
+            if (!recipient.OriginalAddress.Equals(recipient.Address, StringComparison.OrdinalIgnoreCase))
+            {
+                builder.Append(" (original: ").Append(recipient.OriginalAddress).Append(')');
+            }
+
+            builder.Append("\r\n");
+        }
+
+        return builder.ToString().TrimEnd('\r', '\n');
+    }
+
+    private static string NormalizeBodyLineEndings(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Replace("\n", "\r\n", StringComparison.Ordinal);
+    }
+
+    private static string SanitizeHeaderValue(string value) =>
+        NormalizeBodyLineEndings(value)
+            .Replace("\r\n", " ", StringComparison.Ordinal)
+            .Trim();
+
+    private static string Truncate(string value, int maxLength) =>
+        value.Length <= maxLength
+            ? value
+            : value[..maxLength];
 
     private static bool IsMailerDaemon(string address)
     {

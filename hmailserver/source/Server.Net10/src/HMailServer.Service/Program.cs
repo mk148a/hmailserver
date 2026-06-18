@@ -89,6 +89,20 @@ var smtpRuleOptions = new SmtpRuleProcessorOptions
         builder.Configuration["Smtp:RuleLoopLimit"] ?? builder.Configuration["HMAILSERVER_SMTP_RULE_LOOP_LIMIT"],
         defaultValue: 5)
 };
+var defaultBounceOptions = DeliveryBounceOptions.Default(smtpSessionOptions.ServerName);
+var deliveryBounceOptions = defaultBounceOptions with
+{
+    SubjectTemplate = builder.Configuration["DeliveryQueue:BounceSubjectTemplate"]
+        ?? builder.Configuration["HMAILSERVER_DELIVERY_BOUNCE_SUBJECT_TEMPLATE"]
+        ?? defaultBounceOptions.SubjectTemplate,
+    BodyTemplate = builder.Configuration["DeliveryQueue:BounceBodyTemplate"]
+        ?? builder.Configuration["HMAILSERVER_DELIVERY_BOUNCE_BODY_TEMPLATE"]
+        ?? defaultBounceOptions.BodyTemplate,
+    MaxFailureDescriptionLength = ReadInt(
+        builder.Configuration["DeliveryQueue:BounceMaxFailureDescriptionLength"]
+            ?? builder.Configuration["HMAILSERVER_DELIVERY_BOUNCE_MAX_FAILURE_DESCRIPTION_LENGTH"],
+        defaultBounceOptions.MaxFailureDescriptionLength)
+};
 var scriptingOptions = new WindowsScriptRuleExecutorOptions
 {
     Enabled = ReadBool(
@@ -190,7 +204,7 @@ builder.Services.AddSingleton<IDeliveryQueueMessageStore, SqlServerDeliveryQueue
 builder.Services.AddSingleton<IDeliveryQueueRecipientStore, SqlServerDeliveryQueueRecipientStore>();
 builder.Services.AddSingleton<IDeliveryTargetResolver, SqlServerDeliveryTargetResolver>();
 builder.Services.AddSingleton<ILocalDeliveryStore, SqlServerLocalDeliveryStore>();
-builder.Services.AddSingleton(DeliveryBounceOptions.Default(smtpSessionOptions.ServerName));
+builder.Services.AddSingleton(deliveryBounceOptions);
 builder.Services.AddSingleton<IDeliveryBounceStore, SqlServerDeliveryBounceStore>();
 builder.Services.AddSingleton<DeliveryMessageContentSource>();
 builder.Services.AddSingleton<IDeliveryMessageContentSource>(static serviceProvider => serviceProvider.GetRequiredService<DeliveryMessageContentSource>());
