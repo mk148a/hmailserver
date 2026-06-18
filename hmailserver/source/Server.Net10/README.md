@@ -90,7 +90,7 @@ $env:HMAILSERVER_POP3_PORT = "1110"
 $env:HMAILSERVER_POP3_MAX_CONNECTIONS = "1000"
 ```
 
-The POP3 command engine supports `USER`/`PASS` through the shared account authenticator, then `STAT`, `LIST`, `UIDL`, `RETR`, `DELE`, `RSET`, `NOOP`, and `QUIT` over an `IPop3MailboxStore` boundary. The SQL Server mailbox store opens the legacy root `Inbox` for the authenticated account, lists `hm_messages` rows in `messageuid` order, exposes `messageuid` as the POP3 UIDL value, streams message files from the hMailServer data directory, and deletes DB/search/metadata rows plus message files when authenticated `QUIT` commits pending `DELE` commands. `RETR` dot-stuffs while streaming instead of requiring the full message body as a byte array. `TOP`/`CAPA`, TLS listener wiring, and external POP3 fetch integration remain on the parity backlog.
+The POP3 command engine supports `USER`/`PASS` through the shared account authenticator, `CAPA`, and then `STAT`, `LIST`, `UIDL`, `RETR`, `TOP`, `DELE`, `RSET`, `NOOP`, and `QUIT` over an `IPop3MailboxStore` boundary. The SQL Server mailbox store opens the legacy root `Inbox` for the authenticated account, lists `hm_messages` rows in `messageuid` order, exposes `messageuid` as the POP3 UIDL value, streams message files from the hMailServer data directory, and deletes DB/search/metadata rows plus message files when authenticated `QUIT` commits pending `DELE` commands. `RETR` dot-stuffs while streaming instead of requiring the full message body as a byte array, and `TOP` streams only headers plus the requested body line count. TLS listener wiring, mailbox lock/auto-ban parity, and external POP3 fetch integration remain on the parity backlog.
 
 ## Project Layout
 

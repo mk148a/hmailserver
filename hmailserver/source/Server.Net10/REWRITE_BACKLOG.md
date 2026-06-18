@@ -55,6 +55,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: POP3 session command engine for `USER`/`PASS`, `STAT`, `LIST`, `UIDL`, `RETR`, `DELE`, `RSET`, `NOOP`, and `QUIT` over a streaming mailbox-store boundary.
 - Done: SQL Server POP3 mailbox store opens the legacy account Inbox, lists by `messageuid`, streams message files from the data directory, and deletes message/search/metadata rows plus files on committed `DELE`.
 - Done: POP3 disabled-by-default TCP listener and Windows service wiring with bounded concurrent connections and plain stream factory boundary.
+- Done: POP3 `CAPA` and `TOP` command parity; `TOP` streams headers plus requested body lines with dot-stuffing.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 
 ## Production Parity Backlog
@@ -122,7 +123,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: POP3 session command engine with shared account authentication, session-held deletes committed on `QUIT`, `RSET` undo, `LIST`/`UIDL` visibility checks, and streaming `RETR` dot-stuffing.
    - Done: SQL Server/data-directory POP3 mailbox store for the authenticated account's root `Inbox`, using legacy `messageuid` as UIDL and removing search queue/document plus metadata artifacts on delete.
    - Done: POP3 TCP listener and service configuration via `HMAILSERVER_POP3_ENABLED`, bind address, port, backlog, and max connection settings.
-   - Remaining: `TOP`/`CAPA`, TLS listener wiring, and mailbox lock/auto-ban parity.
+   - Done: `CAPA` advertises current POP3 capabilities and `TOP` returns headers plus requested body lines without loading the full message.
+   - Remaining: TLS listener wiring and mailbox lock/auto-ban parity.
    - Remaining: External POP3 fetch accounts, UID tracking, antivirus/spam pipeline integration.
 
 5. Security and anti-abuse modernization.
@@ -147,4 +149,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue POP3 toward command/security parity: `TOP`/`CAPA`, mailbox lock/auto-ban behavior, TLS listener wiring, external fetch, and remaining authentication/script-object parity are next.
+Continue POP3 toward security/parity: mailbox lock/auto-ban behavior, TLS listener wiring, external fetch, and remaining authentication/script-object parity are next.
