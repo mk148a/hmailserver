@@ -10,6 +10,7 @@ public sealed class ExternalFetchProcessor
     private readonly IExternalFetchSessionFactory _sessionFactory;
     private readonly ISmtpMessageReceiver _messageReceiver;
     private readonly IExternalAccountDownloadScriptExecutor? _scriptExecutor;
+    private readonly IMessageAntivirusScanner? _antivirusScanner;
     private readonly TimeProvider _timeProvider;
 
     public ExternalFetchProcessor(
@@ -17,12 +18,14 @@ public sealed class ExternalFetchProcessor
         IExternalFetchSessionFactory sessionFactory,
         ISmtpMessageReceiver messageReceiver,
         IExternalAccountDownloadScriptExecutor? scriptExecutor = null,
+        IMessageAntivirusScanner? antivirusScanner = null,
         TimeProvider? timeProvider = null)
     {
         _accountStore = accountStore;
         _sessionFactory = sessionFactory;
         _messageReceiver = messageReceiver;
         _scriptExecutor = scriptExecutor;
+        _antivirusScanner = antivirusScanner;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -160,6 +163,20 @@ public sealed class ExternalFetchProcessor
             messagesDownloaded++;
             var scriptResult = RunExternalAccountDownloadScript(account, remoteMessage.Uid, messageData, cancellationToken);
             var acceptedMessageData = scriptResult.MessageData ?? messageData;
+            var antivirusResult = await RunAntivirusScanAsync(account, acceptedMessageData, cancellationToken).ConfigureAwait(false);
+            if (antivirusResult.IsInfected)
+            {
+                var infectedRetention = await ApplyNewMessageRetentionAsync(
+                    account,
+                    session,
+                    remoteMessage,
+                    scriptResult,
+                    cancellationToken).ConfigureAwait(false);
+                remoteMessagesDeleted += infectedRetention.RemoteMessagesDeleted;
+                knownUidsAdded += infectedRetention.KnownUidsAdded;
+                continue;
+            }
+
             var mimeMessage = TryLoadMimeMessage(acceptedMessageData);
             var receiveResult = await _messageReceiver
                 .ReceiveAsync(
@@ -175,18 +192,14 @@ public sealed class ExternalFetchProcessor
             }
 
             messagesAccepted++;
-            var daysToKeep = ResolveDaysToKeep(account.DaysToKeep, scriptResult);
-            if (daysToKeep != -1)
-            {
-                await _accountStore.AddKnownUidAsync(account.FetchAccountId, remoteMessage.Uid, cancellationToken).ConfigureAwait(false);
-                knownUidsAdded++;
-            }
-
-            if (daysToKeep == -1)
-            {
-                await session.DeleteMessageAsync(remoteMessage, cancellationToken).ConfigureAwait(false);
-                remoteMessagesDeleted++;
-            }
+            var retention = await ApplyNewMessageRetentionAsync(
+                account,
+                session,
+                remoteMessage,
+                scriptResult,
+                cancellationToken).ConfigureAwait(false);
+            remoteMessagesDeleted += retention.RemoteMessagesDeleted;
+            knownUidsAdded += retention.KnownUidsAdded;
         }
 
         return new AccountFetchResult(
@@ -195,6 +208,24 @@ public sealed class ExternalFetchProcessor
             remoteMessagesDeleted,
             knownUidsAdded,
             knownUidsDeleted);
+    }
+
+    private async ValueTask<NewMessageRetentionResult> ApplyNewMessageRetentionAsync(
+        ExternalFetchAccountLease account,
+        IExternalFetchSession session,
+        ExternalFetchRemoteMessage remoteMessage,
+        ExternalAccountDownloadScriptExecutionResult scriptResult,
+        CancellationToken cancellationToken)
+    {
+        var daysToKeep = ResolveDaysToKeep(account.DaysToKeep, scriptResult);
+        if (daysToKeep != -1)
+        {
+            await _accountStore.AddKnownUidAsync(account.FetchAccountId, remoteMessage.Uid, cancellationToken).ConfigureAwait(false);
+            return new NewMessageRetentionResult(RemoteMessagesDeleted: 0, KnownUidsAdded: 1);
+        }
+
+        await session.DeleteMessageAsync(remoteMessage, cancellationToken).ConfigureAwait(false);
+        return new NewMessageRetentionResult(RemoteMessagesDeleted: 1, KnownUidsAdded: 0);
     }
 
     private async ValueTask<int> DeleteMissingKnownUidsAsync(
@@ -245,6 +276,28 @@ public sealed class ExternalFetchProcessor
         return result;
     }
 
+    private async ValueTask<MessageAntivirusScanResult> RunAntivirusScanAsync(
+        ExternalFetchAccountLease account,
+        byte[] messageData,
+        CancellationToken cancellationToken)
+    {
+        if (_antivirusScanner is null || !account.UseAntiVirus)
+        {
+            return MessageAntivirusScanResult.Clean();
+        }
+
+        var result = await _antivirusScanner.ScanAsync(messageData, cancellationToken).ConfigureAwait(false);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                string.IsNullOrWhiteSpace(result.Details)
+                    ? "External POP3 antivirus scan failed."
+                    : result.Details);
+        }
+
+        return result;
+    }
+
     private SmtpReceiveRequest CreateReceiveRequest(
         ExternalFetchAccountLease account,
         ExternalFetchRemoteMessage remoteMessage,
@@ -265,7 +318,8 @@ public sealed class ExternalFetchProcessor
             SessionId: 0,
             AuthenticatedUsername: account.Username,
             IsAuthenticated: true,
-            IsEncryptedConnection: account.ConnectionSecurity != ExternalFetchConnectionSecurity.None);
+            IsEncryptedConnection: account.ConnectionSecurity != ExternalFetchConnectionSecurity.None,
+            EnableAntivirusScan: account.UseAntiVirus);
     }
 
     private static MimeMessage? TryLoadMimeMessage(byte[] messageData)
@@ -485,4 +539,8 @@ public sealed class ExternalFetchProcessor
         int RemoteMessagesDeleted,
         int KnownUidsAdded,
         int KnownUidsDeleted);
+
+    private sealed record NewMessageRetentionResult(
+        int RemoteMessagesDeleted,
+        int KnownUidsAdded);
 }

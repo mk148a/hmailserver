@@ -100,17 +100,46 @@ public sealed class ExternalFetchProcessorTests
         Assert.AreEqual(0, store.AddedUids.Count);
     }
 
+    [TestMethod]
+    public async Task RunBatchAsync_SkipsQueueAndTracksUidWhenAntivirusFindsVirus()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-virus", Size: 64),
+            "From: sender@example.net\r\nTo: user@example.test\r\nSubject: infected\r\n\r\nBody\r\n"u8.ToArray());
+        var receiver = new FakeSmtpMessageReceiver();
+        var antivirus = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("Eicar-Test-Signature"));
+        var processor = CreateProcessor(
+            store,
+            session,
+            receiver,
+            antivirusScanner: antivirus);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(1, result.MessagesDownloaded);
+        Assert.AreEqual(0, result.MessagesAccepted);
+        Assert.AreEqual(0, receiver.Requests.Count);
+        Assert.AreEqual("uid-virus", store.AddedUids.Single());
+        Assert.AreEqual(1, antivirus.ScannedMessages.Count);
+    }
+
     private static ExternalFetchProcessor CreateProcessor(
         FakeExternalFetchAccountStore store,
         FakeExternalFetchSession session,
         FakeSmtpMessageReceiver receiver,
-        IExternalAccountDownloadScriptExecutor? scriptExecutor = null) =>
+        IExternalAccountDownloadScriptExecutor? scriptExecutor = null,
+        IMessageAntivirusScanner? antivirusScanner = null) =>
         new(
             store,
             new FakeExternalFetchSessionFactory(session),
             receiver,
             scriptExecutor,
-            new FixedTimeProvider(DateTimeOffset.Parse("2026-01-10T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture)));
+            antivirusScanner,
+            timeProvider: new FixedTimeProvider(DateTimeOffset.Parse("2026-01-10T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture)));
 
     private static ExternalFetchAccountLease CreateAccount(int daysToKeep = 7) =>
         new(
@@ -312,6 +341,26 @@ public sealed class ExternalFetchProcessorTests
         {
             Requests.Add(request);
             return _execute(request);
+        }
+    }
+
+    private sealed class FakeAntivirusScanner : IMessageAntivirusScanner
+    {
+        private readonly MessageAntivirusScanResult _result;
+
+        public FakeAntivirusScanner(MessageAntivirusScanResult result)
+        {
+            _result = result;
+        }
+
+        public List<byte[]> ScannedMessages { get; } = [];
+
+        public ValueTask<MessageAntivirusScanResult> ScanAsync(
+            ReadOnlyMemory<byte> messageData,
+            CancellationToken cancellationToken)
+        {
+            ScannedMessages.Add(messageData.ToArray());
+            return ValueTask.FromResult(_result);
         }
     }
 

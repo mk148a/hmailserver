@@ -13,4 +13,5 @@ public sealed record SmtpReceiveRequest(
     long SessionId = 0,
     string AuthenticatedUsername = "",
     bool IsAuthenticated = false,
-    bool IsEncryptedConnection = false);
+    bool IsEncryptedConnection = false,
+    bool EnableAntivirusScan = true);

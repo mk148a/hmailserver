@@ -119,6 +119,49 @@ public sealed class SqlServerSmtpMessageReceiverTests
             "X-Event: yes");
     }
 
+    [TestMethod]
+    public async Task ReceiveAsync_RejectsVirusBeforeQueueWrite()
+    {
+        var scanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("Eicar-Test-Signature"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: scanner);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Virus\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Virus detected: Eicar-Test-Signature", result.FailureResponse);
+        Assert.AreEqual(1, scanner.ScannedMessages.Count);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_ScansAcceptEventMutatedMessage()
+    {
+        var mutatedMessage = Encoding.Latin1.GetBytes("Subject: Mutated\r\nX-Event: yes\r\n\r\nBody\r\n");
+        var scanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("Mutated-Test"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                _ => SmtpRuleScriptExecutionResult.Continue(mutatedMessage)),
+            antivirusScanner: scanner);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Virus detected: Mutated-Test", result.FailureResponse);
+        StringAssert.Contains(
+            Encoding.Latin1.GetString(scanner.ScannedMessages.Single()),
+            "X-Event: yes");
+    }
+
     private static SmtpReceiveRequest CreateRequest(byte[] messageData) =>
         new(
             HeloHost: "client.example",
@@ -175,5 +218,25 @@ public sealed class SqlServerSmtpMessageReceiverTests
             SmtpEventScriptExecutionRequest request,
             CancellationToken cancellationToken) =>
             _execute(request);
+    }
+
+    private sealed class FakeAntivirusScanner : IMessageAntivirusScanner
+    {
+        private readonly MessageAntivirusScanResult _result;
+
+        public FakeAntivirusScanner(MessageAntivirusScanResult result)
+        {
+            _result = result;
+        }
+
+        public List<byte[]> ScannedMessages { get; } = [];
+
+        public ValueTask<MessageAntivirusScanResult> ScanAsync(
+            ReadOnlyMemory<byte> messageData,
+            CancellationToken cancellationToken)
+        {
+            ScannedMessages.Add(messageData.ToArray());
+            return ValueTask.FromResult(_result);
+        }
     }
 }

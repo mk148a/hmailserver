@@ -13,17 +13,20 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly SqlServerSmtpQueueWriter _queueWriter;
     private readonly ISmtpRuleProcessor? _ruleProcessor;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
+    private readonly IMessageAntivirusScanner? _antivirusScanner;
 
     public SqlServerSmtpMessageReceiver(
         SqlServerConnectionFactory connectionFactory,
         MessageFilePathResolver pathResolver,
         ISmtpRuleProcessor? ruleProcessor = null,
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
-        SqlServerSmtpQueueWriter? queueWriter = null)
+        SqlServerSmtpQueueWriter? queueWriter = null,
+        IMessageAntivirusScanner? antivirusScanner = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
         _ruleProcessor = ruleProcessor;
         _eventScriptExecutor = eventScriptExecutor;
+        _antivirusScanner = antivirusScanner;
     }
 
     public async ValueTask<SmtpReceiveResult> ReceiveAsync(
@@ -98,6 +101,12 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
             ruleBindAddress = ruleResult.BindToAddress;
         }
 
+        var antivirusFailure = await RunAntivirusScanAsync(request, cancellationToken).ConfigureAwait(false);
+        if (antivirusFailure is not null)
+        {
+            return antivirusFailure;
+        }
+
         try
         {
             await _queueWriter
@@ -121,6 +130,54 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         {
             return SmtpReceiveResult.Failure("451 Requested action aborted: local error in processing");
         }
+    }
+
+    private async ValueTask<SmtpReceiveResult?> RunAntivirusScanAsync(
+        SmtpReceiveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_antivirusScanner is null || !request.EnableAntivirusScan)
+        {
+            return null;
+        }
+
+        MessageAntivirusScanResult scanResult;
+        try
+        {
+            scanResult = await _antivirusScanner
+                .ScanAsync(request.MessageData, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return SmtpReceiveResult.Failure("451 Requested action aborted: antivirus scan failed");
+        }
+
+        if (!scanResult.Succeeded)
+        {
+            return SmtpReceiveResult.Failure("451 Requested action aborted: antivirus scan failed");
+        }
+
+        if (scanResult.IsInfected)
+        {
+            return SmtpReceiveResult.Failure(BuildVirusDetectedResponse(scanResult.VirusName));
+        }
+
+        return null;
+    }
+
+    private static string BuildVirusDetectedResponse(string virusName)
+    {
+        if (string.IsNullOrWhiteSpace(virusName))
+        {
+            return "554 Virus detected";
+        }
+
+        return "554 Virus detected: " + virusName.Replace('\r', ' ').Replace('\n', ' ');
     }
 
     private async ValueTask EnqueueGeneratedMessagesAsync(

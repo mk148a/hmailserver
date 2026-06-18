@@ -123,6 +123,33 @@ var externalFetchPop3ClientOptions = new ExternalFetchPop3ClientOptions
         builder.Configuration["ExternalFetch:NoDelay"] ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_NO_DELAY"],
         defaultValue: true)
 };
+var clamAvEnabled = ReadBool(
+    builder.Configuration["Antivirus:ClamAv:Enabled"] ?? builder.Configuration["HMAILSERVER_CLAMAV_ENABLED"],
+    defaultValue: false);
+var clamAvOptions = new ClamAvInstreamClientOptions
+{
+    Host = builder.Configuration["Antivirus:ClamAv:Host"]
+        ?? builder.Configuration["HMAILSERVER_CLAMAV_HOST"]
+        ?? "127.0.0.1",
+    Port = Math.Max(
+        1,
+        ReadInt(
+            builder.Configuration["Antivirus:ClamAv:Port"] ?? builder.Configuration["HMAILSERVER_CLAMAV_PORT"],
+            defaultValue: 3310)),
+    Timeout = TimeSpan.FromSeconds(
+        Math.Max(
+            1,
+            ReadInt(
+                builder.Configuration["Antivirus:ClamAv:TimeoutSeconds"]
+                    ?? builder.Configuration["HMAILSERVER_CLAMAV_TIMEOUT_SECONDS"],
+                defaultValue: 30))),
+    ChunkSize = Math.Max(
+        1024,
+        ReadInt(
+            builder.Configuration["Antivirus:ClamAv:ChunkSizeBytes"]
+                ?? builder.Configuration["HMAILSERVER_CLAMAV_CHUNK_SIZE_BYTES"],
+            defaultValue: 64 * 1024))
+};
 var smtpSessionOptions = new SmtpSessionOptions
 {
     ServerName = builder.Configuration["Smtp:ServerName"]
@@ -219,6 +246,7 @@ builder.Services.AddSingleton(pop3Options);
 builder.Services.AddSingleton(externalFetchProcessorOptions);
 builder.Services.AddSingleton(externalFetchHostedServiceOptions);
 builder.Services.AddSingleton(externalFetchPop3ClientOptions);
+builder.Services.AddSingleton(clamAvOptions);
 builder.Services.AddSingleton(imapSessionOptions);
 builder.Services.AddSingleton(smtpSessionOptions);
 builder.Services.AddSingleton(new Pop3SessionOptions());
@@ -234,6 +262,11 @@ if (scriptingOptions.Enabled)
     builder.Services.AddSingleton<IDeliveryEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
     builder.Services.AddSingleton<IExternalAccountDownloadScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
     builder.Services.AddSingleton<IClientPasswordValidationScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
+}
+if (clamAvEnabled)
+{
+    builder.Services.AddSingleton<ClamAvInstreamClient>();
+    builder.Services.AddSingleton<IMessageAntivirusScanner, ClamAvMessageAntivirusScanner>();
 }
 
 builder.Services.AddSingleton(new MessageFileSearchDocumentSourceOptions(dataDirectory));
@@ -314,7 +347,8 @@ builder.Services.AddSingleton(static serviceProvider =>
         serviceProvider.GetRequiredService<IExternalFetchAccountStore>(),
         serviceProvider.GetRequiredService<IExternalFetchSessionFactory>(),
         serviceProvider.GetRequiredService<ISmtpMessageReceiver>(),
-        serviceProvider.GetService<IExternalAccountDownloadScriptExecutor>()));
+        serviceProvider.GetService<IExternalAccountDownloadScriptExecutor>(),
+        serviceProvider.GetService<IMessageAntivirusScanner>()));
 builder.Services.AddSingleton<IImapConnectionStreamFactory, PlainImapConnectionStreamFactory>();
 builder.Services.AddSingleton<IPop3ConnectionStreamFactory>(_ =>
     pop3TlsCertificate is null
