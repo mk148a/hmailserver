@@ -26,6 +26,9 @@ var dataDirectory = builder.Configuration["DataDirectory"]
     ?? throw new InvalidOperationException("Missing hMailServer data directory.");
 
 var leaseOwner = $"{Environment.MachineName}-{Environment.ProcessId}";
+var deliveryStatusSqlEnabled = ReadBool(
+    builder.Configuration["DeliveryQueue:StatusSqlEnabled"] ?? builder.Configuration["HMAILSERVER_DELIVERY_STATUS_SQL_ENABLED"],
+    defaultValue: false);
 var imapOptions = new ImapTcpListenerOptions
 {
     Enabled = ReadBool(builder.Configuration["Imap:Enabled"] ?? builder.Configuration["HMAILSERVER_IMAP_ENABLED"], defaultValue: false),
@@ -200,7 +203,15 @@ builder.Services.AddSingleton<IRemoteSmtpTransportFactory, TcpRemoteSmtpTranspor
 builder.Services.AddSingleton<IRemoteSmtpClient, SmtpRemoteDeliveryClient>();
 builder.Services.AddSingleton(RemoteDeliveryOptions.Default(smtpSessionOptions.ServerName));
 builder.Services.AddSingleton(DeliveryQueueProcessorOptions.Default(leaseOwner));
-builder.Services.AddSingleton<IDeliveryQueueStatusObserver>(NullDeliveryQueueStatusObserver.Instance);
+if (deliveryStatusSqlEnabled)
+{
+    builder.Services.AddSingleton<IDeliveryQueueStatusObserver, SqlServerDeliveryQueueStatusObserver>();
+}
+else
+{
+    builder.Services.AddSingleton<IDeliveryQueueStatusObserver>(NullDeliveryQueueStatusObserver.Instance);
+}
+
 builder.Services.AddSingleton<LocalDeliveryTargetDispatcher>();
 builder.Services.AddSingleton<RemoteDeliveryTargetDispatcher>();
 builder.Services.AddSingleton(static serviceProvider =>

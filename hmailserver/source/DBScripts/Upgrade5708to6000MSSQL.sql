@@ -78,4 +78,33 @@ if not exists (select * from sys.fulltext_indexes where object_id = object_id('h
    on hm_message_search_catalog
    with change_tracking auto
 
+if not exists (select * from sysobjects where id = object_id('hm_delivery_queue_status') and objectproperty(id, 'isusertable') = 1)
+   create table hm_delivery_queue_status
+   (
+      statusid bigint identity(1,1) not null,
+      messageid bigint not null,
+      eventutc datetime2(3) not null,
+      eventkind nvarchar(64) not null,
+      leaseowner nvarchar(128) not null,
+      targetkey nvarchar(255) null,
+      targetdomainname nvarchar(255) null,
+      targetkind nvarchar(64) null,
+      recipientcount int not null,
+      retrycount int not null,
+      retrydelaymilliseconds bigint null,
+      failurekind nvarchar(64) null,
+      description nvarchar(1024) null,
+      constraint pk_hm_delivery_queue_status primary key clustered (statusid)
+   )
+
+if not exists (select * from sys.indexes where name = 'idx_hm_delivery_queue_status_message_time' and object_id = object_id('hm_delivery_queue_status'))
+   create index idx_hm_delivery_queue_status_message_time
+      on hm_delivery_queue_status (messageid, eventutc)
+      include (eventkind, targetkey, targetdomainname, retrydelaymilliseconds, failurekind)
+
+if not exists (select * from sys.indexes where name = 'idx_hm_delivery_queue_status_time' and object_id = object_id('hm_delivery_queue_status'))
+   create index idx_hm_delivery_queue_status_time
+      on hm_delivery_queue_status (eventutc)
+      include (messageid, eventkind, failurekind)
+
 update hm_dbversion set value = 6000
