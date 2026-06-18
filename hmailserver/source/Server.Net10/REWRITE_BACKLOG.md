@@ -144,7 +144,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 5. Security and anti-abuse modernization.
    - Done: SQL failed-logon auto-ban recorder preserves legacy settings/table compatibility, deny-range creation semantics, and IMAP/SMTP/POP3 threshold-triggered disconnect wiring.
-   - Async/timeboxed ClamAV and SpamAssassin clients.
+   - Done: async/timeboxed ClamAV INSTREAM client with raw network-order chunk framing, bounded streaming, clean/infected/error result parsing, and fake-daemon protocol tests.
+   - Async/timeboxed SpamAssassin client and ClamAV/SpamAssassin pipeline wiring.
    - SPF, DKIM, DMARC, DNSBL, SURBL, PTR/MX checks, greylisting, attachment blocking.
    - Implicit TLS stream factories and listener ports; STARTTLS uses OS default TLS policy and online certificate revocation checks.
 
@@ -165,4 +166,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Finish external fetch MIME recipient validation/parity and connect the antivirus/spam pipeline, then continue SMTP script object/event parity.
+Wire the ClamAV client into the antivirus pipeline, add the SpamAssassin async client, then finish external fetch MIME recipient validation/parity and continue SMTP script object/event parity.
