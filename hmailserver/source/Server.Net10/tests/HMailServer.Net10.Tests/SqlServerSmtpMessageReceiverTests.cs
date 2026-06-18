@@ -232,6 +232,38 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_RejectsSpamBeforeAntivirusWhenDeleteThresholdMatches()
+    {
+        var spamProcessedMessage = Encoding.Latin1.GetBytes("Subject: Spam\r\n\r\nBody\r\n");
+        var spamScanner = new FakeSpamScanner(
+            MessageSpamScanResult.Clean(
+                spamProcessedMessage,
+                details: "Score delete threshold",
+                score: 10));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("Should-Not-Scan"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            spamScanner: spamScanner,
+            spamPolicy: new MessageSpamPolicy(
+                new MessageSpamPolicyOptions
+                {
+                    SpamDeleteThreshold = 10
+                }));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Score delete threshold", result.FailureResponse);
+        Assert.AreEqual(1, spamScanner.ScannedMessages.Count);
+        Assert.AreEqual(0, antivirusScanner.ScannedMessages.Count);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_PreservesOriginalMessageWhenSpamScannerThrows()
     {
         var spamScanner = new FakeSpamScanner(

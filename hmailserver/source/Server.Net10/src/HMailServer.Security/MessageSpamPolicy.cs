@@ -29,6 +29,15 @@ public sealed class MessageSpamPolicy : IMessageSpamPolicy
             return new MessageSpamPolicyResult(messageData, MarkAsSpam: false);
         }
 
+        if (_options.SpamDeleteThreshold > 0 && scanResult.Score >= _options.SpamDeleteThreshold)
+        {
+            return new MessageSpamPolicyResult(
+                messageData,
+                MarkAsSpam: false,
+                RejectMessage: true,
+                FailureResponse: BuildSpamRejectedResponse(scanResult));
+        }
+
         var markAsSpam = scanResult.IsSpam
             || (_options.SpamMarkThreshold > 0 && scanResult.Score >= _options.SpamMarkThreshold);
         var editor = MessageHeaderEditor.Parse(messageData);
@@ -82,7 +91,16 @@ public sealed class MessageSpamPolicy : IMessageSpamPolicy
         options.AddSpamHeader
         || options.AddReasonHeaders
         || options.PrependSubject
-        || options.SpamMarkThreshold > 0;
+        || options.SpamMarkThreshold > 0
+        || options.SpamDeleteThreshold > 0;
+
+    private string BuildSpamRejectedResponse(MessageSpamScanResult scanResult)
+    {
+        var details = string.IsNullOrWhiteSpace(scanResult.Details)
+            ? "Message rejected as spam"
+            : scanResult.Details;
+        return "554 " + SanitizeHeaderValue(details);
+    }
 
     private string SanitizeHeaderValue(string value)
     {

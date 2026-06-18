@@ -203,6 +203,12 @@ var spamPolicyOptions = new MessageSpamPolicyOptions
             builder.Configuration["AntiSpam:Policy:SpamMarkThreshold"]
                 ?? builder.Configuration["HMAILSERVER_SPAM_POLICY_MARK_THRESHOLD"],
             defaultValue: 0)),
+    SpamDeleteThreshold = Math.Max(
+        0,
+        ReadInt(
+            builder.Configuration["AntiSpam:Policy:SpamDeleteThreshold"]
+                ?? builder.Configuration["HMAILSERVER_SPAM_POLICY_DELETE_THRESHOLD"],
+            defaultValue: 0)),
     SubjectPrefix = builder.Configuration["AntiSpam:Policy:SubjectPrefix"]
         ?? builder.Configuration["HMAILSERVER_SPAM_POLICY_SUBJECT_PREFIX"]
         ?? "[SPAM]",
@@ -216,7 +222,8 @@ var spamPolicyOptions = new MessageSpamPolicyOptions
 var spamPolicyEnabled = spamPolicyOptions.AddSpamHeader
     || spamPolicyOptions.AddReasonHeaders
     || spamPolicyOptions.PrependSubject
-    || spamPolicyOptions.SpamMarkThreshold > 0;
+    || spamPolicyOptions.SpamMarkThreshold > 0
+    || spamPolicyOptions.SpamDeleteThreshold > 0;
 var smtpSessionOptions = new SmtpSessionOptions
 {
     ServerName = builder.Configuration["Smtp:ServerName"]

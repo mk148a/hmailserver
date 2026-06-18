@@ -10,6 +10,8 @@ public sealed record MessageSpamPolicyOptions
 
     public int SpamMarkThreshold { get; init; }
 
+    public int SpamDeleteThreshold { get; init; }
+
     public string SubjectPrefix { get; init; } = "[SPAM]";
 
     public int MaxHeaderValueLength { get; init; } = 900;

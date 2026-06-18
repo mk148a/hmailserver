@@ -108,6 +108,11 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         }
 
         var spamScanResult = await RunSpamScanAsync(request, cancellationToken).ConfigureAwait(false);
+        if (spamScanResult.FailureResult is not null)
+        {
+            return spamScanResult.FailureResult;
+        }
+
         request = spamScanResult.Request;
         var messageFlags = spamScanResult.MessageFlags;
 
@@ -168,6 +173,17 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
             {
                 var policyResult = _spamPolicy.Apply(messageData, scanResult);
                 messageData = policyResult.MessageData;
+                if (policyResult.RejectMessage)
+                {
+                    return new SpamScanApplicationResult(
+                        request with { MessageData = messageData },
+                        SmtpQueueWriteRequest.RecentFlag,
+                        SmtpReceiveResult.Failure(
+                            string.IsNullOrWhiteSpace(policyResult.FailureResponse)
+                                ? "554 Message rejected as spam"
+                                : policyResult.FailureResponse));
+                }
+
                 if (policyResult.MarkAsSpam)
                 {
                     messageFlags |= SmtpQueueWriteRequest.SpamFlag;
@@ -255,5 +271,6 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 
     private sealed record SpamScanApplicationResult(
         SmtpReceiveRequest Request,
-        byte MessageFlags);
+        byte MessageFlags,
+        SmtpReceiveResult? FailureResult = null);
 }

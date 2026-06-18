@@ -51,4 +51,25 @@ public sealed class MessageSpamPolicyTests
         StringAssert.Contains(text, "X-hMailServer-Reason-1: Score threshold - (Score: 6)\r\n");
         StringAssert.Contains(text, "X-hMailServer-Reason-Score: 6\r\n");
     }
+
+    [TestMethod]
+    public void Apply_RejectsMessageWhenScoreMeetsDeleteThreshold()
+    {
+        var messageData = "Subject: Delete\r\n\r\nBody\r\n"u8.ToArray();
+        var policy = new MessageSpamPolicy(
+            new MessageSpamPolicyOptions
+            {
+                SpamMarkThreshold = 5,
+                SpamDeleteThreshold = 10
+            });
+
+        var result = policy.Apply(
+            messageData,
+            MessageSpamScanResult.Clean(messageData, details: "Score delete threshold", score: 10));
+
+        Assert.IsTrue(result.RejectMessage);
+        Assert.IsFalse(result.MarkAsSpam);
+        Assert.AreEqual("554 Score delete threshold", result.FailureResponse);
+        CollectionAssert.AreEqual(messageData, result.MessageData);
+    }
 }
