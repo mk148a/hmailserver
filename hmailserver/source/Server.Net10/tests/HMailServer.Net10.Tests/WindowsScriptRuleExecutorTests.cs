@@ -103,6 +103,15 @@ Sub Rule_UpdateMessage(obMessage)
       obMessage.RejectReason = "charset not loaded"
       Exit Sub
    End If
+   If obMessage.Flag(128) Then
+      obMessage.RejectReason = "message flag unexpectedly set"
+      Exit Sub
+   End If
+   obMessage.Flag(128) = True
+   If Not obMessage.Flag(128) Then
+      obMessage.RejectReason = "message flag setter failed"
+      Exit Sub
+   End If
 
    obMessage.Subject = "Changed"
    obMessage.From = "Updated <updated@example.test>"
@@ -111,6 +120,7 @@ Sub Rule_UpdateMessage(obMessage)
    obMessage.Charset = "utf-8"
    obMessage.Body = "Changed body" & vbCrLf
    obMessage.HeaderValue("X-Legacy") = "yes"
+   obMessage.HeaderValue("X-Flag-State") = CStr(obMessage.State)
    obMessage.Save
 End Sub
 """,
@@ -140,6 +150,7 @@ End Sub
             StringAssert.Contains(messageText, "Cc: copy2@example.test\r\n");
             StringAssert.Contains(messageText, "Content-Type: text/plain; charset=utf-8\r\n");
             StringAssert.Contains(messageText, "X-Legacy: yes\r\n");
+            StringAssert.Contains(messageText, "X-Flag-State: 128\r\n");
             StringAssert.Contains(messageText, "\r\n\r\nChanged body\r\n");
         }
         finally
@@ -199,6 +210,20 @@ function Rule_UpdateMessage(obMessage) {
     obMessage.RejectReason = "charset not loaded";
     return;
   }
+  if (obMessage.Flag(128) !== false || obMessage.GetFlag(128) !== false) {
+    obMessage.RejectReason = "message flag unexpectedly set";
+    return;
+  }
+  obMessage.SetFlag(128, true);
+  if (obMessage.Flag(128) !== true || obMessage.GetFlag(128) !== true) {
+    obMessage.RejectReason = "message flag setter failed";
+    return;
+  }
+  obMessage.Flag(64, true);
+  if (obMessage.Flag(64) !== true) {
+    obMessage.RejectReason = "message flag method setter failed";
+    return;
+  }
 
   obMessage.Subject = "Changed JS";
   obMessage.From = "JS Sender <js@example.test>";
@@ -207,6 +232,7 @@ function Rule_UpdateMessage(obMessage) {
   obMessage.Charset = "utf-8";
   obMessage.Body = "Changed JS body\r\n";
   obMessage.SetHeaderValue("X-JScript", "yes");
+  obMessage.SetHeaderValue("X-JScript-State", String(obMessage.State));
   obMessage.Save();
 }
 """,
@@ -236,6 +262,7 @@ function Rule_UpdateMessage(obMessage) {
             StringAssert.Contains(messageText, "Cc: js-copy@example.test\r\n");
             StringAssert.Contains(messageText, "Content-Type: text/plain; charset=utf-8\r\n");
             StringAssert.Contains(messageText, "X-JScript: yes\r\n");
+            StringAssert.Contains(messageText, "X-JScript-State: 192\r\n");
             StringAssert.Contains(messageText, "\r\n\r\nChanged JS body\r\n");
         }
         finally

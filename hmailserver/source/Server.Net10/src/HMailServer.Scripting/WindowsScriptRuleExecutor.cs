@@ -1452,6 +1452,18 @@ Class HMailServerRuleMessage
       m_encodeFields = CBool(value)
    End Property
 
+   Public Property Get Flag(flagValue)
+      Flag = (CLng(State) And CLng(flagValue)) <> 0
+   End Property
+
+   Public Property Let Flag(flagValue, enabled)
+      If CBool(enabled) Then
+         State = CLng(State) Or CLng(flagValue)
+      Else
+         State = CLng(State) And (Not CLng(flagValue))
+      End If
+   End Property
+
    Public Function HasBodyType(bodyType)
       HasBodyType = InStr(1, m_headers & vbCrLf & m_body, CStr(bodyType), vbTextCompare) > 0
    End Function
@@ -2371,6 +2383,21 @@ if ("{{hasMessageFlag}}" === "1") {
     SetHeaderValue: function(fieldName, fieldValue) {
       this._headers = hMailServerRuleSetHeader(this._headers, fieldName, fieldValue);
       hMailServerRuleSyncCommonHeaderField(this, fieldName, fieldValue);
+    },
+    Flag: function(flagValue, enabled) {
+      var mask = Number(flagValue) || 0;
+      if (arguments.length > 1) {
+        this.SetFlag(mask, enabled);
+      }
+      return ((Number(this.State) || 0) & mask) !== 0;
+    },
+    GetFlag: function(flagValue) {
+      return this.Flag(flagValue);
+    },
+    SetFlag: function(flagValue, enabled) {
+      var mask = Number(flagValue) || 0;
+      var current = Number(this.State) || 0;
+      this.State = enabled ? (current | mask) : (current & ~mask);
     },
     Save: function() {
       if (this.Headers) {
