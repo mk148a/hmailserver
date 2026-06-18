@@ -126,6 +126,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: delivery status retention cleanup worker with configurable retention window, interval, and batch size.
    - Done: delivery status metrics query surface for event-kind counts over a requested time window.
    - Done: delivery event script message metadata seeds real queue ID, UID, state, delivery attempt, and internal date for VBScript/JScript handlers.
+   - Done: external POP3 fetch `OnExternalAccountDownload(HMAILSERVER_FETCHACCOUNT, HMAILSERVER_MESSAGE/Nothing, uid)` script hook boundary with legacy fetch-account fields, nullable message argument handling, and `Result.Value`/`Result.Parameter` delete-retention mapping.
    - Remaining: full legacy script object model and remaining protocol/delivery event scripting hooks.
 
 4. POP3 and external fetch.
@@ -161,4 +162,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue SMTP production pipeline with remaining script object/event parity, then return to POP3 external fetch ingestion and antivirus/spam pipeline integration.
+Continue SMTP production pipeline with remaining script object/event parity, then wire the POP3 external fetch network ingestion worker into the lease store and script hook before returning to antivirus/spam pipeline integration.
