@@ -64,6 +64,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: modern TLS option factory and spam/virus protocol helpers.
 - Done: ClamAV antivirus pipeline wiring for SMTP queue acceptance and external POP3 fetch account `UseAntiVirus` scans.
 - Done: async/timeboxed SpamAssassin client and SMTP receiver pipeline wiring, preserving original messages on invalid/partial spamd responses and honoring external fetch account `UseAntiSpam`.
+- Done: optional spam policy pipeline adds legacy `X-hMailServer-Spam`, `X-hMailServer-Reason-*`, and subject-prefix mutations after successful spam scans.
 - Done: script message facade exposes legacy `Flag(eMessageFlag)` bitmask access over `State` for VBScript/JScript handlers.
 - Done: JScript message facade exposes the legacy `Filename` alias alongside the existing `FileName` path.
 
@@ -153,7 +154,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: async/timeboxed ClamAV INSTREAM client with raw network-order chunk framing, bounded streaming, clean/infected/error result parsing, and fake-daemon protocol tests.
    - Done: ClamAV scanner adapter wired into SMTP receive processing and external POP3 fetch, including fail-closed scan errors, infected-message rejection/skipping, and account-level antivirus enablement.
    - Done: async/timeboxed SpamAssassin `PROCESS SPAMC/1.2` client with bounded response headers/body, original-message preservation on invalid/partial responses, score parsing, SMTP receive wiring, and external fetch `UseAntiSpam` propagation.
-   - Remaining: hMailServer spam mark/delete thresholds, `X-hMailServer-*` spam score headers, SPF, DKIM, DMARC, DNSBL, SURBL, PTR/MX checks, greylisting, attachment blocking.
+   - Done: optional hMailServer spam header/subject policy for `X-hMailServer-Spam`, `X-hMailServer-Reason-*`, score header replacement, and subject prefixing.
+   - Remaining: hMailServer spam delete/mark thresholds, SPF, DKIM, DMARC, DNSBL, SURBL, PTR/MX checks, greylisting, attachment blocking.
    - Implicit TLS stream factories and listener ports; STARTTLS uses OS default TLS policy and online certificate revocation checks.
 
 6. COM/API compatibility.
