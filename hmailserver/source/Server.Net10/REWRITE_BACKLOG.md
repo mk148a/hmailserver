@@ -67,6 +67,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: optional spam policy pipeline adds legacy `X-hMailServer-Spam`, `X-hMailServer-Reason-*`, and subject-prefix mutations after successful spam scans.
 - Done: spam policy mark threshold sets the legacy `eMFSpam` queue flag (`128`) while preserving the default `\Recent` flag.
 - Done: spam policy delete threshold rejects matching SMTP messages with `554` before antivirus scanning and queue persistence.
+- Done: external POP3 fetch treats permanent SMTP receiver rejections as non-accepted messages with normal UID/remote-delete retention instead of failing the whole account batch.
 - Done: script message facade exposes legacy `Flag(eMessageFlag)` bitmask access over `State` for VBScript/JScript handlers.
 - Done: JScript message facade exposes the legacy `Filename` alias alongside the existing `FileName` path.
 
@@ -149,7 +150,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external POP3 network session factory and hosted worker scheduling with plain, implicit TLS, and STLS modes, plus UIDL/RETR/DELE/QUIT loopback protocol coverage.
    - Done: external fetch received-time parity from valid `Received` header dates, falling back to `Date` and then current UTC when MIME dates are missing or outside legacy bounds.
    - Done: external fetch MIME recipient headers and `Received ... for <recipient>` values resolve through the SQL SMTP recipient validator, then preserve legacy local-account filtering unless route recipients are enabled.
-   - Remaining: additional external fetch edge-case parity and full spam score/header policy parity.
+   - Done: external fetch applies UID tracking and remote-delete retention for permanent SMTP receiver rejections such as spam delete-threshold `554` responses.
+   - Remaining: additional external fetch edge-case parity.
 
 5. Security and anti-abuse modernization.
    - Done: SQL failed-logon auto-ban recorder preserves legacy settings/table compatibility, deny-range creation semantics, and IMAP/SMTP/POP3 threshold-triggered disconnect wiring.
