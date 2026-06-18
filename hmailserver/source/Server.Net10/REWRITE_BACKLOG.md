@@ -62,6 +62,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: SQL Server external fetch account store leases due legacy `hm_fetchaccounts`, defers inactive account/domain rows, decrypts legacy Blowfish passwords, and tracks `hm_fetchaccounts_uids`.
 - Done: modern TLS option factory and spam/virus protocol helpers.
 - Done: ClamAV antivirus pipeline wiring for SMTP queue acceptance and external POP3 fetch account `UseAntiVirus` scans.
+- Done: async/timeboxed SpamAssassin client and SMTP receiver pipeline wiring, preserving original messages on invalid/partial spamd responses and honoring external fetch account `UseAntiSpam`.
 
 ## Production Parity Backlog
 
@@ -141,14 +142,14 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external fetch processor core that leases accounts, uses a bounded POP3 session abstraction, removes stale UID rows, runs `OnExternalAccountDownload` for new and already-known remote UIDs, queues accepted messages through the SMTP receiver path, and applies legacy remote delete retention decisions.
    - Done: external POP3 network session factory and hosted worker scheduling with plain, implicit TLS, and STLS modes, plus UIDL/RETR/DELE/QUIT loopback protocol coverage.
    - Done: external fetch received-time parity from valid `Received` header dates, falling back to `Date` and then current UTC when MIME dates are missing or outside legacy bounds.
-   - Remaining: richer MIME recipient validation/parity and spam pipeline integration.
+   - Remaining: richer MIME recipient validation/parity and full spam score/header policy parity.
 
 5. Security and anti-abuse modernization.
    - Done: SQL failed-logon auto-ban recorder preserves legacy settings/table compatibility, deny-range creation semantics, and IMAP/SMTP/POP3 threshold-triggered disconnect wiring.
    - Done: async/timeboxed ClamAV INSTREAM client with raw network-order chunk framing, bounded streaming, clean/infected/error result parsing, and fake-daemon protocol tests.
    - Done: ClamAV scanner adapter wired into SMTP receive processing and external POP3 fetch, including fail-closed scan errors, infected-message rejection/skipping, and account-level antivirus enablement.
-   - Async/timeboxed SpamAssassin client and SpamAssassin pipeline wiring.
-   - SPF, DKIM, DMARC, DNSBL, SURBL, PTR/MX checks, greylisting, attachment blocking.
+   - Done: async/timeboxed SpamAssassin `PROCESS SPAMC/1.2` client with bounded response headers/body, original-message preservation on invalid/partial responses, score parsing, SMTP receive wiring, and external fetch `UseAntiSpam` propagation.
+   - Remaining: hMailServer spam mark/delete thresholds, `X-hMailServer-*` spam score headers, SPF, DKIM, DMARC, DNSBL, SURBL, PTR/MX checks, greylisting, attachment blocking.
    - Implicit TLS stream factories and listener ports; STARTTLS uses OS default TLS policy and online certificate revocation checks.
 
 6. COM/API compatibility.
@@ -168,4 +169,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Add the SpamAssassin async client and spam pipeline wiring, then finish external fetch MIME recipient validation/parity and continue SMTP script object/event parity.
+Finish external fetch MIME recipient validation/parity, continue full legacy SMTP script object/event parity, and keep delivery status observability/bounce template parity verified as the queue worker evolves.
