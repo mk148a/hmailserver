@@ -65,6 +65,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: ClamAV antivirus pipeline wiring for SMTP queue acceptance and external POP3 fetch account `UseAntiVirus` scans.
 - Done: async/timeboxed SpamAssassin client and SMTP receiver pipeline wiring, preserving original messages on invalid/partial spamd responses and honoring external fetch account `UseAntiSpam`.
 - Done: script message facade exposes legacy `Flag(eMessageFlag)` bitmask access over `State` for VBScript/JScript handlers.
+- Done: JScript message facade exposes the legacy `Filename` alias alongside the existing `FileName` path.
 
 ## Production Parity Backlog
 
@@ -114,7 +115,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `SendUsingRoute` and `BindToAddress` delivery metadata for global rules, including forced route target resolution and local socket bind for remote SMTP.
    - Done: `Reply` generated response action with Auto-Submitted and rule loop protection.
    - Done: `ScriptFunction` executor boundary inside the rule processor.
-   - Done: Windows-only process-isolated VBScript/JScript host for SMTP rule functions with file-backed scalar message facade (`FileName`, `DropMessage`, `RejectReason`, IDs/state placeholders, `Flag(eMessageFlag)`, size, delivery attempt, charset, body type checks, common envelope fields, body fields, header value access, message header collection, and `Save`), envelope recipient collection facade, and attachment collection facade.
+   - Done: Windows-only process-isolated VBScript/JScript host for SMTP rule functions with file-backed scalar message facade (`FileName`/`Filename`, `DropMessage`, `RejectReason`, IDs/state placeholders, `Flag(eMessageFlag)`, size, delivery attempt, charset, body type checks, common envelope fields, body fields, header value access, message header collection, and `Save`), envelope recipient collection facade, and attachment collection facade.
    - Done: `OnClientConnect` protocol event hook before SMTP greeting with connection-close handling for legacy `Result.Value = 1`.
    - Done: `OnHELO` protocol event hook before HELO/EHLO success responses with `HMAILSERVER_CLIENT` and legacy `Result.Value`/`Result.Message` rejection handling.
    - Done: `OnClientLogon` protocol event hook after successful and failed SMTP AUTH attempts with attempted username and authenticated state.
