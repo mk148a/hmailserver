@@ -139,7 +139,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: SQL Server external fetch account lease/UID store for existing `hm_fetchaccounts` and `hm_fetchaccounts_uids`.
    - Done: external fetch processor core that leases accounts, uses a bounded POP3 session abstraction, removes stale UID rows, runs `OnExternalAccountDownload` for new and already-known remote UIDs, queues accepted messages through the SMTP receiver path, and applies legacy remote delete retention decisions.
    - Done: external POP3 network session factory and hosted worker scheduling with plain, implicit TLS, and STLS modes, plus UIDL/RETR/DELE/QUIT loopback protocol coverage.
-   - Remaining: richer MIME recipient/date parity and antivirus/spam pipeline integration.
+   - Done: external fetch received-time parity from valid `Received` header dates, falling back to `Date` and then current UTC when MIME dates are missing or outside legacy bounds.
+   - Remaining: richer MIME recipient validation/parity and antivirus/spam pipeline integration.
 
 5. Security and anti-abuse modernization.
    - Done: SQL failed-logon auto-ban recorder preserves legacy settings/table compatibility, deny-range creation semantics, and IMAP/SMTP/POP3 threshold-triggered disconnect wiring.
@@ -164,4 +165,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Finish external fetch MIME recipient/date parity and connect the antivirus/spam pipeline, then continue SMTP script object/event parity.
+Finish external fetch MIME recipient validation/parity and connect the antivirus/spam pipeline, then continue SMTP script object/event parity.
