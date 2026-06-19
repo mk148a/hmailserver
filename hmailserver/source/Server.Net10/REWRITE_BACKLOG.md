@@ -73,6 +73,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: optional MIME-aware attachment blocking replaces matching SMTP attachments with legacy-style text attachments before antivirus scanning and queue persistence.
 - Done: optional DNSBL checks reject listed SMTP client IPs before scripts/rules/spam/AV/queue while failing open on DNS errors and skipping authenticated clients by default.
 - Done: optional reverse DNS/PTR checks reject missing or non-forward-confirmed client hostnames before scripts/rules/spam/AV/queue while failing open on transient DNS errors.
+- Done: optional sender-domain MX checks reject unauthenticated envelope sender domains without MX records before scripts/rules/spam/AV/queue while failing open on transient DNS errors.
 - Done: optional URL/SURBL checks extract bounded MIME text/html URL hosts, honor `EnableSpamScan`, reject listed hosts before antivirus/queue persistence, and fail open on DNS errors.
 - Done: external POP3 fetch treats permanent SMTP receiver rejections as non-accepted messages with normal UID/remote-delete retention instead of failing the whole account batch.
 - Done: script message facade exposes legacy `Flag(eMessageFlag)` bitmask access over `State` for VBScript/JScript handlers.
@@ -177,8 +178,9 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: optional attachment blocking policy replaces matching MIME attachments with text notice attachments before antivirus/queue persistence.
    - Done: optional DNSBL checker with bounded DNS queries, fail-open lookup errors, IPv4/IPv6 query formatting, and SMTP receiver rejection wiring.
    - Done: optional reverse DNS/PTR checker with bounded lookup, authenticated-client bypass, forward-confirmed hostname mode, SMTP receiver rejection wiring, and fail-open transient DNS handling.
+   - Done: optional sender-domain MX checker with bounded lookup, authenticated-client bypass, null reverse-path/domain-literal skip, SMTP receiver rejection wiring, and fail-open transient DNS handling.
    - Done: optional SURBL checker with bounded MIME URL host extraction, parent-domain candidate limits, fail-open lookup errors, and SMTP receiver rejection wiring.
-   - Remaining: SPF, DKIM, DMARC, MX checks, greylisting.
+   - Remaining: SPF, DKIM, DMARC, greylisting.
    - Implicit TLS stream factories and listener ports; STARTTLS uses OS default TLS policy and online certificate revocation checks.
 
 6. COM/API compatibility.
