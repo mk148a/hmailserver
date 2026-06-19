@@ -110,7 +110,8 @@ public sealed class ExternalFetchProcessor
         var knownByUid = BuildKnownUidLookup(knownUids);
 
         await using var session = await _sessionFactory.ConnectAsync(account, cancellationToken).ConfigureAwait(false);
-        var remoteMessages = await session.ListMessagesAsync(cancellationToken).ConfigureAwait(false);
+        var remoteMessages = CoalesceRemoteMessagesBySequence(
+            await session.ListMessagesAsync(cancellationToken).ConfigureAwait(false));
         var remoteUidValues = remoteMessages
             .Select(static message => message.Uid)
             .ToHashSet(StringComparer.Ordinal);
@@ -296,6 +297,41 @@ public sealed class ExternalFetchProcessor
         }
 
         return knownByUid;
+    }
+
+    private static IReadOnlyList<ExternalFetchRemoteMessage> CoalesceRemoteMessagesBySequence(
+        IReadOnlyList<ExternalFetchRemoteMessage> remoteMessages)
+    {
+        if (remoteMessages.Count < 2)
+        {
+            return remoteMessages;
+        }
+
+        var bySequence = new Dictionary<int, ExternalFetchRemoteMessage>();
+        var sequenceOrder = new List<int>(remoteMessages.Count);
+        foreach (var remoteMessage in remoteMessages)
+        {
+            if (bySequence.TryAdd(remoteMessage.SequenceNumber, remoteMessage))
+            {
+                sequenceOrder.Add(remoteMessage.SequenceNumber);
+                continue;
+            }
+
+            bySequence[remoteMessage.SequenceNumber] = remoteMessage;
+        }
+
+        if (bySequence.Count == remoteMessages.Count)
+        {
+            return remoteMessages;
+        }
+
+        var normalized = new List<ExternalFetchRemoteMessage>(bySequence.Count);
+        foreach (var sequenceNumber in sequenceOrder)
+        {
+            normalized.Add(bySequence[sequenceNumber]);
+        }
+
+        return normalized;
     }
 
     private ExternalAccountDownloadScriptExecutionResult RunExternalAccountDownloadScript(

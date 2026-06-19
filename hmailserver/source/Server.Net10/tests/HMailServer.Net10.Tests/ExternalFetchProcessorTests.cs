@@ -381,6 +381,34 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_SkipsDuplicateRemoteSequencesInSameBatch()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            [
+                new ExternalFetchRemoteMessage(1, "uid-first", Size: 64),
+                new ExternalFetchRemoteMessage(1, "uid-last", Size: 64)
+            ],
+            new Dictionary<int, byte[]>
+            {
+                [1] = ToAsciiBytes("From: sender@example.net\r\nTo: user@example.test\r\nSubject: duplicate sequence\r\n\r\nBody\r\n")
+            });
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(store, session, receiver);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(1, result.MessagesDownloaded);
+        Assert.AreEqual(1, result.MessagesAccepted);
+        Assert.AreEqual(1, result.KnownUidsAdded);
+        Assert.AreEqual("uid-last", store.AddedUids.Single());
+        Assert.AreEqual(1, receiver.Requests.Count);
+        CollectionAssert.AreEqual(new[] { 1 }, session.DownloadedSequences.ToArray());
+    }
+
+    [TestMethod]
     public async Task ResetLocksAsync_ClearsStaleAccountLocks()
     {
         var store = new FakeExternalFetchAccountStore();
@@ -565,6 +593,14 @@ public sealed class ExternalFetchProcessorTests
             _messageDataBySequence = messages.ToDictionary(
                 static entry => entry.Message.SequenceNumber,
                 static entry => entry.MessageData);
+        }
+
+        public FakeExternalFetchSession(
+            IReadOnlyList<ExternalFetchRemoteMessage> messages,
+            IReadOnlyDictionary<int, byte[]> messageDataBySequence)
+        {
+            _messages = messages;
+            _messageDataBySequence = messageDataBySequence;
         }
 
         public List<string> DeletedUids { get; } = [];
