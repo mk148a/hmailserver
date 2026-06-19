@@ -497,6 +497,51 @@ public sealed class TcpExternalFetchSessionFactoryTests
     [TestMethod]
     [DataRow(ExternalFetchConnectionSecurity.None, false)]
     [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
+    public async Task ListMessagesAsync_EmptyUidlListingReturnsNoMessages(
+        ExternalFetchConnectionSecurity connectionSecurity,
+        bool expectCapa)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerAsync(
+            listener,
+            commands,
+            rejectRetr: false,
+            rejectDele: false,
+            disconnectOnDele: false,
+            timeout.Token,
+            uidlResponse: "+OK\r\n.\r\n");
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await using (var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                .ConfigureAwait(false))
+            {
+                var messages = await session.ListMessagesAsync(timeout.Token).ConfigureAwait(false);
+
+                Assert.AreEqual(0, messages.Count);
+            }
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+        CollectionAssert.AreEqual(
+            expectCapa
+                ? new[] { "CAPA", "USER external-user", "PASS external-password", "UIDL", "QUIT" }
+                : new[] { "USER external-user", "PASS external-password", "UIDL", "QUIT" },
+            commands);
+    }
+
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.None, false)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
     public async Task DownloadMessageAsync_RejectedRetrQuitsWithoutDelete(
         ExternalFetchConnectionSecurity connectionSecurity,
         bool expectCapa)

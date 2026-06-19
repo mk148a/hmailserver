@@ -157,6 +157,46 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_RemovesKnownUidsWhenRemoteListingIsEmpty()
+    {
+        var account = CreateAccount(daysToKeep: 7);
+        var store = new FakeExternalFetchAccountStore(account)
+        {
+            KnownUids =
+            [
+                new ExternalFetchKnownUid(
+                    88,
+                    "uid-missing-one",
+                    DateTimeOffset.Parse("2025-12-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture).UtcDateTime),
+                new ExternalFetchKnownUid(
+                    89,
+                    "uid-missing-two",
+                    DateTimeOffset.Parse("2025-12-02T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture).UtcDateTime)
+            ]
+        };
+        var session = new FakeExternalFetchSession();
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(store, session, receiver);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsLeased);
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(0, result.AccountsFailed);
+        Assert.AreEqual(0, result.MessagesDownloaded);
+        Assert.AreEqual(0, result.MessagesAccepted);
+        Assert.AreEqual(0, result.RemoteMessagesDeleted);
+        Assert.AreEqual(0, result.KnownUidsAdded);
+        Assert.AreEqual(2, result.KnownUidsDeleted);
+        Assert.AreEqual(77, store.CompletedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.ReleasedFetchAccountIds.Count);
+        CollectionAssert.AreEqual(new[] { 88, 89 }, store.DeletedUidIds);
+        Assert.AreEqual(0, session.DownloadedSequences.Count);
+        Assert.AreEqual(0, session.DeletedUids.Count);
+        Assert.AreEqual(0, receiver.Requests.Count);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_ReleasesLeaseWhenReceiverRejects()
     {
         var account = CreateAccount();
