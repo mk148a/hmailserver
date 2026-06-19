@@ -148,9 +148,15 @@ public sealed class ExternalFetchProcessor
         var messagesDownloaded = 0;
         var messagesAccepted = 0;
         var knownUidsAdded = 0;
+        var newUidsProcessed = new HashSet<string>(StringComparer.Ordinal);
         foreach (var remoteMessage in remoteMessages)
         {
             if (knownByUid.ContainsKey(remoteMessage.Uid))
+            {
+                continue;
+            }
+
+            if (!newUidsProcessed.Add(remoteMessage.Uid))
             {
                 continue;
             }

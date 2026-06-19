@@ -279,6 +279,34 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_SkipsDuplicateRemoteUidsInSameBatch()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            (
+                new ExternalFetchRemoteMessage(1, "uid-duplicate", Size: 64),
+                ToAsciiBytes("From: sender@example.net\r\nTo: user@example.test\r\nSubject: first\r\n\r\nBody\r\n")
+            ),
+            (
+                new ExternalFetchRemoteMessage(2, "uid-duplicate", Size: 64),
+                ToAsciiBytes("From: sender@example.net\r\nTo: user@example.test\r\nSubject: duplicate\r\n\r\nBody\r\n")
+            ));
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(store, session, receiver);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(1, result.MessagesDownloaded);
+        Assert.AreEqual(1, result.MessagesAccepted);
+        Assert.AreEqual(1, result.KnownUidsAdded);
+        Assert.AreEqual("uid-duplicate", store.AddedUids.Single());
+        Assert.AreEqual(1, receiver.Requests.Count);
+        CollectionAssert.AreEqual(new[] { 1 }, session.DownloadedSequences.ToArray());
+    }
+
+    [TestMethod]
     public async Task ResetLocksAsync_ClearsStaleAccountLocks()
     {
         var store = new FakeExternalFetchAccountStore();
@@ -441,27 +469,45 @@ public sealed class ExternalFetchProcessorTests
 
     private sealed class FakeExternalFetchSession : IExternalFetchSession
     {
-        private readonly ExternalFetchRemoteMessage _message;
-        private readonly byte[] _messageData;
+        private readonly IReadOnlyDictionary<int, byte[]> _messageDataBySequence;
+        private readonly IReadOnlyList<ExternalFetchRemoteMessage> _messages;
 
         public FakeExternalFetchSession(
             ExternalFetchRemoteMessage message,
             byte[] messageData)
         {
-            _message = message;
-            _messageData = messageData;
+            _messages = [message];
+            _messageDataBySequence = new Dictionary<int, byte[]>
+            {
+                [message.SequenceNumber] = messageData
+            };
+        }
+
+        public FakeExternalFetchSession(params (ExternalFetchRemoteMessage Message, byte[] MessageData)[] messages)
+        {
+            _messages = messages
+                .Select(static entry => entry.Message)
+                .ToArray();
+            _messageDataBySequence = messages.ToDictionary(
+                static entry => entry.Message.SequenceNumber,
+                static entry => entry.MessageData);
         }
 
         public List<string> DeletedUids { get; } = [];
 
+        public List<int> DownloadedSequences { get; } = [];
+
         public ValueTask<IReadOnlyList<ExternalFetchRemoteMessage>> ListMessagesAsync(
             CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<ExternalFetchRemoteMessage>>([_message]);
+            ValueTask.FromResult(_messages);
 
         public ValueTask<byte[]> DownloadMessageAsync(
             ExternalFetchRemoteMessage message,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(_messageData);
+            CancellationToken cancellationToken)
+        {
+            DownloadedSequences.Add(message.SequenceNumber);
+            return ValueTask.FromResult(_messageDataBySequence[message.SequenceNumber]);
+        }
 
         public ValueTask DeleteMessageAsync(
             ExternalFetchRemoteMessage message,
