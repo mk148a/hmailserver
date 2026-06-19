@@ -107,7 +107,7 @@ public sealed class ExternalFetchProcessor
         var knownUids = await _accountStore
             .LoadKnownUidsAsync(account.FetchAccountId, cancellationToken)
             .ConfigureAwait(false);
-        var knownByUid = knownUids.ToDictionary(static uid => uid.Value, StringComparer.Ordinal);
+        var knownByUid = BuildKnownUidLookup(knownUids);
 
         await using var session = await _sessionFactory.ConnectAsync(account, cancellationToken).ConfigureAwait(false);
         var remoteMessages = await session.ListMessagesAsync(cancellationToken).ConfigureAwait(false);
@@ -284,6 +284,18 @@ public sealed class ExternalFetchProcessor
         }
 
         return deleted;
+    }
+
+    private static Dictionary<string, ExternalFetchKnownUid> BuildKnownUidLookup(
+        IReadOnlyList<ExternalFetchKnownUid> knownUids)
+    {
+        var knownByUid = new Dictionary<string, ExternalFetchKnownUid>(StringComparer.Ordinal);
+        foreach (var knownUid in knownUids)
+        {
+            knownByUid.TryAdd(knownUid.Value, knownUid);
+        }
+
+        return knownByUid;
     }
 
     private ExternalAccountDownloadScriptExecutionResult RunExternalAccountDownloadScript(

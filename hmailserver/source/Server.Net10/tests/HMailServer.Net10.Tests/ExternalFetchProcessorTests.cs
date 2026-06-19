@@ -123,6 +123,40 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_ToleratesDuplicateKnownUidRows()
+    {
+        var account = CreateAccount(daysToKeep: 0);
+        var store = new FakeExternalFetchAccountStore(account)
+        {
+            KnownUids =
+            [
+                new ExternalFetchKnownUid(
+                    88,
+                    "uid-known",
+                    DateTimeOffset.Parse("2025-12-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture).UtcDateTime),
+                new ExternalFetchKnownUid(
+                    89,
+                    "uid-known",
+                    DateTimeOffset.Parse("2025-12-02T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture).UtcDateTime)
+            ]
+        };
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-known", Size: 128),
+            "Subject: known\r\n\r\nBody\r\n"u8.ToArray());
+        var processor = CreateProcessor(store, session, new FakeSmtpMessageReceiver());
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(0, result.AccountsFailed);
+        Assert.AreEqual(0, result.MessagesDownloaded);
+        Assert.AreEqual(0, result.MessagesAccepted);
+        Assert.AreEqual(0, result.RemoteMessagesDeleted);
+        Assert.AreEqual(0, result.KnownUidsDeleted);
+        Assert.AreEqual(0, session.DownloadedSequences.Count);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_ReleasesLeaseWhenReceiverRejects()
     {
         var account = CreateAccount();
