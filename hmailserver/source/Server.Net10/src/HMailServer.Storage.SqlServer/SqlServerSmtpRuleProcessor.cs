@@ -134,6 +134,7 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
         var forcedRouteId = 0;
         string? bindToAddress = null;
         var generatedMessages = new List<SmtpRuleGeneratedMessage>();
+        var messageCopyOperations = new List<ScriptMessageCopyOperation>();
         var continueRuleProcessing = true;
         foreach (var rule in rules)
         {
@@ -196,6 +197,12 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
                             if (scriptResult.DropMessage)
                             {
                                 dropMessage = true;
+                            }
+
+                            if (accountId > 0 &&
+                                scriptResult.MessageCopyOperations is { Count: > 0 } copyOperations)
+                            {
+                                messageCopyOperations.AddRange(copyOperations);
                             }
                         }
 
@@ -264,13 +271,14 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
 
         var messageData = context.GetMessageData();
         return dropMessage
-            ? SmtpRuleProcessingResult.Drop(messageData, generatedMessages)
+            ? SmtpRuleProcessingResult.Drop(messageData, generatedMessages, messageCopyOperations)
             : SmtpRuleProcessingResult.Continue(
                 messageData,
                 moveToImapFolder,
                 generatedMessages,
                 forcedRouteId,
-                bindToAddress);
+                bindToAddress,
+                messageCopyOperations);
     }
 
     private async ValueTask<IReadOnlyList<SmtpRuleDefinition>> LoadRulesForAccountAsync(

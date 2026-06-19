@@ -6,7 +6,8 @@ public sealed record SmtpRuleScriptExecutionResult(
     byte[]? MessageData,
     bool DropMessage,
     int ResultValue = 0,
-    int ResultParameter = 0)
+    int ResultParameter = 0,
+    IReadOnlyList<ScriptMessageCopyOperation>? MessageCopyOperations = null)
 {
     public static SmtpRuleScriptExecutionResult Continue(byte[]? messageData = null) =>
         new(Accepted: true, FailureResponse: null, messageData, DropMessage: false);
@@ -25,4 +26,8 @@ public sealed record SmtpRuleScriptExecutionResult(
             ResultValue = resultValue,
             ResultParameter = resultParameter
         };
+
+    public SmtpRuleScriptExecutionResult WithMessageCopyOperations(
+        IReadOnlyList<ScriptMessageCopyOperation> operations) =>
+        this with { MessageCopyOperations = operations };
 }

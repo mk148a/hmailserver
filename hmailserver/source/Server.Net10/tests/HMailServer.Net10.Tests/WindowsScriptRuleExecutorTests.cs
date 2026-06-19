@@ -281,6 +281,94 @@ function Rule_UpdateMessage(obMessage) {
     }
 
     [TestMethod]
+    public void Execute_VbScriptMessageCopyCapturesCallTimeContent()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_CopyMessage(obMessage)
+   obMessage.Subject = "Snapshot subject"
+   obMessage.Save
+   obMessage.Copy 42
+   obMessage.Subject = "Final subject"
+   obMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_CopyMessage",
+                    "Subject: Original subject\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.AreEqual(1, result.MessageCopyOperations?.Count);
+            var copyOperation = result.MessageCopyOperations![0];
+            Assert.AreEqual(42, copyOperation.DestinationFolderId);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(copyOperation.MessageData),
+                "Subject: Snapshot subject\r\n");
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData!),
+                "Subject: Final subject\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptMessageCopyCapturesCallTimeContent()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_CopyMessage(obMessage) {
+  obMessage.Subject = "JScript snapshot";
+  obMessage.Save();
+  obMessage.Copy(84);
+  obMessage.Subject = "JScript final";
+  obMessage.Save();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_CopyMessage",
+                    "Subject: Original subject\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.AreEqual(1, result.MessageCopyOperations?.Count);
+            var copyOperation = result.MessageCopyOperations![0];
+            Assert.AreEqual(84, copyOperation.DestinationFolderId);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(copyOperation.MessageData),
+                "Subject: JScript snapshot\r\n");
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData!),
+                "Subject: JScript final\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_ExposesHeaderCollectionToVbScript()
     {
         var cscript = GetCscriptPathOrInconclusive();

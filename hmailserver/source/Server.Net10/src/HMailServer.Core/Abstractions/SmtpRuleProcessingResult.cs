@@ -8,7 +8,8 @@ public sealed record SmtpRuleProcessingResult(
     string? MoveToImapFolder,
     IReadOnlyList<SmtpRuleGeneratedMessage> GeneratedMessages,
     int ForcedRouteId = 0,
-    string? BindToAddress = null)
+    string? BindToAddress = null,
+    IReadOnlyList<ScriptMessageCopyOperation>? MessageCopyOperations = null)
 {
     public static SmtpRuleProcessingResult Continue(byte[] messageData) =>
         new(Accepted: true, FailureResponse: null, messageData, DropMessage: false, MoveToImapFolder: null, GeneratedMessages: []);
@@ -18,7 +19,8 @@ public sealed record SmtpRuleProcessingResult(
         string? moveToImapFolder,
         IReadOnlyList<SmtpRuleGeneratedMessage>? generatedMessages = null,
         int forcedRouteId = 0,
-        string? bindToAddress = null) =>
+        string? bindToAddress = null,
+        IReadOnlyList<ScriptMessageCopyOperation>? messageCopyOperations = null) =>
         new(
             Accepted: true,
             FailureResponse: null,
@@ -27,18 +29,21 @@ public sealed record SmtpRuleProcessingResult(
             moveToImapFolder,
             generatedMessages ?? [],
             forcedRouteId,
-            bindToAddress);
+            bindToAddress,
+            messageCopyOperations);
 
     public static SmtpRuleProcessingResult Drop(
         byte[] messageData,
-        IReadOnlyList<SmtpRuleGeneratedMessage>? generatedMessages = null) =>
+        IReadOnlyList<SmtpRuleGeneratedMessage>? generatedMessages = null,
+        IReadOnlyList<ScriptMessageCopyOperation>? messageCopyOperations = null) =>
         new(
             Accepted: true,
             FailureResponse: null,
             messageData,
             DropMessage: true,
             MoveToImapFolder: null,
-            GeneratedMessages: generatedMessages ?? []);
+            GeneratedMessages: generatedMessages ?? [],
+            MessageCopyOperations: messageCopyOperations);
 
     public static SmtpRuleProcessingResult Failure(
         string response,

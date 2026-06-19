@@ -14,6 +14,7 @@ public sealed partial class WindowsScriptRuleExecutor :
     IExternalAccountDownloadScriptExecutor,
     IClientPasswordValidationScriptExecutor
 {
+    private const int MaxMessageCopyOperations = 100;
     private readonly WindowsScriptRuleExecutorOptions _options;
 
     public WindowsScriptRuleExecutor(WindowsScriptRuleExecutorOptions options)
@@ -291,9 +292,11 @@ public sealed partial class WindowsScriptRuleExecutor :
             }
 
             var status = ReadStatus(statusPath);
+            IReadOnlyList<ScriptMessageCopyOperation> messageCopyOperations = [];
             if (status.Found && hasMessage)
             {
                 ApplyAttachmentOperations(messagePath, attachmentOperationPath);
+                messageCopyOperations = ReadMessageCopyOperations(attachmentOperationPath);
             }
 
             var messageData = hasMessage && File.Exists(messagePath)
@@ -314,7 +317,9 @@ public sealed partial class WindowsScriptRuleExecutor :
             var outcome = status.DropMessage
                 ? SmtpRuleScriptExecutionResult.Drop(messageData)
                 : SmtpRuleScriptExecutionResult.Continue(messageData);
-            return outcome.WithResult(status.ResultValue, status.ResultParameter);
+            return outcome
+                .WithResult(status.ResultValue, status.ResultParameter)
+                .WithMessageCopyOperations(messageCopyOperations);
         }
         catch (OperationCanceledException)
         {
@@ -573,7 +578,12 @@ public sealed partial class WindowsScriptRuleExecutor :
             return;
         }
 
-        var operations = File.ReadAllLines(operationPath, Encoding.UTF8);
+        var operations = File.ReadAllLines(operationPath, Encoding.UTF8)
+            .Where(static operationLine =>
+                operationLine.StartsWith("Clear\t", StringComparison.OrdinalIgnoreCase) ||
+                operationLine.StartsWith("Add\t", StringComparison.OrdinalIgnoreCase) ||
+                operationLine.StartsWith("DeleteIndex\t", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
         if (operations.Length == 0)
         {
             return;
@@ -614,6 +624,54 @@ public sealed partial class WindowsScriptRuleExecutor :
 
         using var output = File.Create(messagePath);
         message.WriteTo(output);
+    }
+
+    private static IReadOnlyList<ScriptMessageCopyOperation> ReadMessageCopyOperations(
+        string operationPath)
+    {
+        if (!File.Exists(operationPath))
+        {
+            return [];
+        }
+
+        var expectedPathPrefix = Path.GetFullPath(operationPath) + ".copy-";
+        var operations = new List<ScriptMessageCopyOperation>();
+        foreach (var operationLine in File.ReadLines(operationPath, Encoding.UTF8))
+        {
+            if (string.IsNullOrWhiteSpace(operationLine))
+            {
+                continue;
+            }
+
+            var fields = operationLine.Split('\t', 3);
+            if (!fields[0].Equals("CopyFolder", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (operations.Count >= MaxMessageCopyOperations)
+            {
+                throw new InvalidDataException("Message.Copy exceeded the per-script operation limit.");
+            }
+
+            if (fields.Length != 3 ||
+                !int.TryParse(fields[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var folderId) ||
+                folderId <= 0)
+            {
+                throw new InvalidDataException("Message.Copy produced an invalid destination folder ID.");
+            }
+
+            var snapshotPath = Path.GetFullPath(fields[2]);
+            if (!snapshotPath.StartsWith(expectedPathPrefix, StringComparison.OrdinalIgnoreCase) ||
+                !File.Exists(snapshotPath))
+            {
+                throw new InvalidDataException("Message.Copy produced an invalid content snapshot.");
+            }
+
+            operations.Add(new ScriptMessageCopyOperation(folderId, File.ReadAllBytes(snapshotPath)));
+        }
+
+        return operations;
     }
 
     private static void AddAttachment(
@@ -1281,6 +1339,8 @@ Class HMailServerRuleMessage
    Private m_recipients
    Private m_attachments
    Private m_messageHeaders
+   Private m_operationPath
+   Private m_copySequence
 
    Private Sub Class_Initialize()
       Set m_recipients = New HMailServerRuleRecipients
@@ -1293,6 +1353,12 @@ Class HMailServerRuleMessage
       DeliveryAttempt = 1
       InternalDate = Now
       m_encodeFields = True
+      m_operationPath = ""
+      m_copySequence = 0
+   End Sub
+
+   Public Sub InitializeOperationPath(value)
+      m_operationPath = CStr(value)
    End Sub
 
    Public Sub Load()
@@ -1318,6 +1384,25 @@ Class HMailServerRuleMessage
 
    Public Sub RefreshContent()
       Load
+   End Sub
+
+   Public Sub Copy(destinationFolderID)
+      Dim folderID, fileSystem, snapshotPath, operationFile
+      folderID = CLng(destinationFolderID)
+      If folderID <= 0 Then
+         Err.Raise vbObjectError + 1000, "HMailServerRuleMessage.Copy", "Invalid destination folder ID."
+      End If
+      If Len(m_operationPath) = 0 Then
+         Err.Raise vbObjectError + 1001, "HMailServerRuleMessage.Copy", "Message copy operations are unavailable."
+      End If
+
+      snapshotPath = m_operationPath & ".copy-" & CStr(m_copySequence) & ".eml"
+      m_copySequence = m_copySequence + 1
+      Set fileSystem = CreateObject("Scripting.FileSystemObject")
+      fileSystem.CopyFile FileName, snapshotPath, True
+      Set operationFile = fileSystem.OpenTextFile(m_operationPath, 8, True)
+      operationFile.WriteLine "CopyFolder" & vbTab & CStr(folderID) & vbTab & snapshotPath
+      operationFile.Close
    End Sub
 
    Public Sub Save()
@@ -1830,6 +1915,7 @@ Dim HMAILSERVER_MESSAGE
 If "{{hasMessageFlag}}" = "1" Then
    Set HMAILSERVER_MESSAGE = New HMailServerRuleMessage
    HMAILSERVER_MESSAGE.FileName = "{{EscapeVbScript(messagePath)}}"
+   HMAILSERVER_MESSAGE.InitializeOperationPath "{{EscapeVbScript(attachmentOperationPath)}}"
    HMAILSERVER_MESSAGE.DropMessage = False
    HMAILSERVER_MESSAGE.RejectReason = ""
    HMAILSERVER_MESSAGE.Load
@@ -2253,12 +2339,16 @@ function hMailServerRuleGetMessageSize(fileName) {
   return Math.ceil(Number(hMailServerRuleFileSystem.GetFile(fileName).Size || 0) / 1024);
 }
 
-function hMailServerRuleAppendAttachmentOperation(operationPath, name, value) {
+function hMailServerRuleAppendAttachmentOperation(operationPath, name, value, extraValue) {
   if (!operationPath) {
     return;
   }
   var operationFile = hMailServerRuleFileSystem.OpenTextFile(operationPath, 8, true);
-  operationFile.WriteLine(String(name || "") + "\t" + String(value || "").replace(/[\r\n]/g, " "));
+  var operationLine = String(name || "") + "\t" + String(value || "").replace(/[\r\n]/g, " ");
+  if (arguments.length > 3) {
+    operationLine += "\t" + String(extraValue || "").replace(/[\r\n]/g, " ");
+  }
+  operationFile.WriteLine(operationLine);
   operationFile.Close();
 }
 
@@ -2368,6 +2458,8 @@ if ("{{hasMessageFlag}}" === "1") {
       "{{EscapeJScript(attachmentOperationPath)}}"),
     Headers: null,
     _headers: "",
+    _operationPath: "{{EscapeJScript(attachmentOperationPath)}}",
+    _copySequence: 0,
     Load: function() {
       var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this.FileName));
       this._headers = parsed.headers;
@@ -2378,6 +2470,19 @@ if ("{{hasMessageFlag}}" === "1") {
     },
     RefreshContent: function() {
       this.Load();
+    },
+    Copy: function(destinationFolderID) {
+      var folderID = Number(destinationFolderID);
+      if (!isFinite(folderID) || Math.floor(folderID) !== folderID || folderID <= 0 || folderID > 2147483647) {
+        throw new Error("Invalid destination folder ID.");
+      }
+      if (!this._operationPath) {
+        throw new Error("Message copy operations are unavailable.");
+      }
+      var snapshotPath = this._operationPath + ".copy-" + String(this._copySequence) + ".eml";
+      this._copySequence++;
+      hMailServerRuleFileSystem.CopyFile(this.FileName, snapshotPath, true);
+      hMailServerRuleAppendAttachmentOperation(this._operationPath, "CopyFolder", String(folderID), snapshotPath);
     },
     HeaderValue: function(fieldName) {
       return hMailServerRuleGetHeader(this._headers, fieldName);

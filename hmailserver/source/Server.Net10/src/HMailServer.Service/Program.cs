@@ -588,6 +588,7 @@ builder.Services.AddSingleton<IDeliveryQueueLeaseStore, SqlServerDeliveryQueueLe
 builder.Services.AddSingleton<IDeliveryQueueMessageStore, SqlServerDeliveryQueueMessageStore>();
 builder.Services.AddSingleton<IDeliveryQueueRecipientStore, SqlServerDeliveryQueueRecipientStore>();
 builder.Services.AddSingleton<IDeliveryTargetResolver, SqlServerDeliveryTargetResolver>();
+builder.Services.AddSingleton<IScriptMessageCopyStore, SqlServerScriptMessageCopyStore>();
 builder.Services.AddSingleton<ILocalDeliveryStore, SqlServerLocalDeliveryStore>();
 builder.Services.AddSingleton(deliveryBounceOptions);
 builder.Services.AddSingleton<IDeliveryBounceStore, SqlServerDeliveryBounceStore>();

@@ -96,19 +96,22 @@ VALUES
     private readonly ISmtpAccountRuleProcessor? _accountRuleProcessor;
     private readonly IImapMailboxStore? _mailboxStore;
     private readonly SqlServerSmtpQueueWriter? _queueWriter;
+    private readonly IScriptMessageCopyStore? _scriptMessageCopyStore;
 
     public SqlServerLocalDeliveryStore(
         SqlServerConnectionFactory connectionFactory,
         MessageFilePathResolver pathResolver,
         ISmtpAccountRuleProcessor? accountRuleProcessor = null,
         IImapMailboxStore? mailboxStore = null,
-        SqlServerSmtpQueueWriter? queueWriter = null)
+        SqlServerSmtpQueueWriter? queueWriter = null,
+        IScriptMessageCopyStore? scriptMessageCopyStore = null)
     {
         _connectionFactory = connectionFactory;
         _pathResolver = pathResolver;
         _accountRuleProcessor = accountRuleProcessor;
         _mailboxStore = mailboxStore;
         _queueWriter = queueWriter;
+        _scriptMessageCopyStore = scriptMessageCopyStore;
     }
 
     public async ValueTask<LocalDeliveryResult> DeliverAsync(
@@ -166,35 +169,48 @@ VALUES
 
         if (_accountRuleProcessor is not null)
         {
-            var accountRuleResult = await ApplyAccountRulesAsync(
-                message,
-                targetBatch,
-                accountId,
-                destinationPath,
-                cancellationToken).ConfigureAwait(false);
-            await EnqueueGeneratedMessagesAsync(
-                accountRuleResult.GeneratedMessages ?? [],
-                message.CreatedUtc,
-                cancellationToken).ConfigureAwait(false);
-            if (accountRuleResult.DropMessage)
+            try
+            {
+                var accountRuleResult = await ApplyAccountRulesAsync(
+                    message,
+                    targetBatch,
+                    accountId,
+                    destinationPath,
+                    cancellationToken).ConfigureAwait(false);
+                await EnqueueGeneratedMessagesAsync(
+                    accountRuleResult.GeneratedMessages ?? [],
+                    message.CreatedUtc,
+                    cancellationToken).ConfigureAwait(false);
+                await CopyScriptRequestedMessagesAsync(
+                    message,
+                    accountId,
+                    accountRuleResult.MessageCopyOperations ?? [],
+                    cancellationToken).ConfigureAwait(false);
+                if (accountRuleResult.DropMessage)
+                {
+                    TryDelete(destinationPath);
+                    return new LocalDeliveryResult(
+                        new MessageIdentity(0, accountId, 0, 0),
+                        targetBatch.Recipients.Count);
+                }
+
+                deliveredMessageSize = accountRuleResult.MessageSize;
+                ruleDestination = await ResolveRuleDestinationAsync(
+                    accountId,
+                    accountAddress,
+                    destinationFileName,
+                    destinationPath,
+                    accountRuleResult.MoveToImapFolder,
+                    cancellationToken).ConfigureAwait(false);
+                if (ruleDestination is not null)
+                {
+                    destinationPath = ruleDestination.MessagePath;
+                }
+            }
+            catch
             {
                 TryDelete(destinationPath);
-                return new LocalDeliveryResult(
-                    new MessageIdentity(0, accountId, 0, 0),
-                    targetBatch.Recipients.Count);
-            }
-
-            deliveredMessageSize = accountRuleResult.MessageSize;
-            ruleDestination = await ResolveRuleDestinationAsync(
-                accountId,
-                accountAddress,
-                destinationFileName,
-                destinationPath,
-                accountRuleResult.MoveToImapFolder,
-                cancellationToken).ConfigureAwait(false);
-            if (ruleDestination is not null)
-            {
-                destinationPath = ruleDestination.MessagePath;
+                throw;
             }
         }
 
@@ -282,7 +298,8 @@ VALUES
             return new AccountRuleApplicationResult(
                 DropMessage: true,
                 MessageSize: 0,
-                GeneratedMessages: result.GeneratedMessages);
+                GeneratedMessages: result.GeneratedMessages,
+                MessageCopyOperations: result.MessageCopyOperations);
         }
 
         if (!ReferenceEquals(result.MessageData, messageData))
@@ -294,7 +311,38 @@ VALUES
             DropMessage: false,
             result.MessageData.LongLength,
             result.MoveToImapFolder,
-            result.GeneratedMessages);
+            result.GeneratedMessages,
+            result.MessageCopyOperations);
+    }
+
+    private async ValueTask CopyScriptRequestedMessagesAsync(
+        DeliveryQueuedMessage message,
+        int accountId,
+        IReadOnlyList<ScriptMessageCopyOperation> operations,
+        CancellationToken cancellationToken)
+    {
+        if (operations.Count == 0)
+        {
+            return;
+        }
+
+        if (_scriptMessageCopyStore is null)
+        {
+            throw new InvalidOperationException("Message.Copy requires a script message copy store.");
+        }
+
+        foreach (var operation in operations)
+        {
+            await _scriptMessageCopyStore.CopyAsync(
+                new ScriptMessageCopyRequest(
+                    accountId,
+                    operation.DestinationFolderId,
+                    message.FromAddress,
+                    message.Flags,
+                    message.CreatedUtc,
+                    operation.MessageData),
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async ValueTask EnqueueGeneratedMessagesAsync(
@@ -484,7 +532,8 @@ VALUES
         bool DropMessage,
         long MessageSize,
         string? MoveToImapFolder = null,
-        IReadOnlyList<SmtpRuleGeneratedMessage>? GeneratedMessages = null);
+        IReadOnlyList<SmtpRuleGeneratedMessage>? GeneratedMessages = null,
+        IReadOnlyList<ScriptMessageCopyOperation>? MessageCopyOperations = null);
 
     private sealed record LocalDeliveryDestination(
         int AccountId,

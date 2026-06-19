@@ -425,6 +425,58 @@ public sealed class SqlServerSmtpRuleProcessorTests
     }
 
     [TestMethod]
+    public void ApplyRules_AccountScriptPreservesMessageCopyOperations()
+    {
+        var request = CreateRequest("Subject: Script copy\r\n\r\nBody\r\n");
+        var copyData = Encoding.ASCII.GetBytes("Subject: Copied snapshot\r\n\r\nBody\r\n");
+        var executor = new FakeScriptExecutor(_ =>
+            SmtpRuleScriptExecutionResult
+                .Continue(request.MessageData)
+                .WithMessageCopyOperations([new ScriptMessageCopyOperation(55, copyData)]));
+        var rule = CreateRule(
+            criteria: new SmtpRuleCriterion(
+                Id: 78,
+                UsePredefinedField: true,
+                PredefinedField: SmtpRuleCriteriaField.Subject,
+                HeaderName: string.Empty,
+                MatchType: SmtpRuleMatchType.Contains,
+                MatchValue: "Script copy"),
+            actions: new SmtpRuleAction(
+                Id: 79,
+                Type: SmtpRuleActionType.ScriptFunction,
+                SortOrder: 1,
+                ImapFolder: string.Empty,
+                Subject: string.Empty,
+                FromName: string.Empty,
+                FromAddress: string.Empty,
+                To: string.Empty,
+                Body: string.Empty,
+                FileName: string.Empty,
+                ScriptFunction: "Rule_Copy",
+                HeaderName: string.Empty,
+                Value: string.Empty,
+                RouteId: 0,
+                AbortSpamFlagged: false));
+
+        var accountResult = SqlServerSmtpRuleProcessor.ApplyRules(
+            request,
+            [rule],
+            scriptExecutor: executor,
+            accountId: 123);
+        var globalResult = SqlServerSmtpRuleProcessor.ApplyRules(
+            request,
+            [rule],
+            scriptExecutor: executor,
+            accountId: 0);
+
+        Assert.AreEqual(1, accountResult.MessageCopyOperations?.Count);
+        var copyOperation = accountResult.MessageCopyOperations![0];
+        Assert.AreEqual(55, copyOperation.DestinationFolderId);
+        CollectionAssert.AreEqual(copyData, copyOperation.MessageData);
+        Assert.AreEqual(0, globalResult.MessageCopyOperations?.Count);
+    }
+
+    [TestMethod]
     public void ApplyRules_CreateCopyCopiesCurrentRecipientsAndSetsCopyRuleHeader()
     {
         var request = CreateRequest(
