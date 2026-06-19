@@ -23,6 +23,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             commands,
             rejectRetr: false,
             rejectDele: false,
+            disconnectOnDele: false,
             timeout.Token);
         try
         {
@@ -417,6 +418,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             commands,
             rejectRetr: true,
             rejectDele: false,
+            disconnectOnDele: false,
             timeout.Token);
         try
         {
@@ -461,6 +463,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             commands,
             rejectRetr: false,
             rejectDele: true,
+            disconnectOnDele: false,
             timeout.Token);
         try
         {
@@ -488,11 +491,58 @@ public sealed class TcpExternalFetchSessionFactoryTests
             commands);
     }
 
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.None, false)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
+    public async Task DeleteMessageAsync_DisconnectBeforeResponseRemainsFatal(
+        ExternalFetchConnectionSecurity connectionSecurity,
+        bool expectCapa)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerAsync(
+            listener,
+            commands,
+            rejectRetr: false,
+            rejectDele: false,
+            disconnectOnDele: true,
+            timeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await using (var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                .ConfigureAwait(false))
+            {
+                var messages = await session.ListMessagesAsync(timeout.Token).ConfigureAwait(false);
+                Assert.AreEqual(1, messages.Count);
+                await session.DownloadMessageAsync(messages[0], timeout.Token).ConfigureAwait(false);
+                await Assert.ThrowsExactlyAsync<IOException>(
+                    async () => await session.DeleteMessageAsync(messages[0], timeout.Token).ConfigureAwait(false));
+            }
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+        CollectionAssert.AreEqual(
+            expectCapa
+                ? new[] { "CAPA", "USER external-user", "PASS external-password", "UIDL", "RETR 1", "DELE 1" }
+                : new[] { "USER external-user", "PASS external-password", "UIDL", "RETR 1", "DELE 1" },
+            commands);
+    }
+
     private static async Task RunPop3ServerAsync(
         TcpListener listener,
         List<string> commands,
         bool rejectRetr,
         bool rejectDele,
+        bool disconnectOnDele,
         CancellationToken cancellationToken)
     {
         using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
@@ -521,6 +571,12 @@ public sealed class TcpExternalFetchSessionFactoryTests
             }
             else if (command.Equals("DELE 1", StringComparison.OrdinalIgnoreCase))
             {
+                if (disconnectOnDele)
+                {
+                    client.Client.Shutdown(SocketShutdown.Both);
+                    break;
+                }
+
                 var response = rejectDele
                     ? "-ERR delete denied\r\n"
                     : "+OK\r\n";

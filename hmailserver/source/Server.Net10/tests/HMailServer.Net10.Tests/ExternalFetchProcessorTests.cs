@@ -204,6 +204,43 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_PreservesKnownUidWhenRemoteDeleteTransportFails()
+    {
+        var account = CreateAccount(daysToKeep: 7);
+        var store = new FakeExternalFetchAccountStore(account)
+        {
+            KnownUids =
+            [
+                new ExternalFetchKnownUid(
+                    88,
+                    "uid-delete-failure",
+                    DateTimeOffset.Parse("2025-12-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture).UtcDateTime)
+            ]
+        };
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-delete-failure", Size: 64),
+            "Subject: known\r\n\r\nBody\r\n"u8.ToArray())
+        {
+            DeleteException = new IOException("External POP3 server closed the connection.")
+        };
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(store, session, receiver);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsLeased);
+        Assert.AreEqual(0, result.AccountsCompleted);
+        Assert.AreEqual(1, result.AccountsFailed);
+        Assert.AreEqual(0, result.RemoteMessagesDeleted);
+        Assert.AreEqual(0, result.KnownUidsDeleted);
+        Assert.AreEqual(77, store.ReleasedFetchAccountIds.Single());
+        Assert.AreEqual("uid-delete-failure", session.DeletedUids.Single());
+        Assert.AreEqual(0, store.DeletedUidIds.Count);
+        Assert.AreEqual(0, session.DownloadedSequences.Count);
+        Assert.AreEqual(0, receiver.Requests.Count);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_TracksUidWhenReceiverPermanentlyRejects()
     {
         var account = CreateAccount();
@@ -636,6 +673,8 @@ public sealed class ExternalFetchProcessorTests
 
         public Exception? DownloadException { get; init; }
 
+        public Exception? DeleteException { get; init; }
+
         public ValueTask<IReadOnlyList<ExternalFetchRemoteMessage>> ListMessagesAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(_messages);
@@ -658,6 +697,11 @@ public sealed class ExternalFetchProcessorTests
             CancellationToken cancellationToken)
         {
             DeletedUids.Add(message.Uid);
+            if (DeleteException is not null)
+            {
+                return ValueTask.FromException(DeleteException);
+            }
+
             return ValueTask.CompletedTask;
         }
 
