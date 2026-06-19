@@ -181,12 +181,16 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
             return output.ToArray();
         }
 
-        public ValueTask DeleteMessageAsync(
+        public async ValueTask DeleteMessageAsync(
             ExternalFetchRemoteMessage message,
-            CancellationToken cancellationToken) =>
-            SendCommandExpectOkAsync(
-                "DELE " + message.SequenceNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                cancellationToken);
+            CancellationToken cancellationToken)
+        {
+            // Legacy cleanup advances and drops the tracked UID after any DELE response.
+            await SendCommandReadLineAsync(
+                    "DELE " + message.SequenceNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         public async ValueTask DisposeAsync()
         {
