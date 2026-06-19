@@ -285,7 +285,12 @@ public sealed class TcpExternalFetchSessionFactoryTests
         listener.Start();
         var endpoint = (IPEndPoint)listener.LocalEndpoint;
         var commands = new List<string>();
-        var serverTask = RunPop3ServerRejectingUserAsync(listener, commands, expectCapa, timeout.Token);
+        var serverTask = RunPop3ServerRejectingAuthenticationAsync(
+            listener,
+            commands,
+            expectCapa,
+            rejectUser: true,
+            timeout.Token);
         try
         {
             var factory = new TcpExternalFetchSessionFactory();
@@ -306,6 +311,46 @@ public sealed class TcpExternalFetchSessionFactoryTests
                 : new[] { "USER external-user" },
             commands);
         Assert.AreEqual(0, receivedAfterUser.Length);
+    }
+
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.None, false)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
+    public async Task ConnectAsync_RejectedPasswordFailsBeforeListingMessages(
+        ExternalFetchConnectionSecurity connectionSecurity,
+        bool expectCapa)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerRejectingAuthenticationAsync(
+            listener,
+            commands,
+            expectCapa,
+            rejectUser: false,
+            timeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await factory
+                    .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                    .ConfigureAwait(false));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        var receivedAfterPassword = await serverTask.ConfigureAwait(false);
+        CollectionAssert.AreEqual(
+            expectCapa
+                ? new[] { "CAPA", "USER external-user", "PASS external-password" }
+                : new[] { "USER external-user", "PASS external-password" },
+            commands);
+        Assert.AreEqual(0, receivedAfterPassword.Length);
     }
 
     private static async Task RunPop3ServerAsync(
@@ -426,10 +471,11 @@ public sealed class TcpExternalFetchSessionFactoryTests
         return await ReadUntilDisconnectAsync(stream, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<byte[]> RunPop3ServerRejectingUserAsync(
+    private static async Task<byte[]> RunPop3ServerRejectingAuthenticationAsync(
         TcpListener listener,
         List<string> commands,
         bool expectCapa,
+        bool rejectUser,
         CancellationToken cancellationToken)
     {
         using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
@@ -446,7 +492,17 @@ public sealed class TcpExternalFetchSessionFactoryTests
         }
 
         commands.Add(await ReadLineAsync(stream, cancellationToken).ConfigureAwait(false));
-        await WriteRawAsync(stream, "-ERR invalid user\r\n", cancellationToken).ConfigureAwait(false);
+        if (rejectUser)
+        {
+            await WriteRawAsync(stream, "-ERR invalid user\r\n", cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            await WriteRawAsync(stream, "+OK user accepted\r\n", cancellationToken).ConfigureAwait(false);
+            commands.Add(await ReadLineAsync(stream, cancellationToken).ConfigureAwait(false));
+            await WriteRawAsync(stream, "-ERR invalid password\r\n", cancellationToken).ConfigureAwait(false);
+        }
+
         client.Client.Shutdown(SocketShutdown.Send);
 
         return await ReadUntilDisconnectAsync(stream, cancellationToken).ConfigureAwait(false);
