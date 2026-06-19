@@ -13,7 +13,7 @@ public sealed class ImapSearchCommandParserTests
         var request = new ImapSearchCommandParser().ParseCriteria(
             accountId: 10,
             folderId: 20,
-            criteriaText: "UID SEARCH CHARSET UTF-8 UID 100:200,333 SINCE 1-Jan-2026 BEFORE 3-Jan-2026 LARGER 1024 SMALLER 4096 UNSEEN FLAGGED TEXT \"invoice\" BODY \"paid\" SUBJECT \"report\" HEADER \"X-Customer\" \"Ada\"",
+            criteriaText: "UID SEARCH CHARSET UTF-8 UID 100:200,333 SINCE 1-Jan-2026 BEFORE 3-Jan-2026 SENTSINCE 2-Jan-2026 SENTBEFORE 4-Jan-2026 LARGER 1024 SMALLER 4096 UNSEEN FLAGGED TEXT \"invoice\" BODY \"paid\" SUBJECT \"report\" HEADER \"X-Customer\" \"Ada\"",
             returnUid: false);
 
         Assert.IsTrue(request.ReturnUid);
@@ -23,6 +23,8 @@ public sealed class ImapSearchCommandParserTests
         Assert.AreEqual(ImapMessageFlags.Seen, request.ForbiddenFlags);
         Assert.AreEqual(new DateOnly(2026, 1, 1), request.Since);
         Assert.AreEqual(new DateOnly(2026, 1, 3), request.Before);
+        Assert.AreEqual(new DateOnly(2026, 1, 2), request.SentSince);
+        Assert.AreEqual(new DateOnly(2026, 1, 4), request.SentBefore);
         Assert.AreEqual(1024L, request.LargerThanBytes);
         Assert.AreEqual(4096L, request.SmallerThanBytes);
         CollectionAssert.AreEqual(
@@ -37,6 +39,21 @@ public sealed class ImapSearchCommandParserTests
             request.GetHeaderTerms().ToArray());
         CollectionAssert.AreEqual(new[] { "paid" }, request.GetBodyTerms().ToArray());
         CollectionAssert.AreEqual(new[] { "invoice" }, request.GetAnyTerms().ToArray());
+    }
+
+    [TestMethod]
+    public void ParseCriteria_MapsSentOnToSentDateRange()
+    {
+        var request = new ImapSearchCommandParser().ParseCriteria(
+            accountId: 10,
+            folderId: 20,
+            criteriaText: "SEARCH SENTON 2-Jan-2026",
+            returnUid: false);
+
+        Assert.AreEqual(new DateOnly(2026, 1, 2), request.SentSince);
+        Assert.AreEqual(new DateOnly(2026, 1, 3), request.SentBefore);
+        Assert.IsNull(request.Since);
+        Assert.IsNull(request.Before);
     }
 
     [TestMethod]

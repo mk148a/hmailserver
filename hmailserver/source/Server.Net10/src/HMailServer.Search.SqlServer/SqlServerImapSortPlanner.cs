@@ -82,6 +82,18 @@ WHERE
             parameters["@Before"] = before.ToDateTime(TimeOnly.MinValue);
         }
 
+        if (searchRequest.SentSince is { } sentSince)
+        {
+            sql.AppendLine("    AND COALESCE(md.metadata_dateutc, m.messagecreatetime) >= @SentSince");
+            parameters["@SentSince"] = sentSince.ToDateTime(TimeOnly.MinValue);
+        }
+
+        if (searchRequest.SentBefore is { } sentBefore)
+        {
+            sql.AppendLine("    AND COALESCE(md.metadata_dateutc, m.messagecreatetime) < @SentBefore");
+            parameters["@SentBefore"] = sentBefore.ToDateTime(TimeOnly.MinValue);
+        }
+
         AddFullTextPredicates(sql, parameters, "sd.search_header", "@HeaderText", headerTerms);
         AddFullTextPredicates(sql, parameters, "sd.search_body", "@BodyText", bodyTerms);
         AddFullTextPredicates(sql, parameters, "sd.search_combined", "@AnyText", anyTerms);

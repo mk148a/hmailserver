@@ -11,6 +11,7 @@ public sealed class SqlServerImapSearchPlanner
         var bodyTerms = request.GetBodyTerms();
         var anyTerms = request.GetAnyTerms();
         var needsFullText = headerTerms.Count > 0 || bodyTerms.Count > 0 || anyTerms.Count > 0;
+        var needsMetadata = request.SentSince is not null || request.SentBefore is not null;
 
         var sql = new StringBuilder("""
 SELECT
@@ -21,6 +22,14 @@ SELECT
 FROM hm_messages AS m
 
 """);
+
+        if (needsMetadata)
+        {
+            sql.AppendLine("""
+LEFT JOIN hm_message_metadata AS md
+    ON md.metadata_messageid = m.messageid
+""");
+        }
 
         if (needsFullText)
         {
@@ -75,6 +84,18 @@ WHERE
         {
             sql.AppendLine("    AND m.messagecreatetime < @Before");
             parameters["@Before"] = before.ToDateTime(TimeOnly.MinValue);
+        }
+
+        if (request.SentSince is { } sentSince)
+        {
+            sql.AppendLine("    AND COALESCE(md.metadata_dateutc, m.messagecreatetime) >= @SentSince");
+            parameters["@SentSince"] = sentSince.ToDateTime(TimeOnly.MinValue);
+        }
+
+        if (request.SentBefore is { } sentBefore)
+        {
+            sql.AppendLine("    AND COALESCE(md.metadata_dateutc, m.messagecreatetime) < @SentBefore");
+            parameters["@SentBefore"] = sentBefore.ToDateTime(TimeOnly.MinValue);
         }
 
         AddFullTextPredicates(sql, parameters, "sd.search_header", "@HeaderText", headerTerms);

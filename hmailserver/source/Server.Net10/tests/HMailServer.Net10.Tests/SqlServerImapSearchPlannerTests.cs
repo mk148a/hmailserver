@@ -24,15 +24,24 @@ public sealed class SqlServerImapSearchPlannerTests
             HeaderText: "from@example.test",
             BodyText: null,
             AnyText: "invoice",
-            ReturnUid: true);
+            ReturnUid: true)
+        {
+            SentSince = new DateOnly(2026, 1, 2),
+            SentBefore = new DateOnly(2026, 1, 4)
+        };
 
         var plan = new SqlServerImapSearchPlanner().Plan(request);
 
         StringAssert.Contains(plan.CommandText, "m.messageuid >= @MinUid");
+        StringAssert.Contains(plan.CommandText, "LEFT JOIN hm_message_metadata AS md");
+        StringAssert.Contains(plan.CommandText, "COALESCE(md.metadata_dateutc, m.messagecreatetime) >= @SentSince");
+        StringAssert.Contains(plan.CommandText, "COALESCE(md.metadata_dateutc, m.messagecreatetime) < @SentBefore");
         StringAssert.Contains(plan.CommandText, "INNER JOIN hm_message_search_documents AS sd");
         StringAssert.Contains(plan.CommandText, "CONTAINS(sd.search_header, @HeaderText0)");
         StringAssert.Contains(plan.CommandText, "CONTAINS(sd.search_combined, @AnyText0)");
         Assert.AreEqual(10, plan.Parameters["@AccountId"]);
+        Assert.AreEqual(new DateTime(2026, 1, 2), plan.Parameters["@SentSince"]);
+        Assert.AreEqual(new DateTime(2026, 1, 4), plan.Parameters["@SentBefore"]);
         Assert.AreEqual("\"invoice\"", plan.Parameters["@AnyText0"]);
     }
 

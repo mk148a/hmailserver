@@ -46,6 +46,8 @@ public sealed class ImapSearchCommandParser
         byte forbiddenFlags = 0;
         DateOnly? since = null;
         DateOnly? before = null;
+        DateOnly? sentSince = null;
+        DateOnly? sentBefore = null;
         long? largerThanBytes = null;
         long? smallerThanBytes = null;
         var uidRanges = new List<ImapIdRange>();
@@ -147,6 +149,20 @@ public sealed class ImapSearchCommandParser
                     before = MinDate(before, on.AddDays(1));
                     break;
 
+                case "SENTSINCE":
+                    sentSince = MaxDate(sentSince, ParseDate(ReadRequiredValue(tokens, ref index, "SENTSINCE date")));
+                    break;
+
+                case "SENTBEFORE":
+                    sentBefore = MinDate(sentBefore, ParseDate(ReadRequiredValue(tokens, ref index, "SENTBEFORE date")));
+                    break;
+
+                case "SENTON":
+                    var sentOn = ParseDate(ReadRequiredValue(tokens, ref index, "SENTON date"));
+                    sentSince = MaxDate(sentSince, sentOn);
+                    sentBefore = MinDate(sentBefore, sentOn.AddDays(1));
+                    break;
+
                 case "LARGER":
                     largerThanBytes = MaxLong(largerThanBytes, ParseNonNegativeLong(ReadRequiredValue(tokens, ref index, "LARGER size")));
                     break;
@@ -202,7 +218,9 @@ public sealed class ImapSearchCommandParser
             UidRanges = uidRanges.ToArray(),
             HeaderTerms = headerTerms.ToArray(),
             BodyTerms = bodyTerms.ToArray(),
-            AnyTerms = anyTerms.ToArray()
+            AnyTerms = anyTerms.ToArray(),
+            SentSince = sentSince,
+            SentBefore = sentBefore
         };
     }
 

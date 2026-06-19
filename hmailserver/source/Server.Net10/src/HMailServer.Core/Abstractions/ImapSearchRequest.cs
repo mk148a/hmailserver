@@ -26,6 +26,10 @@ public sealed record ImapSearchRequest(
 
     public IReadOnlySet<long>? SessionRecentUids { get; init; }
 
+    public DateOnly? SentSince { get; init; }
+
+    public DateOnly? SentBefore { get; init; }
+
     public IReadOnlyList<string> GetHeaderTerms() => NormalizeTextTerms(HeaderText, HeaderTerms);
 
     public IReadOnlyList<string> GetBodyTerms() => NormalizeTextTerms(BodyText, BodyTerms);

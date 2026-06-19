@@ -74,6 +74,41 @@ public sealed class SqlServerImapSortPlannerTests
     }
 
     [TestMethod]
+    public void Plan_AppliesSentDateFiltersBeforeSortOrder()
+    {
+        var searchRequest = new ImapSearchRequest(
+            AccountId: 10,
+            FolderId: 20,
+            MinUid: null,
+            MaxUid: null,
+            RequiredFlags: null,
+            ForbiddenFlags: null,
+            Since: null,
+            Before: null,
+            LargerThanBytes: null,
+            SmallerThanBytes: null,
+            HeaderText: null,
+            BodyText: null,
+            AnyText: null,
+            ReturnUid: true)
+        {
+            SentSince = new DateOnly(2026, 1, 2),
+            SentBefore = new DateOnly(2026, 1, 3)
+        };
+        var request = new ImapSortRequest(
+            searchRequest,
+            [new ImapSortCriterion(ImapSortKey.Date, Descending: false)]);
+
+        var plan = new SqlServerImapSortPlanner().Plan(request);
+
+        StringAssert.Contains(plan.CommandText, "COALESCE(md.metadata_dateutc, m.messagecreatetime) >= @SentSince");
+        StringAssert.Contains(plan.CommandText, "COALESCE(md.metadata_dateutc, m.messagecreatetime) < @SentBefore");
+        StringAssert.Contains(plan.CommandText, "ORDER BY COALESCE(md.metadata_dateutc, m.messagecreatetime) ASC, m.messageuid ASC;");
+        Assert.AreEqual(new DateTime(2026, 1, 2), plan.Parameters["@SentSince"]);
+        Assert.AreEqual(new DateTime(2026, 1, 3), plan.Parameters["@SentBefore"]);
+    }
+
+    [TestMethod]
     public void Plan_UsesSessionRecentSnapshotBeforeSortOrder()
     {
         var searchRequest = new ImapSearchRequest(
