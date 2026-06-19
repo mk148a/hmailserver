@@ -172,6 +172,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external fetch applies UID tracking and remote-delete retention for permanent SMTP receiver rejections such as spam delete-threshold `554` responses.
    - Done: external fetch hosted worker clears stale account locks once on startup before polling due accounts.
    - Done: external fetch skips duplicate new UIDL values within the same POP3 listing so a malformed server response cannot queue the same remote message twice.
+   - Done: external fetch skips duplicate already-known UIDL values within the same POP3 listing so script/retention cleanup runs once per remote UID.
    - Remaining: additional external fetch edge-case parity.
 
 5. Security and anti-abuse modernization.
