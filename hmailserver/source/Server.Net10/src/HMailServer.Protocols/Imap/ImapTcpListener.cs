@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using HMailServer.Core.Abstractions;
 
 namespace HMailServer.Protocols.Imap;
 
@@ -13,6 +14,7 @@ public sealed class ImapTcpListener
     private readonly IImapSessionContextProvider _contextProvider;
     private readonly IImapConnectionStreamFactory _streamFactory;
     private readonly ImapTcpListenerOptions _options;
+    private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
     private readonly SemaphoreSlim _connectionSlots;
     private readonly ConcurrentDictionary<Task, byte> _sessions = new();
     private readonly TaskCompletionSource<IPEndPoint> _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -22,12 +24,14 @@ public sealed class ImapTcpListener
         ImapSession session,
         IImapSessionContextProvider contextProvider,
         IImapConnectionStreamFactory streamFactory,
-        ImapTcpListenerOptions options)
+        ImapTcpListenerOptions options,
+        ISmtpEventScriptExecutor? eventScriptExecutor = null)
     {
         _session = session;
         _contextProvider = contextProvider;
         _streamFactory = streamFactory;
         _options = options;
+        _eventScriptExecutor = eventScriptExecutor;
         ValidateOptions(options);
         _connectionSlots = new SemaphoreSlim(options.MaxConcurrentConnections, options.MaxConcurrentConnections);
     }
@@ -107,6 +111,16 @@ public sealed class ImapTcpListener
                 var context = AddConnectionContext(
                     await _contextProvider.GetContextAsync(cancellationToken).ConfigureAwait(false),
                     client);
+                if (!ProtocolClientConnectEventRunner.Run(
+                        _eventScriptExecutor,
+                        context.ClientIPAddress,
+                        context.ClientPort,
+                        context.SessionId,
+                        cancellationToken))
+                {
+                    return;
+                }
+
                 await using var stream = await _streamFactory.OpenStreamAsync(client, cancellationToken).ConfigureAwait(false);
                 await _session.RunAsync(stream, context, cancellationToken).ConfigureAwait(false);
             }

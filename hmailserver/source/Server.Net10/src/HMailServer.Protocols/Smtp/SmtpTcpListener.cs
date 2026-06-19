@@ -9,7 +9,6 @@ namespace HMailServer.Protocols.Smtp;
 public sealed class SmtpTcpListener
 {
     private static readonly Encoding ResponseEncoding = Encoding.ASCII;
-    private static readonly byte[] EmptyEventMessageData = "Subject: hMailServer event\r\n\r\n"u8.ToArray();
 
     private readonly SmtpSession _session;
     private readonly ISmtpConnectionStreamFactory _streamFactory;
@@ -107,7 +106,12 @@ public sealed class SmtpTcpListener
             using (client)
             {
                 var connectionContext = CreateConnectionContext(client);
-                if (!RunClientConnectEvent(connectionContext, cancellationToken))
+                if (!ProtocolClientConnectEventRunner.Run(
+                        _eventScriptExecutor,
+                        connectionContext.ClientIPAddress,
+                        connectionContext.ClientPort,
+                        connectionContext.SessionId,
+                        cancellationToken))
                 {
                     return;
                 }
@@ -176,48 +180,6 @@ public sealed class SmtpTcpListener
         client.NoDelay = _options.NoDelay;
         client.ReceiveBufferSize = _options.ReceiveBufferBytes;
         client.SendBufferSize = _options.SendBufferBytes;
-    }
-
-    private bool RunClientConnectEvent(
-        SmtpSessionConnectionContext connectionContext,
-        CancellationToken cancellationToken)
-    {
-        if (_eventScriptExecutor is null)
-        {
-            return true;
-        }
-
-        SmtpRuleScriptExecutionResult result;
-        try
-        {
-            result = _eventScriptExecutor.Execute(
-                new SmtpEventScriptExecutionRequest(
-                    "OnClientConnect",
-                    new SmtpEventScriptClient(
-                        Username: string.Empty,
-                        IPAddress: connectionContext.ClientIPAddress,
-                        Port: connectionContext.ClientPort,
-                        SessionId: connectionContext.SessionId,
-                        HeloHost: string.Empty,
-                        IsAuthenticated: false,
-                        IsEncryptedConnection: false),
-                    MailFrom: string.Empty,
-                    Recipients: [],
-                    EmptyEventMessageData,
-                    SmtpEventScriptArgumentShape.ClientOnly),
-                cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return true;
-        }
-
-        return result.Accepted ||
-            !string.Equals(result.FailureResponse, "554 Rejected", StringComparison.OrdinalIgnoreCase);
     }
 
     private SmtpSessionConnectionContext CreateConnectionContext(TcpClient client)

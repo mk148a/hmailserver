@@ -62,7 +62,41 @@ public sealed class ImapTcpListenerTests
         await StopListenerAsync(runTask, cts);
     }
 
-    private static ImapTcpListener CreateListener(int maxConcurrentConnections)
+    [TestMethod]
+    public async Task RunAsync_RunsOnClientConnectBeforeGreetingAndCanReject()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        SmtpEventScriptExecutionRequest? capturedRequest = null;
+        var listener = CreateListener(
+            maxConcurrentConnections: 10,
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                request =>
+                {
+                    capturedRequest = request;
+                    return SmtpRuleScriptExecutionResult.Failure("554 Rejected");
+                }));
+        var runTask = listener.RunAsync(cts.Token);
+        var endpoint = await listener.Started.WaitAsync(cts.Token);
+
+        using var client = new TcpClient();
+        await client.ConnectAsync(endpoint.Address, endpoint.Port, cts.Token);
+        await using var stream = client.GetStream();
+        using var reader = CreateReader(stream);
+
+        Assert.IsNull(await ReadLineAsync(reader, cts.Token));
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual("OnClientConnect", capturedRequest.EventName);
+        Assert.AreEqual(SmtpEventScriptArgumentShape.ClientOnly, capturedRequest.ArgumentShape);
+        Assert.AreEqual(IPAddress.Loopback.ToString(), capturedRequest.Client.IPAddress);
+        Assert.IsGreaterThan(0, capturedRequest.Client.Port);
+        Assert.IsGreaterThan(0, capturedRequest.Client.SessionId);
+
+        await StopListenerAsync(runTask, cts);
+    }
+
+    private static ImapTcpListener CreateListener(
+        int maxConcurrentConnections,
+        ISmtpEventScriptExecutor? eventScriptExecutor = null)
     {
         var searchIndex = new FakeSearchIndex(
         [
@@ -83,7 +117,8 @@ public sealed class ImapTcpListenerTests
                 Backlog = 16,
                 MaxConcurrentConnections = maxConcurrentConnections,
                 ShutdownGracePeriod = TimeSpan.FromSeconds(1)
-            });
+            },
+            eventScriptExecutor);
     }
 
     private static StreamReader CreateReader(Stream stream) =>
@@ -140,5 +175,21 @@ public sealed class ImapTcpListenerTests
                 yield return match;
             }
         }
+    }
+
+    private sealed class FakeEventScriptExecutor : ISmtpEventScriptExecutor
+    {
+        private readonly Func<SmtpEventScriptExecutionRequest, SmtpRuleScriptExecutionResult> _execute;
+
+        public FakeEventScriptExecutor(
+            Func<SmtpEventScriptExecutionRequest, SmtpRuleScriptExecutionResult> execute)
+        {
+            _execute = execute;
+        }
+
+        public SmtpRuleScriptExecutionResult Execute(
+            SmtpEventScriptExecutionRequest request,
+            CancellationToken cancellationToken) =>
+            _execute(request);
     }
 }

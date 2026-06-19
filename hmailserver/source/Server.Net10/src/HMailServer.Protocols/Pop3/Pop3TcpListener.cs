@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
+using HMailServer.Core.Abstractions;
 
 namespace HMailServer.Protocols.Pop3;
 
@@ -13,6 +14,7 @@ public sealed class Pop3TcpListener
     private readonly Pop3Session _session;
     private readonly IPop3ConnectionStreamFactory _streamFactory;
     private readonly Pop3TcpListenerOptions _options;
+    private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
     private readonly SemaphoreSlim _connectionSlots;
     private readonly ConcurrentDictionary<Task, byte> _sessions = new();
     private readonly TaskCompletionSource<IPEndPoint> _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -21,11 +23,13 @@ public sealed class Pop3TcpListener
     public Pop3TcpListener(
         Pop3Session session,
         IPop3ConnectionStreamFactory streamFactory,
-        Pop3TcpListenerOptions options)
+        Pop3TcpListenerOptions options,
+        ISmtpEventScriptExecutor? eventScriptExecutor = null)
     {
         _session = session;
         _streamFactory = streamFactory;
         _options = options;
+        _eventScriptExecutor = eventScriptExecutor;
         ValidateOptions(options);
         _connectionSlots = new SemaphoreSlim(options.MaxConcurrentConnections, options.MaxConcurrentConnections);
     }
@@ -102,8 +106,19 @@ public sealed class Pop3TcpListener
         {
             using (client)
             {
+                var connectionContext = CreateConnectionContext(client, isEncryptedConnection: false);
+                if (!ProtocolClientConnectEventRunner.Run(
+                        _eventScriptExecutor,
+                        connectionContext.ClientIPAddress,
+                        connectionContext.ClientPort,
+                        connectionContext.SessionId,
+                        cancellationToken))
+                {
+                    return;
+                }
+
                 await using var stream = await _streamFactory.OpenStreamAsync(client, cancellationToken).ConfigureAwait(false);
-                var connectionContext = CreateConnectionContext(client, isEncryptedConnection: stream is SslStream);
+                connectionContext = connectionContext with { IsEncryptedConnection = stream is SslStream };
                 await _session.RunAsync(stream, connectionContext, cancellationToken).ConfigureAwait(false);
             }
         }
