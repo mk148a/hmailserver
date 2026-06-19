@@ -100,15 +100,21 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
 
             if (account.ConnectionSecurity is ExternalFetchConnectionSecurity.StartTlsOptional or ExternalFetchConnectionSecurity.StartTlsRequired)
             {
-                var startTlsResponse = await SendCommandReadLineAsync("STLS", cancellationToken).ConfigureAwait(false);
-                if (IsOk(startTlsResponse))
+                var supportsStartTls = await ReadStartTlsCapabilityAsync(cancellationToken).ConfigureAwait(false);
+                if (supportsStartTls)
                 {
+                    var startTlsResponse = await SendCommandReadLineAsync("STLS", cancellationToken).ConfigureAwait(false);
+                    if (!IsOk(startTlsResponse))
+                    {
+                        throw new InvalidOperationException("External POP3 server rejected STLS.");
+                    }
+
                     _stream = await UpgradeToTlsAsync(_stream, account.ServerAddress, cancellationToken).ConfigureAwait(false);
                     _reader = new Pop3LineReader(_stream);
                 }
                 else if (account.ConnectionSecurity == ExternalFetchConnectionSecurity.StartTlsRequired)
                 {
-                    throw new InvalidOperationException("External POP3 server rejected required STLS.");
+                    throw new InvalidOperationException("External POP3 server does not advertise required STLS.");
                 }
             }
 
@@ -225,6 +231,31 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
         {
             await SendCommandAsync(command, cancellationToken).ConfigureAwait(false);
             return await _reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        private async ValueTask<bool> ReadStartTlsCapabilityAsync(CancellationToken cancellationToken)
+        {
+            var response = await SendCommandReadLineAsync("CAPA", cancellationToken).ConfigureAwait(false);
+            if (!IsOk(response))
+            {
+                return false;
+            }
+
+            var supportsStartTls = false;
+            while (true)
+            {
+                var lineBytes = await _reader.ReadLineBytesAsync(cancellationToken).ConfigureAwait(false);
+                if (IsTerminator(lineBytes))
+                {
+                    return supportsStartTls;
+                }
+
+                var line = CommandEncoding.GetString(lineBytes).Trim();
+                if (line.Equals("STLS", StringComparison.OrdinalIgnoreCase))
+                {
+                    supportsStartTls = true;
+                }
+            }
         }
 
         private async ValueTask ReadOkLineAsync(CancellationToken cancellationToken)
