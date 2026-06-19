@@ -164,7 +164,9 @@ COMMIT TRANSACTION;
             AddPlanParameter(command, parameter.Key, parameter.Value);
         }
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using var reader = await command
+            .ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken)
+            .ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             yield return new MessageIdentity(
