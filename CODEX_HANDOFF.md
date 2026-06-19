@@ -61,6 +61,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch CAPA reddi davranisi legacy ile sabitlendi: optional STARTTLS plaintext'e devam ederken required STARTTLS `USER`/`PASS` oncesi fail eder.
 - External POP3 fetch reddedilen server greeting'inde plain ve STARTTLS modlarinda hicbir istemci komutu veya credential gondermeden fail edecek sekilde legacy ile sabitlendi.
 - External POP3 fetch reddedilen `USER` komutunda plain ve optional-STARTTLS plaintext fallback yollarinda `PASS` gondermeden fail edecek sekilde legacy ile sabitlendi.
+- External POP3 fetch reddedilen `PASS` komutunda plain ve optional-STARTTLS plaintext fallback yollarinda `UIDL` veya sonraki bir komut gondermeden fail edecek sekilde legacy ile sabitlendi.
 
 Yeni thread baslamadan once yine `git status --short --branch` ve `git diff` okunmali. Calisma agaci temiz degilse once mevcut WIP'in kime ait oldugu ve hangi slice'a hizmet ettigi anlasilmali.
 
@@ -75,11 +76,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-ecfe3502e docs(net10): document rejected external fetch greeting coverage
+cd5cb116f docs(net10): document rejected external fetch USER coverage
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `691fe2532 test(net10): cover rejected external fetch PASS`
 - `3c485df40 test(net10): cover rejected external fetch USER`
 - `ab2710f72 test(net10): cover rejected external fetch greeting`
 - `9e187a7fb test(net10): cover rejected external fetch CAPA`
@@ -166,6 +168,7 @@ Son temiz dogrulama notlari:
 - External fetch rejected-CAPA parity dilimi icin dar `TcpExternalFetchSessionFactoryTests` filtresi 7/7 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 338/338 gecti.
 - External fetch rejected-greeting parity dilimi icin dar `TcpExternalFetchSessionFactoryTests` filtresi 10/10 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 341/341 gecti.
 - External fetch rejected-USER parity dilimi icin dar `TcpExternalFetchSessionFactoryTests` filtresi 12/12 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 343/343 gecti.
+- External fetch rejected-PASS parity dilimi icin dar `TcpExternalFetchSessionFactoryTests` filtresi 14/14 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 345/345 gecti.
 
 Terminal/log incelemesi:
 

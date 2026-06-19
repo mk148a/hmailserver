@@ -88,6 +88,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: external POP3 fetch treats a rejected CAPA response as unavailable STLS, continuing optional STARTTLS over plaintext while failing required STARTTLS before credentials.
 - Done: external POP3 fetch rejects a failed server greeting before sending any command or credentials in plain and STARTTLS modes.
 - Done: external POP3 fetch fails a rejected USER command before sending PASS in plain and optional-STARTTLS plaintext fallback paths.
+- Done: external POP3 fetch fails a rejected PASS command before sending UIDL or any later command in plain and optional-STARTTLS plaintext fallback paths.
 
 ## Production Parity Backlog
 
@@ -186,6 +187,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external fetch preserves legacy CAPA-rejection behavior by continuing optional STARTTLS over plaintext and failing required STARTTLS before authentication.
    - Done: external fetch preserves legacy greeting-rejection behavior without sending any client command or credentials in plain and STARTTLS modes.
    - Done: external fetch preserves legacy USER-rejection behavior without sending PASS in plain and optional-STARTTLS plaintext fallback paths.
+   - Done: external fetch preserves legacy PASS-rejection behavior without sending UIDL or later commands in plain and optional-STARTTLS plaintext fallback paths.
    - Remaining: additional external fetch edge-case parity.
 
 5. Security and anti-abuse modernization.
