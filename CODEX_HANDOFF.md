@@ -65,6 +65,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch reddedilen `UIDL` komutunda plain ve optional-STARTTLS plaintext fallback yollarinda `RETR`/`DELE` gondermeden legacy `QUIT` cleanup yapacak sekilde sabitlendi.
 - External POP3 fetch reddedilen `RETR` komutunda yalniz legacy `QUIT` cleanup yapacak, failed account lease'i release edecek ve receiver/UID/remote-delete yan etkisi uretmeyecek sekilde sabitlendi.
 - External POP3 fetch `DELE -ERR` yanitini legacy best-effort cleanup olarak kabul edip UID cleanup ve `QUIT` akisina devam edecek; socket/I/O/cancellation hatalarini fatal tutacak sekilde duzeltildi.
+- External POP3 fetch `DELE` response gelmeden socket/I/O koparsa fatal kalacak, known UID korunacak ve account lease failed-release edilecek sekilde testle sabitlendi.
 
 Yeni thread baslamadan once yine `git status --short --branch` ve `git diff` okunmali. Calisma agaci temiz degilse once mevcut WIP'in kime ait oldugu ve hangi slice'a hizmet ettigi anlasilmali.
 
@@ -79,11 +80,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-f0760e64b docs(net10): document rejected external fetch RETR coverage
+1e8724914 docs(net10): document best-effort external fetch DELE
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `7e40efe1a test(net10): cover external fetch DELE transport failures`
 - `87d50855d fix(net10): tolerate rejected external fetch DELE`
 - `c85ce6aa0 test(net10): cover rejected external fetch RETR`
 - `d2e89fe68 test(net10): cover rejected external fetch UIDL`
@@ -178,6 +180,7 @@ Son temiz dogrulama notlari:
 - External fetch rejected-UIDL parity dilimi icin dar `TcpExternalFetchSessionFactoryTests` filtresi 16/16 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 347/347 gecti.
 - External fetch rejected-RETR parity dilimi icin dar `TcpExternalFetchSessionFactoryTests|ExternalFetchProcessorTests` filtresi 32/32 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 350/350 gecti.
 - External fetch best-effort DELE parity dilimi icin dar `TcpExternalFetchSessionFactoryTests|ExternalFetchProcessorTests` filtresi 34/34 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 352/352 gecti.
+- External fetch DELE transport-failure parity dilimi icin dar `TcpExternalFetchSessionFactoryTests|ExternalFetchProcessorTests` filtresi 37/37 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 355/355 gecti.
 
 Terminal/log incelemesi:
 
