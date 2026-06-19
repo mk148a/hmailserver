@@ -181,6 +181,8 @@ A truncated external-fetch `UIDL` listing after a `+OK` response remains fatal, 
 
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
+A truncated external-fetch `RETR` body after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not submit message data, add UID state, or issue remote delete cleanup.
+
 External-fetch `DELE` is legacy best-effort: any server response, including `-ERR`, advances UID cleanup and allows the session to `QUIT`; socket, I/O, and cancellation failures remain fatal. A `DELE` transport failure before any server response preserves known UID state and releases the fetch-account lease as failed.
 
 External-fetch `QUIT` cleanup is best-effort during session disposal: rejected `QUIT` responses and disconnects before the `QUIT` response do not leak disposal failures after the message-processing decision has already been made.
