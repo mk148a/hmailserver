@@ -448,6 +448,55 @@ public sealed class TcpExternalFetchSessionFactoryTests
     [TestMethod]
     [DataRow(ExternalFetchConnectionSecurity.None, false)]
     [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
+    public async Task ListMessagesAsync_SkipsMalformedUidlLinesAndKeepsValidRows(
+        ExternalFetchConnectionSecurity connectionSecurity,
+        bool expectCapa)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerAsync(
+            listener,
+            commands,
+            rejectRetr: false,
+            rejectDele: false,
+            disconnectOnDele: false,
+            timeout.Token,
+            uidlResponse: "+OK\r\nmissing-sequence\r\nx uid-invalid-sequence\r\n2\r\n3 \r\n1 uid-1\r\n4 uid-4\r\n.\r\n");
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await using (var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                .ConfigureAwait(false))
+            {
+                var messages = await session.ListMessagesAsync(timeout.Token).ConfigureAwait(false);
+
+                Assert.AreEqual(2, messages.Count);
+                Assert.AreEqual(1, messages[0].SequenceNumber);
+                Assert.AreEqual("uid-1", messages[0].Uid);
+                Assert.AreEqual(4, messages[1].SequenceNumber);
+                Assert.AreEqual("uid-4", messages[1].Uid);
+            }
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+        CollectionAssert.AreEqual(
+            expectCapa
+                ? new[] { "CAPA", "USER external-user", "PASS external-password", "UIDL", "QUIT" }
+                : new[] { "USER external-user", "PASS external-password", "UIDL", "QUIT" },
+            commands);
+    }
+
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.None, false)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
     public async Task DownloadMessageAsync_RejectedRetrQuitsWithoutDelete(
         ExternalFetchConnectionSecurity connectionSecurity,
         bool expectCapa)
@@ -727,7 +776,8 @@ public sealed class TcpExternalFetchSessionFactoryTests
         bool rejectQuit = false,
         bool disconnectOnQuit = false,
         bool disconnectDuringUidlListing = false,
-        bool disconnectDuringRetrBody = false)
+        bool disconnectDuringRetrBody = false,
+        string? uidlResponse = null)
     {
         using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
         await using var stream = client.GetStream();
@@ -751,7 +801,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
                     break;
                 }
 
-                await WriteRawAsync(stream, "+OK\r\n1 uid-1\r\n.\r\n", cancellationToken).ConfigureAwait(false);
+                await WriteRawAsync(stream, uidlResponse ?? "+OK\r\n1 uid-1\r\n.\r\n", cancellationToken).ConfigureAwait(false);
             }
             else if (command.Equals("RETR 1", StringComparison.OrdinalIgnoreCase))
             {
