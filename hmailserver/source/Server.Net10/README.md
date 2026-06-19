@@ -177,6 +177,8 @@ A rejected external-fetch `PASS` command fails authentication before message lis
 
 A rejected external-fetch `UIDL` command sends the legacy `QUIT` cleanup without issuing `RETR`, `DELE`, or other message-processing commands in plain and optional-STARTTLS plaintext fallback paths.
 
+A truncated external-fetch `UIDL` listing after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not issue `RETR`/`DELE`, submit message data, or mutate UID state.
+
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
 External-fetch `DELE` is legacy best-effort: any server response, including `-ERR`, advances UID cleanup and allows the session to `QUIT`; socket, I/O, and cancellation failures remain fatal. A `DELE` transport failure before any server response preserves known UID state and releases the fetch-account lease as failed.
