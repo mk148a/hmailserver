@@ -16,7 +16,7 @@ Legacy C++ server production referansi olmaya devam ediyor. .NET 10 agaci produc
 - IMAP tarafinda LOGIN/AUTHENTICATE PLAIN, SELECT/EXAMINE, nested/public folder, ACL, QUOTA, SEARCH/SORT, FETCH, STORE, COPY/MOVE, APPEND, EXPUNGE, IDLE ve recent flag lifecycle icin buyuk parity dilimleri tamamlandi.
 - SMTP tarafinda listener/session skeleton, STARTTLS, AUTH PLAIN/LOGIN, MAIL/RCPT/DATA staging, local/route recipient validation, durable queue persistence, global/account rule islemleri, delivery queue lease/load/dispatch, local delivery, remote SMTP sender, retry/backoff, bounce ve delivery status gozlemlenebilirligi eklendi.
 - POP3 tarafinda USER/PASS, CAPA, STAT/LIST/UIDL/RETR/TOP/DELE/RSET/NOOP/QUIT, mailbox lock, implicit TLS ve SQL/data-directory mailbox store eklendi.
-- External POP3 fetch icin SQL lease/UID store, POP3 network session, UIDL/RETR/DELE/QUIT akis, recipient resolution, spam/AV entegrasyonu ve `OnExternalAccountDownload` script hook'u eklendi.
+- External POP3 fetch icin SQL lease/UID store, POP3 network session, UIDL/RETR/DELE/QUIT akis, recipient resolution, duplicate UIDL baskilama, spam/AV entegrasyonu ve `OnExternalAccountDownload` script hook'u eklendi.
 - Modern security slice'lari eklendi: ClamAV, SpamAssassin, spam policy, attachment blocking, DNSBL, reverse DNS/PTR, sender-domain MX, greylisting, SURBL ve failed-logon auto-ban.
 - Legacy script/event parity buyuk olcude ilerledi: `OnClientConnect`, `OnClientValidatePassword`, `OnClientLogon`, `OnHELO`, `OnRecipientUnknown`, `OnSMTPData`, `OnAcceptMessage`, `OnTooManyInvalidCommands`, delivery eventleri, `OnDeliveryFailed`, `OnError`, rule `ScriptFunction`, mesaj/recipient/attachment facade'leri ve account-rule `Message.Copy(folderId)`.
 
@@ -51,6 +51,7 @@ Son tamamlanan kucuk dilimler:
 
 - Global VBScript/JScript `EventLog.Write(value)` facade'i rule script, `OnError`, ve password-validation script yollarinda legacy event log bicimiyle tamamlandi.
 - External POP3 fetch hosted worker startup'ta stale `hm_fetchaccounts.falocked` satirlarini resetleyecek sekilde legacy `PersistentFetchAccount::UnlockAll()` davranisina yaklastirildi.
+- External POP3 fetch ayni POP3 listing icindeki duplicate yeni UIDL degerlerini tek indirme/kuyruklama ile sinirlayacak sekilde kapatildi.
 
 Yeni thread baslamadan once yine `git status --short --branch` ve `git diff` okunmali. Calisma agaci temiz degilse once mevcut WIP'in kime ait oldugu ve hangi slice'a hizmet ettigi anlasilmali.
 
@@ -70,6 +71,7 @@ Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `27df051c2 fix(net10): skip duplicate external fetch UIDs`
 - `718108bf6 fix(net10): reset external fetch locks on startup`
 - `f65bb2a05 feat(net10): expose script event log facade`
 - `254e118da feat(net10): dispatch legacy OnError scripts`
@@ -134,6 +136,7 @@ Son temiz dogrulama notlari:
 
 - EventLog facade dilimi icin Net10 build basariliydi ve full Net10 testler 327/327 gecmisti.
 - External fetch stale-lock startup reset dilimi icin dar `ExternalFetchProcessorTests` filtresi 9/9 gecti; ardindan Net10 build basarili oldu ve full Net10 testler 328/328 gecti.
+- External fetch duplicate UIDL dilimi icin dar `ExternalFetchProcessorTests` filtresi 10/10 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 329/329 gecti.
 
 Terminal/log incelemesi:
 

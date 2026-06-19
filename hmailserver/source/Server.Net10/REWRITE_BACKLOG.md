@@ -171,6 +171,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external fetch MIME recipient headers and `Received ... for <recipient>` values resolve through the SQL SMTP recipient validator, then preserve legacy local-account filtering unless route recipients are enabled.
    - Done: external fetch applies UID tracking and remote-delete retention for permanent SMTP receiver rejections such as spam delete-threshold `554` responses.
    - Done: external fetch hosted worker clears stale account locks once on startup before polling due accounts.
+   - Done: external fetch skips duplicate new UIDL values within the same POP3 listing so a malformed server response cannot queue the same remote message twice.
    - Remaining: additional external fetch edge-case parity.
 
 5. Security and anti-abuse modernization.
