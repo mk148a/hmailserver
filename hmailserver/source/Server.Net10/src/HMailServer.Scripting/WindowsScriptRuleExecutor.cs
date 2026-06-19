@@ -1172,6 +1172,8 @@ Class HMailServerRuleClient
    Public HELO
    Public IsAuthenticated
    Public IsEncryptedConnection
+   Public Authenticated
+   Public EncryptedConnection
    Public CipherVersion
    Public CipherName
    Public CipherBits
@@ -2768,6 +2770,8 @@ var HMAILSERVER_CLIENT = {
   HELO: "",
   IsAuthenticated: false,
   IsEncryptedConnection: false,
+  Authenticated: false,
+  EncryptedConnection: false,
   CipherVersion: "",
   CipherName: "",
   CipherBits: 0
@@ -2926,6 +2930,8 @@ hMailServerRuleStatusFile.Close();
         AppendVbScriptAssignment(builder, "HELO", client?.HeloHost ?? string.Empty);
         AppendVbScriptAssignment(builder, "IsAuthenticated", client?.IsAuthenticated ?? false);
         AppendVbScriptAssignment(builder, "IsEncryptedConnection", client?.IsEncryptedConnection ?? false);
+        AppendVbScriptAssignment(builder, "Authenticated", client?.IsAuthenticated ?? false);
+        AppendVbScriptAssignment(builder, "EncryptedConnection", client?.IsEncryptedConnection ?? false);
         AppendVbScriptAssignment(builder, "CipherVersion", client?.CipherVersion ?? string.Empty);
         AppendVbScriptAssignment(builder, "CipherName", client?.CipherName ?? string.Empty);
         AppendVbScriptAssignment(builder, "CipherBits", client?.CipherBits ?? 0);
@@ -2942,6 +2948,8 @@ hMailServerRuleStatusFile.Close();
         AppendJScriptAssignment(builder, "HELO", client?.HeloHost ?? string.Empty);
         AppendJScriptAssignment(builder, "IsAuthenticated", client?.IsAuthenticated ?? false);
         AppendJScriptAssignment(builder, "IsEncryptedConnection", client?.IsEncryptedConnection ?? false);
+        AppendJScriptAssignment(builder, "Authenticated", client?.IsAuthenticated ?? false);
+        AppendJScriptAssignment(builder, "EncryptedConnection", client?.IsEncryptedConnection ?? false);
         AppendJScriptAssignment(builder, "CipherVersion", client?.CipherVersion ?? string.Empty);
         AppendJScriptAssignment(builder, "CipherName", client?.CipherName ?? string.Empty);
         AppendJScriptAssignment(builder, "CipherBits", client?.CipherBits ?? 0);

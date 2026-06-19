@@ -816,9 +816,19 @@ Sub OnAcceptMessage(oClient, oMessage)
       Result.Message = "auth missing"
       Exit Sub
    End If
+   If Not oClient.Authenticated Then
+      Result.Value = 2
+      Result.Message = "legacy auth missing"
+      Exit Sub
+   End If
    If Not oClient.IsEncryptedConnection Then
       Result.Value = 2
       Result.Message = "tls missing"
+      Exit Sub
+   End If
+   If Not oClient.EncryptedConnection Then
+      Result.Value = 2
+      Result.Message = "legacy tls missing"
       Exit Sub
    End If
 
@@ -865,6 +875,8 @@ End Sub
                 Path.Combine(eventDirectory, "EventHandlers.js"),
                 """
 function OnAcceptMessage(oClient, oMessage) {
+  if (oClient.Authenticated !== true) throw new Error("legacy auth");
+  if (oClient.EncryptedConnection !== true) throw new Error("legacy tls");
   Result.Value = 2;
   Result.Message = "blocked";
 }
@@ -873,7 +885,16 @@ function OnAcceptMessage(oClient, oMessage) {
             var executor = CreateExecutor(eventDirectory, cscript, "JScript");
 
             var result = executor.Execute(
-                CreateEventRequest("Subject: Reject\r\n\r\nBody\r\n"u8.ToArray()),
+                CreateEventRequest(
+                    "Subject: Reject\r\n\r\nBody\r\n"u8.ToArray(),
+                    new SmtpEventScriptClient(
+                        "user@example.test",
+                        "127.0.0.1",
+                        Port: 25,
+                        SessionId: 123,
+                        HeloHost: "client.example",
+                        IsAuthenticated: true,
+                        IsEncryptedConnection: true)),
                 CancellationToken.None);
 
             Assert.IsFalse(result.Accepted);
