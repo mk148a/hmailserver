@@ -64,6 +64,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch reddedilen `PASS` komutunda plain ve optional-STARTTLS plaintext fallback yollarinda `UIDL` veya sonraki bir komut gondermeden fail edecek sekilde legacy ile sabitlendi.
 - External POP3 fetch reddedilen `UIDL` komutunda plain ve optional-STARTTLS plaintext fallback yollarinda `RETR`/`DELE` gondermeden legacy `QUIT` cleanup yapacak sekilde sabitlendi.
 - External POP3 fetch `UIDL +OK` sonrasi terminator gelmeden socket kapanirsa fatal kalacak, account failed-release edilecek ve receiver/UID/`RETR`/`DELE` yan etkisi uretilmeyecek sekilde testle sabitlendi.
+- External POP3 fetch bos `UIDL` listing'de `RETR`/`DELE` gondermeden hesabi tamamlayacak ve remote server'da artik gorunmeyen known UID satirlarini silecek sekilde testle sabitlendi.
 - External POP3 fetch malformed `UIDL` listing satirlarini atlayip ayni response icindeki gecerli satirlari islemeye devam edecek sekilde TCP parser testiyle sabitlendi.
 - External POP3 fetch reddedilen `RETR` komutunda yalniz legacy `QUIT` cleanup yapacak, failed account lease'i release edecek ve receiver/UID/remote-delete yan etkisi uretmeyecek sekilde sabitlendi.
 - External POP3 fetch `RETR +OK` sonrasi message body terminator gelmeden socket kapanirsa fatal kalacak, account failed-release edilecek ve receiver/UID/remote-delete yan etkisi uretilmeyecek sekilde testle sabitlendi.
@@ -84,11 +85,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-12cc0556b docs(net10): document truncated external fetch RETR bodies
+413c837a9 docs(net10): document malformed external fetch UIDL rows
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `dbc462807 test(net10): cover empty external fetch UIDL listings`
 - `0b9c2d914 test(net10): cover malformed external fetch UIDL rows`
 - `68cf89432 test(net10): cover truncated external fetch RETR bodies`
 - `2c0ee55db test(net10): cover truncated external fetch UIDL listings`
@@ -193,6 +195,7 @@ Son temiz dogrulama notlari:
 - External fetch truncated-UIDL-listing parity dilimi icin dar `TcpExternalFetchSessionFactoryTests|ExternalFetchProcessorTests` filtresi 44/44 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 362/362 gecti.
 - External fetch truncated-RETR-body parity dilimi icin dar `TcpExternalFetchSessionFactoryTests|ExternalFetchProcessorTests` filtresi 47/47 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 365/365 gecti.
 - External fetch malformed-UIDL-row parity dilimi icin dar `TcpExternalFetchSessionFactoryTests` filtresi 32/32 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 367/367 gecti.
+- External fetch empty-UIDL-listing parity dilimi icin dar `TcpExternalFetchSessionFactoryTests|ExternalFetchProcessorTests` filtresi 52/52 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 370/370 gecti.
 
 Terminal/log incelemesi:
 
