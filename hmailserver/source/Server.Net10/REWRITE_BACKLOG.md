@@ -90,6 +90,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: external POP3 fetch fails a rejected USER command before sending PASS in plain and optional-STARTTLS plaintext fallback paths.
 - Done: external POP3 fetch fails a rejected PASS command before sending UIDL or any later command in plain and optional-STARTTLS plaintext fallback paths.
 - Done: external POP3 fetch handles rejected UIDL with legacy QUIT cleanup and no RETR, DELE, or other message-processing commands in plain and optional-STARTTLS plaintext fallback paths.
+- Done: external POP3 fetch handles rejected RETR with legacy QUIT cleanup, failed account-lease release, and no receiver, UID, or remote-deletion side effects.
 
 ## Production Parity Backlog
 
@@ -190,6 +191,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external fetch preserves legacy USER-rejection behavior without sending PASS in plain and optional-STARTTLS plaintext fallback paths.
    - Done: external fetch preserves legacy PASS-rejection behavior without sending UIDL or later commands in plain and optional-STARTTLS plaintext fallback paths.
    - Done: external fetch preserves legacy UIDL-rejection cleanup by sending QUIT without RETR, DELE, or other message-processing commands in plain and optional-STARTTLS plaintext fallback paths.
+   - Done: external fetch preserves rejected-RETR cleanup by sending only QUIT, releasing the failed account lease, and avoiding receiver, UID, or remote-deletion side effects.
    - Remaining: additional external fetch edge-case parity.
 
 5. Security and anti-abuse modernization.

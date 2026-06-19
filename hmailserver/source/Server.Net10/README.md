@@ -177,6 +177,8 @@ A rejected external-fetch `PASS` command fails authentication before message lis
 
 A rejected external-fetch `UIDL` command sends the legacy `QUIT` cleanup without issuing `RETR`, `DELE`, or other message-processing commands in plain and optional-STARTTLS plaintext fallback paths.
 
+A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
+
 With scripting enabled, the POP3 listener runs `OnClientConnect(HMAILSERVER_CLIENT)` before its greeting or implicit TLS setup and closes the connection when legacy `Result.Value = 1`; this complements the existing post-authentication `OnClientLogon` hook.
 
 ## Project Layout
