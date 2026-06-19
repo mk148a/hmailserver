@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using HMailServer.Core.Abstractions;
 using HMailServer.Security;
@@ -50,6 +51,8 @@ OUTPUT
     inserted.fauseantivirus,
     inserted.faenablerouterecipients,
     inserted.famimerecipientheaders,
+    CONVERT(varchar(19), inserted.fanexttry, 120),
+    inserted.falocked,
     a.accountaddress
 FROM hm_fetchaccounts AS fa
 INNER JOIN Candidates AS c ON c.faid = fa.faid
@@ -275,11 +278,16 @@ SELECT @@ROWCOUNT;
             UseAntiVirus: ReadTinyIntBoolean(reader, 14),
             EnableRouteRecipients: ReadTinyIntBoolean(reader, 15),
             MimeRecipientHeaders: reader.GetString(16),
-            AccountAddress: reader.GetString(17));
+            NextDownloadTime: reader.GetString(17),
+            IsLocked: ReadIntegerBoolean(reader, 18),
+            AccountAddress: reader.GetString(19));
     }
 
     private static bool ReadTinyIntBoolean(SqlDataReader reader, int ordinal) =>
         reader.GetByte(ordinal) != 0;
+
+    private static bool ReadIntegerBoolean(SqlDataReader reader, int ordinal) =>
+        Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) != 0;
 
     private static void AddFetchAccountId(SqlCommand command, int fetchAccountId) =>
         command.Parameters.Add("@FetchAccountId", SqlDbType.Int).Value = fetchAccountId;

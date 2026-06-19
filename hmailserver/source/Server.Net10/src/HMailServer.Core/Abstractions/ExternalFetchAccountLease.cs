@@ -18,4 +18,6 @@ public sealed record ExternalFetchAccountLease(
     bool UseAntiVirus,
     bool EnableRouteRecipients,
     string MimeRecipientHeaders,
+    string NextDownloadTime = "",
+    bool IsLocked = false,
     string AccountAddress = "");

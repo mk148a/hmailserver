@@ -1203,6 +1203,8 @@ Class HMailServerRuleFetchAccount
    Public UseAntiSpam
    Public UseAntiVirus
    Public EnableRouteRecipients
+   Public NextDownloadTime
+   Public IsLocked
 End Class
 
 Class HMailServerRuleRecipient
@@ -2876,6 +2878,8 @@ hMailServerRuleStatusFile.Close();
         AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "UseAntiSpam", account?.UseAntiSpam ?? false);
         AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "UseAntiVirus", account?.UseAntiVirus ?? false);
         AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "EnableRouteRecipients", account?.EnableRouteRecipients ?? false);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "NextDownloadTime", account?.NextDownloadTime ?? string.Empty);
+        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "IsLocked", account?.IsLocked ?? false);
         return builder.ToString();
     }
 
@@ -2902,7 +2906,9 @@ hMailServerRuleStatusFile.Close();
             $"  ConnectionSecurity: {ToInvariant((int)connectionSecurity)}",
             $"  UseAntiSpam: {ToJScriptBoolean(account?.UseAntiSpam ?? false)}",
             $"  UseAntiVirus: {ToJScriptBoolean(account?.UseAntiVirus ?? false)}",
-            $"  EnableRouteRecipients: {ToJScriptBoolean(account?.EnableRouteRecipients ?? false)}"
+            $"  EnableRouteRecipients: {ToJScriptBoolean(account?.EnableRouteRecipients ?? false)}",
+            $"  NextDownloadTime: \"{EscapeJScript(account?.NextDownloadTime ?? string.Empty)}\"",
+            $"  IsLocked: {ToJScriptBoolean(account?.IsLocked ?? false)}"
         ];
 
         return "{" + Environment.NewLine +

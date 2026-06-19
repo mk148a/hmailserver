@@ -1185,8 +1185,11 @@ Sub OnExternalAccountDownload(oFetchAccount, oMessage, uid)
    If Not oFetchAccount.Enabled Then Err.Raise 1007, "test", "enabled"
    If Not oFetchAccount.UseSSL Then Err.Raise 1008, "test", "ssl"
    If oFetchAccount.ConnectionSecurity <> 1 Then Err.Raise 1009, "test", "connection security"
-   If uid <> "remote-uid-1" Then Err.Raise 1010, "test", "uid"
-   If oMessage Is Nothing Then Err.Raise 1011, "test", "message"
+   If oFetchAccount.DaysToKeepMessages <> 14 Then Err.Raise 1010, "test", "days"
+   If oFetchAccount.NextDownloadTime <> "2026-01-02 03:04:05" Then Err.Raise 1011, "test", "next download"
+   If Not oFetchAccount.IsLocked Then Err.Raise 1012, "test", "locked"
+   If uid <> "remote-uid-1" Then Err.Raise 1013, "test", "uid"
+   If oMessage Is Nothing Then Err.Raise 1014, "test", "message"
 
    oMessage.HeaderValue("X-External-UID") = uid
    oMessage.Save
@@ -1238,6 +1241,8 @@ function OnExternalAccountDownload(fetchAccount, message, uid) {
   if (fetchAccount.UseAntiSpam !== true) throw new Error("spam");
   if (fetchAccount.UseAntiVirus !== true) throw new Error("virus");
   if (fetchAccount.EnableRouteRecipients !== true) throw new Error("routes");
+  if (fetchAccount.NextDownloadTime !== "2026-01-02 03:04:05") throw new Error("next");
+  if (fetchAccount.IsLocked !== true) throw new Error("locked");
   if (uid !== "remote-uid-2") throw new Error("uid");
   Result.Value = 3;
 }
@@ -1642,7 +1647,9 @@ function OnClientValidatePassword(oAccount, password) {
             UseAntiSpam: true,
             UseAntiVirus: true,
             EnableRouteRecipients: true,
-            MimeRecipientHeaders: "To,CC");
+            MimeRecipientHeaders: "To,CC",
+            NextDownloadTime: "2026-01-02 03:04:05",
+            IsLocked: true);
 
     private static ClientPasswordValidationScriptRequest CreatePasswordValidationRequest(
         string password,

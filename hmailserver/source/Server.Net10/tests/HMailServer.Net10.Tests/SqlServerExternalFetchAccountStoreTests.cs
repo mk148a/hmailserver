@@ -25,6 +25,8 @@ public sealed class SqlServerExternalFetchAccountStoreTests
         StringAssert.Contains(sql, "OUTPUT");
         StringAssert.Contains(sql, "inserted.faid");
         StringAssert.Contains(sql, "inserted.faconnectionsecurity");
+        StringAssert.Contains(sql, "CONVERT(varchar(19), inserted.fanexttry, 120)");
+        StringAssert.Contains(sql, "inserted.falocked");
         StringAssert.Contains(sql, "a.accountaddress");
     }
 
