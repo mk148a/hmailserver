@@ -2265,6 +2265,7 @@ function hMailServerRuleAppendAttachmentOperation(operationPath, name, value) {
 function hMailServerRuleCreateAttachment(owner, index, fileName, size, sourcePath) {
   return {
     FileName: String(fileName || ""),
+    Filename: String(fileName || ""),
     Size: Number(size || 0),
     SaveAs: function(path) {
       hMailServerRuleFileSystem.CopyFile(sourcePath, String(path || ""), true);

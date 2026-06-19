@@ -628,6 +628,10 @@ function Rule_DeleteAttachment(obMessage) {
     obMessage.RejectReason = "attachment filename not loaded";
     return;
   }
+  if (obMessage.Attachments.Item(1).Filename !== obMessage.Attachments.Item(1).FileName) {
+    obMessage.RejectReason = "attachment filename alias not loaded";
+    return;
+  }
 
   obMessage.Attachments.Item(1).Delete();
 }
