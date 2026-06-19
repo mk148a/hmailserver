@@ -16,6 +16,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: IMAP FETCH ENVELOPE and BODYSTRUCTURE MIME response formatting with raw message reads only for MIME-dependent FETCH items.
 - Done: IMAP SORT/UID SORT parser, executor, session dispatch, SQL Server metadata ordering, and FTS candidate filtering.
 - Done: IMAP SEARCH/SORT sent-date criteria (`SENTSINCE`, `SENTBEFORE`, `SENTON`) stay SQL-backed through message metadata date filters.
+- Done: IMAP SEARCH/SORT sequence-set criteria stay SQL-backed through mailbox `ROW_NUMBER()` predicates.
 - Done: IMAP IDLE/DONE session flow, capability advertising, idle event formatting, and mailbox status polling notifier.
 - Done: IMAP ACL commands (`GETACL`, `SETACL`, `DELETEACL`, `LISTRIGHTS`, `MYRIGHTS`) backed by the existing public-folder `hm_acl` model.
 - Done: IMAP QUOTA commands (`GETQUOTA`, `GETQUOTAROOT`, `SETQUOTA`) backed by live mailbox usage and hMailServer account/domain limits.
@@ -100,6 +101,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: APPEND for synchronizing literals with optional flags and internal date.
    - Done: SORT/UID SORT using SQL-backed metadata ordering and FTS-filtered candidate sets.
    - Done: `SENTSINCE`, `SENTBEFORE`, and `SENTON` search criteria using metadata-backed sent-date predicates.
+   - Done: message sequence-set search criteria using SQL mailbox sequence predicates.
    - Done: IDLE/DONE with EXISTS/RECENT/EXPUNGE/FETCH FLAGS event formatting and a SQL status polling notifier.
    - Done: ACL command set on top of public-folder ACL rights (`lrswipkxtea`) and SQL account/group/Anyone principals.
    - Done: QUOTA command set using `accountmaxsize`, domain per-account limits, and live `hm_messages.messagesize` usage.
