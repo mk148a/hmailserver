@@ -83,6 +83,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: JScript attachment facade exposes the legacy `Filename` alias alongside `FileName`.
 - Done: global `EventLog.Write(value)` script facade appends legacy-shaped Unicode event-log rows for VBScript/JScript rule, error, and password-validation handlers.
 - Done: external POP3 fetch tolerates duplicate persisted `hm_fetchaccounts_uids.uidvalue` rows when building the known-UID lookup for a batch.
+- Done: external POP3 fetch coalesces duplicate remote UIDL sequence-number entries so a malformed listing cannot download the same remote slot twice.
 
 ## Production Parity Backlog
 
@@ -176,6 +177,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external fetch skips duplicate new UIDL values within the same POP3 listing so a malformed server response cannot queue the same remote message twice.
    - Done: external fetch skips duplicate already-known UIDL values within the same POP3 listing so script/retention cleanup runs once per remote UID.
    - Done: external fetch tolerates duplicate persisted known-UID rows so corrupted or legacy-created duplicates do not fail the whole account batch.
+   - Done: external fetch coalesces duplicate remote sequence numbers within the same UIDL listing before download/retention processing.
    - Remaining: additional external fetch edge-case parity.
 
 5. Security and anti-abuse modernization.
