@@ -20,6 +20,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly ISmtpDnsBlockListChecker? _dnsBlockListChecker;
     private readonly ISmtpReverseDnsChecker? _reverseDnsChecker;
     private readonly ISmtpSenderDomainMxChecker? _senderDomainMxChecker;
+    private readonly ISmtpGreylistingChecker? _greylistingChecker;
     private readonly ISmtpUrlBlockListChecker? _urlBlockListChecker;
 
     public SqlServerSmtpMessageReceiver(
@@ -35,6 +36,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         ISmtpDnsBlockListChecker? dnsBlockListChecker = null,
         ISmtpReverseDnsChecker? reverseDnsChecker = null,
         ISmtpSenderDomainMxChecker? senderDomainMxChecker = null,
+        ISmtpGreylistingChecker? greylistingChecker = null,
         ISmtpUrlBlockListChecker? urlBlockListChecker = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
@@ -47,6 +49,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _dnsBlockListChecker = dnsBlockListChecker;
         _reverseDnsChecker = reverseDnsChecker;
         _senderDomainMxChecker = senderDomainMxChecker;
+        _greylistingChecker = greylistingChecker;
         _urlBlockListChecker = urlBlockListChecker;
     }
 
@@ -77,6 +80,12 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         if (senderDomainMxFailure is not null)
         {
             return senderDomainMxFailure;
+        }
+
+        var greylistingFailure = await RunGreylistingCheckAsync(request, cancellationToken).ConfigureAwait(false);
+        if (greylistingFailure is not null)
+        {
+            return greylistingFailure;
         }
 
         if (_eventScriptExecutor is not null)
@@ -269,6 +278,37 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
                 ? SmtpReceiveResult.Failure(
                     string.IsNullOrWhiteSpace(result.FailureResponse)
                         ? "554 Sender domain does not have any MX records"
+                        : result.FailureResponse)
+                : null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async ValueTask<SmtpReceiveResult?> RunGreylistingCheckAsync(
+        SmtpReceiveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_greylistingChecker is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var result = await _greylistingChecker
+                .CheckAsync(request, cancellationToken)
+                .ConfigureAwait(false);
+            return result.Deferred
+                ? SmtpReceiveResult.Failure(
+                    string.IsNullOrWhiteSpace(result.FailureResponse)
+                        ? "451 Please try again later."
                         : result.FailureResponse)
                 : null;
         }

@@ -313,6 +313,42 @@ var senderDomainMxOptions = new SmtpSenderDomainMxCheckOptions
         ?? "554 Sender domain does not have any MX records"
 };
 var senderDomainMxEnabled = senderDomainMxOptions.Enabled;
+var greylistingOptions = new SmtpGreylistingOptions
+{
+    Enabled = ReadBool(
+        builder.Configuration["AntiAbuse:Greylisting:Enabled"]
+            ?? builder.Configuration["HMAILSERVER_GREYLISTING_ENABLED"],
+        defaultValue: false),
+    SkipAuthenticated = ReadBool(
+        builder.Configuration["AntiAbuse:Greylisting:SkipAuthenticated"]
+            ?? builder.Configuration["HMAILSERVER_GREYLISTING_SKIP_AUTHENTICATED"],
+        defaultValue: true),
+    InitialDelay = TimeSpan.FromMinutes(
+        Math.Max(
+            0,
+            ReadInt(
+                builder.Configuration["AntiAbuse:Greylisting:InitialDelayMinutes"]
+                    ?? builder.Configuration["HMAILSERVER_GREYLISTING_INITIAL_DELAY_MINUTES"],
+                defaultValue: 30))),
+    InitialRecordLifetime = TimeSpan.FromHours(
+        Math.Max(
+            1,
+            ReadInt(
+                builder.Configuration["AntiAbuse:Greylisting:InitialRecordLifetimeHours"]
+                    ?? builder.Configuration["HMAILSERVER_GREYLISTING_INITIAL_RECORD_LIFETIME_HOURS"],
+                defaultValue: 24))),
+    PassedRecordLifetime = TimeSpan.FromHours(
+        Math.Max(
+            1,
+            ReadInt(
+                builder.Configuration["AntiAbuse:Greylisting:PassedRecordLifetimeHours"]
+                    ?? builder.Configuration["HMAILSERVER_GREYLISTING_PASSED_RECORD_LIFETIME_HOURS"],
+                defaultValue: 864))),
+    FailureResponse = builder.Configuration["AntiAbuse:Greylisting:FailureResponse"]
+        ?? builder.Configuration["HMAILSERVER_GREYLISTING_FAILURE_RESPONSE"]
+        ?? "451 Please try again later."
+};
+var greylistingEnabled = greylistingOptions.Enabled;
 var urlBlockListOptions = new SmtpUrlBlockListOptions
 {
     Enabled = ReadBool(
@@ -461,6 +497,7 @@ builder.Services.AddSingleton(attachmentPolicyOptions);
 builder.Services.AddSingleton(dnsBlockListOptions);
 builder.Services.AddSingleton(reverseDnsOptions);
 builder.Services.AddSingleton(senderDomainMxOptions);
+builder.Services.AddSingleton(greylistingOptions);
 builder.Services.AddSingleton(urlBlockListOptions);
 if (scriptingOptions.Enabled)
 {
@@ -505,6 +542,10 @@ if (reverseDnsEnabled)
 if (senderDomainMxEnabled)
 {
     builder.Services.AddSingleton<ISmtpSenderDomainMxChecker, SmtpSenderDomainMxChecker>();
+}
+if (greylistingEnabled)
+{
+    builder.Services.AddSingleton<ISmtpGreylistingChecker, SqlServerSmtpGreylistingChecker>();
 }
 if (urlBlockListEnabled)
 {
