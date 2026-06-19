@@ -179,6 +179,8 @@ A rejected external-fetch `UIDL` command sends the legacy `QUIT` cleanup without
 
 A truncated external-fetch `UIDL` listing after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not issue `RETR`/`DELE`, submit message data, or mutate UID state.
 
+Malformed external-fetch `UIDL` listing rows are skipped while valid rows in the same listing are preserved for later `RETR`/retention processing.
+
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
 A truncated external-fetch `RETR` body after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not submit message data, add UID state, or issue remote delete cleanup.
