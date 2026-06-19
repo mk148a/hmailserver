@@ -122,9 +122,15 @@ public sealed class ExternalFetchProcessor
             cancellationToken).ConfigureAwait(false);
 
         var remoteMessagesDeleted = 0;
+        var knownUidsProcessed = new HashSet<string>(StringComparer.Ordinal);
         foreach (var remoteMessage in remoteMessages)
         {
             if (!knownByUid.TryGetValue(remoteMessage.Uid, out var knownUid))
+            {
+                continue;
+            }
+
+            if (!knownUidsProcessed.Add(remoteMessage.Uid))
             {
                 continue;
             }

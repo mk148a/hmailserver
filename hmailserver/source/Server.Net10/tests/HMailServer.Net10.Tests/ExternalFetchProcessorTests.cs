@@ -83,6 +83,46 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_SkipsDuplicateKnownUidsInSameBatch()
+    {
+        var account = CreateAccount(daysToKeep: 7);
+        var store = new FakeExternalFetchAccountStore(account)
+        {
+            KnownUids =
+            [
+                new ExternalFetchKnownUid(
+                    88,
+                    "uid-known",
+                    DateTimeOffset.Parse("2025-12-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture).UtcDateTime)
+            ]
+        };
+        var session = new FakeExternalFetchSession(
+            (
+                new ExternalFetchRemoteMessage(1, "uid-known", Size: 128),
+                "Subject: known-one\r\n\r\nBody\r\n"u8.ToArray()
+            ),
+            (
+                new ExternalFetchRemoteMessage(2, "uid-known", Size: 128),
+                "Subject: known-two\r\n\r\nBody\r\n"u8.ToArray()
+            ));
+        var script = new FakeExternalAccountDownloadScriptExecutor(
+            static request => ExternalAccountDownloadScriptExecutionResult.Continue(request.MessageData));
+        var processor = CreateProcessor(store, session, new FakeSmtpMessageReceiver(), script);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(0, result.MessagesDownloaded);
+        Assert.AreEqual(0, result.MessagesAccepted);
+        Assert.AreEqual(1, result.RemoteMessagesDeleted);
+        Assert.AreEqual(1, result.KnownUidsDeleted);
+        Assert.AreEqual("uid-known", session.DeletedUids.Single());
+        Assert.AreEqual(88, store.DeletedUidIds.Single());
+        Assert.AreEqual(1, script.Requests.Count);
+        Assert.IsNull(script.Requests.Single().MessageData);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_ReleasesLeaseWhenReceiverRejects()
     {
         var account = CreateAccount();
