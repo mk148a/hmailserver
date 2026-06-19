@@ -133,6 +133,38 @@ public sealed class TcpExternalFetchSessionFactoryTests
             commands);
     }
 
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsRequired)]
+    public async Task ConnectAsync_StartTlsModesFailWhenAdvertisedStlsIsRejected(
+        ExternalFetchConnectionSecurity connectionSecurity)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerRejectingStlsAsync(listener, commands, timeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await factory
+                    .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                    .ConfigureAwait(false));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+
+        CollectionAssert.AreEqual(
+            new[] { "CAPA", "STLS" },
+            commands);
+    }
+
     private static async Task RunPop3ServerAsync(
         TcpListener listener,
         List<string> commands,
@@ -212,6 +244,27 @@ public sealed class TcpExternalFetchSessionFactoryTests
                 await WriteRawAsync(stream, "-ERR unexpected\r\n", cancellationToken).ConfigureAwait(false);
             }
         }
+    }
+
+    private static async Task RunPop3ServerRejectingStlsAsync(
+        TcpListener listener,
+        List<string> commands,
+        CancellationToken cancellationToken)
+    {
+        using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
+        await using var stream = client.GetStream();
+        await WriteRawAsync(stream, "+OK fake server ready\r\n", cancellationToken).ConfigureAwait(false);
+
+        var capaCommand = await ReadLineAsync(stream, cancellationToken).ConfigureAwait(false);
+        commands.Add(capaCommand);
+        await WriteRawAsync(
+            stream,
+            "+OK capability list follows\r\nSTLS\r\nUIDL\r\nUSER\r\n.\r\n",
+            cancellationToken).ConfigureAwait(false);
+
+        var stlsCommand = await ReadLineAsync(stream, cancellationToken).ConfigureAwait(false);
+        commands.Add(stlsCommand);
+        await WriteRawAsync(stream, "-ERR TLS unavailable\r\n", cancellationToken).ConfigureAwait(false);
     }
 
     private static async ValueTask<string> ReadLineAsync(
