@@ -282,6 +282,121 @@ function Rule_UpdateMessage(obMessage) {
     }
 
     [TestMethod]
+    public void Execute_VbScriptMessageRefreshContentReloadsFileBackedFields()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_RefreshMessage(obMessage)
+   Dim fso, outputFile
+   Set fso = CreateObject("Scripting.FileSystemObject")
+   Set outputFile = fso.CreateTextFile(obMessage.FileName, True, False)
+   outputFile.Write "Subject: Refreshed VB" & vbCrLf & "X-Reloaded: yes" & vbCrLf & vbCrLf & "Reloaded body" & vbCrLf
+   outputFile.Close
+
+   obMessage.RefreshContent
+   If obMessage.Subject <> "Refreshed VB" Then
+      obMessage.RejectReason = "subject not refreshed"
+      Exit Sub
+   End If
+   If obMessage.HeaderValue("X-Reloaded") <> "yes" Then
+      obMessage.RejectReason = "header not refreshed"
+      Exit Sub
+   End If
+   If obMessage.Body <> "Reloaded body" & vbCrLf Then
+      obMessage.RejectReason = "body not refreshed"
+      Exit Sub
+   End If
+
+   obMessage.HeaderValue("X-Refresh") = "vb"
+   obMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_RefreshMessage",
+                    "Subject: Original\r\n\r\nOriginal body\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "Subject: Refreshed VB\r\n");
+            StringAssert.Contains(messageText, "X-Reloaded: yes\r\n");
+            StringAssert.Contains(messageText, "X-Refresh: vb\r\n");
+            StringAssert.Contains(messageText, "\r\n\r\nReloaded body\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptMessageRefreshContentReloadsFileBackedFields()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_RefreshMessage(obMessage) {
+  var fso = new ActiveXObject("Scripting.FileSystemObject");
+  var outputFile = fso.CreateTextFile(obMessage.FileName, true, false);
+  outputFile.Write("Subject: Refreshed JS\r\nX-Reloaded: yes\r\n\r\nReloaded JS body\r\n");
+  outputFile.Close();
+
+  obMessage.RefreshContent();
+  if (obMessage.Subject !== "Refreshed JS") {
+    obMessage.RejectReason = "subject not refreshed";
+    return;
+  }
+  if (obMessage.HeaderValue("X-Reloaded") !== "yes") {
+    obMessage.RejectReason = "header not refreshed";
+    return;
+  }
+  if (obMessage.Body !== "Reloaded JS body\r\n") {
+    obMessage.RejectReason = "body not refreshed";
+    return;
+  }
+
+  obMessage.SetHeaderValue("X-Refresh", "js");
+  obMessage.Save();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_RefreshMessage",
+                    "Subject: Original\r\n\r\nOriginal body\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "Subject: Refreshed JS\r\n");
+            StringAssert.Contains(messageText, "X-Reloaded: yes\r\n");
+            StringAssert.Contains(messageText, "X-Refresh: js\r\n");
+            StringAssert.Contains(messageText, "\r\n\r\nReloaded JS body\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_VbScriptMessageCopyCapturesCallTimeContent()
     {
         var cscript = GetCscriptPathOrInconclusive();
