@@ -493,6 +493,52 @@ public sealed class TcpExternalFetchSessionFactoryTests
     [TestMethod]
     [DataRow(ExternalFetchConnectionSecurity.None, false)]
     [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
+    public async Task DownloadMessageAsync_DisconnectBeforeRetrTerminatorRemainsFatal(
+        ExternalFetchConnectionSecurity connectionSecurity,
+        bool expectCapa)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerAsync(
+            listener,
+            commands,
+            rejectRetr: false,
+            rejectDele: false,
+            disconnectOnDele: false,
+            timeout.Token,
+            disconnectDuringRetrBody: true);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await using (var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                .ConfigureAwait(false))
+            {
+                var messages = await session.ListMessagesAsync(timeout.Token).ConfigureAwait(false);
+                Assert.AreEqual(1, messages.Count);
+                await Assert.ThrowsExactlyAsync<IOException>(
+                    async () => await session.DownloadMessageAsync(messages[0], timeout.Token).ConfigureAwait(false));
+            }
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+        CollectionAssert.AreEqual(
+            expectCapa
+                ? new[] { "CAPA", "USER external-user", "PASS external-password", "UIDL", "RETR 1" }
+                : new[] { "USER external-user", "PASS external-password", "UIDL", "RETR 1" },
+            commands);
+    }
+
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.None, false)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
     public async Task DeleteMessageAsync_RejectedDeleStillQuits(
         ExternalFetchConnectionSecurity connectionSecurity,
         bool expectCapa)
@@ -680,7 +726,8 @@ public sealed class TcpExternalFetchSessionFactoryTests
         CancellationToken cancellationToken,
         bool rejectQuit = false,
         bool disconnectOnQuit = false,
-        bool disconnectDuringUidlListing = false)
+        bool disconnectDuringUidlListing = false,
+        bool disconnectDuringRetrBody = false)
     {
         using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
         await using var stream = client.GetStream();
@@ -708,6 +755,13 @@ public sealed class TcpExternalFetchSessionFactoryTests
             }
             else if (command.Equals("RETR 1", StringComparison.OrdinalIgnoreCase))
             {
+                if (disconnectDuringRetrBody)
+                {
+                    await WriteRawAsync(stream, "+OK\r\nSubject: fetched\r\n", cancellationToken).ConfigureAwait(false);
+                    client.Client.Shutdown(SocketShutdown.Both);
+                    break;
+                }
+
                 var response = rejectRetr
                     ? "-ERR message unavailable\r\n"
                     : "+OK\r\nSubject: fetched\r\n..dot-stuffed\r\n.\r\n";

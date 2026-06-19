@@ -204,6 +204,39 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_ReleasesLeaseWhenMessageBodyTerminatesEarly()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-retr-truncated", Size: 64),
+            "Subject: truncated\r\n\r\nBody\r\n"u8.ToArray())
+        {
+            DownloadException = new IOException("External POP3 server closed the connection.")
+        };
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(store, session, receiver);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsLeased);
+        Assert.AreEqual(0, result.AccountsCompleted);
+        Assert.AreEqual(1, result.AccountsFailed);
+        Assert.AreEqual(0, result.MessagesDownloaded);
+        Assert.AreEqual(0, result.MessagesAccepted);
+        Assert.AreEqual(0, result.RemoteMessagesDeleted);
+        Assert.AreEqual(0, result.KnownUidsAdded);
+        Assert.AreEqual(0, result.KnownUidsDeleted);
+        Assert.AreEqual(77, store.ReleasedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.CompletedFetchAccountIds.Count);
+        Assert.AreEqual(0, store.AddedUids.Count);
+        Assert.AreEqual(0, store.DeletedUidIds.Count);
+        Assert.AreEqual(1, session.DownloadedSequences.Single());
+        Assert.AreEqual(0, session.DeletedUids.Count);
+        Assert.AreEqual(0, receiver.Requests.Count);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_ReleasesLeaseWhenMessageListingTerminatesEarly()
     {
         var account = CreateAccount();
