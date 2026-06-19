@@ -120,8 +120,6 @@ Sub Rule_UpdateMessage(obMessage)
 
    obMessage.Subject = "Changed"
    obMessage.From = "Updated <updated@example.test>"
-   obMessage.To = "next@example.test"
-   obMessage.CC = "copy2@example.test"
    obMessage.Charset = "utf-8"
    obMessage.Body = "Changed body" & vbCrLf
    obMessage.HeaderValue("X-Legacy") = "yes"
@@ -151,8 +149,8 @@ End Sub
             var messageText = Encoding.ASCII.GetString(result.MessageData);
             StringAssert.Contains(messageText, "Subject: Changed\r\n");
             StringAssert.Contains(messageText, "From: Updated <updated@example.test>\r\n");
-            StringAssert.Contains(messageText, "To: next@example.test\r\n");
-            StringAssert.Contains(messageText, "Cc: copy2@example.test\r\n");
+            StringAssert.Contains(messageText, "To: dest@example.test\r\n");
+            StringAssert.Contains(messageText, "Cc: copy@example.test\r\n");
             StringAssert.Contains(messageText, "Content-Type: text/plain; charset=utf-8\r\n");
             StringAssert.Contains(messageText, "X-Legacy: yes\r\n");
             StringAssert.Contains(messageText, "X-Flag-State: 128\r\n");
@@ -236,8 +234,6 @@ function Rule_UpdateMessage(obMessage) {
 
   obMessage.Subject = "Changed JS";
   obMessage.From = "JS Sender <js@example.test>";
-  obMessage.To = "js-next@example.test";
-  obMessage.CC = "js-copy@example.test";
   obMessage.Charset = "utf-8";
   obMessage.Body = "Changed JS body\r\n";
   obMessage.SetHeaderValue("X-JScript", "yes");
@@ -267,12 +263,117 @@ function Rule_UpdateMessage(obMessage) {
             var messageText = Encoding.ASCII.GetString(result.MessageData);
             StringAssert.Contains(messageText, "Subject: Changed JS\r\n");
             StringAssert.Contains(messageText, "From: JS Sender <js@example.test>\r\n");
-            StringAssert.Contains(messageText, "To: js-next@example.test\r\n");
-            StringAssert.Contains(messageText, "Cc: js-copy@example.test\r\n");
+            StringAssert.Contains(messageText, "To: dest@example.test\r\n");
+            StringAssert.Contains(messageText, "Cc: copy@example.test\r\n");
             StringAssert.Contains(messageText, "Content-Type: text/plain; charset=utf-8\r\n");
             StringAssert.Contains(messageText, "X-JScript: yes\r\n");
             StringAssert.Contains(messageText, "X-JScript-State: 192\r\n");
             StringAssert.Contains(messageText, "\r\n\r\nChanged JS body\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_VbScriptMessageToAndCcAreReadOnly()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_UpdateMessage(obMessage)
+   On Error Resume Next
+   obMessage.To = "redirect@example.test"
+   If Err.Number = 0 Then
+      obMessage.RejectReason = "to setter unexpectedly succeeded"
+      Exit Sub
+   End If
+   Err.Clear
+
+   obMessage.CC = "redirect-copy@example.test"
+   If Err.Number = 0 Then
+      obMessage.RejectReason = "cc setter unexpectedly succeeded"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
+
+   If obMessage.To <> "dest@example.test" Then
+      obMessage.RejectReason = "to value changed"
+      Exit Sub
+   End If
+   If obMessage.CC <> "copy@example.test" Then
+      obMessage.RejectReason = "cc value changed"
+      Exit Sub
+   End If
+
+   obMessage.HeaderValue("X-To-Cc-Readonly") = "vb"
+   obMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateMessage",
+                    "To: dest@example.test\r\nCc: copy@example.test\r\nSubject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "To: dest@example.test\r\n");
+            StringAssert.Contains(messageText, "Cc: copy@example.test\r\n");
+            StringAssert.Contains(messageText, "X-To-Cc-Readonly: vb\r\n");
+            Assert.IsFalse(messageText.Contains("redirect@example.test", StringComparison.Ordinal));
+            Assert.IsFalse(messageText.Contains("redirect-copy@example.test", StringComparison.Ordinal));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptMessageToAndCcAssignmentDoesNotPersist()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_UpdateMessage(obMessage) {
+  obMessage.To = "redirect-js@example.test";
+  obMessage.CC = "redirect-copy-js@example.test";
+  obMessage.SetHeaderValue("X-To-Cc-Readonly", "js");
+  obMessage.Save();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateMessage",
+                    "To: dest@example.test\r\nCc: copy@example.test\r\nSubject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var messageText = Encoding.ASCII.GetString(result.MessageData);
+            StringAssert.Contains(messageText, "To: dest@example.test\r\n");
+            StringAssert.Contains(messageText, "Cc: copy@example.test\r\n");
+            StringAssert.Contains(messageText, "X-To-Cc-Readonly: js\r\n");
+            Assert.IsFalse(messageText.Contains("redirect-js@example.test", StringComparison.Ordinal));
+            Assert.IsFalse(messageText.Contains("redirect-copy-js@example.test", StringComparison.Ordinal));
         }
         finally
         {

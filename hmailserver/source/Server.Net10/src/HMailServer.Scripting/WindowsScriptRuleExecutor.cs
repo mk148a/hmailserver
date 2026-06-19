@@ -1659,10 +1659,6 @@ Class HMailServerRuleMessage
       [To] = m_to
    End Property
 
-   Public Property Let [To](value)
-      m_to = CStr(value)
-   End Property
-
    Public Property Get Recipients()
       Set Recipients = m_recipients
    End Property
@@ -1677,10 +1673,6 @@ Class HMailServerRuleMessage
 
    Public Property Get CC()
       CC = m_cc
-   End Property
-
-   Public Property Let CC(value)
-      m_cc = CStr(value)
    End Property
 
    Public Property Get [Date]()
@@ -2390,8 +2382,10 @@ function hMailServerRuleDeleteHeaderAt(headers, index) {
 function hMailServerRuleSyncMessageHeaderFields(message) {
   message.Subject = message.HeaderValue("Subject");
   message.From = message.HeaderValue("From");
-  message.To = message.HeaderValue("To");
-  message.CC = message.HeaderValue("Cc") || message.HeaderValue("CC");
+  message._to = message.HeaderValue("To");
+  message.To = message._to;
+  message._cc = message.HeaderValue("Cc") || message.HeaderValue("CC");
+  message.CC = message._cc;
   message.Date = message.HeaderValue("Date");
   message.Charset = hMailServerRuleExtractCharset(message.HeaderValue("Content-Type"));
   if (message.Headers) {
@@ -2407,8 +2401,10 @@ function hMailServerRuleSyncCommonHeaderField(message, fieldName, fieldValue) {
   } else if (name === "from") {
     message.From = value;
   } else if (name === "to") {
+    message._to = value;
     message.To = value;
   } else if (name === "cc") {
+    message._cc = value;
     message.CC = value;
   } else if (name === "date") {
     message.Date = value;
@@ -2654,8 +2650,10 @@ if ("{{hasMessageFlag}}" === "1") {
     Subject: "",
     From: "",
     FromAddress: "",
+    _to: "",
     To: "",
     Recipients: hMailServerRuleCreateRecipients(),
+    _cc: "",
     CC: "",
     Date: "",
     Charset: "",
@@ -2722,8 +2720,10 @@ if ("{{hasMessageFlag}}" === "1") {
       var headers = this._headers;
       headers = hMailServerRuleSetHeader(headers, "Subject", this.Subject);
       headers = hMailServerRuleSetHeader(headers, "From", this.From);
-      headers = hMailServerRuleSetHeader(headers, "To", this.To);
-      headers = hMailServerRuleSetHeader(headers, "Cc", this.CC);
+      this.To = this._to;
+      this.CC = this._cc;
+      headers = hMailServerRuleSetHeader(headers, "To", this._to);
+      headers = hMailServerRuleSetHeader(headers, "Cc", this._cc);
       headers = hMailServerRuleSetHeader(headers, "Date", this.Date);
       if (this.Charset) {
         headers = hMailServerRuleSetHeader(headers, "Content-Type", hMailServerRuleApplyCharset(hMailServerRuleGetHeader(headers, "Content-Type"), this.Charset));
@@ -2738,12 +2738,15 @@ if ("{{hasMessageFlag}}" === "1") {
     AddRecipient: function(name, address) {
       this.Recipients.Add(address, address, false);
       var displayAddress = hMailServerRuleFormatRecipientForHeader(name, address);
-      this.To = this.To ? this.To + ", " + displayAddress : displayAddress;
+      this._to = this._to ? this._to + ", " + displayAddress : displayAddress;
+      this.To = this._to;
     },
     ClearRecipients: function() {
       this.Recipients.Clear();
-      this.To = "";
-      this.CC = "";
+      this._to = "";
+      this._cc = "";
+      this.To = this._to;
+      this.CC = this._cc;
       this._headers = hMailServerRuleSetHeader(this._headers, "To", "");
       this._headers = hMailServerRuleSetHeader(this._headers, "Cc", "");
     },
