@@ -130,6 +130,8 @@ Before queue persistence, the SQL Server receiver loads active global legacy rul
 
 The `Load`/`RefreshContent` script methods reload file-backed headers and body after a handler rewrites the message file directly, matching the legacy COM refresh hook.
 
+The message file path facade remains tied to the original script backing file: VBScript treats `Filename` as a read-only legacy property, and JScript `FileName`/`Filename` assignments do not redirect `Load`, `Save`, or `Copy` file I/O.
+
 The scripting logger provider dispatches optional `OnError(iSeverity, iError, sSource, sDescription)` handlers for .NET `Warning`, `Error`, and `Critical` records as legacy severity values `3`, `2`, and `1`. The logging `EventId` becomes the error code, the logger category becomes the source, exception details are appended to the formatted description, execution is timeboxed/fail-open, and recursive logging from the handler is suppressed. All legacy protocol and delivery event names are now connected; backup-completion/failure events await the .NET backup engine.
 
 When `HMAILSERVER_CLAMAV_ENABLED=true`, the service registers the async/timeboxed ClamAV `INSTREAM` scanner and runs it on SMTP messages after `OnAcceptMessage`, global rules, spam policy, and optional attachment blocking have had a chance to mutate the message but before the queue row and data-directory file are written. ClamAV protocol errors or timeouts fail closed with a transient SMTP rejection, while infected messages are rejected with a permanent virus response. External POP3 fetch also uses the same scanner for accounts with `UseAntiVirus` enabled; infected remote UIDs are retained/deleted according to the fetch account retention decision without queueing the message again.

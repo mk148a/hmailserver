@@ -72,6 +72,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch `DELE` response gelmeden socket/I/O koparsa fatal kalacak, known UID korunacak ve account lease failed-release edilecek sekilde testle sabitlendi.
 - External POP3 fetch session disposal sirasinda `QUIT -ERR` veya QUIT response oncesi disconnect exception sizdirmeyecek sekilde legacy best-effort cleanup testiyle sabitlendi.
 - `HMAILSERVER_MESSAGE.RefreshContent`, script tarafindan message file dogrudan degistirildikten sonra header/body alanlarini yeniden yukleyecek sekilde VBScript/JScript testleriyle sabitlendi.
+- `HMAILSERVER_MESSAGE.FileName`/`Filename` facade'i script assignment sonrasi `Load`/`Save`/`Copy` file I/O'sunu orijinal runner backing path'inde tutacak sekilde legacy `Filename` read-only davranisina yaklastirildi.
 
 Yeni thread baslamadan once yine `git status --short --branch` ve `git diff` okunmali. Calisma agaci temiz degilse once mevcut WIP'in kime ait oldugu ve hangi slice'a hizmet ettigi anlasilmali.
 
@@ -86,11 +87,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-a76cdb12e docs(net10): document empty external fetch UIDL listings
+c8ef3f70c docs(net10): document message RefreshContent script facade
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `0e93f5606 fix(net10): keep script message filename backing path stable`
 - `49691e554 test(net10): cover message RefreshContent script facade`
 - `dbc462807 test(net10): cover empty external fetch UIDL listings`
 - `0b9c2d914 test(net10): cover malformed external fetch UIDL rows`
@@ -199,6 +201,7 @@ Son temiz dogrulama notlari:
 - External fetch malformed-UIDL-row parity dilimi icin dar `TcpExternalFetchSessionFactoryTests` filtresi 32/32 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 367/367 gecti.
 - External fetch empty-UIDL-listing parity dilimi icin dar `TcpExternalFetchSessionFactoryTests|ExternalFetchProcessorTests` filtresi 52/52 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 370/370 gecti.
 - `HMAILSERVER_MESSAGE.RefreshContent` script facade dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 32/32 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 372/372 gecti.
+- `HMAILSERVER_MESSAGE.FileName`/`Filename` backing-path parity dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 34/34 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 374/374 gecti.
 
 Terminal/log incelemesi:
 
