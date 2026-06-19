@@ -138,6 +138,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: shared `OnClientConnect` protocol event hook before SMTP/IMAP/POP3 greeting or implicit TLS setup with connection-close handling for legacy `Result.Value = 1`.
    - Done: `OnHELO` protocol event hook before HELO/EHLO success responses with `HMAILSERVER_CLIENT` and legacy `Result.Value`/`Result.Message` rejection handling.
    - Done: `OnClientLogon` protocol event hook after successful and failed SMTP AUTH attempts with attempted username and authenticated state.
+   - Done: `HMAILSERVER_CLIENT` exposes legacy `Authenticated` and `EncryptedConnection` aliases alongside the existing authenticated/TLS state fields.
    - Done: `OnRecipientUnknown` protocol event hook for unknown RCPT validation failures.
    - Done: `OnSMTPData` protocol event hook after DATA is read and before receiver/queue processing with message mutation/drop/reject handling.
    - Done: `OnAcceptMessage` protocol event hook before global rule processing with `HMAILSERVER_CLIENT`, `HMAILSERVER_MESSAGE`, and legacy `Result.Value`/`Result.Message` rejection handling.

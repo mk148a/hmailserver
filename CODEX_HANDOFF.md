@@ -18,7 +18,7 @@ Legacy C++ server production referansi olmaya devam ediyor. .NET 10 agaci produc
 - POP3 tarafinda USER/PASS, CAPA, STAT/LIST/UIDL/RETR/TOP/DELE/RSET/NOOP/QUIT, mailbox lock, implicit TLS ve SQL/data-directory mailbox store eklendi.
 - External POP3 fetch icin SQL lease/UID store, POP3 network session, UIDL/RETR/DELE/QUIT akis, recipient resolution, yeni/bilinen UIDL duplicate baskilama, spam/AV entegrasyonu ve `OnExternalAccountDownload` script hook'u eklendi; fetch-account script facade'i `NextDownloadTime`/`IsLocked` alanlarini da tasiyor.
 - Modern security slice'lari eklendi: ClamAV, SpamAssassin, spam policy, attachment blocking, DNSBL, reverse DNS/PTR, sender-domain MX, greylisting, SURBL ve failed-logon auto-ban.
-- Legacy script/event parity buyuk olcude ilerledi: `OnClientConnect`, `OnClientValidatePassword`, `OnClientLogon`, `OnHELO`, `OnRecipientUnknown`, `OnSMTPData`, `OnAcceptMessage`, `OnTooManyInvalidCommands`, delivery eventleri, `OnDeliveryFailed`, `OnError`, rule `ScriptFunction`, mesaj/recipient/attachment facade'leri ve account-rule `Message.Copy(folderId)`.
+- Legacy script/event parity buyuk olcude ilerledi: `OnClientConnect`, `OnClientValidatePassword`, `OnClientLogon`, `OnHELO`, `OnRecipientUnknown`, `OnSMTPData`, `OnAcceptMessage`, `OnTooManyInvalidCommands`, delivery eventleri, `OnDeliveryFailed`, `OnError`, rule `ScriptFunction`, mesaj/recipient/attachment facade'leri, client `Authenticated`/`EncryptedConnection` alias'lari ve account-rule `Message.Copy(folderId)`.
 
 ## Production-Ready Seviyesi
 
@@ -54,6 +54,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch ayni POP3 listing icindeki duplicate yeni UIDL degerlerini tek indirme/kuyruklama ile sinirlayacak sekilde kapatildi.
 - External POP3 fetch ayni POP3 listing icindeki duplicate bilinen UIDL degerlerini tek script/retention cleanup ile sinirlayacak sekilde kapatildi.
 - `OnExternalAccountDownload` fetch-account facade'i SQL lease'ten gelen `fanexttry`/`falocked` degerlerini legacy `NextDownloadTime` ve `IsLocked` script alanlari olarak yayacak sekilde genisletildi.
+- `HMAILSERVER_CLIENT` facade'i legacy COM isimleri olan `Authenticated` ve `EncryptedConnection` alias'larini VBScript/JScript event handler'larinda destekleyecek sekilde genisletildi.
 
 Yeni thread baslamadan once yine `git status --short --branch` ve `git diff` okunmali. Calisma agaci temiz degilse once mevcut WIP'in kime ait oldugu ve hangi slice'a hizmet ettigi anlasilmali.
 
@@ -73,6 +74,7 @@ Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `9470c2e53 feat(net10): add legacy client auth script aliases`
 - `bb5e8c0df feat(net10): expose fetch account lock script fields`
 - `79327bc45 fix(net10): skip duplicate known external fetch UIDs`
 - `27df051c2 fix(net10): skip duplicate external fetch UIDs`
@@ -143,6 +145,7 @@ Son temiz dogrulama notlari:
 - External fetch duplicate UIDL dilimi icin dar `ExternalFetchProcessorTests` filtresi 10/10 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 329/329 gecti.
 - External fetch duplicate known UIDL dilimi icin dar `ExternalFetchProcessorTests` filtresi 11/11 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 330/330 gecti.
 - Fetch-account script facade `NextDownloadTime`/`IsLocked` dilimi icin dar `WindowsScriptRuleExecutorTests|SqlServerExternalFetchAccountStoreTests` filtresi 34/34 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 330/330 gecti.
+- Client script facade alias dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 30/30 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 330/330 gecti.
 
 Terminal/log incelemesi:
 
