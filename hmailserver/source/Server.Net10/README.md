@@ -179,6 +179,8 @@ A rejected external-fetch `UIDL` command sends the legacy `QUIT` cleanup without
 
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
+External-fetch `DELE` is legacy best-effort: any server response, including `-ERR`, advances UID cleanup and allows the session to `QUIT`; socket, I/O, and cancellation failures remain fatal.
+
 With scripting enabled, the POP3 listener runs `OnClientConnect(HMAILSERVER_CLIENT)` before its greeting or implicit TLS setup and closes the connection when legacy `Result.Value = 1`; this complements the existing post-authentication `OnClientLogon` hook.
 
 ## Project Layout
