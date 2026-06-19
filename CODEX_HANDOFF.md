@@ -45,15 +45,14 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy script object parity'yi `Message.Copy(folderId)` otesinde tamamlamak, backup eventlerini .NET backup engine gelmeden synthetic callback olarak uretmemek, delivery status/bounce template parity'yi queue worker evrildikce korumak ve external fetch edge-case'lerini kapatmak.
+Backlog'daki siradaki ana dilim: legacy script object parity'yi `Message.Copy(folderId)` ve global `EventLog.Write(value)` otesinde tamamlamak, backup eventlerini .NET backup engine gelmeden synthetic callback olarak uretmemek, delivery status/bounce template parity'yi queue worker evrildikce korumak ve external fetch edge-case'lerini kapatmak.
 
-Ozel not: bu handoff hazirlanirken calisma agacinda uc kod dosyasi zaten dirty durumdaydi:
+Son tamamlanan kucuk dilimler:
 
-- `hmailserver/source/Server.Net10/src/HMailServer.Scripting/WindowsScriptRuleExecutor.cs`
-- `hmailserver/source/Server.Net10/src/HMailServer.Scripting/WindowsScriptRuleExecutorOptions.cs`
-- `hmailserver/source/Server.Net10/src/HMailServer.Service/Program.cs`
+- Global VBScript/JScript `EventLog.Write(value)` facade'i rule script, `OnError`, ve password-validation script yollarinda legacy event log bicimiyle tamamlandi.
+- External POP3 fetch hosted worker startup'ta stale `hm_fetchaccounts.falocked` satirlarini resetleyecek sekilde legacy `PersistentFetchAccount::UnlockAll()` davranisina yaklastirildi.
 
-Bu degisiklikler legacy global `EventLog.Write` script facade'i icin WIP gibi gorunuyor. Yeni thread bu degisikliklere dokunmadan once `git diff` okumali, gerekirse slice'i tamamlayip test/commit/push yapmali veya kullanicidan karar almalidir. Bu dokumantasyon calismasi kod davranisini degistirmedi.
+Yeni thread baslamadan once yine `git status --short --branch` ve `git diff` okunmali. Calisma agaci temiz degilse once mevcut WIP'in kime ait oldugu ve hangi slice'a hizmet ettigi anlasilmali.
 
 ## Son Git Durumu
 
@@ -63,14 +62,16 @@ Branch:
 net10-modernization...origin/net10-modernization
 ```
 
-Son push edilmis commit:
+Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-cff774380 docs(net10): document legacy error events
+8a9f76544 docs(net10): document script event log facade
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `718108bf6 fix(net10): reset external fetch locks on startup`
+- `f65bb2a05 feat(net10): expose script event log facade`
 - `254e118da feat(net10): dispatch legacy OnError scripts`
 - `03df16257 feat(net10): support scripted message folder copies`
 - `9a0fc5f41 feat(net10): run client connect events for IMAP and POP3`
@@ -81,7 +82,7 @@ Son 30 commit icinde one cikan son dilimler:
 - `4603eb773 perf(net10): stream SQL search result readers`
 - `8cb42b48d perf(net10): reduce IMAP search result allocations`
 
-Bu dokuman yazilmadan once `git status --short --branch` sadece yukaridaki uc kod dosyasini modified gosteriyordu. Bu dokuman eklendikten sonra `AGENTS.md` ve `CODEX_HANDOFF.md` de yeni dosya olarak gorunecektir.
+Bu dokumanin onceki surumundeki EventLog dirty-WIP notu artik gecerli degil; ilgili slice testlenip commit/push edildi.
 
 ## Build/Test Komutlari
 
@@ -129,9 +130,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\run-tests.ps1
 
 ## Son Build/Test Ciktisi
 
-Bu handoff hazirlanirken yeni build/test calistirilmadi; istek sadece dokumantasyondu ve kod davranisi degistirilmedi.
+Son temiz dogrulama notlari:
 
-Thread gecmisindeki son temiz dogrulama notu: `cff774380` oncesindeki Net10 build basariliydi ve testler 324/324 gecmisti. Calisma agacindaki mevcut WIP kod degisiklikleri bundan sonra olustugu icin yeni thread, WIP'i tamamlamadan bu sonucu production-ready kabul etmemelidir.
+- EventLog facade dilimi icin Net10 build basariliydi ve full Net10 testler 327/327 gecmisti.
+- External fetch stale-lock startup reset dilimi icin dar `ExternalFetchProcessorTests` filtresi 9/9 gecti; ardindan Net10 build basarili oldu ve full Net10 testler 328/328 gecti.
 
 Terminal/log incelemesi:
 
@@ -162,8 +164,7 @@ Terminal/log incelemesi:
 ## Siradaki Onerilen 3 Milestone
 
 1. Legacy script object model parity tamamlama.
-   - Once mevcut EventLog.Write WIP'i okunup tamamlanmali veya temiz karar verilmeli.
-   - Ardindan eksik global objeler, account/domain/application facade metodlari ve script collection davranislari legacy testlerle kapatilmali.
+   - EventLog.Write tamamlandi; bundan sonra eksik global objeler, account/domain/application facade metodlari ve script collection davranislari legacy testlerle kapatilmali.
 
 2. COM/Admin ve migration operasyonlarini production gate'e tasima.
    - GUID/ProgID/DISPID sozlesmeleri icin compatibility testleri.
@@ -185,9 +186,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak legacy script object parity'den devam et. EventLog.Write WIP'i hala dirty ise once onu testlenebilir sekilde bitir:
-   - VBScript/JScript `EventLog.Write` facade.
-   - OnError, rule script ve password-validation scriptlerinde kullanimi.
-   - Log CR/LF sanitization ve legacy event log format parity.
-   - Net10 build/test.
-6. Kucuk commit yap, sonra README/backlog dokumanlarini ayri committe guncelle ve pushla.
+5. Current Next Slice olarak legacy script object parity, external fetch edge-case parity veya COM/Admin compatibility tarafindan en kucuk testlenebilir dilimi sec. EventLog.Write tamamlandigi icin ayni alana geri donulacaksa once yeni eksik legacy davranisi kanitlayan test yaz.
+6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.

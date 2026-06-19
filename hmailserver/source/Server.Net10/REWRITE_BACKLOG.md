@@ -77,6 +77,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: optional SQL-backed greylisting checks legacy `hm_greylisting_triplets` before scripts/rules/spam/AV/queue, honors white-address wildcard entries, and fails open on SQL errors.
 - Done: optional URL/SURBL checks extract bounded MIME text/html URL hosts, honor `EnableSpamScan`, reject listed hosts before antivirus/queue persistence, and fail open on DNS errors.
 - Done: external POP3 fetch treats permanent SMTP receiver rejections as non-accepted messages with normal UID/remote-delete retention instead of failing the whole account batch.
+- Done: external POP3 fetch hosted worker resets stale `falocked` fetch-account rows on startup, matching legacy `PersistentFetchAccount::UnlockAll()` recovery.
 - Done: script message facade exposes legacy `Flag(eMessageFlag)` bitmask access over `State` for VBScript/JScript handlers.
 - Done: JScript message facade exposes the legacy `Filename` alias alongside the existing `FileName` path.
 - Done: JScript attachment facade exposes the legacy `Filename` alias alongside `FileName`.
@@ -169,6 +170,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external fetch received-time parity from valid `Received` header dates, falling back to `Date` and then current UTC when MIME dates are missing or outside legacy bounds.
    - Done: external fetch MIME recipient headers and `Received ... for <recipient>` values resolve through the SQL SMTP recipient validator, then preserve legacy local-account filtering unless route recipients are enabled.
    - Done: external fetch applies UID tracking and remote-delete retention for permanent SMTP receiver rejections such as spam delete-threshold `554` responses.
+   - Done: external fetch hosted worker clears stale account locks once on startup before polling due accounts.
    - Remaining: additional external fetch edge-case parity.
 
 5. Security and anti-abuse modernization.
