@@ -71,6 +71,11 @@ Sub Rule_UpdateMessage(obMessage)
       obMessage.RejectReason = "from not loaded"
       Exit Sub
    End If
+   If obMessage.Filename <> obMessage.FileName Then
+      obMessage.RejectReason = "filename alias not loaded"
+      Exit Sub
+   End If
+   obMessage.Filename = obMessage.FileName
    If obMessage.To <> "dest@example.test" Then
       obMessage.RejectReason = "to not loaded"
       Exit Sub
