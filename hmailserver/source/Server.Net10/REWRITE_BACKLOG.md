@@ -140,6 +140,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `OnSMTPData` protocol event hook after DATA is read and before receiver/queue processing with message mutation/drop/reject handling.
    - Done: `OnAcceptMessage` protocol event hook before global rule processing with `HMAILSERVER_CLIENT`, `HMAILSERVER_MESSAGE`, and legacy `Result.Value`/`Result.Message` rejection handling.
    - Done: `OnTooManyInvalidCommands` protocol event hook plus disconnect-invalid-clients/maximum-incorrect-commands session policy.
+   - Done: `OnError(iSeverity, iError, sSource, sDescription)` script hook for .NET warning/error/critical logging with legacy severity mapping, `EventId` propagation, exception details, fail-open execution, and recursive-log suppression.
    - Done: delivery queue `OnDeliveryStart` and `OnDeliverMessage` script hooks before target resolution with queue-file mutation persistence and legacy `Result.Value = 1` drop handling.
    - Done: delivery queue `OnDeliveryFailed` script hook for final failed recipients with legacy recipient/error arguments.
    - Done: delivery queue status observer boundary with best-effort events for lease, load-missing, target success/defer/final failure, bounce, completion, release, and processing-failure transitions.
@@ -151,7 +152,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: delivery event failures emit a distinct `DeliveryEventFailed` queue status before deferral, preserving script/error text for SQL metrics and diagnostics.
 - Done: delivery bounce templates expose richer queue/recipient tokens including message UID/account/folder/state, delivery attempt, failed recipient count/address list/first recipient, and rule route/bind metadata.
 - Done: external POP3 fetch `OnExternalAccountDownload(HMAILSERVER_FETCHACCOUNT, HMAILSERVER_MESSAGE/Nothing, uid)` script hook boundary with legacy fetch-account fields, nullable message argument handling, and `Result.Value`/`Result.Parameter` delete-retention mapping.
-- Remaining: full legacy script object model and remaining protocol/delivery event scripting hooks.
+- Remaining: full legacy script object model plus `OnBackupCompleted`/`OnBackupFailed` once the .NET backup engine exists; legacy protocol and delivery event hooks are connected.
 
 4. POP3 and external fetch.
    - Done: POP3 session command engine with shared account authentication, session-held deletes committed on `QUIT`, `RSET` undo, `LIST`/`UIDL` visibility checks, and streaming `RETR` dot-stuffing.
@@ -203,4 +204,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue the remaining legacy script object/event parity beyond `Message.Copy`, keep delivery status observability/bounce template parity verified as the queue worker evolves, and close remaining external fetch edge cases as they surface.
+Continue the remaining legacy script object parity beyond `Message.Copy`, design backup events with the .NET backup engine instead of emitting synthetic callbacks, keep delivery status observability/bounce template parity verified as the queue worker evolves, and close remaining external fetch edge cases as they surface.
