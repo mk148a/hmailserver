@@ -69,6 +69,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         var serverTask = RunPop3ServerWithoutStlsCapabilityAsync(
             listener,
             commands,
+            rejectCapa: false,
             stopAfterCapa: false,
             timeout.Token);
         try
@@ -109,6 +110,84 @@ public sealed class TcpExternalFetchSessionFactoryTests
         var serverTask = RunPop3ServerWithoutStlsCapabilityAsync(
             listener,
             commands,
+            rejectCapa: false,
+            stopAfterCapa: true,
+            timeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await factory
+                    .ConnectAsync(
+                        CreateAccount(endpoint.Port, ExternalFetchConnectionSecurity.StartTlsRequired),
+                        timeout.Token)
+                    .ConfigureAwait(false));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+
+        CollectionAssert.AreEqual(
+            new[] { "CAPA" },
+            commands);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_StartTlsOptionalUsesPlaintextWhenCapaIsRejected()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerWithoutStlsCapabilityAsync(
+            listener,
+            commands,
+            rejectCapa: true,
+            stopAfterCapa: false,
+            timeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await using var session = await factory
+                .ConnectAsync(
+                    CreateAccount(endpoint.Port, ExternalFetchConnectionSecurity.StartTlsOptional),
+                    timeout.Token)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "CAPA",
+                "USER external-user",
+                "PASS external-password",
+                "QUIT"
+            },
+            commands);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_StartTlsRequiredFailsWhenCapaIsRejected()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerWithoutStlsCapabilityAsync(
+            listener,
+            commands,
+            rejectCapa: true,
             stopAfterCapa: true,
             timeout.Token);
         try
@@ -210,6 +289,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
     private static async Task RunPop3ServerWithoutStlsCapabilityAsync(
         TcpListener listener,
         List<string> commands,
+        bool rejectCapa,
         bool stopAfterCapa,
         CancellationToken cancellationToken)
     {
@@ -223,7 +303,10 @@ public sealed class TcpExternalFetchSessionFactoryTests
             commands.Add(command);
             if (command.Equals("CAPA", StringComparison.OrdinalIgnoreCase))
             {
-                await WriteRawAsync(stream, "+OK capability list follows\r\nUIDL\r\nUSER\r\n.\r\n", cancellationToken).ConfigureAwait(false);
+                var response = rejectCapa
+                    ? "-ERR CAPA unavailable\r\n"
+                    : "+OK capability list follows\r\nUIDL\r\nUSER\r\n.\r\n";
+                await WriteRawAsync(stream, response, cancellationToken).ConfigureAwait(false);
                 if (stopAfterCapa)
                 {
                     break;
