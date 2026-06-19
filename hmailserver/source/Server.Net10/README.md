@@ -181,6 +181,8 @@ A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, r
 
 External-fetch `DELE` is legacy best-effort: any server response, including `-ERR`, advances UID cleanup and allows the session to `QUIT`; socket, I/O, and cancellation failures remain fatal. A `DELE` transport failure before any server response preserves known UID state and releases the fetch-account lease as failed.
 
+External-fetch `QUIT` cleanup is best-effort during session disposal: rejected `QUIT` responses and disconnects before the `QUIT` response do not leak disposal failures after the message-processing decision has already been made.
+
 With scripting enabled, the POP3 listener runs `OnClientConnect(HMAILSERVER_CLIENT)` before its greeting or implicit TLS setup and closes the connection when legacy `Result.Value = 1`; this complements the existing post-authentication `OnClientLogon` hook.
 
 ## Project Layout
