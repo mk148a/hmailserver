@@ -18,7 +18,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         listener.Start();
         var endpoint = (IPEndPoint)listener.LocalEndpoint;
         var commands = new List<string>();
-        var serverTask = RunPop3ServerAsync(listener, commands, timeout.Token);
+        var serverTask = RunPop3ServerAsync(listener, commands, rejectRetr: false, timeout.Token);
         try
         {
             var factory = new TcpExternalFetchSessionFactory();
@@ -395,9 +395,49 @@ public sealed class TcpExternalFetchSessionFactoryTests
             commands);
     }
 
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.None, false)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
+    public async Task DownloadMessageAsync_RejectedRetrQuitsWithoutDelete(
+        ExternalFetchConnectionSecurity connectionSecurity,
+        bool expectCapa)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerAsync(listener, commands, rejectRetr: true, timeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await using (var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                .ConfigureAwait(false))
+            {
+                var messages = await session.ListMessagesAsync(timeout.Token).ConfigureAwait(false);
+                Assert.AreEqual(1, messages.Count);
+                await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                    async () => await session.DownloadMessageAsync(messages[0], timeout.Token).ConfigureAwait(false));
+            }
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+        CollectionAssert.AreEqual(
+            expectCapa
+                ? new[] { "CAPA", "USER external-user", "PASS external-password", "UIDL", "RETR 1", "QUIT" }
+                : new[] { "USER external-user", "PASS external-password", "UIDL", "RETR 1", "QUIT" },
+            commands);
+    }
+
     private static async Task RunPop3ServerAsync(
         TcpListener listener,
         List<string> commands,
+        bool rejectRetr,
         CancellationToken cancellationToken)
     {
         using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
@@ -419,7 +459,10 @@ public sealed class TcpExternalFetchSessionFactoryTests
             }
             else if (command.Equals("RETR 1", StringComparison.OrdinalIgnoreCase))
             {
-                await WriteRawAsync(stream, "+OK\r\nSubject: fetched\r\n..dot-stuffed\r\n.\r\n", cancellationToken).ConfigureAwait(false);
+                var response = rejectRetr
+                    ? "-ERR message unavailable\r\n"
+                    : "+OK\r\nSubject: fetched\r\n..dot-stuffed\r\n.\r\n";
+                await WriteRawAsync(stream, response, cancellationToken).ConfigureAwait(false);
             }
             else if (command.Equals("DELE 1", StringComparison.OrdinalIgnoreCase))
             {

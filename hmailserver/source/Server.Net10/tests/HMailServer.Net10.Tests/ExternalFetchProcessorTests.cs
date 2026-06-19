@@ -177,6 +177,33 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_ReleasesLeaseWhenMessageDownloadFails()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-retr-failure", Size: 64),
+            "Subject: unavailable\r\n\r\nBody\r\n"u8.ToArray())
+        {
+            DownloadException = new InvalidOperationException("External POP3 command failed: -ERR unavailable")
+        };
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(store, session, receiver);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsLeased);
+        Assert.AreEqual(0, result.AccountsCompleted);
+        Assert.AreEqual(1, result.AccountsFailed);
+        Assert.AreEqual(0, result.MessagesDownloaded);
+        Assert.AreEqual(0, result.MessagesAccepted);
+        Assert.AreEqual(77, store.ReleasedFetchAccountIds.Single());
+        Assert.AreEqual(0, receiver.Requests.Count);
+        Assert.AreEqual(0, store.AddedUids.Count);
+        Assert.AreEqual(0, session.DeletedUids.Count);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_TracksUidWhenReceiverPermanentlyRejects()
     {
         var account = CreateAccount();
@@ -607,6 +634,8 @@ public sealed class ExternalFetchProcessorTests
 
         public List<int> DownloadedSequences { get; } = [];
 
+        public Exception? DownloadException { get; init; }
+
         public ValueTask<IReadOnlyList<ExternalFetchRemoteMessage>> ListMessagesAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(_messages);
@@ -616,6 +645,11 @@ public sealed class ExternalFetchProcessorTests
             CancellationToken cancellationToken)
         {
             DownloadedSequences.Add(message.SequenceNumber);
+            if (DownloadException is not null)
+            {
+                return ValueTask.FromException<byte[]>(DownloadException);
+            }
+
             return ValueTask.FromResult(_messageDataBySequence[message.SequenceNumber]);
         }
 
