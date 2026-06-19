@@ -21,25 +21,21 @@ public sealed class ImapSearchExecutor
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var matches = new List<MessageIdentity>();
-        await foreach (var identity in _searchIndex.SearchAsync(request, cancellationToken).ConfigureAwait(false))
-        {
-            matches.Add(identity);
-        }
-
         var identifiers = request.ReturnUid
-            ? SelectUids(matches)
-            : await ResolveSequenceNumbersAsync(request, matches, cancellationToken).ConfigureAwait(false);
+            ? await SelectUidsAsync(request, cancellationToken).ConfigureAwait(false)
+            : await ResolveSequenceNumbersAsync(request, cancellationToken).ConfigureAwait(false);
 
         return ImapSearchResultFormatter.Format(identifiers);
     }
 
-    private static IReadOnlyList<long> SelectUids(IReadOnlyList<MessageIdentity> matches)
+    private async ValueTask<IReadOnlyList<long>> SelectUidsAsync(
+        ImapSearchRequest request,
+        CancellationToken cancellationToken)
     {
-        var identifiers = new long[matches.Count];
-        for (var index = 0; index < matches.Count; index++)
+        var identifiers = new List<long>();
+        await foreach (var identity in _searchIndex.SearchAsync(request, cancellationToken).ConfigureAwait(false))
         {
-            identifiers[index] = matches[index].Uid;
+            identifiers.Add(identity.Uid);
         }
 
         return identifiers;
@@ -47,7 +43,6 @@ public sealed class ImapSearchExecutor
 
     private async ValueTask<IReadOnlyList<long>> ResolveSequenceNumbersAsync(
         ImapSearchRequest request,
-        IReadOnlyList<MessageIdentity> matches,
         CancellationToken cancellationToken)
     {
         if (_sequenceNumberResolver is null)
@@ -59,17 +54,16 @@ public sealed class ImapSearchExecutor
             .ResolveMailboxSequenceNumbersAsync(request.AccountId, request.FolderId, cancellationToken)
             .ConfigureAwait(false);
 
-        var identifiers = new long[matches.Count];
-        for (var index = 0; index < matches.Count; index++)
+        var identifiers = new List<long>();
+        await foreach (var identity in _searchIndex.SearchAsync(request, cancellationToken).ConfigureAwait(false))
         {
-            var identity = matches[index];
             if (!sequenceNumbers.TryGetValue(identity.MessageId, out var sequenceNumber))
             {
                 throw new InvalidOperationException(
                     $"Message {identity.MessageId} was returned by SEARCH but is not present in the mailbox sequence snapshot.");
             }
 
-            identifiers[index] = sequenceNumber;
+            identifiers.Add(sequenceNumber);
         }
 
         return identifiers;
