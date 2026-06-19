@@ -58,6 +58,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch duplicate persisted `hm_fetchaccounts_uids.uidvalue` satirlarini batch lookup olustururken tolere edecek sekilde kapatildi.
 - External POP3 fetch ayni UIDL listing icindeki duplicate POP3 sequence number girdilerini tek indirme/kuyruklama ile sinirlayacak sekilde kapatildi.
 - External POP3 fetch STARTTLS akisi legacy CAPA/STLS davranisina yaklastirildi: optional STARTTLS sadece STLS advertise edilmezse plaintext'e duser, required STARTTLS credentials gondermeden fail eder ve advertise edilip reddedilen STLS iki modda da credentials oncesi fail eder.
+- External POP3 fetch CAPA reddi davranisi legacy ile sabitlendi: optional STARTTLS plaintext'e devam ederken required STARTTLS `USER`/`PASS` oncesi fail eder.
 
 Yeni thread baslamadan once yine `git status --short --branch` ve `git diff` okunmali. Calisma agaci temiz degilse once mevcut WIP'in kime ait oldugu ve hangi slice'a hizmet ettigi anlasilmali.
 
@@ -72,11 +73,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-c918ad05c docs(net10): document external fetch STLS capability probing
+6130a4979 docs(net10): document rejected external fetch STLS coverage
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `9e187a7fb test(net10): cover rejected external fetch CAPA`
 - `79e02e4fe test(net10): cover rejected external fetch STLS`
 - `0cb9152bb fix(net10): probe external fetch STLS capability`
 - `f2048517a fix(net10): skip duplicate external fetch sequence entries`
@@ -157,6 +159,7 @@ Son temiz dogrulama notlari:
 - External fetch duplicate remote sequence dilimi icin dar `ExternalFetchProcessorTests` filtresi 13/13 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 332/332 gecti.
 - External fetch STLS CAPA probing dilimi icin dar `TcpExternalFetchSessionFactoryTests` filtresi 3/3 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 334/334 gecti.
 - External fetch rejected-STLS parity dilimi icin dar `TcpExternalFetchSessionFactoryTests` filtresi 5/5 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 336/336 gecti.
+- External fetch rejected-CAPA parity dilimi icin dar `TcpExternalFetchSessionFactoryTests` filtresi 7/7 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 338/338 gecti.
 
 Terminal/log incelemesi:
 
