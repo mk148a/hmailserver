@@ -9,6 +9,7 @@ public sealed class SmtpSession
     private static readonly Encoding ProtocolEncoding = Encoding.Latin1;
     private static readonly Encoding AuthEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
     private static readonly byte[] EmptyEventMessageData = "Subject: hMailServer event\r\n\r\n"u8.ToArray();
+    private static readonly byte[] CrLfBytes = "\r\n"u8.ToArray();
 
     private readonly SmtpSessionOptions _options;
     private readonly ISmtpMessageReceiver? _messageReceiver;
@@ -938,7 +939,7 @@ public sealed class SmtpSession
             if (!sizeExceeded)
             {
                 await message.WriteAsync(lineBytes, cancellationToken).ConfigureAwait(false);
-                await message.WriteAsync("\r\n"u8.ToArray(), cancellationToken).ConfigureAwait(false);
+                await message.WriteAsync(CrLfBytes, cancellationToken).ConfigureAwait(false);
             }
         }
     }
