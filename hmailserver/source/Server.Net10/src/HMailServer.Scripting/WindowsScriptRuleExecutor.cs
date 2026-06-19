@@ -1514,7 +1514,6 @@ Class HMailServerRuleMessageHeaders
 End Class
 
 Class HMailServerRuleMessage
-   Public FileName
    Public DropMessage
    Public RejectReason
    Public ID
@@ -1522,6 +1521,7 @@ Class HMailServerRuleMessage
    Public State
    Public DeliveryAttempt
    Public InternalDate
+   Private m_fileName
    Private m_headers
    Private m_body
    Private m_htmlBody
@@ -1549,14 +1549,23 @@ Class HMailServerRuleMessage
       State = 0
       DeliveryAttempt = 1
       InternalDate = Now
+      m_fileName = ""
       m_encodeFields = True
       m_operationPath = ""
       m_copySequence = 0
    End Sub
 
+   Public Sub InitializeFileName(value)
+      m_fileName = CStr(value)
+   End Sub
+
    Public Sub InitializeOperationPath(value)
       m_operationPath = CStr(value)
    End Sub
+
+   Public Property Get FileName()
+      FileName = m_fileName
+   End Property
 
    Public Sub Load()
       Dim messageText
@@ -2111,7 +2120,7 @@ End Class
 Dim HMAILSERVER_MESSAGE
 If "{{hasMessageFlag}}" = "1" Then
    Set HMAILSERVER_MESSAGE = New HMailServerRuleMessage
-   HMAILSERVER_MESSAGE.FileName = "{{EscapeVbScript(messagePath)}}"
+   HMAILSERVER_MESSAGE.InitializeFileName "{{EscapeVbScript(messagePath)}}"
    HMAILSERVER_MESSAGE.InitializeOperationPath "{{EscapeVbScript(attachmentOperationPath)}}"
    HMAILSERVER_MESSAGE.DropMessage = False
    HMAILSERVER_MESSAGE.RejectReason = ""
@@ -2631,6 +2640,7 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
 var HMAILSERVER_MESSAGE = null;
 if ("{{hasMessageFlag}}" === "1") {
   HMAILSERVER_MESSAGE = {
+    _fileName: "{{EscapeJScript(messagePath)}}",
     FileName: "{{EscapeJScript(messagePath)}}",
     Filename: "{{EscapeJScript(messagePath)}}",
     DropMessage: false,
@@ -2660,10 +2670,10 @@ if ("{{hasMessageFlag}}" === "1") {
     _operationPath: "{{EscapeJScript(attachmentOperationPath)}}",
     _copySequence: 0,
     Load: function() {
-      var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this.FileName));
+      var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this._fileName));
       this._headers = parsed.headers;
       this.Body = parsed.body;
-      this.Size = hMailServerRuleGetMessageSize(this.FileName);
+      this.Size = hMailServerRuleGetMessageSize(this._fileName);
       hMailServerRuleSyncMessageHeaderFields(this);
       this.HTMLBody = hMailServerRuleGetHeader(this._headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0 ? this.Body : "";
     },
@@ -2680,7 +2690,7 @@ if ("{{hasMessageFlag}}" === "1") {
       }
       var snapshotPath = this._operationPath + ".copy-" + String(this._copySequence) + ".eml";
       this._copySequence++;
-      hMailServerRuleFileSystem.CopyFile(this.FileName, snapshotPath, true);
+      hMailServerRuleFileSystem.CopyFile(this._fileName, snapshotPath, true);
       hMailServerRuleAppendAttachmentOperation(this._operationPath, "CopyFolder", String(folderID), snapshotPath);
     },
     HeaderValue: function(fieldName) {
@@ -2722,7 +2732,7 @@ if ("{{hasMessageFlag}}" === "1") {
       if (this.HTMLBody && hMailServerRuleGetHeader(headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0) {
         messageBody = this.HTMLBody;
       }
-      hMailServerRuleWriteAllText(this.FileName, headers + "\r\n\r\n" + messageBody);
+      hMailServerRuleWriteAllText(this._fileName, headers + "\r\n\r\n" + messageBody);
       this._headers = headers;
     },
     AddRecipient: function(name, address) {

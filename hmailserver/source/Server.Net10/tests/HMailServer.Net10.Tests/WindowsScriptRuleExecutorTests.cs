@@ -76,7 +76,6 @@ Sub Rule_UpdateMessage(obMessage)
       obMessage.RejectReason = "filename alias not loaded"
       Exit Sub
    End If
-   obMessage.Filename = obMessage.FileName
    If obMessage.To <> "dest@example.test" Then
       obMessage.RejectReason = "to not loaded"
       Exit Sub
@@ -274,6 +273,99 @@ function Rule_UpdateMessage(obMessage) {
             StringAssert.Contains(messageText, "X-JScript: yes\r\n");
             StringAssert.Contains(messageText, "X-JScript-State: 192\r\n");
             StringAssert.Contains(messageText, "\r\n\r\nChanged JS body\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_VbScriptMessageFilenameIsReadOnly()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_UpdateMessage(obMessage)
+   Dim originalFileName, redirectedFileName
+   originalFileName = obMessage.FileName
+   redirectedFileName = originalFileName & ".redirected"
+
+   On Error Resume Next
+   obMessage.Filename = redirectedFileName
+   If Err.Number = 0 Then
+      obMessage.RejectReason = "filename setter unexpectedly succeeded"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
+
+   If obMessage.FileName <> originalFileName Then
+      obMessage.RejectReason = "filename path changed"
+      Exit Sub
+   End If
+
+   obMessage.HeaderValue("X-Filename-Readonly") = "vb"
+   obMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateMessage",
+                    "Subject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "X-Filename-Readonly: vb\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptMessageFileNameAssignmentDoesNotRedirectBackingFile()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_UpdateMessage(obMessage) {
+  var originalFileName = obMessage.FileName;
+  obMessage.FileName = originalFileName + ".redirected";
+  obMessage.Filename = originalFileName + ".redirected-alias";
+  obMessage.SetHeaderValue("X-Filename-Readonly", "js");
+  obMessage.Save();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateMessage",
+                    "Subject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "X-Filename-Readonly: js\r\n");
         }
         finally
         {
