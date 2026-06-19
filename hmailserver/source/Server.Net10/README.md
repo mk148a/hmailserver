@@ -171,6 +171,8 @@ A rejected external-fetch `CAPA` response is treated like an unavailable STLS ca
 
 A rejected external POP3 greeting fails the connection before any client command or credentials are sent in plain and STARTTLS modes.
 
+A rejected external-fetch `USER` command fails authentication before `PASS` is sent in both plain and optional-STARTTLS plaintext fallback paths.
+
 With scripting enabled, the POP3 listener runs `OnClientConnect(HMAILSERVER_CLIENT)` before its greeting or implicit TLS setup and closes the connection when legacy `Result.Value = 1`; this complements the existing post-authentication `OnClientLogon` hook.
 
 ## Project Layout
