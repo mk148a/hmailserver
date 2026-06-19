@@ -1,0 +1,193 @@
+# CODEX_HANDOFF.md
+
+Bu dosya yeni bir Codex thread'inin hMailServer .NET 10 rewrite calismasina kaldigi yerden devam edebilmesi icin hazirlandi.
+
+## Projenin Amaci
+
+hMailServer icin Windows uyumlu, side-by-side .NET 10 tabanli yeni server cekirdegi gelistiriliyor. Hedef; legacy C++/ATL hMailServer davranisi, mevcut SQL Server verisi, data directory duzeni, COM/API sozlesmeleri, Administrator uyumlulugu ve VBScript/JScript event davranislari korunarak modern protokol, arama, teslimat, spam/virus ve operasyon altyapisina gecmek.
+
+Legacy C++ server production referansi olmaya devam ediyor. .NET 10 agaci production parity saglanana kadar kontrollu test/uyumluluk hattidir.
+
+## Mevcut Tamamlanan Buyuk Isler
+
+- .NET 10 solution skeleton, servis hostu, local build/test wrapper'lari ve on kosul kontrol scriptleri eklendi.
+- Phase 0 legacy C++ stabilizasyonlari tamamlandi: ClamAV INSTREAM raw network-order chunk framing, synchronous timeout cancellation, SpamAssassin partial/invalid response korunumu, MSBuild 17 discovery.
+- SQL Server Full-Text Search icin additive migration, search document/queue tablolari, backfill processor, IMAP SEARCH/SORT planner ve SQL-backed metadata arama katmani eklendi.
+- IMAP tarafinda LOGIN/AUTHENTICATE PLAIN, SELECT/EXAMINE, nested/public folder, ACL, QUOTA, SEARCH/SORT, FETCH, STORE, COPY/MOVE, APPEND, EXPUNGE, IDLE ve recent flag lifecycle icin buyuk parity dilimleri tamamlandi.
+- SMTP tarafinda listener/session skeleton, STARTTLS, AUTH PLAIN/LOGIN, MAIL/RCPT/DATA staging, local/route recipient validation, durable queue persistence, global/account rule islemleri, delivery queue lease/load/dispatch, local delivery, remote SMTP sender, retry/backoff, bounce ve delivery status gozlemlenebilirligi eklendi.
+- POP3 tarafinda USER/PASS, CAPA, STAT/LIST/UIDL/RETR/TOP/DELE/RSET/NOOP/QUIT, mailbox lock, implicit TLS ve SQL/data-directory mailbox store eklendi.
+- External POP3 fetch icin SQL lease/UID store, POP3 network session, UIDL/RETR/DELE/QUIT akis, recipient resolution, spam/AV entegrasyonu ve `OnExternalAccountDownload` script hook'u eklendi.
+- Modern security slice'lari eklendi: ClamAV, SpamAssassin, spam policy, attachment blocking, DNSBL, reverse DNS/PTR, sender-domain MX, greylisting, SURBL ve failed-logon auto-ban.
+- Legacy script/event parity buyuk olcude ilerledi: `OnClientConnect`, `OnClientValidatePassword`, `OnClientLogon`, `OnHELO`, `OnRecipientUnknown`, `OnSMTPData`, `OnAcceptMessage`, `OnTooManyInvalidCommands`, delivery eventleri, `OnDeliveryFailed`, `OnError`, rule `ScriptFunction`, mesaj/recipient/attachment facade'leri ve account-rule `Message.Copy(folderId)`.
+
+## Production-Ready Seviyesi
+
+Durum: production-ready degil. Proje ciddi bir parity seviyesine geldi, fakat halen side-by-side rewrite/test hatti olarak ele alinmali.
+
+Ana nedenler:
+
+- COM/Admin yuzeyi ve legacy object model henuz tam degil.
+- SPF/DKIM/DMARC eksik.
+- Backup engine ve `OnBackupCompleted` / `OnBackupFailed` eventleri beklemede.
+- In-place upgrade runner, mandatory backup/rollback akis dokumani ve operasyonel servis install/uninstall paketi tamamlanmadi.
+- Buyuk olcekli performance/soak kabul testleri henuz production gate olarak tamamlanmadi.
+
+## Kalan Kritik Backlog
+
+- Full legacy script object model parity.
+- Backup engine tasarimi ve backup completed/failed eventlerinin gercek engine uzerinden baglanmasi.
+- Active Directory auth, master user ve daha derin account facade collections/methods.
+- SPF, DKIM, DMARC.
+- COM/API compatibility: mevcut GUID/ProgID/DISPID/type library sozlesmelerinin tam korunmasi ve Administrator-visible nesnelerin tamamlanmasi.
+- Migration/operations: in-place upgrade runner, mandatory backup checks, rollback-from-backup dokumani, orphan cleanup, health/metrics/logging, Windows Service install/uninstall.
+- SQL Server FTS integration testleri ve production acceptance: 100k mailbox SEARCH/SORT, 1k IMAP connection, SMTP queue latency, memory/handle leak soak.
+- External fetch edge-case parity.
+
+## Current Next Slice
+
+Backlog'daki siradaki ana dilim: legacy script object parity'yi `Message.Copy(folderId)` otesinde tamamlamak, backup eventlerini .NET backup engine gelmeden synthetic callback olarak uretmemek, delivery status/bounce template parity'yi queue worker evrildikce korumak ve external fetch edge-case'lerini kapatmak.
+
+Ozel not: bu handoff hazirlanirken calisma agacinda uc kod dosyasi zaten dirty durumdaydi:
+
+- `hmailserver/source/Server.Net10/src/HMailServer.Scripting/WindowsScriptRuleExecutor.cs`
+- `hmailserver/source/Server.Net10/src/HMailServer.Scripting/WindowsScriptRuleExecutorOptions.cs`
+- `hmailserver/source/Server.Net10/src/HMailServer.Service/Program.cs`
+
+Bu degisiklikler legacy global `EventLog.Write` script facade'i icin WIP gibi gorunuyor. Yeni thread bu degisikliklere dokunmadan once `git diff` okumali, gerekirse slice'i tamamlayip test/commit/push yapmali veya kullanicidan karar almalidir. Bu dokumantasyon calismasi kod davranisini degistirmedi.
+
+## Son Git Durumu
+
+Branch:
+
+```text
+net10-modernization...origin/net10-modernization
+```
+
+Son push edilmis commit:
+
+```text
+cff774380 docs(net10): document legacy error events
+```
+
+Son 30 commit icinde one cikan son dilimler:
+
+- `254e118da feat(net10): dispatch legacy OnError scripts`
+- `03df16257 feat(net10): support scripted message folder copies`
+- `9a0fc5f41 feat(net10): run client connect events for IMAP and POP3`
+- `c703f48de feat(net10): add SQL greylisting checks`
+- `ce5693bc1 feat(net10): add sender domain MX checks`
+- `b7462af49 feat(net10): add optional reverse DNS checks`
+- `76f6b0d2a feat(net10): support IMAP search sequence sets`
+- `4603eb773 perf(net10): stream SQL search result readers`
+- `8cb42b48d perf(net10): reduce IMAP search result allocations`
+
+Bu dokuman yazilmadan once `git status --short --branch` sadece yukaridaki uc kod dosyasini modified gosteriyordu. Bu dokuman eklendikten sonra `AGENTS.md` ve `CODEX_HANDOFF.md` de yeni dosya olarak gorunecektir.
+
+## Build/Test Komutlari
+
+.NET 10 on kosul kontrolu:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
+```
+
+.NET 10 build:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\build-net10.ps1 -Configuration Debug
+```
+
+.NET 10 test:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\test-net10.ps1 -Configuration Debug
+```
+
+Legacy C++ build:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\build.ps1 -Configuration Debug
+```
+
+Legacy regression test build/run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\build-tests.ps1 -Configuration Debug
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\run-tests.ps1
+```
+
+`build/build-net10.ps1` su projeleri tek tek build eder:
+
+- `HMailServer.Service`
+- `HMailServer.Indexing`
+- `HMailServer.Delivery`
+- `HMailServer.ComInterop`
+
+`build/test-net10.ps1`, `hmailserver/source/Server.Net10/tests/HMailServer.Net10.Tests/HMailServer.Net10.Tests.csproj` uzerinden MSTest calistirir.
+
+`tools/dotnet10/dotnet.exe` varsa scriptler onu kullanir; yoksa PATH'teki `dotnet` kullanilir.
+
+## Son Build/Test Ciktisi
+
+Bu handoff hazirlanirken yeni build/test calistirilmadi; istek sadece dokumantasyondu ve kod davranisi degistirilmedi.
+
+Thread gecmisindeki son temiz dogrulama notu: `cff774380` oncesindeki Net10 build basariliydi ve testler 324/324 gecmisti. Calisma agacindaki mevcut WIP kod degisiklikleri bundan sonra olustugu icin yeni thread, WIP'i tamamlamadan bu sonucu production-ready kabul etmemelidir.
+
+Terminal/log incelemesi:
+
+- Aktif terminalde eski basarisiz build/test ciktisi yoktu.
+- `hmailserver/source/Server.Net10/tests/HMailServer.Net10.Tests/TestResults` altinda MSTest deploy klasorleri var, fakat `.trx` sonuc dosyasi bulunmadi.
+- `<workspace-root>\build-logs` altinda son gorunen loglar OpenSSL/PostgreSQL dependency build loglari; Net10 test/build failure logu degil.
+
+## Bilinen Riskler
+
+- Dirty WIP kod dosyalari tamamlanmadan commit/push edilmemeli.
+- Script host parity hassas: VBScript/JScript quoting, CR/LF sanitization, temp dosya lifecycle, fail-open/fail-closed semantikleri ve legacy `Result.Value` anlamlari kolay bozulabilir.
+- Delivery queue degisiklikleri duplicate delivery, mail kaybi veya yanlis bounce uretebilir.
+- SQL FTS/search degisiklikleri hot path performansini ve data-directory fallback davranisini etkileyebilir.
+- Anti-abuse kontrollerinde DNS/SQL/socket timeout kararlari mail kabulunu durdurabilir; dokumante edilen fail-open/fail-closed politikaya bagli kal.
+- COM/GUID/ProgID/DISPID degisiklikleri Administrator ve dis otomasyonlari kirar.
+- Migration DDL'i additive kalmali; eski hMailServer DB'lerinde destructive veya implicit data conversion riski alinmamali.
+
+## Dokunulmamasi Gereken Hassas Alanlar
+
+- Legacy C++ davranisi referans olarak okunmali; uyumluluk amacli degilse gereksiz degistirilmemeli.
+- `hmailserver/source/DBScripts/Upgrade5708to6000MSSQL.sql`
+- `hmailserver/source/Server.Net10/src/HMailServer.ComInterop`
+- Script executor ve facade dosyalari, ozellikle legacy event/object sozlesmeleri.
+- IMAP/SMTP/POP3 parser/session hot path'leri.
+- Delivery lease/retry/bounce/status persistence kodlari.
+- SQL-backed mailbox/search/indexing store'lari.
+
+## Siradaki Onerilen 3 Milestone
+
+1. Legacy script object model parity tamamlama.
+   - Once mevcut EventLog.Write WIP'i okunup tamamlanmali veya temiz karar verilmeli.
+   - Ardindan eksik global objeler, account/domain/application facade metodlari ve script collection davranislari legacy testlerle kapatilmali.
+
+2. COM/Admin ve migration operasyonlarini production gate'e tasima.
+   - GUID/ProgID/DISPID sozlesmeleri icin compatibility testleri.
+   - In-place upgrade runner, backup zorunlulugu, rollback-from-backup akisi, service install/uninstall ve operator dokumani.
+
+3. Security + performance acceptance.
+   - SPF/DKIM/DMARC.
+   - SQL Server FTS integration ve 100k mailbox SEARCH/SORT p95 hedefi.
+   - 1k concurrent IMAP, SMTP queue latency, delivery throughput ve uzun soak memory/handle testleri.
+
+## Yeni Thread Icin Baslangic Talimati
+
+1. Repo kokune gec: `<repo-root>`.
+2. `README.md`, `hmailserver/source/Server.Net10/README.md`, `hmailserver/source/Server.Net10/REWRITE_BACKLOG.md`, `AGENTS.md` ve bu dosyayi oku.
+3. `git status --short --branch` ve `git diff` calistir; mevcut WIP kod degisikliklerini sahiplenmeden once anla.
+4. Net10 on kosullari dogrula:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
+```
+
+5. Current Next Slice olarak legacy script object parity'den devam et. EventLog.Write WIP'i hala dirty ise once onu testlenebilir sekilde bitir:
+   - VBScript/JScript `EventLog.Write` facade.
+   - OnError, rule script ve password-validation scriptlerinde kullanimi.
+   - Log CR/LF sanitization ve legacy event log format parity.
+   - Net10 build/test.
+6. Kucuk commit yap, sonra README/backlog dokumanlarini ayri committe guncelle ve pushla.

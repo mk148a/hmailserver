@@ -197,3 +197,31 @@ The below scripts will automatically locate prerequisites. They must be run usin
 * Use `build/post-build.ps1` to copy DLLs and register the COM server after a successful build. It requires Administrator elevation and will prompt via UAC automatically.
 * Use `build/build-tests.ps1` to build the regression test solution.
 * Use `build/run-tests.ps1` to run the regression tests solution.
+
+## .NET 10 Rewrite Operating Rules
+
+The side-by-side .NET 10 rewrite lives under `hmailserver/source/Server.Net10`. Agents working on that track must keep these rules in force:
+
+- Write a short plan before large refactors, architecture changes, or broad behavior changes.
+- Do not break legacy hMailServer behavior. When unsure, read the C++/ATL implementation and RegressionTests before changing the .NET path.
+- Keep the side-by-side .NET 10 rewrite goal intact. The legacy C++ server remains the production reference until .NET 10 reaches protocol, data, and COM parity.
+- Be careful with SQL migrations, especially `hmailserver/source/DBScripts/Upgrade5708to6000MSSQL.sql`. Prefer additive changes and preserve existing `hm_messages`, `hm_message_metadata`, and data-directory semantics.
+- Do not break COM/API compatibility. Existing GUID, ProgID, DISPID, and type-library contracts must remain stable.
+- For SMTP/IMAP/POP3 protocol behavior, legacy parity has priority over cleanup or stylistic refactors.
+- After each change, run the narrowest useful build/test command when possible. If tests cannot be run, say why.
+- Work in small, testable commits. Keep code and documentation commits separate when practical.
+- Keep `README.md` and `hmailserver/source/Server.Net10/REWRITE_BACKLOG.md` current as slices land.
+- The worktree may be dirty. Read `git status` and `git diff` before editing, and never revert changes you did not make.
+
+.NET 10 prerequisite check from the repository root:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
+```
+
+.NET 10 build and test from the repository root:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\build-net10.ps1 -Configuration Debug
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\test-net10.ps1 -Configuration Debug
+```

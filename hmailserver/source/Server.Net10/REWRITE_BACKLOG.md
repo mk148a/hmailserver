@@ -80,6 +80,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: script message facade exposes legacy `Flag(eMessageFlag)` bitmask access over `State` for VBScript/JScript handlers.
 - Done: JScript message facade exposes the legacy `Filename` alias alongside the existing `FileName` path.
 - Done: JScript attachment facade exposes the legacy `Filename` alias alongside `FileName`.
+- Done: global `EventLog.Write(value)` script facade appends legacy-shaped Unicode event-log rows for VBScript/JScript rule, error, and password-validation handlers.
 
 ## Production Parity Backlog
 
@@ -131,7 +132,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `SendUsingRoute` and `BindToAddress` delivery metadata for global rules, including forced route target resolution and local socket bind for remote SMTP.
    - Done: `Reply` generated response action with Auto-Submitted and rule loop protection.
    - Done: `ScriptFunction` executor boundary inside the rule processor.
-   - Done: Windows-only process-isolated VBScript/JScript host for SMTP rule functions with file-backed scalar message facade (`FileName`/`Filename`, `DropMessage`, `RejectReason`, IDs/state placeholders, `Flag(eMessageFlag)`, size, delivery attempt, charset, body type checks, common envelope fields, body fields, header value access, message header collection, and `Save`), envelope recipient collection facade, and attachment collection facade with `FileName`/`Filename`, size, save, delete, clear, and add support.
+   - Done: Windows-only process-isolated VBScript/JScript host for SMTP rule functions with file-backed scalar message facade (`FileName`/`Filename`, `DropMessage`, `RejectReason`, IDs/state placeholders, `Flag(eMessageFlag)`, size, delivery attempt, charset, body type checks, common envelope fields, body fields, header value access, message header collection, and `Save`), envelope recipient collection facade, attachment collection facade with `FileName`/`Filename`, size, save, delete, clear, and add support, plus global `EventLog.Write(value)` event-log output.
    - Done: account-rule `HMAILSERVER_MESSAGE.Copy(folderId)` captures call-time message content, preserves repeated copy requests, validates same-account destination folders, allocates distinct UIDs, writes delivered message files/rows, and queues each copy for search indexing.
    - Done: shared `OnClientConnect` protocol event hook before SMTP/IMAP/POP3 greeting or implicit TLS setup with connection-close handling for legacy `Result.Value = 1`.
    - Done: `OnHELO` protocol event hook before HELO/EHLO success responses with `HMAILSERVER_CLIENT` and legacy `Result.Value`/`Result.Message` rejection handling.
