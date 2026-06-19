@@ -12,11 +12,15 @@ Your message could not be delivered.
 
 Server: {ServerName}
 Original queue message id: {MessageId}
+Original message UID: {MessageUid}
 Original sender: {Sender}
 Original file: {FileName}
 Original size: {Size}
+Original state: {MessageState}
 Original date (UTC): {CreatedUtc}
-Delivery attempt: {RetryCount}
+Delivery attempt: {DeliveryAttempt}
+Retry count: {RetryCount}
+Failed recipient count: {FailedRecipientCount}
 
 Failed recipients:
 {Recipients}

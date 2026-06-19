@@ -165,6 +165,7 @@ public sealed class SqlServerDeliveryBounceStore : IDeliveryBounceStore
             options.SubjectTemplate,
             options,
             originalMessage,
+            failedRecipients,
             recipientsText,
             truncatedFailureDescription,
             generatedUtc);
@@ -172,6 +173,7 @@ public sealed class SqlServerDeliveryBounceStore : IDeliveryBounceStore
             options.BodyTemplate,
             options,
             originalMessage,
+            failedRecipients,
             recipientsText,
             truncatedFailureDescription,
             generatedUtc);
@@ -202,6 +204,7 @@ public sealed class SqlServerDeliveryBounceStore : IDeliveryBounceStore
         string template,
         DeliveryBounceOptions options,
         DeliveryQueuedMessage originalMessage,
+        IReadOnlyList<DeliveryQueueRecipient> failedRecipients,
         string recipientsText,
         string failureDescription,
         DateTimeOffset generatedUtc)
@@ -212,11 +215,21 @@ public sealed class SqlServerDeliveryBounceStore : IDeliveryBounceStore
         return rendered
             .Replace("{ServerName}", options.ServerName, StringComparison.Ordinal)
             .Replace("{MessageId}", originalMessage.Identity.MessageId.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{MessageUid}", originalMessage.Identity.Uid.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{AccountId}", originalMessage.Identity.AccountId.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{FolderId}", originalMessage.Identity.FolderId.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
             .Replace("{Sender}", originalMessage.FromAddress, StringComparison.Ordinal)
             .Replace("{FileName}", originalMessage.FileName, StringComparison.Ordinal)
             .Replace("{Size}", originalMessage.Size.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{MessageState}", originalMessage.Flags.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
             .Replace("{CreatedUtc}", originalMessage.CreatedUtc.UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
             .Replace("{RetryCount}", originalMessage.CurrentRetryCount.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{DeliveryAttempt}", (originalMessage.CurrentRetryCount + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{FailedRecipientCount}", failedRecipients.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{FailedRecipientAddresses}", FormatRecipientAddresses(failedRecipients), StringComparison.Ordinal)
+            .Replace("{FirstFailedRecipient}", failedRecipients.Count == 0 ? string.Empty : failedRecipients[0].Address, StringComparison.Ordinal)
+            .Replace("{RuleForcedRouteId}", originalMessage.RuleForcedRouteId.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{RuleBindAddress}", originalMessage.RuleBindAddress ?? string.Empty, StringComparison.Ordinal)
             .Replace("{Recipients}", recipientsText, StringComparison.Ordinal)
             .Replace("{FailureDescription}", failureDescription, StringComparison.Ordinal)
             .Replace("{GeneratedUtc}", generatedUtc.UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
@@ -243,6 +256,9 @@ public sealed class SqlServerDeliveryBounceStore : IDeliveryBounceStore
 
         return builder.ToString().TrimEnd('\r', '\n');
     }
+
+    private static string FormatRecipientAddresses(IReadOnlyList<DeliveryQueueRecipient> failedRecipients) =>
+        string.Join(", ", failedRecipients.Select(static recipient => recipient.Address));
 
     private static string NormalizeBodyLineEndings(string? value)
     {

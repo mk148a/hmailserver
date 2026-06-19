@@ -14,5 +14,6 @@ public enum DeliveryQueueStatusEventKind
     TargetDeliveryFailedPermanently,
     BounceSubmitted,
     BounceSkipped,
+    DeliveryEventFailed,
     ProcessingFailed
 }

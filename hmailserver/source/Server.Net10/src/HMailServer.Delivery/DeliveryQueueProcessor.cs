@@ -102,7 +102,8 @@ public sealed class DeliveryQueueProcessor
                 await DeferAfterDeliveryEventFailureAsync(
                     identity,
                     options,
-                    "OnDeliveryStart failed.",
+                    "OnDeliveryStart",
+                    deliveryStart.Error,
                     cancellationToken).ConfigureAwait(false);
                 return;
             }
@@ -137,7 +138,8 @@ public sealed class DeliveryQueueProcessor
                 await DeferAfterDeliveryEventFailureAsync(
                     identity,
                     options,
-                    "OnDeliverMessage failed.",
+                    "OnDeliverMessage",
+                    deliverMessage.Error,
                     cancellationToken).ConfigureAwait(false);
                 return;
             }
@@ -322,13 +324,13 @@ public sealed class DeliveryQueueProcessor
 
         if (_messageContentStore is null)
         {
-            return DeliveryEventOutcome.Failure(message);
+            return DeliveryEventOutcome.Failure(message, eventName + " cannot run without a message content store.");
         }
 
         var messageData = await _messageContentStore.TryLoadAsync(message, cancellationToken).ConfigureAwait(false);
         if (messageData is null)
         {
-            return DeliveryEventOutcome.Failure(message);
+            return DeliveryEventOutcome.Failure(message, eventName + " could not load message content.");
         }
 
         var result = _deliveryEventScriptExecutor.Execute(
@@ -345,7 +347,11 @@ public sealed class DeliveryQueueProcessor
             cancellationToken);
         if (!result.Succeeded)
         {
-            return DeliveryEventOutcome.Failure(message);
+            return DeliveryEventOutcome.Failure(
+                message,
+                string.IsNullOrWhiteSpace(result.Error)
+                    ? eventName + " failed."
+                    : result.Error);
         }
 
         var resultData = result.MessageData ?? messageData;
@@ -354,7 +360,7 @@ public sealed class DeliveryQueueProcessor
             var saved = await _messageContentStore.TrySaveAsync(message, resultData, cancellationToken).ConfigureAwait(false);
             if (!saved)
             {
-                return DeliveryEventOutcome.Failure(message);
+                return DeliveryEventOutcome.Failure(message, eventName + " could not save mutated message content.");
             }
         }
 
@@ -430,15 +436,26 @@ public sealed class DeliveryQueueProcessor
     private async ValueTask DeferAfterDeliveryEventFailureAsync(
         MessageIdentity identity,
         DeliveryQueueProcessorOptions options,
-        string description,
+        string eventName,
+        string? error,
         CancellationToken cancellationToken)
     {
+        var description = string.IsNullOrWhiteSpace(error)
+            ? eventName + " failed."
+            : eventName + " failed: " + error;
         await _leaseStore.DeferAsync(
             identity.MessageId,
             options.LeaseOwner,
             options.RetryDelay,
             incrementRetryCount: true,
             cancellationToken).ConfigureAwait(false);
+        await RecordStatusAsync(
+            DeliveryQueueStatusEventKind.DeliveryEventFailed,
+            identity,
+            options,
+            cancellationToken,
+            retryDelay: options.RetryDelay,
+            description: description).ConfigureAwait(false);
         await RecordStatusAsync(
             DeliveryQueueStatusEventKind.MessageDeferred,
             identity,
@@ -542,15 +559,18 @@ public sealed class DeliveryQueueProcessor
     private sealed record DeliveryEventOutcome(
         bool Succeeded,
         DeliveryQueuedMessage Message,
-        bool DropMessage)
+        bool DropMessage,
+        string Error)
     {
         public static DeliveryEventOutcome Continue(DeliveryQueuedMessage message) =>
-            new(Succeeded: true, message, DropMessage: false);
+            new(Succeeded: true, message, DropMessage: false, Error: string.Empty);
 
         public static DeliveryEventOutcome Drop(DeliveryQueuedMessage message) =>
-            new(Succeeded: true, message, DropMessage: true);
+            new(Succeeded: true, message, DropMessage: true, Error: string.Empty);
 
-        public static DeliveryEventOutcome Failure(DeliveryQueuedMessage message) =>
-            new(Succeeded: false, message, DropMessage: false);
+        public static DeliveryEventOutcome Failure(
+            DeliveryQueuedMessage message,
+            string error) =>
+            new(Succeeded: false, message, DropMessage: false, error);
     }
 }

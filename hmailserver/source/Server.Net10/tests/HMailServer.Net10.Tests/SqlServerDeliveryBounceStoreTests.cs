@@ -42,8 +42,13 @@ public sealed class SqlServerDeliveryBounceStoreTests
         StringAssert.Contains(text, "X-hMailServer-Queue-Message-Id: 51\r\n");
         StringAssert.Contains(text, "X-hMailServer-Delivery-Attempt: 2\r\n");
         StringAssert.Contains(text, "Server: mx.example.test");
+        StringAssert.Contains(text, "Original message UID: 99");
         StringAssert.Contains(text, "Original file: queue.eml");
         StringAssert.Contains(text, "Original size: 2048");
+        StringAssert.Contains(text, "Original state: 32");
+        StringAssert.Contains(text, "Delivery attempt: 3");
+        StringAssert.Contains(text, "Retry count: 2");
+        StringAssert.Contains(text, "Failed recipient count: 1");
         StringAssert.Contains(text, " - user@remote.test (original: alias@remote.test)");
         StringAssert.Contains(text, "550 No such user.");
     }
@@ -53,22 +58,28 @@ public sealed class SqlServerDeliveryBounceStoreTests
     {
         var options = DeliveryBounceOptions.Default("mx.example.test") with
         {
-            SubjectTemplate = "Custom {MessageId}\r\nInjected: no",
-            BodyTemplate = "Sender={Sender}\nRecipients={Recipients}\nReason={FailureDescription}",
+            SubjectTemplate = "Custom {MessageId}/{MessageUid}\r\nInjected: no",
+            BodyTemplate = "Attempt={DeliveryAttempt}\nState={MessageState}\nFailed={FailedRecipientCount}:{FailedRecipientAddresses}:{FirstFailedRecipient}\nRoute={RuleForcedRouteId}/{RuleBindAddress}\nReason={FailureDescription}",
             MaxFailureDescriptionLength = 8
         };
 
         var bytes = SqlServerDeliveryBounceStore.BuildBounceMessage(
             options,
-            CreateMessage(),
+            CreateMessage() with
+            {
+                RuleForcedRouteId = 77,
+                RuleBindAddress = "192.0.2.10"
+            },
             [new DeliveryQueueRecipient(8, "user@remote.test", "user@remote.test", LocalAccountId: 0)],
             "1234567890",
             DateTimeOffset.Parse("2026-02-03T04:05:06Z", System.Globalization.CultureInfo.InvariantCulture));
         var text = Encoding.UTF8.GetString(bytes);
 
-        StringAssert.Contains(text, "Subject: Custom 51 Injected: no\r\n");
-        StringAssert.Contains(text, "Sender=sender@example.test\r\n");
-        StringAssert.Contains(text, "Recipients= - user@remote.test\r\n");
+        StringAssert.Contains(text, "Subject: Custom 51/99 Injected: no\r\n");
+        StringAssert.Contains(text, "Attempt=3\r\n");
+        StringAssert.Contains(text, "State=32\r\n");
+        StringAssert.Contains(text, "Failed=1:user@remote.test:user@remote.test\r\n");
+        StringAssert.Contains(text, "Route=77/192.0.2.10\r\n");
         StringAssert.Contains(text, "Reason=12345678\r\n");
         Assert.IsFalse(text.Contains("Reason=123456789", StringComparison.Ordinal));
     }
@@ -102,7 +113,7 @@ public sealed class SqlServerDeliveryBounceStoreTests
 
     private static DeliveryQueuedMessage CreateMessage() =>
         new(
-            new MessageIdentity(51, 0, 0, 0),
+            new MessageIdentity(51, 12, 34, 99),
             "queue.eml",
             "sender@example.test",
             Size: 2048,

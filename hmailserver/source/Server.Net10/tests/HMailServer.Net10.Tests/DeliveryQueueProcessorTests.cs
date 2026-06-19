@@ -291,6 +291,7 @@ public sealed class DeliveryQueueProcessorTests
         var message = CreateMessage(identity);
         var leaseStore = new FakeLeaseStore(identity);
         var dispatcher = new FakeTargetDispatcher();
+        var statusObserver = new FakeStatusObserver();
         var processor = new DeliveryQueueProcessor(
             leaseStore,
             new FakeMessageStore(message),
@@ -303,7 +304,8 @@ public sealed class DeliveryQueueProcessorTests
             new FakeBounceStore(),
             new FakeDeliveryEventScriptExecutor(
                 DeliveryEventScriptExecutionResult.Failure("Script failed.")),
-            new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n"));
+            new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n"),
+            statusObserver);
 
         var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
 
@@ -313,6 +315,16 @@ public sealed class DeliveryQueueProcessorTests
         Assert.IsTrue(leaseStore.DeferredIncrementRetryCount);
         Assert.IsNull(leaseStore.CompletedMessageId);
         Assert.AreEqual(0, dispatcher.Dispatched.Count);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                DeliveryQueueStatusEventKind.MessageLeased,
+                DeliveryQueueStatusEventKind.DeliveryEventFailed,
+                DeliveryQueueStatusEventKind.MessageDeferred
+            },
+            statusObserver.Kinds);
+        Assert.AreEqual(TimeSpan.FromMinutes(2), statusObserver.Events[1].RetryDelay);
+        Assert.AreEqual("OnDeliveryStart failed: Script failed.", statusObserver.Events[1].Description);
     }
 
     [TestMethod]
