@@ -137,10 +137,12 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: optional SQL Server delivery status sink and additive `hm_delivery_queue_status` migration for durable queue transition history.
    - Done: configurable delivery bounce subject/body templates with queue metadata tokens, failed-recipient formatting, header sanitization, and bounded failure descriptions.
    - Done: delivery status retention cleanup worker with configurable retention window, interval, and batch size.
-   - Done: delivery status metrics query surface for event-kind counts over a requested time window.
-   - Done: delivery event script message metadata seeds real queue ID, UID, state, delivery attempt, and internal date for VBScript/JScript handlers.
-   - Done: external POP3 fetch `OnExternalAccountDownload(HMAILSERVER_FETCHACCOUNT, HMAILSERVER_MESSAGE/Nothing, uid)` script hook boundary with legacy fetch-account fields, nullable message argument handling, and `Result.Value`/`Result.Parameter` delete-retention mapping.
-   - Remaining: full legacy script object model and remaining protocol/delivery event scripting hooks.
+- Done: delivery status metrics query surface for event-kind counts over a requested time window.
+- Done: delivery event script message metadata seeds real queue ID, UID, state, delivery attempt, and internal date for VBScript/JScript handlers.
+- Done: delivery event failures emit a distinct `DeliveryEventFailed` queue status before deferral, preserving script/error text for SQL metrics and diagnostics.
+- Done: delivery bounce templates expose richer queue/recipient tokens including message UID/account/folder/state, delivery attempt, failed recipient count/address list/first recipient, and rule route/bind metadata.
+- Done: external POP3 fetch `OnExternalAccountDownload(HMAILSERVER_FETCHACCOUNT, HMAILSERVER_MESSAGE/Nothing, uid)` script hook boundary with legacy fetch-account fields, nullable message argument handling, and `Result.Value`/`Result.Parameter` delete-retention mapping.
+- Remaining: full legacy script object model and remaining protocol/delivery event scripting hooks.
 
 4. POP3 and external fetch.
    - Done: POP3 session command engine with shared account authentication, session-held deletes committed on `QUIT`, `RSET` undo, `LIST`/`UIDL` visibility checks, and streaming `RETR` dot-stuffing.
