@@ -12,6 +12,7 @@ using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using System.Security.Cryptography.X509Certificates;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -507,6 +508,8 @@ if (scriptingOptions.Enabled)
     builder.Services.AddSingleton<IDeliveryEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
     builder.Services.AddSingleton<IExternalAccountDownloadScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
     builder.Services.AddSingleton<IClientPasswordValidationScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
+    builder.Services.AddSingleton<IErrorEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
+    builder.Services.AddSingleton<ILoggerProvider, ScriptErrorLoggerProvider>();
 }
 if (clamAvEnabled)
 {

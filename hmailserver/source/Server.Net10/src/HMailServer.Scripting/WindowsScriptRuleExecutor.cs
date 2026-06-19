@@ -12,7 +12,8 @@ public sealed partial class WindowsScriptRuleExecutor :
     ISmtpEventScriptExecutor,
     IDeliveryEventScriptExecutor,
     IExternalAccountDownloadScriptExecutor,
-    IClientPasswordValidationScriptExecutor
+    IClientPasswordValidationScriptExecutor,
+    IErrorEventScriptExecutor
 {
     private const int MaxMessageCopyOperations = 100;
     private readonly WindowsScriptRuleExecutorOptions _options;
@@ -190,6 +191,55 @@ public sealed partial class WindowsScriptRuleExecutor :
         catch
         {
             return ClientPasswordValidationScriptResult.Continue();
+        }
+        finally
+        {
+            TryDeleteDirectory(tempDirectory);
+        }
+    }
+
+    public void Execute(
+        ErrorEventScriptExecutionRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!_options.Enabled || !OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var language = NormalizeLanguage(_options.Language);
+        if (language is null)
+        {
+            return;
+        }
+
+        var scriptPath = GetScriptPath(language);
+        if (!File.Exists(scriptPath))
+        {
+            return;
+        }
+
+        var tempDirectory = Path.Combine(Path.GetTempPath(), "hmailserver-script-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+        try
+        {
+            var runnerPath = Path.Combine(tempDirectory, language.Extension == "vbs" ? "runner.vbs" : "runner.js");
+            File.WriteAllText(
+                runnerPath,
+                language.Extension == "vbs"
+                    ? CreateVbScriptErrorEventRunner(scriptPath, request)
+                    : CreateJScriptErrorEventRunner(scriptPath, request),
+                Encoding.Unicode);
+            RunScript(runnerPath, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
         }
         finally
         {
@@ -888,6 +938,38 @@ Set hMailServerRuleStatusFileSystem = CreateObject("Scripting.FileSystemObject")
 Set hMailServerRuleStatusFile = hMailServerRuleStatusFileSystem.CreateTextFile("{{EscapeVbScript(statusPath)}}", True, False)
 hMailServerRuleStatusFile.WriteLine "ResultValue=" & CStr(Result.Value)
 hMailServerRuleStatusFile.Close
+""";
+    }
+
+    private static string CreateVbScriptErrorEventRunner(
+        string scriptPath,
+        ErrorEventScriptExecutionRequest request)
+    {
+        return $$"""
+ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
+
+On Error Resume Next
+Dim hMailServerOnError
+Set hMailServerOnError = GetRef("OnError")
+If Err.Number = 0 Then
+   Err.Clear
+   Call hMailServerOnError({{request.Severity.ToString(CultureInfo.InvariantCulture)}}, {{request.ErrorCode.ToString(CultureInfo.InvariantCulture)}}, "{{EscapeVbScript(request.Source)}}", "{{EscapeVbScript(request.Description)}}")
+End If
+""";
+    }
+
+    private static string CreateJScriptErrorEventRunner(
+        string scriptPath,
+        ErrorEventScriptExecutionRequest request)
+    {
+        return $$"""
+var hMailServerErrorFileSystem = new ActiveXObject("Scripting.FileSystemObject");
+var hMailServerErrorScriptFile = hMailServerErrorFileSystem.OpenTextFile("{{EscapeJScript(scriptPath)}}", 1, false);
+eval(hMailServerErrorScriptFile.ReadAll());
+hMailServerErrorScriptFile.Close();
+if (typeof OnError === "function") {
+  OnError({{request.Severity.ToString(CultureInfo.InvariantCulture)}}, {{request.ErrorCode.ToString(CultureInfo.InvariantCulture)}}, "{{EscapeJScript(request.Source)}}", "{{EscapeJScript(request.Description)}}");
+}
 """;
     }
 
@@ -2934,11 +3016,16 @@ if (typeof {{functionName}} === "function") {
             : ScriptArgumentShape.MessageOnly;
 
     private static string EscapeVbScript(string value) =>
-        value.Replace("\"", "\"\"", StringComparison.Ordinal);
+        value.Replace("\"", "\"\"", StringComparison.Ordinal)
+            .Replace("\r\n", "\" & vbCrLf & \"", StringComparison.Ordinal)
+            .Replace("\r", "\" & vbCr & \"", StringComparison.Ordinal)
+            .Replace("\n", "\" & vbLf & \"", StringComparison.Ordinal);
 
     private static string EscapeJScript(string value) =>
         value.Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("\"", "\\\"", StringComparison.Ordinal);
+            .Replace("\"", "\\\"", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
 
     private static string CreateVbScriptDateExpression(DateTimeOffset value)
     {

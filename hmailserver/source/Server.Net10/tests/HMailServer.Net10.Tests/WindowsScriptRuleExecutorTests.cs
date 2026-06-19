@@ -1261,6 +1261,88 @@ function OnExternalAccountDownload(fetchAccount, message, uid) {
     }
 
     [TestMethod]
+    public void Execute_RunsVbScriptOnErrorWithLegacyArguments()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        var outputPath = Path.Combine(eventDirectory, "on-error-vb.txt");
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                $$"""
+Sub OnError(iSeverity, iError, sSource, sDescription)
+   Dim fileSystem, outputFile
+   Set fileSystem = CreateObject("Scripting.FileSystemObject")
+   Set outputFile = fileSystem.CreateTextFile("{{outputPath.Replace("\"", "\"\"")}}", True, False)
+   outputFile.Write CStr(iSeverity) & "|" & CStr(iError) & "|" & sSource & "|" & sDescription
+   outputFile.Close
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            executor.Execute(
+                new ErrorEventScriptExecutionRequest(
+                    Severity: 3,
+                    ErrorCode: 5014,
+                    Source: "BackupManager \"quoted\"",
+                    Description: "first line\r\nsecond line"),
+                CancellationToken.None);
+
+            Assert.AreEqual(
+                "3|5014|BackupManager \"quoted\"|first line\r\nsecond line",
+                File.ReadAllText(outputPath));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_RunsJScriptOnErrorWithLegacyArguments()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        var outputPath = Path.Combine(eventDirectory, "on-error-js.txt");
+        try
+        {
+            var escapedOutputPath = outputPath
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("\"", "\\\"", StringComparison.Ordinal);
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                $$"""
+function OnError(severity, errorCode, source, description) {
+  var fileSystem = new ActiveXObject("Scripting.FileSystemObject");
+  var outputFile = fileSystem.CreateTextFile("{{escapedOutputPath}}", true, false);
+  outputFile.Write(String(severity) + "|" + String(errorCode) + "|" + source + "|" + description);
+  outputFile.Close();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            executor.Execute(
+                new ErrorEventScriptExecutionRequest(
+                    Severity: 2,
+                    ErrorCode: 5209,
+                    Source: "LocalDelivery",
+                    Description: "quoted \"description\"\r\nnext"),
+                CancellationToken.None);
+
+            Assert.AreEqual(
+                "2|5209|LocalDelivery|quoted \"description\"\r\nnext",
+                File.ReadAllText(outputPath));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_RunsVbScriptClientValidatePasswordAccept()
     {
         var cscript = GetCscriptPathOrInconclusive();
