@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using HMailServer.Core.Abstractions;
 using HMailServer.Scripting;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -1343,6 +1344,77 @@ function OnError(severity, errorCode, source, description) {
     }
 
     [TestMethod]
+    public void Execute_RunsVbScriptRuleFunctionEventLogWrite()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        var eventLogPath = Path.Combine(eventDirectory, "hmailserver_events.log");
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_Log(obMessage)
+   EventLog.Write "Rule: " & obMessage.Subject
+   EventLog.Write "First" & vbCrLf & "Second"
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, eventLogPath: eventLogPath);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_Log",
+                    "Subject: Logged\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            AssertLegacyEventLogLines(
+                eventLogPath,
+                "Rule: Logged",
+                "First[nl]Second");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_RunsJScriptOnErrorEventLogWrite()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        var eventLogPath = Path.Combine(eventDirectory, "hmailserver_events.log");
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnError(severity, errorCode, source, description) {
+  EventLog.Write("Error " + errorCode + ": " + description.replace(/\r\n/g, "|"));
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript", eventLogPath);
+
+            executor.Execute(
+                new ErrorEventScriptExecutionRequest(
+                    Severity: 2,
+                    ErrorCode: 5209,
+                    Source: "LocalDelivery",
+                    Description: "first\r\nsecond"),
+                CancellationToken.None);
+
+            AssertLegacyEventLogLines(eventLogPath, "Error 5209: first|second");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_RunsVbScriptClientValidatePasswordAccept()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -1371,6 +1443,38 @@ End Sub
                 CancellationToken.None);
 
             Assert.AreEqual(ClientPasswordValidationScriptDecision.Accept, result.Decision);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_RunsVbScriptClientValidatePasswordEventLogWrite()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        var eventLogPath = Path.Combine(eventDirectory, "hmailserver_events.log");
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnClientValidatePassword(oAccount, password)
+   EventLog.Write "Account: " & oAccount.Address
+   Result.Value = 0
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, eventLogPath: eventLogPath);
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest("script-secret"),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Accept, result.Decision);
+            AssertLegacyEventLogLines(eventLogPath, "Account: user@example.test");
         }
         finally
         {
@@ -1412,16 +1516,36 @@ function OnClientValidatePassword(oAccount, password) {
     private static WindowsScriptRuleExecutor CreateExecutor(
         string eventDirectory,
         string cscriptPath,
-        string language = "VBScript") =>
+        string language = "VBScript",
+        string eventLogPath = "") =>
         new(
             new WindowsScriptRuleExecutorOptions
             {
                 Enabled = true,
                 Language = language,
                 EventDirectory = eventDirectory,
+                EventLogPath = eventLogPath,
                 Timeout = TimeSpan.FromSeconds(5),
                 CScriptPath = cscriptPath
             });
+
+    private static void AssertLegacyEventLogLines(string eventLogPath, params string[] expectedMessages)
+    {
+        Assert.IsTrue(File.Exists(eventLogPath), "Expected event log file to be created.");
+        var lines = File.ReadAllLines(eventLogPath, Encoding.Unicode);
+        Assert.AreEqual(expectedMessages.Length, lines.Length, string.Join(Environment.NewLine, lines));
+
+        for (var index = 0; index < expectedMessages.Length; index++)
+        {
+            var parts = lines[index].Split('\t');
+            Assert.AreEqual(3, parts.Length, lines[index]);
+            Assert.IsTrue(int.TryParse(parts[0], out _), lines[index]);
+            StringAssert.Matches(
+                parts[1],
+                new Regex("^\"\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\"$"));
+            Assert.AreEqual("\"" + expectedMessages[index] + "\"", parts[2]);
+        }
+    }
 
     private static SmtpRuleScriptExecutionRequest CreateRequest(
         string functionName,

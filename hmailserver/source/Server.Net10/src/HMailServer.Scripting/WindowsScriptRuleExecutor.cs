@@ -17,6 +17,7 @@ public sealed partial class WindowsScriptRuleExecutor :
 {
     private const int MaxMessageCopyOperations = 100;
     private readonly WindowsScriptRuleExecutorOptions _options;
+    private readonly object _eventLogSync = new();
 
     public WindowsScriptRuleExecutor(WindowsScriptRuleExecutorOptions options)
     {
@@ -171,15 +172,17 @@ public sealed partial class WindowsScriptRuleExecutor :
         try
         {
             var statusPath = Path.Combine(tempDirectory, "status.txt");
+            var eventLogOperationPath = Path.Combine(tempDirectory, "event-log.txt");
             var runnerPath = Path.Combine(tempDirectory, language.Extension == "vbs" ? "runner.vbs" : "runner.js");
             File.WriteAllText(
                 runnerPath,
                 language.Extension == "vbs"
-                    ? CreateVbScriptClientPasswordRunner(scriptPath, statusPath, request.Account, request.Password)
-                    : CreateJScriptClientPasswordRunner(scriptPath, statusPath, request.Account, request.Password),
+                    ? CreateVbScriptClientPasswordRunner(scriptPath, statusPath, eventLogOperationPath, request.Account, request.Password)
+                    : CreateJScriptClientPasswordRunner(scriptPath, statusPath, eventLogOperationPath, request.Account, request.Password),
                 Encoding.Unicode);
 
             var processResult = RunScript(runnerPath, cancellationToken);
+            ApplyEventLogOperations(eventLogOperationPath);
             return processResult.Succeeded
                 ? ReadClientPasswordValidationStatus(statusPath)
                 : ClientPasswordValidationScriptResult.Continue();
@@ -225,14 +228,16 @@ public sealed partial class WindowsScriptRuleExecutor :
         Directory.CreateDirectory(tempDirectory);
         try
         {
+            var eventLogOperationPath = Path.Combine(tempDirectory, "event-log.txt");
             var runnerPath = Path.Combine(tempDirectory, language.Extension == "vbs" ? "runner.vbs" : "runner.js");
             File.WriteAllText(
                 runnerPath,
                 language.Extension == "vbs"
-                    ? CreateVbScriptErrorEventRunner(scriptPath, request)
-                    : CreateJScriptErrorEventRunner(scriptPath, request),
+                    ? CreateVbScriptErrorEventRunner(scriptPath, eventLogOperationPath, request)
+                    : CreateJScriptErrorEventRunner(scriptPath, eventLogOperationPath, request),
                 Encoding.Unicode);
             RunScript(runnerPath, cancellationToken);
+            ApplyEventLogOperations(eventLogOperationPath);
         }
         catch (OperationCanceledException)
         {
@@ -287,6 +292,7 @@ public sealed partial class WindowsScriptRuleExecutor :
             var attachmentDirectory = Path.Combine(tempDirectory, "attachments");
             var attachmentManifestPath = Path.Combine(tempDirectory, "attachments.tsv");
             var attachmentOperationPath = Path.Combine(tempDirectory, "attachment-operations.tsv");
+            var eventLogOperationPath = Path.Combine(tempDirectory, "event-log.txt");
             var runnerPath = Path.Combine(tempDirectory, language.Extension == "vbs" ? "runner.vbs" : "runner.js");
             var hasMessage = spec.MessageData is not null;
             if (spec.MessageData is { } messageBytes)
@@ -304,6 +310,7 @@ public sealed partial class WindowsScriptRuleExecutor :
                         statusPath,
                         attachmentManifestPath,
                         attachmentOperationPath,
+                        eventLogOperationPath,
                         spec.MailFrom,
                         spec.Recipients,
                         spec.Client,
@@ -322,6 +329,7 @@ public sealed partial class WindowsScriptRuleExecutor :
                         statusPath,
                         attachmentManifestPath,
                         attachmentOperationPath,
+                        eventLogOperationPath,
                         spec.MailFrom,
                         spec.Recipients,
                         spec.Client,
@@ -336,6 +344,7 @@ public sealed partial class WindowsScriptRuleExecutor :
                 Encoding.Unicode);
 
             var processResult = RunScript(runnerPath, cancellationToken);
+            ApplyEventLogOperations(eventLogOperationPath);
             if (!processResult.Succeeded)
             {
                 return SmtpRuleScriptExecutionResult.Failure(processResult.Error);
@@ -567,6 +576,55 @@ public sealed partial class WindowsScriptRuleExecutor :
 
         return ClientPasswordValidationScriptResult.Continue();
     }
+
+    private void ApplyEventLogOperations(string operationPath)
+    {
+        if (string.IsNullOrWhiteSpace(_options.EventLogPath) || !File.Exists(operationPath))
+        {
+            return;
+        }
+
+        try
+        {
+            lock (_eventLogSync)
+            {
+                var eventLogPath = Path.GetFullPath(_options.EventLogPath);
+                var directory = Path.GetDirectoryName(eventLogPath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                using var stream = new FileStream(
+                    eventLogPath,
+                    FileMode.Append,
+                    FileAccess.Write,
+                    FileShare.ReadWrite);
+                using var writer = new StreamWriter(stream, Encoding.Unicode);
+                foreach (var message in File.ReadLines(operationPath, Encoding.Unicode))
+                {
+                    writer.Write(Environment.CurrentManagedThreadId.ToString(CultureInfo.InvariantCulture));
+                    writer.Write('\t');
+                    writer.Write('"');
+                    writer.Write(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture));
+                    writer.Write("\"\t\"");
+                    writer.Write(CleanEventLogMessage(message));
+                    writer.WriteLine('"');
+                }
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static string CleanEventLogMessage(string message) =>
+        message.Replace("\r\n", "[nl]", StringComparison.Ordinal)
+            .Replace("\r", "[nl]", StringComparison.Ordinal)
+            .Replace("\n", "[nl]", StringComparison.Ordinal);
 
     private static void WriteAttachmentManifest(
         string messagePath,
@@ -849,10 +907,12 @@ public sealed partial class WindowsScriptRuleExecutor :
     private static string CreateVbScriptClientPasswordRunner(
         string scriptPath,
         string statusPath,
+        string eventLogOperationPath,
         ScriptAccount account,
         string password)
     {
         return $$"""
+{{CreateVbScriptEventLogFacade(eventLogOperationPath)}}
 ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
 
 Class HMailServerScriptAccount
@@ -941,11 +1001,56 @@ hMailServerRuleStatusFile.Close
 """;
     }
 
+    private static string CreateVbScriptEventLogFacade(string operationPath)
+    {
+        return $$"""
+Class HMailServerScriptEventLog
+   Private m_operationPath
+
+   Public Sub Initialize(path)
+      m_operationPath = CStr(path)
+   End Sub
+
+   Public Sub Write(value)
+      Dim fileSystem, operationFile, message
+      message = Replace(CStr(value), vbCrLf, "[nl]")
+      message = Replace(message, vbCr, "[nl]")
+      message = Replace(message, vbLf, "[nl]")
+      Set fileSystem = CreateObject("Scripting.FileSystemObject")
+      Set operationFile = fileSystem.OpenTextFile(m_operationPath, 8, True, -1)
+      operationFile.WriteLine message
+      operationFile.Close
+   End Sub
+End Class
+
+Dim EventLog
+Set EventLog = New HMailServerScriptEventLog
+EventLog.Initialize "{{EscapeVbScript(operationPath)}}"
+""";
+    }
+
+    private static string CreateJScriptEventLogFacade(
+        string fileSystemVariable,
+        string operationPath)
+    {
+        return $$"""
+var EventLog = {
+  Write: function(value) {
+    var operationFile = {{fileSystemVariable}}.OpenTextFile("{{EscapeJScript(operationPath)}}", 8, true, -1);
+    operationFile.WriteLine(String(value == null ? "" : value).replace(/\r\n|\r|\n/g, "[nl]"));
+    operationFile.Close();
+  }
+};
+""";
+    }
+
     private static string CreateVbScriptErrorEventRunner(
         string scriptPath,
+        string eventLogOperationPath,
         ErrorEventScriptExecutionRequest request)
     {
         return $$"""
+{{CreateVbScriptEventLogFacade(eventLogOperationPath)}}
 ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
 
 On Error Resume Next
@@ -960,10 +1065,12 @@ End If
 
     private static string CreateJScriptErrorEventRunner(
         string scriptPath,
+        string eventLogOperationPath,
         ErrorEventScriptExecutionRequest request)
     {
         return $$"""
 var hMailServerErrorFileSystem = new ActiveXObject("Scripting.FileSystemObject");
+{{CreateJScriptEventLogFacade("hMailServerErrorFileSystem", eventLogOperationPath)}}
 var hMailServerErrorScriptFile = hMailServerErrorFileSystem.OpenTextFile("{{EscapeJScript(scriptPath)}}", 1, false);
 eval(hMailServerErrorScriptFile.ReadAll());
 hMailServerErrorScriptFile.Close();
@@ -976,11 +1083,13 @@ if (typeof OnError === "function") {
     private static string CreateJScriptClientPasswordRunner(
         string scriptPath,
         string statusPath,
+        string eventLogOperationPath,
         ScriptAccount account,
         string password)
     {
         return $$"""
 var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
+{{CreateJScriptEventLogFacade("hMailServerRuleFileSystem", eventLogOperationPath)}}
 var hMailServerRuleScriptFile = hMailServerRuleFileSystem.OpenTextFile("{{EscapeJScript(scriptPath)}}", 1, false);
 eval(hMailServerRuleScriptFile.ReadAll());
 hMailServerRuleScriptFile.Close();
@@ -1035,6 +1144,7 @@ hMailServerRuleStatusFile.Close();
         string statusPath,
         string attachmentManifestPath,
         string attachmentOperationPath,
+        string eventLogOperationPath,
         string mailFrom,
         IReadOnlyList<SmtpResolvedRecipient> recipients,
         SmtpEventScriptClient? client,
@@ -1051,6 +1161,7 @@ hMailServerRuleStatusFile.Close();
         var hasMessageFlag = hasMessage ? "1" : "0";
         var usesSmtpRejectResult = invocation is ScriptInvocation.RuleFunction or ScriptInvocation.OptionalSmtpEvent ? "1" : "0";
         return $$"""
+{{CreateVbScriptEventLogFacade(eventLogOperationPath)}}
 ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
 
 Class HMailServerRuleClient
@@ -2076,6 +2187,7 @@ hMailServerRuleStatusFile.Close
         string statusPath,
         string attachmentManifestPath,
         string attachmentOperationPath,
+        string eventLogOperationPath,
         string mailFrom,
         IReadOnlyList<SmtpResolvedRecipient> recipients,
         SmtpEventScriptClient? client,
@@ -2093,6 +2205,7 @@ hMailServerRuleStatusFile.Close
         var usesSmtpRejectResult = invocation is ScriptInvocation.RuleFunction or ScriptInvocation.OptionalSmtpEvent ? "1" : "0";
         return $$"""
 var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
+{{CreateJScriptEventLogFacade("hMailServerRuleFileSystem", eventLogOperationPath)}}
 
 function hMailServerRuleReadAllText(path) {
   if (!hMailServerRuleFileSystem.FileExists(path)) {

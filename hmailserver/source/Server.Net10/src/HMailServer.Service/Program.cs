@@ -443,6 +443,9 @@ var scriptingOptions = new WindowsScriptRuleExecutorOptions
     EventDirectory = builder.Configuration["Scripting:EventDirectory"]
         ?? builder.Configuration["HMAILSERVER_SCRIPT_EVENT_DIRECTORY"]
         ?? Path.Combine(AppContext.BaseDirectory, "Events"),
+    EventLogPath = builder.Configuration["Scripting:EventLogPath"]
+        ?? builder.Configuration["HMAILSERVER_SCRIPT_EVENT_LOG_PATH"]
+        ?? Path.Combine(AppContext.BaseDirectory, "Logs", "hmailserver_events.log"),
     Timeout = TimeSpan.FromMilliseconds(
         ReadInt(
             builder.Configuration["Scripting:TimeoutMilliseconds"] ?? builder.Configuration["HMAILSERVER_SCRIPT_TIMEOUT_MS"],
