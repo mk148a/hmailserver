@@ -244,6 +244,35 @@ public sealed class TcpExternalFetchSessionFactoryTests
             commands);
     }
 
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.None)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsRequired)]
+    public async Task ConnectAsync_RejectedGreetingFailsBeforeSendingCommands(
+        ExternalFetchConnectionSecurity connectionSecurity)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var serverTask = RunPop3ServerRejectingGreetingAsync(listener, timeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await factory
+                    .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                    .ConfigureAwait(false));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        var receivedBytes = await serverTask.ConfigureAwait(false);
+        Assert.AreEqual(0, receivedBytes.Length);
+    }
+
     private static async Task RunPop3ServerAsync(
         TcpListener listener,
         List<string> commands,
@@ -348,6 +377,29 @@ public sealed class TcpExternalFetchSessionFactoryTests
         var stlsCommand = await ReadLineAsync(stream, cancellationToken).ConfigureAwait(false);
         commands.Add(stlsCommand);
         await WriteRawAsync(stream, "-ERR TLS unavailable\r\n", cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<byte[]> RunPop3ServerRejectingGreetingAsync(
+        TcpListener listener,
+        CancellationToken cancellationToken)
+    {
+        using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
+        await using var stream = client.GetStream();
+        await WriteRawAsync(stream, "-ERR access denied\r\n", cancellationToken).ConfigureAwait(false);
+        client.Client.Shutdown(SocketShutdown.Send);
+
+        using var received = new MemoryStream();
+        var buffer = new byte[128];
+        while (true)
+        {
+            var count = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (count == 0)
+            {
+                return received.ToArray();
+            }
+
+            received.Write(buffer, 0, count);
+        }
     }
 
     private static async ValueTask<string> ReadLineAsync(
