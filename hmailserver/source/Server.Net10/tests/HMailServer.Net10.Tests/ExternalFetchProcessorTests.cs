@@ -278,6 +278,22 @@ public sealed class ExternalFetchProcessorTests
         Assert.IsTrue(recipient.IsLocal);
     }
 
+    [TestMethod]
+    public async Task ResetLocksAsync_ClearsStaleAccountLocks()
+    {
+        var store = new FakeExternalFetchAccountStore();
+        var processor = CreateProcessor(
+            store,
+            new FakeExternalFetchSession(
+                new ExternalFetchRemoteMessage(1, "uid-unused", Size: 64),
+                "Subject: unused\r\n\r\nBody\r\n"u8.ToArray()),
+            new FakeSmtpMessageReceiver());
+
+        await processor.ResetLocksAsync(CancellationToken.None);
+
+        Assert.AreEqual(1, store.ResetLocksCalls);
+    }
+
     private static ExternalFetchProcessor CreateProcessor(
         FakeExternalFetchAccountStore store,
         FakeExternalFetchSession session,
@@ -346,6 +362,8 @@ public sealed class ExternalFetchProcessorTests
 
         public List<int> ReleasedFetchAccountIds { get; } = [];
 
+        public int ResetLocksCalls { get; private set; }
+
         public async IAsyncEnumerable<ExternalFetchAccountLease> LeaseReadyAccountsAsync(
             int batchSize,
             [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -377,8 +395,11 @@ public sealed class ExternalFetchProcessorTests
             return ValueTask.FromResult(true);
         }
 
-        public ValueTask ResetLocksAsync(CancellationToken cancellationToken) =>
-            ValueTask.CompletedTask;
+        public ValueTask ResetLocksAsync(CancellationToken cancellationToken)
+        {
+            ResetLocksCalls++;
+            return ValueTask.CompletedTask;
+        }
 
         public ValueTask<IReadOnlyList<ExternalFetchKnownUid>> LoadKnownUidsAsync(
             int fetchAccountId,

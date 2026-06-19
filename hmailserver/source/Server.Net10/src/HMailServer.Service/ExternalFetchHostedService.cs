@@ -26,6 +26,19 @@ public sealed class ExternalFetchHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        try
+        {
+            await _processor.ResetLocksAsync(stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "External POP3 fetch could not reset stale account locks before polling.");
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             var result = await _processor.RunBatchAsync(_processorOptions, stoppingToken).ConfigureAwait(false);

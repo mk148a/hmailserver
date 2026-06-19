@@ -96,6 +96,9 @@ public sealed class ExternalFetchProcessor
             knownUidsDeleted);
     }
 
+    public ValueTask ResetLocksAsync(CancellationToken cancellationToken) =>
+        _accountStore.ResetLocksAsync(cancellationToken);
+
     private async ValueTask<AccountFetchResult> ProcessAccountAsync(
         ExternalFetchAccountLease account,
         ExternalFetchProcessorOptions options,
