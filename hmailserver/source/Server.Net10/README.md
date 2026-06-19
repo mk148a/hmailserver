@@ -106,6 +106,12 @@ $env:HMAILSERVER_SENDER_DOMAIN_MX_ENABLED = "false"
 $env:HMAILSERVER_SENDER_DOMAIN_MX_SKIP_AUTHENTICATED = "true"
 $env:HMAILSERVER_SENDER_DOMAIN_MX_TIMEOUT_SECONDS = "5"
 $env:HMAILSERVER_SENDER_DOMAIN_MX_REJECTION_MESSAGE = "554 Sender domain does not have any MX records"
+$env:HMAILSERVER_GREYLISTING_ENABLED = "false"
+$env:HMAILSERVER_GREYLISTING_SKIP_AUTHENTICATED = "true"
+$env:HMAILSERVER_GREYLISTING_INITIAL_DELAY_MINUTES = "30"
+$env:HMAILSERVER_GREYLISTING_INITIAL_RECORD_LIFETIME_HOURS = "24"
+$env:HMAILSERVER_GREYLISTING_PASSED_RECORD_LIFETIME_HOURS = "864"
+$env:HMAILSERVER_GREYLISTING_FAILURE_RESPONSE = "451 Please try again later."
 $env:HMAILSERVER_SURBL_ENABLED = "false"
 $env:HMAILSERVER_SURBL_ZONES = "multi.surbl.org"
 $env:HMAILSERVER_SURBL_SKIP_AUTHENTICATED = "true"
@@ -130,6 +136,8 @@ When `HMAILSERVER_DNSBL_ENABLED=true`, the SMTP receiver checks the connecting c
 When `HMAILSERVER_REVERSE_DNS_ENABLED=true`, the SMTP receiver performs a bounded PTR check before scripts, rules, spam scanning, antivirus scanning, and queue persistence. Authenticated SMTP clients are skipped by default. When `HMAILSERVER_REVERSE_DNS_REQUIRE_FORWARD_CONFIRMED=true`, at least one PTR hostname must resolve back to the connecting IP address; missing PTR records or forward-confirmation failures reject with `HMAILSERVER_REVERSE_DNS_REJECTION_MESSAGE`, while transient DNS errors and timeouts fail open.
 
 When `HMAILSERVER_SENDER_DOMAIN_MX_ENABLED=true`, the SMTP receiver checks the envelope sender domain for MX records before scripts, rules, spam scanning, antivirus scanning, and queue persistence. Null reverse-path bounces, IP/domain literals, malformed sender values, and authenticated SMTP clients are skipped by default. Missing MX records reject with `HMAILSERVER_SENDER_DOMAIN_MX_REJECTION_MESSAGE`; transient DNS errors, timeouts, SERVFAIL/REFUSED responses, and missing local DNS resolver configuration fail open so mail receiving is not made dependent on DNS availability.
+
+When `HMAILSERVER_GREYLISTING_ENABLED=true`, the SMTP receiver checks each `client IP + envelope sender + recipient` triplet against the legacy `hm_greylisting_triplets` table before scripts, rules, spam scanning, antivirus scanning, and queue persistence. New or still-delayed triplets return `HMAILSERVER_GREYLISTING_FAILURE_RESPONSE` (`451` by default); triplets whose block window has elapsed are accepted and have their passed lifetime extended. Authenticated SMTP clients are skipped by default, `hm_greylisting_whiteaddresses` wildcard entries are honored, and SQL errors fail open to avoid turning greylisting storage issues into mail loss.
 
 When `HMAILSERVER_SURBL_ENABLED=true`, the SMTP receiver extracts bounded URL hosts from MIME `text/plain` and `text/html` parts after spam processing and attachment blocking, checks each host plus a small bounded set of parent domains against `HMAILSERVER_SURBL_ZONES`, and rejects positive DNS responses before antivirus/queue persistence. `EnableSpamScan=false` skips this URL blocklist path, so external fetch accounts can keep using their existing `UseAntiSpam` setting. DNS lookup failures and timeouts fail open.
 
@@ -161,11 +169,11 @@ The POP3 command engine supports `USER`/`PASS` through the shared account authen
 - `HMailServer.Delivery`: delivery queue processor orchestration over lease/load/target-dispatch boundaries, remote delivery MX resolution, and optional sender-domain MX checks.
 - `HMailServer.Protocols`: `System.IO.Pipelines` line protocol reader, bounded `Channel` work queue primitives, shared IMAP sequence-set parsing, IMAP TCP/session/SEARCH/SORT/FETCH/IDLE/ACL/QUOTA parser/executor/command handler plumbing, the SMTP TCP/session skeleton, POP3 TCP/session command engine with implicit TLS stream support, and failed-logon auto-ban disconnect hooks.
 - `HMailServer.Indexing`: SQL Server Full-Text Search backfill processor.
-- `HMailServer.Storage.SqlServer`: SQL Server connection, Full-Text Search readiness, message search/sort indexing, IMAP sequence snapshots, IMAP message fetch storage, POP3 Inbox mailbox storage, external fetch account/UID leasing, failed-logon auto-ban recording, atomic delivery leasing, optional delivery queue status persistence, retention cleanup, and event-kind metrics snapshots.
+- `HMailServer.Storage.SqlServer`: SQL Server connection, Full-Text Search readiness, message search/sort indexing, IMAP sequence snapshots, IMAP message fetch storage, POP3 Inbox mailbox storage, external fetch account/UID leasing, failed-logon auto-ban recording, atomic delivery leasing, optional greylisting checks, optional delivery queue status persistence, retention cleanup, and event-kind metrics snapshots.
 - `HMailServer.Search.SqlServer`: IMAP SEARCH and SORT query planners for SQL Server predicates, metadata ordering, and Full-Text Search.
 - `HMailServer.Security`: modern spam/virus protocol helpers, including the async/timeboxed ClamAV INSTREAM client, message antivirus scanner adapter, async/timeboxed SpamAssassin client, message spam scanner adapter, SpamAssassin response validation, MIME-aware attachment replacement policy, optional DNS blocklist checker, optional reverse DNS/PTR checker, and optional URL/SURBL checker.
 - `HMailServer.ComInterop`: additive COM compatibility contracts for new .NET-only capabilities.
-- `tests/HMailServer.Net10.Tests`: MSTest coverage for protocol framing, literal reads, SpamAssassin response/client behavior, ClamAV, SpamAssassin, attachment policy, DNSBL, reverse DNS/PTR, sender-domain MX, and SURBL pipeline wiring, SQL search/sort planning, failed-logon auto-ban SQL shape and protocol disconnect wiring, external fetch account/UID SQL shape, SMTP session/listener skeleton flow, POP3 session command flow, IMAP LOGIN/AUTHENTICATE/LIST/STATUS/nested SELECT/SEARCH/SORT/FETCH/STORE/COPY/MOVE/APPEND/EXPUNGE/IDLE/ACL/QUOTA parsing, TCP listener flow, and SEARCH/SORT/FETCH/IDLE/ACL/QUOTA, including ENVELOPE/BODYSTRUCTURE, plus STORE/COPY/MOVE/APPEND/EXPUNGE response execution.
+- `tests/HMailServer.Net10.Tests`: MSTest coverage for protocol framing, literal reads, SpamAssassin response/client behavior, ClamAV, SpamAssassin, attachment policy, DNSBL, reverse DNS/PTR, sender-domain MX, greylisting, and SURBL pipeline wiring, SQL search/sort planning, failed-logon auto-ban SQL shape and protocol disconnect wiring, external fetch account/UID SQL shape, SMTP session/listener skeleton flow, POP3 session command flow, IMAP LOGIN/AUTHENTICATE/LIST/STATUS/nested SELECT/SEARCH/SORT/FETCH/STORE/COPY/MOVE/APPEND/EXPUNGE/IDLE/ACL/QUOTA parsing, TCP listener flow, and SEARCH/SORT/FETCH/IDLE/ACL/QUOTA, including ENVELOPE/BODYSTRUCTURE, plus STORE/COPY/MOVE/APPEND/EXPUNGE response execution.
 
 ## Database
 
