@@ -13,6 +13,9 @@ public sealed class SystemDnsMxResolver : IDnsMxResolver
     private const ushort QueryFlags = 0x0100;
     private const ushort TypeMx = 15;
     private const ushort ClassInternet = 1;
+    private const ushort ResponseCodeMask = 0x000F;
+    private const ushort ResponseCodeNoError = 0;
+    private const ushort ResponseCodeNameError = 3;
     private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(5);
 
     private readonly IReadOnlyList<IPAddress> _nameServers;
@@ -33,25 +36,39 @@ public sealed class SystemDnsMxResolver : IDnsMxResolver
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(domainName);
 
+        if (_nameServers.Count == 0)
+        {
+            throw new IOException("No DNS name servers are configured for MX lookup.");
+        }
+
+        Exception? lastFailure = null;
         foreach (var server in _nameServers)
         {
             try
             {
-                var records = await QueryServerAsync(server, domainName, cancellationToken).ConfigureAwait(false);
-                if (records.Count > 0)
-                {
-                    return records;
-                }
+                return await QueryServerAsync(server, domainName, cancellationToken).ConfigureAwait(false);
             }
-            catch (IOException)
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
+                lastFailure = new TimeoutException("DNS MX lookup timed out.");
             }
-            catch (SocketException)
+            catch (IOException ex)
             {
+                lastFailure = ex;
             }
-            catch (TimeoutException)
+            catch (SocketException ex)
             {
+                lastFailure = ex;
             }
+            catch (TimeoutException ex)
+            {
+                lastFailure = ex;
+            }
+        }
+
+        if (lastFailure is not null)
+        {
+            throw new IOException("DNS MX lookup failed.", lastFailure);
         }
 
         return Array.Empty<DnsMxRecord>();
@@ -112,7 +129,19 @@ public sealed class SystemDnsMxResolver : IDnsMxResolver
         if (response.Length < 12 ||
             BinaryPrimitives.ReadUInt16BigEndian(response.AsSpan(0, 2)) != expectedTransactionId)
         {
+            throw new IOException("DNS MX response did not match the query.");
+        }
+
+        var flags = BinaryPrimitives.ReadUInt16BigEndian(response.AsSpan(2, 2));
+        var responseCode = (ushort)(flags & ResponseCodeMask);
+        if (responseCode == ResponseCodeNameError)
+        {
             return Array.Empty<DnsMxRecord>();
+        }
+
+        if (responseCode != ResponseCodeNoError)
+        {
+            throw new IOException("DNS MX lookup failed with response code " + responseCode.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".");
         }
 
         var questionCount = BinaryPrimitives.ReadUInt16BigEndian(response.AsSpan(4, 2));

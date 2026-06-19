@@ -44,7 +44,22 @@ public sealed class RemoteDeliveryTargetDispatcher : IDeliveryTargetDispatcher
                 _options.RetryDelay);
         }
 
-        var endpoint = await _endpointResolver.ResolveAsync(targetBatch.Target, cancellationToken).ConfigureAwait(false);
+        RemoteSmtpEndpoint endpoint;
+        try
+        {
+            endpoint = await _endpointResolver.ResolveAsync(targetBatch.Target, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (IOException ex)
+        {
+            return DeliveryTargetDispatchResult.TransientFailure(
+                "Remote SMTP endpoint resolution failed: " + ex.Message,
+                _options.RetryDelay);
+        }
+
         if (!string.IsNullOrWhiteSpace(message.RuleBindAddress))
         {
             endpoint = endpoint with { LocalBindAddress = message.RuleBindAddress };

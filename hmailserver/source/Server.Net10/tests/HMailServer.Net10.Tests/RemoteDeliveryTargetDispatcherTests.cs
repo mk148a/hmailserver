@@ -97,6 +97,29 @@ public sealed class RemoteDeliveryTargetDispatcherTests
         StringAssert.Contains(result.Error, "content");
     }
 
+    [TestMethod]
+    public async Task DispatchAsync_DefersWhenEndpointResolutionFails()
+    {
+        var message = CreateMessage();
+        var batch = new DeliveryTargetBatch(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+            message.Recipients);
+        var smtpClient = new FakeRemoteSmtpClient(RemoteSmtpSendResult.Success());
+        var dispatcher = new RemoteDeliveryTargetDispatcher(
+            new FakeEndpointResolver(new IOException("dns failed")),
+            new FakeContentSource("Subject: Test\r\n\r\nHello\r\n"u8.ToArray()),
+            smtpClient,
+            new RemoteDeliveryOptions("mail.local.test", TimeSpan.FromMinutes(2)));
+
+        var result = await dispatcher.DispatchAsync(message, batch, CancellationToken.None);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(DeliveryFailureKind.Transient, result.FailureKind);
+        Assert.AreEqual(TimeSpan.FromMinutes(2), result.RetryDelay);
+        StringAssert.Contains(result.Error, "endpoint resolution");
+        Assert.IsNull(smtpClient.LastRequest);
+    }
+
     private static DeliveryQueuedMessage CreateMessage(string? ruleBindAddress = null) =>
         new(
             new MessageIdentity(100, 0, 0, 0),
@@ -115,17 +138,24 @@ public sealed class RemoteDeliveryTargetDispatcherTests
 
     private sealed class FakeEndpointResolver : IRemoteSmtpEndpointResolver
     {
-        private readonly RemoteSmtpEndpoint _endpoint;
+        private readonly Func<DeliveryTarget, RemoteSmtpEndpoint> _resolve;
 
         public FakeEndpointResolver(RemoteSmtpEndpoint endpoint)
         {
-            _endpoint = endpoint;
+            _resolve = _ => endpoint;
+        }
+
+        public FakeEndpointResolver(Exception exception)
+        {
+            _resolve = _ => throw exception;
         }
 
         public ValueTask<RemoteSmtpEndpoint> ResolveAsync(
             DeliveryTarget target,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(_endpoint);
+            CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult(_resolve(target));
+        }
     }
 
     private sealed class FakeContentSource : IDeliveryMessageContentSource

@@ -19,6 +19,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly IMessageAttachmentPolicy? _attachmentPolicy;
     private readonly ISmtpDnsBlockListChecker? _dnsBlockListChecker;
     private readonly ISmtpReverseDnsChecker? _reverseDnsChecker;
+    private readonly ISmtpSenderDomainMxChecker? _senderDomainMxChecker;
     private readonly ISmtpUrlBlockListChecker? _urlBlockListChecker;
 
     public SqlServerSmtpMessageReceiver(
@@ -33,6 +34,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         IMessageAttachmentPolicy? attachmentPolicy = null,
         ISmtpDnsBlockListChecker? dnsBlockListChecker = null,
         ISmtpReverseDnsChecker? reverseDnsChecker = null,
+        ISmtpSenderDomainMxChecker? senderDomainMxChecker = null,
         ISmtpUrlBlockListChecker? urlBlockListChecker = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
@@ -44,6 +46,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _attachmentPolicy = attachmentPolicy;
         _dnsBlockListChecker = dnsBlockListChecker;
         _reverseDnsChecker = reverseDnsChecker;
+        _senderDomainMxChecker = senderDomainMxChecker;
         _urlBlockListChecker = urlBlockListChecker;
     }
 
@@ -68,6 +71,12 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         if (reverseDnsFailure is not null)
         {
             return reverseDnsFailure;
+        }
+
+        var senderDomainMxFailure = await RunSenderDomainMxCheckAsync(request, cancellationToken).ConfigureAwait(false);
+        if (senderDomainMxFailure is not null)
+        {
+            return senderDomainMxFailure;
         }
 
         if (_eventScriptExecutor is not null)
@@ -229,6 +238,37 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
                 ? SmtpReceiveResult.Failure(
                     string.IsNullOrWhiteSpace(result.FailureResponse)
                         ? "554 Rejected by reverse DNS check"
+                        : result.FailureResponse)
+                : null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async ValueTask<SmtpReceiveResult?> RunSenderDomainMxCheckAsync(
+        SmtpReceiveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_senderDomainMxChecker is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var result = await _senderDomainMxChecker
+                .CheckAsync(request, cancellationToken)
+                .ConfigureAwait(false);
+            return result.Rejected
+                ? SmtpReceiveResult.Failure(
+                    string.IsNullOrWhiteSpace(result.FailureResponse)
+                        ? "554 Sender domain does not have any MX records"
                         : result.FailureResponse)
                 : null;
         }

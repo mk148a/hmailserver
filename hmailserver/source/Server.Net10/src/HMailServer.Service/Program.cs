@@ -291,6 +291,28 @@ var reverseDnsOptions = new SmtpReverseDnsCheckOptions
         ?? "554 Rejected by reverse DNS check {Reason}"
 };
 var reverseDnsEnabled = reverseDnsOptions.Enabled;
+var senderDomainMxOptions = new SmtpSenderDomainMxCheckOptions
+{
+    Enabled = ReadBool(
+        builder.Configuration["AntiAbuse:SenderDomainMx:Enabled"]
+            ?? builder.Configuration["HMAILSERVER_SENDER_DOMAIN_MX_ENABLED"],
+        defaultValue: false),
+    SkipAuthenticated = ReadBool(
+        builder.Configuration["AntiAbuse:SenderDomainMx:SkipAuthenticated"]
+            ?? builder.Configuration["HMAILSERVER_SENDER_DOMAIN_MX_SKIP_AUTHENTICATED"],
+        defaultValue: true),
+    Timeout = TimeSpan.FromSeconds(
+        Math.Max(
+            1,
+            ReadInt(
+                builder.Configuration["AntiAbuse:SenderDomainMx:TimeoutSeconds"]
+                    ?? builder.Configuration["HMAILSERVER_SENDER_DOMAIN_MX_TIMEOUT_SECONDS"],
+                defaultValue: 5))),
+    RejectionMessageTemplate = builder.Configuration["AntiAbuse:SenderDomainMx:RejectionMessageTemplate"]
+        ?? builder.Configuration["HMAILSERVER_SENDER_DOMAIN_MX_REJECTION_MESSAGE"]
+        ?? "554 Sender domain does not have any MX records"
+};
+var senderDomainMxEnabled = senderDomainMxOptions.Enabled;
 var urlBlockListOptions = new SmtpUrlBlockListOptions
 {
     Enabled = ReadBool(
@@ -438,6 +460,7 @@ builder.Services.AddSingleton(spamPolicyOptions);
 builder.Services.AddSingleton(attachmentPolicyOptions);
 builder.Services.AddSingleton(dnsBlockListOptions);
 builder.Services.AddSingleton(reverseDnsOptions);
+builder.Services.AddSingleton(senderDomainMxOptions);
 builder.Services.AddSingleton(urlBlockListOptions);
 if (scriptingOptions.Enabled)
 {
@@ -478,6 +501,10 @@ if (reverseDnsEnabled)
 {
     builder.Services.AddSingleton<IDnsReverseResolver, SystemDnsReverseResolver>();
     builder.Services.AddSingleton<ISmtpReverseDnsChecker, SmtpReverseDnsChecker>();
+}
+if (senderDomainMxEnabled)
+{
+    builder.Services.AddSingleton<ISmtpSenderDomainMxChecker, SmtpSenderDomainMxChecker>();
 }
 if (urlBlockListEnabled)
 {
