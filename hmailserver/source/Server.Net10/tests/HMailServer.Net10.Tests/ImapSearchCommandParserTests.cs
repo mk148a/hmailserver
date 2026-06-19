@@ -35,6 +35,9 @@ public sealed class ImapSearchCommandParserTests
             },
             request.UidRanges.ToArray());
         CollectionAssert.AreEqual(
+            Array.Empty<ImapIdRange>(),
+            request.SequenceRanges.ToArray());
+        CollectionAssert.AreEqual(
             new[] { "report", "X-Customer", "Ada" },
             request.GetHeaderTerms().ToArray());
         CollectionAssert.AreEqual(new[] { "paid" }, request.GetBodyTerms().ToArray());
@@ -54,6 +57,26 @@ public sealed class ImapSearchCommandParserTests
         Assert.AreEqual(new DateOnly(2026, 1, 3), request.SentBefore);
         Assert.IsNull(request.Since);
         Assert.IsNull(request.Before);
+    }
+
+    [TestMethod]
+    public void ParseCriteria_MapsSequenceSetCriteria()
+    {
+        var request = new ImapSearchCommandParser().ParseCriteria(
+            accountId: 10,
+            folderId: 20,
+            criteriaText: "SEARCH 1:3,7 UNSEEN",
+            returnUid: false);
+
+        Assert.IsFalse(request.ReturnUid);
+        Assert.AreEqual(ImapMessageFlags.Seen, request.ForbiddenFlags);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                new ImapIdRange(1, 3),
+                new ImapIdRange(7, 7)
+            },
+            request.SequenceRanges.ToArray());
     }
 
     [TestMethod]

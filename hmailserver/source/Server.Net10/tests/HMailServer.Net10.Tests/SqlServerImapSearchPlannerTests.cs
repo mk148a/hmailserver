@@ -69,6 +69,11 @@ public sealed class SqlServerImapSearchPlannerTests
                 new ImapIdRange(100, 200),
                 new ImapIdRange(300, null)
             ],
+            SequenceRanges =
+            [
+                new ImapIdRange(1, 10),
+                new ImapIdRange(20, 20)
+            ],
             HeaderTerms =
             [
                 "from@example.test",
@@ -89,6 +94,9 @@ public sealed class SqlServerImapSearchPlannerTests
 
         StringAssert.Contains(plan.CommandText, "m.messageuid BETWEEN @UidRangeStart0 AND @UidRangeEnd0");
         StringAssert.Contains(plan.CommandText, "m.messageuid >= @UidRangeStart1");
+        StringAssert.Contains(plan.CommandText, "ROW_NUMBER() OVER (ORDER BY sm.messageuid ASC) AS sequencenumber");
+        StringAssert.Contains(plan.CommandText, "sequenced.sequencenumber BETWEEN @SequenceRangeStart0 AND @SequenceRangeEnd0");
+        StringAssert.Contains(plan.CommandText, "sequenced.sequencenumber = @SequenceRangeStart1");
         StringAssert.Contains(plan.CommandText, "CONTAINS(sd.search_header, @HeaderText0)");
         StringAssert.Contains(plan.CommandText, "CONTAINS(sd.search_header, @HeaderText1)");
         StringAssert.Contains(plan.CommandText, "CONTAINS(sd.search_body, @BodyText0)");
@@ -97,6 +105,9 @@ public sealed class SqlServerImapSearchPlannerTests
         Assert.AreEqual(100L, plan.Parameters["@UidRangeStart0"]);
         Assert.AreEqual(200L, plan.Parameters["@UidRangeEnd0"]);
         Assert.AreEqual(300L, plan.Parameters["@UidRangeStart1"]);
+        Assert.AreEqual(1L, plan.Parameters["@SequenceRangeStart0"]);
+        Assert.AreEqual(10L, plan.Parameters["@SequenceRangeEnd0"]);
+        Assert.AreEqual(20L, plan.Parameters["@SequenceRangeStart1"]);
         Assert.AreEqual("\"quote \"\"special\"\"\"", plan.Parameters["@AnyText1"]);
     }
 

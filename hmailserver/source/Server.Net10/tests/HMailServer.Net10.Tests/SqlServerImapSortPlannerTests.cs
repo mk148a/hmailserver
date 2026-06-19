@@ -59,7 +59,8 @@ public sealed class SqlServerImapSortPlannerTests
             AnyText: null,
             ReturnUid: true)
         {
-            AnyTerms = ["invoice"]
+            AnyTerms = ["invoice"],
+            SequenceRanges = [new ImapIdRange(2, 5)]
         };
         var request = new ImapSortRequest(
             searchRequest,
@@ -68,8 +69,11 @@ public sealed class SqlServerImapSortPlannerTests
         var plan = new SqlServerImapSortPlanner().Plan(request);
 
         StringAssert.Contains(plan.CommandText, "INNER JOIN hm_message_search_documents AS sd");
+        StringAssert.Contains(plan.CommandText, "sequenced.sequencenumber BETWEEN @SequenceRangeStart0 AND @SequenceRangeEnd0");
         StringAssert.Contains(plan.CommandText, "CONTAINS(sd.search_combined, @AnyText0)");
         StringAssert.Contains(plan.CommandText, "ORDER BY LOWER(COALESCE(md.metadata_from, N'')) ASC, m.messageuid ASC;");
+        Assert.AreEqual(2L, plan.Parameters["@SequenceRangeStart0"]);
+        Assert.AreEqual(5L, plan.Parameters["@SequenceRangeEnd0"]);
         Assert.AreEqual("\"invoice\"", plan.Parameters["@AnyText0"]);
     }
 

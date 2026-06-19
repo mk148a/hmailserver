@@ -50,6 +50,7 @@ public sealed class ImapSearchCommandParser
         DateOnly? sentBefore = null;
         long? largerThanBytes = null;
         long? smallerThanBytes = null;
+        var sequenceRanges = new List<ImapIdRange>();
         var uidRanges = new List<ImapIdRange>();
         var headerTerms = new List<string>();
         var bodyTerms = new List<string>();
@@ -64,6 +65,21 @@ public sealed class ImapSearchCommandParser
             }
 
             var key = ReadRequiredAtom(tokens, ref index, "SEARCH key").ToUpperInvariant();
+            if (LooksLikeSequenceSet(key))
+            {
+                foreach (var range in ImapSequenceSetParser.Parse(
+                    key,
+                    "SEARCH",
+                    "SEARCH sequence",
+                    "SEARCH sequence set",
+                    static message => new ImapSearchParseException(message)))
+                {
+                    sequenceRanges.Add(range);
+                }
+
+                continue;
+            }
+
             switch (key)
             {
                 case "ALL":
@@ -215,6 +231,7 @@ public sealed class ImapSearchCommandParser
             AnyText: null,
             ReturnUid: returnUid)
         {
+            SequenceRanges = sequenceRanges.ToArray(),
             UidRanges = uidRanges.ToArray(),
             HeaderTerms = headerTerms.ToArray(),
             BodyTerms = bodyTerms.ToArray(),
@@ -239,6 +256,39 @@ public sealed class ImapSearchCommandParser
     private static bool IsSupportedCharset(string charset) =>
         charset.Equals("US-ASCII", StringComparison.OrdinalIgnoreCase) ||
         charset.Equals("UTF-8", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksLikeSequenceSet(string value)
+    {
+        if (value.Length == 0)
+        {
+            return false;
+        }
+
+        var hasIdentifier = false;
+        foreach (var character in value)
+        {
+            if (char.IsDigit(character))
+            {
+                hasIdentifier = true;
+                continue;
+            }
+
+            if (character == '*')
+            {
+                hasIdentifier = true;
+                continue;
+            }
+
+            if (character is ':' or ',')
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return hasIdentifier;
+    }
 
     private static DateOnly ParseDate(string value)
     {

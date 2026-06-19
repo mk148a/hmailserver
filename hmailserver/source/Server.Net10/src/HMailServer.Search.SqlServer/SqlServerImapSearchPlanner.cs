@@ -54,6 +54,7 @@ WHERE
 
         AddRangeFilter(sql, parameters, "m.messageuid", "@MinUid", request.MinUid, ">=");
         AddRangeFilter(sql, parameters, "m.messageuid", "@MaxUid", request.MaxUid, "<=");
+        AddSequenceRangeFilter(sql, parameters, request.SequenceRanges);
         AddUidRangeFilter(sql, parameters, request.UidRanges);
         AddRangeFilter(sql, parameters, "m.messagesize", "@LargerThanBytes", request.LargerThanBytes, ">");
         AddRangeFilter(sql, parameters, "m.messagesize", "@SmallerThanBytes", request.SmallerThanBytes, "<");
@@ -189,6 +190,39 @@ WHERE
         sql.AppendLine(")");
     }
 
+    private static void AddSequenceRangeFilter(
+        StringBuilder sql,
+        IDictionary<string, object> parameters,
+        IReadOnlyList<ImapIdRange>? sequenceRanges)
+    {
+        if (sequenceRanges is null || sequenceRanges.Count == 0)
+        {
+            return;
+        }
+
+        sql.AppendLine("""
+    AND m.messageid IN
+    (
+        SELECT sequenced.messageid
+        FROM
+        (
+            SELECT
+                sm.messageid,
+                ROW_NUMBER() OVER (ORDER BY sm.messageuid ASC) AS sequencenumber
+            FROM hm_messages AS sm
+            WHERE
+                sm.messagetype = 2
+                AND sm.messageaccountid = @AccountId
+                AND sm.messagefolderid = @FolderId
+        ) AS sequenced
+        WHERE
+""");
+
+        AppendIdRangePredicates(sql, parameters, sequenceRanges, "sequenced.sequencenumber", "@SequenceRangeStart", "@SequenceRangeEnd", indent: "            ");
+        sql.AppendLine();
+        sql.AppendLine("    )");
+    }
+
     private static void AddSessionRecentFilters(
         StringBuilder sql,
         IDictionary<string, object> parameters,
@@ -249,6 +283,67 @@ WHERE
         }
 
         sql.AppendLine(")");
+    }
+
+    private static void AppendIdRangePredicates(
+        StringBuilder sql,
+        IDictionary<string, object> parameters,
+        IReadOnlyList<ImapIdRange> ranges,
+        string column,
+        string startPrefix,
+        string endPrefix,
+        string indent)
+    {
+        sql.Append(indent).Append('(');
+
+        for (var index = 0; index < ranges.Count; index++)
+        {
+            var range = ranges[index];
+            if (index > 0)
+            {
+                sql.Append(" OR ");
+            }
+
+            var startName = $"{startPrefix}{index}";
+
+            if (range.Start is null && range.End is null)
+            {
+                sql.Append("1 = 1");
+                continue;
+            }
+
+            if (range.Start is null)
+            {
+                var endOnlyName = $"{endPrefix}{index}";
+                parameters[endOnlyName] = range.End!.Value;
+                sql.Append(column).Append(" <= ").Append(endOnlyName);
+                continue;
+            }
+
+            parameters[startName] = range.Start.Value;
+
+            if (range.End is null)
+            {
+                sql.Append(column).Append(" >= ").Append(startName);
+                continue;
+            }
+
+            if (range.IsSingle)
+            {
+                sql.Append(column).Append(" = ").Append(startName);
+                continue;
+            }
+
+            var endName = $"{endPrefix}{index}";
+            parameters[endName] = range.End.Value;
+            sql.Append(column)
+                .Append(" BETWEEN ")
+                .Append(startName)
+                .Append(" AND ")
+                .Append(endName);
+        }
+
+        sql.Append(')');
     }
 
     private static bool HasFlag(byte? flags, byte flag) =>

@@ -18,6 +18,8 @@ public sealed record ImapSearchRequest(
 {
     public IReadOnlyList<ImapIdRange> UidRanges { get; init; } = Array.Empty<ImapIdRange>();
 
+    public IReadOnlyList<ImapIdRange> SequenceRanges { get; init; } = Array.Empty<ImapIdRange>();
+
     public IReadOnlyList<string> HeaderTerms { get; init; } = Array.Empty<string>();
 
     public IReadOnlyList<string> BodyTerms { get; init; } = Array.Empty<string>();
