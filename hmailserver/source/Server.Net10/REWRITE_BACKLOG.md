@@ -153,7 +153,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: delivery event script message metadata seeds real queue ID, UID, state, delivery attempt, and internal date for VBScript/JScript handlers.
 - Done: delivery event failures emit a distinct `DeliveryEventFailed` queue status before deferral, preserving script/error text for SQL metrics and diagnostics.
 - Done: delivery bounce templates expose richer queue/recipient tokens including message UID/account/folder/state, delivery attempt, failed recipient count/address list/first recipient, and rule route/bind metadata.
-- Done: external POP3 fetch `OnExternalAccountDownload(HMAILSERVER_FETCHACCOUNT, HMAILSERVER_MESSAGE/Nothing, uid)` script hook boundary with legacy fetch-account fields, nullable message argument handling, and `Result.Value`/`Result.Parameter` delete-retention mapping.
+- Done: external POP3 fetch `OnExternalAccountDownload(HMAILSERVER_FETCHACCOUNT, HMAILSERVER_MESSAGE/Nothing, uid)` script hook boundary with legacy fetch-account fields including `NextDownloadTime`/`IsLocked`, nullable message argument handling, and `Result.Value`/`Result.Parameter` delete-retention mapping.
 - Remaining: full legacy script object model plus `OnBackupCompleted`/`OnBackupFailed` once the .NET backup engine exists; legacy protocol and delivery event hooks are connected.
 
 4. POP3 and external fetch.
