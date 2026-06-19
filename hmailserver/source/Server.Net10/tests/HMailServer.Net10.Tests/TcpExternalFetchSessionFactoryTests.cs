@@ -537,13 +537,105 @@ public sealed class TcpExternalFetchSessionFactoryTests
             commands);
     }
 
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.None, false)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
+    public async Task DisposeAsync_RejectedQuitDoesNotThrow(
+        ExternalFetchConnectionSecurity connectionSecurity,
+        bool expectCapa)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerAsync(
+            listener,
+            commands,
+            rejectRetr: false,
+            rejectDele: false,
+            disconnectOnDele: false,
+            timeout.Token,
+            rejectQuit: true);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await using (var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                .ConfigureAwait(false))
+            {
+                var messages = await session.ListMessagesAsync(timeout.Token).ConfigureAwait(false);
+                await session.DownloadMessageAsync(messages[0], timeout.Token).ConfigureAwait(false);
+                await session.DeleteMessageAsync(messages[0], timeout.Token).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+        CollectionAssert.AreEqual(
+            expectCapa
+                ? new[] { "CAPA", "USER external-user", "PASS external-password", "UIDL", "RETR 1", "DELE 1", "QUIT" }
+                : new[] { "USER external-user", "PASS external-password", "UIDL", "RETR 1", "DELE 1", "QUIT" },
+            commands);
+    }
+
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.None, false)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
+    public async Task DisposeAsync_DisconnectBeforeQuitResponseDoesNotThrow(
+        ExternalFetchConnectionSecurity connectionSecurity,
+        bool expectCapa)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerAsync(
+            listener,
+            commands,
+            rejectRetr: false,
+            rejectDele: false,
+            disconnectOnDele: false,
+            timeout.Token,
+            disconnectOnQuit: true);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await using (var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                .ConfigureAwait(false))
+            {
+                var messages = await session.ListMessagesAsync(timeout.Token).ConfigureAwait(false);
+                await session.DownloadMessageAsync(messages[0], timeout.Token).ConfigureAwait(false);
+                await session.DeleteMessageAsync(messages[0], timeout.Token).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+        CollectionAssert.AreEqual(
+            expectCapa
+                ? new[] { "CAPA", "USER external-user", "PASS external-password", "UIDL", "RETR 1", "DELE 1", "QUIT" }
+                : new[] { "USER external-user", "PASS external-password", "UIDL", "RETR 1", "DELE 1", "QUIT" },
+            commands);
+    }
+
     private static async Task RunPop3ServerAsync(
         TcpListener listener,
         List<string> commands,
         bool rejectRetr,
         bool rejectDele,
         bool disconnectOnDele,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool rejectQuit = false,
+        bool disconnectOnQuit = false)
     {
         using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
         await using var stream = client.GetStream();
@@ -584,7 +676,16 @@ public sealed class TcpExternalFetchSessionFactoryTests
             }
             else if (command.Equals("QUIT", StringComparison.OrdinalIgnoreCase))
             {
-                await WriteRawAsync(stream, "+OK bye\r\n", cancellationToken).ConfigureAwait(false);
+                if (disconnectOnQuit)
+                {
+                    client.Client.Shutdown(SocketShutdown.Both);
+                    break;
+                }
+
+                var response = rejectQuit
+                    ? "-ERR quit denied\r\n"
+                    : "+OK bye\r\n";
+                await WriteRawAsync(stream, response, cancellationToken).ConfigureAwait(false);
                 break;
             }
             else
