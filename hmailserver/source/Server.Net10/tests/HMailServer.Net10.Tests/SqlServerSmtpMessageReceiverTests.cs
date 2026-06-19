@@ -131,6 +131,43 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_RejectsReverseDnsFailureBeforeScriptSpamAndAntivirus()
+    {
+        var eventCalled = false;
+        var spamScanner = new FakeSpamScanner(
+            MessageSpamScanResult.Clean("Subject: Spam\r\n\r\nBody\r\n"u8.ToArray()));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Clean());
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            eventScriptExecutor: new FakeEventScriptExecutor(
+                _ =>
+                {
+                    eventCalled = true;
+                    return SmtpRuleScriptExecutionResult.Continue();
+                }),
+            antivirusScanner: antivirusScanner,
+            spamScanner: spamScanner,
+            reverseDnsChecker: new FakeReverseDnsChecker(
+                SmtpReverseDnsResult.Reject(
+                    "192.0.2.5",
+                    Array.Empty<string>(),
+                    "missing-ptr",
+                    "554 Missing PTR")));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Blocked\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Missing PTR", result.FailureResponse);
+        Assert.IsFalse(eventCalled);
+        Assert.AreEqual(0, spamScanner.ScannedMessages.Count);
+        Assert.AreEqual(0, antivirusScanner.ScannedMessages.Count);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_PassesAcceptEventMutatedMessageToRuleProcessor()
     {
         var mutatedMessage = Encoding.Latin1.GetBytes("Subject: Mutated\r\nX-Event: yes\r\n\r\nBody\r\n");
@@ -555,6 +592,21 @@ public sealed class SqlServerSmtpMessageReceiverTests
         }
 
         public ValueTask<SmtpDnsBlockListResult> CheckAsync(
+            SmtpReceiveRequest request,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(_result);
+    }
+
+    private sealed class FakeReverseDnsChecker : ISmtpReverseDnsChecker
+    {
+        private readonly SmtpReverseDnsResult _result;
+
+        public FakeReverseDnsChecker(SmtpReverseDnsResult result)
+        {
+            _result = result;
+        }
+
+        public ValueTask<SmtpReverseDnsResult> CheckAsync(
             SmtpReceiveRequest request,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(_result);

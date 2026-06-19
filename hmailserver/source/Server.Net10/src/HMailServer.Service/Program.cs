@@ -265,6 +265,32 @@ var dnsBlockListOptions = new SmtpDnsBlockListOptions
 };
 var dnsBlockListEnabled = dnsBlockListOptions.Enabled
     && dnsBlockListOptions.Zones.Count > 0;
+var reverseDnsOptions = new SmtpReverseDnsCheckOptions
+{
+    Enabled = ReadBool(
+        builder.Configuration["AntiAbuse:ReverseDns:Enabled"]
+            ?? builder.Configuration["HMAILSERVER_REVERSE_DNS_ENABLED"],
+        defaultValue: false),
+    SkipAuthenticated = ReadBool(
+        builder.Configuration["AntiAbuse:ReverseDns:SkipAuthenticated"]
+            ?? builder.Configuration["HMAILSERVER_REVERSE_DNS_SKIP_AUTHENTICATED"],
+        defaultValue: true),
+    RequireForwardConfirmed = ReadBool(
+        builder.Configuration["AntiAbuse:ReverseDns:RequireForwardConfirmed"]
+            ?? builder.Configuration["HMAILSERVER_REVERSE_DNS_REQUIRE_FORWARD_CONFIRMED"],
+        defaultValue: true),
+    Timeout = TimeSpan.FromSeconds(
+        Math.Max(
+            1,
+            ReadInt(
+                builder.Configuration["AntiAbuse:ReverseDns:TimeoutSeconds"]
+                    ?? builder.Configuration["HMAILSERVER_REVERSE_DNS_TIMEOUT_SECONDS"],
+                defaultValue: 5))),
+    RejectionMessageTemplate = builder.Configuration["AntiAbuse:ReverseDns:RejectionMessageTemplate"]
+        ?? builder.Configuration["HMAILSERVER_REVERSE_DNS_REJECTION_MESSAGE"]
+        ?? "554 Rejected by reverse DNS check {Reason}"
+};
+var reverseDnsEnabled = reverseDnsOptions.Enabled;
 var urlBlockListOptions = new SmtpUrlBlockListOptions
 {
     Enabled = ReadBool(
@@ -411,6 +437,7 @@ builder.Services.AddSingleton(spamAssassinOptions);
 builder.Services.AddSingleton(spamPolicyOptions);
 builder.Services.AddSingleton(attachmentPolicyOptions);
 builder.Services.AddSingleton(dnsBlockListOptions);
+builder.Services.AddSingleton(reverseDnsOptions);
 builder.Services.AddSingleton(urlBlockListOptions);
 if (scriptingOptions.Enabled)
 {
@@ -439,13 +466,18 @@ if (attachmentPolicyEnabled)
 {
     builder.Services.AddSingleton<IMessageAttachmentPolicy, MimeMessageAttachmentPolicy>();
 }
-if (dnsBlockListEnabled || urlBlockListEnabled)
+if (dnsBlockListEnabled || reverseDnsEnabled || urlBlockListEnabled)
 {
     builder.Services.AddSingleton<IDnsAddressResolver, SystemDnsAddressResolver>();
 }
 if (dnsBlockListEnabled)
 {
     builder.Services.AddSingleton<ISmtpDnsBlockListChecker, SmtpDnsBlockListChecker>();
+}
+if (reverseDnsEnabled)
+{
+    builder.Services.AddSingleton<IDnsReverseResolver, SystemDnsReverseResolver>();
+    builder.Services.AddSingleton<ISmtpReverseDnsChecker, SmtpReverseDnsChecker>();
 }
 if (urlBlockListEnabled)
 {

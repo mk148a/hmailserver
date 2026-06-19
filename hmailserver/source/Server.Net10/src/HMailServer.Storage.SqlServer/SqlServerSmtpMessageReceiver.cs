@@ -18,6 +18,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly IMessageSpamPolicy? _spamPolicy;
     private readonly IMessageAttachmentPolicy? _attachmentPolicy;
     private readonly ISmtpDnsBlockListChecker? _dnsBlockListChecker;
+    private readonly ISmtpReverseDnsChecker? _reverseDnsChecker;
     private readonly ISmtpUrlBlockListChecker? _urlBlockListChecker;
 
     public SqlServerSmtpMessageReceiver(
@@ -31,6 +32,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         IMessageSpamPolicy? spamPolicy = null,
         IMessageAttachmentPolicy? attachmentPolicy = null,
         ISmtpDnsBlockListChecker? dnsBlockListChecker = null,
+        ISmtpReverseDnsChecker? reverseDnsChecker = null,
         ISmtpUrlBlockListChecker? urlBlockListChecker = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
@@ -41,6 +43,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _spamPolicy = spamPolicy;
         _attachmentPolicy = attachmentPolicy;
         _dnsBlockListChecker = dnsBlockListChecker;
+        _reverseDnsChecker = reverseDnsChecker;
         _urlBlockListChecker = urlBlockListChecker;
     }
 
@@ -59,6 +62,12 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         if (dnsBlockListFailure is not null)
         {
             return dnsBlockListFailure;
+        }
+
+        var reverseDnsFailure = await RunReverseDnsCheckAsync(request, cancellationToken).ConfigureAwait(false);
+        if (reverseDnsFailure is not null)
+        {
+            return reverseDnsFailure;
         }
 
         if (_eventScriptExecutor is not null)
@@ -189,6 +198,37 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
                 ? SmtpReceiveResult.Failure(
                     string.IsNullOrWhiteSpace(result.FailureResponse)
                         ? "554 Rejected by DNS blocklist"
+                        : result.FailureResponse)
+                : null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async ValueTask<SmtpReceiveResult?> RunReverseDnsCheckAsync(
+        SmtpReceiveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_reverseDnsChecker is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var result = await _reverseDnsChecker
+                .CheckAsync(request, cancellationToken)
+                .ConfigureAwait(false);
+            return result.Rejected
+                ? SmtpReceiveResult.Failure(
+                    string.IsNullOrWhiteSpace(result.FailureResponse)
+                        ? "554 Rejected by reverse DNS check"
                         : result.FailureResponse)
                 : null;
         }
