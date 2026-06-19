@@ -353,6 +353,48 @@ public sealed class TcpExternalFetchSessionFactoryTests
         Assert.AreEqual(0, receivedAfterPassword.Length);
     }
 
+    [TestMethod]
+    [DataRow(ExternalFetchConnectionSecurity.None, false)]
+    [DataRow(ExternalFetchConnectionSecurity.StartTlsOptional, true)]
+    public async Task ListMessagesAsync_RejectedUidlQuitsWithoutMessageCommands(
+        ExternalFetchConnectionSecurity connectionSecurity,
+        bool expectCapa)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerWithoutStlsCapabilityAsync(
+            listener,
+            commands,
+            rejectCapa: false,
+            stopAfterCapa: false,
+            timeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await using (var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
+                .ConfigureAwait(false))
+            {
+                await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                    async () => await session.ListMessagesAsync(timeout.Token).ConfigureAwait(false));
+            }
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+        CollectionAssert.AreEqual(
+            expectCapa
+                ? new[] { "CAPA", "USER external-user", "PASS external-password", "UIDL", "QUIT" }
+                : new[] { "USER external-user", "PASS external-password", "UIDL", "QUIT" },
+            commands);
+    }
+
     private static async Task RunPop3ServerAsync(
         TcpListener listener,
         List<string> commands,
