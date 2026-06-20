@@ -94,6 +94,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: script message `ClearRecipients` clears the envelope recipient collection plus `To`, `Cc`, and `Bcc` MIME headers in VBScript/JScript, matching the legacy message contract.
 - Done: script message `Save` generates a current local legacy-format MIME `Date` when the message has no date in VBScript/JScript.
 - Done: script `Headers` collection no longer publishes runner-only `Refresh` or `Commit`; legacy `Count`/`Item`/`ItemByName` reads and header item mutations remain supported.
+- Done: script `Recipients.Item`, `Headers.Item`, and `Headers.ItemByName` raise legacy-style bad-index errors for invalid lookups in VBScript/JScript instead of returning `Nothing`/`null`.
 - Done: script `Attachments` collection no longer publishes runner-only `Load` or `DeleteAt`; legacy `Count`/`Item`/`Clear`/`Add` plus item `SaveAs`/`Delete` remain supported.
 - Done: script `Attachments.Add` raises the legacy `Failed to attach file.` error for a missing source file in VBScript/JScript instead of silently returning.
 - Done: script `Attachments.Item` raises a legacy-style bad-index error for an out-of-range index in VBScript/JScript instead of returning `Nothing`/`null`.
@@ -178,6 +179,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: message-level `ClearRecipients` removes `To`, `Cc`, and `Bcc` MIME headers while clearing envelope recipients in both VBScript and JScript.
    - Done: message-level `Save` supplies a current local legacy-format MIME `Date` before writing a message whose date is empty in both VBScript and JScript.
    - Done: message header collection script facade exposes the legacy supported `Count`/`Item`/`ItemByName` surface without runner-only `Refresh`/`Commit`; header `Name`/`Value`/`Delete` changes still persist on `Save`.
+   - Done: recipient `Item` and message header `Item`/`ItemByName` reject out-of-range indexes or missing names with script errors in both VBScript and JScript, matching the legacy `DISP_E_BADINDEX` contract.
    - Done: attachment collection script facade exposes the legacy supported `Count`/`Item`/`Clear`/`Add` surface without runner-only `Load`/`DeleteAt`; attachment `SaveAs`/`Delete` behavior remains intact.
    - Done: attachment collection `Add` rejects a missing source file with the legacy `Failed to attach file.` error in both VBScript and JScript.
    - Done: attachment collection `Item` rejects an out-of-range index with a script error in both VBScript and JScript, matching the legacy `DISP_E_BADINDEX` contract.

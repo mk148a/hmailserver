@@ -152,6 +152,8 @@ Message-level `Save` follows the legacy missing-date behavior: when the message 
 
 The `Headers` collection keeps the legacy supported surface of `Count`, `Item`, and `ItemByName`; runner-internal refresh/commit helpers are no longer published as `Refresh` or `Commit`. Header item `Name`/`Value` updates and `Delete` continue to persist through `Message.Save` in both script languages.
 
+`Recipients.Item`, `Headers.Item`, and `Headers.ItemByName` follow the legacy bad-index contract: out-of-range indexes and missing header names raise script errors instead of returning `Nothing` or `null`.
+
 The `Attachments` collection keeps the legacy supported surface of `Count`, `Item`, `Clear`, and `Add`; runner-internal manifest loading and index removal are no longer published as `Load` or `DeleteAt`. Attachment item `SaveAs` and `Delete` continue to work in VBScript and JScript.
 
 `Attachments.Add` follows the legacy failure contract in both script languages: a missing source file raises `Failed to attach file.` instead of silently leaving the collection unchanged.
