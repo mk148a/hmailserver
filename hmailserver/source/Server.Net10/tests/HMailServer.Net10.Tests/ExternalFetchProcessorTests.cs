@@ -693,6 +693,42 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_DeduplicatesAliasesResolvingToSameRecipient()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-recipient-aliases", Size: 64),
+            ToAsciiBytes(
+                "From: sender@example.net\r\n" +
+                "To: alias-one@example.test, alias-two@example.test\r\n" +
+                "Subject: fetched\r\n" +
+                "\r\n" +
+                "Body\r\n"));
+        var receiver = new FakeSmtpMessageReceiver();
+        var recipientValidator = new FakeSmtpRecipientValidator(
+            request => SmtpRecipientValidationResult.Accept(
+                new SmtpResolvedRecipient(
+                    "user@example.test",
+                    request.RecipientAddress,
+                    LocalAccountId: 42,
+                    IsLocal: true)));
+        var processor = CreateProcessor(
+            store,
+            session,
+            receiver,
+            recipientValidator: recipientValidator);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.MessagesAccepted);
+        Assert.AreEqual(2, recipientValidator.Requests.Count);
+        var recipient = receiver.Requests.Single().Recipients.Single();
+        Assert.AreEqual("user@example.test", recipient.Address);
+        Assert.AreEqual("alias-one@example.test", recipient.OriginalAddress);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_FiltersExternalMimeRecipientsWhenRouteRecipientsDisabled()
     {
         var account = CreateAccount(enableRouteRecipients: false);

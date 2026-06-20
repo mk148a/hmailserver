@@ -633,8 +633,7 @@ public sealed class ExternalFetchProcessor
         SmtpResolvedRecipient recipient)
     {
         if (recipients.Any(existing =>
-            existing.Address.Equals(recipient.Address, StringComparison.OrdinalIgnoreCase) &&
-            existing.OriginalAddress.Equals(recipient.OriginalAddress, StringComparison.OrdinalIgnoreCase)))
+            existing.Address.Equals(recipient.Address, StringComparison.OrdinalIgnoreCase)))
         {
             return;
         }
