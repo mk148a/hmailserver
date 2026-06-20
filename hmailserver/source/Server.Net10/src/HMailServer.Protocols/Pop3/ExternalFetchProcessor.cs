@@ -684,7 +684,7 @@ public sealed class ExternalFetchProcessor
         }
 
         var firstPart = headerValue[..lastSemicolon];
-        var forPosition = firstPart.LastIndexOf("for ", StringComparison.OrdinalIgnoreCase);
+        var forPosition = firstPart.LastIndexOf("for ", StringComparison.Ordinal);
         if (forPosition < 0)
         {
             return false;
