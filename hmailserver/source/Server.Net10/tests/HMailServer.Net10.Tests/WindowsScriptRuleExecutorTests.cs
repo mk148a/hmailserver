@@ -838,6 +838,33 @@ Sub Rule_UpdateRecipients(obMessage)
       Exit Sub
    End If
 
+   On Error Resume Next
+   obMessage.Recipients.Add "unexpected@example.test", "unexpected@example.test", False
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "recipient collection exposed Add"
+      Exit Sub
+   End If
+   Err.Clear
+
+   obMessage.Recipients.Clear
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "recipient collection exposed Clear"
+      Exit Sub
+   End If
+   Err.Clear
+
+   Dim headerValue
+   headerValue = obMessage.Recipients.ToHeaderValue()
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "recipient collection exposed ToHeaderValue"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
+
    obMessage.ClearRecipients
    obMessage.AddRecipient "Added User", "added@example.test"
    If obMessage.Recipients.Count <> 1 Then
@@ -905,6 +932,18 @@ function Rule_UpdateRecipients(obMessage) {
   }
   if (secondRecipient.OriginalAddress !== "Alias <alias@example.test>") {
     obMessage.RejectReason = "original recipient not loaded";
+    return;
+  }
+  if (typeof obMessage.Recipients.Add !== "undefined") {
+    obMessage.RejectReason = "recipient collection exposed Add";
+    return;
+  }
+  if (typeof obMessage.Recipients.Clear !== "undefined") {
+    obMessage.RejectReason = "recipient collection exposed Clear";
+    return;
+  }
+  if (typeof obMessage.Recipients.ToHeaderValue !== "undefined") {
+    obMessage.RejectReason = "recipient collection exposed ToHeaderValue";
     return;
   }
 
@@ -1044,7 +1083,8 @@ function Rule_CheckRecipientMetadata(obMessage) {
     obMessage.RejectReason = "recipient local flag changed";
     return;
   }
-  if (obMessage.Recipients.ToHeaderValue() !== "local@example.test, alias-target@example.test") {
+  if (obMessage.Recipients.Count !== 2 ||
+      obMessage.Recipients.Item(1).Address !== "alias-target@example.test") {
     obMessage.RejectReason = "recipient backing collection changed";
   }
 }

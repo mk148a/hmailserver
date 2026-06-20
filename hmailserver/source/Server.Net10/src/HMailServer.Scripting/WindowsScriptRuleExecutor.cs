@@ -1265,7 +1265,7 @@ Class HMailServerRuleRecipients
       Set Item = recipient
    End Function
 
-   Public Sub Add(address, originalAddress, isLocalUser)
+   Public Sub AppendInternal(address, originalAddress, isLocalUser)
       If m_count > 0 Then
          ReDim Preserve m_addresses(m_count)
          ReDim Preserve m_originalAddresses(m_count)
@@ -1278,24 +1278,12 @@ Class HMailServerRuleRecipients
       m_count = m_count + 1
    End Sub
 
-   Public Sub Clear()
+   Public Sub ClearInternal()
       m_count = 0
       ReDim m_addresses(0)
       ReDim m_originalAddresses(0)
       ReDim m_isLocalUsers(0)
    End Sub
-
-   Public Function ToHeaderValue()
-      Dim index, value
-      value = ""
-      For index = 0 To m_count - 1
-         If Len(value) > 0 Then
-            value = value & ", "
-         End If
-         value = value & m_addresses(index)
-      Next
-      ToHeaderValue = value
-   End Function
 End Class
 
 Class HMailServerRuleAttachment
@@ -1811,7 +1799,7 @@ Class HMailServerRuleMessage
 
    Public Sub AddRecipient(name, address)
       Dim displayAddress
-      m_recipients.Add address, address, False
+      m_recipients.AppendInternal address, address, False
       displayAddress = FormatRecipientForHeader(name, address)
       If Len(m_to) > 0 Then
          m_to = m_to & ", " & displayAddress
@@ -1821,7 +1809,7 @@ Class HMailServerRuleMessage
    End Sub
 
    Public Sub ClearRecipients()
-      m_recipients.Clear
+      m_recipients.ClearInternal
       m_to = ""
       m_cc = ""
       m_headers = SetHeaderLine(m_headers, "To", "")
@@ -2547,7 +2535,7 @@ function hMailServerRuleCreateRecipients() {
         IsLocalUser: Boolean(item.IsLocalUser)
       };
     },
-    Add: function(address, originalAddress, isLocalUser) {
+    _append: function(address, originalAddress, isLocalUser) {
       this._items.push({
         Address: String(address || ""),
         OriginalAddress: String(originalAddress || address || ""),
@@ -2555,16 +2543,9 @@ function hMailServerRuleCreateRecipients() {
       });
       this.Count = this._items.length;
     },
-    Clear: function() {
+    _clear: function() {
       this._items = [];
       this.Count = 0;
-    },
-    ToHeaderValue: function() {
-      var values = [];
-      for (var index = 0; index < this._items.length; index++) {
-        values.push(this._items[index].Address);
-      }
-      return values.join(", ");
     }
   };
 }
@@ -2817,13 +2798,13 @@ if ("{{hasMessageFlag}}" === "1") {
       this._restoreReadOnlyMetadata();
     },
     AddRecipient: function(name, address) {
-      this.Recipients.Add(address, address, false);
+      this.Recipients._append(address, address, false);
       var displayAddress = hMailServerRuleFormatRecipientForHeader(name, address);
       this._to = this._to ? this._to + ", " + displayAddress : displayAddress;
       this.To = this._to;
     },
     ClearRecipients: function() {
-      this.Recipients.Clear();
+      this.Recipients._clear();
       this._to = "";
       this._cc = "";
       this.To = this._to;
@@ -2920,7 +2901,7 @@ hMailServerRuleStatusFile.Close();
         var builder = new StringBuilder();
         foreach (var recipient in recipients)
         {
-            builder.Append("HMAILSERVER_MESSAGE.Recipients.Add \"")
+            builder.Append("HMAILSERVER_MESSAGE.Recipients.AppendInternal \"")
                 .Append(EscapeVbScript(recipient.Address))
                 .Append("\", \"")
                 .Append(EscapeVbScript(recipient.OriginalAddress))
@@ -2943,7 +2924,7 @@ hMailServerRuleStatusFile.Close();
         var builder = new StringBuilder();
         foreach (var recipient in recipients)
         {
-            builder.Append("HMAILSERVER_MESSAGE.Recipients.Add(\"")
+            builder.Append("HMAILSERVER_MESSAGE.Recipients._append(\"")
                 .Append(EscapeJScript(recipient.Address))
                 .Append("\", \"")
                 .Append(EscapeJScript(recipient.OriginalAddress))
