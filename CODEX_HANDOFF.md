@@ -88,6 +88,7 @@ Son tamamlanan kucuk dilimler:
 - `Attachments` collection facade'inda runner-only `Load` ve `DeleteAt` isimleri kaldirildi; legacy `Count`/`Item`/`Clear`/`Add` ile attachment item `SaveAs`/`Delete` davranislari korunuyor.
 - `Attachments.Add`, kaynak dosya yoksa sessizce donmek yerine legacy `Failed to attach file.` hatasini VBScript/JScript'te yukseltiyor.
 - `Attachments.Item`, collection disindaki indekste `Nothing`/`null` dondurmek yerine legacy `DISP_E_BADINDEX` sozlesmesine uygun script hatasi yukseltiyor.
+- Yakalanmis attachment item nesneleri collection'da daha onceki bir oge silinse de sabit kimligini koruyor; `Delete` VBScript/JScript'te legacy gibi ilk secilen MIME parcasini kaldiriyor.
 - `HMAILSERVER_MESSAGE.HasBodyType`, ham header/body substring aramasi yerine legacy temiz MIME content-type davranisina cekildi; root ve iki nested part seviyesi, case-insensitive eslesme ve noktalivirgul iceren quoted boundary degerleri VBScript/JScript testleriyle sabitlendi.
 
 Yeni thread baslamadan once yine `git status --short --branch` ve `git diff` okunmali. Calisma agaci temiz degilse once mevcut WIP'in kime ait oldugu ve hangi slice'a hizmet ettigi anlasilmali.
@@ -103,11 +104,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-186cf6830 docs(net10): document collection lookup errors
+24c6e5707 docs(net10): document message body termination
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `a1541a1a1 fix(net10): preserve script attachment identity`
 - `78a4bfd5e fix(net10): terminate script message bodies`
 - `24e703780 fix(net10): reject invalid script collection lookups`
 - `3da58a9c6 fix(net10): reject invalid script attachment indexes`
@@ -252,6 +254,7 @@ Son temiz dogrulama notlari:
 - `Attachments.Item` bad-index parity dilimi icin iki hedefli VBScript/JScript testi 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 48/48 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 388/388 gecti.
 - Recipient/header collection bad-index parity dilimi icin dort hedefli VBScript/JScript testi 4/4 ve dar `WindowsScriptRuleExecutorTests` filtresi 48/48 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 388/388 gecti.
 - Message `Body`/`HTMLBody` trailing-CRLF parity dilimi icin dort hedefli VBScript/JScript testi 4/4 ve dar `WindowsScriptRuleExecutorTests` filtresi 50/50 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 390/390 gecti.
+- Attachment item stable-identity parity dilimi icin iki hedefli VBScript/JScript testi 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 50/50 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 390/390 gecti.
 
 Terminal/log incelemesi:
 
