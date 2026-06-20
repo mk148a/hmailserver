@@ -76,6 +76,7 @@ Son tamamlanan kucuk dilimler:
 - `HMAILSERVER_MESSAGE.To`/`CC` direct assignment, legacy COM read-only property sekline yaklastirildi; recipient/header mutasyonlari `AddRecipient`, `ClearRecipients`, `Recipients`, ve `HeaderValue` yollarinda kalacak sekilde testlendi.
 - Attachment `FileName`/`Filename` ve `Size` metadata'si legacy COM read-only property sekline yaklastirildi; VBScript direct assignment'i reddederken JScript assignment'inin collection backing metadata'sini degistirmedigi testlendi.
 - `HMAILSERVER_MESSAGE.ID`, `UID`, `State`, `DeliveryAttempt` ve `InternalDate` queue metadata'si legacy COM read-only property sekline yaklastirildi; VBScript assignment'i reddediyor, JScript canonical seed'leri `Load`/`Save`/`Copy` sinirlarinda geri yukluyor ve 64-bit message ID korunuyor. Legacy C++'taki gibi `State` ile message flags ayrildi; delivery eventleri `State = 1` ve queue `messageflags` degerini `Flag(eMessageFlag)` icin ayri seed ediyor.
+- `HMAILSERVER_MESSAGE.Size`, legacy integer `bytes / 1024` floor-KiB hesabina cekildi; 1024 byte altindaki mesajlar `0` donuyor, property read-only kaliyor ve VBScript/JScript `Save` sonrasi backing file boyutunu yeniden okuyor.
 
 Yeni thread baslamadan once yine `git status --short --branch` ve `git diff` okunmali. Calisma agaci temiz degilse once mevcut WIP'in kime ait oldugu ve hangi slice'a hizmet ettigi anlasilmali.
 
@@ -90,11 +91,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-3b2ed01ea docs(net10): document readonly queue metadata
+eb67c7744 docs(net10): document script state flag parity
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `7bcb50f9d fix(net10): match legacy script message size`
 - `ae404dcf0 fix(net10): separate script message state and flags`
 - `59650f826 fix(net10): keep message queue metadata readonly`
 - `cd22514b4 fix(net10): keep attachment metadata readonly`
@@ -213,6 +215,7 @@ Son temiz dogrulama notlari:
 - Attachment `FileName`/`Filename`/`Size` read-only metadata parity dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 38/38 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 378/378 gecti.
 - Message `ID`/`UID`/`DeliveryAttempt`/`InternalDate` read-only queue metadata parity dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 40/40 gecti; 64-bit message ID seed'i dogrulandi, prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 380/380 gecti.
 - Message `State`/`Flag(eMessageFlag)` ayrimi dilimi icin dar `WindowsScriptRuleExecutorTests|DeliveryQueueProcessorTests` filtresi 50/50 gecti; delivery event `State = 1` ve queue flag seed'leri ayri dogrulandi, prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 380/380 gecti.
+- Message `Size` read-only floor-KiB ve `Save` sonrasi yeniden olcum parity dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 42/42 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 382/382 gecti.
 
 Terminal/log incelemesi:
 
