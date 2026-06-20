@@ -58,6 +58,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch duplicate persisted `hm_fetchaccounts_uids.uidvalue` satirlarini batch lookup olustururken tolere edecek sekilde kapatildi.
 - External POP3 fetch UIDL satirlarini legacy `std::map` gibi artan sequence sirasinda isliyor; duplicate sequence icin son UID'yi tutup ayni remote slotu tek indirme/kuyruklama ile sinirliyor.
 - External POP3 fetch yeni indirilen mesajlara script ve receiver islemlerinden once legacy `X-hMailServer-ExternalAccount: <account name>` basligini ekliyor.
+- External POP3 fetch `OnExternalAccountDownload` icin negatif `Result.Parameter` degerlerini koruyor ve yeni/bilinen UID yollarinda legacy gibi immediate remote-delete uyguluyor.
 - External POP3 fetch STARTTLS akisi legacy CAPA/STLS davranisina yaklastirildi: optional STARTTLS sadece STLS advertise edilmezse plaintext'e duser, required STARTTLS credentials gondermeden fail eder ve advertise edilip reddedilen STLS iki modda da credentials oncesi fail eder.
 - External POP3 fetch CAPA reddi davranisi legacy ile sabitlendi: optional STARTTLS plaintext'e devam ederken required STARTTLS `USER`/`PASS` oncesi fail eder.
 - External POP3 fetch reddedilen server greeting'inde plain ve STARTTLS modlarinda hicbir istemci komutu veya credential gondermeden fail edecek sekilde legacy ile sabitlendi.
@@ -73,6 +74,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch `DELE` response gelmeden socket/I/O koparsa fatal kalacak, known UID korunacak ve account lease failed-release edilecek sekilde testle sabitlendi.
 - External POP3 fetch session disposal sirasinda `QUIT -ERR` veya QUIT response oncesi disconnect exception sizdirmeyecek sekilde legacy best-effort cleanup testiyle sabitlendi.
 - External POP3 fetch yeni mesaj byte'larinin onune hesap adini tasiyan legacy `X-hMailServer-ExternalAccount` basligini ekliyor; script girdisi ve receiver'a giden sonuc testle sabitlendi.
+- External POP3 fetch negatif script retention parametrelerini sifira sikistirmiyor; hem yeni mesaj hem bilinen UID cleanup akisinda tum negatif degerler remote silme karari veriyor.
 - `HMAILSERVER_MESSAGE.RefreshContent`, script tarafindan message file dogrudan degistirildikten sonra header/body alanlarini yeniden yukleyecek sekilde VBScript/JScript testleriyle sabitlendi.
 - `HMAILSERVER_MESSAGE.FileName`/`Filename` facade'i script assignment sonrasi `Load`/`Save`/`Copy` file I/O'sunu orijinal runner backing path'inde tutacak sekilde legacy `Filename` read-only davranisina yaklastirildi.
 - `HMAILSERVER_MESSAGE.To`/`CC` direct assignment, legacy COM read-only property sekline yaklastirildi; recipient/header mutasyonlari `AddRecipient`, `ClearRecipients`, `Recipients`, ve `HeaderValue` yollarinda kalacak sekilde testlendi.
@@ -106,11 +108,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-d83b52517 docs(net10): document uidl sequence ordering
+250591591 docs(net10): document external fetch account header
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `fbb46edbc fix(net10): honor negative fetch retention`
 - `4faa60ea9 fix(net10): tag external fetch messages`
 - `49ef83587 fix(net10): order external fetch uidl sequences`
 - `a1541a1a1 fix(net10): preserve script attachment identity`
@@ -261,6 +264,7 @@ Son temiz dogrulama notlari:
 - Attachment item stable-identity parity dilimi icin iki hedefli VBScript/JScript testi 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 50/50 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 390/390 gecti.
 - External fetch UIDL ordered-map parity dilimi icin hedefli duplicate/out-of-order testi 1/1 ve dar `ExternalFetchProcessorTests` filtresi 18/18 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 390/390 gecti.
 - External fetch legacy account-header parity dilimi icin hedefli script/receiver testi 1/1 ve dar `ExternalFetchProcessorTests` filtresi 18/18 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 390/390 gecti.
+- External fetch negatif retention parity dilimi icin iki processor ve bir gercek VBScript hedefli testi 3/3, birlesik `ExternalFetchProcessorTests|WindowsScriptRuleExecutorTests` filtresi 70/70 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 392/392 gecti.
 
 Terminal/log incelemesi:
 
