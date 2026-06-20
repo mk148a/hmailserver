@@ -237,6 +237,8 @@ The legacy `Received` parser locates the literal lowercase `for ` token with a c
 
 External-fetch envelope sender extraction also applies the legacy 254-character email-address validator after parsing the first `From` mailbox. Invalid or over-limit values are ignored and the message is submitted with an empty envelope sender.
 
+Resolved external-fetch recipients are deduplicated case-insensitively by their final delivery address, matching legacy `RecipientParser::AddRecipient_`. When different MIME aliases resolve to the same mailbox, the first resolved recipient and its original-address metadata are retained.
+
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
 A truncated external-fetch `RETR` body after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not submit message data, add UID state, or issue remote delete cleanup.
