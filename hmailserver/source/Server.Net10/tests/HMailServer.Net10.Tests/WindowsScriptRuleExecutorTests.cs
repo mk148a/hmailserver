@@ -277,6 +277,88 @@ function Rule_UpdateMessage(obMessage) {
     }
 
     [TestMethod]
+    public void Execute_VbScriptHasBodyTypeMatchesNestedMimeParts()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_CheckBodyTypes(obMessage)
+   If Not obMessage.HasBodyType("multipart/mixed") Then
+      obMessage.RejectReason = "outer body type missing"
+      Exit Sub
+   End If
+   If Not obMessage.HasBodyType("text/plain") Then
+      obMessage.RejectReason = "plain body type missing"
+      Exit Sub
+   End If
+   If Not obMessage.HasBodyType("multipart/alternative") Then
+      obMessage.RejectReason = "nested multipart type missing"
+      Exit Sub
+   End If
+   If Not obMessage.HasBodyType("TEXT/HTML") Then
+      obMessage.RejectReason = "nested html body type missing"
+      Exit Sub
+   End If
+   If obMessage.HasBodyType("image/png") Then
+      obMessage.RejectReason = "body text caused false type match"
+   End If
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest("Rule_CheckBodyTypes", CreateBodyTypeMessage()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptHasBodyTypeMatchesNestedMimeParts()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_CheckBodyTypes(obMessage) {
+  if (!obMessage.HasBodyType("multipart/mixed")) throw new Error("outer body type missing");
+  if (!obMessage.HasBodyType("text/plain")) throw new Error("plain body type missing");
+  if (!obMessage.HasBodyType("multipart/alternative")) throw new Error("nested multipart type missing");
+  if (!obMessage.HasBodyType("TEXT/HTML")) throw new Error("nested html body type missing");
+  if (obMessage.HasBodyType("image/png")) throw new Error("body text caused false type match");
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, language: "JScript");
+
+            var result = executor.Execute(
+                CreateRequest("Rule_CheckBodyTypes", CreateBodyTypeMessage()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_VbScriptMessageToAndCcAreReadOnly()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -2635,6 +2717,28 @@ function OnClientValidatePassword(oAccount, password) {
         message.WriteTo(output);
         return output.ToArray();
     }
+
+    private static byte[] CreateBodyTypeMessage() =>
+        Encoding.ASCII.GetBytes(
+            "From: Sender <sender@example.test>\r\n" +
+            "To: recipient@example.test\r\n" +
+            "Subject: Body types\r\n" +
+            "MIME-Version: 1.0\r\n" +
+            "Content-Type: multipart/mixed; boundary=outer-boundary\r\n" +
+            "\r\n" +
+            "--outer-boundary\r\n" +
+            "Content-Type: text/plain; charset=us-ascii\r\n" +
+            "\r\n" +
+            "This body mentions image/png but is plain text.\r\n" +
+            "--outer-boundary\r\n" +
+            "Content-Type: multipart/alternative; boundary = \"inner;boundary\"\r\n" +
+            "\r\n" +
+            "--inner;boundary\r\n" +
+            "Content-Type: text/html; charset=utf-8\r\n" +
+            "\r\n" +
+            "<html><body>HTML</body></html>\r\n" +
+            "--inner;boundary--\r\n" +
+            "--outer-boundary--\r\n");
 
     private static List<MimeEntity> LoadAttachments(byte[] messageData)
     {

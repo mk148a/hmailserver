@@ -1791,7 +1791,7 @@ Class HMailServerRuleMessage
    End Property
 
    Public Function HasBodyType(bodyType)
-      HasBodyType = InStr(1, m_headers & vbCrLf & m_body, CStr(bodyType), vbTextCompare) > 0
+      HasBodyType = HasMimeBodyType(m_headers, m_body, CStr(bodyType), 0)
    End Function
 
    Public Sub AddRecipient(name, address)
@@ -2128,6 +2128,95 @@ Class HMailServerRuleMessage
          End If
       Next
       ExtractCharset = ""
+   End Function
+
+   Private Function HasMimeBodyType(ByVal headers, ByVal body, ByVal bodyType, ByVal depth)
+      Dim requestedType, contentType, mediaType, boundary, marker
+      requestedType = LCase(CStr(bodyType))
+      If Len(requestedType) = 0 Then
+         HasMimeBodyType = False
+         Exit Function
+      End If
+
+      contentType = GetHeaderLine(headers, "Content-Type")
+      mediaType = CleanMimeContentType(contentType)
+      If mediaType = requestedType Then
+         HasMimeBodyType = True
+         Exit Function
+      End If
+      If depth >= 2 Or Left(mediaType, 10) <> "multipart/" Then
+         HasMimeBodyType = False
+         Exit Function
+      End If
+
+      boundary = ExtractMimeBoundary(contentType)
+      If Len(boundary) = 0 Then
+         HasMimeBodyType = False
+         Exit Function
+      End If
+
+      Dim parts, index, part, partHeaders, partBody
+      marker = vbCrLf & "--" & boundary
+      parts = Split(vbCrLf & NormalizeLineBreaks(body), marker)
+      For index = 1 To UBound(parts)
+         part = parts(index)
+         If Left(part, 2) = "--" Then
+            Exit For
+         End If
+         If Left(part, 2) = vbCrLf Then
+            part = Mid(part, 3)
+         End If
+         SplitMessage part, partHeaders, partBody
+         If HasMimeBodyType(partHeaders, partBody, requestedType, depth + 1) Then
+            HasMimeBodyType = True
+            Exit Function
+         End If
+      Next
+
+      HasMimeBodyType = False
+   End Function
+
+   Private Function CleanMimeContentType(ByVal contentType)
+      Dim mediaType
+      mediaType = LCase(Trim(Split(CStr(contentType), ";")(0)))
+      If Len(mediaType) = 0 Then
+         mediaType = "text/plain"
+      End If
+      CleanMimeContentType = mediaType
+   End Function
+
+   Private Function ExtractMimeBoundary(ByVal contentType)
+      Dim text, index, character, inQuotes, parameterStart, parameter, equalsPosition, value
+      text = CStr(contentType)
+      inQuotes = False
+      parameterStart = 1
+      For index = 1 To Len(text) + 1
+         If index <= Len(text) Then
+            character = Mid(text, index, 1)
+            If character = Chr(34) Then
+               inQuotes = Not inQuotes
+            End If
+         Else
+            character = ";"
+         End If
+
+         If character = ";" And Not inQuotes Then
+            parameter = Trim(Mid(text, parameterStart, index - parameterStart))
+            equalsPosition = InStr(1, parameter, "=", vbBinaryCompare)
+            If equalsPosition > 1 Then
+               If LCase(Trim(Left(parameter, equalsPosition - 1))) = "boundary" Then
+                  value = Trim(Mid(parameter, equalsPosition + 1))
+                  If Len(value) >= 2 And Left(value, 1) = Chr(34) And Right(value, 1) = Chr(34) Then
+                     value = Mid(value, 2, Len(value) - 2)
+                  End If
+                  ExtractMimeBoundary = value
+                  Exit Function
+               End If
+            End If
+            parameterStart = index + 1
+         End If
+      Next
+      ExtractMimeBoundary = ""
    End Function
 
    Private Function ApplyCharset(contentType, charset)
@@ -2565,6 +2654,74 @@ function hMailServerRuleExtractCharset(contentType) {
   return "";
 }
 
+function hMailServerRuleCleanMimeContentType(contentType) {
+  var mediaType = String(contentType || "").split(";")[0].replace(/^\s+|\s+$/g, "").toLowerCase();
+  return mediaType || "text/plain";
+}
+
+function hMailServerRuleExtractMimeBoundary(contentType) {
+  var text = String(contentType || "");
+  var inQuotes = false;
+  var parameterStart = 0;
+  for (var index = 0; index <= text.length; index++) {
+    var character = index < text.length ? text.charAt(index) : ";";
+    if (character === "\"") {
+      inQuotes = !inQuotes;
+    }
+    if (character === ";" && !inQuotes) {
+      var parameter = text.substring(parameterStart, index).replace(/^\s+|\s+$/g, "");
+      var equalsPosition = parameter.indexOf("=");
+      if (equalsPosition > 0 && parameter.substring(0, equalsPosition).replace(/^\s+|\s+$/g, "").toLowerCase() === "boundary") {
+        var value = parameter.substring(equalsPosition + 1).replace(/^\s+|\s+$/g, "");
+        if (value.length >= 2 && value.charAt(0) === "\"" && value.charAt(value.length - 1) === "\"") {
+          value = value.substring(1, value.length - 1);
+        }
+        return value;
+      }
+      parameterStart = index + 1;
+    }
+  }
+  return "";
+}
+
+function hMailServerRuleHasMimeBodyType(headers, body, bodyType, depth) {
+  var requestedType = String(bodyType || "").toLowerCase();
+  if (!requestedType) {
+    return false;
+  }
+
+  var contentType = hMailServerRuleGetHeader(headers, "Content-Type");
+  var mediaType = hMailServerRuleCleanMimeContentType(contentType);
+  if (mediaType === requestedType) {
+    return true;
+  }
+  if (depth >= 2 || mediaType.indexOf("multipart/") !== 0) {
+    return false;
+  }
+
+  var boundary = hMailServerRuleExtractMimeBoundary(contentType);
+  if (!boundary) {
+    return false;
+  }
+
+  var marker = "\r\n--" + boundary;
+  var parts = ("\r\n" + hMailServerRuleNormalizeLineBreaks(body)).split(marker);
+  for (var index = 1; index < parts.length; index++) {
+    var part = parts[index];
+    if (part.substring(0, 2) === "--") {
+      break;
+    }
+    if (part.substring(0, 2) === "\r\n") {
+      part = part.substring(2);
+    }
+    var parsedPart = hMailServerRuleSplitMessage(part);
+    if (hMailServerRuleHasMimeBodyType(parsedPart.headers, parsedPart.body, requestedType, depth + 1)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function hMailServerRuleApplyCharset(contentType, charset) {
   var baseContentType = String(contentType || "").split(";")[0].replace(/^\s+|\s+$/g, "");
   if (!baseContentType) {
@@ -2810,7 +2967,7 @@ if ("{{hasMessageFlag}}" === "1") {
       this._headers = hMailServerRuleSetHeader(this._headers, "Cc", "");
     },
     HasBodyType: function(bodyType) {
-      return (this._headers + "\r\n" + this.Body).toLowerCase().indexOf(String(bodyType || "").toLowerCase()) >= 0;
+      return hMailServerRuleHasMimeBodyType(this._headers, this.Body, bodyType, 0);
     },
     SetCharset: function(charset) {
       this.Charset = String(charset || "");
