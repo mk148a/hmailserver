@@ -1524,8 +1524,6 @@ Class HMailServerRuleMessageHeaders
       Set ItemByName = Item(index)
    End Function
 
-   Public Sub Commit()
-   End Sub
 End Class
 
 Class HMailServerRuleMessage
@@ -1659,7 +1657,6 @@ Class HMailServerRuleMessage
 
    Public Sub Save()
       Dim headers, messageBody
-      m_messageHeaders.Commit
       headers = m_headers
       headers = SetHeaderLine(headers, "Subject", m_subject)
       headers = SetHeaderLine(headers, "From", m_from)
@@ -2431,7 +2428,7 @@ function hMailServerRuleSyncMessageHeaderFields(message) {
   message.Date = message.HeaderValue("Date");
   message.Charset = hMailServerRuleExtractCharset(message.HeaderValue("Content-Type"));
   if (message.Headers) {
-    message.Headers.Refresh();
+    message.Headers._refresh();
   }
 }
 
@@ -2454,7 +2451,7 @@ function hMailServerRuleSyncCommonHeaderField(message, fieldName, fieldValue) {
     message.Charset = hMailServerRuleExtractCharset(value);
   }
   if (message.Headers) {
-    message.Headers.Refresh();
+    message.Headers._refresh();
   }
 }
 
@@ -2478,12 +2475,12 @@ function hMailServerRuleCreateHeaders(owner) {
     _items: [],
     _issued: [],
     Count: 0,
-    Refresh: function() {
+    _refresh: function() {
       this._items = hMailServerRuleParseHeaderItems(this._owner._headers);
       this.Count = this._items.length;
     },
     Item: function(index) {
-      this.Refresh();
+      this._refresh();
       if (index < 0 || index >= this._items.length) {
         return null;
       }
@@ -2491,7 +2488,7 @@ function hMailServerRuleCreateHeaders(owner) {
       return hMailServerRuleCreateHeader(this._owner, this, index, item.Name, item.Value);
     },
     ItemByName: function(name) {
-      this.Refresh();
+      this._refresh();
       var target = String(name || "").toLowerCase();
       for (var index = 0; index < this._items.length; index++) {
         if (String(this._items[index].Name || "").toLowerCase() === target) {
@@ -2500,9 +2497,9 @@ function hMailServerRuleCreateHeaders(owner) {
       }
       return null;
     },
-    Commit: function() {
+    _commit: function() {
       if (this._issued.length === 0) {
-        this.Refresh();
+        this._refresh();
         return;
       }
       for (var index = 0; index < this._issued.length; index++) {
@@ -2514,7 +2511,7 @@ function hMailServerRuleCreateHeaders(owner) {
         }
       }
       this._issued = [];
-      this.Refresh();
+      this._refresh();
       hMailServerRuleSyncMessageHeaderFields(this._owner);
     }
   };
@@ -2775,7 +2772,7 @@ if ("{{hasMessageFlag}}" === "1") {
     Save: function() {
       this._restoreReadOnlyMetadata();
       if (this.Headers) {
-        this.Headers.Commit();
+        this.Headers._commit();
       }
       var headers = this._headers;
       headers = hMailServerRuleSetHeader(headers, "Subject", this.Subject);

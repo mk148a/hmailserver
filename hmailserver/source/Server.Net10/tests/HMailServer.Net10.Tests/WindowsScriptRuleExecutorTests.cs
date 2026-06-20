@@ -693,6 +693,24 @@ Sub Rule_UpdateHeaders(obMessage)
       Exit Sub
    End If
 
+   On Error Resume Next
+   obMessage.Headers.Refresh
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "header collection exposed Refresh"
+      Exit Sub
+   End If
+   Err.Clear
+
+   obMessage.Headers.Commit
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "header collection exposed Commit"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
+
    Dim firstHeader, foldedHeader, removeHeader
    Set firstHeader = obMessage.Headers.Item(0)
    If firstHeader.Name <> "From" Then
@@ -753,6 +771,14 @@ End Sub
 function Rule_UpdateHeaders(obMessage) {
   if (obMessage.Headers.Count !== 5) {
     obMessage.RejectReason = "header count not loaded";
+    return;
+  }
+  if (typeof obMessage.Headers.Refresh !== "undefined") {
+    obMessage.RejectReason = "header collection exposed Refresh";
+    return;
+  }
+  if (typeof obMessage.Headers.Commit !== "undefined") {
+    obMessage.RejectReason = "header collection exposed Commit";
     return;
   }
 
