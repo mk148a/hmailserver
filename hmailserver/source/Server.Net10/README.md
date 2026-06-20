@@ -146,6 +146,8 @@ The `Recipients` collection keeps the legacy supported surface of `Count` and `I
 
 Message-level `ClearRecipients` follows the legacy envelope and MIME cleanup behavior: it clears the recipient collection and removes the `To`, `Cc`, and `Bcc` headers in both script languages.
 
+Message-level `Save` follows the legacy missing-date behavior: when the message has no `Date` value, both script facades generate a current local MIME date before writing the message file.
+
 The `Headers` collection keeps the legacy supported surface of `Count`, `Item`, and `ItemByName`; runner-internal refresh/commit helpers are no longer published as `Refresh` or `Commit`. Header item `Name`/`Value` updates and `Delete` continue to persist through `Message.Save` in both script languages.
 
 The `Attachments` collection keeps the legacy supported surface of `Count`, `Item`, `Clear`, and `Add`; runner-internal manifest loading and index removal are no longer published as `Load` or `DeleteAt`. Attachment item `SaveAs` and `Delete` continue to work in VBScript and JScript.
