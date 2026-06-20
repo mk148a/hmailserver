@@ -420,8 +420,13 @@ public sealed class ExternalFetchProcessor
         return result;
     }
 
-    private static string ExtractMailFrom(MimeMessage? mimeMessage) =>
-        mimeMessage?.From.Mailboxes.FirstOrDefault()?.Address ?? string.Empty;
+    private static string ExtractMailFrom(MimeMessage? mimeMessage)
+    {
+        var address = mimeMessage?.From.Mailboxes.FirstOrDefault()?.Address;
+        return address is not null && IsValidLegacyEmailAddress(address)
+            ? address
+            : string.Empty;
+    }
 
     private static DateTimeOffset ResolveReceivedUtc(
         ExternalFetchAccountLease account,

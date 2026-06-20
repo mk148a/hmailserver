@@ -57,6 +57,30 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_IgnoresSenderAboveLegacyLengthLimit()
+    {
+        var invalidSender = $"{new string('a', 242)}@example.test";
+        Assert.AreEqual(255, invalidSender.Length);
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-invalid-sender", Size: 64),
+            ToAsciiBytes(
+                $"From: {invalidSender}\r\n" +
+                "To: user@example.test\r\n" +
+                "Subject: fetched\r\n" +
+                "\r\n" +
+                "Body\r\n"));
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(store, session, receiver);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.MessagesAccepted);
+        Assert.AreEqual(string.Empty, receiver.Requests.Single().MailFrom);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_QueuesEmptyRemoteMessageWithExternalAccountHeader()
     {
         var account = CreateAccount();
