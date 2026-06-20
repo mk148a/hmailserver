@@ -1280,8 +1280,8 @@ Class HMailServerRuleRecipients
 End Class
 
 Class HMailServerRuleAttachment
-   Public FileName
-   Public Size
+   Private m_fileName
+   Private m_size
    Private m_sourcePath
    Private m_owner
    Private m_index
@@ -1289,10 +1289,18 @@ Class HMailServerRuleAttachment
    Public Sub Initialize(owner, index, attachmentFileName, attachmentSize, sourcePath)
       Set m_owner = owner
       m_index = index
-      FileName = attachmentFileName
-      Size = CLng(attachmentSize)
+      m_fileName = CStr(attachmentFileName)
+      m_size = CLng(attachmentSize)
       m_sourcePath = sourcePath
    End Sub
+
+   Public Property Get FileName()
+      FileName = m_fileName
+   End Property
+
+   Public Property Get Size()
+      Size = m_size
+   End Property
 
    Public Sub SaveAs(path)
       Dim fileSystem

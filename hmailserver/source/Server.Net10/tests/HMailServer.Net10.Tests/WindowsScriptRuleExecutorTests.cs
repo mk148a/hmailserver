@@ -1007,6 +1007,67 @@ End Sub
     }
 
     [TestMethod]
+    public void Execute_VbScriptAttachmentFileNameAndSizeAreReadOnly()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_CheckAttachmentMetadata(obMessage)
+   Dim attachment, originalFileName, originalSize
+   Set attachment = obMessage.Attachments.Item(0)
+   originalFileName = attachment.FileName
+   originalSize = attachment.Size
+
+   On Error Resume Next
+   attachment.FileName = "changed.txt"
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "attachment filename accepted direct assignment"
+      Exit Sub
+   End If
+   Err.Clear
+
+   attachment.Size = 999
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "attachment size accepted direct assignment"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
+
+   If attachment.FileName <> originalFileName Or attachment.Size <> originalSize Then
+      obMessage.RejectReason = "attachment metadata changed"
+   End If
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_CheckAttachmentMetadata",
+                    CreateMultipartMessage(("hello.txt", "Hello"))),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var attachments = LoadAttachments(result.MessageData);
+            Assert.AreEqual(1, attachments.Count);
+            Assert.AreEqual("hello.txt", GetAttachmentFileName(attachments[0]));
+            Assert.AreEqual("Hello", ReadAttachmentText(attachments[0]));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_ExposesAttachmentDeleteToJScript()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -1048,6 +1109,50 @@ function Rule_DeleteAttachment(obMessage) {
             Assert.AreEqual(1, attachments.Count);
             Assert.AreEqual("keep.txt", GetAttachmentFileName(attachments[0]));
             Assert.AreEqual("Keep", ReadAttachmentText(attachments[0]));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptAttachmentMetadataAssignmentDoesNotMutateCollection()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_CheckAttachmentMetadata(obMessage) {
+  var attachment = obMessage.Attachments.Item(0);
+  attachment.FileName = "changed.txt";
+  attachment.Filename = "changed-alias.txt";
+  attachment.Size = 999;
+
+  var current = obMessage.Attachments.Item(0);
+  if (current.FileName !== "hello.txt" || current.Filename !== "hello.txt" || current.Size !== 5) {
+    obMessage.RejectReason = "attachment collection metadata changed";
+  }
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_CheckAttachmentMetadata",
+                    CreateMultipartMessage(("hello.txt", "Hello"))),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            var attachments = LoadAttachments(result.MessageData);
+            Assert.AreEqual(1, attachments.Count);
+            Assert.AreEqual("hello.txt", GetAttachmentFileName(attachments[0]));
+            Assert.AreEqual("Hello", ReadAttachmentText(attachments[0]));
         }
         finally
         {
