@@ -106,6 +106,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: external POP3 fetch processes UIDL entries in ascending sequence order and retains the last UID for duplicate sequence numbers, matching the legacy `std::map` behavior.
 - Done: external POP3 fetch prepends `X-hMailServer-ExternalAccount: <account name>` to newly downloaded messages before script, MIME, antivirus, and SMTP receiver processing.
 - Done: external POP3 fetch preserves negative `OnExternalAccountDownload` `Result.Parameter` values and treats every negative retention as legacy immediate remote deletion for new and known UIDs.
+- Done: external POP3 fetch evaluates positive known-UID retention with the full elapsed timestamp span, preserving the legacy inclusive day boundary instead of truncating to calendar dates.
 - Done: external POP3 fetch probes CAPA before STLS so optional STARTTLS falls back only when STLS is not advertised, required STARTTLS fails before credentials, and an advertised-but-rejected STLS fails both modes before authentication.
 - Done: external POP3 fetch treats a rejected CAPA response as unavailable STLS, continuing optional STARTTLS over plaintext while failing required STARTTLS before credentials.
 - Done: external POP3 fetch rejects a failed server greeting before sending any command or credentials in plain and STARTTLS modes.
@@ -236,6 +237,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: UIDL coalescing follows the legacy ordered-map contract by sorting sequence numbers ascending and letting the final row replace an earlier UID for the same sequence.
    - Done: newly downloaded messages receive the legacy `X-hMailServer-ExternalAccount` account-name header before script and receiver processing.
    - Done: negative script `DeleteAfterDays` retention values take the legacy immediate remote-delete path for both new and already-known UIDs instead of being clamped to never-delete.
+   - Done: positive known-UID retention compares fractional elapsed days against the inclusive legacy boundary rather than comparing midnight-truncated calendar dates.
    - Done: external fetch probes CAPA before STLS, preserving legacy optional STARTTLS plaintext fallback, required STARTTLS pre-auth failure when STLS is not advertised, and pre-auth failure in both modes when an advertised STLS command is rejected.
    - Done: external fetch preserves legacy CAPA-rejection behavior by continuing optional STARTTLS over plaintext and failing required STARTTLS before authentication.
    - Done: external fetch preserves legacy greeting-rejection behavior without sending any client command or credentials in plain and STARTTLS modes.
