@@ -580,6 +580,33 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_RejectsMalformedRecipientFromReceivedHeader()
+    {
+        var account = CreateAccount(
+            enableRouteRecipients: true,
+            mimeRecipientHeaders: "X-RCPT-TO");
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-malformed-received-recipient", Size: 64),
+            ToAsciiBytes(
+                "Received: from mx.example by hmail for <bad@@example.test>; Thu, 02 Jan 2025 03:04:05 +0000\r\n" +
+                "From: sender@example.net\r\n" +
+                "Subject: fetched\r\n" +
+                "\r\n" +
+                "Body\r\n"));
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(store, session, receiver);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.MessagesAccepted);
+        var recipient = receiver.Requests.Single().Recipients.Single();
+        Assert.AreEqual("user@example.test", recipient.Address);
+        Assert.AreEqual(42, recipient.LocalAccountId);
+        Assert.IsTrue(recipient.IsLocal);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_UsesFirstDuplicateConfiguredMimeRecipientHeader()
     {
         var account = CreateAccount(mimeRecipientHeaders: "X-RCPT-TO");

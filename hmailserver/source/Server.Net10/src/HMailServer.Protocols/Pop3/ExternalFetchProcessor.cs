@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using HMailServer.Core.Abstractions;
 using MimeKit;
 
@@ -7,6 +8,11 @@ namespace HMailServer.Protocols.Pop3;
 
 public sealed class ExternalFetchProcessor
 {
+    private static readonly Regex LegacyEmailAddressRegex = new(
+        """^(("[^<>@\\]+")|(?!\.|.*\.(\.|@))[^<> @\\"]+)@(\[([0-9]{1,3}\.){3}[0-9]{1,3}\]|\[IPv6:(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}\]|(?=.{1,255}$)((?!-|\.)[a-zA-Z0-9-]{0,62}[a-zA-Z0-9])(|\.(?!-|\.)[a-zA-Z0-9-]{0,62}[a-zA-Z0-9]){1,126})$""",
+        RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
+
     private readonly IExternalFetchAccountStore _accountStore;
     private readonly IExternalFetchSessionFactory _sessionFactory;
     private readonly ISmtpMessageReceiver _messageReceiver;
@@ -689,14 +695,11 @@ public sealed class ExternalFetchProcessor
             .Replace("<", string.Empty, StringComparison.Ordinal)
             .Replace(">", string.Empty, StringComparison.Ordinal)
             .Replace(" ", string.Empty, StringComparison.Ordinal);
-        return IsPlausibleEmailAddress(recipient);
+        return IsValidLegacyEmailAddress(recipient);
     }
 
-    private static bool IsPlausibleEmailAddress(string address)
-    {
-        var at = address.IndexOf('@');
-        return at > 0 && at < address.Length - 1;
-    }
+    private static bool IsValidLegacyEmailAddress(string address) =>
+        address.Length <= 254 && LegacyEmailAddressRegex.IsMatch(address);
 
     private static string GetFallbackRecipientAddress(ExternalFetchAccountLease account) =>
         string.IsNullOrWhiteSpace(account.AccountAddress)
