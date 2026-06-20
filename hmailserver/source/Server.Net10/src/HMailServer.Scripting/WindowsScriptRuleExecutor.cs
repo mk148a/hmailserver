@@ -1256,8 +1256,7 @@ Class HMailServerRuleRecipients
 
    Public Function Item(index)
       If index < 0 Or index >= m_count Then
-         Set Item = Nothing
-         Exit Function
+         Err.Raise 9, "HMailServerRuleRecipients.Item", "Invalid recipient index."
       End If
 
       Dim recipient
@@ -1503,8 +1502,7 @@ Class HMailServerRuleMessageHeaders
 
    Public Function Item(index)
       If index < 0 Or index >= Count Then
-         Set Item = Nothing
-         Exit Function
+         Err.Raise 9, "HMailServerRuleMessageHeaders.Item", "Invalid message header index."
       End If
 
       Dim header
@@ -1517,8 +1515,7 @@ Class HMailServerRuleMessageHeaders
       Dim index
       index = m_owner.FindHeaderIndexByName(CStr(name))
       If index < 0 Then
-         Set ItemByName = Nothing
-         Exit Function
+         Err.Raise 9, "HMailServerRuleMessageHeaders.ItemByName", "Message header not found."
       End If
 
       Set ItemByName = Item(index)
@@ -2572,7 +2569,7 @@ function hMailServerRuleCreateHeaders(owner) {
     Item: function(index) {
       this._refresh();
       if (index < 0 || index >= this._items.length) {
-        return null;
+        throw new Error("Invalid message header index.");
       }
       var item = this._items[index];
       return hMailServerRuleCreateHeader(this._owner, this, index, item.Name, item.Value);
@@ -2585,7 +2582,7 @@ function hMailServerRuleCreateHeaders(owner) {
           return hMailServerRuleCreateHeader(this._owner, this, index, this._items[index].Name, this._items[index].Value);
         }
       }
-      return null;
+      throw new Error("Message header not found.");
     },
     _commit: function() {
       if (this._issued.length === 0) {
@@ -2613,7 +2610,7 @@ function hMailServerRuleCreateRecipients() {
     Count: 0,
     Item: function(index) {
       if (index < 0 || index >= this._items.length) {
-        return null;
+        throw new Error("Invalid recipient index.");
       }
       var item = this._items[index];
       return {

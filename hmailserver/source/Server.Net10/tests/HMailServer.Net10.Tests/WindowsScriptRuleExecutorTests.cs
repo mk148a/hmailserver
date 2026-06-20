@@ -859,6 +859,25 @@ Sub Rule_UpdateHeaders(obMessage)
       Exit Sub
    End If
 
+   Dim invalidHeader
+   On Error Resume Next
+   Set invalidHeader = obMessage.Headers.Item(obMessage.Headers.Count)
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "invalid header index did not fail"
+      Exit Sub
+   End If
+   Err.Clear
+
+   Set invalidHeader = obMessage.Headers.ItemByName("X-Missing")
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "missing header name did not fail"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
+
    On Error Resume Next
    obMessage.Headers.Refresh
    If Err.Number = 0 Then
@@ -939,6 +958,26 @@ function Rule_UpdateHeaders(obMessage) {
     obMessage.RejectReason = "header count not loaded";
     return;
   }
+  var invalidHeaderIndexFailed = false;
+  try {
+    obMessage.Headers.Item(obMessage.Headers.Count);
+  } catch (error) {
+    invalidHeaderIndexFailed = true;
+  }
+  if (!invalidHeaderIndexFailed) {
+    obMessage.RejectReason = "invalid header index did not fail";
+    return;
+  }
+  var missingHeaderNameFailed = false;
+  try {
+    obMessage.Headers.ItemByName("X-Missing");
+  } catch (error) {
+    missingHeaderNameFailed = true;
+  }
+  if (!missingHeaderNameFailed) {
+    obMessage.RejectReason = "missing header name did not fail";
+    return;
+  }
   if (typeof obMessage.Headers.Refresh !== "undefined") {
     obMessage.RejectReason = "header collection exposed Refresh";
     return;
@@ -1013,6 +1052,17 @@ Sub Rule_UpdateRecipients(obMessage)
       obMessage.RejectReason = "recipient count not loaded"
       Exit Sub
    End If
+
+   Dim invalidRecipient
+   On Error Resume Next
+   Set invalidRecipient = obMessage.Recipients.Item(obMessage.Recipients.Count)
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "invalid recipient index did not fail"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
 
    Dim firstRecipient, secondRecipient
    Set firstRecipient = obMessage.Recipients.Item(0)
@@ -1117,6 +1167,16 @@ function Rule_UpdateRecipients(obMessage) {
   }
   if (obMessage.Recipients.Count !== 2) {
     obMessage.RejectReason = "recipient count not loaded";
+    return;
+  }
+  var invalidRecipientFailed = false;
+  try {
+    obMessage.Recipients.Item(obMessage.Recipients.Count);
+  } catch (error) {
+    invalidRecipientFailed = true;
+  }
+  if (!invalidRecipientFailed) {
+    obMessage.RejectReason = "invalid recipient index did not fail";
     return;
   }
 
