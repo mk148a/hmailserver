@@ -156,6 +156,8 @@ The `Attachments` collection keeps the legacy supported surface of `Count`, `Ite
 
 `Attachments.Add` follows the legacy failure contract in both script languages: a missing source file raises `Failed to attach file.` instead of silently leaving the collection unchanged.
 
+`Attachments.Item` also follows the legacy bad-index contract: an index outside the collection raises a script error instead of returning `Nothing` or `null`.
+
 Message `HasBodyType` now follows the legacy clean MIME content-type lookup across the root part and two nested part levels instead of matching arbitrary header/body text. Matching is case-insensitive, and quoted boundary parameters, including boundary values containing semicolons, are supported in both VBScript and JScript facades.
 
 The scripting logger provider dispatches optional `OnError(iSeverity, iError, sSource, sDescription)` handlers for .NET `Warning`, `Error`, and `Critical` records as legacy severity values `3`, `2`, and `1`. The logging `EventId` becomes the error code, the logger category becomes the source, exception details are appended to the formatted description, execution is timeboxed/fail-open, and recursive logging from the handler is suppressed. All legacy protocol and delivery event names are now connected; backup-completion/failure events await the .NET backup engine.
