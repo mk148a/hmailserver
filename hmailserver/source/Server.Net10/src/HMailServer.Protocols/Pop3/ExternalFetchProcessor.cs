@@ -307,31 +307,13 @@ public sealed class ExternalFetchProcessor
             return remoteMessages;
         }
 
-        var bySequence = new Dictionary<int, ExternalFetchRemoteMessage>();
-        var sequenceOrder = new List<int>(remoteMessages.Count);
+        var bySequence = new SortedDictionary<int, ExternalFetchRemoteMessage>();
         foreach (var remoteMessage in remoteMessages)
         {
-            if (bySequence.TryAdd(remoteMessage.SequenceNumber, remoteMessage))
-            {
-                sequenceOrder.Add(remoteMessage.SequenceNumber);
-                continue;
-            }
-
             bySequence[remoteMessage.SequenceNumber] = remoteMessage;
         }
 
-        if (bySequence.Count == remoteMessages.Count)
-        {
-            return remoteMessages;
-        }
-
-        var normalized = new List<ExternalFetchRemoteMessage>(bySequence.Count);
-        foreach (var sequenceNumber in sequenceOrder)
-        {
-            normalized.Add(bySequence[sequenceNumber]);
-        }
-
-        return normalized;
+        return [.. bySequence.Values];
     }
 
     private ExternalAccountDownloadScriptExecutionResult RunExternalAccountDownloadScript(

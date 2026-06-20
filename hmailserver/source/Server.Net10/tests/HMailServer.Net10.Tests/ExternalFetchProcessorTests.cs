@@ -557,12 +557,14 @@ public sealed class ExternalFetchProcessorTests
         var store = new FakeExternalFetchAccountStore(account);
         var session = new FakeExternalFetchSession(
             [
+                new ExternalFetchRemoteMessage(2, "uid-two", Size: 64),
                 new ExternalFetchRemoteMessage(1, "uid-first", Size: 64),
                 new ExternalFetchRemoteMessage(1, "uid-last", Size: 64)
             ],
             new Dictionary<int, byte[]>
             {
-                [1] = ToAsciiBytes("From: sender@example.net\r\nTo: user@example.test\r\nSubject: duplicate sequence\r\n\r\nBody\r\n")
+                [1] = ToAsciiBytes("From: sender@example.net\r\nTo: user@example.test\r\nSubject: duplicate sequence\r\n\r\nBody\r\n"),
+                [2] = ToAsciiBytes("From: sender@example.net\r\nTo: user@example.test\r\nSubject: out of order\r\n\r\nBody\r\n")
             });
         var receiver = new FakeSmtpMessageReceiver();
         var processor = CreateProcessor(store, session, receiver);
@@ -570,12 +572,12 @@ public sealed class ExternalFetchProcessorTests
         var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
 
         Assert.AreEqual(1, result.AccountsCompleted);
-        Assert.AreEqual(1, result.MessagesDownloaded);
-        Assert.AreEqual(1, result.MessagesAccepted);
-        Assert.AreEqual(1, result.KnownUidsAdded);
-        Assert.AreEqual("uid-last", store.AddedUids.Single());
-        Assert.AreEqual(1, receiver.Requests.Count);
-        CollectionAssert.AreEqual(new[] { 1 }, session.DownloadedSequences.ToArray());
+        Assert.AreEqual(2, result.MessagesDownloaded);
+        Assert.AreEqual(2, result.MessagesAccepted);
+        Assert.AreEqual(2, result.KnownUidsAdded);
+        CollectionAssert.AreEqual(new[] { "uid-last", "uid-two" }, store.AddedUids.ToArray());
+        Assert.AreEqual(2, receiver.Requests.Count);
+        CollectionAssert.AreEqual(new[] { 1, 2 }, session.DownloadedSequences.ToArray());
     }
 
     [TestMethod]
