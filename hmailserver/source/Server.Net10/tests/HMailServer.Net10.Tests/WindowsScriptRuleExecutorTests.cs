@@ -1150,6 +1150,24 @@ Sub Rule_UpdateAttachments(obMessage)
       Exit Sub
    End If
 
+   On Error Resume Next
+   obMessage.Attachments.Load "unexpected", "unexpected"
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "attachment collection exposed Load"
+      Exit Sub
+   End If
+   Err.Clear
+
+   obMessage.Attachments.DeleteAt 0
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "attachment collection exposed DeleteAt"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
+
    Dim attachment, savedPath, fileSystem, savedFile, savedText
    Set attachment = obMessage.Attachments.Item(0)
    If attachment.FileName <> "hello.txt" Then
@@ -1279,6 +1297,14 @@ function Rule_DeleteAttachment(obMessage) {
   }
   if (obMessage.Attachments.Item(1).Filename !== obMessage.Attachments.Item(1).FileName) {
     obMessage.RejectReason = "attachment filename alias not loaded";
+    return;
+  }
+  if (typeof obMessage.Attachments.Load !== "undefined") {
+    obMessage.RejectReason = "attachment collection exposed Load";
+    return;
+  }
+  if (typeof obMessage.Attachments.DeleteAt !== "undefined") {
+    obMessage.RejectReason = "attachment collection exposed DeleteAt";
     return;
   }
 

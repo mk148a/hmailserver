@@ -1316,7 +1316,7 @@ Class HMailServerRuleAttachment
    End Sub
 
    Public Sub Delete()
-      m_owner.DeleteAt m_index
+      m_owner.RemoveAtInternal m_index
    End Sub
 End Class
 
@@ -1335,7 +1335,7 @@ Class HMailServerRuleAttachments
       ReDim m_sourcePaths(0)
    End Sub
 
-   Public Sub Load(manifestPath, operationPath)
+   Public Sub InitializeInternal(manifestPath, operationPath)
       m_operationPath = operationPath
       ClearInMemory
 
@@ -1390,7 +1390,7 @@ Class HMailServerRuleAttachments
       AppendOperation "Add", CStr(path)
    End Sub
 
-   Public Sub DeleteAt(index)
+   Public Sub RemoveAtInternal(index)
       If index < 0 Or index >= m_count Then
          Exit Sub
       End If
@@ -2160,7 +2160,7 @@ If "{{hasMessageFlag}}" = "1" Then
    HMAILSERVER_MESSAGE.DropMessage = False
    HMAILSERVER_MESSAGE.RejectReason = ""
    HMAILSERVER_MESSAGE.Load
-   HMAILSERVER_MESSAGE.Attachments.Load "{{EscapeVbScript(attachmentManifestPath)}}", "{{EscapeVbScript(attachmentOperationPath)}}"
+   HMAILSERVER_MESSAGE.Attachments.InitializeInternal "{{EscapeVbScript(attachmentManifestPath)}}", "{{EscapeVbScript(attachmentOperationPath)}}"
    HMAILSERVER_MESSAGE.FromAddress = "{{EscapeVbScript(mailFrom)}}"
    Call HMAILSERVER_MESSAGE.InitializeMetadata({{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.Flags.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}}, {{CreateVbScriptDateExpression(messageMetadata.InternalDateUtc)}})
 {{CreateVbScriptRecipientSeeds(recipients)}}
@@ -2602,7 +2602,7 @@ function hMailServerRuleCreateAttachment(owner, index, fileName, size, sourcePat
       hMailServerRuleFileSystem.CopyFile(sourcePath, String(path || ""), true);
     },
     Delete: function() {
-      owner.DeleteAt(index);
+      owner._removeAt(index);
     }
   };
 }
@@ -2611,7 +2611,7 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
   var collection = {
     _items: [],
     Count: 0,
-    Load: function() {
+    _load: function() {
       this._items = [];
       this.Count = 0;
       if (!hMailServerRuleFileSystem.FileExists(manifestPath)) {
@@ -2657,7 +2657,7 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
       this.Count = this._items.length;
       hMailServerRuleAppendAttachmentOperation(operationPath, "Add", filePath);
     },
-    DeleteAt: function(index) {
+    _removeAt: function(index) {
       if (index < 0 || index >= this._items.length) {
         return;
       }
@@ -2666,7 +2666,7 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
       this.Count = this._items.length;
     }
   };
-  collection.Load();
+  collection._load();
   return collection;
 }
 
