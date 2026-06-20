@@ -227,6 +227,8 @@ For `OnExternalAccountDownload`, `Result.Value = 2` preserves the signed `Result
 
 Positive external-fetch retention uses the full elapsed timestamp span, matching legacy `DateTimeSpan`: a known UID is kept while elapsed fractional days are less than or equal to the configured value and deleted only after that boundary is exceeded.
 
+An empty but successfully terminated external-fetch `RETR` body remains processable: the legacy `X-hMailServer-ExternalAccount` header becomes the message content, then normal script, receiver, UID tracking, and retention processing continues.
+
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
 A truncated external-fetch `RETR` body after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not submit message data, add UID state, or issue remote delete cleanup.

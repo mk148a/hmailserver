@@ -60,6 +60,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch yeni indirilen mesajlara script ve receiver islemlerinden once legacy `X-hMailServer-ExternalAccount: <account name>` basligini ekliyor.
 - External POP3 fetch `OnExternalAccountDownload` icin negatif `Result.Parameter` degerlerini koruyor ve yeni/bilinen UID yollarinda legacy gibi immediate remote-delete uyguluyor.
 - External POP3 fetch pozitif known-UID retention yasini takvim gunune kirmadan tam timestamp farkiyla hesapliyor; esit sinir tutuluyor, asildiginda remote mesaj siliniyor.
+- External POP3 fetch normal sonlanan bos `RETR` payload'ini legacy account header eklendikten sonra script/receiver ve UID retention akisinda islemeye devam ediyor.
 - External POP3 fetch STARTTLS akisi legacy CAPA/STLS davranisina yaklastirildi: optional STARTTLS sadece STLS advertise edilmezse plaintext'e duser, required STARTTLS credentials gondermeden fail eder ve advertise edilip reddedilen STLS iki modda da credentials oncesi fail eder.
 - External POP3 fetch CAPA reddi davranisi legacy ile sabitlendi: optional STARTTLS plaintext'e devam ederken required STARTTLS `USER`/`PASS` oncesi fail eder.
 - External POP3 fetch reddedilen server greeting'inde plain ve STARTTLS modlarinda hicbir istemci komutu veya credential gondermeden fail edecek sekilde legacy ile sabitlendi.
@@ -77,6 +78,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch yeni mesaj byte'larinin onune hesap adini tasiyan legacy `X-hMailServer-ExternalAccount` basligini ekliyor; script girdisi ve receiver'a giden sonuc testle sabitlendi.
 - External POP3 fetch negatif script retention parametrelerini sifira sikistirmiyor; hem yeni mesaj hem bilinen UID cleanup akisinda tum negatif degerler remote silme karari veriyor.
 - External POP3 fetch known-UID yas hesabinda legacy `DateTimeSpan.GetNumberOfDays()` gibi kesirli elapsed gun kullaniyor; 47 saatlik UID 1 gun politikasinda silinirken tam 24 saatlik UID tutuluyor.
+- External POP3 fetch sifir-byte `RETR` sonucunu erken hata yapmiyor; `X-hMailServer-ExternalAccount` basligi header-only mesaj olusturuyor ve normal queue/UID akisi testle sabitlendi.
 - `HMAILSERVER_MESSAGE.RefreshContent`, script tarafindan message file dogrudan degistirildikten sonra header/body alanlarini yeniden yukleyecek sekilde VBScript/JScript testleriyle sabitlendi.
 - `HMAILSERVER_MESSAGE.FileName`/`Filename` facade'i script assignment sonrasi `Load`/`Save`/`Copy` file I/O'sunu orijinal runner backing path'inde tutacak sekilde legacy `Filename` read-only davranisina yaklastirildi.
 - `HMAILSERVER_MESSAGE.To`/`CC` direct assignment, legacy COM read-only property sekline yaklastirildi; recipient/header mutasyonlari `AddRecipient`, `ClearRecipients`, `Recipients`, ve `HeaderValue` yollarinda kalacak sekilde testlendi.
@@ -110,11 +112,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-94dcbcdf2 docs(net10): document negative fetch retention
+167ccd41f docs(net10): document elapsed fetch retention
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `208705faf fix(net10): accept empty external fetch messages`
 - `6b481c125 fix(net10): use elapsed fetch retention days`
 - `fbb46edbc fix(net10): honor negative fetch retention`
 - `4faa60ea9 fix(net10): tag external fetch messages`
@@ -269,6 +272,7 @@ Son temiz dogrulama notlari:
 - External fetch legacy account-header parity dilimi icin hedefli script/receiver testi 1/1 ve dar `ExternalFetchProcessorTests` filtresi 18/18 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 390/390 gecti.
 - External fetch negatif retention parity dilimi icin iki processor ve bir gercek VBScript hedefli testi 3/3, birlesik `ExternalFetchProcessorTests|WindowsScriptRuleExecutorTests` filtresi 70/70 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 392/392 gecti.
 - External fetch elapsed-retention parity dilimi icin 47 saat/sil ve tam 24 saat/tut hedefli testleri 2/2, dar `ExternalFetchProcessorTests` filtresi 22/22 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 394/394 gecti.
+- External fetch bos-RETR parity dilimi icin processor ve loopback TCP hedefli testleri 2/2, birlesik `ExternalFetchProcessorTests|TcpExternalFetchSessionFactoryTests` filtresi 58/58 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 396/396 gecti.
 
 Terminal/log incelemesi:
 
