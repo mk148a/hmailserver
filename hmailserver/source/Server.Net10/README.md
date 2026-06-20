@@ -231,6 +231,8 @@ An empty but successfully terminated external-fetch `RETR` body remains processa
 
 Configured external-fetch MIME recipient names use the first matching header field, matching legacy `GetRawFieldValue`; duplicate fields with the same configured name do not introduce extra recipients, while every `Received` field remains eligible for `for <recipient>` extraction.
 
+External-fetch `Received ... for <recipient>` values pass the legacy 254-character email-address regex before recipient resolution. Malformed values such as multiple-`@` addresses are ignored even when route recipients are enabled, allowing the account fallback recipient to be used.
+
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
 A truncated external-fetch `RETR` body after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not submit message data, add UID state, or issue remote delete cleanup.
