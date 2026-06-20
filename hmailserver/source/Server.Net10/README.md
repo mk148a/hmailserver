@@ -229,6 +229,8 @@ Positive external-fetch retention uses the full elapsed timestamp span, matching
 
 An empty but successfully terminated external-fetch `RETR` body remains processable: the legacy `X-hMailServer-ExternalAccount` header becomes the message content, then normal script, receiver, UID tracking, and retention processing continues.
 
+Configured external-fetch MIME recipient names use the first matching header field, matching legacy `GetRawFieldValue`; duplicate fields with the same configured name do not introduce extra recipients, while every `Received` field remains eligible for `for <recipient>` extraction.
+
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
 A truncated external-fetch `RETR` body after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not submit message data, add UID state, or issue remote delete cleanup.
