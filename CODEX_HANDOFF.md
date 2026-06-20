@@ -80,6 +80,7 @@ Son tamamlanan kucuk dilimler:
 - Recipient item `Address`, `OriginalAddress` ve `IsLocalUser` metadata'si legacy COM read-only property sekline yaklastirildi; VBScript assignment'i reddediyor, JScript detached snapshot donduruyor ve `AddRecipient`/`ClearRecipients` message-level mutasyonlari korunuyor.
 - `Recipients` collection facade'inda legacy disi `Add`, `Clear` ve `ToHeaderValue` isimleri kaldirildi; `Count`/`Item` okumalari ile message-level `AddRecipient`/`ClearRecipients` mutasyonlari VBScript/JScript'te korunuyor.
 - `Headers` collection facade'inda runner-only `Refresh` ve `Commit` isimleri kaldirildi; legacy `Count`/`Item`/`ItemByName` okumalari ile header `Name`/`Value`/`Delete` mutasyonlari `Save` uzerinden korunuyor.
+- `Attachments` collection facade'inda runner-only `Load` ve `DeleteAt` isimleri kaldirildi; legacy `Count`/`Item`/`Clear`/`Add` ile attachment item `SaveAs`/`Delete` davranislari korunuyor.
 
 Yeni thread baslamadan once yine `git status --short --branch` ve `git diff` okunmali. Calisma agaci temiz degilse once mevcut WIP'in kime ait oldugu ve hangi slice'a hizmet ettigi anlasilmali.
 
@@ -94,11 +95,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-afd8232d5 docs(net10): document recipient collection surface
+a8b81fc79 docs(net10): document header collection surface
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `47df94c53 fix(net10): hide attachment collection helpers`
 - `3869e31bf fix(net10): hide message header helpers`
 - `aeed04e3b fix(net10): hide recipient collection mutators`
 - `5a57de685 fix(net10): keep script recipient metadata readonly`
@@ -225,6 +227,7 @@ Son temiz dogrulama notlari:
 - Recipient item `Address`/`OriginalAddress`/`IsLocalUser` read-only metadata parity dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 44/44 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 384/384 gecti.
 - Recipient collection `Count`/`Item` legacy surface parity dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 44/44 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 384/384 gecti.
 - Message header collection `Count`/`Item`/`ItemByName` legacy surface parity dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 44/44 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 384/384 gecti.
+- Attachment collection `Count`/`Item`/`Clear`/`Add` legacy surface parity dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 44/44 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 384/384 gecti.
 
 Terminal/log incelemesi:
 
