@@ -63,6 +63,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch normal sonlanan bos `RETR` payload'ini legacy account header eklendikten sonra script/receiver ve UID retention akisinda islemeye devam ediyor.
 - External POP3 fetch configured MIME recipient header adlarinda legacy gibi yalniz ilk eslesen alani kullaniyor; duplicate alanlar ek recipient uretmiyor, tum `Received` alanlari ayrica taranmaya devam ediyor.
 - External POP3 fetch `Received ... for` recipient degerlerini legacy 254 karakter/email regex'iyle dogruluyor; malformed adresler route acik olsa da account fallback'i asamiyor.
+- External POP3 fetch `Received` recipient token'ini legacy `std::rfind` gibi case-sensitive ariyor; uppercase `FOR ` eslesmeyip account fallback recipient'ine donuyor.
 - External POP3 fetch STARTTLS akisi legacy CAPA/STLS davranisina yaklastirildi: optional STARTTLS sadece STLS advertise edilmezse plaintext'e duser, required STARTTLS credentials gondermeden fail eder ve advertise edilip reddedilen STLS iki modda da credentials oncesi fail eder.
 - External POP3 fetch CAPA reddi davranisi legacy ile sabitlendi: optional STARTTLS plaintext'e devam ederken required STARTTLS `USER`/`PASS` oncesi fail eder.
 - External POP3 fetch reddedilen server greeting'inde plain ve STARTTLS modlarinda hicbir istemci komutu veya credential gondermeden fail edecek sekilde legacy ile sabitlendi.
@@ -83,6 +84,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch sifir-byte `RETR` sonucunu erken hata yapmiyor; `X-hMailServer-ExternalAccount` basligi header-only mesaj olusturuyor ve normal queue/UID akisi testle sabitlendi.
 - External POP3 fetch duplicate configured recipient header'larinda `MimeHeader::GetRawFieldValue` parity'siyle ilk degeri kullaniyor; validator ve receiver'a ikinci duplicate adres sizmiyor.
 - External POP3 fetch `bad@@example.test` gibi bozuk `Received for` adreslerini legacy `StringParser::IsValidEmailAddress` sozlesmesiyle reddedip account recipient fallback'ine donuyor.
+- External POP3 fetch uppercase `FOR ` belirtecini recipient token'i saymiyor; lowercase `for ` davranisi korunurken route recipient yerine account fallback secimi testle sabitlendi.
 - `HMAILSERVER_MESSAGE.RefreshContent`, script tarafindan message file dogrudan degistirildikten sonra header/body alanlarini yeniden yukleyecek sekilde VBScript/JScript testleriyle sabitlendi.
 - `HMAILSERVER_MESSAGE.FileName`/`Filename` facade'i script assignment sonrasi `Load`/`Save`/`Copy` file I/O'sunu orijinal runner backing path'inde tutacak sekilde legacy `Filename` read-only davranisina yaklastirildi.
 - `HMAILSERVER_MESSAGE.To`/`CC` direct assignment, legacy COM read-only property sekline yaklastirildi; recipient/header mutasyonlari `AddRecipient`, `ClearRecipients`, `Recipients`, ve `HeaderValue` yollarinda kalacak sekilde testlendi.
@@ -116,11 +118,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-a15a27473 docs(net10): document fetch recipient header lookup
+f218e3a6a docs(net10): document received recipient validation
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `eb239fe5b fix(net10): match received for token casing`
 - `8d94cf12a fix(net10): validate fetched received recipients`
 - `67471a5a0 fix(net10): use first fetch recipient header`
 - `208705faf fix(net10): accept empty external fetch messages`
@@ -281,6 +284,7 @@ Son temiz dogrulama notlari:
 - External fetch bos-RETR parity dilimi icin processor ve loopback TCP hedefli testleri 2/2, birlesik `ExternalFetchProcessorTests|TcpExternalFetchSessionFactoryTests` filtresi 58/58 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 396/396 gecti.
 - External fetch duplicate configured-recipient-header parity dilimi icin hedefli test 1/1 ve dar `ExternalFetchProcessorTests` filtresi 24/24 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 397/397 gecti.
 - External fetch malformed `Received for` recipient parity dilimi icin gecerli/bozuk hedefli testler 2/2 ve dar `ExternalFetchProcessorTests` filtresi 25/25 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 398/398 gecti.
+- External fetch `Received for` token-casing parity dilimi icin lowercase/uppercase hedefli testler 2/2 ve dar `ExternalFetchProcessorTests` filtresi 26/26 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 399/399 gecti.
 
 Terminal/log incelemesi:
 

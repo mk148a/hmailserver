@@ -233,6 +233,8 @@ Configured external-fetch MIME recipient names use the first matching header fie
 
 External-fetch `Received ... for <recipient>` values pass the legacy 254-character email-address regex before recipient resolution. Malformed values such as multiple-`@` addresses are ignored even when route recipients are enabled, allowing the account fallback recipient to be used.
 
+The legacy `Received` parser locates the literal lowercase `for ` token with a case-sensitive `std::rfind`; uppercase variants such as `FOR ` are ignored and leave recipient selection to the account fallback.
+
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
 A truncated external-fetch `RETR` body after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not submit message data, add UID state, or issue remote delete cleanup.
