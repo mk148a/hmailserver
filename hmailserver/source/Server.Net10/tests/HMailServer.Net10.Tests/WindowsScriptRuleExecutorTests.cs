@@ -1058,12 +1058,17 @@ Sub Rule_UpdateRecipients(obMessage)
    On Error GoTo 0
 
    obMessage.ClearRecipients
+   obMessage.AddRecipient "", "unnamed@example.test"
    obMessage.AddRecipient "Added User", "added@example.test"
-   If obMessage.Recipients.Count <> 1 Then
+   If obMessage.Recipients.Count <> 2 Then
       obMessage.RejectReason = "recipient add failed"
       Exit Sub
    End If
-   If obMessage.Recipients.Item(0).Address <> "added@example.test" Then
+   If obMessage.Recipients.Item(0).Address <> "unnamed@example.test" Then
+      obMessage.RejectReason = "unnamed recipient not loaded"
+      Exit Sub
+   End If
+   If obMessage.Recipients.Item(1).Address <> "added@example.test" Then
       obMessage.RejectReason = "added recipient not loaded"
       Exit Sub
    End If
@@ -1083,7 +1088,9 @@ End Sub
             Assert.IsTrue(result.Accepted, result.FailureResponse);
             Assert.IsNotNull(result.MessageData);
             var messageText = Encoding.ASCII.GetString(result.MessageData);
-            StringAssert.Contains(messageText, "To: \"Added User\" <added@example.test>\r\n");
+            StringAssert.Contains(
+                messageText,
+                "To: \"\" <unnamed@example.test>,\"Added User\" <added@example.test>\r\n");
             Assert.IsFalse(messageText.Contains("Cc:", StringComparison.OrdinalIgnoreCase));
             Assert.IsFalse(messageText.Contains("Bcc:", StringComparison.OrdinalIgnoreCase));
         }
@@ -1141,12 +1148,17 @@ function Rule_UpdateRecipients(obMessage) {
   }
 
   obMessage.ClearRecipients();
+  obMessage.AddRecipient("", "unnamed-js@example.test");
   obMessage.AddRecipient("Added JS", "added-js@example.test");
-  if (obMessage.Recipients.Count !== 1) {
+  if (obMessage.Recipients.Count !== 2) {
     obMessage.RejectReason = "recipient add failed";
     return;
   }
-  if (obMessage.Recipients.Item(0).Address !== "added-js@example.test") {
+  if (obMessage.Recipients.Item(0).Address !== "unnamed-js@example.test") {
+    obMessage.RejectReason = "unnamed recipient not loaded";
+    return;
+  }
+  if (obMessage.Recipients.Item(1).Address !== "added-js@example.test") {
     obMessage.RejectReason = "added recipient not loaded";
     return;
   }
@@ -1166,7 +1178,9 @@ function Rule_UpdateRecipients(obMessage) {
             Assert.IsTrue(result.Accepted, result.FailureResponse);
             Assert.IsNotNull(result.MessageData);
             var messageText = Encoding.ASCII.GetString(result.MessageData);
-            StringAssert.Contains(messageText, "To: \"Added JS\" <added-js@example.test>\r\n");
+            StringAssert.Contains(
+                messageText,
+                "To: \"\" <unnamed-js@example.test>,\"Added JS\" <added-js@example.test>\r\n");
             Assert.IsFalse(messageText.Contains("Cc:", StringComparison.OrdinalIgnoreCase));
             Assert.IsFalse(messageText.Contains("Bcc:", StringComparison.OrdinalIgnoreCase));
         }

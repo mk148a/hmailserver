@@ -1803,7 +1803,7 @@ Class HMailServerRuleMessage
       m_recipients.AppendInternal address, address, False
       displayAddress = FormatRecipientForHeader(name, address)
       If Len(m_to) > 0 Then
-         m_to = m_to & ", " & displayAddress
+         m_to = m_to & "," & displayAddress
       Else
          m_to = displayAddress
       End If
@@ -2238,11 +2238,7 @@ Class HMailServerRuleMessage
    End Function
 
    Private Function FormatRecipientForHeader(name, address)
-      If Len(CStr(name)) > 0 Then
-         FormatRecipientForHeader = Chr(34) & Replace(CStr(name), Chr(34), "'") & Chr(34) & " <" & CStr(address) & ">"
-      Else
-         FormatRecipientForHeader = CStr(address)
-      End If
+      FormatRecipientForHeader = Chr(34) & CStr(name) & Chr(34) & " <" & CStr(address) & ">"
    End Function
 End Class
 
@@ -2643,10 +2639,7 @@ function hMailServerRuleCreateRecipients() {
 }
 
 function hMailServerRuleFormatRecipientForHeader(name, address) {
-  if (String(name || "").length > 0) {
-    return "\"" + String(name).replace(/"/g, "'") + "\" <" + String(address || "") + ">";
-  }
-  return String(address || "");
+  return "\"" + String(name || "") + "\" <" + String(address || "") + ">";
 }
 
 function hMailServerRuleExtractCharset(contentType) {
@@ -2963,7 +2956,7 @@ if ("{{hasMessageFlag}}" === "1") {
     AddRecipient: function(name, address) {
       this.Recipients._append(address, address, false);
       var displayAddress = hMailServerRuleFormatRecipientForHeader(name, address);
-      this._to = this._to ? this._to + ", " + displayAddress : displayAddress;
+      this._to = this._to ? this._to + "," + displayAddress : displayAddress;
       this.To = this._to;
     },
     ClearRecipients: function() {
