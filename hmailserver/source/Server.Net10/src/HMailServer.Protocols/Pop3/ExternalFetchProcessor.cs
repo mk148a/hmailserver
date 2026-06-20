@@ -256,7 +256,7 @@ public sealed class ExternalFetchProcessor
         CancellationToken cancellationToken)
     {
         var daysToKeep = ResolveDaysToKeep(account.DaysToKeep, scriptResult);
-        if (daysToKeep != -1)
+        if (daysToKeep >= 0)
         {
             await _accountStore.AddKnownUidAsync(account.FetchAccountId, remoteMessage.Uid, cancellationToken).ConfigureAwait(false);
             return new NewMessageRetentionResult(RemoteMessagesDeleted: 0, KnownUidsAdded: 1);
@@ -721,7 +721,7 @@ public sealed class ExternalFetchProcessor
         DateTime createdAt,
         DateTimeOffset now)
     {
-        if (daysToKeep == -1)
+        if (daysToKeep < 0)
         {
             return true;
         }

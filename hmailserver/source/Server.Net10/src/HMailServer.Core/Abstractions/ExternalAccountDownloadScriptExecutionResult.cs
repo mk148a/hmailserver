@@ -31,7 +31,7 @@ public sealed record ExternalAccountDownloadScriptExecutionResult(
             Error: null,
             messageData,
             ExternalAccountDownloadDeleteAction.DeleteAfterDays,
-            Math.Max(0, days));
+            days);
 
     public static ExternalAccountDownloadScriptExecutionResult NeverDelete(byte[]? messageData = null) =>
         new(

@@ -2506,7 +2506,7 @@ Sub OnExternalAccountDownload(oFetchAccount, oMessage, uid)
    oMessage.HeaderValue("X-External-UID") = uid
    oMessage.Save
    Result.Value = 2
-   Result.Parameter = 5
+   Result.Parameter = -2
 End Sub
 """,
                 Encoding.ASCII);
@@ -2520,7 +2520,7 @@ End Sub
 
             Assert.IsTrue(result.Succeeded, result.Error);
             Assert.AreEqual(ExternalAccountDownloadDeleteAction.DeleteAfterDays, result.DeleteAction);
-            Assert.AreEqual(5, result.DeleteAfterDays);
+            Assert.AreEqual(-2, result.DeleteAfterDays);
             Assert.IsNotNull(result.MessageData);
             StringAssert.Contains(
                 Encoding.ASCII.GetString(result.MessageData),

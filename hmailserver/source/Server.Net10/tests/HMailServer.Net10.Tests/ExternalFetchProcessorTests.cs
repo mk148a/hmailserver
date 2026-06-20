@@ -57,6 +57,30 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_DeletesNewMessageWhenScriptReturnsNegativeRetention()
+    {
+        var account = CreateAccount(daysToKeep: 7);
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-negative-new", Size: 64),
+            "From: sender@example.net\r\nTo: user@example.test\r\nSubject: fetched\r\n\r\nBody\r\n"u8.ToArray());
+        var receiver = new FakeSmtpMessageReceiver();
+        var script = new FakeExternalAccountDownloadScriptExecutor(
+            static request => ExternalAccountDownloadScriptExecutionResult.DeleteAfter(-2, request.MessageData));
+        var processor = CreateProcessor(store, session, receiver, script);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(1, result.MessagesDownloaded);
+        Assert.AreEqual(1, result.MessagesAccepted);
+        Assert.AreEqual(1, result.RemoteMessagesDeleted);
+        Assert.AreEqual(0, result.KnownUidsAdded);
+        Assert.AreEqual("uid-negative-new", session.DeletedUids.Single());
+        Assert.AreEqual(0, store.AddedUids.Count);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_DeletesKnownUidWhenScriptRequestsImmediateDelete()
     {
         var account = CreateAccount(daysToKeep: 7);
@@ -84,6 +108,34 @@ public sealed class ExternalFetchProcessorTests
         Assert.AreEqual("uid-known", session.DeletedUids.Single());
         Assert.AreEqual(88, store.DeletedUidIds.Single());
         Assert.IsNull(script.Requests.Single().MessageData);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_DeletesKnownUidWhenScriptReturnsNegativeRetention()
+    {
+        var account = CreateAccount(daysToKeep: 7);
+        var store = new FakeExternalFetchAccountStore(account)
+        {
+            KnownUids =
+            [
+                new ExternalFetchKnownUid(89, "uid-negative-known", DateTime.UtcNow)
+            ]
+        };
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(2, "uid-negative-known", Size: 128),
+            "Subject: old\r\n\r\nBody\r\n"u8.ToArray());
+        var script = new FakeExternalAccountDownloadScriptExecutor(
+            static request => ExternalAccountDownloadScriptExecutionResult.DeleteAfter(-2, request.MessageData));
+        var processor = CreateProcessor(store, session, new FakeSmtpMessageReceiver(), script);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(0, result.MessagesDownloaded);
+        Assert.AreEqual(1, result.RemoteMessagesDeleted);
+        Assert.AreEqual(1, result.KnownUidsDeleted);
+        Assert.AreEqual("uid-negative-known", session.DeletedUids.Single());
+        Assert.AreEqual(89, store.DeletedUidIds.Single());
     }
 
     [TestMethod]
