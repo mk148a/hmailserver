@@ -1213,9 +1213,27 @@ Class HMailServerRuleFetchAccount
 End Class
 
 Class HMailServerRuleRecipient
-   Public Address
-   Public OriginalAddress
-   Public IsLocalUser
+   Private m_address
+   Private m_originalAddress
+   Private m_isLocalUser
+
+   Public Sub Initialize(address, originalAddress, isLocalUser)
+      m_address = CStr(address)
+      m_originalAddress = CStr(originalAddress)
+      m_isLocalUser = CBool(isLocalUser)
+   End Sub
+
+   Public Property Get Address()
+      Address = m_address
+   End Property
+
+   Public Property Get OriginalAddress()
+      OriginalAddress = m_originalAddress
+   End Property
+
+   Public Property Get IsLocalUser()
+      IsLocalUser = m_isLocalUser
+   End Property
 End Class
 
 Class HMailServerRuleRecipients
@@ -1243,9 +1261,7 @@ Class HMailServerRuleRecipients
 
       Dim recipient
       Set recipient = New HMailServerRuleRecipient
-      recipient.Address = m_addresses(index)
-      recipient.OriginalAddress = m_originalAddresses(index)
-      recipient.IsLocalUser = m_isLocalUsers(index)
+      recipient.Initialize m_addresses(index), m_originalAddresses(index), m_isLocalUsers(index)
       Set Item = recipient
    End Function
 
@@ -2524,7 +2540,12 @@ function hMailServerRuleCreateRecipients() {
       if (index < 0 || index >= this._items.length) {
         return null;
       }
-      return this._items[index];
+      var item = this._items[index];
+      return {
+        Address: String(item.Address || ""),
+        OriginalAddress: String(item.OriginalAddress || ""),
+        IsLocalUser: Boolean(item.IsLocalUser)
+      };
     },
     Add: function(address, originalAddress, isLocalUser) {
       this._items.push({

@@ -944,6 +944,131 @@ function Rule_UpdateRecipients(obMessage) {
     }
 
     [TestMethod]
+    public void Execute_VbScriptRecipientMetadataIsReadOnly()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_CheckRecipientMetadata(obMessage)
+   Dim recipient
+   Set recipient = obMessage.Recipients.Item(0)
+
+   On Error Resume Next
+   recipient.Address = "changed@example.test"
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "recipient address accepted direct assignment"
+      Exit Sub
+   End If
+   Err.Clear
+
+   recipient.OriginalAddress = "Changed <changed@example.test>"
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "recipient original address accepted direct assignment"
+      Exit Sub
+   End If
+   Err.Clear
+
+   recipient.IsLocalUser = False
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "recipient local flag accepted direct assignment"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
+
+   If recipient.Address <> "local@example.test" Then
+      obMessage.RejectReason = "recipient address changed"
+      Exit Sub
+   End If
+   If recipient.OriginalAddress <> "local@example.test" Then
+      obMessage.RejectReason = "recipient original address changed"
+      Exit Sub
+   End If
+   If Not recipient.IsLocalUser Then
+      obMessage.RejectReason = "recipient local flag changed"
+   End If
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_CheckRecipientMetadata",
+                    "Subject: Recipients\r\n\r\nBody\r\n"u8.ToArray(),
+                    CreateRecipients()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptRecipientMetadataAssignmentDoesNotMutateCollection()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_CheckRecipientMetadata(obMessage) {
+  var recipient = obMessage.Recipients.Item(0);
+  recipient.Address = "changed@example.test";
+  recipient.OriginalAddress = "Changed <changed@example.test>";
+  recipient.IsLocalUser = false;
+
+  var current = obMessage.Recipients.Item(0);
+  if (current.Address !== "local@example.test") {
+    obMessage.RejectReason = "recipient address changed";
+    return;
+  }
+  if (current.OriginalAddress !== "local@example.test") {
+    obMessage.RejectReason = "recipient original address changed";
+    return;
+  }
+  if (current.IsLocalUser !== true) {
+    obMessage.RejectReason = "recipient local flag changed";
+    return;
+  }
+  if (obMessage.Recipients.ToHeaderValue() !== "local@example.test, alias-target@example.test") {
+    obMessage.RejectReason = "recipient backing collection changed";
+  }
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, language: "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_CheckRecipientMetadata",
+                    "Subject: Recipients\r\n\r\nBody\r\n"u8.ToArray(),
+                    CreateRecipients()),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_ExposesAttachmentCollectionToVbScript()
     {
         var cscript = GetCscriptPathOrInconclusive();
