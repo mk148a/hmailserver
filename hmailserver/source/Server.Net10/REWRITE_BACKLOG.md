@@ -95,6 +95,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: script message `Save` generates a current local legacy-format MIME `Date` when the message has no date in VBScript/JScript.
 - Done: script `Headers` collection no longer publishes runner-only `Refresh` or `Commit`; legacy `Count`/`Item`/`ItemByName` reads and header item mutations remain supported.
 - Done: script `Attachments` collection no longer publishes runner-only `Load` or `DeleteAt`; legacy `Count`/`Item`/`Clear`/`Add` plus item `SaveAs`/`Delete` remain supported.
+- Done: script `Attachments.Add` raises the legacy `Failed to attach file.` error for a missing source file in VBScript/JScript instead of silently returning.
 - Done: script message `HasBodyType` matches clean MIME content types case-insensitively across the root and two nested part levels instead of matching arbitrary message text, including quoted boundary values containing semicolons.
 - Done: external POP3 fetch tolerates duplicate persisted `hm_fetchaccounts_uids.uidvalue` rows when building the known-UID lookup for a batch.
 - Done: external POP3 fetch coalesces duplicate remote UIDL sequence-number entries so a malformed listing cannot download the same remote slot twice.
@@ -177,6 +178,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: message-level `Save` supplies a current local legacy-format MIME `Date` before writing a message whose date is empty in both VBScript and JScript.
    - Done: message header collection script facade exposes the legacy supported `Count`/`Item`/`ItemByName` surface without runner-only `Refresh`/`Commit`; header `Name`/`Value`/`Delete` changes still persist on `Save`.
    - Done: attachment collection script facade exposes the legacy supported `Count`/`Item`/`Clear`/`Add` surface without runner-only `Load`/`DeleteAt`; attachment `SaveAs`/`Delete` behavior remains intact.
+   - Done: attachment collection `Add` rejects a missing source file with the legacy `Failed to attach file.` error in both VBScript and JScript.
    - Done: message `HasBodyType` script method follows legacy clean MIME content-type matching across the root and two nested part levels, with case-insensitive checks and quoted boundary parsing instead of raw message substring matching.
    - Done: account-rule `HMAILSERVER_MESSAGE.Copy(folderId)` captures call-time message content, preserves repeated copy requests, validates same-account destination folders, allocates distinct UIDs, writes delivered message files/rows, and queues each copy for search indexing.
    - Done: shared `OnClientConnect` protocol event hook before SMTP/IMAP/POP3 greeting or implicit TLS setup with connection-close handling for legacy `Result.Value = 1`.
