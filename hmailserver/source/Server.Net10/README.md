@@ -144,6 +144,8 @@ Recipient item `Address`, `OriginalAddress`, and `IsLocalUser` metadata follows 
 
 The `Recipients` collection keeps the legacy supported surface of `Count` and `Item`; rewrite-internal seeding helpers are no longer published under the non-legacy `Add`, `Clear`, or `ToHeaderValue` names. Recipient mutation continues through message-level `AddRecipient` and `ClearRecipients` in both VBScript and JScript.
 
+Message-level `AddRecipient` follows the legacy MIME header shape: every added recipient uses a quoted display name, including an empty name, and consecutive entries are joined with a comma without added whitespace.
+
 Message-level `ClearRecipients` follows the legacy envelope and MIME cleanup behavior: it clears the recipient collection and removes the `To`, `Cc`, and `Bcc` headers in both script languages.
 
 Message-level `Save` follows the legacy missing-date behavior: when the message has no `Date` value, both script facades generate a current local MIME date before writing the message file.
