@@ -139,6 +139,72 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_DeletesKnownUidAfterElapsedRetentionDays()
+    {
+        var account = CreateAccount(daysToKeep: 1);
+        var store = new FakeExternalFetchAccountStore(account)
+        {
+            KnownUids =
+            [
+                new ExternalFetchKnownUid(
+                    90,
+                    "uid-elapsed-retention",
+                    DateTimeOffset.Parse("2026-01-09T00:01:00Z", System.Globalization.CultureInfo.InvariantCulture).UtcDateTime)
+            ]
+        };
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(3, "uid-elapsed-retention", Size: 128),
+            "Subject: old\r\n\r\nBody\r\n"u8.ToArray());
+        var processor = CreateProcessor(
+            store,
+            session,
+            new FakeSmtpMessageReceiver(),
+            timeProvider: new FixedTimeProvider(
+                DateTimeOffset.Parse("2026-01-10T23:59:00Z", System.Globalization.CultureInfo.InvariantCulture)));
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(1, result.RemoteMessagesDeleted);
+        Assert.AreEqual(1, result.KnownUidsDeleted);
+        Assert.AreEqual("uid-elapsed-retention", session.DeletedUids.Single());
+        Assert.AreEqual(90, store.DeletedUidIds.Single());
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_KeepsKnownUidAtExactRetentionBoundary()
+    {
+        var account = CreateAccount(daysToKeep: 1);
+        var store = new FakeExternalFetchAccountStore(account)
+        {
+            KnownUids =
+            [
+                new ExternalFetchKnownUid(
+                    91,
+                    "uid-retention-boundary",
+                    DateTimeOffset.Parse("2026-01-09T23:59:00Z", System.Globalization.CultureInfo.InvariantCulture).UtcDateTime)
+            ]
+        };
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(4, "uid-retention-boundary", Size: 128),
+            "Subject: retained\r\n\r\nBody\r\n"u8.ToArray());
+        var processor = CreateProcessor(
+            store,
+            session,
+            new FakeSmtpMessageReceiver(),
+            timeProvider: new FixedTimeProvider(
+                DateTimeOffset.Parse("2026-01-10T23:59:00Z", System.Globalization.CultureInfo.InvariantCulture)));
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(0, result.RemoteMessagesDeleted);
+        Assert.AreEqual(0, result.KnownUidsDeleted);
+        Assert.AreEqual(0, session.DeletedUids.Count);
+        Assert.AreEqual(0, store.DeletedUidIds.Count);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_SkipsDuplicateKnownUidsInSameBatch()
     {
         var account = CreateAccount(daysToKeep: 7);
@@ -658,7 +724,8 @@ public sealed class ExternalFetchProcessorTests
         FakeSmtpMessageReceiver receiver,
         IExternalAccountDownloadScriptExecutor? scriptExecutor = null,
         IMessageAntivirusScanner? antivirusScanner = null,
-        ISmtpRecipientValidator? recipientValidator = null) =>
+        ISmtpRecipientValidator? recipientValidator = null,
+        TimeProvider? timeProvider = null) =>
         new(
             store,
             new FakeExternalFetchSessionFactory(session),
@@ -666,7 +733,7 @@ public sealed class ExternalFetchProcessorTests
             scriptExecutor,
             antivirusScanner,
             recipientValidator,
-            timeProvider: new FixedTimeProvider(DateTimeOffset.Parse("2026-01-10T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture)));
+            timeProvider: timeProvider ?? new FixedTimeProvider(DateTimeOffset.Parse("2026-01-10T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture)));
 
     private static ExternalFetchAccountLease CreateAccount(
         int daysToKeep = 7,

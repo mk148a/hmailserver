@@ -731,9 +731,8 @@ public sealed class ExternalFetchProcessor
             return false;
         }
 
-        var createdDate = DateTime.SpecifyKind(createdAt, DateTimeKind.Utc).Date;
-        var currentDate = now.UtcDateTime.Date;
-        return (currentDate - createdDate).TotalDays > daysToKeep;
+        var createdUtc = DateTime.SpecifyKind(createdAt, DateTimeKind.Utc);
+        return (now.UtcDateTime - createdUtc).TotalDays > daysToKeep;
     }
 
     private static bool IsPermanentReceiverRejection(string? failureResponse)
