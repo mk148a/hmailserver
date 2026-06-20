@@ -409,6 +409,7 @@ public sealed partial class WindowsScriptRuleExecutor :
             Id: 0,
             Uid: 0,
             State: 0,
+            Flags: 0,
             DeliveryAttempt: 1,
             InternalDateUtc: DateTimeOffset.UtcNow);
 
@@ -417,6 +418,7 @@ public sealed partial class WindowsScriptRuleExecutor :
             request.MessageId,
             request.MessageUid,
             request.MessageState,
+            request.MessageFlags,
             Math.Max(1, request.DeliveryAttempt),
             request.InternalDateUtc ?? DateTimeOffset.UtcNow);
 
@@ -425,6 +427,7 @@ public sealed partial class WindowsScriptRuleExecutor :
             request.MessageId,
             request.MessageUid,
             request.MessageState,
+            request.MessageFlags,
             Math.Max(1, request.DeliveryAttempt),
             request.InternalDateUtc ?? DateTimeOffset.UtcNow);
 
@@ -1524,9 +1527,10 @@ End Class
 Class HMailServerRuleMessage
    Public DropMessage
    Public RejectReason
-   Public State
    Private m_id
    Private m_uid
+   Private m_state
+   Private m_flags
    Private m_deliveryAttempt
    Private m_internalDate
    Private m_fileName
@@ -1554,7 +1558,8 @@ Class HMailServerRuleMessage
       m_messageHeaders.Initialize Me
       m_id = 0
       m_uid = 0
-      State = 0
+      m_state = 0
+      m_flags = 0
       m_deliveryAttempt = 1
       m_internalDate = Now
       m_fileName = ""
@@ -1571,10 +1576,11 @@ Class HMailServerRuleMessage
       m_operationPath = CStr(value)
    End Sub
 
-   Public Sub InitializeMetadata(messageID, messageUID, messageState, messageDeliveryAttempt, messageInternalDate)
+   Public Sub InitializeMetadata(messageID, messageUID, messageState, messageFlags, messageDeliveryAttempt, messageInternalDate)
       m_id = messageID
       m_uid = CLng(messageUID)
-      State = CLng(messageState)
+      m_state = CLng(messageState)
+      m_flags = CLng(messageFlags)
       m_deliveryAttempt = CLng(messageDeliveryAttempt)
       m_internalDate = CDate(messageInternalDate)
    End Sub
@@ -1589,6 +1595,10 @@ Class HMailServerRuleMessage
 
    Public Property Get UID()
       UID = m_uid
+   End Property
+
+   Public Property Get State()
+      State = m_state
    End Property
 
    Public Property Get DeliveryAttempt()
@@ -1768,14 +1778,14 @@ Class HMailServerRuleMessage
    End Property
 
    Public Property Get Flag(flagValue)
-      Flag = (CLng(State) And CLng(flagValue)) <> 0
+      Flag = (m_flags And CLng(flagValue)) <> 0
    End Property
 
    Public Property Let Flag(flagValue, enabled)
       If CBool(enabled) Then
-         State = CLng(State) Or CLng(flagValue)
+         m_flags = m_flags Or CLng(flagValue)
       Else
-         State = CLng(State) And (Not CLng(flagValue))
+         m_flags = m_flags And (Not CLng(flagValue))
       End If
    End Property
 
@@ -2151,7 +2161,7 @@ If "{{hasMessageFlag}}" = "1" Then
    HMAILSERVER_MESSAGE.Load
    HMAILSERVER_MESSAGE.Attachments.Load "{{EscapeVbScript(attachmentManifestPath)}}", "{{EscapeVbScript(attachmentOperationPath)}}"
    HMAILSERVER_MESSAGE.FromAddress = "{{EscapeVbScript(mailFrom)}}"
-   Call HMAILSERVER_MESSAGE.InitializeMetadata({{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}}, {{CreateVbScriptDateExpression(messageMetadata.InternalDateUtc)}})
+   Call HMAILSERVER_MESSAGE.InitializeMetadata({{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.Flags.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}}, {{CreateVbScriptDateExpression(messageMetadata.InternalDateUtc)}})
 {{CreateVbScriptRecipientSeeds(recipients)}}
 Else
    Set HMAILSERVER_MESSAGE = Nothing
@@ -2673,7 +2683,9 @@ if ("{{hasMessageFlag}}" === "1") {
     ID: 0,
     _uid: 0,
     UID: 0,
+    _state: 0,
     State: 0,
+    _flags: 0,
     Size: 0,
     _deliveryAttempt: 1,
     DeliveryAttempt: 1,
@@ -2702,6 +2714,7 @@ if ("{{hasMessageFlag}}" === "1") {
     _restoreReadOnlyMetadata: function() {
       this.ID = this._id;
       this.UID = this._uid;
+      this.State = this._state;
       this.DeliveryAttempt = this._deliveryAttempt;
       this.InternalDate = new Date(this._internalDate.getTime());
     },
@@ -2739,19 +2752,21 @@ if ("{{hasMessageFlag}}" === "1") {
       hMailServerRuleSyncCommonHeaderField(this, fieldName, fieldValue);
     },
     Flag: function(flagValue, enabled) {
+      this._restoreReadOnlyMetadata();
       var mask = Number(flagValue) || 0;
       if (arguments.length > 1) {
         this.SetFlag(mask, enabled);
       }
-      return ((Number(this.State) || 0) & mask) !== 0;
+      return ((Number(this._flags) || 0) & mask) !== 0;
     },
     GetFlag: function(flagValue) {
       return this.Flag(flagValue);
     },
     SetFlag: function(flagValue, enabled) {
+      this._restoreReadOnlyMetadata();
       var mask = Number(flagValue) || 0;
-      var current = Number(this.State) || 0;
-      this.State = enabled ? (current | mask) : (current & ~mask);
+      var current = Number(this._flags) || 0;
+      this._flags = enabled ? (current | mask) : (current & ~mask);
     },
     Save: function() {
       this._restoreReadOnlyMetadata();
@@ -2804,7 +2819,8 @@ if ("{{hasMessageFlag}}" === "1") {
   HMAILSERVER_MESSAGE.FromAddress = "{{EscapeJScript(mailFrom)}}";
   HMAILSERVER_MESSAGE._id = {{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}};
   HMAILSERVER_MESSAGE._uid = {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}};
-  HMAILSERVER_MESSAGE.State = {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}};
+  HMAILSERVER_MESSAGE._state = {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}};
+  HMAILSERVER_MESSAGE._flags = {{messageMetadata.Flags.ToString(CultureInfo.InvariantCulture)}};
   HMAILSERVER_MESSAGE._deliveryAttempt = {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}};
   HMAILSERVER_MESSAGE._internalDate = {{CreateJScriptUtcDateExpression(messageMetadata.InternalDateUtc)}};
   HMAILSERVER_MESSAGE._restoreReadOnlyMetadata();
@@ -3297,6 +3313,7 @@ if (typeof {{functionName}} === "function") {
         long Id,
         long Uid,
         int State,
+        int Flags,
         int DeliveryAttempt,
         DateTimeOffset InternalDateUtc);
 

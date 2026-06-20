@@ -12,4 +12,5 @@ public sealed record DeliveryEventScriptExecutionRequest(
     long MessageUid = 0,
     int MessageState = 0,
     int DeliveryAttempt = 1,
-    DateTimeOffset? InternalDateUtc = null);
+    DateTimeOffset? InternalDateUtc = null,
+    int MessageFlags = 0);

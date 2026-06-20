@@ -4,6 +4,8 @@ namespace HMailServer.Delivery;
 
 public sealed class DeliveryQueueProcessor
 {
+    private const int DeliveringMessageState = 1;
+
     private readonly IDeliveryQueueLeaseStore _leaseStore;
     private readonly IDeliveryQueueMessageStore _messageStore;
     private readonly IDeliveryTargetResolver _targetResolver;
@@ -341,7 +343,8 @@ public sealed class DeliveryQueueProcessor
                 messageData,
                 MessageId: message.Identity.MessageId,
                 MessageUid: message.Identity.Uid,
-                MessageState: message.Flags,
+                MessageState: DeliveringMessageState,
+                MessageFlags: message.Flags,
                 DeliveryAttempt: message.CurrentRetryCount + 1,
                 InternalDateUtc: message.CreatedUtc),
             cancellationToken);
@@ -405,7 +408,8 @@ public sealed class DeliveryQueueProcessor
                     failureDescription,
                     MessageId: message.Identity.MessageId,
                     MessageUid: message.Identity.Uid,
-                    MessageState: message.Flags,
+                    MessageState: DeliveringMessageState,
+                    MessageFlags: message.Flags,
                     DeliveryAttempt: message.CurrentRetryCount + 1,
                     InternalDateUtc: message.CreatedUtc),
                 cancellationToken);

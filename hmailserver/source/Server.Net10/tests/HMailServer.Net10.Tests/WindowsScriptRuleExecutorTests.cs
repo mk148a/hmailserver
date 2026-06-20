@@ -153,7 +153,7 @@ End Sub
             StringAssert.Contains(messageText, "Cc: copy@example.test\r\n");
             StringAssert.Contains(messageText, "Content-Type: text/plain; charset=utf-8\r\n");
             StringAssert.Contains(messageText, "X-Legacy: yes\r\n");
-            StringAssert.Contains(messageText, "X-Flag-State: 128\r\n");
+            StringAssert.Contains(messageText, "X-Flag-State: 0\r\n");
             StringAssert.Contains(messageText, "\r\n\r\nChanged body\r\n");
         }
         finally
@@ -267,7 +267,7 @@ function Rule_UpdateMessage(obMessage) {
             StringAssert.Contains(messageText, "Cc: copy@example.test\r\n");
             StringAssert.Contains(messageText, "Content-Type: text/plain; charset=utf-8\r\n");
             StringAssert.Contains(messageText, "X-JScript: yes\r\n");
-            StringAssert.Contains(messageText, "X-JScript-State: 192\r\n");
+            StringAssert.Contains(messageText, "X-JScript-State: 0\r\n");
             StringAssert.Contains(messageText, "\r\n\r\nChanged JS body\r\n");
         }
         finally
@@ -1448,7 +1448,8 @@ End Sub
 Sub OnDeliveryStart(oMessage)
    If oMessage.ID <> 123 Then Err.Raise 1001, "test", "message id"
    If oMessage.UID <> 456 Then Err.Raise 1002, "test", "message uid"
-   If oMessage.State <> 32 Then Err.Raise 1003, "test", "message state"
+   If oMessage.State <> 1 Then Err.Raise 1003, "test", "message state"
+   If Not oMessage.Flag(32) Then Err.Raise 1006, "test", "message flags"
    If oMessage.DeliveryAttempt <> 4 Then Err.Raise 1004, "test", "delivery attempt"
    If Year(oMessage.InternalDate) <> 2026 Then Err.Raise 1005, "test", "internal date"
    oMessage.HeaderValue("X-Queue-ID") = CStr(oMessage.ID)
@@ -1464,7 +1465,8 @@ End Sub
                     "Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray(),
                     messageId: 123,
                     messageUid: 456,
-                    messageState: 32,
+                    messageState: 1,
+                    messageFlags: 32,
                     deliveryAttempt: 4,
                     internalDateUtc: DateTimeOffset.Parse("2026-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture)),
                 CancellationToken.None);
@@ -1494,7 +1496,8 @@ End Sub
 function OnDeliveryStart(oMessage) {
   if (oMessage.ID !== 123) throw new Error("message id");
   if (oMessage.UID !== 456) throw new Error("message uid");
-  if (oMessage.State !== 32) throw new Error("message state");
+  if (oMessage.State !== 1) throw new Error("message state");
+  if (oMessage.Flag(32) !== true) throw new Error("message flags");
   if (oMessage.DeliveryAttempt !== 4) throw new Error("delivery attempt");
   if (oMessage.InternalDate.getUTCFullYear() !== 2026) throw new Error("internal date");
   oMessage.SetHeaderValue("X-Queue-ID", String(oMessage.ID));
@@ -1510,7 +1513,8 @@ function OnDeliveryStart(oMessage) {
                     "Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray(),
                     messageId: 123,
                     messageUid: 456,
-                    messageState: 32,
+                    messageState: 1,
+                    messageFlags: 32,
                     deliveryAttempt: 4,
                     internalDateUtc: DateTimeOffset.Parse("2026-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture)),
                 CancellationToken.None);
@@ -1554,6 +1558,13 @@ Sub OnDeliveryStart(oMessage)
    End If
    Err.Clear
 
+   oMessage.State = 999
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      Err.Raise 1109, "test", "message state accepted direct assignment"
+   End If
+   Err.Clear
+
    oMessage.DeliveryAttempt = 999
    If Err.Number = 0 Then
       On Error GoTo 0
@@ -1571,6 +1582,8 @@ Sub OnDeliveryStart(oMessage)
 
    If oMessage.ID <> 5000000000 Then Err.Raise 1105, "test", "message id changed"
    If oMessage.UID <> 456 Then Err.Raise 1106, "test", "message uid changed"
+   If oMessage.State <> 1 Then Err.Raise 1110, "test", "message state changed"
+   If Not oMessage.Flag(32) Then Err.Raise 1111, "test", "message flags changed"
    If oMessage.DeliveryAttempt <> 4 Then Err.Raise 1107, "test", "delivery attempt changed"
    If Year(oMessage.InternalDate) <> 2026 Then Err.Raise 1108, "test", "internal date changed"
 
@@ -1586,7 +1599,8 @@ End Sub
                     "Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray(),
                     messageId: 5_000_000_000,
                     messageUid: 456,
-                    messageState: 32,
+                    messageState: 1,
+                    messageFlags: 32,
                     deliveryAttempt: 4,
                     internalDateUtc: DateTimeOffset.Parse("2026-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture)),
                 CancellationToken.None);
@@ -1616,12 +1630,15 @@ End Sub
 function OnDeliveryStart(oMessage) {
   oMessage.ID = 999;
   oMessage.UID = 999;
+  oMessage.State = 999;
   oMessage.DeliveryAttempt = 999;
   oMessage.InternalDate = new Date(Date.UTC(2030, 0, 1));
   oMessage.Save();
 
   if (oMessage.ID !== 5000000000) throw new Error("message id changed");
   if (oMessage.UID !== 456) throw new Error("message uid changed");
+  if (oMessage.State !== 1) throw new Error("message state changed");
+  if (oMessage.Flag(32) !== true) throw new Error("message flags changed");
   if (oMessage.DeliveryAttempt !== 4) throw new Error("delivery attempt changed");
   if (oMessage.InternalDate.getUTCFullYear() !== 2026) throw new Error("internal date changed");
 
@@ -1637,7 +1654,8 @@ function OnDeliveryStart(oMessage) {
                     "Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray(),
                     messageId: 5_000_000_000,
                     messageUid: 456,
-                    messageState: 32,
+                    messageState: 1,
+                    messageFlags: 32,
                     deliveryAttempt: 4,
                     internalDateUtc: DateTimeOffset.Parse("2026-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture)),
                 CancellationToken.None);
@@ -2160,6 +2178,7 @@ function OnClientValidatePassword(oAccount, password) {
         long messageId = 0,
         long messageUid = 0,
         int messageState = 0,
+        int messageFlags = 0,
         int deliveryAttempt = 1,
         DateTimeOffset? internalDateUtc = null) =>
         new(
@@ -2170,11 +2189,12 @@ function OnClientValidatePassword(oAccount, password) {
             argumentShape,
             recipientAddress,
             errorMessage,
-            messageId,
-            messageUid,
-            messageState,
-            deliveryAttempt,
-            internalDateUtc);
+            MessageId: messageId,
+            MessageUid: messageUid,
+            MessageState: messageState,
+            DeliveryAttempt: deliveryAttempt,
+            InternalDateUtc: internalDateUtc,
+            MessageFlags: messageFlags);
 
     private static ExternalAccountDownloadScriptExecutionRequest CreateExternalAccountDownloadRequest(
         byte[]? messageData,
@@ -2186,7 +2206,8 @@ function OnClientValidatePassword(oAccount, password) {
             messageData,
             MessageId: 123,
             MessageUid: 456,
-            MessageState: 32,
+            MessageState: 0,
+            MessageFlags: 32,
             DeliveryAttempt: 4,
             InternalDateUtc: DateTimeOffset.Parse("2026-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture));
 

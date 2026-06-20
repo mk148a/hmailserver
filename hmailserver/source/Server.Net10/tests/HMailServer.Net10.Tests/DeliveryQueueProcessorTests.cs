@@ -279,6 +279,8 @@ public sealed class DeliveryQueueProcessorTests
 
         Assert.AreEqual(1, processed);
         CollectionAssert.AreEqual(new[] { "OnDeliveryStart", "OnDeliverMessage" }, eventExecutor.EventNames);
+        Assert.IsTrue(eventExecutor.Requests.All(request => request.MessageState == 1));
+        Assert.IsTrue(eventExecutor.Requests.All(request => request.MessageFlags == ImapMessageFlags.Recent));
         StringAssert.Contains(contentStore.Text, "X-OnDeliveryStart: yes");
         StringAssert.Contains(contentStore.Text, "X-OnDeliverMessage: yes");
         Assert.AreEqual(contentStore.Bytes.LongLength, dispatcher.Messages[0].Size);
@@ -359,6 +361,8 @@ public sealed class DeliveryQueueProcessorTests
         var failedEvent = eventExecutor.Requests.Single(request => request.EventName == "OnDeliveryFailed");
         Assert.AreEqual("user@remote.test", failedEvent.RecipientAddress);
         Assert.AreEqual("550 No such user.", failedEvent.ErrorMessage);
+        Assert.AreEqual(1, failedEvent.MessageState);
+        Assert.AreEqual(ImapMessageFlags.Recent, failedEvent.MessageFlags);
         Assert.AreEqual("550 No such user.", bounceStore.LastFailureDescription);
         Assert.AreEqual(18, leaseStore.CompletedMessageId);
     }
