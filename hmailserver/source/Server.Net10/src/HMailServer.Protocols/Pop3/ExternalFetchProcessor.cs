@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using HMailServer.Core.Abstractions;
 using MimeKit;
 
@@ -180,6 +181,7 @@ public sealed class ExternalFetchProcessor
             }
 
             messagesDownloaded++;
+            messageData = PrependExternalAccountHeader(account.Name, messageData);
             var scriptResult = RunExternalAccountDownloadScript(account, remoteMessage.Uid, messageData, cancellationToken);
             var acceptedMessageData = scriptResult.MessageData ?? messageData;
             var antivirusResult = await RunAntivirusScanAsync(account, acceptedMessageData, cancellationToken).ConfigureAwait(false);
@@ -406,6 +408,15 @@ public sealed class ExternalFetchProcessor
         {
             return null;
         }
+    }
+
+    private static byte[] PrependExternalAccountHeader(string accountName, byte[] messageData)
+    {
+        var header = Encoding.UTF8.GetBytes($"X-hMailServer-ExternalAccount: {accountName}\r\n");
+        var result = new byte[header.Length + messageData.Length];
+        header.CopyTo(result, 0);
+        messageData.CopyTo(result, header.Length);
+        return result;
     }
 
     private static string ExtractMailFrom(MimeMessage? mimeMessage) =>

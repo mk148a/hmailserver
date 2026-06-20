@@ -47,9 +47,13 @@ public sealed class ExternalFetchProcessorTests
         Assert.AreEqual(42, receiver.Requests[0].Recipients.Single().LocalAccountId);
         Assert.IsTrue(receiver.Requests[0].EnableSpamScan);
         Assert.IsTrue(receiver.Requests[0].EnableAntivirusScan);
-        StringAssert.Contains(Encoding.ASCII.GetString(receiver.Requests[0].MessageData), "X-Script: uid-1\r\n");
+        var receivedMessage = Encoding.ASCII.GetString(receiver.Requests[0].MessageData);
+        StringAssert.StartsWith(receivedMessage, "X-Script: uid-1\r\nX-hMailServer-ExternalAccount: External POP3\r\n");
         Assert.AreEqual("uid-1", script.Requests.Single().RemoteUid);
         Assert.IsNotNull(script.Requests.Single().MessageData);
+        StringAssert.StartsWith(
+            Encoding.ASCII.GetString(script.Requests.Single().MessageData!),
+            "X-hMailServer-ExternalAccount: External POP3\r\nReceived:");
     }
 
     [TestMethod]
