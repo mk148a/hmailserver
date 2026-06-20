@@ -65,6 +65,53 @@ public sealed class TcpExternalFetchSessionFactoryTests
     }
 
     [TestMethod]
+    public async Task DownloadMessageAsync_ReturnsEmptyPayloadForEmptyRetrBody()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var serverTask = RunPop3ServerAsync(
+            listener,
+            commands,
+            rejectRetr: false,
+            rejectDele: false,
+            disconnectOnDele: false,
+            timeout.Token,
+            emptyRetrBody: true);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory();
+            await using var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port), timeout.Token)
+                .ConfigureAwait(false);
+
+            var messages = await session.ListMessagesAsync(timeout.Token).ConfigureAwait(false);
+            var messageData = await session.DownloadMessageAsync(messages.Single(), timeout.Token).ConfigureAwait(false);
+
+            Assert.AreEqual(0, messageData.Length);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "USER external-user",
+                "PASS external-password",
+                "UIDL",
+                "RETR 1",
+                "QUIT"
+            },
+            commands);
+    }
+
+    [TestMethod]
     public async Task ConnectAsync_StartTlsOptionalUsesPlaintextWhenCapaDoesNotAdvertiseStls()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -822,7 +869,8 @@ public sealed class TcpExternalFetchSessionFactoryTests
         bool disconnectOnQuit = false,
         bool disconnectDuringUidlListing = false,
         bool disconnectDuringRetrBody = false,
-        string? uidlResponse = null)
+        string? uidlResponse = null,
+        bool emptyRetrBody = false)
     {
         using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
         await using var stream = client.GetStream();
@@ -859,7 +907,9 @@ public sealed class TcpExternalFetchSessionFactoryTests
 
                 var response = rejectRetr
                     ? "-ERR message unavailable\r\n"
-                    : "+OK\r\nSubject: fetched\r\n..dot-stuffed\r\n.\r\n";
+                    : emptyRetrBody
+                        ? "+OK\r\n.\r\n"
+                        : "+OK\r\nSubject: fetched\r\n..dot-stuffed\r\n.\r\n";
                 await WriteRawAsync(stream, response, cancellationToken).ConfigureAwait(false);
             }
             else if (command.Equals("DELE 1", StringComparison.OrdinalIgnoreCase))

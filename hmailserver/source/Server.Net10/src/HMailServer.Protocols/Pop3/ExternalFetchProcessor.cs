@@ -174,14 +174,9 @@ public sealed class ExternalFetchProcessor
                 break;
             }
 
-            var messageData = await session.DownloadMessageAsync(remoteMessage, cancellationToken).ConfigureAwait(false);
-            if (messageData.Length == 0)
-            {
-                throw new InvalidOperationException("External POP3 message was empty.");
-            }
-
+            var downloadedMessageData = await session.DownloadMessageAsync(remoteMessage, cancellationToken).ConfigureAwait(false);
+            var messageData = PrependExternalAccountHeader(account.Name, downloadedMessageData);
             messagesDownloaded++;
-            messageData = PrependExternalAccountHeader(account.Name, messageData);
             var scriptResult = RunExternalAccountDownloadScript(account, remoteMessage.Uid, messageData, cancellationToken);
             var acceptedMessageData = scriptResult.MessageData ?? messageData;
             var antivirusResult = await RunAntivirusScanAsync(account, acceptedMessageData, cancellationToken).ConfigureAwait(false);

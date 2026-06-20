@@ -57,6 +57,30 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_QueuesEmptyRemoteMessageWithExternalAccountHeader()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-empty", Size: 0),
+            []);
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(store, session, receiver);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(0, result.AccountsFailed);
+        Assert.AreEqual(1, result.MessagesDownloaded);
+        Assert.AreEqual(1, result.MessagesAccepted);
+        Assert.AreEqual(1, result.KnownUidsAdded);
+        Assert.AreEqual("uid-empty", store.AddedUids.Single());
+        CollectionAssert.AreEqual(
+            "X-hMailServer-ExternalAccount: External POP3\r\n"u8.ToArray(),
+            receiver.Requests.Single().MessageData);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_DeletesNewMessageWhenScriptReturnsNegativeRetention()
     {
         var account = CreateAccount(daysToKeep: 7);
