@@ -1383,7 +1383,7 @@ Class HMailServerRuleAttachments
       Dim fileSystem, file
       Set fileSystem = CreateObject("Scripting.FileSystemObject")
       If Not fileSystem.FileExists(path) Then
-         Exit Sub
+         Err.Raise vbObjectError + 1002, "HMailServerRuleAttachments.Add", "Failed to attach file."
       End If
 
       Set file = fileSystem.GetFile(path)
@@ -2802,7 +2802,7 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
     Add: function(path) {
       var filePath = String(path || "");
       if (!hMailServerRuleFileSystem.FileExists(filePath)) {
-        return;
+        throw new Error("Failed to attach file.");
       }
       var file = hMailServerRuleFileSystem.GetFile(filePath);
       this._items.push({

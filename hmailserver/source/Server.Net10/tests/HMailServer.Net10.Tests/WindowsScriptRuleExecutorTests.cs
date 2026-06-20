@@ -1373,6 +1373,20 @@ Sub Rule_UpdateAttachments(obMessage)
    End If
 
    obMessage.Attachments.Clear
+   On Error Resume Next
+   obMessage.Attachments.Add savedPath & ".missing"
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "missing attachment did not fail"
+      Exit Sub
+   End If
+   If InStr(1, Err.Description, "Failed to attach file.", vbTextCompare) = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "missing attachment error mismatch"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
    obMessage.Attachments.Add savedPath
 End Sub
 """,
@@ -1487,6 +1501,17 @@ function Rule_DeleteAttachment(obMessage) {
   }
   if (typeof obMessage.Attachments.DeleteAt !== "undefined") {
     obMessage.RejectReason = "attachment collection exposed DeleteAt";
+    return;
+  }
+
+  var missingAttachmentFailed = false;
+  try {
+    obMessage.Attachments.Add(obMessage.FileName + ".missing");
+  } catch (error) {
+    missingAttachmentFailed = String(error.message || error).indexOf("Failed to attach file.") >= 0;
+  }
+  if (!missingAttachmentFailed) {
+    obMessage.RejectReason = "missing attachment did not fail";
     return;
   }
 
