@@ -504,13 +504,16 @@ public sealed class ExternalFetchProcessor
         {
             foreach (var headerName in SplitMimeRecipientHeaders(account.MimeRecipientHeaders))
             {
-                foreach (var header in mimeMessage.Headers.Where(header =>
-                    header.Field.Equals(headerName, StringComparison.OrdinalIgnoreCase)))
+                var header = mimeMessage.Headers.FirstOrDefault(header =>
+                    header.Field.Equals(headerName, StringComparison.OrdinalIgnoreCase));
+                if (header is null)
                 {
-                    foreach (var mailbox in ParseMailboxes(header.Value))
-                    {
-                        AddCandidate(mailbox.Address, candidates, seen);
-                    }
+                    continue;
+                }
+
+                foreach (var mailbox in ParseMailboxes(header.Value))
+                {
+                    AddCandidate(mailbox.Address, candidates, seen);
                 }
             }
 
