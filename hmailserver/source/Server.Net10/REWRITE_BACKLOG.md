@@ -90,6 +90,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: script message `Size` preserves the legacy read-only floor-KiB calculation and refreshes from the backing file after `Save`.
 - Done: script recipient item `Address`, `OriginalAddress`, and `IsLocalUser` preserve legacy read-only metadata without blocking message-level `AddRecipient`/`ClearRecipients` mutations.
 - Done: script `Recipients` collection no longer publishes the non-legacy `Add`, `Clear`, or `ToHeaderValue` names; supported collection reads remain `Count`/`Item` and mutations remain message-level.
+- Done: script message `ClearRecipients` clears the envelope recipient collection plus `To`, `Cc`, and `Bcc` MIME headers in VBScript/JScript, matching the legacy message contract.
 - Done: script `Headers` collection no longer publishes runner-only `Refresh` or `Commit`; legacy `Count`/`Item`/`ItemByName` reads and header item mutations remain supported.
 - Done: script `Attachments` collection no longer publishes runner-only `Load` or `DeleteAt`; legacy `Count`/`Item`/`Clear`/`Add` plus item `SaveAs`/`Delete` remain supported.
 - Done: script message `HasBodyType` matches clean MIME content types case-insensitively across the root and two nested part levels instead of matching arbitrary message text, including quoted boundary values containing semicolons.
@@ -169,6 +170,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: message `Size` script property uses legacy integer `bytes / 1024` semantics, remains read-only, and re-measures the backing file after `Save` in VBScript/JScript.
    - Done: recipient item `Address`, `OriginalAddress`, and `IsLocalUser` script properties remain read-only in VBScript/JScript while message-level recipient mutation paths stay intact.
    - Done: recipient collection script facade exposes the legacy supported `Count`/`Item` surface without the rewrite-only `Add`, `Clear`, or `ToHeaderValue` names; `Message.AddRecipient`/`ClearRecipients` remain supported.
+   - Done: message-level `ClearRecipients` removes `To`, `Cc`, and `Bcc` MIME headers while clearing envelope recipients in both VBScript and JScript.
    - Done: message header collection script facade exposes the legacy supported `Count`/`Item`/`ItemByName` surface without runner-only `Refresh`/`Commit`; header `Name`/`Value`/`Delete` changes still persist on `Save`.
    - Done: attachment collection script facade exposes the legacy supported `Count`/`Item`/`Clear`/`Add` surface without runner-only `Load`/`DeleteAt`; attachment `SaveAs`/`Delete` behavior remains intact.
    - Done: message `HasBodyType` script method follows legacy clean MIME content-type matching across the root and two nested part levels, with case-insensitive checks and quoted boundary parsing instead of raw message substring matching.

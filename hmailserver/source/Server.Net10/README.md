@@ -144,6 +144,8 @@ Recipient item `Address`, `OriginalAddress`, and `IsLocalUser` metadata follows 
 
 The `Recipients` collection keeps the legacy supported surface of `Count` and `Item`; rewrite-internal seeding helpers are no longer published under the non-legacy `Add`, `Clear`, or `ToHeaderValue` names. Recipient mutation continues through message-level `AddRecipient` and `ClearRecipients` in both VBScript and JScript.
 
+Message-level `ClearRecipients` follows the legacy envelope and MIME cleanup behavior: it clears the recipient collection and removes the `To`, `Cc`, and `Bcc` headers in both script languages.
+
 The `Headers` collection keeps the legacy supported surface of `Count`, `Item`, and `ItemByName`; runner-internal refresh/commit helpers are no longer published as `Refresh` or `Commit`. Header item `Name`/`Value` updates and `Delete` continue to persist through `Message.Save` in both script languages.
 
 The `Attachments` collection keeps the legacy supported surface of `Count`, `Item`, `Clear`, and `Add`; runner-internal manifest loading and index removal are no longer published as `Load` or `DeleteAt`. Attachment item `SaveAs` and `Delete` continue to work in VBScript and JScript.

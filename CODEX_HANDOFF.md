@@ -79,6 +79,7 @@ Son tamamlanan kucuk dilimler:
 - `HMAILSERVER_MESSAGE.Size`, legacy integer `bytes / 1024` floor-KiB hesabina cekildi; 1024 byte altindaki mesajlar `0` donuyor, property read-only kaliyor ve VBScript/JScript `Save` sonrasi backing file boyutunu yeniden okuyor.
 - Recipient item `Address`, `OriginalAddress` ve `IsLocalUser` metadata'si legacy COM read-only property sekline yaklastirildi; VBScript assignment'i reddediyor, JScript detached snapshot donduruyor ve `AddRecipient`/`ClearRecipients` message-level mutasyonlari korunuyor.
 - `Recipients` collection facade'inda legacy disi `Add`, `Clear` ve `ToHeaderValue` isimleri kaldirildi; `Count`/`Item` okumalari ile message-level `AddRecipient`/`ClearRecipients` mutasyonlari VBScript/JScript'te korunuyor.
+- `HMAILSERVER_MESSAGE.ClearRecipients`, envelope recipient collection ile birlikte legacy C++ davranisindaki gibi `To`, `Cc` ve `Bcc` MIME header'larini VBScript/JScript'te temizliyor.
 - `Headers` collection facade'inda runner-only `Refresh` ve `Commit` isimleri kaldirildi; legacy `Count`/`Item`/`ItemByName` okumalari ile header `Name`/`Value`/`Delete` mutasyonlari `Save` uzerinden korunuyor.
 - `Attachments` collection facade'inda runner-only `Load` ve `DeleteAt` isimleri kaldirildi; legacy `Count`/`Item`/`Clear`/`Add` ile attachment item `SaveAs`/`Delete` davranislari korunuyor.
 - `HMAILSERVER_MESSAGE.HasBodyType`, ham header/body substring aramasi yerine legacy temiz MIME content-type davranisina cekildi; root ve iki nested part seviyesi, case-insensitive eslesme ve noktalivirgul iceren quoted boundary degerleri VBScript/JScript testleriyle sabitlendi.
@@ -96,11 +97,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-7be66a678 docs(net10): document attachment collection surface
+1b6ab569b docs(net10): document MIME body type parity
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `c8c92d92f fix(net10): clear script message blind recipients`
 - `b5db584df fix(net10): match legacy script body type checks`
 - `47df94c53 fix(net10): hide attachment collection helpers`
 - `3869e31bf fix(net10): hide message header helpers`
@@ -231,6 +233,7 @@ Son temiz dogrulama notlari:
 - Message header collection `Count`/`Item`/`ItemByName` legacy surface parity dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 44/44 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 384/384 gecti.
 - Attachment collection `Count`/`Item`/`Clear`/`Add` legacy surface parity dilimi icin dar `WindowsScriptRuleExecutorTests` filtresi 44/44 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 384/384 gecti.
 - Message `HasBodyType` MIME part parity dilimi icin iki hedefli VBScript/JScript testi 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 46/46 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 386/386 gecti.
+- Message `ClearRecipients` Bcc cleanup parity dilimi icin iki hedefli VBScript/JScript testi 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 46/46 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 386/386 gecti.
 
 Terminal/log incelemesi:
 
