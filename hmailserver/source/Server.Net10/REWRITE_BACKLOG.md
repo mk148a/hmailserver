@@ -104,6 +104,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: external POP3 fetch tolerates duplicate persisted `hm_fetchaccounts_uids.uidvalue` rows when building the known-UID lookup for a batch.
 - Done: external POP3 fetch coalesces duplicate remote UIDL sequence-number entries so a malformed listing cannot download the same remote slot twice.
 - Done: external POP3 fetch processes UIDL entries in ascending sequence order and retains the last UID for duplicate sequence numbers, matching the legacy `std::map` behavior.
+- Done: external POP3 fetch prepends `X-hMailServer-ExternalAccount: <account name>` to newly downloaded messages before script, MIME, antivirus, and SMTP receiver processing.
 - Done: external POP3 fetch probes CAPA before STLS so optional STARTTLS falls back only when STLS is not advertised, required STARTTLS fails before credentials, and an advertised-but-rejected STLS fails both modes before authentication.
 - Done: external POP3 fetch treats a rejected CAPA response as unavailable STLS, continuing optional STARTTLS over plaintext while failing required STARTTLS before credentials.
 - Done: external POP3 fetch rejects a failed server greeting before sending any command or credentials in plain and STARTTLS modes.
@@ -232,6 +233,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: external fetch tolerates duplicate persisted known-UID rows so corrupted or legacy-created duplicates do not fail the whole account batch.
    - Done: external fetch coalesces duplicate remote sequence numbers within the same UIDL listing before download/retention processing.
    - Done: UIDL coalescing follows the legacy ordered-map contract by sorting sequence numbers ascending and letting the final row replace an earlier UID for the same sequence.
+   - Done: newly downloaded messages receive the legacy `X-hMailServer-ExternalAccount` account-name header before script and receiver processing.
    - Done: external fetch probes CAPA before STLS, preserving legacy optional STARTTLS plaintext fallback, required STARTTLS pre-auth failure when STLS is not advertised, and pre-auth failure in both modes when an advertised STLS command is rejected.
    - Done: external fetch preserves legacy CAPA-rejection behavior by continuing optional STARTTLS over plaintext and failing required STARTTLS before authentication.
    - Done: external fetch preserves legacy greeting-rejection behavior without sending any client command or credentials in plain and STARTTLS modes.

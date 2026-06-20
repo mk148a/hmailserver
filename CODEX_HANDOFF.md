@@ -16,7 +16,7 @@ Legacy C++ server production referansi olmaya devam ediyor. .NET 10 agaci produc
 - IMAP tarafinda LOGIN/AUTHENTICATE PLAIN, SELECT/EXAMINE, nested/public folder, ACL, QUOTA, SEARCH/SORT, FETCH, STORE, COPY/MOVE, APPEND, EXPUNGE, IDLE ve recent flag lifecycle icin buyuk parity dilimleri tamamlandi.
 - SMTP tarafinda listener/session skeleton, STARTTLS, AUTH PLAIN/LOGIN, MAIL/RCPT/DATA staging, local/route recipient validation, durable queue persistence, global/account rule islemleri, delivery queue lease/load/dispatch, local delivery, remote SMTP sender, retry/backoff, bounce ve delivery status gozlemlenebilirligi eklendi.
 - POP3 tarafinda USER/PASS, CAPA, STAT/LIST/UIDL/RETR/TOP/DELE/RSET/NOOP/QUIT, mailbox lock, implicit TLS ve SQL/data-directory mailbox store eklendi.
-- External POP3 fetch icin SQL lease/UID store, POP3 network session, CAPA/STLS probing, UIDL/RETR/DELE/QUIT akis, recipient resolution, yeni/bilinen UIDL ve duplicate sequence baskilama, persisted known-UID duplicate toleransi, spam/AV entegrasyonu ve `OnExternalAccountDownload` script hook'u eklendi; fetch-account script facade'i `NextDownloadTime`/`IsLocked` alanlarini da tasiyor.
+- External POP3 fetch icin SQL lease/UID store, POP3 network session, CAPA/STLS probing, UIDL/RETR/DELE/QUIT akis, recipient resolution, yeni/bilinen UIDL ve duplicate sequence baskilama, persisted known-UID duplicate toleransi, legacy `X-hMailServer-ExternalAccount` basligi, spam/AV entegrasyonu ve `OnExternalAccountDownload` script hook'u eklendi; fetch-account script facade'i `NextDownloadTime`/`IsLocked` alanlarini da tasiyor.
 - Modern security slice'lari eklendi: ClamAV, SpamAssassin, spam policy, attachment blocking, DNSBL, reverse DNS/PTR, sender-domain MX, greylisting, SURBL ve failed-logon auto-ban.
 - Legacy script/event parity buyuk olcude ilerledi: `OnClientConnect`, `OnClientValidatePassword`, `OnClientLogon`, `OnHELO`, `OnRecipientUnknown`, `OnSMTPData`, `OnAcceptMessage`, `OnTooManyInvalidCommands`, delivery eventleri, `OnDeliveryFailed`, `OnError`, rule `ScriptFunction`, mesaj/recipient/attachment facade'leri, client `Authenticated`/`EncryptedConnection` alias'lari ve account-rule `Message.Copy(folderId)`.
 
@@ -57,6 +57,7 @@ Son tamamlanan kucuk dilimler:
 - `HMAILSERVER_CLIENT` facade'i legacy COM isimleri olan `Authenticated` ve `EncryptedConnection` alias'larini VBScript/JScript event handler'larinda destekleyecek sekilde genisletildi.
 - External POP3 fetch duplicate persisted `hm_fetchaccounts_uids.uidvalue` satirlarini batch lookup olustururken tolere edecek sekilde kapatildi.
 - External POP3 fetch UIDL satirlarini legacy `std::map` gibi artan sequence sirasinda isliyor; duplicate sequence icin son UID'yi tutup ayni remote slotu tek indirme/kuyruklama ile sinirliyor.
+- External POP3 fetch yeni indirilen mesajlara script ve receiver islemlerinden once legacy `X-hMailServer-ExternalAccount: <account name>` basligini ekliyor.
 - External POP3 fetch STARTTLS akisi legacy CAPA/STLS davranisina yaklastirildi: optional STARTTLS sadece STLS advertise edilmezse plaintext'e duser, required STARTTLS credentials gondermeden fail eder ve advertise edilip reddedilen STLS iki modda da credentials oncesi fail eder.
 - External POP3 fetch CAPA reddi davranisi legacy ile sabitlendi: optional STARTTLS plaintext'e devam ederken required STARTTLS `USER`/`PASS` oncesi fail eder.
 - External POP3 fetch reddedilen server greeting'inde plain ve STARTTLS modlarinda hicbir istemci komutu veya credential gondermeden fail edecek sekilde legacy ile sabitlendi.
@@ -71,6 +72,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch `DELE -ERR` yanitini legacy best-effort cleanup olarak kabul edip UID cleanup ve `QUIT` akisina devam edecek; socket/I/O/cancellation hatalarini fatal tutacak sekilde duzeltildi.
 - External POP3 fetch `DELE` response gelmeden socket/I/O koparsa fatal kalacak, known UID korunacak ve account lease failed-release edilecek sekilde testle sabitlendi.
 - External POP3 fetch session disposal sirasinda `QUIT -ERR` veya QUIT response oncesi disconnect exception sizdirmeyecek sekilde legacy best-effort cleanup testiyle sabitlendi.
+- External POP3 fetch yeni mesaj byte'larinin onune hesap adini tasiyan legacy `X-hMailServer-ExternalAccount` basligini ekliyor; script girdisi ve receiver'a giden sonuc testle sabitlendi.
 - `HMAILSERVER_MESSAGE.RefreshContent`, script tarafindan message file dogrudan degistirildikten sonra header/body alanlarini yeniden yukleyecek sekilde VBScript/JScript testleriyle sabitlendi.
 - `HMAILSERVER_MESSAGE.FileName`/`Filename` facade'i script assignment sonrasi `Load`/`Save`/`Copy` file I/O'sunu orijinal runner backing path'inde tutacak sekilde legacy `Filename` read-only davranisina yaklastirildi.
 - `HMAILSERVER_MESSAGE.To`/`CC` direct assignment, legacy COM read-only property sekline yaklastirildi; recipient/header mutasyonlari `AddRecipient`, `ClearRecipients`, `Recipients`, ve `HeaderValue` yollarinda kalacak sekilde testlendi.
@@ -104,11 +106,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-00b907501 docs(net10): document attachment item identity
+d83b52517 docs(net10): document uidl sequence ordering
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `4faa60ea9 fix(net10): tag external fetch messages`
 - `49ef83587 fix(net10): order external fetch uidl sequences`
 - `a1541a1a1 fix(net10): preserve script attachment identity`
 - `78a4bfd5e fix(net10): terminate script message bodies`
@@ -257,6 +260,7 @@ Son temiz dogrulama notlari:
 - Message `Body`/`HTMLBody` trailing-CRLF parity dilimi icin dort hedefli VBScript/JScript testi 4/4 ve dar `WindowsScriptRuleExecutorTests` filtresi 50/50 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 390/390 gecti.
 - Attachment item stable-identity parity dilimi icin iki hedefli VBScript/JScript testi 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 50/50 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 390/390 gecti.
 - External fetch UIDL ordered-map parity dilimi icin hedefli duplicate/out-of-order testi 1/1 ve dar `ExternalFetchProcessorTests` filtresi 18/18 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 390/390 gecti.
+- External fetch legacy account-header parity dilimi icin hedefli script/receiver testi 1/1 ve dar `ExternalFetchProcessorTests` filtresi 18/18 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 390/390 gecti.
 
 Terminal/log incelemesi:
 
