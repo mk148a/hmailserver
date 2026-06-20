@@ -992,7 +992,7 @@ End Sub
             var result = executor.Execute(
                 CreateRequest(
                     "Rule_UpdateRecipients",
-                    "To: old@example.test\r\nCc: copy@example.test\r\nSubject: Recipients\r\n\r\nBody\r\n"u8.ToArray(),
+                    "To: old@example.test\r\nCc: copy@example.test\r\nBcc: hidden@example.test\r\nSubject: Recipients\r\n\r\nBody\r\n"u8.ToArray(),
                     CreateRecipients()),
                 CancellationToken.None);
 
@@ -1001,6 +1001,7 @@ End Sub
             var messageText = Encoding.ASCII.GetString(result.MessageData);
             StringAssert.Contains(messageText, "To: \"Added User\" <added@example.test>\r\n");
             Assert.IsFalse(messageText.Contains("Cc:", StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(messageText.Contains("Bcc:", StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
@@ -1074,7 +1075,7 @@ function Rule_UpdateRecipients(obMessage) {
             var result = executor.Execute(
                 CreateRequest(
                     "Rule_UpdateRecipients",
-                    "To: old@example.test\r\nCc: copy@example.test\r\nSubject: Recipients\r\n\r\nBody\r\n"u8.ToArray(),
+                    "To: old@example.test\r\nCc: copy@example.test\r\nBcc: hidden@example.test\r\nSubject: Recipients\r\n\r\nBody\r\n"u8.ToArray(),
                     CreateRecipients()),
                 CancellationToken.None);
 
@@ -1083,6 +1084,7 @@ function Rule_UpdateRecipients(obMessage) {
             var messageText = Encoding.ASCII.GetString(result.MessageData);
             StringAssert.Contains(messageText, "To: \"Added JS\" <added-js@example.test>\r\n");
             Assert.IsFalse(messageText.Contains("Cc:", StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(messageText.Contains("Bcc:", StringComparison.OrdinalIgnoreCase));
         }
         finally
         {

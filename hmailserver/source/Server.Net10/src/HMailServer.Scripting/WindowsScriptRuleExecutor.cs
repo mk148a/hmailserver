@@ -1811,6 +1811,7 @@ Class HMailServerRuleMessage
       m_cc = ""
       m_headers = SetHeaderLine(m_headers, "To", "")
       m_headers = SetHeaderLine(m_headers, "Cc", "")
+      m_headers = SetHeaderLine(m_headers, "Bcc", "")
    End Sub
 
    Public Sub SetHeaderValue(fieldName, fieldValue)
@@ -2965,6 +2966,7 @@ if ("{{hasMessageFlag}}" === "1") {
       this.CC = this._cc;
       this._headers = hMailServerRuleSetHeader(this._headers, "To", "");
       this._headers = hMailServerRuleSetHeader(this._headers, "Cc", "");
+      this._headers = hMailServerRuleSetHeader(this._headers, "Bcc", "");
     },
     HasBodyType: function(bodyType) {
       return hMailServerRuleHasMimeBodyType(this._headers, this.Body, bodyType, 0);
