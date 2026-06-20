@@ -235,6 +235,8 @@ External-fetch `Received ... for <recipient>` values pass the legacy 254-charact
 
 The legacy `Received` parser locates the literal lowercase `for ` token with a case-sensitive `std::rfind`; uppercase variants such as `FOR ` are ignored and leave recipient selection to the account fallback.
 
+External-fetch envelope sender extraction also applies the legacy 254-character email-address validator after parsing the first `From` mailbox. Invalid or over-limit values are ignored and the message is submitted with an empty envelope sender.
+
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
 A truncated external-fetch `RETR` body after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not submit message data, add UID state, or issue remote delete cleanup.
