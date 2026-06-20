@@ -1754,7 +1754,7 @@ Class HMailServerRuleMessage
       Set fileSystem = CreateObject("Scripting.FileSystemObject")
       If fileSystem.FileExists(FileName) Then
          Set file = fileSystem.GetFile(FileName)
-         Size = CLng((CDbl(file.Size) + 1023) / 1024)
+         Size = CLng(Fix(CDbl(file.Size) / 1024))
       Else
          Size = 0
       End If
@@ -2578,7 +2578,7 @@ function hMailServerRuleGetMessageSize(fileName) {
   if (!hMailServerRuleFileSystem.FileExists(fileName)) {
     return 0;
   }
-  return Math.ceil(Number(hMailServerRuleFileSystem.GetFile(fileName).Size || 0) / 1024);
+  return Math.floor(Number(hMailServerRuleFileSystem.GetFile(fileName).Size || 0) / 1024);
 }
 
 function hMailServerRuleAppendAttachmentOperation(operationPath, name, value, extraValue) {
@@ -2686,6 +2686,7 @@ if ("{{hasMessageFlag}}" === "1") {
     _state: 0,
     State: 0,
     _flags: 0,
+    _size: 0,
     Size: 0,
     _deliveryAttempt: 1,
     DeliveryAttempt: 1,
@@ -2715,6 +2716,7 @@ if ("{{hasMessageFlag}}" === "1") {
       this.ID = this._id;
       this.UID = this._uid;
       this.State = this._state;
+      this.Size = this._size;
       this.DeliveryAttempt = this._deliveryAttempt;
       this.InternalDate = new Date(this._internalDate.getTime());
     },
@@ -2722,7 +2724,7 @@ if ("{{hasMessageFlag}}" === "1") {
       var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this._fileName));
       this._headers = parsed.headers;
       this.Body = parsed.body;
-      this.Size = hMailServerRuleGetMessageSize(this._fileName);
+      this._size = hMailServerRuleGetMessageSize(this._fileName);
       hMailServerRuleSyncMessageHeaderFields(this);
       this.HTMLBody = hMailServerRuleGetHeader(this._headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0 ? this.Body : "";
       this._restoreReadOnlyMetadata();
@@ -2790,6 +2792,8 @@ if ("{{hasMessageFlag}}" === "1") {
       }
       hMailServerRuleWriteAllText(this._fileName, headers + "\r\n\r\n" + messageBody);
       this._headers = headers;
+      this._size = hMailServerRuleGetMessageSize(this._fileName);
+      this._restoreReadOnlyMetadata();
     },
     AddRecipient: function(name, address) {
       this.Recipients.Add(address, address, false);

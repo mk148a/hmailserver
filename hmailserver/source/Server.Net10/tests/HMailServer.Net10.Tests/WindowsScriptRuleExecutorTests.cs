@@ -88,8 +88,8 @@ Sub Rule_UpdateMessage(obMessage)
       obMessage.RejectReason = "folded header not loaded"
       Exit Sub
    End If
-   If obMessage.Size <= 0 Then
-      obMessage.RejectReason = "size not loaded"
+   If obMessage.Size <> 0 Then
+      obMessage.RejectReason = "size rounding mismatch"
       Exit Sub
    End If
    If obMessage.DeliveryAttempt <> 1 Then
@@ -197,8 +197,8 @@ function Rule_UpdateMessage(obMessage) {
     obMessage.RejectReason = "folded header not loaded";
     return;
   }
-  if (obMessage.Size <= 0) {
-    obMessage.RejectReason = "size not loaded";
+  if (obMessage.Size !== 0) {
+    obMessage.RejectReason = "size rounding mismatch";
     return;
   }
   if (obMessage.DeliveryAttempt !== 1) {
@@ -1665,6 +1665,121 @@ function OnDeliveryStart(oMessage) {
             StringAssert.Contains(
                 Encoding.ASCII.GetString(result.MessageData),
                 "X-Readonly-Metadata: 5000000000:456:4\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_VbScriptMessageSizeIsReadOnlyAndUpdatesAfterSave()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_CheckSize(obMessage)
+   Dim originalSize
+   originalSize = obMessage.Size
+   If originalSize <> 2 Then
+      obMessage.RejectReason = "initial size mismatch"
+      Exit Sub
+   End If
+
+   On Error Resume Next
+   obMessage.Size = 999
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "message size accepted direct assignment"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
+
+   If obMessage.Size <> originalSize Then
+      obMessage.RejectReason = "message size changed"
+      Exit Sub
+   End If
+
+   obMessage.Body = String(4096, "x")
+   obMessage.Save
+   If obMessage.Size <> 4 Then
+      obMessage.RejectReason = "saved size mismatch"
+      Exit Sub
+   End If
+
+   obMessage.HeaderValue("X-Size-After-Save") = CStr(obMessage.Size)
+   obMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_CheckSize",
+                    Encoding.ASCII.GetBytes("Subject: Size\r\n\r\n" + new string('a', 2048))),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "X-Size-After-Save: 4\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptMessageSizeAssignmentDoesNotPersistAndUpdatesAfterSave()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_CheckSize(obMessage) {
+  var originalSize = obMessage.Size;
+  if (originalSize !== 2) {
+    obMessage.RejectReason = "initial size mismatch";
+    return;
+  }
+
+  obMessage.Size = 999;
+  obMessage.Body = new Array(4097).join("x");
+  obMessage.Save();
+  if (obMessage.Size !== 4) {
+    obMessage.RejectReason = "saved size mismatch";
+    return;
+  }
+
+  obMessage.SetHeaderValue("X-Size-After-Save", String(obMessage.Size));
+  obMessage.Save();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, language: "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_CheckSize",
+                    Encoding.ASCII.GetBytes("Subject: Size\r\n\r\n" + new string('a', 2048))),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "X-Size-After-Save: 4\r\n");
         }
         finally
         {
