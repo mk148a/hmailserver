@@ -1291,11 +1291,11 @@ Class HMailServerRuleAttachment
    Private m_size
    Private m_sourcePath
    Private m_owner
-   Private m_index
+   Private m_itemID
 
-   Public Sub Initialize(owner, index, attachmentFileName, attachmentSize, sourcePath)
+   Public Sub Initialize(owner, itemID, attachmentFileName, attachmentSize, sourcePath)
       Set m_owner = owner
-      m_index = index
+      m_itemID = CLng(itemID)
       m_fileName = CStr(attachmentFileName)
       m_size = CLng(attachmentSize)
       m_sourcePath = sourcePath
@@ -1316,20 +1316,24 @@ Class HMailServerRuleAttachment
    End Sub
 
    Public Sub Delete()
-      m_owner.RemoveAtInternal m_index
+      m_owner.RemoveByIdInternal m_itemID
    End Sub
 End Class
 
 Class HMailServerRuleAttachments
+   Private m_ids
    Private m_fileNames
    Private m_sizes
    Private m_sourcePaths
    Private m_count
+   Private m_nextID
    Private m_operationPath
 
    Private Sub Class_Initialize()
       m_count = 0
+      m_nextID = 0
       m_operationPath = ""
+      ReDim m_ids(0)
       ReDim m_fileNames(0)
       ReDim m_sizes(0)
       ReDim m_sourcePaths(0)
@@ -1368,7 +1372,7 @@ Class HMailServerRuleAttachments
 
       Dim attachment
       Set attachment = New HMailServerRuleAttachment
-      attachment.Initialize Me, index, m_fileNames(index), m_sizes(index), m_sourcePaths(index)
+      attachment.Initialize Me, m_ids(index), m_fileNames(index), m_sizes(index), m_sourcePaths(index)
       Set Item = attachment
    End Function
 
@@ -1389,6 +1393,16 @@ Class HMailServerRuleAttachments
       AppendOperation "Add", CStr(path)
    End Sub
 
+   Public Sub RemoveByIdInternal(itemID)
+      Dim index
+      For index = 0 To m_count - 1
+         If m_ids(index) = CLng(itemID) Then
+            RemoveAtInternal index
+            Exit Sub
+         End If
+      Next
+   End Sub
+
    Public Sub RemoveAtInternal(index)
       If index < 0 Or index >= m_count Then
          Exit Sub
@@ -1397,6 +1411,7 @@ Class HMailServerRuleAttachments
       Dim removeIndex
       AppendOperation "DeleteIndex", CStr(index)
       For removeIndex = index To m_count - 2
+         m_ids(removeIndex) = m_ids(removeIndex + 1)
          m_fileNames(removeIndex) = m_fileNames(removeIndex + 1)
          m_sizes(removeIndex) = m_sizes(removeIndex + 1)
          m_sourcePaths(removeIndex) = m_sourcePaths(removeIndex + 1)
@@ -1405,6 +1420,7 @@ Class HMailServerRuleAttachments
       If m_count = 0 Then
          ClearInMemory
       Else
+         ReDim Preserve m_ids(m_count - 1)
          ReDim Preserve m_fileNames(m_count - 1)
          ReDim Preserve m_sizes(m_count - 1)
          ReDim Preserve m_sourcePaths(m_count - 1)
@@ -1413,11 +1429,14 @@ Class HMailServerRuleAttachments
 
    Private Sub AddInMemory(fileName, size, sourcePath)
       If m_count > 0 Then
+         ReDim Preserve m_ids(m_count)
          ReDim Preserve m_fileNames(m_count)
          ReDim Preserve m_sizes(m_count)
          ReDim Preserve m_sourcePaths(m_count)
       End If
 
+      m_ids(m_count) = m_nextID
+      m_nextID = m_nextID + 1
       m_fileNames(m_count) = CStr(fileName)
       m_sizes(m_count) = CLng(size)
       m_sourcePaths(m_count) = CStr(sourcePath)
@@ -1426,6 +1445,7 @@ Class HMailServerRuleAttachments
 
    Private Sub ClearInMemory()
       m_count = 0
+      ReDim m_ids(0)
       ReDim m_fileNames(0)
       ReDim m_sizes(0)
       ReDim m_sourcePaths(0)
@@ -2754,7 +2774,7 @@ function hMailServerRuleAppendAttachmentOperation(operationPath, name, value, ex
   operationFile.Close();
 }
 
-function hMailServerRuleCreateAttachment(owner, index, fileName, size, sourcePath) {
+function hMailServerRuleCreateAttachment(owner, itemId, fileName, size, sourcePath) {
   return {
     FileName: String(fileName || ""),
     Filename: String(fileName || ""),
@@ -2763,7 +2783,7 @@ function hMailServerRuleCreateAttachment(owner, index, fileName, size, sourcePat
       hMailServerRuleFileSystem.CopyFile(sourcePath, String(path || ""), true);
     },
     Delete: function() {
-      owner._removeAt(index);
+      owner._removeById(itemId);
     }
   };
 }
@@ -2771,6 +2791,7 @@ function hMailServerRuleCreateAttachment(owner, index, fileName, size, sourcePat
 function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
   var collection = {
     _items: [],
+    _nextId: 0,
     Count: 0,
     _load: function() {
       this._items = [];
@@ -2783,6 +2804,7 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
         var fields = manifestFile.ReadLine().split("\t");
         if (fields.length >= 4) {
           this._items.push({
+            Id: this._nextId++,
             FileName: fields[1],
             Size: Number(fields[2] || 0),
             SourcePath: fields[3]
@@ -2797,7 +2819,7 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
         throw new Error("Invalid attachment index.");
       }
       var item = this._items[index];
-      return hMailServerRuleCreateAttachment(this, index, item.FileName, item.Size, item.SourcePath);
+      return hMailServerRuleCreateAttachment(this, item.Id, item.FileName, item.Size, item.SourcePath);
     },
     Clear: function() {
       this._items = [];
@@ -2811,6 +2833,7 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
       }
       var file = hMailServerRuleFileSystem.GetFile(filePath);
       this._items.push({
+        Id: this._nextId++,
         FileName: file.Name,
         Size: Number(file.Size || 0),
         SourcePath: filePath
@@ -2818,8 +2841,15 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
       this.Count = this._items.length;
       hMailServerRuleAppendAttachmentOperation(operationPath, "Add", filePath);
     },
-    _removeAt: function(index) {
-      if (index < 0 || index >= this._items.length) {
+    _removeById: function(itemId) {
+      var index = -1;
+      for (var itemIndex = 0; itemIndex < this._items.length; itemIndex++) {
+        if (this._items[itemIndex].Id === itemId) {
+          index = itemIndex;
+          break;
+        }
+      }
+      if (index < 0) {
         return;
       }
       hMailServerRuleAppendAttachmentOperation(operationPath, "DeleteIndex", String(index));

@@ -1481,7 +1481,7 @@ function Rule_CheckRecipientMetadata(obMessage) {
                 Path.Combine(eventDirectory, "EventHandlers.vbs"),
                 """
 Sub Rule_UpdateAttachments(obMessage)
-   If obMessage.Attachments.Count <> 1 Then
+   If obMessage.Attachments.Count <> 3 Then
       obMessage.RejectReason = "attachment count not loaded"
       Exit Sub
    End If
@@ -1515,7 +1515,7 @@ Sub Rule_UpdateAttachments(obMessage)
    Err.Clear
    On Error GoTo 0
 
-   Dim attachment, savedPath, fileSystem, savedFile, savedText
+   Dim attachment, targetAttachment, savedPath, fileSystem, savedFile, savedText
    Set attachment = obMessage.Attachments.Item(0)
    If attachment.FileName <> "hello.txt" Then
       obMessage.RejectReason = "attachment filename not loaded"
@@ -1534,6 +1534,14 @@ Sub Rule_UpdateAttachments(obMessage)
    savedFile.Close
    If savedText <> "Hello" Then
       obMessage.RejectReason = "attachment save failed"
+      Exit Sub
+   End If
+
+   Set targetAttachment = obMessage.Attachments.Item(1)
+   attachment.Delete
+   targetAttachment.Delete
+   If obMessage.Attachments.Count <> 1 Or obMessage.Attachments.Item(0).FileName <> "keep.txt" Then
+      obMessage.RejectReason = "attachment identity changed after delete"
       Exit Sub
    End If
 
@@ -1561,7 +1569,10 @@ End Sub
             var result = executor.Execute(
                 CreateRequest(
                     "Rule_UpdateAttachments",
-                    CreateMultipartMessage(("hello.txt", "Hello"))),
+                    CreateMultipartMessage(
+                        ("hello.txt", "Hello"),
+                        ("remove.txt", "Remove"),
+                        ("keep.txt", "Keep"))),
                 CancellationToken.None);
 
             Assert.IsTrue(result.Accepted, result.FailureResponse);
@@ -1648,7 +1659,7 @@ End Sub
                 Path.Combine(eventDirectory, "EventHandlers.js"),
                 """
 function Rule_DeleteAttachment(obMessage) {
-  if (obMessage.Attachments.Count !== 2) {
+  if (obMessage.Attachments.Count !== 3) {
     obMessage.RejectReason = "attachment count not loaded";
     return;
   }
@@ -1662,11 +1673,12 @@ function Rule_DeleteAttachment(obMessage) {
     obMessage.RejectReason = "invalid attachment index did not fail";
     return;
   }
-  if (obMessage.Attachments.Item(1).FileName !== "remove.txt") {
+  var targetAttachment = obMessage.Attachments.Item(1);
+  if (targetAttachment.FileName !== "remove.txt") {
     obMessage.RejectReason = "attachment filename not loaded";
     return;
   }
-  if (obMessage.Attachments.Item(1).Filename !== obMessage.Attachments.Item(1).FileName) {
+  if (targetAttachment.Filename !== targetAttachment.FileName) {
     obMessage.RejectReason = "attachment filename alias not loaded";
     return;
   }
@@ -1690,7 +1702,11 @@ function Rule_DeleteAttachment(obMessage) {
     return;
   }
 
-  obMessage.Attachments.Item(1).Delete();
+  obMessage.Attachments.Item(0).Delete();
+  targetAttachment.Delete();
+  if (obMessage.Attachments.Count !== 1 || obMessage.Attachments.Item(0).FileName !== "keep.txt") {
+    obMessage.RejectReason = "attachment identity changed after delete";
+  }
 }
 """,
                 Encoding.ASCII);
@@ -1699,7 +1715,10 @@ function Rule_DeleteAttachment(obMessage) {
             var result = executor.Execute(
                 CreateRequest(
                     "Rule_DeleteAttachment",
-                    CreateMultipartMessage(("keep.txt", "Keep"), ("remove.txt", "Remove"))),
+                    CreateMultipartMessage(
+                        ("first.txt", "First"),
+                        ("remove.txt", "Remove"),
+                        ("keep.txt", "Keep"))),
                 CancellationToken.None);
 
             Assert.IsTrue(result.Accepted, result.FailureResponse);
