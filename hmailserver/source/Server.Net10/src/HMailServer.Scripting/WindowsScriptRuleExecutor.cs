@@ -1731,7 +1731,7 @@ Class HMailServerRuleMessage
    End Property
 
    Public Property Let Body(value)
-      m_body = CStr(value)
+      m_body = NormalizeBodyValue(value)
    End Property
 
    Public Property Get HTMLBody()
@@ -1739,7 +1739,7 @@ Class HMailServerRuleMessage
    End Property
 
    Public Property Let HTMLBody(value)
-      m_htmlBody = CStr(value)
+      m_htmlBody = NormalizeBodyValue(value)
    End Property
 
    Public Property Get HeaderValue(fieldName)
@@ -1896,6 +1896,15 @@ Class HMailServerRuleMessage
       Next
       m_headers = output
    End Sub
+
+   Private Function NormalizeBodyValue(value)
+      Dim bodyValue
+      bodyValue = CStr(value)
+      If Len(bodyValue) > 0 And Right(bodyValue, 2) <> vbCrLf Then
+         bodyValue = bodyValue & vbCrLf
+      End If
+      NormalizeBodyValue = bodyValue
+   End Function
 
    Private Function ReadAllText(path)
       Dim fileSystem, textFile
@@ -2940,9 +2949,20 @@ if ("{{hasMessageFlag}}" === "1") {
       if (this.Charset) {
         headers = hMailServerRuleSetHeader(headers, "Content-Type", hMailServerRuleApplyCharset(hMailServerRuleGetHeader(headers, "Content-Type"), this.Charset));
       }
-      var messageBody = this.Body;
-      if (this.HTMLBody && hMailServerRuleGetHeader(headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0) {
-        messageBody = this.HTMLBody;
+      var messageBody = this.Body === null || typeof this.Body === "undefined" ? "" : String(this.Body);
+      var htmlBody = this.HTMLBody === null || typeof this.HTMLBody === "undefined" ? "" : String(this.HTMLBody);
+      var usingHtmlBody = false;
+      if (htmlBody.length > 0 && hMailServerRuleGetHeader(headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0) {
+        messageBody = htmlBody;
+        usingHtmlBody = true;
+      }
+      if (messageBody.length > 0 && messageBody.substring(messageBody.length - 2) !== "\r\n") {
+        messageBody += "\r\n";
+      }
+      if (usingHtmlBody) {
+        this.HTMLBody = messageBody;
+      } else {
+        this.Body = messageBody;
       }
       hMailServerRuleWriteAllText(this._fileName, headers + "\r\n\r\n" + messageBody);
       this._headers = headers;

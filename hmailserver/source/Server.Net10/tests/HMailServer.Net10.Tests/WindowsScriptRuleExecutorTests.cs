@@ -122,7 +122,11 @@ Sub Rule_UpdateMessage(obMessage)
    obMessage.Subject = "Changed"
    obMessage.From = "Updated <updated@example.test>"
    obMessage.Charset = "utf-8"
-   obMessage.Body = "Changed body" & vbCrLf
+   obMessage.Body = "Changed body"
+   If obMessage.Body <> "Changed body" & vbCrLf Then
+      obMessage.RejectReason = "body line ending mismatch"
+      Exit Sub
+   End If
    obMessage.HeaderValue("X-Legacy") = "yes"
    obMessage.HeaderValue("X-Flag-State") = CStr(obMessage.State)
    obMessage.Save
@@ -236,10 +240,13 @@ function Rule_UpdateMessage(obMessage) {
   obMessage.Subject = "Changed JS";
   obMessage.From = "JS Sender <js@example.test>";
   obMessage.Charset = "utf-8";
-  obMessage.Body = "Changed JS body\r\n";
+  obMessage.Body = "Changed JS body";
   obMessage.SetHeaderValue("X-JScript", "yes");
   obMessage.SetHeaderValue("X-JScript-State", String(obMessage.State));
   obMessage.Save();
+  if (obMessage.Body !== "Changed JS body\r\n") {
+    obMessage.RejectReason = "body line ending mismatch";
+  }
 }
 """,
                 Encoding.ASCII);
@@ -353,6 +360,93 @@ function Rule_SaveMessage(obMessage) {
             Assert.IsTrue(result.Accepted, result.FailureResponse);
             Assert.IsNotNull(result.MessageData);
             AssertCurrentMimeDateHeader(result.MessageData);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_VbScriptBodySettersAppendLegacyCrLf()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_UpdateHtmlBody(obMessage)
+   obMessage.HTMLBody = "<p>Changed HTML</p>"
+   If obMessage.HTMLBody <> "<p>Changed HTML</p>" & vbCrLf Then
+      obMessage.RejectReason = "html body line ending mismatch"
+      Exit Sub
+   End If
+   obMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateHtmlBody",
+                    Encoding.ASCII.GetBytes(
+                        "Subject: HTML body\r\n" +
+                        "Content-Type: text/html; charset=us-ascii\r\n" +
+                        "\r\n" +
+                        "<p>Original</p>\r\n")),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "\r\n\r\n<p>Changed HTML</p>\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptBodySettersAppendLegacyCrLf()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_UpdateHtmlBody(obMessage) {
+  obMessage.HTMLBody = "<p>Changed HTML JS</p>";
+  obMessage.Save();
+  if (obMessage.HTMLBody !== "<p>Changed HTML JS</p>\r\n") {
+    obMessage.RejectReason = "html body line ending mismatch";
+  }
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, language: "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_UpdateHtmlBody",
+                    Encoding.ASCII.GetBytes(
+                        "Subject: HTML body\r\n" +
+                        "Content-Type: text/html; charset=us-ascii\r\n" +
+                        "\r\n" +
+                        "<p>Original</p>\r\n")),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "\r\n\r\n<p>Changed HTML JS</p>\r\n");
         }
         finally
         {
