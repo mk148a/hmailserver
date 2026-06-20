@@ -1163,6 +1163,7 @@ hMailServerRuleStatusFile.Close();
         var isDeliveryEvent = invocation == ScriptInvocation.OptionalDeliveryEvent ? "1" : "0";
         var hasMessageFlag = hasMessage ? "1" : "0";
         var usesSmtpRejectResult = invocation is ScriptInvocation.RuleFunction or ScriptInvocation.OptionalSmtpEvent ? "1" : "0";
+        var currentMimeDate = CreateCurrentMimeDate();
         return $$"""
 {{CreateVbScriptEventLogFacade(eventLogOperationPath)}}
 ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
@@ -1657,6 +1658,9 @@ Class HMailServerRuleMessage
 
    Public Sub Save()
       Dim headers, messageBody
+      If Len(m_date) = 0 Then
+         m_date = "{{EscapeVbScript(currentMimeDate)}}"
+      End If
       headers = m_headers
       headers = SetHeaderLine(headers, "Subject", m_subject)
       headers = SetHeaderLine(headers, "From", m_from)
@@ -2337,6 +2341,7 @@ hMailServerRuleStatusFile.Close
         var isDeliveryEvent = invocation == ScriptInvocation.OptionalDeliveryEvent ? "1" : "0";
         var hasMessageFlag = hasMessage ? "1" : "0";
         var usesSmtpRejectResult = invocation is ScriptInvocation.RuleFunction or ScriptInvocation.OptionalSmtpEvent ? "1" : "0";
+        var currentMimeDate = CreateCurrentMimeDate();
         return $$"""
 var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
 {{CreateJScriptEventLogFacade("hMailServerRuleFileSystem", eventLogOperationPath)}}
@@ -2932,6 +2937,9 @@ if ("{{hasMessageFlag}}" === "1") {
       if (this.Headers) {
         this.Headers._commit();
       }
+      if (String(this.Date).length === 0) {
+        this.Date = "{{EscapeJScript(currentMimeDate)}}";
+      }
       var headers = this._headers;
       headers = hMailServerRuleSetHeader(headers, "Subject", this.Subject);
       headers = hMailServerRuleSetHeader(headers, "From", this.From);
@@ -3401,6 +3409,14 @@ if (typeof {{functionName}} === "function") {
         return string.Create(
             CultureInfo.InvariantCulture,
             $"new Date(Date.UTC({utc.Year}, {utc.Month - 1}, {utc.Day}, {utc.Hour}, {utc.Minute}, {utc.Second}))");
+    }
+
+    private static string CreateCurrentMimeDate()
+    {
+        var value = DateTimeOffset.Now.ToString(
+            "ddd, d MMM yyyy HH:mm:ss zzz",
+            CultureInfo.InvariantCulture);
+        return value.Remove(value.Length - 3, 1);
     }
 
     private static string QuoteArgument(string value) =>

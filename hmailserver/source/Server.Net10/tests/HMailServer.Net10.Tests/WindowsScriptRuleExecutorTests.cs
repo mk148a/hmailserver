@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using HMailServer.Core.Abstractions;
@@ -269,6 +270,89 @@ function Rule_UpdateMessage(obMessage) {
             StringAssert.Contains(messageText, "X-JScript: yes\r\n");
             StringAssert.Contains(messageText, "X-JScript-State: 0\r\n");
             StringAssert.Contains(messageText, "\r\n\r\nChanged JS body\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_VbScriptMessageSaveAddsMissingDateHeader()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub Rule_SaveMessage(obMessage)
+   If Len(obMessage.Date) <> 0 Then
+      obMessage.RejectReason = "date unexpectedly loaded"
+      Exit Sub
+   End If
+   obMessage.Save
+   If Len(obMessage.Date) = 0 Then
+      obMessage.RejectReason = "date not generated"
+   End If
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_SaveMessage",
+                    Encoding.ASCII.GetBytes(
+                        "Subject: No date\r\n" +
+                        "Content-Type: text/plain; charset=us-ascii\r\n" +
+                        "\r\n" +
+                        "Body\r\n")),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            AssertCurrentMimeDateHeader(result.MessageData);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptMessageSaveAddsMissingDateHeader()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function Rule_SaveMessage(obMessage) {
+  if (obMessage.Date !== "") throw new Error("date unexpectedly loaded");
+  obMessage.Save();
+  if (!obMessage.Date) throw new Error("date not generated");
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, language: "JScript");
+
+            var result = executor.Execute(
+                CreateRequest(
+                    "Rule_SaveMessage",
+                    Encoding.ASCII.GetBytes(
+                        "Subject: No date\r\n" +
+                        "Content-Type: text/plain; charset=us-ascii\r\n" +
+                        "\r\n" +
+                        "Body\r\n")),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Accepted, result.FailureResponse);
+            Assert.IsNotNull(result.MessageData);
+            AssertCurrentMimeDateHeader(result.MessageData);
         }
         finally
         {
@@ -2741,6 +2825,30 @@ function OnClientValidatePassword(oAccount, password) {
             "<html><body>HTML</body></html>\r\n" +
             "--inner;boundary--\r\n" +
             "--outer-boundary--\r\n");
+
+    private static void AssertCurrentMimeDateHeader(byte[] messageData)
+    {
+        var messageText = Encoding.ASCII.GetString(messageData);
+        var match = Regex.Match(
+            messageText,
+            "^Date: (?<value>[A-Z][a-z]{2}, [1-9][0-9]? [A-Z][a-z]{2} [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} [+-][0-9]{4})\\r?$",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant);
+        Assert.IsTrue(match.Success, "A legacy-format Date header was not generated.");
+
+        var value = match.Groups["value"].Value;
+        var valueWithOffsetColon = value.Insert(value.Length - 2, ":");
+        Assert.IsTrue(
+            DateTimeOffset.TryParseExact(
+                valueWithOffsetColon,
+                "ddd, d MMM yyyy HH:mm:ss zzz",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed),
+            "The generated Date header could not be parsed.");
+        Assert.IsTrue(
+            (DateTimeOffset.Now - parsed).Duration() < TimeSpan.FromMinutes(2),
+            "The generated Date header is not current.");
+    }
 
     private static List<MimeEntity> LoadAttachments(byte[] messageData)
     {
