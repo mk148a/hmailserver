@@ -150,6 +150,8 @@ Message-level `ClearRecipients` follows the legacy envelope and MIME cleanup beh
 
 Message-level `Save` follows the legacy missing-date behavior: when the message has no `Date` value, both script facades generate a current local MIME date before writing the message file.
 
+Non-empty `Body` and `HTMLBody` assignments follow the legacy message-data behavior by ending the persisted value with `CRLF` when the script did not supply it; empty bodies remain empty.
+
 The `Headers` collection keeps the legacy supported surface of `Count`, `Item`, and `ItemByName`; runner-internal refresh/commit helpers are no longer published as `Refresh` or `Commit`. Header item `Name`/`Value` updates and `Delete` continue to persist through `Message.Save` in both script languages.
 
 `Recipients.Item`, `Headers.Item`, and `Headers.ItemByName` follow the legacy bad-index contract: out-of-range indexes and missing header names raise script errors instead of returning `Nothing` or `null`.
