@@ -693,6 +693,40 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_PreservesValidRecipientBesideMalformedAddress()
+    {
+        var account = CreateAccount(mimeRecipientHeaders: "X-RCPT-TO");
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-mixed-validity-recipients", Size: 64),
+            ToAsciiBytes(
+                "From: sender@example.net\r\n" +
+                "X-RCPT-TO: bad@@example.test, \"Valid, Recipient\" <valid@example.test>\r\n" +
+                "Subject: fetched\r\n" +
+                "\r\n" +
+                "Body\r\n"));
+        var receiver = new FakeSmtpMessageReceiver();
+        var recipientValidator = new FakeSmtpRecipientValidator(
+            request => SmtpRecipientValidationResult.Accept(
+                new SmtpResolvedRecipient(
+                    request.RecipientAddress,
+                    request.RecipientAddress,
+                    LocalAccountId: 42,
+                    IsLocal: true)));
+        var processor = CreateProcessor(
+            store,
+            session,
+            receiver,
+            recipientValidator: recipientValidator);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.MessagesAccepted);
+        Assert.AreEqual("valid@example.test", recipientValidator.Requests.Single().RecipientAddress);
+        Assert.AreEqual("valid@example.test", receiver.Requests.Single().Recipients.Single().Address);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_DeduplicatesAliasesResolvingToSameRecipient()
     {
         var account = CreateAccount();

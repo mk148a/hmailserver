@@ -546,19 +546,50 @@ public sealed class ExternalFetchProcessor
 
     private static IEnumerable<MailboxAddress> ParseMailboxes(string headerValue)
     {
-        InternetAddressList addresses;
-        try
+        if (InternetAddressList.TryParse(headerValue, out var addresses))
         {
-            addresses = InternetAddressList.Parse(headerValue);
-        }
-        catch (ParseException)
-        {
+            foreach (var mailbox in addresses.Mailboxes)
+            {
+                yield return mailbox;
+            }
+
             yield break;
         }
 
-        foreach (var mailbox in addresses.Mailboxes)
+        foreach (var compound in SplitLegacyAddressCompounds(headerValue))
         {
-            yield return mailbox;
+            if (MailboxAddress.TryParse(compound, out var mailbox))
+            {
+                yield return mailbox;
+            }
+        }
+    }
+
+    private static IEnumerable<string> SplitLegacyAddressCompounds(string value)
+    {
+        var start = 0;
+        var insideQuote = false;
+
+        for (var index = 0; index < value.Length; index++)
+        {
+            switch (value[index])
+            {
+                case '\\' when index < value.Length - 1:
+                    index++;
+                    break;
+                case '"':
+                    insideQuote = !insideQuote;
+                    break;
+                case ',' when !insideQuote:
+                    yield return value[start..index].Trim();
+                    start = index + 1;
+                    break;
+            }
+        }
+
+        if (start < value.Length)
+        {
+            yield return value[start..].Trim();
         }
     }
 
