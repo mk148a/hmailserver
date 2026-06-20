@@ -92,6 +92,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: script `Recipients` collection no longer publishes the non-legacy `Add`, `Clear`, or `ToHeaderValue` names; supported collection reads remain `Count`/`Item` and mutations remain message-level.
 - Done: script `Headers` collection no longer publishes runner-only `Refresh` or `Commit`; legacy `Count`/`Item`/`ItemByName` reads and header item mutations remain supported.
 - Done: script `Attachments` collection no longer publishes runner-only `Load` or `DeleteAt`; legacy `Count`/`Item`/`Clear`/`Add` plus item `SaveAs`/`Delete` remain supported.
+- Done: script message `HasBodyType` matches clean MIME content types case-insensitively across the root and two nested part levels instead of matching arbitrary message text, including quoted boundary values containing semicolons.
 - Done: external POP3 fetch tolerates duplicate persisted `hm_fetchaccounts_uids.uidvalue` rows when building the known-UID lookup for a batch.
 - Done: external POP3 fetch coalesces duplicate remote UIDL sequence-number entries so a malformed listing cannot download the same remote slot twice.
 - Done: external POP3 fetch probes CAPA before STLS so optional STARTTLS falls back only when STLS is not advertised, required STARTTLS fails before credentials, and an advertised-but-rejected STLS fails both modes before authentication.
@@ -170,6 +171,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: recipient collection script facade exposes the legacy supported `Count`/`Item` surface without the rewrite-only `Add`, `Clear`, or `ToHeaderValue` names; `Message.AddRecipient`/`ClearRecipients` remain supported.
    - Done: message header collection script facade exposes the legacy supported `Count`/`Item`/`ItemByName` surface without runner-only `Refresh`/`Commit`; header `Name`/`Value`/`Delete` changes still persist on `Save`.
    - Done: attachment collection script facade exposes the legacy supported `Count`/`Item`/`Clear`/`Add` surface without runner-only `Load`/`DeleteAt`; attachment `SaveAs`/`Delete` behavior remains intact.
+   - Done: message `HasBodyType` script method follows legacy clean MIME content-type matching across the root and two nested part levels, with case-insensitive checks and quoted boundary parsing instead of raw message substring matching.
    - Done: account-rule `HMAILSERVER_MESSAGE.Copy(folderId)` captures call-time message content, preserves repeated copy requests, validates same-account destination folders, allocates distinct UIDs, writes delivered message files/rows, and queues each copy for search indexing.
    - Done: shared `OnClientConnect` protocol event hook before SMTP/IMAP/POP3 greeting or implicit TLS setup with connection-close handling for legacy `Result.Value = 1`.
    - Done: `OnHELO` protocol event hook before HELO/EHLO success responses with `HMAILSERVER_CLIENT` and legacy `Result.Value`/`Result.Message` rejection handling.
