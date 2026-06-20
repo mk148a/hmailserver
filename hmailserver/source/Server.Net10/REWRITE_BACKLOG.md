@@ -113,6 +113,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: external POP3 fetch matches the legacy case-sensitive `Received` token lookup, ignoring uppercase `FOR ` variants and using the account fallback recipient.
 - Done: external POP3 fetch validates the first parsed `From` mailbox with the legacy 254-character email contract and uses an empty envelope sender for invalid or over-limit values.
 - Done: external POP3 fetch deduplicates resolved recipients by final address only, preserving the first alias when multiple original addresses resolve to one mailbox.
+- Done: external POP3 fetch recovers valid configured-header recipients beside malformed addresses by parsing legacy quote/escape-aware comma compounds independently after whole-list parsing fails.
 - Done: external POP3 fetch probes CAPA before STLS so optional STARTTLS falls back only when STLS is not advertised, required STARTTLS fails before credentials, and an advertised-but-rejected STLS fails both modes before authentication.
 - Done: external POP3 fetch treats a rejected CAPA response as unavailable STLS, continuing optional STARTTLS over plaintext while failing required STARTTLS before credentials.
 - Done: external POP3 fetch rejects a failed server greeting before sending any command or credentials in plain and STARTTLS modes.
@@ -250,6 +251,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `Received` recipient extraction uses the legacy case-sensitive lowercase `for ` token lookup, so uppercase `FOR ` falls through to the account recipient.
    - Done: the first parsed `From` mailbox passes the legacy 254-character email validator before becoming the external-fetch envelope sender; rejected values produce an empty sender.
    - Done: resolved recipients use legacy case-insensitive final-address deduplication, so distinct aliases targeting one mailbox produce one delivery recipient with the first alias metadata.
+   - Done: malformed configured-header addresses no longer discard valid neighbors; failed whole-list parsing recovers with legacy quote/escape-aware comma compounds and structured per-address parsing.
    - Done: external fetch probes CAPA before STLS, preserving legacy optional STARTTLS plaintext fallback, required STARTTLS pre-auth failure when STLS is not advertised, and pre-auth failure in both modes when an advertised STLS command is rejected.
    - Done: external fetch preserves legacy CAPA-rejection behavior by continuing optional STARTTLS over plaintext and failing required STARTTLS before authentication.
    - Done: external fetch preserves legacy greeting-rejection behavior without sending any client command or credentials in plain and STARTTLS modes.
