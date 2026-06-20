@@ -1528,6 +1528,133 @@ function OnDeliveryStart(oMessage) {
     }
 
     [TestMethod]
+    public void Execute_VbScriptMessageQueueIdentityMetadataIsReadOnly()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnDeliveryStart(oMessage)
+   On Error Resume Next
+
+   oMessage.ID = 999
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      Err.Raise 1101, "test", "message id accepted direct assignment"
+   End If
+   Err.Clear
+
+   oMessage.UID = 999
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      Err.Raise 1102, "test", "message uid accepted direct assignment"
+   End If
+   Err.Clear
+
+   oMessage.DeliveryAttempt = 999
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      Err.Raise 1103, "test", "delivery attempt accepted direct assignment"
+   End If
+   Err.Clear
+
+   oMessage.InternalDate = DateSerial(2030, 1, 1)
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      Err.Raise 1104, "test", "internal date accepted direct assignment"
+   End If
+   Err.Clear
+   On Error GoTo 0
+
+   If oMessage.ID <> 5000000000 Then Err.Raise 1105, "test", "message id changed"
+   If oMessage.UID <> 456 Then Err.Raise 1106, "test", "message uid changed"
+   If oMessage.DeliveryAttempt <> 4 Then Err.Raise 1107, "test", "delivery attempt changed"
+   If Year(oMessage.InternalDate) <> 2026 Then Err.Raise 1108, "test", "internal date changed"
+
+   oMessage.HeaderValue("X-Readonly-Metadata") = CStr(oMessage.ID) & ":" & CStr(oMessage.UID) & ":" & CStr(oMessage.DeliveryAttempt)
+   oMessage.Save
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreateDeliveryEventRequest(
+                    "Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray(),
+                    messageId: 5_000_000_000,
+                    messageUid: 456,
+                    messageState: 32,
+                    deliveryAttempt: 4,
+                    internalDateUtc: DateTimeOffset.Parse("2026-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture)),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "X-Readonly-Metadata: 5000000000:456:4\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptMessageQueueIdentityMetadataAssignmentDoesNotPersist()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnDeliveryStart(oMessage) {
+  oMessage.ID = 999;
+  oMessage.UID = 999;
+  oMessage.DeliveryAttempt = 999;
+  oMessage.InternalDate = new Date(Date.UTC(2030, 0, 1));
+  oMessage.Save();
+
+  if (oMessage.ID !== 5000000000) throw new Error("message id changed");
+  if (oMessage.UID !== 456) throw new Error("message uid changed");
+  if (oMessage.DeliveryAttempt !== 4) throw new Error("delivery attempt changed");
+  if (oMessage.InternalDate.getUTCFullYear() !== 2026) throw new Error("internal date changed");
+
+  oMessage.SetHeaderValue("X-Readonly-Metadata", String(oMessage.ID) + ":" + String(oMessage.UID) + ":" + String(oMessage.DeliveryAttempt));
+  oMessage.Save();
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, language: "JScript");
+
+            var result = executor.Execute(
+                CreateDeliveryEventRequest(
+                    "Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray(),
+                    messageId: 5_000_000_000,
+                    messageUid: 456,
+                    messageState: 32,
+                    deliveryAttempt: 4,
+                    internalDateUtc: DateTimeOffset.Parse("2026-01-02T03:04:05Z", System.Globalization.CultureInfo.InvariantCulture)),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            Assert.IsNotNull(result.MessageData);
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(result.MessageData),
+                "X-Readonly-Metadata: 5000000000:456:4\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_DeliveryEventIgnoresSmtpRejectResultValues()
     {
         var cscript = GetCscriptPathOrInconclusive();

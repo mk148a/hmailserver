@@ -1524,11 +1524,11 @@ End Class
 Class HMailServerRuleMessage
    Public DropMessage
    Public RejectReason
-   Public ID
-   Public UID
    Public State
-   Public DeliveryAttempt
-   Public InternalDate
+   Private m_id
+   Private m_uid
+   Private m_deliveryAttempt
+   Private m_internalDate
    Private m_fileName
    Private m_headers
    Private m_body
@@ -1552,11 +1552,11 @@ Class HMailServerRuleMessage
       Set m_attachments = New HMailServerRuleAttachments
       Set m_messageHeaders = New HMailServerRuleMessageHeaders
       m_messageHeaders.Initialize Me
-      ID = 0
-      UID = 0
+      m_id = 0
+      m_uid = 0
       State = 0
-      DeliveryAttempt = 1
-      InternalDate = Now
+      m_deliveryAttempt = 1
+      m_internalDate = Now
       m_fileName = ""
       m_encodeFields = True
       m_operationPath = ""
@@ -1571,8 +1571,32 @@ Class HMailServerRuleMessage
       m_operationPath = CStr(value)
    End Sub
 
+   Public Sub InitializeMetadata(messageID, messageUID, messageState, messageDeliveryAttempt, messageInternalDate)
+      m_id = messageID
+      m_uid = CLng(messageUID)
+      State = CLng(messageState)
+      m_deliveryAttempt = CLng(messageDeliveryAttempt)
+      m_internalDate = CDate(messageInternalDate)
+   End Sub
+
    Public Property Get FileName()
       FileName = m_fileName
+   End Property
+
+   Public Property Get ID()
+      ID = m_id
+   End Property
+
+   Public Property Get UID()
+      UID = m_uid
+   End Property
+
+   Public Property Get DeliveryAttempt()
+      DeliveryAttempt = m_deliveryAttempt
+   End Property
+
+   Public Property Get InternalDate()
+      InternalDate = m_internalDate
    End Property
 
    Public Sub Load()
@@ -2127,11 +2151,7 @@ If "{{hasMessageFlag}}" = "1" Then
    HMAILSERVER_MESSAGE.Load
    HMAILSERVER_MESSAGE.Attachments.Load "{{EscapeVbScript(attachmentManifestPath)}}", "{{EscapeVbScript(attachmentOperationPath)}}"
    HMAILSERVER_MESSAGE.FromAddress = "{{EscapeVbScript(mailFrom)}}"
-   HMAILSERVER_MESSAGE.ID = {{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}}
-   HMAILSERVER_MESSAGE.UID = {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}}
-   HMAILSERVER_MESSAGE.State = {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}}
-   HMAILSERVER_MESSAGE.DeliveryAttempt = {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}}
-   HMAILSERVER_MESSAGE.InternalDate = {{CreateVbScriptDateExpression(messageMetadata.InternalDateUtc)}}
+   Call HMAILSERVER_MESSAGE.InitializeMetadata({{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}}, {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}}, {{CreateVbScriptDateExpression(messageMetadata.InternalDateUtc)}})
 {{CreateVbScriptRecipientSeeds(recipients)}}
 Else
    Set HMAILSERVER_MESSAGE = Nothing
@@ -2649,11 +2669,15 @@ if ("{{hasMessageFlag}}" === "1") {
     Filename: "{{EscapeJScript(messagePath)}}",
     DropMessage: false,
     RejectReason: "",
+    _id: 0,
     ID: 0,
+    _uid: 0,
     UID: 0,
     State: 0,
     Size: 0,
+    _deliveryAttempt: 1,
     DeliveryAttempt: 1,
+    _internalDate: new Date(),
     InternalDate: new Date(),
     Subject: "",
     From: "",
@@ -2675,6 +2699,12 @@ if ("{{hasMessageFlag}}" === "1") {
     _headers: "",
     _operationPath: "{{EscapeJScript(attachmentOperationPath)}}",
     _copySequence: 0,
+    _restoreReadOnlyMetadata: function() {
+      this.ID = this._id;
+      this.UID = this._uid;
+      this.DeliveryAttempt = this._deliveryAttempt;
+      this.InternalDate = new Date(this._internalDate.getTime());
+    },
     Load: function() {
       var parsed = hMailServerRuleSplitMessage(hMailServerRuleReadAllText(this._fileName));
       this._headers = parsed.headers;
@@ -2682,11 +2712,13 @@ if ("{{hasMessageFlag}}" === "1") {
       this.Size = hMailServerRuleGetMessageSize(this._fileName);
       hMailServerRuleSyncMessageHeaderFields(this);
       this.HTMLBody = hMailServerRuleGetHeader(this._headers, "Content-Type").toLowerCase().indexOf("text/html") >= 0 ? this.Body : "";
+      this._restoreReadOnlyMetadata();
     },
     RefreshContent: function() {
       this.Load();
     },
     Copy: function(destinationFolderID) {
+      this._restoreReadOnlyMetadata();
       var folderID = Number(destinationFolderID);
       if (!isFinite(folderID) || Math.floor(folderID) !== folderID || folderID <= 0 || folderID > 2147483647) {
         throw new Error("Invalid destination folder ID.");
@@ -2722,6 +2754,7 @@ if ("{{hasMessageFlag}}" === "1") {
       this.State = enabled ? (current | mask) : (current & ~mask);
     },
     Save: function() {
+      this._restoreReadOnlyMetadata();
       if (this.Headers) {
         this.Headers.Commit();
       }
@@ -2769,11 +2802,12 @@ if ("{{hasMessageFlag}}" === "1") {
   HMAILSERVER_MESSAGE.Headers = hMailServerRuleCreateHeaders(HMAILSERVER_MESSAGE);
   HMAILSERVER_MESSAGE.Load();
   HMAILSERVER_MESSAGE.FromAddress = "{{EscapeJScript(mailFrom)}}";
-  HMAILSERVER_MESSAGE.ID = {{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}};
-  HMAILSERVER_MESSAGE.UID = {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}};
+  HMAILSERVER_MESSAGE._id = {{messageMetadata.Id.ToString(CultureInfo.InvariantCulture)}};
+  HMAILSERVER_MESSAGE._uid = {{messageMetadata.Uid.ToString(CultureInfo.InvariantCulture)}};
   HMAILSERVER_MESSAGE.State = {{messageMetadata.State.ToString(CultureInfo.InvariantCulture)}};
-  HMAILSERVER_MESSAGE.DeliveryAttempt = {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}};
-  HMAILSERVER_MESSAGE.InternalDate = {{CreateJScriptUtcDateExpression(messageMetadata.InternalDateUtc)}};
+  HMAILSERVER_MESSAGE._deliveryAttempt = {{messageMetadata.DeliveryAttempt.ToString(CultureInfo.InvariantCulture)}};
+  HMAILSERVER_MESSAGE._internalDate = {{CreateJScriptUtcDateExpression(messageMetadata.InternalDateUtc)}};
+  HMAILSERVER_MESSAGE._restoreReadOnlyMetadata();
 {{CreateJScriptRecipientSeeds(recipients)}}
 }
 
