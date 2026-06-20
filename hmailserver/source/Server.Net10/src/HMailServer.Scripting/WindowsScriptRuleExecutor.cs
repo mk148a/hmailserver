@@ -1364,8 +1364,7 @@ Class HMailServerRuleAttachments
 
    Public Function Item(index)
       If index < 0 Or index >= m_count Then
-         Set Item = Nothing
-         Exit Function
+         Err.Raise 9, "HMailServerRuleAttachments.Item", "Invalid attachment index."
       End If
 
       Dim attachment
@@ -2789,7 +2788,7 @@ function hMailServerRuleCreateAttachments(manifestPath, operationPath) {
     },
     Item: function(index) {
       if (index < 0 || index >= this._items.length) {
-        return null;
+        throw new Error("Invalid attachment index.");
       }
       var item = this._items[index];
       return hMailServerRuleCreateAttachment(this, index, item.FileName, item.Size, item.SourcePath);

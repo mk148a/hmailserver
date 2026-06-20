@@ -1332,6 +1332,17 @@ Sub Rule_UpdateAttachments(obMessage)
       Exit Sub
    End If
 
+   Dim invalidAttachment
+   On Error Resume Next
+   Set invalidAttachment = obMessage.Attachments.Item(obMessage.Attachments.Count)
+   If Err.Number = 0 Then
+      On Error GoTo 0
+      obMessage.RejectReason = "invalid attachment index did not fail"
+      Exit Sub
+   End If
+   Err.Clear
+   On Error GoTo 0
+
    On Error Resume Next
    obMessage.Attachments.Load "unexpected", "unexpected"
    If Err.Number = 0 Then
@@ -1485,6 +1496,16 @@ End Sub
 function Rule_DeleteAttachment(obMessage) {
   if (obMessage.Attachments.Count !== 2) {
     obMessage.RejectReason = "attachment count not loaded";
+    return;
+  }
+  var invalidAttachmentFailed = false;
+  try {
+    obMessage.Attachments.Item(obMessage.Attachments.Count);
+  } catch (error) {
+    invalidAttachmentFailed = true;
+  }
+  if (!invalidAttachmentFailed) {
+    obMessage.RejectReason = "invalid attachment index did not fail";
     return;
   }
   if (obMessage.Attachments.Item(1).FileName !== "remove.txt") {
