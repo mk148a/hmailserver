@@ -221,6 +221,8 @@ An empty external-fetch `UIDL` listing completes without `RETR`/`DELE` commands 
 
 Malformed external-fetch `UIDL` listing rows are skipped while valid rows in the same listing are preserved for later `RETR`/retention processing.
 
+External-fetch UIDL processing follows the legacy ordered-map behavior: remote entries are processed by ascending POP3 sequence number, and the last UID wins when a malformed listing repeats the same sequence.
+
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
 A truncated external-fetch `RETR` body after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not submit message data, add UID state, or issue remote delete cleanup.
