@@ -85,6 +85,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: scripted `HMAILSERVER_MESSAGE.RefreshContent` reloads file-backed headers and body after direct script-side message file rewrites.
 - Done: script message `FileName`/`Filename` facade keeps `Load`, `Save`, and `Copy` tied to the original backing file path.
 - Done: script message `To`/`CC` direct assignment no longer rewrites saved recipient headers, preserving legacy read-only property shape.
+- Done: script attachment `FileName`/`Filename` and `Size` direct assignment cannot mutate attachment collection metadata, preserving the legacy read-only property shape.
 - Done: external POP3 fetch tolerates duplicate persisted `hm_fetchaccounts_uids.uidvalue` rows when building the known-UID lookup for a batch.
 - Done: external POP3 fetch coalesces duplicate remote UIDL sequence-number entries so a malformed listing cannot download the same remote slot twice.
 - Done: external POP3 fetch probes CAPA before STLS so optional STARTTLS falls back only when STLS is not advertised, required STARTTLS fails before credentials, and an advertised-but-rejected STLS fails both modes before authentication.
@@ -156,6 +157,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `HMAILSERVER_MESSAGE.RefreshContent` reloads file-backed headers and body after scripts mutate the message file directly.
    - Done: message `FileName`/`Filename` script aliases keep backing file operations on the original runner path, including read-only VBScript `Filename` parity.
    - Done: message `To`/`CC` script properties preserve legacy read-only direct-assignment behavior while leaving `AddRecipient`, `ClearRecipients`, `Recipients`, and `HeaderValue` mutation paths intact.
+   - Done: attachment `FileName`/`Filename` and `Size` script properties preserve legacy read-only metadata while leaving `Add`, `Clear`, `Delete`, and `SaveAs` behavior intact.
    - Done: account-rule `HMAILSERVER_MESSAGE.Copy(folderId)` captures call-time message content, preserves repeated copy requests, validates same-account destination folders, allocates distinct UIDs, writes delivered message files/rows, and queues each copy for search indexing.
    - Done: shared `OnClientConnect` protocol event hook before SMTP/IMAP/POP3 greeting or implicit TLS setup with connection-close handling for legacy `Result.Value = 1`.
    - Done: `OnHELO` protocol event hook before HELO/EHLO success responses with `HMAILSERVER_CLIENT` and legacy `Result.Value`/`Result.Message` rejection handling.
