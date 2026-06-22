@@ -11,6 +11,7 @@
     <PackageReference Include="MSTest.TestFramework" Version="4.2.3" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\HMailServer.ComInterop\HMailServer.ComInterop.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Indexing\HMailServer.Indexing.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Delivery\HMailServer.Delivery.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Protocols\HMailServer.Protocols.csproj" />

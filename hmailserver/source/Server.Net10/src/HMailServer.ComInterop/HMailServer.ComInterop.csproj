@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Clear the repository-wide single target so both the contract-test and COM-host variants build. -->
+    <TargetFramework />
+    <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
     <AssemblyName>HMailServer.ComInterop</AssemblyName>
     <RootNamespace>HMailServer.ComInterop</RootNamespace>
-    <EnableComHosting>true</EnableComHosting>
+    <EnableComHosting Condition="'$(TargetFramework)' == 'net10.0-windows'">true</EnableComHosting>
   </PropertyGroup>
 </Project>
