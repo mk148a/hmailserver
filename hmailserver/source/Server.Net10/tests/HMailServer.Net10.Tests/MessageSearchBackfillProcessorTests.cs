@@ -64,6 +64,28 @@ public sealed class MessageSearchBackfillProcessorTests
         Assert.AreEqual("boom", store.Failed.Single().Error);
     }
 
+    [TestMethod]
+    public async Task RunBatchAsync_DoesNotLeaseMessagesWhenIndexingIsDisabled()
+    {
+        var store = new FakeBackfillStore([Identity]);
+        var source = new FakeDocumentSource(CreateDocument());
+        var index = new FakeSearchIndex();
+        var administrationStore = new FakeAdministrationStore(enabled: false);
+        var processor = new MessageSearchBackfillProcessor(
+            store,
+            source,
+            index,
+            administrationStore);
+
+        var processed = await processor.RunBatchAsync(
+            MessageSearchBackfillOptions.Default("worker-1"),
+            CancellationToken.None);
+
+        Assert.AreEqual(0, processed);
+        Assert.AreEqual(0, store.LeaseCalls);
+        Assert.AreEqual(0, index.Upserted.Count);
+    }
+
     private static MessageSearchDocument CreateDocument()
     {
         return new MessageSearchDocument(
@@ -89,6 +111,8 @@ public sealed class MessageSearchBackfillProcessorTests
 
         public List<(MessageIdentity Identity, string Error)> Failed { get; } = [];
 
+        public int LeaseCalls { get; private set; }
+
         public async IAsyncEnumerable<MessageIdentity> LeaseBatchAsync(
             string leaseOwner,
             int batchSize,
@@ -96,6 +120,7 @@ public sealed class MessageSearchBackfillProcessorTests
             int maxAttempts,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
+            LeaseCalls++;
             foreach (var identity in _leased)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -123,6 +148,35 @@ public sealed class MessageSearchBackfillProcessorTests
             Failed.Add((identity, error));
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class FakeAdministrationStore : IMessageIndexingAdministrationStore
+    {
+        private readonly bool _enabled;
+
+        public FakeAdministrationStore(bool enabled)
+        {
+            _enabled = enabled;
+        }
+
+        public ValueTask<bool> IsEnabledAsync(CancellationToken cancellationToken) =>
+            ValueTask.FromResult(_enabled);
+
+        public ValueTask<MessageIndexingAdministrationStatus> GetStatusAsync(
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask SetEnabledAsync(bool enabled, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask ClearAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask IndexAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask RebuildAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeDocumentSource : IMessageSearchDocumentSource

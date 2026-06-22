@@ -46,4 +46,7 @@ public static class MessageIndexingRuntimeHost
                 "The hMailServer message-indexing runtime has not been initialized.",
                 CoENotInitialized);
     }
+
+    internal static MessageIndexing CreateAuthorizedAdapter() =>
+        new(GetRequiredRuntime());
 }

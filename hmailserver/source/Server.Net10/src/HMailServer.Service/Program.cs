@@ -1,5 +1,6 @@
 using HMailServer.Service;
 using System.Net;
+using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 using HMailServer.Delivery;
 using HMailServer.Indexing;
@@ -657,6 +658,8 @@ builder.Services.AddSingleton<IImapSessionContextProvider>(
             ? new ImapSessionContext(accountId, folderId)
             : new ImapSessionContext()));
 builder.Services.AddSingleton<IMessageSearchBackfillStore, SqlServerMessageSearchBackfillStore>();
+builder.Services.AddSingleton<IMessageIndexingAdministrationStore, SqlServerMessageIndexingAdministrationStore>();
+builder.Services.AddSingleton<StoreBackedMessageIndexingRuntime>();
 builder.Services.AddSingleton<IMessageSearchDocumentSource, MessageFileSearchDocumentSource>();
 builder.Services.AddSingleton<ImapSearchCommandParser>();
 builder.Services.AddSingleton<ImapSearchExecutor>();
@@ -698,7 +701,10 @@ builder.Services.AddHostedService<ImapTcpListenerHostedService>();
 builder.Services.AddHostedService<Pop3TcpListenerHostedService>();
 builder.Services.AddHostedService<SmtpTcpListenerHostedService>();
 
-await builder.Build().RunAsync().ConfigureAwait(false);
+var host = builder.Build();
+MessageIndexingRuntimeHost.Configure(
+    host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());
+await host.RunAsync().ConfigureAwait(false);
 
 static bool ReadBool(string? value, bool defaultValue)
 {

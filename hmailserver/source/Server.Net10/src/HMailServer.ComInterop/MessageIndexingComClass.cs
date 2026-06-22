@@ -9,6 +9,8 @@ namespace HMailServer.ComInterop;
 [ComDefaultInterface(typeof(IInterfaceMessageIndexing))]
 public sealed class MessageIndexing : IInterfaceMessageIndexing, IInterfaceMessageIndexing2
 {
+    private const int EAccessDenied = unchecked((int)0x80070005);
+
     private readonly IMessageIndexingRuntime? _runtime;
 
     public MessageIndexing()
@@ -40,7 +42,7 @@ public sealed class MessageIndexing : IInterfaceMessageIndexing, IInterfaceMessa
     public string LastError => Runtime.LastError;
 
     private IMessageIndexingRuntime Runtime =>
-        _runtime ?? MessageIndexingRuntimeHost.GetRequiredRuntime();
+        _runtime ?? throw new COMException("Access denied.", EAccessDenied);
 
     public void Clear() => Runtime.Clear();
 

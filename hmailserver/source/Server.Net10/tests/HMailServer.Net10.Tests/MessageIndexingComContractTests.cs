@@ -109,7 +109,7 @@ public sealed class MessageIndexingComContractTests
     }
 
     [TestMethod]
-    public void ComClass_UsesConfiguredRuntimeWhenActivatedWithoutArguments()
+    public void ComClass_DirectActivationPreservesLegacyAccessDeniedBoundary()
     {
         var runtime = new RecordingMessageIndexingRuntime
         {
@@ -118,6 +118,21 @@ public sealed class MessageIndexingComContractTests
         MessageIndexingRuntimeHost.Configure(runtime);
 
         var adapter = new MessageIndexing();
+
+        var error = Assert.ThrowsExactly<COMException>(() => _ = adapter.TotalMessageCount);
+        Assert.AreEqual(unchecked((int)0x80070005), error.ErrorCode);
+    }
+
+    [TestMethod]
+    public void RuntimeHost_CreatesAuthorizedAdapterAfterServiceConfiguration()
+    {
+        var runtime = new RecordingMessageIndexingRuntime
+        {
+            TotalMessageCount = 17
+        };
+        MessageIndexingRuntimeHost.Configure(runtime);
+
+        var adapter = MessageIndexingRuntimeHost.CreateAuthorizedAdapter();
 
         Assert.AreEqual(17, adapter.TotalMessageCount);
     }

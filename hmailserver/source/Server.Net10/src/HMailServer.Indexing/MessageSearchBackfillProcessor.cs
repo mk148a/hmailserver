@@ -7,15 +7,18 @@ public sealed class MessageSearchBackfillProcessor
     private readonly IMessageSearchBackfillStore _backfillStore;
     private readonly IMessageSearchDocumentSource _documentSource;
     private readonly IMessageSearchIndex _searchIndex;
+    private readonly IMessageIndexingAdministrationStore? _administrationStore;
 
     public MessageSearchBackfillProcessor(
         IMessageSearchBackfillStore backfillStore,
         IMessageSearchDocumentSource documentSource,
-        IMessageSearchIndex searchIndex)
+        IMessageSearchIndex searchIndex,
+        IMessageIndexingAdministrationStore? administrationStore = null)
     {
         _backfillStore = backfillStore;
         _documentSource = documentSource;
         _searchIndex = searchIndex;
+        _administrationStore = administrationStore;
     }
 
     public async ValueTask<int> RunBatchAsync(
@@ -28,6 +31,12 @@ public sealed class MessageSearchBackfillProcessor
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.LeaseDuration.Ticks);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MaxAttempts);
         ArgumentOutOfRangeException.ThrowIfLessThan(options.RetryDelay.Ticks, 0);
+
+        if (_administrationStore is not null &&
+            !await _administrationStore.IsEnabledAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return 0;
+        }
 
         var processed = 0;
         await foreach (var identity in _backfillStore.LeaseBatchAsync(

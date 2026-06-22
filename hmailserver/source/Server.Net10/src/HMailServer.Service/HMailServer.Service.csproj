@@ -6,6 +6,7 @@
     <RootNamespace>HMailServer.Service</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\HMailServer.ComInterop\HMailServer.ComInterop.csproj" />
     <ProjectReference Include="..\HMailServer.Core\HMailServer.Core.csproj" />
     <ProjectReference Include="..\HMailServer.Delivery\HMailServer.Delivery.csproj" />
     <ProjectReference Include="..\HMailServer.Indexing\HMailServer.Indexing.csproj" />
