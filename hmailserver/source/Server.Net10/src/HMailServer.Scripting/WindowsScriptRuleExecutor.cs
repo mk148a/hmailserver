@@ -1127,6 +1127,7 @@ var HMAILSERVER_ACCOUNT = {
 
 var Result = {
   Value: 2,
+  Parameter: 0,
   Message: ""
 };
 

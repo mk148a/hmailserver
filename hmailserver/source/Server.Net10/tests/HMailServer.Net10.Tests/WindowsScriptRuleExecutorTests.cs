@@ -2830,6 +2830,40 @@ function OnClientValidatePassword(oAccount, password) {
         }
     }
 
+    [TestMethod]
+    public void Execute_JScriptClientValidatePasswordSeedsResultParameter()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnClientValidatePassword(oAccount, password) {
+  if (typeof Result.Parameter === "number" && Result.Parameter === 0) {
+    Result.Parameter = 9;
+    if (Result.Parameter === 9) {
+      Result.Value = 0;
+    }
+  }
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest("script-secret"),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Accept, result.Decision);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
     private static WindowsScriptRuleExecutor CreateExecutor(
         string eventDirectory,
         string cscriptPath,
