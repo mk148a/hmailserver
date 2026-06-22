@@ -16,6 +16,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography.X509Certificates;
 
+if (TryHandleComRegistrationCommand(args))
+{
+    return;
+}
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddWindowsService(options => options.ServiceName = "hMailServer");
 
@@ -786,4 +791,29 @@ static X509Certificate2? LoadCertificate(string? path, string? password)
     }
 
     return certificate;
+}
+
+static bool TryHandleComRegistrationCommand(string[] arguments)
+{
+    if (arguments.Length != 1)
+    {
+        return false;
+    }
+
+    var executablePath = Path.Combine(AppContext.BaseDirectory, "hMailServer.exe");
+    var typeLibraryPath = Path.Combine(AppContext.BaseDirectory, "hMailServer.tlb");
+    if (arguments[0].Equals("--register-com", StringComparison.OrdinalIgnoreCase)
+        || arguments[0].Equals("/RegisterTypeLib", StringComparison.OrdinalIgnoreCase))
+    {
+        WindowsComRegistration.Register(executablePath, typeLibraryPath);
+        return true;
+    }
+
+    if (arguments[0].Equals("--unregister-com", StringComparison.OrdinalIgnoreCase))
+    {
+        WindowsComRegistration.Unregister(executablePath, typeLibraryPath);
+        return true;
+    }
+
+    return false;
 }

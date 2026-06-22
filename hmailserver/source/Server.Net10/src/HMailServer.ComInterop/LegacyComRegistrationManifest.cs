@@ -1,0 +1,128 @@
+using System.Runtime.InteropServices;
+
+namespace HMailServer.ComInterop;
+
+[ComVisible(false)]
+public sealed record ComRegistryValue(string KeyPath, string? ValueName, string Value);
+
+[ComVisible(false)]
+public sealed class LegacyComRegistrationManifest
+{
+    public const string AppId = "{5EDEC473-39E0-43F6-A234-1947071721C8}";
+    public const string TypeLibraryId = "{DB241B59-A1B1-4C59-98FC-8D101A2995F2}";
+
+    private LegacyComRegistrationManifest(
+        IReadOnlyList<string> keys,
+        IReadOnlyList<ComRegistryValue> values,
+        IReadOnlyList<string> uninstallRoots)
+    {
+        Keys = keys;
+        Values = values;
+        UninstallRoots = uninstallRoots;
+    }
+
+    public IReadOnlyList<string> Keys { get; }
+
+    public IReadOnlyList<ComRegistryValue> Values { get; }
+
+    public IReadOnlyList<string> UninstallRoots { get; }
+
+    public static LegacyComRegistrationManifest Create(string serviceExecutablePath, string typeLibraryPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceExecutablePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(typeLibraryPath);
+
+        var executablePath = Path.GetFullPath(serviceExecutablePath);
+        var tlbPath = Path.GetFullPath(typeLibraryPath);
+        var typeLibraryDirectory = Path.GetDirectoryName(tlbPath)
+            ?? throw new ArgumentException("The type-library path must have a directory.", nameof(typeLibraryPath));
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var values = new List<ComRegistryValue>();
+        var uninstallRoots = new List<string>();
+
+        void AddValue(string keyPath, string? valueName, string value)
+        {
+            keys.Add(keyPath);
+            values.Add(new ComRegistryValue(keyPath, valueName, value));
+        }
+
+        AddValue($@"AppID\{AppId}", null, "hMailServer");
+        AddValue($@"AppID\{AppId}", "LocalService", "hMailServer");
+        AddValue(@"AppID\hMailServer.EXE", "AppID", AppId);
+        uninstallRoots.Add($@"AppID\{AppId}");
+        uninstallRoots.Add(@"AppID\hMailServer.EXE");
+
+        AddClass(
+            "Application",
+            "{D6567EF8-0A6C-48E7-9288-A2463123C2F3}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "Settings",
+            "{FDF084A7-82DE-4EBE-8455-E506ACE01D63}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "MessageIndexing",
+            "{5F414F73-8E29-4E51-86F2-13C12EF9227A}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+
+        // The legacy MessageIndexing.rgs contains an orphan TypeLib GUID. The authoritative
+        // installed type library and IDL use TypeLibraryId and include the MessageIndexing coclass.
+        var typeLibraryVersionKey = $@"TypeLib\{TypeLibraryId}\1.0";
+        AddValue(typeLibraryVersionKey, null, "hMailServer Type Library");
+        AddValue($@"{typeLibraryVersionKey}\0\win64", null, tlbPath);
+        AddValue($@"{typeLibraryVersionKey}\FLAGS", null, "0");
+        AddValue($@"{typeLibraryVersionKey}\HELPDIR", null, typeLibraryDirectory);
+        uninstallRoots.Add($@"TypeLib\{TypeLibraryId}");
+
+        return new LegacyComRegistrationManifest(
+            keys.ToArray(),
+            values,
+            uninstallRoots);
+    }
+
+    private static void AddClass(
+        string className,
+        string classId,
+        string executablePath,
+        ISet<string> keys,
+        ICollection<ComRegistryValue> values,
+        ICollection<string> uninstallRoots)
+    {
+        var versionedProgId = $"hMailServer.{className}.1";
+        var versionIndependentProgId = $"hMailServer.{className}";
+        var description = $"{className} Class";
+        var classKey = $@"CLSID\{classId}";
+
+        AddValue(versionedProgId, null, description);
+        AddValue($@"{versionedProgId}\CLSID", null, classId);
+        AddValue(versionIndependentProgId, null, description);
+        AddValue($@"{versionIndependentProgId}\CLSID", null, classId);
+        AddValue($@"{versionIndependentProgId}\CurVer", null, versionedProgId);
+        AddValue(classKey, null, description);
+        AddValue($@"{classKey}\ProgID", null, versionedProgId);
+        AddValue($@"{classKey}\VersionIndependentProgID", null, versionIndependentProgId);
+        AddValue($@"{classKey}\LocalServer32", null, $"\"{executablePath}\"");
+        AddValue(classKey, "AppID", AppId);
+        AddValue($@"{classKey}\TypeLib", null, TypeLibraryId);
+        keys.Add($@"{classKey}\Programmable");
+
+        uninstallRoots.Add(versionedProgId);
+        uninstallRoots.Add(versionIndependentProgId);
+        uninstallRoots.Add(classKey);
+
+        void AddValue(string keyPath, string? valueName, string value)
+        {
+            keys.Add(keyPath);
+            values.Add(new ComRegistryValue(keyPath, valueName, value));
+        }
+    }
+}

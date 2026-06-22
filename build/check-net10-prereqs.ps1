@@ -62,6 +62,17 @@ if ($RequireMsBuild) {
     }
 
     Write-Check "MSBuild 17.x" ($null -ne $msbuild) ($(if ($msbuild) { $msbuild } else { "install Visual Studio 2022/Build Tools with MSBuild" }))
+
+    $vcTools = $null
+    if (Test-Path $vswhere) {
+        $vcTools = & $vswhere -version '[17.0,18.0)' -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
+    }
+    Write-Check "Visual C++ build tools" ($null -ne $vcTools) ($(if ($vcTools) { $vcTools } else { "install the Visual Studio 2022 C++ build tools" }))
+
+    $midl = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\midl.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending |
+        Select-Object -First 1
+    Write-Check "Windows SDK MIDL" ($null -ne $midl) ($(if ($midl) { $midl.FullName } else { "install a Windows 10/11 SDK with x64 MIDL" }))
 }
 
 if ($failed) {

@@ -17,4 +17,10 @@
     <ProjectReference Include="..\HMailServer.Security\HMailServer.Security.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.9" />
   </ItemGroup>
+  <Target Name="GenerateLegacyTypeLibrary" AfterTargets="Build">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\..\..\..\build\generate-net10-typelib.ps1&quot; -SourceIdl &quot;$(MSBuildProjectDirectory)\..\..\..\Server\hMailServer\hMailServer.idl&quot; -OutputPath &quot;$(TargetDir)hMailServer.tlb&quot;" />
+  </Target>
+  <Target Name="PublishLegacyTypeLibrary" AfterTargets="Publish">
+    <Copy SourceFiles="$(TargetDir)hMailServer.tlb" DestinationFolder="$(PublishDir)" />
+  </Target>
 </Project>
