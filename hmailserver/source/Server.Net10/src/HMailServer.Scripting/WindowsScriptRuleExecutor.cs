@@ -983,6 +983,7 @@ HMAILSERVER_ACCOUNT.LastLogonTime = "{{EscapeVbScript(account.LastLogonTime)}}"
 Dim Result
 Set Result = New HMailServerRuleResult
 Result.Value = 2
+Result.Parameter = 0
 Result.Message = ""
 
 Dim hMailServerEventHandler

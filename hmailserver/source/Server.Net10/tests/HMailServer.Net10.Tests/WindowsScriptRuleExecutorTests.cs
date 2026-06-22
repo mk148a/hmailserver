@@ -2768,6 +2768,40 @@ End Sub
     }
 
     [TestMethod]
+    public void Execute_VbScriptClientValidatePasswordSeedsResultParameter()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnClientValidatePassword(oAccount, password)
+   If Not IsEmpty(Result.Parameter) And Result.Parameter = 0 Then
+      Result.Parameter = 9
+      If Result.Parameter = 9 Then
+         Result.Value = 0
+      End If
+   End If
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest("script-secret"),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Accept, result.Decision);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_RunsVbScriptClientValidatePasswordEventLogWrite()
     {
         var cscript = GetCscriptPathOrInconclusive();
