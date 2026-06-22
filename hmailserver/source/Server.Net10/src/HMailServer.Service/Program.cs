@@ -690,6 +690,7 @@ builder.Services.AddSingleton<Pop3TcpListener>();
 builder.Services.AddSingleton<SmtpSession>();
 builder.Services.AddSingleton<SmtpTcpListener>();
 builder.Services.AddSingleton<MessageSearchBackfillProcessor>();
+builder.Services.AddHostedService<ComLocalServerHostedService>();
 builder.Services.AddHostedService<ServerBootstrapper>();
 builder.Services.AddHostedService<MessageSearchBackfillHostedService>();
 builder.Services.AddHostedService<DeliveryQueueStatusMaintenanceHostedService>();
