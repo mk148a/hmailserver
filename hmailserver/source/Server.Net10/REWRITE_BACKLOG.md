@@ -82,6 +82,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: JScript message facade exposes the legacy `Filename` alias alongside the existing `FileName` path.
 - Done: JScript attachment facade exposes the legacy `Filename` alias alongside `FileName`.
 - Done: global `EventLog.Write(value)` script facade appends legacy-shaped Unicode event-log rows for VBScript/JScript rule, error, and password-validation handlers.
+- Done: JScript `OnClientValidatePassword` receives the legacy writable `Result.Parameter` scalar initialized to zero, matching the other event runners and native `Result` constructor.
 - Done: scripted `HMAILSERVER_MESSAGE.RefreshContent` reloads file-backed headers and body after direct script-side message file rewrites.
 - Done: script message `FileName`/`Filename` facade keeps `Load`, `Save`, and `Copy` tied to the original backing file path.
 - Done: script message `To`/`CC` direct assignment no longer rewrites saved recipient headers, preserving legacy read-only property shape.
@@ -143,6 +144,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: SASL PLAIN authentication with SASL-IR and TLS-required auth policy.
    - Done: `OnClientLogon(HMAILSERVER_CLIENT)` script hook after successful and failed IMAP authentication attempts.
    - Done: shared `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)` script hook with expanded scalar account facade.
+   - Done: password-validation VBScript/JScript `Result` facades expose writable `Value`, `Message`, and zero-initialized `Parameter` scalars.
    - Remaining: Deeper account facade collections/methods, Active Directory auth, and master user.
 
 2. IMAP command parity beyond SEARCH.
