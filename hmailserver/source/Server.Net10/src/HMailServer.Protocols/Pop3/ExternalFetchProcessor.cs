@@ -511,7 +511,7 @@ public sealed class ExternalFetchProcessor
 
         if (mimeMessage is not null &&
             account.ProcessMimeRecipients &&
-            !string.IsNullOrWhiteSpace(account.MimeRecipientHeaders))
+            !string.IsNullOrEmpty(account.MimeRecipientHeaders))
         {
             foreach (var headerName in SplitMimeRecipientHeaders(account.MimeRecipientHeaders))
             {

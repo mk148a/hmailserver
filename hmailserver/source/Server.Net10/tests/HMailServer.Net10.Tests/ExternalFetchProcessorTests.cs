@@ -604,6 +604,40 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_ProcessesReceivedHeaderWhenConfiguredNamesAreWhitespace()
+    {
+        var account = CreateAccount(mimeRecipientHeaders: " ");
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-whitespace-recipient-headers", Size: 64),
+            ToAsciiBytes(
+                "Received: from mx.example by hmail for <alias@example.test>; Thu, 02 Jan 2025 03:04:05 +0000\r\n" +
+                "From: sender@example.net\r\n" +
+                "Subject: fetched\r\n" +
+                "\r\n" +
+                "Body\r\n"));
+        var receiver = new FakeSmtpMessageReceiver();
+        var recipientValidator = new FakeSmtpRecipientValidator(
+            request => SmtpRecipientValidationResult.Accept(
+                new SmtpResolvedRecipient(
+                    "user@example.test",
+                    request.RecipientAddress,
+                    LocalAccountId: 42,
+                    IsLocal: true)));
+        var processor = CreateProcessor(
+            store,
+            session,
+            receiver,
+            recipientValidator: recipientValidator);
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.MessagesAccepted);
+        Assert.AreEqual("alias@example.test", recipientValidator.Requests.Single().RecipientAddress);
+        Assert.AreEqual("alias@example.test", receiver.Requests.Single().Recipients.Single().OriginalAddress);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_RejectsMalformedRecipientFromReceivedHeader()
     {
         var account = CreateAccount(
