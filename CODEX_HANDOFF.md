@@ -45,10 +45,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: yeni kilitlenen legacy `IInterfaceMessageIndexing` kontratindan devam ederek `MessageIndexing` CLSID/ProgID sozlesmesini korumak ve gercek runtime adapter'ini baglamak; ardindan diger Administrator-visible COM nesnelerine gecmek. Script/external-fetch calismasi yalniz kanitlanmis parity aciklariyla sinirli kalmali ve backup eventleri .NET backup engine gelmeden synthetic callback olarak uretilmemeli.
+Backlog'daki siradaki ana dilim: COM-visible `MessageIndexing` adapter'inin arkasina authenticated SQL/service runtime'ini baglamak; legacy count, `Enabled`, `Clear`, ve `Index` davranislarini korumak ve backfill worker'i persisted `MessageIndexing` ayarina gore gate etmek. Version-independent ProgID/CurVer registry alias'i service-install diliminde tamamlanmali. Script/external-fetch calismasi yalniz kanitlanmis parity aciklariyla sinirli kalmali.
 
 Son tamamlanan kucuk dilimler:
 
+- COM-visible `MessageIndexing` class'i legacy CLSID ve versioned `hMailServer.MessageIndexing.1` ProgID'sini koruyor, legacy interface'i default tutuyor, additive `IInterfaceMessageIndexing2` yuzeyini uyguluyor ve butun v1/v2 cagrilarini process host'un sagladigi zorunlu runtime'a delege ediyor. Version-independent ProgID/CurVer registry alias'i ve SQL/service runtime wiring henuz tamamlanmadi.
 - .NET COM assembly'si legacy dual `IInterfaceMessageIndexing` IID'sini, DISPID 1-5 uye seklini ve `Enabled` icin `VARIANT_BOOL` marshaling'ini koruyor; portable kontrat ve Windows COM-host hedefleri birlikte build ediliyor, legacy ve additive `IInterfaceMessageIndexing2` yuzeyleri reflection testleriyle kilitlendi.
 - VBScript/JScript `OnClientValidatePassword` account facade'i legacy `Password` scalar'ini SQL'den okunan stored degerle tasiyor; attempted plaintext ayri `password` argumani olarak kaliyor.
 - VBScript `OnClientValidatePassword` runner'i `Result.Parameter` alanini uninitialized `Empty` birakmak yerine legacy COM scalar parity'siyle acik numeric `0` olarak seed ediyor.
@@ -315,6 +316,7 @@ Son temiz dogrulama notlari:
 - VBScript password-validation `Result.Parameter` parity dilimi icin VB/JScript default hedefli testler 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 52/52 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 405/405 gecti.
 - Password-validation stored-account-password parity dilimi icin VB/JScript stored/attempted hedefleri 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 54/54 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 407/407 gecti.
 - Legacy message-indexing COM kontrat dilimi icin once eksik `IInterfaceMessageIndexing` derleme hatasiyla kanitlandi; interface eklendikten sonra dar `MessageIndexingComContractTests` filtresi 2/2 gecti. Prereq kontrolu temizdi, Net10 build portable ve Windows COM-host assembly'lerini 0 uyari/0 hata ile uretti ve full Net10 testler 409/409 gecti.
+- Message-indexing COM class/runtime-adapter dilimi icin eksik class/runtime once derleme hatasiyla kanitlandi; legacy CLSID/versioned ProgID/default-interface metadata'si, v1/v2 delegasyonu ve parameterless activation sonrasi process-runtime kullanimi icin dar `MessageIndexingComContractTests` filtresi 5/5 gecti. Prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 412/412 gecti.
 
 Terminal/log incelemesi:
 

@@ -86,6 +86,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: VBScript `OnClientValidatePassword` explicitly seeds writable `Result.Parameter` to numeric zero instead of leaving the public class field as `Empty`.
 - Done: password-validation `HMAILSERVER_ACCOUNT.Password` exposes the stored legacy SQL account value in VBScript/JScript while the attempted plaintext remains the separate handler argument.
 - Done: the .NET COM assembly preserves the legacy dual `IInterfaceMessageIndexing` IID and DISPIDs 1-5, including `VARIANT_BOOL` marshaling for `Enabled`, with reflection contract tests covering both the legacy interface and additive `IInterfaceMessageIndexing2`.
+- Done: the COM-visible `MessageIndexing` class preserves the legacy CLSID and versioned ProgID, keeps `IInterfaceMessageIndexing` as its default interface, implements `IInterfaceMessageIndexing2`, and delegates all v1/v2 operations through a required process-hosted runtime boundary.
 - Done: scripted `HMAILSERVER_MESSAGE.RefreshContent` reloads file-backed headers and body after direct script-side message file rewrites.
 - Done: script message `FileName`/`Filename` facade keeps `Load`, `Save`, and `Copy` tied to the original backing file path.
 - Done: script message `To`/`CC` direct assignment no longer rewrites saved recipient headers, preserving legacy read-only property shape.
@@ -297,7 +298,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Preserve existing GUID/ProgID/DISPID/type library contracts.
    - Implement legacy Administrator-visible objects and collections.
    - Done: preserve the legacy dual `IInterfaceMessageIndexing` IID, DISPIDs 1-5, member types, mutability, and `VARIANT_BOOL` marshaling in the .NET COM contract assembly.
-   - Remaining: preserve the `MessageIndexing` CLSID/ProgID and wire a functional runtime class, then complete `IInterfaceMessageIndexing2` without changing the legacy interface.
+   - Done: preserve the `MessageIndexing` CLSID and versioned `hMailServer.MessageIndexing.1` ProgID in a COM-visible class with the legacy default interface and complete v1/v2 runtime delegation.
+   - Remaining: implement and host the authenticated SQL/service message-indexing runtime, honor legacy `Enabled` semantics in the backfill worker, and register the version-independent `hMailServer.MessageIndexing`/CurVer alias without changing the legacy interface.
 
 7. Migration, operations, and observability.
    - Full in-place upgrade runner with mandatory backup checks and rollback-from-backup documentation.
@@ -311,4 +313,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue COM/Admin parity from the newly locked legacy `IInterfaceMessageIndexing` contract: preserve the `MessageIndexing` CLSID/ProgID and wire a functional runtime adapter before expanding to other Administrator-visible objects. Keep script/external-fetch work limited to regression-proven parity gaps, and design backup events with the .NET backup engine instead of emitting synthetic callbacks.
+Continue COM/Admin parity by implementing the authenticated SQL/service runtime behind the `MessageIndexing` adapter: preserve legacy counts, `Enabled`, `Clear`, and `Index` behavior, gate the backfill worker on the persisted setting, and keep the version-independent ProgID/CurVer registration work in the service-install slice. Keep script/external-fetch work limited to regression-proven parity gaps.
