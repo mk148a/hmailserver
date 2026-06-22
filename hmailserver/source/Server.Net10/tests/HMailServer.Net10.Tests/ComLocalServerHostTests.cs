@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
 
 namespace HMailServer.Net10.Tests;
 
@@ -80,6 +81,71 @@ public sealed class ComLocalServerHostTests
         }
     }
 
+    [TestMethod]
+    public void RegisteredFactory_ActivatesApplicationAndAuthenticatesLegacyServerAdministrator()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var initializeResult = CoInitializeEx(nint.Zero, CoinitMultithreaded);
+        Assert.IsTrue(initializeResult >= 0 || initializeResult == RpcEChangedMode);
+
+        var classId = Guid.NewGuid();
+        using var host = new ComLocalServerHost(
+            new ComLocalServerRegistration(
+                classId,
+                static () => new Application(new TestAdministratorAuthenticationProvider("secret"))));
+
+        try
+        {
+            host.Start();
+
+            var interfaceId = typeof(IInterfaceApplication).GUID;
+            var activateResult = CoCreateInstance(
+                in classId,
+                nint.Zero,
+                ClsctxLocalServer,
+                in interfaceId,
+                out var interfacePointer);
+
+            Assert.AreEqual(0, activateResult);
+            Assert.AreNotEqual(nint.Zero, interfacePointer);
+
+            try
+            {
+                var application = (IInterfaceApplication)Marshal.GetObjectForIUnknown(interfacePointer);
+
+                Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+                var account = application.Authenticate("administrator", "secret");
+                Assert.IsNotNull(account);
+                Assert.AreEqual(ComAdminLevel.ServerAdministrator, account.AdminLevel);
+
+                if (Marshal.IsComObject(account))
+                {
+                    Marshal.FinalReleaseComObject(account);
+                }
+
+                if (Marshal.IsComObject(application))
+                {
+                    Marshal.FinalReleaseComObject(application);
+                }
+            }
+            finally
+            {
+                Marshal.Release(interfacePointer);
+            }
+        }
+        finally
+        {
+            if (initializeResult >= 0)
+            {
+                CoUninitialize();
+            }
+        }
+    }
+
     [DllImport("ole32.dll")]
     private static extern int CoInitializeEx(nint reserved, uint coInit);
 
@@ -93,4 +159,12 @@ public sealed class ComLocalServerHostTests
         uint context,
         in Guid interfaceId,
         out nint interfacePointer);
+
+    private sealed class TestAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            username.Equals("Administrator", StringComparison.OrdinalIgnoreCase)
+            && attemptedPassword == password;
+    }
 }
