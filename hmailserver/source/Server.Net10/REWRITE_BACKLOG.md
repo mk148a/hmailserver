@@ -84,6 +84,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: global `EventLog.Write(value)` script facade appends legacy-shaped Unicode event-log rows for VBScript/JScript rule, error, and password-validation handlers.
 - Done: JScript `OnClientValidatePassword` receives the legacy writable `Result.Parameter` scalar initialized to zero, matching the other event runners and native `Result` constructor.
 - Done: VBScript `OnClientValidatePassword` explicitly seeds writable `Result.Parameter` to numeric zero instead of leaving the public class field as `Empty`.
+- Done: password-validation `HMAILSERVER_ACCOUNT.Password` exposes the stored legacy SQL account value in VBScript/JScript while the attempted plaintext remains the separate handler argument.
 - Done: scripted `HMAILSERVER_MESSAGE.RefreshContent` reloads file-backed headers and body after direct script-side message file rewrites.
 - Done: script message `FileName`/`Filename` facade keeps `Load`, `Save`, and `Copy` tied to the original backing file path.
 - Done: script message `To`/`CC` direct assignment no longer rewrites saved recipient headers, preserving legacy read-only property shape.
@@ -146,6 +147,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: `OnClientLogon(HMAILSERVER_CLIENT)` script hook after successful and failed IMAP authentication attempts.
    - Done: shared `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)` script hook with expanded scalar account facade.
    - Done: password-validation VBScript/JScript `Result` facades expose writable `Value`, `Message`, and numeric zero-initialized `Parameter` scalars, including an explicit VB seed rather than `Empty`.
+   - Done: password-validation account facades expose the legacy stored `Password` scalar without conflating it with the attempted plaintext argument.
    - Remaining: Deeper account facade collections/methods, Active Directory auth, and master user.
 
 2. IMAP command parity beyond SEARCH.

@@ -49,6 +49,7 @@ Backlog'daki siradaki ana dilim: legacy script object parity'yi `Message.Copy(fo
 
 Son tamamlanan kucuk dilimler:
 
+- VBScript/JScript `OnClientValidatePassword` account facade'i legacy `Password` scalar'ini SQL'den okunan stored degerle tasiyor; attempted plaintext ayri `password` argumani olarak kaliyor.
 - VBScript `OnClientValidatePassword` runner'i `Result.Parameter` alanini uninitialized `Empty` birakmak yerine legacy COM scalar parity'siyle acik numeric `0` olarak seed ediyor.
 - JScript `OnClientValidatePassword` runner'i legacy `Result` constructor parity'siyle yazilabilir `Parameter = 0` alani tasiyor; VBScript ve genel event runner'lariyla scalar facade sekli esitlendi.
 - Global VBScript/JScript `EventLog.Write(value)` facade'i rule script, `OnError`, ve password-validation script yollarinda legacy event log bicimiyle tamamlandi.
@@ -97,6 +98,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch MIME recipient-header ayari `" "` oldugunda configured token uretmese de lowercase `Received for <alias@example.test>` recipient'ini validator ve receiver'a tasiyor.
 - JScript password-validation handler'i `Result.Parameter` alanini ilk okumada numeric `0` goruyor ve alani yazip geri okuyabiliyor; eksik-property nedeniyle `undefined` donusu testle kapatildi.
 - VBScript password-validation handler'i `Result.Parameter` alaninda `IsEmpty = False`, deger `0` ve yazilabilirlik sozlesmesini goruyor; class-field `Empty` farki testle kapatildi.
+- Password-validation handler'lari `oAccount.Password = "legacy-password-hash"` ile `password = "attempted-secret"` degerlerini iki dilde ayri goruyor; stored/attempted ayrimi testle sabitlendi.
 - `HMAILSERVER_MESSAGE.RefreshContent`, script tarafindan message file dogrudan degistirildikten sonra header/body alanlarini yeniden yukleyecek sekilde VBScript/JScript testleriyle sabitlendi.
 - `HMAILSERVER_MESSAGE.FileName`/`Filename` facade'i script assignment sonrasi `Load`/`Save`/`Copy` file I/O'sunu orijinal runner backing path'inde tutacak sekilde legacy `Filename` read-only davranisina yaklastirildi.
 - `HMAILSERVER_MESSAGE.To`/`CC` direct assignment, legacy COM read-only property sekline yaklastirildi; recipient/header mutasyonlari `AddRecipient`, `ClearRecipients`, `Recipients`, ve `HeaderValue` yollarinda kalacak sekilde testlendi.
@@ -130,11 +132,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-b283fe324 docs(net10): document password result parameter
+c09dacdaa docs(net10): document vb result parameter
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `2087a4e1e feat(net10): expose script account password`
 - `1e36992fb fix(net10): seed vb password result parameter`
 - `d39e90ca4 fix(net10): seed password result parameter`
 - `2db4de6cc fix(net10): scan received with blank fetch headers`
@@ -309,6 +312,7 @@ Son temiz dogrulama notlari:
 - External fetch whitespace-header gate parity dilimi icin whitespace/normal hedefli testler 2/2 ve dar `ExternalFetchProcessorTests` filtresi 30/30 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 403/403 gecti.
 - JScript password-validation `Result.Parameter` parity dilimi icin default/reject hedefli testler 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 51/51 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 404/404 gecti.
 - VBScript password-validation `Result.Parameter` parity dilimi icin VB/JScript default hedefli testler 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 52/52 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 405/405 gecti.
+- Password-validation stored-account-password parity dilimi icin VB/JScript stored/attempted hedefleri 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 54/54 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 407/407 gecti.
 
 Terminal/log incelemesi:
 
