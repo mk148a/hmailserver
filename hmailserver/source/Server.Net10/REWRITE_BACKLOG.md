@@ -307,12 +307,14 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: add the service-process COM local-server class-factory lifecycle and register the direct `MessageIndexing` class object without mutating the registry; process-level activation/revoke coverage preserves the legacy access boundary.
    - Done: preserve complete legacy `Application` and `Account` COM vtable/identity contracts and the server-admin authentication result; unimplemented database-backed account members fail explicitly rather than publishing substitute behavior.
    - Done: preserve the complete legacy `Settings` vtable/identity contract, load the administrator hash from the configured/default legacy `hMailServer.ini`, register the real `Application`, `Settings`, and `MessageIndexing` class factories, return the authorized `Application -> Settings -> MessageIndexing` adapter, keep other Settings members explicit `E_NOTIMPL`, and preserve direct-child access denial across the COM boundary.
-   - Remaining: add SQL Server integration coverage and service-install registry/type-library/ProgID wiring, then implement the database-backed Administrator object model in bounded slices.
+   - Done: generate the authoritative legacy type library during service build/publish and add guarded service install/uninstall wiring for the hosted classes' AppID, CLSIDs, LocalServer32 paths, versioned/version-independent ProgIDs, CurVer aliases, and 64-bit type-library registration; manifest tests do not mutate the machine registry.
+   - Remaining: add SQL Server integration coverage, then implement the database-backed Administrator object model in bounded slices.
 
 7. Migration, operations, and observability.
    - Full in-place upgrade runner with mandatory backup checks and rollback-from-backup documentation.
    - Search backfill progress metrics, health endpoints/logging, orphan cleanup.
-   - Windows Service install/uninstall scripts and production configuration.
+   - Done: guarded Windows Service install/uninstall scripts with owned COM registration and explicit legacy-service replacement opt-in.
+   - Remaining: production configuration packaging and upgrade/rollback integration.
 
 8. Performance and soak validation.
    - SQL Server FTS integration tests.
@@ -321,4 +323,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Complete the deployable COM activation boundary: add service-install/uninstall registry and type-library wiring for the already hosted `Application`, `Settings`, and `MessageIndexing` classes, including legacy CLSIDs, versioned and version-independent ProgIDs, and CurVer aliases. Keep the work declarative and testable without mutating the developer machine registry; defer database-backed Settings/account members to later bounded slices.
+Add opt-in SQL Server integration coverage for the message-indexing administration store and authenticated COM adapter path, using isolated fixtures that never alter an unselected database. Once that safety gate exists, continue the Administrator object model with a bounded read-only `Application -> Domains` slice.
