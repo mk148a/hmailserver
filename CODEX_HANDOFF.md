@@ -45,10 +45,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy script object parity'yi `Message.Copy(folderId)` ve global `EventLog.Write(value)` otesinde tamamlamak, backup eventlerini .NET backup engine gelmeden synthetic callback olarak uretmemek, delivery status/bounce template parity'yi queue worker evrildikce korumak ve external fetch edge-case'lerini kapatmak.
+Backlog'daki siradaki ana dilim: yeni kilitlenen legacy `IInterfaceMessageIndexing` kontratindan devam ederek `MessageIndexing` CLSID/ProgID sozlesmesini korumak ve gercek runtime adapter'ini baglamak; ardindan diger Administrator-visible COM nesnelerine gecmek. Script/external-fetch calismasi yalniz kanitlanmis parity aciklariyla sinirli kalmali ve backup eventleri .NET backup engine gelmeden synthetic callback olarak uretilmemeli.
 
 Son tamamlanan kucuk dilimler:
 
+- .NET COM assembly'si legacy dual `IInterfaceMessageIndexing` IID'sini, DISPID 1-5 uye seklini ve `Enabled` icin `VARIANT_BOOL` marshaling'ini koruyor; portable kontrat ve Windows COM-host hedefleri birlikte build ediliyor, legacy ve additive `IInterfaceMessageIndexing2` yuzeyleri reflection testleriyle kilitlendi.
 - VBScript/JScript `OnClientValidatePassword` account facade'i legacy `Password` scalar'ini SQL'den okunan stored degerle tasiyor; attempted plaintext ayri `password` argumani olarak kaliyor.
 - VBScript `OnClientValidatePassword` runner'i `Result.Parameter` alanini uninitialized `Empty` birakmak yerine legacy COM scalar parity'siyle acik numeric `0` olarak seed ediyor.
 - JScript `OnClientValidatePassword` runner'i legacy `Result` constructor parity'siyle yazilabilir `Parameter = 0` alani tasiyor; VBScript ve genel event runner'lariyla scalar facade sekli esitlendi.
@@ -313,6 +314,7 @@ Son temiz dogrulama notlari:
 - JScript password-validation `Result.Parameter` parity dilimi icin default/reject hedefli testler 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 51/51 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 404/404 gecti.
 - VBScript password-validation `Result.Parameter` parity dilimi icin VB/JScript default hedefli testler 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 52/52 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 405/405 gecti.
 - Password-validation stored-account-password parity dilimi icin VB/JScript stored/attempted hedefleri 2/2 ve dar `WindowsScriptRuleExecutorTests` filtresi 54/54 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 407/407 gecti.
+- Legacy message-indexing COM kontrat dilimi icin once eksik `IInterfaceMessageIndexing` derleme hatasiyla kanitlandi; interface eklendikten sonra dar `MessageIndexingComContractTests` filtresi 2/2 gecti. Prereq kontrolu temizdi, Net10 build portable ve Windows COM-host assembly'lerini 0 uyari/0 hata ile uretti ve full Net10 testler 409/409 gecti.
 
 Terminal/log incelemesi:
 
