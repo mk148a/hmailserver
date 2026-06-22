@@ -89,6 +89,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: the COM-visible `MessageIndexing` class preserves the legacy CLSID and versioned ProgID, keeps `IInterfaceMessageIndexing` as its default interface, implements `IInterfaceMessageIndexing2`, and delegates all v1/v2 operations through a required process-hosted runtime boundary.
 - Done: a SQL Server message-indexing administration store and service-configured runtime implement delivered/indexed counts, persisted legacy `Enabled`, FTS/queue status, `Clear`, `Index`, and `Rebuild`; direct COM class activation remains access-denied and the backfill processor skips leasing while indexing is disabled.
 - Done: the Windows service hosts COM local-server class factories on a dedicated MTA using suspended registration/resume and same-thread revoke; registry-free process activation proves that direct `MessageIndexing` CLSID objects remain access-denied and disappear after shutdown.
+- Done: preserve the legacy dual `Application` and `Account` IIDs, full 20/61-member vtable order, CLSIDs, versioned ProgIDs, default interfaces, server-admin account result, and detached-account access denial; registry-free process activation authenticates through the legacy root interface.
+- Done: preserve server-administrator credential semantics for case-insensitive `Administrator`, MD5/salted-SHA256 hashes, wrong credentials, and the legacy empty-hash/empty-password anonymous boundary.
 - Done: scripted `HMAILSERVER_MESSAGE.RefreshContent` reloads file-backed headers and body after direct script-side message file rewrites.
 - Done: script message `FileName`/`Filename` facade keeps `Load`, `Save`, and `Copy` tied to the original backing file path.
 - Done: script message `To`/`CC` direct assignment no longer rewrites saved recipient headers, preserving legacy read-only property shape.
@@ -303,7 +305,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: preserve the `MessageIndexing` CLSID and versioned `hMailServer.MessageIndexing.1` ProgID in a COM-visible class with the legacy default interface and complete v1/v2 runtime delegation.
    - Done: configure the SQL-backed message-indexing runtime in the service, preserve direct-activation access denial, persist legacy `Enabled`, expose counts/status, perform queue-driven clear/index/rebuild, and gate backfill leases while disabled.
    - Done: add the service-process COM local-server class-factory lifecycle and register the direct `MessageIndexing` class object without mutating the registry; process-level activation/revoke coverage preserves the legacy access boundary.
-   - Remaining: expose the authorized adapter through the authenticated legacy `Application -> Settings -> MessageIndexing` path, add SQL Server integration coverage, and add service-install registry/type-library wiring including the version-independent `hMailServer.MessageIndexing`/CurVer alias without changing the legacy interface.
+   - Done: preserve complete legacy `Application` and `Account` COM vtable/identity contracts and the server-admin authentication result; unimplemented database-backed account members fail explicitly rather than publishing substitute behavior.
+   - Remaining: preserve the complete `Settings` vtable, load the legacy administrator hash from `hMailServer.ini`, register the real `Application` class factory, and return the authorized adapter through `Application -> Settings -> MessageIndexing`; then add SQL Server integration coverage and service-install registry/type-library/ProgID wiring.
 
 7. Migration, operations, and observability.
    - Full in-place upgrade runner with mandatory backup checks and rollback-from-backup documentation.
@@ -317,4 +320,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue COM/Admin parity without publishing a partial fake object model: map the legacy `Application` authentication and `Settings` contract dependencies, then implement the smallest legacy-complete authenticated `Application -> Settings -> MessageIndexing` slice on the new service-process class-factory host. Keep direct CLSID activation access-denied, keep registry/type-library/ProgID wiring in the service-install slice, and add SQL Server integration coverage before declaring the runtime production-ready.
+Continue COM/Admin parity at the next real boundary: preserve the complete legacy `Settings` vtable, implement its authenticated `MessageIndexing` property, load the administrator hash from the configured/default legacy `hMailServer.ini`, and only then register the real `Application` CLSID in the service-process class-factory host. Keep all other Settings members explicit `E_NOTIMPL` until their stores exist, preserve direct child CLSID access denial, and leave registry/type-library/ProgID wiring for the service-install slice.
