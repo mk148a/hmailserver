@@ -1,14 +1,28 @@
 using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
 using Microsoft.Extensions.Hosting;
 
 namespace HMailServer.Service;
 
 internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
 {
-    private readonly ComLocalServerHost _host = new(
-        new ComLocalServerRegistration(
-            typeof(MessageIndexing).GUID,
-            static () => new MessageIndexing()));
+    private readonly ComLocalServerHost _host;
+
+    public ComLocalServerHostedService(IServerAdministratorAuthenticationProvider authenticationProvider)
+    {
+        ArgumentNullException.ThrowIfNull(authenticationProvider);
+
+        _host = new ComLocalServerHost(
+            new ComLocalServerRegistration(
+                typeof(Application).GUID,
+                () => Application.CreateForRuntime(authenticationProvider)),
+            new ComLocalServerRegistration(
+                typeof(Settings).GUID,
+                static () => new Settings()),
+            new ComLocalServerRegistration(
+                typeof(MessageIndexing).GUID,
+                static () => new MessageIndexing()));
+    }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {

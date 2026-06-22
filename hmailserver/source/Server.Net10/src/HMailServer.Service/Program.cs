@@ -19,6 +19,14 @@ using System.Security.Cryptography.X509Certificates;
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddWindowsService(options => options.ServiceName = "hMailServer");
 
+var initializationFile = LegacyInitializationFile.ResolvePath(
+    builder.Configuration["InitializationFile"]
+        ?? builder.Configuration["HMAILSERVER_INITIALIZATION_FILE"],
+    AppContext.BaseDirectory);
+var administratorPasswordHash = LegacyInitializationFile.LoadAdministratorPasswordHash(initializationFile);
+builder.Services.AddSingleton<IServerAdministratorAuthenticationProvider>(
+    new LegacyServerAdministratorAuthenticationProvider(administratorPasswordHash));
+
 var connectionString = builder.Configuration["ConnectionStrings:hMailServer"]
     ?? builder.Configuration["HMAILSERVER_SQLSERVER_CONNECTION"]
     ?? throw new InvalidOperationException("Missing SQL Server connection string.");

@@ -9,8 +9,6 @@ namespace HMailServer.Net10.Tests;
 public sealed class ApplicationComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
-    private const int ENotImplemented = unchecked((int)0x80004001);
-
     [TestMethod]
     public void ApplicationInterface_PreservesLegacyIidDispatchIdsAndVtableOrder()
     {
@@ -94,8 +92,7 @@ public sealed class ApplicationComContractTests
 
         Assert.IsNotNull(account);
         Assert.AreEqual(ComAdminLevel.ServerAdministrator, account.AdminLevel);
-        var pendingSettings = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
-        Assert.AreEqual(ENotImplemented, pendingSettings.ErrorCode);
+        Assert.IsInstanceOfType<Settings>(application.Settings);
     }
 
     [TestMethod]
@@ -103,9 +100,7 @@ public sealed class ApplicationComContractTests
     {
         var application = new Application(new RecordingAdministratorAuthenticationProvider(string.Empty));
 
-        var pendingSettings = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
-
-        Assert.AreEqual(ENotImplemented, pendingSettings.ErrorCode);
+        Assert.IsInstanceOfType<Settings>(application.Settings);
     }
 
     [TestMethod]

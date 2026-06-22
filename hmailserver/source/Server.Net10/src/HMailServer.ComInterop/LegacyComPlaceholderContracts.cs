@@ -2,9 +2,6 @@ using System.Runtime.InteropServices;
 
 namespace HMailServer.ComInterop;
 
-[ComVisible(true), Guid("A4C709A3-98B2-410D-84F4-EDA999BF0CB2"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceSettings;
-
 [ComVisible(true), Guid("2CDFD68F-62F2-49CF-A14A-505E7F68EE9C"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceDomains;
 
@@ -40,3 +37,45 @@ public interface IInterfaceFetchAccounts;
 
 [ComVisible(true), Guid("328B16A7-8314-4398-B506-90937569EDBA"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceIMAPFolders;
+
+[ComVisible(true), Guid("AAD8A0DF-2963-4C5B-A906-6B07B9CC0643"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceLogging;
+
+[ComVisible(true), Guid("3F0053E1-2328-452F-855D-87FF63E06BE0"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceSecurityRanges;
+
+[ComVisible(true), Guid("952EE84F-C1D4-4869-8B86-76A3BA8F39FA"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceAntiVirus;
+
+[ComVisible(true), Guid("111F318A-C087-4091-BD1F-4226230EE513"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceRoutes;
+
+[ComVisible(true), Guid("B1EA04C0-B0B7-4638-80E4-41278CEF8C19"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceScripting;
+
+[ComVisible(true), Guid("AE45B7CD-C050-4B14-A983-30D53059D24F"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceCache;
+
+[ComVisible(true), Guid("2C5559F0-DF3F-43C0-935C-F79D41CF8A5B"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceBackupSettings;
+
+[ComVisible(true), Guid("998A7E66-21FA-47CC-9DB4-81822F2D05C9"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceAntiSpam;
+
+[ComVisible(true), Guid("0E90D7D8-0144-4021-9240-8CB9CC6F7628"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceServerMessages;
+
+[ComVisible(true), Guid("70471130-C8FA-4218-B68A-F1C9AD973FF6"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceTCPIPPorts;
+
+[ComVisible(true), Guid("A6C0B92B-3973-4E0A-86CB-440AD6C80B71"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceSSLCertificates;
+
+[ComVisible(true), Guid("48B534F3-2C4E-47F6-8CB0-339676B0ABF3"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceDirectories;
+
+[ComVisible(true), Guid("04B3AAAA-2B86-4C71-8A92-2D174055E1F1"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceGroups;
+
+[ComVisible(true), Guid("49D48933-3219-4D7E-84D5-B26FE5F0E165"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceIncomingRelays;

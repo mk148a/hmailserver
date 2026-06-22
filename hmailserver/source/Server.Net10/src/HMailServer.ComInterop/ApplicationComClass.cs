@@ -28,12 +28,16 @@ public sealed class Application : IInterfaceApplication
         _isServerAdministrator = authenticationProvider.Authenticate("Administrator", string.Empty);
     }
 
+    [ComVisible(false)]
+    public static Application CreateForRuntime(IServerAdministratorAuthenticationProvider authenticationProvider) =>
+        new(authenticationProvider);
+
     public IInterfaceSettings Settings
     {
         get
         {
             EnsureServerAdministrator();
-            return NotImplemented<IInterfaceSettings>();
+            return HMailServer.ComInterop.Settings.CreateAuthorized();
         }
     }
 

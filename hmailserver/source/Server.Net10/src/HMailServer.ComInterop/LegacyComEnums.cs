@@ -21,3 +21,13 @@ public enum ComServerState
     Running = 3,
     Stopping = 4
 }
+
+[ComVisible(true)]
+[Guid("122C5B58-9A23-40F5-83C0-7B683D156522")]
+public enum ComConnectionSecurity
+{
+    None = 0,
+    Tls = 1,
+    StartTlsOptional = 2,
+    StartTlsRequired = 3
+}

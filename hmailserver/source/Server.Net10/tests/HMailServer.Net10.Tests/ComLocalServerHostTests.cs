@@ -92,11 +92,12 @@ public sealed class ComLocalServerHostTests
         var initializeResult = CoInitializeEx(nint.Zero, CoinitMultithreaded);
         Assert.IsTrue(initializeResult >= 0 || initializeResult == RpcEChangedMode);
 
+        MessageIndexingRuntimeHost.Configure(new TestMessageIndexingRuntime(37));
         var classId = Guid.NewGuid();
         using var host = new ComLocalServerHost(
             new ComLocalServerRegistration(
                 classId,
-                static () => new Application(new TestAdministratorAuthenticationProvider("secret"))));
+                static () => Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"))));
 
         try
         {
@@ -121,6 +122,19 @@ public sealed class ComLocalServerHostTests
                 var account = application.Authenticate("administrator", "secret");
                 Assert.IsNotNull(account);
                 Assert.AreEqual(ComAdminLevel.ServerAdministrator, account.AdminLevel);
+                var settings = application.Settings;
+                var messageIndexing = settings.MessageIndexing;
+                Assert.AreEqual(37, messageIndexing.TotalMessageCount);
+
+                if (Marshal.IsComObject(messageIndexing))
+                {
+                    Marshal.FinalReleaseComObject(messageIndexing);
+                }
+
+                if (Marshal.IsComObject(settings))
+                {
+                    Marshal.FinalReleaseComObject(settings);
+                }
 
                 if (Marshal.IsComObject(account))
                 {
@@ -130,6 +144,61 @@ public sealed class ComLocalServerHostTests
                 if (Marshal.IsComObject(application))
                 {
                     Marshal.FinalReleaseComObject(application);
+                }
+            }
+            finally
+            {
+                Marshal.Release(interfacePointer);
+            }
+        }
+        finally
+        {
+            if (initializeResult >= 0)
+            {
+                CoUninitialize();
+            }
+        }
+    }
+
+    [TestMethod]
+    public void RegisteredFactory_DeniesDirectSettingsActivationAcrossComBoundary()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var initializeResult = CoInitializeEx(nint.Zero, CoinitMultithreaded);
+        Assert.IsTrue(initializeResult >= 0 || initializeResult == RpcEChangedMode);
+
+        var classId = Guid.NewGuid();
+        using var host = new ComLocalServerHost(
+            new ComLocalServerRegistration(classId, static () => new Settings()));
+
+        try
+        {
+            host.Start();
+
+            var interfaceId = typeof(IInterfaceSettings).GUID;
+            var activateResult = CoCreateInstance(
+                in classId,
+                nint.Zero,
+                ClsctxLocalServer,
+                in interfaceId,
+                out var interfacePointer);
+
+            Assert.AreEqual(0, activateResult);
+            Assert.AreNotEqual(nint.Zero, interfacePointer);
+
+            try
+            {
+                var settings = (IInterfaceSettings)Marshal.GetObjectForIUnknown(interfacePointer);
+                var error = Assert.ThrowsExactly<COMException>(() => _ = settings.MaxSMTPConnections);
+
+                Assert.AreEqual(unchecked((int)0x80070005), error.ErrorCode);
+                if (Marshal.IsComObject(settings))
+                {
+                    Marshal.FinalReleaseComObject(settings);
                 }
             }
             finally
@@ -166,5 +235,19 @@ public sealed class ComLocalServerHostTests
         public bool Authenticate(string username, string attemptedPassword) =>
             username.Equals("Administrator", StringComparison.OrdinalIgnoreCase)
             && attemptedPassword == password;
+    }
+
+    private sealed class TestMessageIndexingRuntime(int totalMessageCount) : IMessageIndexingRuntime
+    {
+        public int TotalMessageCount => totalMessageCount;
+        public int TotalIndexedCount => 0;
+        public bool Enabled { get; set; }
+        public string Backend => string.Empty;
+        public bool IsFullTextReady => false;
+        public string BackfillStatus => string.Empty;
+        public string LastError => string.Empty;
+        public void Clear() { }
+        public void Index() { }
+        public void Rebuild() { }
     }
 }
