@@ -45,10 +45,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: message-indexing administration store ve authenticated COM adapter yolu icin opt-in, izole SQL Server integration coverage eklemek. Testler acikca secilmemis hicbir veritabanini degistirmemeli. Bu safety gate'ten sonra Administrator object modeline sinirli read-only `Application -> Domains` dilimiyle devam edilmeli.
+Backlog'daki siradaki ana dilim: Administrator object modeline sinirli read-only `Application -> Domains` dilimiyle devam etmek. Once legacy `Domains` ve `Domain` COM kontratlari tam vtable/identity sirasiyla korunmali; ardindan yalniz authenticated collection count/item lookup mevcut SQL verisi uzerinden acilmali. Mutation ve nested account collection uyeleri kendi testli dilimlerine kadar acik `E_NOTIMPL` kalmali.
 
 Son tamamlanan kucuk dilimler:
 
+- Explicit opt-in SQL Server integration testi GUID isimli izole database olusturup siliyor ve real store uzerinden authenticated `Application -> Settings -> MessageIndexing` status, Enabled, queue, Clear ve Index akislarini dogruluyor; verilen connection string'deki database'e dokunmuyor. LocalDB canli kosusu basarili.
 - Service build/publish authoritative legacy IDL'den `hMailServer.tlb` uretiyor. Saf manifest ve guarded install/uninstall wiring'i hosted `Application`, `Settings`, `MessageIndexing` siniflari icin AppID, CLSID, LocalServer32, versioned/version-independent ProgID, CurVer ve 64-bit TypeLib kayitlarini tamamliyor; normal build/test registry veya SCM'e dokunmuyor ve mevcut legacy service replacement acik opt-in gerektiriyor.
 - Legacy installed 5.7 type library ile karsilastirilarak dual `Settings` IID'si, tam 142-accessor/method vtable sirasi, CLSID/versioned ProgID/default-interface metadata'si ve `MessageIndexing` DISPID 89 korundu. Authenticated yol `Application -> Settings -> MessageIndexing` olarak gercek runtime'a ulasiyor; diger Settings uyeleri yetki kontrolunden sonra acik `E_NOTIMPL`, direct Settings aktivasyonu `E_ACCESSDENIED` kaliyor.
 - Service configured `InitializationFile`/`HMAILSERVER_INITIALIZATION_FILE` yolundan veya executable-directory `hMailServer.ini` varsayilanindan `[Security] AdministratorPassword` hash'ini yukluyor. Case-insensitive `Administrator`, legacy MD5/salted-SHA256 ve empty-hash/empty-password anonymous administration davranislari korunuyor.

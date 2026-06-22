@@ -32,6 +32,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\uninstall-net10-
 
 Installation registers the legacy AppID, CLSIDs, versioned/version-independent ProgIDs, CurVer aliases, LocalServer32 paths, and the 64-bit type library. It refuses to replace an existing `hMailServer` service unless `-ReplaceExisting` is explicitly supplied; do that only after backup and in a non-production compatibility environment. Build and test commands never mutate the registry or Service Control Manager.
 
+The message-indexing SQL/COM integration test is explicit opt-in and creates then drops a GUID-named isolated database; it never runs against the database named in the supplied connection string:
+
+```powershell
+$env:HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION = "Server=(localdb)\MSSQLLocalDB;Integrated Security=true;TrustServerCertificate=true"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\test-net10.ps1 -Configuration Debug
+```
+
 ## IMAP Listener
 
 The .NET 10 IMAP TCP listener is wired into the Windows service but disabled by default while full command parity is still being rebuilt. Enable it for controlled compatibility testing:

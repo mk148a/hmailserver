@@ -308,7 +308,8 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: preserve complete legacy `Application` and `Account` COM vtable/identity contracts and the server-admin authentication result; unimplemented database-backed account members fail explicitly rather than publishing substitute behavior.
    - Done: preserve the complete legacy `Settings` vtable/identity contract, load the administrator hash from the configured/default legacy `hMailServer.ini`, register the real `Application`, `Settings`, and `MessageIndexing` class factories, return the authorized `Application -> Settings -> MessageIndexing` adapter, keep other Settings members explicit `E_NOTIMPL`, and preserve direct-child access denial across the COM boundary.
    - Done: generate the authoritative legacy type library during service build/publish and add guarded service install/uninstall wiring for the hosted classes' AppID, CLSIDs, LocalServer32 paths, versioned/version-independent ProgIDs, CurVer aliases, and 64-bit type-library registration; manifest tests do not mutate the machine registry.
-   - Remaining: add SQL Server integration coverage, then implement the database-backed Administrator object model in bounded slices.
+   - Done: add explicit opt-in SQL Server integration coverage that creates/drops an isolated database and exercises the authenticated `Application -> Settings -> MessageIndexing` status, enable, queue, clear, and index path against the real store.
+   - Remaining: implement the database-backed Administrator object model in bounded slices.
 
 7. Migration, operations, and observability.
    - Full in-place upgrade runner with mandatory backup checks and rollback-from-backup documentation.
@@ -323,4 +324,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Add opt-in SQL Server integration coverage for the message-indexing administration store and authenticated COM adapter path, using isolated fixtures that never alter an unselected database. Once that safety gate exists, continue the Administrator object model with a bounded read-only `Application -> Domains` slice.
+Continue the Administrator object model with a bounded read-only `Application -> Domains` slice: first preserve the full legacy `Domains` and `Domain` COM contracts, then expose only authenticated collection count/item lookup backed by existing SQL data. Keep mutations and nested account collections explicit `E_NOTIMPL` until their own tested slices.
