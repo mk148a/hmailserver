@@ -3,6 +3,7 @@ namespace HMailServer.Core.Abstractions;
 public sealed record ScriptAccount(
     int AccountId,
     string Address,
+    string Password,
     bool Active,
     bool IsActiveDirectoryAccount,
     int DomainId,

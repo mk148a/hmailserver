@@ -921,6 +921,7 @@ ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeV
 Class HMailServerScriptAccount
    Public ID
    Public Address
+   Public Password
    Public Active
    Public IsAD
    Public DomainID
@@ -956,6 +957,7 @@ Dim HMAILSERVER_ACCOUNT
 Set HMAILSERVER_ACCOUNT = New HMailServerScriptAccount
 HMAILSERVER_ACCOUNT.ID = {{account.AccountId.ToString(CultureInfo.InvariantCulture)}}
 HMAILSERVER_ACCOUNT.Address = "{{EscapeVbScript(account.Address)}}"
+HMAILSERVER_ACCOUNT.Password = "{{EscapeVbScript(account.Password)}}"
 HMAILSERVER_ACCOUNT.Active = {{(account.Active ? "True" : "False")}}
 HMAILSERVER_ACCOUNT.IsAD = {{(account.IsActiveDirectoryAccount ? "True" : "False")}}
 HMAILSERVER_ACCOUNT.DomainID = {{account.DomainId.ToString(CultureInfo.InvariantCulture)}}
@@ -1101,6 +1103,7 @@ hMailServerRuleScriptFile.Close();
 var HMAILSERVER_ACCOUNT = {
   ID: {{account.AccountId.ToString(CultureInfo.InvariantCulture)}},
   Address: "{{EscapeJScript(account.Address)}}",
+  Password: "{{EscapeJScript(account.Password)}}",
   Active: {{(account.Active ? "true" : "false")}},
   IsAD: {{(account.IsActiveDirectoryAccount ? "true" : "false")}},
   DomainID: {{account.DomainId.ToString(CultureInfo.InvariantCulture)}},

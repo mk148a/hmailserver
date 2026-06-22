@@ -92,6 +92,7 @@ WHERE accountid = @AccountId;
         var account = new ScriptAccount(
             accountId,
             accountAddress,
+            Password: storedPassword,
             Active: reader.GetInt32(5) != 0,
             isActiveDirectoryAccount,
             DomainId: reader.GetInt32(6),

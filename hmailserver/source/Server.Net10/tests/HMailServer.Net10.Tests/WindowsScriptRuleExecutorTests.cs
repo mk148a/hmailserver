@@ -2802,6 +2802,39 @@ End Sub
     }
 
     [TestMethod]
+    public void Execute_VbScriptClientValidatePasswordExposesStoredPassword()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnClientValidatePassword(oAccount, password)
+   If oAccount.Password = "legacy-password-hash" And password = "attempted-secret" Then
+      Result.Value = 0
+   Else
+      Result.Value = 1
+   End If
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest("attempted-secret"),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Accept, result.Decision);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_RunsVbScriptClientValidatePasswordEventLogWrite()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -2888,6 +2921,39 @@ function OnClientValidatePassword(oAccount, password) {
 
             var result = executor.Execute(
                 CreatePasswordValidationRequest("script-secret"),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Accept, result.Decision);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptClientValidatePasswordExposesStoredPassword()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnClientValidatePassword(oAccount, password) {
+  if (oAccount.Password === "legacy-password-hash" && password === "attempted-secret") {
+    Result.Value = 0;
+  } else {
+    Result.Value = 1;
+  }
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript");
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest("attempted-secret"),
                 CancellationToken.None);
 
             Assert.AreEqual(ClientPasswordValidationScriptDecision.Accept, result.Decision);
@@ -3041,6 +3107,7 @@ function OnClientValidatePassword(oAccount, password) {
             account ?? new ScriptAccount(
                 AccountId: 77,
                 Address: "user@example.test",
+                Password: "legacy-password-hash",
                 Active: true,
                 IsActiveDirectoryAccount: false,
                 DomainId: 12,
