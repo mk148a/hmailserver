@@ -67,6 +67,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch ilk parse edilen `From` mailbox'ini legacy 254 karakter/email validator'undan geciriyor; gecersiz veya limit ustu degerleri bos envelope sender'a dusuruyor.
 - External POP3 fetch cozulmus recipient'lari legacy `RecipientParser::AddRecipient_` gibi yalniz case-insensitive final adrese gore tekillestiriyor; ayni mailbox'a giden farkli alias'larda ilkini tutuyor.
 - External POP3 fetch configured MIME recipient listesi topluca parse edilemezse legacy quote/escape-aware comma compound'larina dusuyor; bozuk adres yanindaki gecerli adresi koruyor.
+- External POP3 fetch whitespace-only fakat non-empty MIME recipient-header ayarinda legacy `StdString::IsEmpty()` gibi recipient islemine girip `Received ... for` taramasini koruyor.
 - External POP3 fetch STARTTLS akisi legacy CAPA/STLS davranisina yaklastirildi: optional STARTTLS sadece STLS advertise edilmezse plaintext'e duser, required STARTTLS credentials gondermeden fail eder ve advertise edilip reddedilen STLS iki modda da credentials oncesi fail eder.
 - External POP3 fetch CAPA reddi davranisi legacy ile sabitlendi: optional STARTTLS plaintext'e devam ederken required STARTTLS `USER`/`PASS` oncesi fail eder.
 - External POP3 fetch reddedilen server greeting'inde plain ve STARTTLS modlarinda hicbir istemci komutu veya credential gondermeden fail edecek sekilde legacy ile sabitlendi.
@@ -91,6 +92,7 @@ Son tamamlanan kucuk dilimler:
 - External POP3 fetch 255 karakterlik `From` mailbox'ini envelope sender olarak sizdirmiyor; legacy 254 karakter siniri sonrasi bos sender ile receiver akisina devam ettigi testle sabitlendi.
 - External POP3 fetch iki farkli MIME alias'i ayni `user@example.test` hesabina cozuldugunde receiver'a tek recipient veriyor ve ilk alias'in `OriginalAddress` degerini koruyor.
 - External POP3 fetch `bad@@example.test` yanindaki `"Valid, Recipient" <valid@example.test>` adresini kaybetmiyor; quoted display-name virgulu compound'u bolmeden validator ve receiver'a gecerli adresi tasiyor.
+- External POP3 fetch MIME recipient-header ayari `" "` oldugunda configured token uretmese de lowercase `Received for <alias@example.test>` recipient'ini validator ve receiver'a tasiyor.
 - `HMAILSERVER_MESSAGE.RefreshContent`, script tarafindan message file dogrudan degistirildikten sonra header/body alanlarini yeniden yukleyecek sekilde VBScript/JScript testleriyle sabitlendi.
 - `HMAILSERVER_MESSAGE.FileName`/`Filename` facade'i script assignment sonrasi `Load`/`Save`/`Copy` file I/O'sunu orijinal runner backing path'inde tutacak sekilde legacy `Filename` read-only davranisina yaklastirildi.
 - `HMAILSERVER_MESSAGE.To`/`CC` direct assignment, legacy COM read-only property sekline yaklastirildi; recipient/header mutasyonlari `AddRecipient`, `ClearRecipients`, `Recipients`, ve `HeaderValue` yollarinda kalacak sekilde testlendi.
@@ -124,11 +126,12 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesi baslamadan once bilinen origin head:
 
 ```text
-366d93774 docs(net10): document fetched recipient dedup
+69ad9f457 docs(net10): document fetched recipient recovery
 ```
 
 Son 30 commit icinde one cikan son dilimler:
 
+- `2db4de6cc fix(net10): scan received with blank fetch headers`
 - `eb5a497ef fix(net10): recover valid fetched recipients`
 - `cf8e965f9 fix(net10): deduplicate fetched alias recipients`
 - `12542dfb5 fix(net10): validate external fetch senders`
@@ -297,6 +300,7 @@ Son temiz dogrulama notlari:
 - External fetch sender-validation parity dilimi icin gecerli/255-karakter hedefli testler 2/2 ve dar `ExternalFetchProcessorTests` filtresi 27/27 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 400/400 gecti.
 - External fetch alias-recipient dedup parity dilimi icin alias/duplicate-header hedefli testler 2/2 ve dar `ExternalFetchProcessorTests` filtresi 28/28 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 401/401 gecti.
 - External fetch malformed-neighbor recipient parity dilimi icin quoted-comma hedefli test 1/1 ve dar `ExternalFetchProcessorTests` filtresi 29/29 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 402/402 gecti.
+- External fetch whitespace-header gate parity dilimi icin whitespace/normal hedefli testler 2/2 ve dar `ExternalFetchProcessorTests` filtresi 30/30 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 403/403 gecti.
 
 Terminal/log incelemesi:
 

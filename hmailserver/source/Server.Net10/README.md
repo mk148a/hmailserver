@@ -241,6 +241,8 @@ Resolved external-fetch recipients are deduplicated case-insensitively by their 
 
 If a configured MIME recipient field cannot be parsed as one complete address list, external fetch falls back to the legacy quote- and escape-aware comma compounds and parses each independently. A malformed address therefore does not discard a valid neighboring recipient, and commas inside quoted display names remain part of the same address.
 
+A whitespace-only but non-empty configured MIME recipient-header value follows legacy `StdString::IsEmpty()` behavior: it contributes no configured field names, but `Received ... for` headers are still scanned for recipients.
+
 A rejected external-fetch `RETR` command sends only the legacy `QUIT` cleanup, releases the failed account lease, and does not submit message data or mutate UID/remote-deletion state in plain and optional-STARTTLS plaintext fallback paths.
 
 A truncated external-fetch `RETR` body after a `+OK` response remains fatal, releases the fetch-account lease as failed, and does not submit message data, add UID state, or issue remote delete cleanup.
