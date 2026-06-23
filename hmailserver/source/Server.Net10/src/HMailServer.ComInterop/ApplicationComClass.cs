@@ -41,7 +41,14 @@ public sealed class Application : IInterfaceApplication
         }
     }
 
-    public IInterfaceDomains Domains => NotImplemented<IInterfaceDomains>();
+    public IInterfaceDomains Domains
+    {
+        get
+        {
+            EnsureServerAdministrator();
+            return DomainAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
 
     public ComServerState ServerState => NotImplemented<ComServerState>();
 

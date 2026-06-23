@@ -31,3 +31,29 @@ public enum ComConnectionSecurity
     StartTlsOptional = 2,
     StartTlsRequired = 3
 }
+
+[ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD08")]
+public enum ComDomainSignatureMethod
+{
+    Unknown = 0,
+    SetIfNotSpecifiedInAccount = 1,
+    OverwriteAccountSignature = 2,
+    AppendToAccountSignature = 3
+}
+
+[ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD13")]
+public enum ComDkimCanonicalizationMethod
+{
+    Simple = 1,
+    Relaxed = 2
+}
+
+[ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD14")]
+public enum ComDkimAlgorithm
+{
+    SHA1 = 1,
+    SHA256 = 2
+}

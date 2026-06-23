@@ -2,9 +2,6 @@ using System.Runtime.InteropServices;
 
 namespace HMailServer.ComInterop;
 
-[ComVisible(true), Guid("2CDFD68F-62F2-49CF-A14A-505E7F68EE9C"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceDomains;
-
 [ComVisible(true), Guid("90471F47-FE77-46C7-ADDB-F800B7ED0F66"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceDatabase;
 
@@ -79,3 +76,15 @@ public interface IInterfaceGroups;
 
 [ComVisible(true), Guid("49D48933-3219-4D7E-84D5-B26FE5F0E165"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceIncomingRelays;
+
+[ComVisible(true), Guid("0AD49AE7-05ED-45F2-8D5A-68FC964EB7EA"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceAccounts;
+
+[ComVisible(true), Guid("11AA2C23-66BA-4DE0-92AB-C4F8DCC21D32"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceAliases;
+
+[ComVisible(true), Guid("8F0E22B8-0824-42DF-9260-F8B9ABFA8C61"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceDistributionLists;
+
+[ComVisible(true), Guid("E4100C8D-E956-449C-A96D-261DDC33AE4F"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceDomainAliases;

@@ -672,6 +672,7 @@ builder.Services.AddSingleton<IImapSessionContextProvider>(
             : new ImapSessionContext()));
 builder.Services.AddSingleton<IMessageSearchBackfillStore, SqlServerMessageSearchBackfillStore>();
 builder.Services.AddSingleton<IMessageIndexingAdministrationStore, SqlServerMessageIndexingAdministrationStore>();
+builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
 builder.Services.AddSingleton<StoreBackedMessageIndexingRuntime>();
 builder.Services.AddSingleton<IMessageSearchDocumentSource, MessageFileSearchDocumentSource>();
 builder.Services.AddSingleton<ImapSearchCommandParser>();
@@ -718,6 +719,8 @@ builder.Services.AddHostedService<SmtpTcpListenerHostedService>();
 var host = builder.Build();
 MessageIndexingRuntimeHost.Configure(
     host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());
+DomainAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IDomainAdministrationStore>());
 await host.RunAsync().ConfigureAwait(false);
 
 static bool ReadBool(string? value, bool defaultValue)

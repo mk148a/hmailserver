@@ -68,6 +68,45 @@ public sealed class SqlServerMessageIndexingIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task AuthenticatedComPath_ExecutesDomainLookupAgainstIsolatedDatabase()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateDomainSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            DomainAdministrationRuntimeHost.Configure(
+                new SqlServerDomainAdministrationStore(
+                    new SqlServerConnectionFactory(testConnectionString)));
+            var application = Application.CreateForRuntime(
+                new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
+
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+            var domains = application.Domains;
+
+            Assert.AreEqual(2, domains.Count);
+            Assert.AreEqual("alpha.example", domains[0].Name);
+            Assert.AreEqual("beta.example", domains.get_ItemByName("BETA.EXAMPLE").Name);
+            Assert.IsFalse(domains.get_ItemByDBID(20).Active);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string WithDatabase(string connectionString, string databaseName)
     {
         var builder = new SqlConnectionStringBuilder(connectionString)
@@ -123,6 +162,28 @@ VALUES (1, 2), (2, 2), (3, 3);
 
 INSERT INTO dbo.hm_message_search_documents (messageid)
 VALUES (1);
+""";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task CreateDomainSchemaAndSeedAsync(string connectionString)
+    {
+        const string sql = """
+CREATE TABLE dbo.hm_domains
+(
+    domainid int NOT NULL PRIMARY KEY,
+    domainname nvarchar(80) NOT NULL,
+    domainactive tinyint NOT NULL
+);
+
+INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
+VALUES
+    (20, N'beta.example', 0),
+    (10, N'alpha.example', 1);
 """;
 
         await using var connection = new SqlConnection(connectionString);

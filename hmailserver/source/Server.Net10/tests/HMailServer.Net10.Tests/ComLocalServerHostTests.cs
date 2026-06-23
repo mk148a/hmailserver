@@ -93,6 +93,12 @@ public sealed class ComLocalServerHostTests
         Assert.IsTrue(initializeResult >= 0 || initializeResult == RpcEChangedMode);
 
         MessageIndexingRuntimeHost.Configure(new TestMessageIndexingRuntime(37));
+        DomainAdministrationRuntimeHost.Configure(
+            new TestDomainAdministrationStore(
+                new[]
+                {
+                    new DomainAdministrationSnapshot(10, "alpha.example", true)
+                }));
         var classId = Guid.NewGuid();
         using var host = new ComLocalServerHost(
             new ComLocalServerRegistration(
@@ -125,6 +131,14 @@ public sealed class ComLocalServerHostTests
                 var settings = application.Settings;
                 var messageIndexing = settings.MessageIndexing;
                 Assert.AreEqual(37, messageIndexing.TotalMessageCount);
+                var domains = application.Domains;
+                Assert.AreEqual(1, domains.Count);
+                Assert.AreEqual("alpha.example", domains[0].Name);
+
+                if (Marshal.IsComObject(domains))
+                {
+                    Marshal.FinalReleaseComObject(domains);
+                }
 
                 if (Marshal.IsComObject(messageIndexing))
                 {
@@ -249,5 +263,13 @@ public sealed class ComLocalServerHostTests
         public void Clear() { }
         public void Index() { }
         public void Rebuild() { }
+    }
+
+    private sealed class TestDomainAdministrationStore(IReadOnlyList<DomainAdministrationSnapshot> domains)
+        : IDomainAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(domains);
     }
 }

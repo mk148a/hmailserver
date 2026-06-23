@@ -96,6 +96,27 @@ public sealed class ApplicationComContractTests
     }
 
     [TestMethod]
+    public void Application_DomainsPreserveAdministratorBoundaryAndUseConfiguredRuntime()
+    {
+        DomainAdministrationRuntimeHost.Configure(
+            new FixedDomainAdministrationStore(
+                new[]
+                {
+                    new DomainAdministrationSnapshot(10, "alpha.example", true)
+                }));
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+
+        var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Domains);
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var domains = application.Domains;
+
+        Assert.AreEqual(1, domains.Count);
+        Assert.AreEqual("alpha.example", domains[0].Name);
+    }
+
+    [TestMethod]
     public void Application_EmptyAdministratorPasswordPreservesLegacyAnonymousAccess()
     {
         var application = new Application(new RecordingAdministratorAuthenticationProvider(string.Empty));
@@ -132,5 +153,13 @@ public sealed class ApplicationComContractTests
         public bool Authenticate(string username, string attemptedPassword) =>
             username.Equals("Administrator", StringComparison.OrdinalIgnoreCase)
             && attemptedPassword == password;
+    }
+
+    private sealed class FixedDomainAdministrationStore(IReadOnlyList<DomainAdministrationSnapshot> domains)
+        : IDomainAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(domains);
     }
 }
