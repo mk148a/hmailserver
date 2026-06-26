@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using HMailServer.Core.Abstractions;
 
 namespace HMailServer.ComInterop;
 
@@ -13,6 +14,7 @@ public sealed class Account : IInterfaceAccount
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly bool _attached;
+    private readonly AccountAdministrationSnapshot? _administrationSnapshot;
     private bool _active;
     private string _activeDirectoryDomain = string.Empty;
     private string _address = string.Empty;
@@ -50,37 +52,61 @@ public sealed class Account : IInterfaceAccount
         _adminLevel = adminLevel;
     }
 
-    public bool Active { get => Read(_active); set { EnsureAttached(); _active = value; } }
+    private Account(AccountAdministrationSnapshot administrationSnapshot)
+    {
+        _attached = true;
+        _administrationSnapshot = administrationSnapshot;
+    }
 
-    public string ADDomain { get => Read(_activeDirectoryDomain); set { EnsureAttached(); _activeDirectoryDomain = value; } }
+    public bool Active
+    {
+        get => _administrationSnapshot?.Active ?? Read(_active);
+        set => Write(() => _active = value);
+    }
 
-    public string Address { get => Read(_address); set { EnsureAttached(); _address = value; } }
+    public string ADDomain { get => Read(_activeDirectoryDomain); set => Write(() => _activeDirectoryDomain = value); }
 
-    public int DomainID { get => Read(_domainId); set { EnsureAttached(); _domainId = value; } }
+    public string Address
+    {
+        get => _administrationSnapshot?.Address ?? Read(_address);
+        set => Write(() => _address = value);
+    }
 
-    public int ID => Read(0);
+    public int DomainID
+    {
+        get => _administrationSnapshot?.DomainId ?? Read(_domainId);
+        set => Write(() => _domainId = value);
+    }
 
-    public bool IsAD { get => Read(_isActiveDirectoryAccount); set { EnsureAttached(); _isActiveDirectoryAccount = value; } }
+    public int ID => _administrationSnapshot?.Id ?? Read(0);
 
-    public string Password { get => Read(_password); set { EnsureAttached(); _password = value; } }
+    public bool IsAD { get => Read(_isActiveDirectoryAccount); set => Write(() => _isActiveDirectoryAccount = value); }
+
+    public string Password { get => Read(_password); set => Write(() => _password = value); }
 
     public float Size => Read(0f);
 
-    public string ADUsername { get => Read(_activeDirectoryUsername); set { EnsureAttached(); _activeDirectoryUsername = value; } }
+    public string ADUsername { get => Read(_activeDirectoryUsername); set => Write(() => _activeDirectoryUsername = value); }
 
     public IInterfaceMessages Messages => NotImplemented<IInterfaceMessages>();
 
-    public int MaxSize { get => Read(_maxSize); set { EnsureAttached(); _maxSize = value; } }
+    public int MaxSize { get => Read(_maxSize); set => Write(() => _maxSize = value); }
 
-    public bool VacationMessageIsOn { get => Read(_vacationMessageIsOn); set { EnsureAttached(); _vacationMessageIsOn = value; } }
+    public bool VacationMessageIsOn { get => Read(_vacationMessageIsOn); set => Write(() => _vacationMessageIsOn = value); }
 
-    public string VacationMessage { get => Read(_vacationMessage); set { EnsureAttached(); _vacationMessage = value; } }
+    public string VacationMessage { get => Read(_vacationMessage); set => Write(() => _vacationMessage = value); }
 
-    public string VacationSubject { get => Read(_vacationSubject); set { EnsureAttached(); _vacationSubject = value; } }
+    public string VacationSubject { get => Read(_vacationSubject); set => Write(() => _vacationSubject = value); }
 
     public IInterfaceFetchAccounts FetchAccounts => NotImplemented<IInterfaceFetchAccounts>();
 
-    public ComAdminLevel AdminLevel { get => Read(_adminLevel); set { EnsureAttached(); _adminLevel = value; } }
+    public ComAdminLevel AdminLevel
+    {
+        get => _administrationSnapshot is { } account
+            ? (ComAdminLevel)account.AdminLevel
+            : Read(_adminLevel);
+        set => Write(() => _adminLevel = value);
+    }
 
     public IInterfaceRules Rules => NotImplemented<IInterfaceRules>();
 
@@ -88,34 +114,36 @@ public sealed class Account : IInterfaceAccount
 
     public int QuotaUsed => Read(0);
 
-    public bool ForwardEnabled { get => Read(_forwardEnabled); set { EnsureAttached(); _forwardEnabled = value; } }
+    public bool ForwardEnabled { get => Read(_forwardEnabled); set => Write(() => _forwardEnabled = value); }
 
-    public string ForwardAddress { get => Read(_forwardAddress); set { EnsureAttached(); _forwardAddress = value; } }
+    public string ForwardAddress { get => Read(_forwardAddress); set => Write(() => _forwardAddress = value); }
 
-    public bool ForwardKeepOriginal { get => Read(_forwardKeepOriginal); set { EnsureAttached(); _forwardKeepOriginal = value; } }
+    public bool ForwardKeepOriginal { get => Read(_forwardKeepOriginal); set => Write(() => _forwardKeepOriginal = value); }
 
-    public bool SignatureEnabled { get => Read(_signatureEnabled); set { EnsureAttached(); _signatureEnabled = value; } }
+    public bool SignatureEnabled { get => Read(_signatureEnabled); set => Write(() => _signatureEnabled = value); }
 
-    public string SignaturePlainText { get => Read(_signaturePlainText); set { EnsureAttached(); _signaturePlainText = value; } }
+    public string SignaturePlainText { get => Read(_signaturePlainText); set => Write(() => _signaturePlainText = value); }
 
-    public string SignatureHTML { get => Read(_signatureHtml); set { EnsureAttached(); _signatureHtml = value; } }
+    public string SignatureHTML { get => Read(_signatureHtml); set => Write(() => _signatureHtml = value); }
 
     public object LastLogonTime => Read(_lastLogonTime);
 
-    public bool VacationMessageExpires { get => Read(_vacationMessageExpires); set { EnsureAttached(); _vacationMessageExpires = value; } }
+    public bool VacationMessageExpires { get => Read(_vacationMessageExpires); set => Write(() => _vacationMessageExpires = value); }
 
-    public string VacationMessageExpiresDate { get => Read(_vacationMessageExpiresDate); set { EnsureAttached(); _vacationMessageExpiresDate = value; } }
+    public string VacationMessageExpiresDate { get => Read(_vacationMessageExpiresDate); set => Write(() => _vacationMessageExpiresDate = value); }
 
-    public string PersonFirstName { get => Read(_personFirstName); set { EnsureAttached(); _personFirstName = value; } }
+    public string PersonFirstName { get => Read(_personFirstName); set => Write(() => _personFirstName = value); }
 
-    public string PersonLastName { get => Read(_personLastName); set { EnsureAttached(); _personLastName = value; } }
+    public string PersonLastName { get => Read(_personLastName); set => Write(() => _personLastName = value); }
 
-    public bool VacationMessageAbortSpamFlagged { get => Read(_vacationMessageAbortSpamFlagged); set { EnsureAttached(); _vacationMessageAbortSpamFlagged = value; } }
+    public bool VacationMessageAbortSpamFlagged { get => Read(_vacationMessageAbortSpamFlagged); set => Write(() => _vacationMessageAbortSpamFlagged = value); }
 
-    public bool ForwardAbortSpamFlagged { get => Read(_forwardAbortSpamFlagged); set { EnsureAttached(); _forwardAbortSpamFlagged = value; } }
+    public bool ForwardAbortSpamFlagged { get => Read(_forwardAbortSpamFlagged); set => Write(() => _forwardAbortSpamFlagged = value); }
 
     internal static Account CreateServerAdministrator() =>
         new("Administrator", ComAdminLevel.ServerAdministrator);
+
+    internal static Account CreateAuthorized(AccountAdministrationSnapshot account) => new(account);
 
     public void Save() => NotImplemented();
 
@@ -124,6 +152,11 @@ public sealed class Account : IInterfaceAccount
     public bool ValidatePassword(string password)
     {
         EnsureAttached();
+        if (_administrationSnapshot is not null)
+        {
+            throw new COMException("This Account member is not implemented by the .NET 10 rewrite.", ENotImplemented);
+        }
+
         return false;
     }
 
@@ -134,7 +167,23 @@ public sealed class Account : IInterfaceAccount
     private T Read<T>(T value)
     {
         EnsureAttached();
+        if (_administrationSnapshot is not null)
+        {
+            throw new COMException("This Account member is not implemented by the .NET 10 rewrite.", ENotImplemented);
+        }
+
         return value;
+    }
+
+    private void Write(Action assign)
+    {
+        EnsureAttached();
+        if (_administrationSnapshot is not null)
+        {
+            throw new COMException("This Account member is not implemented by the .NET 10 rewrite.", ENotImplemented);
+        }
+
+        assign();
     }
 
     private void EnsureAttached()

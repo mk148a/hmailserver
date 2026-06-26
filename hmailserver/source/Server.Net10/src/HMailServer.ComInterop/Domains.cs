@@ -420,6 +420,9 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         set => DomainComAuthorization.Unavailable(this);
     }
 
+    public override IInterfaceAccounts Accounts =>
+        AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+
     internal static Domain CreateAuthorized(DomainAdministrationSnapshot domain) => new(domain);
 
     void IDomainAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
@@ -449,7 +452,7 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public void Save() => Unavailable();
     public virtual int ID => Unavailable<int>();
     public virtual bool Active { get => Unavailable<bool>(); set => Unavailable(); }
-    public IInterfaceAccounts Accounts => Unavailable<IInterfaceAccounts>();
+    public virtual IInterfaceAccounts Accounts => Unavailable<IInterfaceAccounts>();
     public void Delete() => Unavailable();
     public IInterfaceAliases Aliases => Unavailable<IInterfaceAliases>();
     public IInterfaceDistributionLists DistributionLists => Unavailable<IInterfaceDistributionLists>();

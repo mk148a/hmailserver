@@ -77,9 +77,6 @@ public interface IInterfaceGroups;
 [ComVisible(true), Guid("49D48933-3219-4D7E-84D5-B26FE5F0E165"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceIncomingRelays;
 
-[ComVisible(true), Guid("0AD49AE7-05ED-45F2-8D5A-68FC964EB7EA"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceAccounts;
-
 [ComVisible(true), Guid("11AA2C23-66BA-4DE0-92AB-C4F8DCC21D32"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceAliases;
 

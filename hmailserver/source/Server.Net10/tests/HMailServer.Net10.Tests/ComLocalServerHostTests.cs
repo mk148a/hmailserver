@@ -99,6 +99,12 @@ public sealed class ComLocalServerHostTests
                 {
                     new DomainAdministrationSnapshot(10, "alpha.example", true)
                 }));
+        AccountAdministrationRuntimeHost.Configure(
+            new TestAccountAdministrationStore(
+                new[]
+                {
+                    new AccountAdministrationSnapshot(20, 10, "admin@alpha.example", true, 2)
+                }));
         var classId = Guid.NewGuid();
         using var host = new ComLocalServerHost(
             new ComLocalServerRegistration(
@@ -134,6 +140,14 @@ public sealed class ComLocalServerHostTests
                 var domains = application.Domains;
                 Assert.AreEqual(1, domains.Count);
                 Assert.AreEqual("alpha.example", domains[0].Name);
+                var accounts = domains[0].Accounts;
+                Assert.AreEqual(1, accounts.Count);
+                Assert.AreEqual("admin@alpha.example", accounts[0].Address);
+
+                if (Marshal.IsComObject(accounts))
+                {
+                    Marshal.FinalReleaseComObject(accounts);
+                }
 
                 if (Marshal.IsComObject(domains))
                 {
@@ -271,5 +285,15 @@ public sealed class ComLocalServerHostTests
         public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(domains);
+    }
+
+    private sealed class TestAccountAdministrationStore(IReadOnlyList<AccountAdministrationSnapshot> accounts)
+        : IAccountAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
+                accounts.Where(account => account.DomainId == domainId).ToArray());
     }
 }

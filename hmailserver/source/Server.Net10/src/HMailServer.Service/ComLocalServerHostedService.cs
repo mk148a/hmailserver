@@ -26,6 +26,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Domain).GUID,
                 static () => new Domain()),
             new ComLocalServerRegistration(
+                typeof(Accounts).GUID,
+                static () => new Accounts()),
+            new ComLocalServerRegistration(
+                typeof(Account).GUID,
+                static () => new Account()),
+            new ComLocalServerRegistration(
                 typeof(MessageIndexing).GUID,
                 static () => new MessageIndexing()));
     }
