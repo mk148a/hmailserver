@@ -121,13 +121,11 @@ public sealed class DistributionListsComContractTests
         var badIndex = Assert.ThrowsExactly<COMException>(() => _ = lists[2]);
         var badAddress = Assert.ThrowsExactly<COMException>(() => _ = lists.get_ItemByAddress("missing@example.test"));
         var pendingRefresh = Assert.ThrowsExactly<COMException>(lists.Refresh);
-        var pendingRecipients = Assert.ThrowsExactly<COMException>(() => _ = lists[0].Recipients);
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => lists[0].Address = "changed@example.test");
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badAddress.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingRecipients.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
     }
 

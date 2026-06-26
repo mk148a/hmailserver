@@ -123,6 +123,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "DistributionListRecipients",
+            "{AB59F3C1-4904-4F1D-883A-4BFC699A7D0B}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "DistributionListRecipient",
+            "{0886D5D8-4C1C-46F1-BC7B-EEDC9FE9DFFA}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "MessageIndexing",
             "{5F414F73-8E29-4E51-86F2-13C12EF9227A}",
             executablePath,

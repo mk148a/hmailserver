@@ -97,16 +97,6 @@ public interface IInterfaceDistributionList
 }
 
 [ComVisible(true)]
-[Guid("F8759D53-9D91-47EA-A8C2-A9AF151E1FD4")]
-[InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceDistributionListRecipients;
-
-[ComVisible(true)]
-[Guid("6DD90CB4-5E1E-45C8-9748-28A020A13E4D")]
-[InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceDistributionListRecipient;
-
-[ComVisible(true)]
 [Guid("C3DD0A4A-0551-442F-859A-76AAB92A6CF1")]
 [ProgId("hMailServer.DistributionLists.1")]
 [ClassInterface(ClassInterfaceType.None)]
@@ -229,7 +219,8 @@ public sealed class DistributionList : IInterfaceDistributionList
         set => Unavailable();
     }
 
-    public IInterfaceDistributionListRecipients Recipients => Unavailable<IInterfaceDistributionListRecipients>();
+    public IInterfaceDistributionListRecipients Recipients =>
+        DistributionListRecipientAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
     public string Address
     {

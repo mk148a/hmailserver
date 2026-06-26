@@ -124,6 +124,15 @@ public sealed class ComLocalServerHostTests
                         string.Empty,
                         (int)ComDistributionListMode.Public)
                 }));
+        DistributionListRecipientAdministrationRuntimeHost.Configure(
+            new TestDistributionListRecipientAdministrationStore(
+                new[]
+                {
+                    new DistributionListRecipientAdministrationSnapshot(
+                        50,
+                        40,
+                        "admin@alpha.example")
+                }));
         var classId = Guid.NewGuid();
         using var host = new ComLocalServerHost(
             new ComLocalServerRegistration(
@@ -168,6 +177,14 @@ public sealed class ComLocalServerHostTests
                 var distributionLists = domains[0].DistributionLists;
                 Assert.AreEqual(1, distributionLists.Count);
                 Assert.AreEqual("announce@alpha.example", distributionLists[0].Address);
+                var recipients = distributionLists[0].Recipients;
+                Assert.AreEqual(1, recipients.Count);
+                Assert.AreEqual("admin@alpha.example", recipients[0].RecipientAddress);
+
+                if (Marshal.IsComObject(recipients))
+                {
+                    Marshal.FinalReleaseComObject(recipients);
+                }
 
                 if (Marshal.IsComObject(distributionLists))
                 {
@@ -351,5 +368,16 @@ public sealed class ComLocalServerHostTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<DistributionListAdministrationSnapshot>>(
                 distributionLists.Where(list => list.DomainId == domainId).ToArray());
+    }
+
+    private sealed class TestDistributionListRecipientAdministrationStore(
+        IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients)
+        : IDistributionListRecipientAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
+            int distributionListId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>(
+                recipients.Where(recipient => recipient.ListId == distributionListId).ToArray());
     }
 }

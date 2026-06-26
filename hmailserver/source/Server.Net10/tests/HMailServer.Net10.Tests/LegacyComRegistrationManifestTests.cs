@@ -69,6 +69,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "DistributionListRecipients",
+            "{AB59F3C1-4904-4F1D-883A-4BFC699A7D0B}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "DistributionListRecipient",
+            "{0886D5D8-4C1C-46F1-BC7B-EEDC9FE9DFFA}",
+            executablePath);
+        AssertClass(
+            manifest,
             "MessageIndexing",
             "{5F414F73-8E29-4E51-86F2-13C12EF9227A}",
             executablePath);
@@ -123,6 +133,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.DistributionLists",
                 @"hMailServer.DistributionList.1",
                 @"hMailServer.DistributionList",
+                @"hMailServer.DistributionListRecipients.1",
+                @"hMailServer.DistributionListRecipients",
+                @"hMailServer.DistributionListRecipient.1",
+                @"hMailServer.DistributionListRecipient",
                 @"hMailServer.MessageIndexing.1",
                 @"hMailServer.MessageIndexing",
                 @"CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}",
@@ -135,6 +149,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{335CE9E1-32C5-4CB0-8BF6-CB925196E4D6}",
                 @"CLSID\{C3DD0A4A-0551-442F-859A-76AAB92A6CF1}",
                 @"CLSID\{990D27ED-86CE-4DCB-B1C1-1E130C07F918}",
+                @"CLSID\{AB59F3C1-4904-4F1D-883A-4BFC699A7D0B}",
+                @"CLSID\{0886D5D8-4C1C-46F1-BC7B-EEDC9FE9DFFA}",
                 @"CLSID\{5F414F73-8E29-4E51-86F2-13C12EF9227A}",
                 @"AppID\{5EDEC473-39E0-43F6-A234-1947071721C8}",
                 @"AppID\hMailServer.EXE",

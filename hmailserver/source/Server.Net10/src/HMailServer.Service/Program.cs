@@ -676,6 +676,7 @@ builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdminis
 builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdministrationStore>();
 builder.Services.AddSingleton<IAliasAdministrationStore, SqlServerAliasAdministrationStore>();
 builder.Services.AddSingleton<IDistributionListAdministrationStore, SqlServerDistributionListAdministrationStore>();
+builder.Services.AddSingleton<IDistributionListRecipientAdministrationStore, SqlServerDistributionListRecipientAdministrationStore>();
 builder.Services.AddSingleton<StoreBackedMessageIndexingRuntime>();
 builder.Services.AddSingleton<IMessageSearchDocumentSource, MessageFileSearchDocumentSource>();
 builder.Services.AddSingleton<ImapSearchCommandParser>();
@@ -730,6 +731,8 @@ AliasAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IAliasAdministrationStore>());
 DistributionListAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDistributionListAdministrationStore>());
+DistributionListRecipientAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IDistributionListRecipientAdministrationStore>());
 await host.RunAsync().ConfigureAwait(false);
 
 static bool ReadBool(string? value, bool defaultValue)

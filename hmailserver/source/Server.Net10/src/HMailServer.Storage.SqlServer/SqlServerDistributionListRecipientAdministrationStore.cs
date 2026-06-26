@@ -1,0 +1,51 @@
+using System.Data;
+using HMailServer.Core.Abstractions;
+using Microsoft.Data.SqlClient;
+
+namespace HMailServer.Storage.SqlServer;
+
+public sealed class SqlServerDistributionListRecipientAdministrationStore
+    : IDistributionListRecipientAdministrationStore
+{
+    public const string GetRecipientsSql = """
+SELECT
+    distributionlistrecipientid,
+    distributionlistrecipientlistid,
+    distributionlistrecipientaddress
+FROM hm_distributionlistsrecipients
+WHERE distributionlistrecipientlistid = @DistributionListID
+ORDER BY distributionlistrecipientaddress ASC;
+""";
+
+    private readonly SqlServerConnectionFactory _connectionFactory;
+
+    public SqlServerDistributionListRecipientAdministrationStore(SqlServerConnectionFactory connectionFactory)
+    {
+        ArgumentNullException.ThrowIfNull(connectionFactory);
+        _connectionFactory = connectionFactory;
+    }
+
+    public async ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
+        int distributionListId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(GetRecipientsSql, connection);
+        command.Parameters.Add("@DistributionListID", SqlDbType.Int).Value = distributionListId;
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+
+        var recipients = new List<DistributionListRecipientAdministrationSnapshot>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            recipients.Add(
+                new DistributionListRecipientAdministrationSnapshot(
+                    Id: reader.GetInt32(0),
+                    ListId: reader.GetInt32(1),
+                    Address: reader.GetString(2)));
+        }
+
+        return recipients;
+    }
+}

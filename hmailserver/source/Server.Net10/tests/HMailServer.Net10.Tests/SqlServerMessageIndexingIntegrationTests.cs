@@ -213,6 +213,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             DomainAdministrationRuntimeHost.Configure(new SqlServerDomainAdministrationStore(connectionFactory));
             DistributionListAdministrationRuntimeHost.Configure(
                 new SqlServerDistributionListAdministrationStore(connectionFactory));
+            DistributionListRecipientAdministrationRuntimeHost.Configure(
+                new SqlServerDistributionListRecipientAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -230,6 +232,10 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("owner@example.test", lists.get_ItemByDBID(20).RequireSenderAddress);
             Assert.IsFalse(lists.get_ItemByDBID(20).Active);
             Assert.AreEqual(ComDistributionListMode.Membership, lists.get_ItemByDBID(20).Mode);
+            var recipients = lists.get_ItemByDBID(20).Recipients;
+            Assert.AreEqual(2, recipients.Count);
+            Assert.AreEqual("alpha@example.test", recipients[0].RecipientAddress);
+            Assert.AreEqual("zeta@example.test", recipients.get_ItemByDBID(200).RecipientAddress);
         }
         finally
         {
@@ -418,6 +424,13 @@ CREATE TABLE dbo.hm_distributionlists
     distributionlistmode tinyint NOT NULL
 );
 
+CREATE TABLE dbo.hm_distributionlistsrecipients
+(
+    distributionlistrecipientid int NOT NULL PRIMARY KEY,
+    distributionlistrecipientlistid int NOT NULL,
+    distributionlistrecipientaddress nvarchar(255) NOT NULL
+);
+
 INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
 VALUES
     (10, N'example.test', 1),
@@ -430,6 +443,13 @@ VALUES
     (20, 10, N'members@example.test', 0, 1, N'owner@example.test', 1),
     (10, 10, N'announce@example.test', 1, 0, N'', 0),
     (30, 30, N'outside@other.test', 1, 0, N'', 0);
+
+INSERT INTO dbo.hm_distributionlistsrecipients
+    (distributionlistrecipientid, distributionlistrecipientlistid, distributionlistrecipientaddress)
+VALUES
+    (200, 20, N'zeta@example.test'),
+    (100, 20, N'alpha@example.test'),
+    (300, 30, N'outside-member@other.test');
 """;
 
         await using var connection = new SqlConnection(connectionString);
