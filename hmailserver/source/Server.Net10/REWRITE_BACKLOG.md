@@ -314,6 +314,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: preserve the legacy `Aliases` and `Alias` COM vtable/identity contracts, register their hosted class identities, expose authenticated `Domain -> Aliases` count/index/name/id lookup from existing `hm_aliases` SQL data, keep direct activation access-denied, and leave alias mutations explicit `E_NOTIMPL`.
    - Done: preserve the legacy `DistributionLists` and `DistributionList` COM vtable/identity contracts, register their hosted class identities, expose authenticated `Domain -> DistributionLists` count/index/address/id lookup and read-only list scalars from existing `hm_distributionlists` SQL data, keep direct activation access-denied, and leave list mutations explicit `E_NOTIMPL`.
    - Done: preserve the legacy `DistributionListRecipients` and `DistributionListRecipient` COM vtable/identity contracts, register their hosted class identities, expose authenticated `DistributionList -> Recipients` count/index/id lookup and read-only recipient address from existing `hm_distributionlistsrecipients` SQL data, keep direct activation access-denied, and leave recipient mutations explicit `E_NOTIMPL`.
+   - Done: preserve the legacy `DomainAliases` and `DomainAlias` COM vtable/identity contracts, register their hosted class identities, expose authenticated `Domain -> DomainAliases` count/index/id lookup and read-only alias/domain-id scalars from existing `hm_domain_aliases` SQL data, keep direct activation access-denied, and leave domain-alias mutations explicit `E_NOTIMPL`.
    - Remaining: implement the database-backed Administrator object model in bounded slices.
 
 7. Migration, operations, and observability.
@@ -329,4 +330,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue the Administrator object model with a bounded read-only `Domain -> DomainAliases` slice: preserve the legacy `DomainAliases` and `DomainAlias` collection/object identity and dispatch contracts, then expose only authenticated count/item/id lookup and read-only alias/domain-id scalars for a selected domain from existing `hm_domain_aliases` SQL data. Keep domain-alias mutations explicit `E_NOTIMPL` until their own tested slice.
+Continue the Administrator object model with a bounded read-only `Domain` core-scalar slice: extend the existing authenticated SQL-backed `Domain` snapshot only for high-value detail-screen scalar fields already present in `hm_domains` (for example postmaster plus quota/limit enable/value fields), while preserving the existing legacy `Domain` dispatch contract and keeping scalar mutations plus non-core fields explicit `E_NOTIMPL`.
