@@ -111,6 +111,12 @@ public sealed class ComLocalServerHostTests
                 {
                     new AliasAdministrationSnapshot(30, 10, "abuse@alpha.example", "admin@alpha.example", true)
                 }));
+        DomainAliasAdministrationRuntimeHost.Configure(
+            new TestDomainAliasAdministrationStore(
+                new[]
+                {
+                    new DomainAliasAdministrationSnapshot(35, 10, "alias.alpha.example")
+                }));
         DistributionListAdministrationRuntimeHost.Configure(
             new TestDistributionListAdministrationStore(
                 new[]
@@ -174,6 +180,9 @@ public sealed class ComLocalServerHostTests
                 var aliases = domains[0].Aliases;
                 Assert.AreEqual(1, aliases.Count);
                 Assert.AreEqual("abuse@alpha.example", aliases[0].Name);
+                var domainAliases = domains[0].DomainAliases;
+                Assert.AreEqual(1, domainAliases.Count);
+                Assert.AreEqual("alias.alpha.example", domainAliases[0].AliasName);
                 var distributionLists = domains[0].DistributionLists;
                 Assert.AreEqual(1, distributionLists.Count);
                 Assert.AreEqual("announce@alpha.example", distributionLists[0].Address);
@@ -189,6 +198,11 @@ public sealed class ComLocalServerHostTests
                 if (Marshal.IsComObject(distributionLists))
                 {
                     Marshal.FinalReleaseComObject(distributionLists);
+                }
+
+                if (Marshal.IsComObject(domainAliases))
+                {
+                    Marshal.FinalReleaseComObject(domainAliases);
                 }
 
                 if (Marshal.IsComObject(aliases))
@@ -356,6 +370,16 @@ public sealed class ComLocalServerHostTests
             int domainId,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<AliasAdministrationSnapshot>>(
+                aliases.Where(alias => alias.DomainId == domainId).ToArray());
+    }
+
+    private sealed class TestDomainAliasAdministrationStore(IReadOnlyList<DomainAliasAdministrationSnapshot> aliases)
+        : IDomainAliasAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DomainAliasAdministrationSnapshot>> GetDomainAliasesAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DomainAliasAdministrationSnapshot>>(
                 aliases.Where(alias => alias.DomainId == domainId).ToArray());
     }
 

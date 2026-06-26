@@ -244,6 +244,46 @@ public sealed class SqlServerMessageIndexingIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task AuthenticatedComPath_ExecutesDomainAliasLookupAgainstIsolatedDatabase()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateDomainAndDomainAliasSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
+            DomainAdministrationRuntimeHost.Configure(new SqlServerDomainAdministrationStore(connectionFactory));
+            DomainAliasAdministrationRuntimeHost.Configure(new SqlServerDomainAliasAdministrationStore(connectionFactory));
+            var application = Application.CreateForRuntime(
+                new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
+
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+            var domain = application.Domains.get_ItemByName("example.test");
+            var aliases = domain.DomainAliases;
+
+            Assert.AreEqual(2, aliases.Count);
+            Assert.AreEqual("alias-one.test", aliases[0].AliasName);
+            Assert.AreEqual(10, aliases[0].DomainID);
+            Assert.AreEqual("alias-two.test", aliases.get_ItemByDBID(20).AliasName);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string WithDatabase(string connectionString, string databaseName)
     {
         var builder = new SqlConnectionStringBuilder(connectionString)
@@ -450,6 +490,41 @@ VALUES
     (200, 20, N'zeta@example.test'),
     (100, 20, N'alpha@example.test'),
     (300, 30, N'outside-member@other.test');
+""";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task CreateDomainAndDomainAliasSchemaAndSeedAsync(string connectionString)
+    {
+        const string sql = """
+CREATE TABLE dbo.hm_domains
+(
+    domainid int NOT NULL PRIMARY KEY,
+    domainname nvarchar(80) NOT NULL,
+    domainactive tinyint NOT NULL
+);
+
+CREATE TABLE dbo.hm_domain_aliases
+(
+    daid int NOT NULL PRIMARY KEY,
+    dadomainid int NOT NULL,
+    daalias nvarchar(255) NOT NULL
+);
+
+INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
+VALUES
+    (10, N'example.test', 1),
+    (30, N'other.test', 1);
+
+INSERT INTO dbo.hm_domain_aliases (daid, dadomainid, daalias)
+VALUES
+    (20, 10, N'alias-two.test'),
+    (10, 10, N'alias-one.test'),
+    (30, 30, N'outside.test');
 """;
 
         await using var connection = new SqlConnection(connectionString);

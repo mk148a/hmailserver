@@ -1,0 +1,158 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
+
+namespace HMailServer.Net10.Tests;
+
+[TestClass]
+public sealed class DomainAliasesComContractTests
+{
+    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ENotImplemented = unchecked((int)0x80004001);
+    private const int DispEBadIndex = unchecked((int)0x8002000B);
+
+    [TestMethod]
+    public void Interfaces_PreserveLegacyIidsDispatchIdsAndCompleteVtableOrder()
+    {
+        AssertContract(
+            typeof(IInterfaceDomainAliases),
+            "E4100C8D-E956-449C-A96D-261DDC33AE4F",
+            new[]
+            {
+                "get_Item", "get_Count", "get_ItemByDBID", "Refresh", "Delete",
+                "DeleteByDBID", "Add"
+            });
+        Assert.AreEqual(
+            0,
+            typeof(IInterfaceDomainAliases).GetProperty("Item")?.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(
+            6,
+            typeof(IInterfaceDomainAliases).GetMethod("Add")?.GetCustomAttribute<DispIdAttribute>()?.Value);
+
+        AssertContract(
+            typeof(IInterfaceDomainAlias),
+            "8FD251D8-AAF1-4143-B185-E6C1BF281826",
+            new[]
+            {
+                "get_ID", "get_AliasName", "set_AliasName", "get_DomainID", "set_DomainID",
+                "Save", "Delete"
+            });
+        Assert.AreEqual(
+            2,
+            typeof(IInterfaceDomainAlias).GetProperty(nameof(IInterfaceDomainAlias.AliasName))
+                ?.GetCustomAttribute<DispIdAttribute>()?.Value);
+    }
+
+    [TestMethod]
+    public void ComClasses_PreserveLegacyIdentitiesAndDefaultInterfaces()
+    {
+        AssertComClass<DomainAliases>(
+            "DC25B3AD-0360-49CA-AD4B-06FA42B9DF04",
+            "hMailServer.DomainAliases.1",
+            typeof(IInterfaceDomainAliases));
+        AssertComClass<DomainAlias>(
+            "D0061C74-5588-4796-B564-FE5DE85495DC",
+            "hMailServer.DomainAlias.1",
+            typeof(IInterfaceDomainAlias));
+    }
+
+    [TestMethod]
+    public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
+    {
+        var aliasesError = Assert.ThrowsExactly<COMException>(() => _ = new DomainAliases().Count);
+        var aliasError = Assert.ThrowsExactly<COMException>(() => _ = new DomainAlias().AliasName);
+
+        Assert.AreEqual(EAccessDenied, aliasesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, aliasError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ExposesOnlyReadOnlySnapshotAndLegacyLookupErrors()
+    {
+        IInterfaceDomainAliases aliases = DomainAliases.CreateAuthorized(
+            new[]
+            {
+                new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test"),
+                new DomainAliasAdministrationSnapshot(20, 100, "alias-two.test")
+            });
+
+        Assert.AreEqual(2, aliases.Count);
+        AssertDomainAlias(aliases[0], 10, 100, "alias-one.test");
+        AssertDomainAlias(aliases.get_ItemByDBID(20), 20, 100, "alias-two.test");
+
+        var badIndex = Assert.ThrowsExactly<COMException>(() => _ = aliases[2]);
+        var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = aliases.get_ItemByDBID(30));
+        var pendingRefresh = Assert.ThrowsExactly<COMException>(aliases.Refresh);
+        var pendingDelete = Assert.ThrowsExactly<COMException>(() => aliases.Delete(0));
+        var pendingMutation = Assert.ThrowsExactly<COMException>(() => aliases[0].AliasName = "changed.test");
+
+        Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
+    }
+
+    [TestMethod]
+    public void DomainAliases_UsesConfiguredRuntimeForSelectedDomain()
+    {
+        DomainAliasAdministrationRuntimeHost.Configure(
+            new FixedDomainAliasAdministrationStore(
+                new[]
+                {
+                    new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test"),
+                    new DomainAliasAdministrationSnapshot(20, 200, "outside.test")
+                }));
+        var domain = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true));
+
+        var aliases = domain.DomainAliases;
+
+        Assert.AreEqual(1, aliases.Count);
+        Assert.AreEqual("alias-one.test", aliases[0].AliasName);
+    }
+
+    private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
+    {
+        Assert.AreEqual(new Guid(interfaceId), contract.GUID);
+        Assert.AreEqual(ComInterfaceType.InterfaceIsDual, contract.GetCustomAttribute<InterfaceTypeAttribute>()?.Value);
+        Assert.AreEqual(
+            TypeLibTypeFlags.FDual | TypeLibTypeFlags.FNonExtensible | TypeLibTypeFlags.FDispatchable,
+            contract.GetCustomAttribute<TypeLibTypeAttribute>()?.Value);
+        CollectionAssert.AreEqual(
+            methodNames,
+            contract.GetMethods().OrderBy(static method => method.MetadataToken).Select(static method => method.Name).ToArray());
+    }
+
+    private static void AssertComClass<T>(string classId, string progId, Type defaultInterface)
+    {
+        var type = typeof(T);
+
+        Assert.AreEqual(new Guid(classId), type.GUID);
+        Assert.AreEqual(progId, type.GetCustomAttribute<ProgIdAttribute>()?.Value);
+        Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
+        Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
+        Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    private static void AssertDomainAlias(
+        IInterfaceDomainAlias alias,
+        int id,
+        int domainId,
+        string aliasName)
+    {
+        Assert.AreEqual(id, alias.ID);
+        Assert.AreEqual(domainId, alias.DomainID);
+        Assert.AreEqual(aliasName, alias.AliasName);
+    }
+
+    private sealed class FixedDomainAliasAdministrationStore(IReadOnlyList<DomainAliasAdministrationSnapshot> aliases)
+        : IDomainAliasAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DomainAliasAdministrationSnapshot>> GetDomainAliasesAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DomainAliasAdministrationSnapshot>>(
+                aliases.Where(alias => alias.DomainId == domainId).ToArray());
+    }
+}

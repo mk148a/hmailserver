@@ -50,6 +50,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(DistributionListRecipient).GUID,
                 static () => new DistributionListRecipient()),
             new ComLocalServerRegistration(
+                typeof(DomainAliases).GUID,
+                static () => new DomainAliases()),
+            new ComLocalServerRegistration(
+                typeof(DomainAlias).GUID,
+                static () => new DomainAlias()),
+            new ComLocalServerRegistration(
                 typeof(MessageIndexing).GUID,
                 static () => new MessageIndexing()));
     }

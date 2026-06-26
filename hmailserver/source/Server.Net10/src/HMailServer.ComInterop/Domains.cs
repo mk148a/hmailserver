@@ -429,6 +429,9 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     public override IInterfaceDistributionLists DistributionLists =>
         DistributionListAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
+    public override IInterfaceDomainAliases DomainAliases =>
+        DomainAliasAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+
     internal static Domain CreateAuthorized(DomainAdministrationSnapshot domain) => new(domain);
 
     void IDomainAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
@@ -463,7 +466,7 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public virtual IInterfaceAliases Aliases => Unavailable<IInterfaceAliases>();
     public virtual IInterfaceDistributionLists DistributionLists => Unavailable<IInterfaceDistributionLists>();
     public string Postmaster { get => Unavailable<string>(); set => Unavailable(); }
-    public IInterfaceDomainAliases DomainAliases => Unavailable<IInterfaceDomainAliases>();
+    public virtual IInterfaceDomainAliases DomainAliases => Unavailable<IInterfaceDomainAliases>();
     public string ADDomainName { get => Unavailable<string>(); set => Unavailable(); }
     public void SynchronizeDirectory() => Unavailable();
     public int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
