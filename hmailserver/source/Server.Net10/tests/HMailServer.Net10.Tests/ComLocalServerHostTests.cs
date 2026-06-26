@@ -105,6 +105,12 @@ public sealed class ComLocalServerHostTests
                 {
                     new AccountAdministrationSnapshot(20, 10, "admin@alpha.example", true, 2)
                 }));
+        AliasAdministrationRuntimeHost.Configure(
+            new TestAliasAdministrationStore(
+                new[]
+                {
+                    new AliasAdministrationSnapshot(30, 10, "abuse@alpha.example", "admin@alpha.example", true)
+                }));
         var classId = Guid.NewGuid();
         using var host = new ComLocalServerHost(
             new ComLocalServerRegistration(
@@ -143,6 +149,14 @@ public sealed class ComLocalServerHostTests
                 var accounts = domains[0].Accounts;
                 Assert.AreEqual(1, accounts.Count);
                 Assert.AreEqual("admin@alpha.example", accounts[0].Address);
+                var aliases = domains[0].Aliases;
+                Assert.AreEqual(1, aliases.Count);
+                Assert.AreEqual("abuse@alpha.example", aliases[0].Name);
+
+                if (Marshal.IsComObject(aliases))
+                {
+                    Marshal.FinalReleaseComObject(aliases);
+                }
 
                 if (Marshal.IsComObject(accounts))
                 {
@@ -295,5 +309,15 @@ public sealed class ComLocalServerHostTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
                 accounts.Where(account => account.DomainId == domainId).ToArray());
+    }
+
+    private sealed class TestAliasAdministrationStore(IReadOnlyList<AliasAdministrationSnapshot> aliases)
+        : IAliasAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<AliasAdministrationSnapshot>> GetAliasesAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AliasAdministrationSnapshot>>(
+                aliases.Where(alias => alias.DomainId == domainId).ToArray());
     }
 }

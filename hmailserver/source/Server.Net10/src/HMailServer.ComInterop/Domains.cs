@@ -423,6 +423,9 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     public override IInterfaceAccounts Accounts =>
         AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
+    public override IInterfaceAliases Aliases =>
+        AliasAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+
     internal static Domain CreateAuthorized(DomainAdministrationSnapshot domain) => new(domain);
 
     void IDomainAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
@@ -454,7 +457,7 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public virtual bool Active { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual IInterfaceAccounts Accounts => Unavailable<IInterfaceAccounts>();
     public void Delete() => Unavailable();
-    public IInterfaceAliases Aliases => Unavailable<IInterfaceAliases>();
+    public virtual IInterfaceAliases Aliases => Unavailable<IInterfaceAliases>();
     public IInterfaceDistributionLists DistributionLists => Unavailable<IInterfaceDistributionLists>();
     public string Postmaster { get => Unavailable<string>(); set => Unavailable(); }
     public IInterfaceDomainAliases DomainAliases => Unavailable<IInterfaceDomainAliases>();
