@@ -191,6 +191,53 @@ public sealed class SqlServerMessageIndexingIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task AuthenticatedComPath_ExecutesDistributionListLookupAgainstIsolatedDatabase()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateDomainAndDistributionListSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
+            DomainAdministrationRuntimeHost.Configure(new SqlServerDomainAdministrationStore(connectionFactory));
+            DistributionListAdministrationRuntimeHost.Configure(
+                new SqlServerDistributionListAdministrationStore(connectionFactory));
+            var application = Application.CreateForRuntime(
+                new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
+
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+            var domain = application.Domains.get_ItemByName("example.test");
+            var lists = domain.DistributionLists;
+
+            Assert.AreEqual(2, lists.Count);
+            Assert.AreEqual("announce@example.test", lists[0].Address);
+            Assert.AreEqual(10, lists[0].ID);
+            Assert.IsTrue(lists[0].Active);
+            Assert.IsFalse(lists[0].RequireSMTPAuth);
+            Assert.AreEqual(ComDistributionListMode.Public, lists[0].Mode);
+            Assert.AreEqual("members@example.test", lists.get_ItemByAddress("MEMBERS@EXAMPLE.TEST").Address);
+            Assert.AreEqual("owner@example.test", lists.get_ItemByDBID(20).RequireSenderAddress);
+            Assert.IsFalse(lists.get_ItemByDBID(20).Active);
+            Assert.AreEqual(ComDistributionListMode.Membership, lists.get_ItemByDBID(20).Mode);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string WithDatabase(string connectionString, string databaseName)
     {
         var builder = new SqlConnectionStringBuilder(connectionString)
@@ -342,6 +389,47 @@ VALUES
     (20, 10, N'sales@example.test', N'user@example.test', 0),
     (10, 10, N'abuse@example.test', N'admin@example.test', 1),
     (30, 30, N'outside@other.test', N'outside-target@other.test', 1);
+""";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task CreateDomainAndDistributionListSchemaAndSeedAsync(string connectionString)
+    {
+        const string sql = """
+CREATE TABLE dbo.hm_domains
+(
+    domainid int NOT NULL PRIMARY KEY,
+    domainname nvarchar(80) NOT NULL,
+    domainactive tinyint NOT NULL
+);
+
+CREATE TABLE dbo.hm_distributionlists
+(
+    distributionlistid int NOT NULL PRIMARY KEY,
+    distributionlistdomainid int NOT NULL,
+    distributionlistaddress nvarchar(255) NOT NULL,
+    distributionlistenabled tinyint NOT NULL,
+    distributionlistrequireauth tinyint NOT NULL,
+    distributionlistrequireaddress nvarchar(255) NOT NULL,
+    distributionlistmode tinyint NOT NULL
+);
+
+INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
+VALUES
+    (10, N'example.test', 1),
+    (30, N'other.test', 1);
+
+INSERT INTO dbo.hm_distributionlists
+    (distributionlistid, distributionlistdomainid, distributionlistaddress, distributionlistenabled,
+     distributionlistrequireauth, distributionlistrequireaddress, distributionlistmode)
+VALUES
+    (20, 10, N'members@example.test', 0, 1, N'owner@example.test', 1),
+    (10, 10, N'announce@example.test', 1, 0, N'', 0),
+    (30, 30, N'outside@other.test', 1, 0, N'', 0);
 """;
 
         await using var connection = new SqlConnection(connectionString);

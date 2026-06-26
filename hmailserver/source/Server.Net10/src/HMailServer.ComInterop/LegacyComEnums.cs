@@ -57,3 +57,14 @@ public enum ComDkimAlgorithm
     SHA1 = 1,
     SHA256 = 2
 }
+
+[ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD06")]
+public enum ComDistributionListMode
+{
+    Public = 0,
+    Membership = 1,
+    Announcement = 2,
+    DomainMembers = 3,
+    ServerMembers = 4
+}

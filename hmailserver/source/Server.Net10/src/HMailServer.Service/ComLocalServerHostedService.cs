@@ -38,6 +38,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Alias).GUID,
                 static () => new Alias()),
             new ComLocalServerRegistration(
+                typeof(DistributionLists).GUID,
+                static () => new DistributionLists()),
+            new ComLocalServerRegistration(
+                typeof(DistributionList).GUID,
+                static () => new DistributionList()),
+            new ComLocalServerRegistration(
                 typeof(MessageIndexing).GUID,
                 static () => new MessageIndexing()));
     }

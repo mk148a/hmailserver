@@ -111,6 +111,19 @@ public sealed class ComLocalServerHostTests
                 {
                     new AliasAdministrationSnapshot(30, 10, "abuse@alpha.example", "admin@alpha.example", true)
                 }));
+        DistributionListAdministrationRuntimeHost.Configure(
+            new TestDistributionListAdministrationStore(
+                new[]
+                {
+                    new DistributionListAdministrationSnapshot(
+                        40,
+                        10,
+                        "announce@alpha.example",
+                        true,
+                        false,
+                        string.Empty,
+                        (int)ComDistributionListMode.Public)
+                }));
         var classId = Guid.NewGuid();
         using var host = new ComLocalServerHost(
             new ComLocalServerRegistration(
@@ -152,6 +165,14 @@ public sealed class ComLocalServerHostTests
                 var aliases = domains[0].Aliases;
                 Assert.AreEqual(1, aliases.Count);
                 Assert.AreEqual("abuse@alpha.example", aliases[0].Name);
+                var distributionLists = domains[0].DistributionLists;
+                Assert.AreEqual(1, distributionLists.Count);
+                Assert.AreEqual("announce@alpha.example", distributionLists[0].Address);
+
+                if (Marshal.IsComObject(distributionLists))
+                {
+                    Marshal.FinalReleaseComObject(distributionLists);
+                }
 
                 if (Marshal.IsComObject(aliases))
                 {
@@ -319,5 +340,16 @@ public sealed class ComLocalServerHostTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<AliasAdministrationSnapshot>>(
                 aliases.Where(alias => alias.DomainId == domainId).ToArray());
+    }
+
+    private sealed class TestDistributionListAdministrationStore(
+        IReadOnlyList<DistributionListAdministrationSnapshot> distributionLists)
+        : IDistributionListAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DistributionListAdministrationSnapshot>> GetDistributionListsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DistributionListAdministrationSnapshot>>(
+                distributionLists.Where(list => list.DomainId == domainId).ToArray());
     }
 }
