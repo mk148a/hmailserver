@@ -311,6 +311,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: add explicit opt-in SQL Server integration coverage that creates/drops an isolated database and exercises the authenticated `Application -> Settings -> MessageIndexing` status, enable, queue, clear, and index path against the real store.
    - Done: preserve the full legacy `Domains` and `Domain` COM vtable/identity contracts, register their hosted class identities, expose authenticated `Application -> Domains` count/index/name/id lookup from existing `hm_domains` SQL data, keep direct child activation access-denied, and leave mutations plus nested collections explicit `E_NOTIMPL`.
    - Done: preserve the legacy `Accounts` collection COM vtable/identity contract, register the hosted `Accounts`/`Account` identities, expose authenticated `Domain -> Accounts` count/index/address/id lookup from existing `hm_accounts` SQL data, keep direct activation access-denied, and leave account mutations plus deeper child collections explicit `E_NOTIMPL`.
+   - Done: preserve the legacy `Aliases` and `Alias` COM vtable/identity contracts, register their hosted class identities, expose authenticated `Domain -> Aliases` count/index/name/id lookup from existing `hm_aliases` SQL data, keep direct activation access-denied, and leave alias mutations explicit `E_NOTIMPL`.
    - Remaining: implement the database-backed Administrator object model in bounded slices.
 
 7. Migration, operations, and observability.
@@ -326,4 +327,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue the Administrator object model with a bounded read-only `Domain -> Aliases` slice: preserve the legacy `Aliases` and `Alias` collection/object identity and dispatch contracts, then expose only authenticated alias count/item/name/id lookup for a selected domain from existing SQL data. Keep alias mutations and deeper object behavior explicit `E_NOTIMPL` until their own tested slices.
+Continue the Administrator object model with a bounded read-only `Domain -> DistributionLists` slice: preserve the legacy `DistributionLists` and `DistributionList` collection/object identity and dispatch contracts, then expose only authenticated list count/item/address/id lookup for a selected domain from existing SQL data. Keep list mutations, recipients, and deeper object behavior explicit `E_NOTIMPL` until their own tested slices.
