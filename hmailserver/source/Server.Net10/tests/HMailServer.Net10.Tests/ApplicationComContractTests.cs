@@ -117,6 +117,31 @@ public sealed class ApplicationComContractTests
     }
 
     [TestMethod]
+    public void Application_RulesPreserveAdministratorBoundaryAndUseConfiguredGlobalRuntime()
+    {
+        RuleAdministrationRuntimeHost.Configure(
+            new FixedRuleAdministrationStore(
+                new[]
+                {
+                    new RuleAdministrationSnapshot(10, 0, "Global first", true, true, 1),
+                    new RuleAdministrationSnapshot(20, 100, "Account rule", true, true, 1),
+                    new RuleAdministrationSnapshot(30, 0, "Global second", false, false, 2)
+                }));
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+
+        var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Rules);
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var rules = application.Rules;
+
+        Assert.AreEqual(2, rules.Count);
+        Assert.AreEqual("Global first", rules[0].Name);
+        Assert.AreEqual(0, rules[0].AccountID);
+        Assert.AreEqual("Global second", rules.get_ItemByDBID(30).Name);
+    }
+
+    [TestMethod]
     public void Application_EmptyAdministratorPasswordPreservesLegacyAnonymousAccess()
     {
         var application = new Application(new RecordingAdministratorAuthenticationProvider(string.Empty));
@@ -161,5 +186,15 @@ public sealed class ApplicationComContractTests
         public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(domains);
+    }
+
+    private sealed class FixedRuleAdministrationStore(IReadOnlyList<RuleAdministrationSnapshot> rules)
+        : IRuleAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetRulesAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
+                rules.Where(rule => rule.AccountId == accountId).OrderBy(rule => rule.SortOrder).ToArray());
     }
 }

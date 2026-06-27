@@ -62,7 +62,14 @@ public sealed class Application : IInterfaceApplication
 
     public string InitializationFile => NotImplemented<string>();
 
-    public IInterfaceRules Rules => NotImplemented<IInterfaceRules>();
+    public IInterfaceRules Rules
+    {
+        get
+        {
+            EnsureServerAdministrator();
+            return RuleAdministrationRuntimeHost.CreateAuthorizedAdapter(accountId: 0);
+        }
+    }
 
     public IInterfaceBackupManager BackupManager => NotImplemented<IInterfaceBackupManager>();
 

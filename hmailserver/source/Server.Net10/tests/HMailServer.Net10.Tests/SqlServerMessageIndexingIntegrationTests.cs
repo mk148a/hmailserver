@@ -194,6 +194,14 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsFalse(rules.get_ItemByDBID(300).Active);
             var pendingCriterias = Assert.ThrowsExactly<COMException>(() => _ = rules[0].Criterias);
             Assert.AreEqual(unchecked((int)0x80004001), pendingCriterias.ErrorCode);
+            var globalRules = application.Rules;
+            Assert.AreEqual(2, globalRules.Count);
+            Assert.AreEqual("Global first", globalRules[0].Name);
+            Assert.AreEqual(0, globalRules[0].AccountID);
+            Assert.IsTrue(globalRules[0].Active);
+            Assert.IsTrue(globalRules[0].UseAND);
+            Assert.AreEqual("Global second", globalRules.get_ItemByDBID(150).Name);
+            Assert.IsFalse(globalRules.get_ItemByDBID(150).Active);
             var folders = accounts[0].IMAPFolders;
             Assert.AreEqual(2, folders.Count);
             Assert.AreEqual(100, folders[0].ID);
@@ -627,6 +635,8 @@ VALUES
 INSERT INTO dbo.hm_rules
     (ruleid, ruleaccountid, rulename, ruleactive, ruleuseand, rulesortorder)
 VALUES
+    (150, 0, N'Global second', 0, 0, 2),
+    (100, 0, N'Global first', 1, 1, 1),
     (300, 10, N'Second rule', 0, 0, 2),
     (200, 10, N'First rule', 1, 1, 1),
     (400, 20, N'User rule', 1, 1, 1);
