@@ -153,6 +153,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 new SqlServerTcpIpPortAdministrationStore(connectionFactory));
             SslCertificateAdministrationRuntimeHost.Configure(
                 new SqlServerSslCertificateAdministrationStore(connectionFactory));
+            ServerMessageAdministrationRuntimeHost.Configure(
+                new SqlServerServerMessageAdministrationStore(connectionFactory));
             GroupAdministrationRuntimeHost.Configure(
                 new SqlServerGroupAdministrationStore(connectionFactory));
             GroupMemberAdministrationRuntimeHost.Configure(
@@ -280,6 +282,14 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 securityRanges.get_ItemByDBID(300).ExpiresTime);
             var pendingSecurityRangeSave = Assert.ThrowsExactly<COMException>(securityRanges[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingSecurityRangeSave.ErrorCode);
+            var serverMessages = application.Settings.ServerMessages;
+            Assert.AreEqual(2, serverMessages.Count);
+            Assert.AreEqual("MESSAGE_UNDELIVERABLE", serverMessages[0].Name);
+            Assert.AreEqual("Message undeliverable", serverMessages[0].Text);
+            Assert.AreEqual("VIRUS_FOUND", serverMessages.get_ItemByDBID(951).Name);
+            Assert.AreEqual(950, serverMessages.get_ItemByName("message_undeliverable").ID);
+            var pendingServerMessageSave = Assert.ThrowsExactly<COMException>(serverMessages[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingServerMessageSave.ErrorCode);
             var tcpIpPorts = application.Settings.TCPIPPorts;
             Assert.AreEqual(2, tcpIpPorts.Count);
             Assert.AreEqual(25, tcpIpPorts[0].PortNumber);
@@ -702,6 +712,13 @@ CREATE TABLE dbo.hm_tcpipports
     portsslcertificateid bigint NOT NULL
 );
 
+CREATE TABLE dbo.hm_servermessages
+(
+    smid int NOT NULL PRIMARY KEY,
+    smname nvarchar(255) NOT NULL,
+    smtext nvarchar(max) NOT NULL
+);
+
 CREATE TABLE dbo.hm_sslcertificates
 (
     sslcertificateid bigint NOT NULL PRIMARY KEY,
@@ -814,6 +831,11 @@ INSERT INTO dbo.hm_tcpipports
 VALUES
     (901, 5, 143, 2130706433, NULL, 3, 0),
     (900, 1, 25, 0, NULL, 1, 123);
+
+INSERT INTO dbo.hm_servermessages (smid, smname, smtext)
+VALUES
+    (951, N'VIRUS_FOUND', N'Virus found'),
+    (950, N'MESSAGE_UNDELIVERABLE', N'Message undeliverable');
 
 INSERT INTO dbo.hm_sslcertificates
     (sslcertificateid, sslcertificatename, sslcertificatefile, sslprivatekeyfile)

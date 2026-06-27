@@ -56,8 +56,5 @@ public interface IInterfaceBackupSettings;
 [ComVisible(true), Guid("998A7E66-21FA-47CC-9DB4-81822F2D05C9"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceAntiSpam;
 
-[ComVisible(true), Guid("0E90D7D8-0144-4021-9240-8CB9CC6F7628"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceServerMessages;
-
 [ComVisible(true), Guid("48B534F3-2C4E-47F6-8CB0-339676B0ABF3"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceDirectories;

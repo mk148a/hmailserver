@@ -179,6 +179,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "ServerMessages",
+            "{379F1428-A4C9-4D43-9745-AEABF8950755}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "ServerMessage",
+            "{561076C6-9174-43D3-B889-CFCC42E3AE5E}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "TCPIPPorts",
             "{225808B4-6F03-4750-843F-3150EB1C357F}",
             executablePath,

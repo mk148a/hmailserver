@@ -68,6 +68,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(SecurityRange).GUID,
                 static () => new SecurityRange()),
             new ComLocalServerRegistration(
+                typeof(ServerMessages).GUID,
+                static () => new ServerMessages()),
+            new ComLocalServerRegistration(
+                typeof(ServerMessage).GUID,
+                static () => new ServerMessage()),
+            new ComLocalServerRegistration(
                 typeof(TCPIPPorts).GUID,
                 static () => new TCPIPPorts()),
             new ComLocalServerRegistration(
