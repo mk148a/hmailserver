@@ -452,6 +452,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceSecurityRanges SecurityRanges
+    {
+        get
+        {
+            EnsureAuthorized();
+            return SecurityRangeAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
+
     public override IInterfaceRoutes Routes
     {
         get
@@ -501,7 +510,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public bool AllowSMTPAuthPlain { get => Unavailable<bool>(); set => Unavailable(); }
     public bool DenyMailFromNull { get => Unavailable<bool>(); set => Unavailable(); }
     public IInterfaceLogging Logging => Unavailable<IInterfaceLogging>();
-    public IInterfaceSecurityRanges SecurityRanges => Unavailable<IInterfaceSecurityRanges>();
+    public virtual IInterfaceSecurityRanges SecurityRanges => Unavailable<IInterfaceSecurityRanges>();
     public int SMTPNoOfTries { get => Unavailable<int>(); set => Unavailable(); }
     public int SMTPMinutesBetweenTry { get => Unavailable<int>(); set => Unavailable(); }
     public string SMTPRelayer { get => Unavailable<string>(); set => Unavailable(); }

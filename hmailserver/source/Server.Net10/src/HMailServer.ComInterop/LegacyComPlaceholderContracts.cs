@@ -38,9 +38,6 @@ public interface IInterfaceIMAPFolderPermissions;
 [ComVisible(true), Guid("AAD8A0DF-2963-4C5B-A906-6B07B9CC0643"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceLogging;
 
-[ComVisible(true), Guid("3F0053E1-2328-452F-855D-87FF63E06BE0"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceSecurityRanges;
-
 [ComVisible(true), Guid("952EE84F-C1D4-4869-8B86-76A3BA8F39FA"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceAntiVirus;
 

@@ -99,6 +99,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "SecurityRanges",
+            "{60A752A2-1197-4841-ADD4-CE922873E794}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "SecurityRange",
+            "{B149383D-151C-4585-99F8-71876D0F14C4}",
+            executablePath);
+        AssertClass(
+            manifest,
             "TCPIPPorts",
             "{225808B4-6F03-4750-843F-3150EB1C357F}",
             executablePath);
@@ -215,6 +225,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.IncomingRelays",
                 @"hMailServer.IncomingRelay.1",
                 @"hMailServer.IncomingRelay",
+                @"hMailServer.SecurityRanges.1",
+                @"hMailServer.SecurityRanges",
+                @"hMailServer.SecurityRange.1",
+                @"hMailServer.SecurityRange",
                 @"hMailServer.TCPIPPorts.1",
                 @"hMailServer.TCPIPPorts",
                 @"hMailServer.TCPIPPort.1",
@@ -253,6 +267,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{3FF9BB08-7924-4418-BADA-7D959467D51B}",
                 @"CLSID\{3E75EE53-EAA6-40A5-B2CE-9CB8D7EE9278}",
                 @"CLSID\{CB3F5F58-436C-4358-8E1C-1BE1F6D822BC}",
+                @"CLSID\{60A752A2-1197-4841-ADD4-CE922873E794}",
+                @"CLSID\{B149383D-151C-4585-99F8-71876D0F14C4}",
                 @"CLSID\{225808B4-6F03-4750-843F-3150EB1C357F}",
                 @"CLSID\{556DF811-3E02-4106-BCA6-C75996825E9A}",
                 @"CLSID\{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",

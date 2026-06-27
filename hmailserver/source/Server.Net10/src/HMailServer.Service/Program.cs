@@ -679,6 +679,7 @@ builder.Services.AddSingleton<IRuleAdministrationStore, SqlServerRuleAdministrat
 builder.Services.AddSingleton<IImapFolderAdministrationStore, SqlServerImapFolderAdministrationStore>();
 builder.Services.AddSingleton<IRouteAdministrationStore, SqlServerRouteAdministrationStore>();
 builder.Services.AddSingleton<IIncomingRelayAdministrationStore, SqlServerIncomingRelayAdministrationStore>();
+builder.Services.AddSingleton<ISecurityRangeAdministrationStore, SqlServerSecurityRangeAdministrationStore>();
 builder.Services.AddSingleton<ITcpIpPortAdministrationStore, SqlServerTcpIpPortAdministrationStore>();
 builder.Services.AddSingleton<IAliasAdministrationStore, SqlServerAliasAdministrationStore>();
 builder.Services.AddSingleton<IDistributionListAdministrationStore, SqlServerDistributionListAdministrationStore>();
@@ -744,6 +745,8 @@ RouteAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IRouteAdministrationStore>());
 IncomingRelayAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IIncomingRelayAdministrationStore>());
+SecurityRangeAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<ISecurityRangeAdministrationStore>());
 TcpIpPortAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<ITcpIpPortAdministrationStore>());
 AliasAdministrationRuntimeHost.Configure(

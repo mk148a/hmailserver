@@ -165,6 +165,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "SecurityRanges",
+            "{60A752A2-1197-4841-ADD4-CE922873E794}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "SecurityRange",
+            "{B149383D-151C-4585-99F8-71876D0F14C4}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "TCPIPPorts",
             "{225808B4-6F03-4750-843F-3150EB1C357F}",
             executablePath,

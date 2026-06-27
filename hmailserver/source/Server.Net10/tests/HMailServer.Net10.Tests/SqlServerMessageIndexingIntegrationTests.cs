@@ -147,6 +147,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             RouteAdministrationRuntimeHost.Configure(new SqlServerRouteAdministrationStore(connectionFactory));
             IncomingRelayAdministrationRuntimeHost.Configure(
                 new SqlServerIncomingRelayAdministrationStore(connectionFactory));
+            SecurityRangeAdministrationRuntimeHost.Configure(
+                new SqlServerSecurityRangeAdministrationStore(connectionFactory));
             TcpIpPortAdministrationRuntimeHost.Configure(
                 new SqlServerTcpIpPortAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
@@ -252,6 +254,26 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(800, incomingRelays.get_ItemByDBID(800).ID);
             var pendingRelaySave = Assert.ThrowsExactly<COMException>(incomingRelays[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRelaySave.ErrorCode);
+            var securityRanges = application.Settings.SecurityRanges;
+            Assert.AreEqual(3, securityRanges.Count);
+            Assert.AreEqual("My computer", securityRanges[0].Name);
+            Assert.AreEqual("127.0.0.1", securityRanges[0].LowerIP);
+            Assert.AreEqual("127.0.0.1", securityRanges[0].UpperIP);
+            Assert.AreEqual(30, securityRanges[0].Priority);
+            Assert.IsTrue(securityRanges[0].AllowSMTPConnections);
+            Assert.IsTrue(securityRanges[0].AllowPOP3Connections);
+            Assert.IsTrue(securityRanges[0].AllowIMAPConnections);
+            Assert.IsTrue(securityRanges[0].RequireSSLTLSForAuth);
+            Assert.IsFalse(securityRanges[0].Expires);
+            Assert.AreEqual("0.0.0.0", securityRanges.get_ItemByName("internet").LowerIP);
+            Assert.IsFalse(securityRanges.get_ItemByName("internet").AllowPOP3Connections);
+            Assert.AreEqual("Auto-ban", securityRanges.get_ItemByDBID(300).Name);
+            Assert.IsTrue(securityRanges.get_ItemByDBID(300).Expires);
+            Assert.AreEqual(
+                new DateTime(2026, 8, 1, 3, 4, 5),
+                securityRanges.get_ItemByDBID(300).ExpiresTime);
+            var pendingSecurityRangeSave = Assert.ThrowsExactly<COMException>(securityRanges[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingSecurityRangeSave.ErrorCode);
             var tcpIpPorts = application.Settings.TCPIPPorts;
             Assert.AreEqual(2, tcpIpPorts.Count);
             Assert.AreEqual(25, tcpIpPorts[0].PortNumber);
@@ -627,6 +649,20 @@ CREATE TABLE dbo.hm_incoming_relays
     relayupperip2 bigint NULL
 );
 
+CREATE TABLE dbo.hm_securityranges
+(
+    rangeid int NOT NULL PRIMARY KEY,
+    rangename nvarchar(100) NOT NULL,
+    rangepriorityid int NOT NULL,
+    rangelowerip1 bigint NOT NULL,
+    rangelowerip2 bigint NULL,
+    rangeupperip1 bigint NOT NULL,
+    rangeupperip2 bigint NULL,
+    rangeoptions int NOT NULL,
+    rangeexpires tinyint NOT NULL,
+    rangeexpirestime datetime NOT NULL
+);
+
 CREATE TABLE dbo.hm_tcpipports
 (
     portid int NOT NULL PRIMARY KEY,
@@ -714,6 +750,14 @@ INSERT INTO dbo.hm_incoming_relays
 VALUES
     (800, N'Beta relay', 167772160, NULL, 167772415, NULL),
     (700, N'Alpha relay', 2130706433, NULL, 2130706433, NULL);
+
+INSERT INTO dbo.hm_securityranges
+    (rangeid, rangename, rangepriorityid, rangelowerip1, rangelowerip2,
+     rangeupperip1, rangeupperip2, rangeoptions, rangeexpires, rangeexpirestime)
+VALUES
+    (200, N'Internet', 10, 0, NULL, 4294967295, NULL, 1, 0, CONVERT(datetime, '2001-01-01T00:00:00', 126)),
+    (100, N'My computer', 30, 2130706433, NULL, 2130706433, NULL, 260043, 0, CONVERT(datetime, '2001-01-01T00:00:00', 126)),
+    (300, N'Auto-ban', 100, 167772161, NULL, 167772161, NULL, 0, 1, CONVERT(datetime, '2026-08-01T03:04:05', 126));
 
 INSERT INTO dbo.hm_tcpipports
     (portid, portprotocol, portnumber, portaddress1, portaddress2,
