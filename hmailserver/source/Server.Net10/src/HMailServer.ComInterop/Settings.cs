@@ -452,6 +452,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceRoutes Routes
+    {
+        get
+        {
+            EnsureAuthorized();
+            return RouteAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
+
     internal static Settings CreateAuthorized() => new(authorized: true);
 
     void ISettingsAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
@@ -486,7 +495,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public bool ServiceIMAP { get => Unavailable<bool>(); set => Unavailable(); }
     public int MaxDeliveryThreads { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceAntiVirus AntiVirus => Unavailable<IInterfaceAntiVirus>();
-    public IInterfaceRoutes Routes => Unavailable<IInterfaceRoutes>();
+    public virtual IInterfaceRoutes Routes => Unavailable<IInterfaceRoutes>();
     public string HostName { get => Unavailable<string>(); set => Unavailable(); }
     public bool SMTPRelayerRequiresAuthentication { get => Unavailable<bool>(); set => Unavailable(); }
     public string SMTPRelayerUsername { get => Unavailable<string>(); set => Unavailable(); }

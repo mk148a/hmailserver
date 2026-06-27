@@ -44,8 +44,8 @@ public interface IInterfaceSecurityRanges;
 [ComVisible(true), Guid("952EE84F-C1D4-4869-8B86-76A3BA8F39FA"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceAntiVirus;
 
-[ComVisible(true), Guid("111F318A-C087-4091-BD1F-4226230EE513"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceRoutes;
+[ComVisible(true), Guid("315BF27F-F832-4FBE-83FE-1C5A5011FAC7"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceRouteAddresses;
 
 [ComVisible(true), Guid("B1EA04C0-B0B7-4638-80E4-41278CEF8C19"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceScripting;

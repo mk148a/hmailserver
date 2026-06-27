@@ -677,6 +677,7 @@ builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdmin
 builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAccountAdministrationStore>();
 builder.Services.AddSingleton<IRuleAdministrationStore, SqlServerRuleAdministrationStore>();
 builder.Services.AddSingleton<IImapFolderAdministrationStore, SqlServerImapFolderAdministrationStore>();
+builder.Services.AddSingleton<IRouteAdministrationStore, SqlServerRouteAdministrationStore>();
 builder.Services.AddSingleton<IAliasAdministrationStore, SqlServerAliasAdministrationStore>();
 builder.Services.AddSingleton<IDistributionListAdministrationStore, SqlServerDistributionListAdministrationStore>();
 builder.Services.AddSingleton<IDistributionListRecipientAdministrationStore, SqlServerDistributionListRecipientAdministrationStore>();
@@ -737,6 +738,8 @@ RuleAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IRuleAdministrationStore>());
 ImapFolderAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IImapFolderAdministrationStore>());
+RouteAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IRouteAdministrationStore>());
 AliasAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IAliasAdministrationStore>());
 DistributionListAdministrationRuntimeHost.Configure(

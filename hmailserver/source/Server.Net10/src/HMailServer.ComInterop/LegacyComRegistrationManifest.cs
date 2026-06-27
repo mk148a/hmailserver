@@ -137,6 +137,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "Routes",
+            "{7D174A9D-D44C-4627-BE78-E5DDC513C31F}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "Route",
+            "{3FF9BB08-7924-4418-BADA-7D959467D51B}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath,

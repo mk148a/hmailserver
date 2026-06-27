@@ -144,6 +144,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             FetchAccountAdministrationRuntimeHost.Configure(new SqlServerFetchAccountAdministrationStore(connectionFactory));
             RuleAdministrationRuntimeHost.Configure(new SqlServerRuleAdministrationStore(connectionFactory));
             ImapFolderAdministrationRuntimeHost.Configure(new SqlServerImapFolderAdministrationStore(connectionFactory));
+            RouteAdministrationRuntimeHost.Configure(new SqlServerRouteAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -211,6 +212,25 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(1, publicFolders.Count);
             Assert.AreEqual(50, publicFolders[0].ID);
             Assert.AreEqual("Public", publicFolders[0].Name);
+            var routes = application.Settings.Routes;
+            Assert.AreEqual(2, routes.Count);
+            Assert.AreEqual("alpha.route.test", routes[0].DomainName);
+            Assert.AreEqual("smtp.alpha.route.test", routes[0].TargetSMTPHost);
+            Assert.AreEqual(2525, routes[0].TargetSMTPPort);
+            Assert.AreEqual(4, routes[0].NumberOfTries);
+            Assert.AreEqual(15, routes[0].MinutesBetweenTry);
+            Assert.IsTrue(routes[0].AllAddresses);
+            Assert.IsTrue(routes[0].RelayerRequiresAuth);
+            Assert.AreEqual("relay-user", routes[0].RelayerAuthUsername);
+            Assert.IsTrue(routes[0].TreatSecurityAsLocalDomain);
+            Assert.IsTrue(routes[0].TreatRecipientAsLocalDomain);
+            Assert.IsFalse(routes[0].TreatSenderAsLocalDomain);
+            Assert.IsTrue(routes[0].UseSSL);
+            Assert.AreEqual(ComConnectionSecurity.Tls, routes[0].ConnectionSecurity);
+            Assert.AreEqual("Beta route", routes.get_ItemByName("BETA.ROUTE.TEST").Description);
+            Assert.AreEqual(600, routes.get_ItemByDBID(600).ID);
+            var pendingRouteAddresses = Assert.ThrowsExactly<COMException>(() => _ = routes[0].Addresses);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingRouteAddresses.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -545,6 +565,24 @@ CREATE TABLE dbo.hm_imapfolders
     foldercurrentuid bigint NOT NULL
 );
 
+CREATE TABLE dbo.hm_routes
+(
+    routeid int NOT NULL PRIMARY KEY,
+    routedomainname nvarchar(255) NOT NULL,
+    routedescription nvarchar(255) NOT NULL,
+    routetargetsmthost nvarchar(255) NOT NULL,
+    routetargetsmtport int NOT NULL,
+    routenooftries int NOT NULL,
+    routeminutesbetweentry int NOT NULL,
+    routealladdresses tinyint NOT NULL,
+    routeuseauthentication tinyint NOT NULL,
+    routeauthenticationusername nvarchar(255) NOT NULL,
+    routeauthenticationpassword nvarchar(255) NOT NULL,
+    routetreatsecurityaslocal tinyint NOT NULL,
+    routeconnectionsecurity tinyint NOT NULL,
+    routetreatsenderaslocaldomain tinyint NOT NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
@@ -602,6 +640,17 @@ VALUES
     (200, 10, 100, N'Child', 1, CONVERT(datetime, '2026-06-27T01:03:03', 126), 3),
     (300, 10, -1, N'TE&AOUA5AD2-ST', 0, CONVERT(datetime, '2026-06-26T04:05:06', 126), 7),
     (400, 20, -1, N'User Inbox', 1, CONVERT(datetime, '2026-06-27T01:02:03', 126), 1);
+
+INSERT INTO dbo.hm_routes
+    (routeid, routedomainname, routedescription, routetargetsmthost, routetargetsmtport,
+     routenooftries, routeminutesbetweentry, routealladdresses, routeuseauthentication,
+     routeauthenticationusername, routeauthenticationpassword, routetreatsecurityaslocal,
+     routeconnectionsecurity, routetreatsenderaslocaldomain)
+VALUES
+    (600, N'beta.route.test', N'Beta route', N'smtp.beta.route.test', 587,
+     3, 10, 0, 0, N'', N'not-exposed', 0, 3, 1),
+    (500, N'alpha.route.test', N'Alpha route', N'smtp.alpha.route.test', 2525,
+     4, 15, 1, 1, N'relay-user', N'not-exposed', 1, 1, 0);
 """;
 
         await using var connection = new SqlConnection(connectionString);

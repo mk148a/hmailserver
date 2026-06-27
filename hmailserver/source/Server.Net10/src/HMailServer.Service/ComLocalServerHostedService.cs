@@ -50,6 +50,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(IMAPFolder).GUID,
                 static () => new IMAPFolder()),
             new ComLocalServerRegistration(
+                typeof(Routes).GUID,
+                static () => new Routes()),
+            new ComLocalServerRegistration(
+                typeof(Route).GUID,
+                static () => new Route()),
+            new ComLocalServerRegistration(
                 typeof(Aliases).GUID,
                 static () => new Aliases()),
             new ComLocalServerRegistration(
