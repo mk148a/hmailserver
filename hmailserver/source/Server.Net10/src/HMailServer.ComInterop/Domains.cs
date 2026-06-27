@@ -420,6 +420,78 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         set => DomainComAuthorization.Unavailable(this);
     }
 
+    public override string Postmaster
+    {
+        get => Snapshot.Postmaster;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override int MaxMessageSize
+    {
+        get => Snapshot.MaxMessageSize;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override bool PlusAddressingEnabled
+    {
+        get => Snapshot.PlusAddressingEnabled;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override string PlusAddressingCharacter
+    {
+        get => Snapshot.PlusAddressingCharacter;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override int MaxSize
+    {
+        get => Snapshot.MaxSize;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override int MaxNumberOfAccounts
+    {
+        get => Snapshot.MaxNumberOfAccounts;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override int MaxNumberOfAliases
+    {
+        get => Snapshot.MaxNumberOfAliases;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override int MaxNumberOfDistributionLists
+    {
+        get => Snapshot.MaxNumberOfDistributionLists;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override bool MaxNumberOfAccountsEnabled
+    {
+        get => Snapshot.MaxNumberOfAccountsEnabled;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override bool MaxNumberOfAliasesEnabled
+    {
+        get => Snapshot.MaxNumberOfAliasesEnabled;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override bool MaxNumberOfDistributionListsEnabled
+    {
+        get => Snapshot.MaxNumberOfDistributionListsEnabled;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override int MaxAccountSize
+    {
+        get => Snapshot.MaxAccountSize;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
     public override IInterfaceAccounts Accounts =>
         AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
@@ -465,15 +537,15 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public void Delete() => Unavailable();
     public virtual IInterfaceAliases Aliases => Unavailable<IInterfaceAliases>();
     public virtual IInterfaceDistributionLists DistributionLists => Unavailable<IInterfaceDistributionLists>();
-    public string Postmaster { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string Postmaster { get => Unavailable<string>(); set => Unavailable(); }
     public virtual IInterfaceDomainAliases DomainAliases => Unavailable<IInterfaceDomainAliases>();
     public string ADDomainName { get => Unavailable<string>(); set => Unavailable(); }
     public void SynchronizeDirectory() => Unavailable();
-    public int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
-    public bool PlusAddressingEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public string PlusAddressingCharacter { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual bool PlusAddressingEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual string PlusAddressingCharacter { get => Unavailable<string>(); set => Unavailable(); }
     public bool AntiSpamEnableGreylisting { get => Unavailable<bool>(); set => Unavailable(); }
-    public int MaxSize { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxSize { get => Unavailable<int>(); set => Unavailable(); }
     public int Size => Unavailable<int>();
     public long AllocatedSize => Unavailable<long>();
     public bool SignatureEnabled { get => Unavailable<bool>(); set => Unavailable(); }
@@ -482,13 +554,13 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public string SignatureHTML { get => Unavailable<string>(); set => Unavailable(); }
     public bool AddSignaturesToReplies { get => Unavailable<bool>(); set => Unavailable(); }
     public bool AddSignaturesToLocalMail { get => Unavailable<bool>(); set => Unavailable(); }
-    public int MaxNumberOfAccounts { get => Unavailable<int>(); set => Unavailable(); }
-    public int MaxNumberOfAliases { get => Unavailable<int>(); set => Unavailable(); }
-    public int MaxNumberOfDistributionLists { get => Unavailable<int>(); set => Unavailable(); }
-    public bool MaxNumberOfAccountsEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool MaxNumberOfAliasesEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool MaxNumberOfDistributionListsEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public int MaxAccountSize { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxNumberOfAccounts { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxNumberOfAliases { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxNumberOfDistributionLists { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual bool MaxNumberOfAccountsEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool MaxNumberOfAliasesEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool MaxNumberOfDistributionListsEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual int MaxAccountSize { get => Unavailable<int>(); set => Unavailable(); }
     public bool DKIMSignEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public string DKIMSelector { get => Unavailable<string>(); set => Unavailable(); }
     public string DKIMPrivateKeyFile { get => Unavailable<string>(); set => Unavailable(); }

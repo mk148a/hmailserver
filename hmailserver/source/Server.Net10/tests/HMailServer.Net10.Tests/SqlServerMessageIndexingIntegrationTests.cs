@@ -97,6 +97,18 @@ public sealed class SqlServerMessageIndexingIntegrationTests
 
             Assert.AreEqual(2, domains.Count);
             Assert.AreEqual("alpha.example", domains[0].Name);
+            Assert.AreEqual("postmaster@alpha.example", domains[0].Postmaster);
+            Assert.AreEqual(1024, domains[0].MaxMessageSize);
+            Assert.IsTrue(domains[0].PlusAddressingEnabled);
+            Assert.AreEqual("+", domains[0].PlusAddressingCharacter);
+            Assert.AreEqual(4096, domains[0].MaxSize);
+            Assert.AreEqual(200, domains[0].MaxNumberOfAccounts);
+            Assert.AreEqual(30, domains[0].MaxNumberOfAliases);
+            Assert.AreEqual(12, domains[0].MaxNumberOfDistributionLists);
+            Assert.IsTrue(domains[0].MaxNumberOfAccountsEnabled);
+            Assert.IsFalse(domains[0].MaxNumberOfAliasesEnabled);
+            Assert.IsTrue(domains[0].MaxNumberOfDistributionListsEnabled);
+            Assert.AreEqual(512, domains[0].MaxAccountSize);
             Assert.AreEqual("beta.example", domains.get_ItemByName("BETA.EXAMPLE").Name);
             Assert.IsFalse(domains.get_ItemByDBID(20).Active);
         }
@@ -354,13 +366,27 @@ CREATE TABLE dbo.hm_domains
 (
     domainid int NOT NULL PRIMARY KEY,
     domainname nvarchar(80) NOT NULL,
-    domainactive tinyint NOT NULL
+    domainactive tinyint NOT NULL,
+    domainpostmaster nvarchar(80) NOT NULL,
+    domainmaxmessagesize int NOT NULL,
+    domainuseplusaddressing tinyint NOT NULL,
+    domainplusaddressingchar nvarchar(1) NOT NULL,
+    domainmaxsize int NOT NULL,
+    domainmaxnoofaccounts int NOT NULL,
+    domainmaxnoofaliases int NOT NULL,
+    domainmaxnoofdistributionlists int NOT NULL,
+    domainlimitationsenabled int NOT NULL,
+    domainmaxaccountsize int NOT NULL
 );
 
-INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
+INSERT INTO dbo.hm_domains
+    (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
+     domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
+     domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
+     domainlimitationsenabled, domainmaxaccountsize)
 VALUES
-    (20, N'beta.example', 0),
-    (10, N'alpha.example', 1);
+    (20, N'beta.example', 0, N'postmaster@beta.example', 512, 0, N'+', 2048, 50, 10, 5, 0, 256),
+    (10, N'alpha.example', 1, N'postmaster@alpha.example', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512);
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -376,7 +402,17 @@ CREATE TABLE dbo.hm_domains
 (
     domainid int NOT NULL PRIMARY KEY,
     domainname nvarchar(80) NOT NULL,
-    domainactive tinyint NOT NULL
+    domainactive tinyint NOT NULL,
+    domainpostmaster nvarchar(80) NOT NULL,
+    domainmaxmessagesize int NOT NULL,
+    domainuseplusaddressing tinyint NOT NULL,
+    domainplusaddressingchar nvarchar(1) NOT NULL,
+    domainmaxsize int NOT NULL,
+    domainmaxnoofaccounts int NOT NULL,
+    domainmaxnoofaliases int NOT NULL,
+    domainmaxnoofdistributionlists int NOT NULL,
+    domainlimitationsenabled int NOT NULL,
+    domainmaxaccountsize int NOT NULL
 );
 
 CREATE TABLE dbo.hm_accounts
@@ -388,10 +424,14 @@ CREATE TABLE dbo.hm_accounts
     accountadminlevel tinyint NOT NULL
 );
 
-INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
+INSERT INTO dbo.hm_domains
+    (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
+     domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
+     domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
+     domainlimitationsenabled, domainmaxaccountsize)
 VALUES
-    (10, N'example.test', 1),
-    (30, N'other.test', 1);
+    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512),
+    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', 2048, 50, 10, 5, 0, 256);
 
 INSERT INTO dbo.hm_accounts (accountid, accountdomainid, accountaddress, accountactive, accountadminlevel)
 VALUES
@@ -413,7 +453,17 @@ CREATE TABLE dbo.hm_domains
 (
     domainid int NOT NULL PRIMARY KEY,
     domainname nvarchar(80) NOT NULL,
-    domainactive tinyint NOT NULL
+    domainactive tinyint NOT NULL,
+    domainpostmaster nvarchar(80) NOT NULL,
+    domainmaxmessagesize int NOT NULL,
+    domainuseplusaddressing tinyint NOT NULL,
+    domainplusaddressingchar nvarchar(1) NOT NULL,
+    domainmaxsize int NOT NULL,
+    domainmaxnoofaccounts int NOT NULL,
+    domainmaxnoofaliases int NOT NULL,
+    domainmaxnoofdistributionlists int NOT NULL,
+    domainlimitationsenabled int NOT NULL,
+    domainmaxaccountsize int NOT NULL
 );
 
 CREATE TABLE dbo.hm_aliases
@@ -425,10 +475,14 @@ CREATE TABLE dbo.hm_aliases
     aliasactive tinyint NOT NULL
 );
 
-INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
+INSERT INTO dbo.hm_domains
+    (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
+     domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
+     domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
+     domainlimitationsenabled, domainmaxaccountsize)
 VALUES
-    (10, N'example.test', 1),
-    (30, N'other.test', 1);
+    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512),
+    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', 2048, 50, 10, 5, 0, 256);
 
 INSERT INTO dbo.hm_aliases (aliasid, aliasdomainid, aliasname, aliasvalue, aliasactive)
 VALUES
@@ -450,7 +504,17 @@ CREATE TABLE dbo.hm_domains
 (
     domainid int NOT NULL PRIMARY KEY,
     domainname nvarchar(80) NOT NULL,
-    domainactive tinyint NOT NULL
+    domainactive tinyint NOT NULL,
+    domainpostmaster nvarchar(80) NOT NULL,
+    domainmaxmessagesize int NOT NULL,
+    domainuseplusaddressing tinyint NOT NULL,
+    domainplusaddressingchar nvarchar(1) NOT NULL,
+    domainmaxsize int NOT NULL,
+    domainmaxnoofaccounts int NOT NULL,
+    domainmaxnoofaliases int NOT NULL,
+    domainmaxnoofdistributionlists int NOT NULL,
+    domainlimitationsenabled int NOT NULL,
+    domainmaxaccountsize int NOT NULL
 );
 
 CREATE TABLE dbo.hm_distributionlists
@@ -471,10 +535,14 @@ CREATE TABLE dbo.hm_distributionlistsrecipients
     distributionlistrecipientaddress nvarchar(255) NOT NULL
 );
 
-INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
+INSERT INTO dbo.hm_domains
+    (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
+     domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
+     domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
+     domainlimitationsenabled, domainmaxaccountsize)
 VALUES
-    (10, N'example.test', 1),
-    (30, N'other.test', 1);
+    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512),
+    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', 2048, 50, 10, 5, 0, 256);
 
 INSERT INTO dbo.hm_distributionlists
     (distributionlistid, distributionlistdomainid, distributionlistaddress, distributionlistenabled,
@@ -505,7 +573,17 @@ CREATE TABLE dbo.hm_domains
 (
     domainid int NOT NULL PRIMARY KEY,
     domainname nvarchar(80) NOT NULL,
-    domainactive tinyint NOT NULL
+    domainactive tinyint NOT NULL,
+    domainpostmaster nvarchar(80) NOT NULL,
+    domainmaxmessagesize int NOT NULL,
+    domainuseplusaddressing tinyint NOT NULL,
+    domainplusaddressingchar nvarchar(1) NOT NULL,
+    domainmaxsize int NOT NULL,
+    domainmaxnoofaccounts int NOT NULL,
+    domainmaxnoofaliases int NOT NULL,
+    domainmaxnoofdistributionlists int NOT NULL,
+    domainlimitationsenabled int NOT NULL,
+    domainmaxaccountsize int NOT NULL
 );
 
 CREATE TABLE dbo.hm_domain_aliases
@@ -515,10 +593,14 @@ CREATE TABLE dbo.hm_domain_aliases
     daalias nvarchar(255) NOT NULL
 );
 
-INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
+INSERT INTO dbo.hm_domains
+    (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
+     domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
+     domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
+     domainlimitationsenabled, domainmaxaccountsize)
 VALUES
-    (10, N'example.test', 1),
-    (30, N'other.test', 1);
+    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512),
+    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', 2048, 50, 10, 5, 0, 256);
 
 INSERT INTO dbo.hm_domain_aliases (daid, dadomainid, daalias)
 VALUES

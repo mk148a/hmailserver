@@ -88,12 +88,28 @@ public sealed class DomainsComContractTests
         IInterfaceDomains domains = Domains.CreateAuthorized(
             new[]
             {
-                new DomainAdministrationSnapshot(10, "alpha.example", true),
+                new DomainAdministrationSnapshot(
+                    10,
+                    "alpha.example",
+                    true,
+                    Postmaster: "postmaster@alpha.example",
+                    MaxMessageSize: 1024,
+                    PlusAddressingEnabled: true,
+                    PlusAddressingCharacter: "+",
+                    MaxSize: 2048,
+                    MaxNumberOfAccounts: 100,
+                    MaxNumberOfAliases: 25,
+                    MaxNumberOfDistributionLists: 10,
+                    MaxNumberOfAccountsEnabled: true,
+                    MaxNumberOfAliasesEnabled: false,
+                    MaxNumberOfDistributionListsEnabled: true,
+                    MaxAccountSize: 512),
                 new DomainAdministrationSnapshot(20, "beta.example", false)
             });
 
         Assert.AreEqual(2, domains.Count);
         AssertDomain(domains[0], 10, "alpha.example", true);
+        AssertCoreScalars(domains[0]);
         AssertDomain(domains.get_ItemByName("BETA.EXAMPLE"), 20, "beta.example", false);
         AssertDomain(domains.get_ItemByDBID(10), 10, "alpha.example", true);
 
@@ -101,11 +117,15 @@ public sealed class DomainsComContractTests
         var badName = Assert.ThrowsExactly<COMException>(() => _ = domains.get_ItemByName("missing.example"));
         var pendingRefresh = Assert.ThrowsExactly<COMException>(domains.Refresh);
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => domains[0].Active = false);
+        var pendingScalarMutation = Assert.ThrowsExactly<COMException>(() => domains[0].Postmaster = "changed@alpha.example");
+        var pendingNonCoreScalar = Assert.ThrowsExactly<COMException>(() => _ = domains[0].ADDomainName);
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badName.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingScalarMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingNonCoreScalar.ErrorCode);
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
@@ -136,5 +156,21 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(id, domain.ID);
         Assert.AreEqual(name, domain.Name);
         Assert.AreEqual(active, domain.Active);
+    }
+
+    private static void AssertCoreScalars(IInterfaceDomain domain)
+    {
+        Assert.AreEqual("postmaster@alpha.example", domain.Postmaster);
+        Assert.AreEqual(1024, domain.MaxMessageSize);
+        Assert.IsTrue(domain.PlusAddressingEnabled);
+        Assert.AreEqual("+", domain.PlusAddressingCharacter);
+        Assert.AreEqual(2048, domain.MaxSize);
+        Assert.AreEqual(100, domain.MaxNumberOfAccounts);
+        Assert.AreEqual(25, domain.MaxNumberOfAliases);
+        Assert.AreEqual(10, domain.MaxNumberOfDistributionLists);
+        Assert.IsTrue(domain.MaxNumberOfAccountsEnabled);
+        Assert.IsFalse(domain.MaxNumberOfAliasesEnabled);
+        Assert.IsTrue(domain.MaxNumberOfDistributionListsEnabled);
+        Assert.AreEqual(512, domain.MaxAccountSize);
     }
 }
