@@ -29,9 +29,6 @@ public interface IInterfaceDiagnostics;
 [ComVisible(true), Guid("1259E989-465E-4B63-BB0B-4DB7F6244ACE"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceMessages;
 
-[ComVisible(true), Guid("1517E0BE-5226-46CC-8C2A-BB16B680FF48"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceFetchAccounts;
-
 [ComVisible(true), Guid("328B16A7-8314-4398-B506-90937569EDBA"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceIMAPFolders;
 

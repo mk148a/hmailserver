@@ -98,7 +98,17 @@ public sealed class Account : IInterfaceAccount
 
     public string VacationSubject { get => _administrationSnapshot?.VacationSubject ?? Read(_vacationSubject); set => Write(() => _vacationSubject = value); }
 
-    public IInterfaceFetchAccounts FetchAccounts => NotImplemented<IInterfaceFetchAccounts>();
+    public IInterfaceFetchAccounts FetchAccounts
+    {
+        get
+        {
+            EnsureAttached();
+
+            return _administrationSnapshot is { } account
+                ? FetchAccountAdministrationRuntimeHost.CreateAuthorizedAdapter(account.Id)
+                : NotImplemented<IInterfaceFetchAccounts>();
+        }
+    }
 
     public ComAdminLevel AdminLevel
     {

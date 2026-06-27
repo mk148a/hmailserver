@@ -49,6 +49,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "FetchAccount",
+            "{6F5E2977-2F51-40B0-847B-DD44C9ACC5A5}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "FetchAccounts",
+            "{F17C3A00-A7A0-4519-AEDD-DCC3B8DE6A3D}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath);
@@ -135,6 +145,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.Accounts",
                 @"hMailServer.Account.1",
                 @"hMailServer.Account",
+                @"hMailServer.FetchAccount.1",
+                @"hMailServer.FetchAccount",
+                @"hMailServer.FetchAccounts.1",
+                @"hMailServer.FetchAccounts",
                 @"hMailServer.Aliases.1",
                 @"hMailServer.Aliases",
                 @"hMailServer.Alias.1",
@@ -159,6 +173,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{C535E4AF-9DB3-41FC-B434-FFCDAE0EFBD5}",
                 @"CLSID\{403A75B8-499A-44C1-93D3-6A8A460AA88D}",
                 @"CLSID\{369BE902-9F27-4722-A29F-3059E4D7021D}",
+                @"CLSID\{6F5E2977-2F51-40B0-847B-DD44C9ACC5A5}",
+                @"CLSID\{F17C3A00-A7A0-4519-AEDD-DCC3B8DE6A3D}",
                 @"CLSID\{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
                 @"CLSID\{335CE9E1-32C5-4CB0-8BF6-CB925196E4D6}",
                 @"CLSID\{C3DD0A4A-0551-442F-859A-76AAB92A6CF1}",

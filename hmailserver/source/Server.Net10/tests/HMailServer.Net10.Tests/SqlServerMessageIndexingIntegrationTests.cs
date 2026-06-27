@@ -2,6 +2,7 @@ using HMailServer.ComInterop;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
+using System.Runtime.InteropServices;
 
 namespace HMailServer.Net10.Tests;
 
@@ -140,6 +141,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
             DomainAdministrationRuntimeHost.Configure(new SqlServerDomainAdministrationStore(connectionFactory));
             AccountAdministrationRuntimeHost.Configure(new SqlServerAccountAdministrationStore(connectionFactory));
+            FetchAccountAdministrationRuntimeHost.Configure(new SqlServerFetchAccountAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -167,6 +169,18 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(accounts[0].SignatureEnabled);
             Assert.AreEqual("Regards,\r\nAda", accounts[0].SignaturePlainText);
             Assert.AreEqual("<p>Regards,<br>Ada</p>", accounts[0].SignatureHTML);
+            var fetchAccounts = accounts[0].FetchAccounts;
+            Assert.AreEqual(1, fetchAccounts.Count);
+            Assert.AreEqual(10, fetchAccounts[0].AccountID);
+            Assert.AreEqual("External POP3", fetchAccounts[0].Name);
+            Assert.AreEqual("pop3.example.test", fetchAccounts[0].ServerAddress);
+            Assert.AreEqual(995, fetchAccounts[0].Port);
+            Assert.AreEqual("external-user", fetchAccounts[0].Username);
+            Assert.AreEqual(ComConnectionSecurity.Tls, fetchAccounts[0].ConnectionSecurity);
+            Assert.IsTrue(fetchAccounts[0].UseSSL);
+            Assert.AreEqual("2026-07-01 02:03:04", fetchAccounts[0].NextDownloadTime);
+            var pendingSensitiveRead = Assert.ThrowsExactly<COMException>(() => _ = fetchAccounts[0].Password);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingSensitiveRead.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -456,6 +470,30 @@ CREATE TABLE dbo.hm_accounts
     accountsignaturehtml nvarchar(max) NOT NULL
 );
 
+CREATE TABLE dbo.hm_fetchaccounts
+(
+    faid int NOT NULL PRIMARY KEY,
+    faactive tinyint NOT NULL,
+    faaccountid int NOT NULL,
+    faaccountname nvarchar(255) NOT NULL,
+    faserveraddress nvarchar(255) NOT NULL,
+    faserverport int NOT NULL,
+    faservertype tinyint NOT NULL,
+    fausername nvarchar(255) NOT NULL,
+    fapassword nvarchar(255) NOT NULL,
+    faminutes int NOT NULL,
+    fanexttry datetime NOT NULL,
+    fadaystokeep int NOT NULL,
+    falocked tinyint NOT NULL,
+    faprocessmimerecipients tinyint NOT NULL,
+    faprocessmimedate tinyint NOT NULL,
+    faconnectionsecurity tinyint NOT NULL,
+    fauseantispam tinyint NOT NULL,
+    fauseantivirus tinyint NOT NULL,
+    faenablerouterecipients tinyint NOT NULL,
+    famimerecipientheaders nvarchar(255) NOT NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
@@ -483,6 +521,19 @@ VALUES
     (30, 30, N'outside@other.test', 1, 0, 512, N'Outside', N'Example',
      0, N'', N'', 0, CONVERT(datetime, '2026-01-01T00:00:00', 126), 0,
      0, N'', 0, 0, 0, N'', N'');
+
+INSERT INTO dbo.hm_fetchaccounts
+    (faid, faactive, faaccountid, faaccountname, faserveraddress, faserverport,
+     faservertype, fausername, fapassword, faminutes, fanexttry, fadaystokeep,
+     falocked, faprocessmimerecipients, faprocessmimedate, faconnectionsecurity,
+     fauseantispam, fauseantivirus, faenablerouterecipients, famimerecipientheaders)
+VALUES
+    (1000, 1, 10, N'External POP3', N'pop3.example.test', 995,
+     0, N'external-user', N'not-exposed', 15, CONVERT(datetime, '2026-07-01T02:03:04', 126), 14,
+     1, 1, 1, 1, 1, 1, 1, N'To,CC,X-RCPT-TO'),
+    (2000, 1, 20, N'User POP3', N'pop3-user.example.test', 110,
+     0, N'user-external', N'not-exposed', 30, CONVERT(datetime, '2026-07-02T02:03:04', 126), 7,
+     0, 0, 0, 0, 0, 0, 0, N'To,CC');
 """;
 
         await using var connection = new SqlConnection(connectionString);

@@ -95,6 +95,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "FetchAccount",
+            "{6F5E2977-2F51-40B0-847B-DD44C9ACC5A5}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "FetchAccounts",
+            "{F17C3A00-A7A0-4519-AEDD-DCC3B8DE6A3D}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath,
