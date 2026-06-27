@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
 
 namespace HMailServer.Net10.Tests;
 
@@ -60,6 +61,24 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(42, settings.MessageIndexing.TotalMessageCount);
         var unimplemented = Assert.ThrowsExactly<COMException>(() => _ = settings.MaxSMTPConnections);
         Assert.AreEqual(ENotImplemented, unimplemented.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ReturnsOnlyConfiguredPublicRootFolders()
+    {
+        ImapFolderAdministrationRuntimeHost.Configure(
+            new FixedImapFolderAdministrationStore(
+                new[]
+                {
+                    new ImapFolderAdministrationSnapshot(10, 0, -1, "Public", true, 4, "2026-06-27 01:02:03"),
+                    new ImapFolderAdministrationSnapshot(20, 100, -1, "Account", true, 1, "2026-06-27 01:02:03")
+                }));
+        IInterfaceSettings settings = Settings.CreateAuthorized();
+
+        var publicFolders = settings.PublicFolders;
+
+        Assert.AreEqual(1, publicFolders.Count);
+        Assert.AreEqual("Public", publicFolders[0].Name);
     }
 
     private static string[] ExpectedMethodNames()
@@ -170,5 +189,17 @@ public sealed class SettingsComContractTests
         public void Clear() { }
         public void Index() { }
         public void Rebuild() { }
+    }
+
+    private sealed class FixedImapFolderAdministrationStore(
+        IReadOnlyList<ImapFolderAdministrationSnapshot> folders) : IImapFolderAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetRootFoldersAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                folders.Where(folder => folder.AccountId == accountId && folder.ParentId == -1)
+                    .OrderBy(folder => folder.Id)
+                    .ToArray());
     }
 }

@@ -443,6 +443,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceIMAPFolders PublicFolders
+    {
+        get
+        {
+            EnsureAuthorized();
+            return ImapFolderAdministrationRuntimeHost.CreateAuthorizedAdapter(accountId: 0);
+        }
+    }
+
     internal static Settings CreateAuthorized() => new(authorized: true);
 
     void ISettingsAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
@@ -511,7 +520,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public bool IMAPACLEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public void SetAdministratorPassword(string newVal) => Unavailable();
     public IInterfaceDirectories Directories => Unavailable<IInterfaceDirectories>();
-    public IInterfaceIMAPFolders PublicFolders => Unavailable<IInterfaceIMAPFolders>();
+    public virtual IInterfaceIMAPFolders PublicFolders => Unavailable<IInterfaceIMAPFolders>();
     public string PublicFolderDiskName => Unavailable<string>();
     public IInterfaceGroups Groups => Unavailable<IInterfaceGroups>();
     public IInterfaceIncomingRelays IncomingRelays => Unavailable<IInterfaceIncomingRelays>();

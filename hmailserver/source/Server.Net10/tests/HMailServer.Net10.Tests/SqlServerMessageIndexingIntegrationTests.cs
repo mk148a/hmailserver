@@ -207,6 +207,10 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(unchecked((int)0x8002000B), nestedFolder.ErrorCode);
             var pendingMessages = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Messages);
             Assert.AreEqual(unchecked((int)0x80004001), pendingMessages.ErrorCode);
+            var publicFolders = application.Settings.PublicFolders;
+            Assert.AreEqual(1, publicFolders.Count);
+            Assert.AreEqual(50, publicFolders[0].ID);
+            Assert.AreEqual("Public", publicFolders[0].Name);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -593,6 +597,7 @@ INSERT INTO dbo.hm_imapfolders
     (folderid, folderaccountid, folderparentid, foldername, folderissubscribed,
      foldercreationtime, foldercurrentuid)
 VALUES
+    (50, 0, -1, N'Public', 1, CONVERT(datetime, '2026-06-27T00:02:03', 126), 5),
     (100, 10, -1, N'Inbox', 1, CONVERT(datetime, '2026-06-27T01:02:03', 126), 42),
     (200, 10, 100, N'Child', 1, CONVERT(datetime, '2026-06-27T01:03:03', 126), 3),
     (300, 10, -1, N'TE&AOUA5AD2-ST', 0, CONVERT(datetime, '2026-06-26T04:05:06', 126), 7),
