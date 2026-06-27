@@ -15,6 +15,9 @@ public sealed class SqlServerAccountAdministrationStoreTests
         StringAssert.Contains(sql, "accountaddress");
         StringAssert.Contains(sql, "accountactive");
         StringAssert.Contains(sql, "accountadminlevel");
+        StringAssert.Contains(sql, "accountmaxsize");
+        StringAssert.Contains(sql, "accountpersonfirstname");
+        StringAssert.Contains(sql, "accountpersonlastname");
         StringAssert.Contains(sql, "FROM hm_accounts");
         StringAssert.Contains(sql, "WHERE accountdomainid = @DomainID");
         StringAssert.Contains(sql, "ORDER BY accountaddress ASC");

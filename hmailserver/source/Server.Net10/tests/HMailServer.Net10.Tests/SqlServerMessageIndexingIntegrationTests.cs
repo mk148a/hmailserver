@@ -151,6 +151,9 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("admin@example.test", accounts[0].Address);
             Assert.AreEqual(10, accounts[0].DomainID);
             Assert.AreEqual(ComAdminLevel.ServerAdministrator, accounts[0].AdminLevel);
+            Assert.AreEqual(2048, accounts[0].MaxSize);
+            Assert.AreEqual("Ada", accounts[0].PersonFirstName);
+            Assert.AreEqual("Lovelace", accounts[0].PersonLastName);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -421,7 +424,10 @@ CREATE TABLE dbo.hm_accounts
     accountdomainid int NOT NULL,
     accountaddress nvarchar(255) NOT NULL,
     accountactive tinyint NOT NULL,
-    accountadminlevel tinyint NOT NULL
+    accountadminlevel tinyint NOT NULL,
+    accountmaxsize int NOT NULL,
+    accountpersonfirstname nvarchar(60) NOT NULL,
+    accountpersonlastname nvarchar(60) NOT NULL
 );
 
 INSERT INTO dbo.hm_domains
@@ -433,11 +439,13 @@ VALUES
     (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512),
     (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', 2048, 50, 10, 5, 0, 256);
 
-INSERT INTO dbo.hm_accounts (accountid, accountdomainid, accountaddress, accountactive, accountadminlevel)
+INSERT INTO dbo.hm_accounts
+    (accountid, accountdomainid, accountaddress, accountactive, accountadminlevel,
+     accountmaxsize, accountpersonfirstname, accountpersonlastname)
 VALUES
-    (20, 10, N'user@example.test', 0, 0),
-    (10, 10, N'admin@example.test', 1, 2),
-    (30, 30, N'outside@other.test', 1, 0);
+    (20, 10, N'user@example.test', 0, 0, 1024, N'Grace', N'Hopper'),
+    (10, 10, N'admin@example.test', 1, 2, 2048, N'Ada', N'Lovelace'),
+    (30, 30, N'outside@other.test', 1, 0, 512, N'Outside', N'Example');
 """;
 
         await using var connection = new SqlConnection(connectionString);

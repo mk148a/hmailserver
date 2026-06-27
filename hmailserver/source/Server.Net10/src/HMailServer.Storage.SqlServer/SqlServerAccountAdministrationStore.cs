@@ -13,7 +13,10 @@ SELECT
     accountdomainid,
     accountaddress,
     accountactive,
-    accountadminlevel
+    accountadminlevel,
+    accountmaxsize,
+    accountpersonfirstname,
+    accountpersonlastname
 FROM hm_accounts
 WHERE accountdomainid = @DomainID
 ORDER BY accountaddress ASC;
@@ -47,7 +50,10 @@ ORDER BY accountaddress ASC;
                     DomainId: reader.GetInt32(1),
                     Address: reader.GetString(2),
                     Active: Convert.ToInt32(reader.GetValue(3), CultureInfo.InvariantCulture) != 0,
-                    AdminLevel: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture)));
+                    AdminLevel: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture),
+                    MaxSize: reader.GetInt32(5),
+                    PersonFirstName: reader.GetString(6),
+                    PersonLastName: reader.GetString(7)));
         }
 
         return accounts;

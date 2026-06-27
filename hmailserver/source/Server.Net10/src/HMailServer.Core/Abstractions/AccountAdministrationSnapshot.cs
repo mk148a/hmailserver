@@ -5,4 +5,7 @@ public sealed record AccountAdministrationSnapshot(
     int DomainId,
     string Address,
     bool Active,
-    int AdminLevel);
+    int AdminLevel,
+    int MaxSize = 0,
+    string PersonFirstName = "",
+    string PersonLastName = "");

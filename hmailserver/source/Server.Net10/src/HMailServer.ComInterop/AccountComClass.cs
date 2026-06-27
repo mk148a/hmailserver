@@ -90,7 +90,7 @@ public sealed class Account : IInterfaceAccount
 
     public IInterfaceMessages Messages => NotImplemented<IInterfaceMessages>();
 
-    public int MaxSize { get => Read(_maxSize); set => Write(() => _maxSize = value); }
+    public int MaxSize { get => _administrationSnapshot?.MaxSize ?? Read(_maxSize); set => Write(() => _maxSize = value); }
 
     public bool VacationMessageIsOn { get => Read(_vacationMessageIsOn); set => Write(() => _vacationMessageIsOn = value); }
 
@@ -132,9 +132,9 @@ public sealed class Account : IInterfaceAccount
 
     public string VacationMessageExpiresDate { get => Read(_vacationMessageExpiresDate); set => Write(() => _vacationMessageExpiresDate = value); }
 
-    public string PersonFirstName { get => Read(_personFirstName); set => Write(() => _personFirstName = value); }
+    public string PersonFirstName { get => _administrationSnapshot?.PersonFirstName ?? Read(_personFirstName); set => Write(() => _personFirstName = value); }
 
-    public string PersonLastName { get => Read(_personLastName); set => Write(() => _personLastName = value); }
+    public string PersonLastName { get => _administrationSnapshot?.PersonLastName ?? Read(_personLastName); set => Write(() => _personLastName = value); }
 
     public bool VacationMessageAbortSpamFlagged { get => Read(_vacationMessageAbortSpamFlagged); set => Write(() => _vacationMessageAbortSpamFlagged = value); }
 
