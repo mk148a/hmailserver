@@ -26,7 +26,7 @@ The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and t
 | SEC-16 | Medium | SpamAssassin test endpoint SSRF | Open P1: retain server-admin authorization, use POST, and add destination/metadata/private-network policy. |
 | SEC-17 | Medium | WebAdmin session fixation | Fixed by `4dd984156`: successful login regenerates the session ID and rotates the CSRF token. |
 | SEC-18 | Medium | Plaintext mailbox password in PHP session | Open P1: replace cleartext session storage with a safer server-side reauthentication/session design. |
-| SEC-19 | Medium | IMAP `RENAME` omits destination-parent Create ACL | Open P1 and current next slice: require source Delete plus destination-parent Create permission in legacy, with a targeted regression test. .NET 10 `RENAME` remains unimplemented. |
+| SEC-19 | Medium | IMAP `RENAME` omits destination-parent Create ACL | Fixed by `862c620a0`: legacy public-folder `RENAME` now requires source Delete plus destination-parent Create permission, with focused deny/allow regression coverage. .NET 10 `RENAME` remains unimplemented. |
 | SEC-20 | Historical high | External-fetch COM SSRF | Open P1: define an egress policy with private/metadata target and DNS-rebinding protections. .NET 10 COM fetch mutation/download remains `E_NOTIMPL`. |
 | SEC-21 | Historical medium | Static Blowfish key / reversible stored passwords | Open migration debt: introduce versioned secret encryption and migration while retaining legacy decryption only for backward reads. |
 
@@ -373,4 +373,4 @@ The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and t
 
 ## Current Next Slice
 
-Close SEC-19 as a bounded legacy IMAP slice: make `RENAME` require both Delete permission on the source mailbox and Create permission on the destination parent, add focused allow/deny regression coverage, and leave the unimplemented .NET 10 `RENAME` surface unchanged. Resume the read-only `Settings -> ServerMessages` Administrator slice after this security boundary.
+Resume the Administrator object model with a bounded read-only `Settings -> ServerMessages` slice: preserve the legacy `ServerMessages`/`ServerMessage` COM contracts, expose authenticated Settings count/index/name/id lookup plus read-only `ID`, `Name`, and `Text` scalar values from existing `hm_servermessages` rows ordered by message name, and keep delivery template execution changes, Refresh, Save, mutations, and deeper behavior explicit `E_NOTIMPL`.
