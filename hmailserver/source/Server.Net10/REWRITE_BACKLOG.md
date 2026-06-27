@@ -319,6 +319,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
    - Done: extend the authenticated SQL-backed `Account` adapter with selected read-only core detail scalars from `hm_accounts` (`MaxSize`, `PersonFirstName`, `PersonLastName`), while keeping password/security-sensitive fields, behavior-heavy fields, child collections, and scalar mutations explicit `E_NOTIMPL`.
    - Done: extend the authenticated SQL-backed `Account` adapter with selected read-only delivery/detail scalars from `hm_accounts` (vacation/autoreply, forwarding, and signature fields), while keeping behavior execution, password/security-sensitive fields, child collections, and scalar mutations explicit `E_NOTIMPL`.
    - Done: preserve the legacy `FetchAccounts` and `FetchAccount` COM vtable/identity contracts, register their hosted class identities, expose authenticated `Account -> FetchAccounts` count/index/id lookup and read-only non-secret fetch-account scalars from existing `hm_fetchaccounts` SQL data, keep direct activation access-denied, and leave password access, download execution, and mutations explicit `E_NOTIMPL`.
+   - Done: preserve the legacy `Rules` and `Rule` COM vtable/identity contracts, register their hosted class identities, expose authenticated `Account -> Rules` count/index/id lookup and read-only ID/account/name/active/use-AND scalars from existing `hm_rules` SQL data, keep direct activation access-denied, and leave criteria, actions, execution, and mutations explicit `E_NOTIMPL`.
    - Remaining: implement the database-backed Administrator object model in bounded slices.
 
 7. Migration, operations, and observability.
@@ -334,4 +335,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue the Administrator object model with a bounded read-only `Account -> Rules` slice: preserve the legacy `Rules`/`Rule` COM dispatch contract, expose authenticated account-rule count/index/id lookup and high-value rule core scalars from existing SQL data where available, and keep criteria/actions, script execution, mutation, and deeper behavior explicit `E_NOTIMPL`.
+Continue the Administrator object model with a bounded read-only `Account -> IMAPFolders` slice: preserve the legacy `IMAPFolders`/`IMAPFolder` COM dispatch and class identities, expose authenticated top-level folder count/index/name/id lookup plus high-value core folder scalars from existing `hm_imapfolders` SQL data, and keep messages, permissions, nested subfolders, mutations, and deeper behavior explicit `E_NOTIMPL`.
