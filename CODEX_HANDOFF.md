@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: Administrator object modeline sinirli read-only `Settings -> ServerMessages` dilimiyle devam etmek. Legacy `ServerMessages`/`ServerMessage` COM kontratlari korunmali; authenticated Settings yolu mevcut `hm_servermessages` verisinden `smname` sirasiyla count/index/name/id lookup ve read-only `ID`, `Name`, `Text` scalar'larini acmali. Delivery template execution degisiklikleri, Refresh/mutation ve daha derin davranislar acik `E_NOTIMPL` kalmali.
+Backlog'daki siradaki ana dilim: Administrator object modeline sinirli read-only `Settings -> Directories` dilimiyle devam etmek. Legacy `Directories` COM kontrati korunmali; authenticated Settings yolu configured/default `hMailServer.ini` directory degerlerinden `ProgramDirectory`, `DatabaseDirectory`, `DataDirectory`, `LogDirectory`, `TempDirectory`, `EventDirectory` ve `DBScriptDirectory` scalar'larini read-only acmali. Direct activation, directory mutation ve persistence davranislari acik `E_ACCESSDENIED`/`E_NOTIMPL` kalmali.
 
 Son tamamlanan kucuk dilimler:
 
+- Legacy `ServerMessages` ve `ServerMessage` COM kontratlari tam vtable/identity siralariyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Settings -> ServerMessages` count/index/name/id lookup'u mevcut `hm_servermessages` SQL verisinden `smname` sirasiyla geliyor ve `ID`, `Name`, `Text` scalar'larini read-only aciyor. Delivery template execution, `Refresh`, `Save`, mutation'lar ve direct activation sinirlari `E_NOTIMPL`/`E_ACCESSDENIED` kaliyor.
 - SEC-19 legacy IMAP `RENAME` ACL siniri kapatildi: public-folder hiyerarsi degisikligi kaynakta Delete iznine ek olarak hedefteki en ust mevcut parent uzerinde Create izni istiyor. Mevcut regresyon senaryosu Create olmadan red, izin verildikten sonra basariyi kanitlayacak sekilde daraltildi; RegressionTests assembly ve degisen C++ translation unit derlendi.
 - Security hardening dilimi: bos administrator hash'i legacy ve .NET 10'da fail-closed; constructor-time anonymous COM auth kaldirildi; legacy JScript password/delivery/UID literal escaping'i duzeltildi; `ScriptFunction` isim/yetki siniri kapatildi; SMTP `ETRN` auth zorunlu oldu; WebAdmin login session ID/CSRF token rotation ve cryptographic CSRF token generation eklendi. Dar .NET security testleri 15/15, full Net10 testleri 549/549, opt-in LocalDB 6/6 gecti; legacy RegressionTests assembly build'i ve degisen C++ dosyalarinin selected-file compile'i basarili oldu.
 - Legacy `GroupMembers` ve `GroupMember` COM kontratlari tam vtable/identity siralariyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Group -> Members` count/index/id lookup'u mevcut `hm_group_members` SQL verisinden `memberid` sirasiyla ve group-ID filtresiyle geliyor; `ID`, `GroupID`, `AccountID` scalar'larini read-only aciyor. Account child facade, ACL runtime davranisi, mutation'lar ve direct activation sinirlari `E_NOTIMPL`/`E_ACCESSDENIED` kaliyor.
@@ -415,5 +416,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak `Settings -> ServerMessages` read-only COM/Admin dilimini ele al; once eksik legacy contract/store davranisini kanitlayan dar test yaz.
+5. Current Next Slice olarak `Settings -> Directories` read-only COM/Admin dilimini ele al; once eksik legacy contract/INI-backed davranisini kanitlayan dar test yaz.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.
