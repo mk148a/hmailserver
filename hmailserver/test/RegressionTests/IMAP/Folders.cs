@@ -475,6 +475,13 @@ namespace RegressionTests.IMAP
          simulator1.ConnectAndLogon(account.Address, "test");
          Assert.IsTrue(simulator1.SelectFolder("#Public.ShareA"));
          Assert.IsTrue(simulator1.SelectFolder("#Public.ShareB"));
+
+         Assert.IsFalse(simulator1.RenameFolder("#Public.ShareA", "#Public.ShareB.ShareA"),
+            "RENAME must require Create permission on the destination parent folder.");
+
+         permission2.set_Permission(eACLPermission.ePermissionCreate, true);
+         permission2.Save();
+
          Assert.IsTrue(simulator1.RenameFolder("#Public.ShareA", "#Public.ShareB.ShareA"));
          Assert.IsFalse(simulator1.SelectFolder("#Public.ShareA"));
          Assert.IsTrue(simulator1.SelectFolder("#Public.ShareB"));

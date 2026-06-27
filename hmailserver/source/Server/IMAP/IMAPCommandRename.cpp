@@ -175,13 +175,29 @@ namespace HM
       
       // The user is trying to rename to a root public folder, such as Public folders.Something
       // This isn't allowed at the moment, since permissions for this is undefined.
-      if (bDestinationIsPublic && vecNewPath.size() == 2)
+      if (bDestinationIsPublic && vecNewPath.size() <= 2)
          return IMAPResult(IMAPResult::ResultNo, "Root public folders can only be created using administration tools.");
 
       // Check if the user has access to rename this folder
       if (!pConnection->CheckPermission(pFolderToRename, ACLPermission::PermissionDeleteMailbox))
          return IMAPResult(IMAPResult::ResultNo, "ACL DeleteMailbox permission denied (required for RENAME).");
-         
+
+      if (bDestinationIsPublic)
+      {
+         std::vector<String> vecDestinationParentPath = vecNewPath;
+         vecDestinationParentPath.erase(vecDestinationParentPath.begin());
+         vecDestinationParentPath.erase(vecDestinationParentPath.end() - 1);
+
+         std::shared_ptr<IMAPFolder> pDestinationParent = IMAPFolderUtilities::GetTopMostExistingFolder(
+            pConnection->GetPublicFolders(), vecDestinationParentPath);
+
+         if (!pDestinationParent ||
+             !pConnection->CheckPermission(pDestinationParent, ACLPermission::PermissionCreate))
+         {
+            return IMAPResult(IMAPResult::ResultNo, "ACL Create permission denied on destination parent (required for RENAME).");
+         }
+      }
+
       String hierarchyDelimiter = Configuration::Instance()->GetIMAPConfiguration()->GetHierarchyDelimiter();
       String sNewFolderName = StringParser::JoinVector(vecNewPath, hierarchyDelimiter);
       std::shared_ptr<IMAPFolder> pTargetFolder = pConnection->GetFolderByFullPath(sNewFolderName);
