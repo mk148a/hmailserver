@@ -2,6 +2,34 @@
 
 This backlog tracks the remaining production-parity work for the side-by-side .NET 10 rewrite. Keep it current as each slice lands.
 
+## Consolidated Security Review Triage (2026-06-27)
+
+The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and the 2026-06-27 compiled inventory were merged and exact duplicates removed. The 21 unique records below are classified from the current source tree rather than copied from report severity labels without verification.
+
+| ID | Severity | Finding | Current HEAD status / next action |
+| --- | --- | --- | --- |
+| SEC-01 | Critical | VBScript injection in `OnClientValidatePassword` | Disputed/not reproduced: VBScript quote doubling keeps the reported expression payload inside the string literal. Legacy and .NET regression coverage keeps this boundary monitored. |
+| SEC-02 | High | JScript injection in `OnClientValidatePassword` | Fixed by `4dd984156`: backslashes are escaped before apostrophes and line separators are neutralized; regression coverage added. |
+| SEC-03 | High | VBScript injection in `OnDeliveryFailed` | Disputed/not reproduced: the current legacy path removes quotes and the .NET runner emits a safely escaped literal. Keep under regression coverage. |
+| SEC-04 | High | Custom antivirus command-template injection | Open P1 hardening. This is currently a server-administrator-configured arbitrary command feature, not a demonstrated lower-privilege boundary crossing; replace the template with structured executable and argument configuration. |
+| SEC-05 | High | Rule `ScriptFunction` code injection and COM policy bypass | Fixed by `4dd984156`: runtime identifiers are restricted and COM creation/edit/save requires server-admin authorization. |
+| SEC-06 | High | Empty administrator password grants unauthenticated COM ServerAdmin | Fixed by `4dd984156`: empty administrator hashes now fail closed in legacy and .NET 10; constructor-time anonymous authentication was removed. |
+| SEC-07 | High | Unauthenticated SMTP `ETRN` releases queued mail | Fixed by `4dd984156`: legacy `ETRN` now requires an authenticated SMTP session. .NET 10 does not implement `ETRN`. |
+| SEC-08 | High | ClamAV INSTREAM framing corruption and silent bypass | Fixed earlier by `d8942bc12`; current legacy and .NET clients send raw four-byte big-endian chunk lengths. |
+| SEC-09 | Medium | JScript injection in `OnDeliveryFailed` | Fixed by `4dd984156` through the shared JScript literal escaper and regression coverage. |
+| SEC-10 | Medium | JScript injection in `OnExternalAccountDownload` via POP3 UID | Fixed by `4dd984156` through the shared JScript literal escaper and regression coverage. |
+| SEC-11 | Medium | COM rules/forward authorization-policy bypass | Open P1: audit object ownership and authorization at every COM mutation boundary and add policy tests. |
+| SEC-12 | Medium | COM `ValidatePassword` bypasses auto-ban/rate limiting | Open P2: route the operation through the throttled logon boundary or explicitly restrict the API. |
+| SEC-13 | Medium | Predictable WebAdmin CSRF fallback | Fixed by `4dd984156`: use `random_bytes`, require a strong OpenSSL fallback, and compare tokens with `hash_equals`. |
+| SEC-14 | Medium | WebAdmin state changes over GET / token exposure in URLs | Open P1: convert mutations to POST and keep CSRF tokens out of URLs. |
+| SEC-15 | Medium | Antivirus test endpoint SSRF | Open P1: retain server-admin authorization, use POST, and add destination/metadata/private-network policy. |
+| SEC-16 | Medium | SpamAssassin test endpoint SSRF | Open P1: retain server-admin authorization, use POST, and add destination/metadata/private-network policy. |
+| SEC-17 | Medium | WebAdmin session fixation | Fixed by `4dd984156`: successful login regenerates the session ID and rotates the CSRF token. |
+| SEC-18 | Medium | Plaintext mailbox password in PHP session | Open P1: replace cleartext session storage with a safer server-side reauthentication/session design. |
+| SEC-19 | Medium | IMAP `RENAME` omits destination-parent Create ACL | Open P1 and current next slice: require source Delete plus destination-parent Create permission in legacy, with a targeted regression test. .NET 10 `RENAME` remains unimplemented. |
+| SEC-20 | Historical high | External-fetch COM SSRF | Open P1: define an egress policy with private/metadata target and DNS-rebinding protections. .NET 10 COM fetch mutation/download remains `E_NOTIMPL`. |
+| SEC-21 | Historical medium | Static Blowfish key / reversible stored passwords | Open migration debt: introduce versioned secret encryption and migration while retaining legacy decryption only for backward reads. |
+
 ## Current Status
 
 - Done: .NET 10 solution skeleton, local build/test wrappers, prerequisite checks.
@@ -90,7 +118,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 - Done: a SQL Server message-indexing administration store and service-configured runtime implement delivered/indexed counts, persisted legacy `Enabled`, FTS/queue status, `Clear`, `Index`, and `Rebuild`; direct COM class activation remains access-denied and the backfill processor skips leasing while indexing is disabled.
 - Done: the Windows service hosts COM local-server class factories on a dedicated MTA using suspended registration/resume and same-thread revoke; registry-free process activation proves that direct `MessageIndexing` CLSID objects remain access-denied and disappear after shutdown.
 - Done: preserve the legacy dual `Application` and `Account` IIDs, full 20/61-member vtable order, CLSIDs, versioned ProgIDs, default interfaces, server-admin account result, and detached-account access denial; registry-free process activation authenticates through the legacy root interface.
-- Done: preserve server-administrator credential semantics for case-insensitive `Administrator`, MD5/salted-SHA256 hashes, wrong credentials, and the legacy empty-hash/empty-password anonymous boundary.
+- Done: preserve server-administrator credential semantics for case-insensitive `Administrator`, MD5/salted-SHA256 hashes, and wrong credentials while deliberately hardening the unsafe legacy empty-hash boundary to fail closed.
 - Done: scripted `HMAILSERVER_MESSAGE.RefreshContent` reloads file-backed headers and body after direct script-side message file rewrites.
 - Done: script message `FileName`/`Filename` facade keeps `Load`, `Save`, and `Copy` tied to the original backing file path.
 - Done: script message `To`/`CC` direct assignment no longer rewrites saved recipient headers, preserving legacy read-only property shape.
@@ -345,4 +373,4 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice
 
-Continue the Administrator object model with a bounded read-only `Settings -> ServerMessages` slice: preserve the legacy `ServerMessages`/`ServerMessage` COM contracts, expose authenticated Settings count/index/name/id lookup plus read-only `ID`, `Name`, and `Text` scalar values from existing `hm_servermessages` rows ordered by message name, and keep delivery template execution changes, Refresh, Save, mutations, and deeper behavior explicit `E_NOTIMPL`.
+Close SEC-19 as a bounded legacy IMAP slice: make `RENAME` require both Delete permission on the source mailbox and Create permission on the destination parent, add focused allow/deny regression coverage, and leave the unimplemented .NET 10 `RENAME` surface unchanged. Resume the read-only `Settings -> ServerMessages` Administrator slice after this security boundary.
