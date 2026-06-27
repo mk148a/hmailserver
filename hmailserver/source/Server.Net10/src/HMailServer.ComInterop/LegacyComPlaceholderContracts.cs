@@ -32,8 +32,8 @@ public interface IInterfaceDiagnostics;
 [ComVisible(true), Guid("1259E989-465E-4B63-BB0B-4DB7F6244ACE"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceMessages;
 
-[ComVisible(true), Guid("328B16A7-8314-4398-B506-90937569EDBA"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceIMAPFolders;
+[ComVisible(true), Guid("CBE3FE9E-3642-4BA1-9BE0-6E766C0DE961"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceIMAPFolderPermissions;
 
 [ComVisible(true), Guid("AAD8A0DF-2963-4C5B-A906-6B07B9CC0643"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceLogging;

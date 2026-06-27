@@ -69,6 +69,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "IMAPFolders",
+            "{A0AAF31A-570A-4B78-BDAB-4C33E34BE85F}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "IMAPFolder",
+            "{9FCA085E-E475-4DEE-9D45-5519818DD6E0}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath);
@@ -163,6 +173,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.Rules",
                 @"hMailServer.Rule.1",
                 @"hMailServer.Rule",
+                @"hMailServer.IMAPFolders.1",
+                @"hMailServer.IMAPFolders",
+                @"hMailServer.IMAPFolder.1",
+                @"hMailServer.IMAPFolder",
                 @"hMailServer.Aliases.1",
                 @"hMailServer.Aliases",
                 @"hMailServer.Alias.1",
@@ -191,6 +205,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{F17C3A00-A7A0-4519-AEDD-DCC3B8DE6A3D}",
                 @"CLSID\{624F494B-347A-4285-9506-C54154D50B2A}",
                 @"CLSID\{D5D7927A-7D05-40F3-91DD-968FC14316C7}",
+                @"CLSID\{A0AAF31A-570A-4B78-BDAB-4C33E34BE85F}",
+                @"CLSID\{9FCA085E-E475-4DEE-9D45-5519818DD6E0}",
                 @"CLSID\{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
                 @"CLSID\{335CE9E1-32C5-4CB0-8BF6-CB925196E4D6}",
                 @"CLSID\{C3DD0A4A-0551-442F-859A-76AAB92A6CF1}",

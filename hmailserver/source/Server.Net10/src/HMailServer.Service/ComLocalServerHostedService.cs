@@ -44,6 +44,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Rule).GUID,
                 static () => new Rule()),
             new ComLocalServerRegistration(
+                typeof(IMAPFolders).GUID,
+                static () => new IMAPFolders()),
+            new ComLocalServerRegistration(
+                typeof(IMAPFolder).GUID,
+                static () => new IMAPFolder()),
+            new ComLocalServerRegistration(
                 typeof(Aliases).GUID,
                 static () => new Aliases()),
             new ComLocalServerRegistration(

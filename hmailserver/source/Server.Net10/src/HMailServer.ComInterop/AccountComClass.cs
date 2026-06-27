@@ -130,7 +130,17 @@ public sealed class Account : IInterfaceAccount
         }
     }
 
-    public IInterfaceIMAPFolders IMAPFolders => NotImplemented<IInterfaceIMAPFolders>();
+    public IInterfaceIMAPFolders IMAPFolders
+    {
+        get
+        {
+            EnsureAttached();
+
+            return _administrationSnapshot is { } account
+                ? ImapFolderAdministrationRuntimeHost.CreateAuthorizedAdapter(account.Id)
+                : NotImplemented<IInterfaceIMAPFolders>();
+        }
+    }
 
     public int QuotaUsed => Read(0);
 

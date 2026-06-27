@@ -123,6 +123,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "IMAPFolders",
+            "{A0AAF31A-570A-4B78-BDAB-4C33E34BE85F}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "IMAPFolder",
+            "{9FCA085E-E475-4DEE-9D45-5519818DD6E0}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath,

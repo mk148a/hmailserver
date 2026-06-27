@@ -143,6 +143,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             AccountAdministrationRuntimeHost.Configure(new SqlServerAccountAdministrationStore(connectionFactory));
             FetchAccountAdministrationRuntimeHost.Configure(new SqlServerFetchAccountAdministrationStore(connectionFactory));
             RuleAdministrationRuntimeHost.Configure(new SqlServerRuleAdministrationStore(connectionFactory));
+            ImapFolderAdministrationRuntimeHost.Configure(new SqlServerImapFolderAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -192,6 +193,20 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsFalse(rules.get_ItemByDBID(300).Active);
             var pendingCriterias = Assert.ThrowsExactly<COMException>(() => _ = rules[0].Criterias);
             Assert.AreEqual(unchecked((int)0x80004001), pendingCriterias.ErrorCode);
+            var folders = accounts[0].IMAPFolders;
+            Assert.AreEqual(2, folders.Count);
+            Assert.AreEqual(100, folders[0].ID);
+            Assert.AreEqual(-1, folders[0].ParentID);
+            Assert.AreEqual("Inbox", folders[0].Name);
+            Assert.IsTrue(folders[0].Subscribed);
+            Assert.AreEqual(42, folders[0].CurrentUID);
+            Assert.AreEqual("2026-06-27 01:02:03", folders[0].CreationTime);
+            Assert.AreEqual(300, folders.get_ItemByName("teåäöst").ID);
+            Assert.AreEqual("TEåäöST", folders.get_ItemByDBID(300).Name);
+            var nestedFolder = Assert.ThrowsExactly<COMException>(() => _ = folders.get_ItemByDBID(200));
+            Assert.AreEqual(unchecked((int)0x8002000B), nestedFolder.ErrorCode);
+            var pendingMessages = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Messages);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingMessages.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -515,6 +530,17 @@ CREATE TABLE dbo.hm_rules
     rulesortorder int NOT NULL
 );
 
+CREATE TABLE dbo.hm_imapfolders
+(
+    folderid int NOT NULL PRIMARY KEY,
+    folderaccountid int NOT NULL,
+    folderparentid int NOT NULL,
+    foldername nvarchar(255) NOT NULL,
+    folderissubscribed tinyint NOT NULL,
+    foldercreationtime datetime NOT NULL,
+    foldercurrentuid bigint NOT NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
@@ -562,6 +588,15 @@ VALUES
     (300, 10, N'Second rule', 0, 0, 2),
     (200, 10, N'First rule', 1, 1, 1),
     (400, 20, N'User rule', 1, 1, 1);
+
+INSERT INTO dbo.hm_imapfolders
+    (folderid, folderaccountid, folderparentid, foldername, folderissubscribed,
+     foldercreationtime, foldercurrentuid)
+VALUES
+    (100, 10, -1, N'Inbox', 1, CONVERT(datetime, '2026-06-27T01:02:03', 126), 42),
+    (200, 10, 100, N'Child', 1, CONVERT(datetime, '2026-06-27T01:03:03', 126), 3),
+    (300, 10, -1, N'TE&AOUA5AD2-ST', 0, CONVERT(datetime, '2026-06-26T04:05:06', 126), 7),
+    (400, 20, -1, N'User Inbox', 1, CONVERT(datetime, '2026-06-27T01:02:03', 126), 1);
 """;
 
         await using var connection = new SqlConnection(connectionString);
