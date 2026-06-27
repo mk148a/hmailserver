@@ -497,6 +497,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceGroups Groups
+    {
+        get
+        {
+            EnsureAuthorized();
+            return GroupAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
+
     internal static Settings CreateAuthorized() => new(authorized: true);
 
     void ISettingsAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
@@ -567,7 +576,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public IInterfaceDirectories Directories => Unavailable<IInterfaceDirectories>();
     public virtual IInterfaceIMAPFolders PublicFolders => Unavailable<IInterfaceIMAPFolders>();
     public string PublicFolderDiskName => Unavailable<string>();
-    public IInterfaceGroups Groups => Unavailable<IInterfaceGroups>();
+    public virtual IInterfaceGroups Groups => Unavailable<IInterfaceGroups>();
     public virtual IInterfaceIncomingRelays IncomingRelays => Unavailable<IInterfaceIncomingRelays>();
     public bool AutoBanOnLogonFailure { get => Unavailable<bool>(); set => Unavailable(); }
     public int MaxInvalidLogonAttempts { get => Unavailable<int>(); set => Unavailable(); }

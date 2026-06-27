@@ -62,5 +62,5 @@ public interface IInterfaceServerMessages;
 [ComVisible(true), Guid("48B534F3-2C4E-47F6-8CB0-339676B0ABF3"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceDirectories;
 
-[ComVisible(true), Guid("04B3AAAA-2B86-4C71-8A92-2D174055E1F1"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceGroups;
+[ComVisible(true), Guid("9002BDC6-BCA1-4F37-821C-AE6A70D3046E"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceGroupMembers;

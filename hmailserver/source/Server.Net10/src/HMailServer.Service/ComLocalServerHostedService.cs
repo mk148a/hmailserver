@@ -80,6 +80,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(SSLCertificate).GUID,
                 static () => new SSLCertificate()),
             new ComLocalServerRegistration(
+                typeof(Groups).GUID,
+                static () => new Groups()),
+            new ComLocalServerRegistration(
+                typeof(Group).GUID,
+                static () => new Group()),
+            new ComLocalServerRegistration(
                 typeof(Aliases).GUID,
                 static () => new Aliases()),
             new ComLocalServerRegistration(

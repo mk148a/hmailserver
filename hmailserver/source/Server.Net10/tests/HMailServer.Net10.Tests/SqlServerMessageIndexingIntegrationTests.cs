@@ -153,6 +153,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 new SqlServerTcpIpPortAdministrationStore(connectionFactory));
             SslCertificateAdministrationRuntimeHost.Configure(
                 new SqlServerSslCertificateAdministrationStore(connectionFactory));
+            GroupAdministrationRuntimeHost.Configure(
+                new SqlServerGroupAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -297,6 +299,14 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("Beta certificate", sslCertificates.get_ItemByDBID(1002).Name);
             var pendingSslCertificateSave = Assert.ThrowsExactly<COMException>(sslCertificates[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingSslCertificateSave.ErrorCode);
+            var groups = application.Settings.Groups;
+            Assert.AreEqual(2, groups.Count);
+            Assert.AreEqual("Administrators", groups[0].Name);
+            Assert.AreEqual(1100, groups[0].ID);
+            Assert.AreEqual("Support", groups.get_ItemByDBID(1200).Name);
+            Assert.AreEqual(1200, groups.get_ItemByName("SUPPORT").ID);
+            var pendingGroupMembers = Assert.ThrowsExactly<COMException>(() => _ = groups[0].Members);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingGroupMembers.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -692,6 +702,12 @@ CREATE TABLE dbo.hm_sslcertificates
     sslprivatekeyfile nvarchar(255) NOT NULL
 );
 
+CREATE TABLE dbo.hm_groups
+(
+    groupid bigint NOT NULL PRIMARY KEY,
+    groupname nvarchar(255) NOT NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
@@ -789,6 +805,11 @@ INSERT INTO dbo.hm_sslcertificates
 VALUES
     (1002, N'Beta certificate', N'C:\certs\beta.crt', N'C:\certs\beta.key'),
     (1001, N'Alpha certificate', N'C:\certs\alpha.crt', N'C:\certs\alpha.key');
+
+INSERT INTO dbo.hm_groups (groupid, groupname)
+VALUES
+    (1200, N'Support'),
+    (1100, N'Administrators');
 """;
 
         await using var connection = new SqlConnection(connectionString);
