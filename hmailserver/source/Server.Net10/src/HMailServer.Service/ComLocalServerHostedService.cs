@@ -74,6 +74,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(TCPIPPort).GUID,
                 static () => new TCPIPPort()),
             new ComLocalServerRegistration(
+                typeof(SSLCertificates).GUID,
+                static () => new SSLCertificates()),
+            new ComLocalServerRegistration(
+                typeof(SSLCertificate).GUID,
+                static () => new SSLCertificate()),
+            new ComLocalServerRegistration(
                 typeof(Aliases).GUID,
                 static () => new Aliases()),
             new ComLocalServerRegistration(

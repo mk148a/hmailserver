@@ -151,6 +151,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 new SqlServerSecurityRangeAdministrationStore(connectionFactory));
             TcpIpPortAdministrationRuntimeHost.Configure(
                 new SqlServerTcpIpPortAdministrationStore(connectionFactory));
+            SslCertificateAdministrationRuntimeHost.Configure(
+                new SqlServerSslCertificateAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -287,6 +289,14 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, tcpIpPorts.get_ItemByDBID(901).ConnectionSecurity);
             var pendingTcpIpPortSave = Assert.ThrowsExactly<COMException>(tcpIpPorts[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingTcpIpPortSave.ErrorCode);
+            var sslCertificates = application.Settings.SSLCertificates;
+            Assert.AreEqual(2, sslCertificates.Count);
+            Assert.AreEqual("Alpha certificate", sslCertificates[0].Name);
+            Assert.AreEqual(@"C:\certs\alpha.crt", sslCertificates[0].CertificateFile);
+            Assert.AreEqual(@"C:\certs\alpha.key", sslCertificates[0].PrivateKeyFile);
+            Assert.AreEqual("Beta certificate", sslCertificates.get_ItemByDBID(1002).Name);
+            var pendingSslCertificateSave = Assert.ThrowsExactly<COMException>(sslCertificates[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingSslCertificateSave.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -674,6 +684,14 @@ CREATE TABLE dbo.hm_tcpipports
     portsslcertificateid bigint NOT NULL
 );
 
+CREATE TABLE dbo.hm_sslcertificates
+(
+    sslcertificateid bigint NOT NULL PRIMARY KEY,
+    sslcertificatename nvarchar(255) NOT NULL,
+    sslcertificatefile nvarchar(255) NOT NULL,
+    sslprivatekeyfile nvarchar(255) NOT NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
@@ -765,6 +783,12 @@ INSERT INTO dbo.hm_tcpipports
 VALUES
     (901, 5, 143, 2130706433, NULL, 3, 0),
     (900, 1, 25, 0, NULL, 1, 123);
+
+INSERT INTO dbo.hm_sslcertificates
+    (sslcertificateid, sslcertificatename, sslcertificatefile, sslprivatekeyfile)
+VALUES
+    (1002, N'Beta certificate', N'C:\certs\beta.crt', N'C:\certs\beta.key'),
+    (1001, N'Alpha certificate', N'C:\certs\alpha.crt', N'C:\certs\alpha.key');
 """;
 
         await using var connection = new SqlConnection(connectionString);

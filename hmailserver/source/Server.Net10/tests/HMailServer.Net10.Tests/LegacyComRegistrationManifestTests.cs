@@ -119,6 +119,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "SSLCertificates",
+            "{BE7AF6BB-2ECA-4313-BE00-16A72D82AE49}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "SSLCertificate",
+            "{11A68C45-EC73-496A-A300-2EB8820824EF}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath);
@@ -233,6 +243,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.TCPIPPorts",
                 @"hMailServer.TCPIPPort.1",
                 @"hMailServer.TCPIPPort",
+                @"hMailServer.SSLCertificates.1",
+                @"hMailServer.SSLCertificates",
+                @"hMailServer.SSLCertificate.1",
+                @"hMailServer.SSLCertificate",
                 @"hMailServer.Aliases.1",
                 @"hMailServer.Aliases",
                 @"hMailServer.Alias.1",
@@ -271,6 +285,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{B149383D-151C-4585-99F8-71876D0F14C4}",
                 @"CLSID\{225808B4-6F03-4750-843F-3150EB1C357F}",
                 @"CLSID\{556DF811-3E02-4106-BCA6-C75996825E9A}",
+                @"CLSID\{BE7AF6BB-2ECA-4313-BE00-16A72D82AE49}",
+                @"CLSID\{11A68C45-EC73-496A-A300-2EB8820824EF}",
                 @"CLSID\{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
                 @"CLSID\{335CE9E1-32C5-4CB0-8BF6-CB925196E4D6}",
                 @"CLSID\{C3DD0A4A-0551-442F-859A-76AAB92A6CF1}",

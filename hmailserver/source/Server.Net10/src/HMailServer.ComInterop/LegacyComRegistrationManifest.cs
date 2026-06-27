@@ -193,6 +193,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "SSLCertificates",
+            "{BE7AF6BB-2ECA-4313-BE00-16A72D82AE49}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "SSLCertificate",
+            "{11A68C45-EC73-496A-A300-2EB8820824EF}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath,

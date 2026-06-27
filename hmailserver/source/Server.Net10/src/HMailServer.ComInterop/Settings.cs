@@ -479,6 +479,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceSSLCertificates SSLCertificates
+    {
+        get
+        {
+            EnsureAuthorized();
+            return SslCertificateAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
+
     public override IInterfaceIncomingRelays IncomingRelays
     {
         get
@@ -550,7 +559,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public IInterfaceServerMessages ServerMessages => Unavailable<IInterfaceServerMessages>();
     public virtual IInterfaceTCPIPPorts TCPIPPorts => Unavailable<IInterfaceTCPIPPorts>();
     public bool SMTPRelayerUseSSL { get => Unavailable<bool>(); set => Unavailable(); }
-    public IInterfaceSSLCertificates SSLCertificates => Unavailable<IInterfaceSSLCertificates>();
+    public virtual IInterfaceSSLCertificates SSLCertificates => Unavailable<IInterfaceSSLCertificates>();
     public bool AddDeliveredToHeader { get => Unavailable<bool>(); set => Unavailable(); }
     public string IMAPPublicFolderName { get => Unavailable<string>(); set => Unavailable(); }
     public bool IMAPACLEnabled { get => Unavailable<bool>(); set => Unavailable(); }
