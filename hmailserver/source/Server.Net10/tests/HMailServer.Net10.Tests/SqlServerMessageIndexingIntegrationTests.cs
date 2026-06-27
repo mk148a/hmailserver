@@ -142,6 +142,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             DomainAdministrationRuntimeHost.Configure(new SqlServerDomainAdministrationStore(connectionFactory));
             AccountAdministrationRuntimeHost.Configure(new SqlServerAccountAdministrationStore(connectionFactory));
             FetchAccountAdministrationRuntimeHost.Configure(new SqlServerFetchAccountAdministrationStore(connectionFactory));
+            RuleAdministrationRuntimeHost.Configure(new SqlServerRuleAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -181,6 +182,16 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("2026-07-01 02:03:04", fetchAccounts[0].NextDownloadTime);
             var pendingSensitiveRead = Assert.ThrowsExactly<COMException>(() => _ = fetchAccounts[0].Password);
             Assert.AreEqual(unchecked((int)0x80004001), pendingSensitiveRead.ErrorCode);
+            var rules = accounts[0].Rules;
+            Assert.AreEqual(2, rules.Count);
+            Assert.AreEqual("First rule", rules[0].Name);
+            Assert.AreEqual(10, rules[0].AccountID);
+            Assert.IsTrue(rules[0].Active);
+            Assert.IsTrue(rules[0].UseAND);
+            Assert.AreEqual("Second rule", rules.get_ItemByDBID(300).Name);
+            Assert.IsFalse(rules.get_ItemByDBID(300).Active);
+            var pendingCriterias = Assert.ThrowsExactly<COMException>(() => _ = rules[0].Criterias);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingCriterias.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -494,6 +505,16 @@ CREATE TABLE dbo.hm_fetchaccounts
     famimerecipientheaders nvarchar(255) NOT NULL
 );
 
+CREATE TABLE dbo.hm_rules
+(
+    ruleid int NOT NULL PRIMARY KEY,
+    ruleaccountid int NOT NULL,
+    rulename nvarchar(100) NOT NULL,
+    ruleactive tinyint NOT NULL,
+    ruleuseand tinyint NOT NULL,
+    rulesortorder int NOT NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
@@ -534,6 +555,13 @@ VALUES
     (2000, 1, 20, N'User POP3', N'pop3-user.example.test', 110,
      0, N'user-external', N'not-exposed', 30, CONVERT(datetime, '2026-07-02T02:03:04', 126), 7,
      0, 0, 0, 0, 0, 0, 0, N'To,CC');
+
+INSERT INTO dbo.hm_rules
+    (ruleid, ruleaccountid, rulename, ruleactive, ruleuseand, rulesortorder)
+VALUES
+    (300, 10, N'Second rule', 0, 0, 2),
+    (200, 10, N'First rule', 1, 1, 1),
+    (400, 20, N'User rule', 1, 1, 1);
 """;
 
         await using var connection = new SqlConnection(connectionString);

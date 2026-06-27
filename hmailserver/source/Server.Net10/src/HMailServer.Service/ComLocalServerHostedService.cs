@@ -38,6 +38,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(FetchAccounts).GUID,
                 static () => new FetchAccounts()),
             new ComLocalServerRegistration(
+                typeof(Rules).GUID,
+                static () => new Rules()),
+            new ComLocalServerRegistration(
+                typeof(Rule).GUID,
+                static () => new Rule()),
+            new ComLocalServerRegistration(
                 typeof(Aliases).GUID,
                 static () => new Aliases()),
             new ComLocalServerRegistration(

@@ -118,7 +118,17 @@ public sealed class Account : IInterfaceAccount
         set => Write(() => _adminLevel = value);
     }
 
-    public IInterfaceRules Rules => NotImplemented<IInterfaceRules>();
+    public IInterfaceRules Rules
+    {
+        get
+        {
+            EnsureAttached();
+
+            return _administrationSnapshot is { } account
+                ? RuleAdministrationRuntimeHost.CreateAuthorizedAdapter(account.Id)
+                : NotImplemented<IInterfaceRules>();
+        }
+    }
 
     public IInterfaceIMAPFolders IMAPFolders => NotImplemented<IInterfaceIMAPFolders>();
 

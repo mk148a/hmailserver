@@ -11,8 +11,11 @@ public interface IInterfaceUtilities;
 [ComVisible(true), Guid("C3E2DFFB-BE53-4BE6-BE57-7C5609938CEB"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceStatus;
 
-[ComVisible(true), Guid("995F9181-E761-42FA-9057-FE070B37D0F3"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceRules;
+[ComVisible(true), Guid("D79148F6-78A9-4F60-B8E8-48C33D888FC5"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceRuleCriterias;
+
+[ComVisible(true), Guid("DBFD3E11-9121-4DDD-944B-5AF29BF3D2DF"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceRuleActions;
 
 [ComVisible(true), Guid("E773E8FC-1C9A-4E96-A73C-CC02E7649637"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceBackupManager;
