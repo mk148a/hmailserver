@@ -30,6 +30,11 @@ function Login($username, $password)
    $obAccount = $obBaseApp->Authenticate($username, $password);
    if (!isset($obAccount))
       LoginError();
+
+   if (!session_regenerate_id(true))
+      LoginError();
+
+   $_SESSION['session_csrf_token'] = generate_random_string();
    
    $_SESSION['session_loggedin'] = 1;
    $_SESSION['session_adminlevel'] = $obAccount->AdminLevel();

@@ -25,7 +25,6 @@ public sealed class Application : IInterfaceApplication
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
-        _isServerAdministrator = authenticationProvider.Authenticate("Administrator", string.Empty);
     }
 
     [ComVisible(false)]

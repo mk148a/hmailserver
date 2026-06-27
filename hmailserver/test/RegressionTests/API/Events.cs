@@ -927,5 +927,47 @@ namespace RegressionTests.API
          Assert.IsTrue(eventLogText.Contains("Account: test@example.test"));
          Assert.IsTrue(eventLogText.Contains("Password: MySecretPassword"));
       }
+
+      [Test]
+      public void TestOnClientValidatePasswordVBScript_TreatsExpressionPayloadAsData()
+      {
+         SingletonProvider<TestSetup>.Instance.AddAccount(_domain, "vb-injection@example.test", "test");
+
+         var scripting = _settings.Scripting;
+         scripting.Language = "VBScript";
+         File.WriteAllText(
+            scripting.CurrentScriptFile,
+            @"Sub OnClientValidatePassword(account, password)
+                 If password = ""x"""" & CStr(1+1) & """""" Then
+                    Result.Value = 1
+                 Else
+                    Result.Value = 0
+                 End If
+              End Sub");
+         scripting.Enabled = true;
+         scripting.Reload();
+
+         const string expressionPayload = "x\" & CStr(1+1) & \"";
+         Assert.IsFalse(ImapClientSimulator.ValidatePassword("vb-injection@example.test", expressionPayload));
+      }
+
+      [Test]
+      public void TestOnClientValidatePasswordJScript_RejectsInjectedPassword()
+      {
+         SingletonProvider<TestSetup>.Instance.AddAccount(_domain, "js-injection@example.test", "test");
+
+         var scripting = _settings.Scripting;
+         scripting.Language = "JScript";
+         File.WriteAllText(
+            scripting.CurrentScriptFile,
+            @"function OnClientValidatePassword(account, password) {
+                 Result.Value = password === ""\\'); Result.Value = 0;//"" ? 1 : 0;
+              }");
+         scripting.Enabled = true;
+         scripting.Reload();
+
+         const string injectedPassword = @"\'); Result.Value = 0;//";
+         Assert.IsFalse(ImapClientSimulator.ValidatePassword("js-injection@example.test", injectedPassword));
+      }
    }
 }

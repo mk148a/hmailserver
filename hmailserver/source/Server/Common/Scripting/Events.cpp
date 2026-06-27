@@ -25,6 +25,21 @@
 
 namespace HM
 {
+   namespace
+   {
+      String EscapeJScriptStringLiteral(const String &value)
+      {
+         String escapedValue = value;
+         escapedValue.Replace(_T("\\"), _T("\\\\"));
+         escapedValue.Replace(_T("'"), _T("\\'"));
+         escapedValue.Replace(_T("\r"), _T("\\r"));
+         escapedValue.Replace(_T("\n"), _T("\\n"));
+         escapedValue.Replace(_T("\x2028"), _T("\\u2028"));
+         escapedValue.Replace(_T("\x2029"), _T("\\u2029"));
+         return escapedValue;
+      }
+   }
+
    Events::Events(void)
    {
 
@@ -67,8 +82,7 @@ namespace HM
       }
       else if (sScriptLanguage == _T("JScript"))
       {
-         String sEscapedPassword = sPassword;
-         sEscapedPassword.Replace(_T("'"), _T("\\'"));
+         String sEscapedPassword = EscapeJScriptStringLiteral(sPassword);
 
          sEventCaller.Format(_T("OnClientValidatePassword(HMAILSERVER_ACCOUNT, '%s')"), sEscapedPassword.c_str());
       }
@@ -174,10 +188,8 @@ namespace HM
          }
          else if (sScriptLanguage == _T("JScript"))
          {
-            sRecipientCopy.Replace(_T("'"), _T("\\'"));
-            sErrorMessageCopy.Replace(_T("'"), _T("\\'"));
-
-            sErrorMessageCopy.Replace(_T("\r\n"), _T("\\r\\n"));
+            sRecipientCopy = EscapeJScriptStringLiteral(sRecipientCopy);
+            sErrorMessageCopy = EscapeJScriptStringLiteral(sErrorMessageCopy);
 
             sErrorMessageCopy.TrimLeft();
             sErrorMessageCopy.TrimRight();
@@ -223,7 +235,7 @@ namespace HM
       }
       else if (sScriptLanguage == _T("JScript"))
       {
-         sRemoteUIDCopy.Replace(_T("'"), _T("\\'"));
+         sRemoteUIDCopy = EscapeJScriptStringLiteral(sRemoteUIDCopy);
 
          if (pMessage)
             sEventCaller.Format(_T("OnExternalAccountDownload(HMAILSERVER_FETCHACCOUNT, HMAILSERVER_MESSAGE, '%s')"), sRemoteUIDCopy.c_str());

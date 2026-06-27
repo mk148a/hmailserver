@@ -41,6 +41,33 @@
 
 namespace HM
 {
+   namespace
+   {
+      bool IsSafeScriptFunctionName(const String &functionName)
+      {
+         if (functionName.IsEmpty())
+            return false;
+
+         const wchar_t firstCharacter = functionName[0];
+         if (!((firstCharacter >= _T('A') && firstCharacter <= _T('Z')) ||
+               (firstCharacter >= _T('a') && firstCharacter <= _T('z')) ||
+               firstCharacter == _T('_')))
+            return false;
+
+         for (int index = 1; index < functionName.GetLength(); index++)
+         {
+            const wchar_t character = functionName[index];
+            if (!((character >= _T('A') && character <= _T('Z')) ||
+                  (character >= _T('a') && character <= _T('z')) ||
+                  (character >= _T('0') && character <= _T('9')) ||
+                  character == _T('_')))
+               return false;
+         }
+
+         return true;
+      }
+   }
+
    RuleApplier::RuleApplier(void) :
       rule_account_id_(0)
    {
@@ -356,6 +383,12 @@ namespace HM
    {
       // Run a custom function
       String sFunctionName = pAction->GetScriptFunction();
+
+      if (!IsSafeScriptFunctionName(sFunctionName))
+      {
+         LOG_APPLICATION("RuleApplier - Refusing to execute an invalid script function name.");
+         return;
+      }
 
       std::shared_ptr<ScriptObjectContainer> pContainer = std::shared_ptr<ScriptObjectContainer>(new ScriptObjectContainer);
       std::shared_ptr<Result> pResult = std::shared_ptr<Result>(new Result);

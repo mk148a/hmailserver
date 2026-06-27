@@ -39,12 +39,8 @@ namespace HM
 
          if (sPasswordCorrect.IsEmpty())
          {
-            // The administrators password has not been set yet. It's likely
-            // that we have just installed or upgraded hMailServer.
-            
-            // Has the empty password, so we can compare. The upgrade tool first
-            // tries to authenticate with an empty password.
-            sPasswordCorrect = HM::Crypt::Instance()->EnCrypt(sPasswordCorrect, HM::Crypt::ETSHA256);
+            // An unset administrator password must never grant COM access.
+            return account_;
          }
 
          
@@ -74,15 +70,8 @@ namespace HM
    void 
    COMAuthentication::AttempAnonymousAuthentication()
    {
-      // No authentication is required if the administration password is empty.
-      String sAdminPassword = HM::IniFileSettings::Instance()->GetAdministratorPassword();
-      if (sAdminPassword.IsEmpty())
-      {
-         // Create a dummy account since the administrator
-         // does not have a real email account.
-
-         account_ = std::shared_ptr<Account> (new Account("Administrator", Account::ServerAdmin));
-      }
+      // Anonymous administration is intentionally disabled. The method remains
+      // for internal ABI/source compatibility with existing COM wrappers.
    }
 
    bool 

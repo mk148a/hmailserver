@@ -2011,7 +2011,12 @@ namespace HM
       //   501 Syntax Error in Parameters
 
 
-// WE SHOULD ADD SOME LOGGING HERE
+      if (!isAuthenticated_)
+      {
+         SendErrorResponse_(530, "Authentication required");
+         LOG_SMTP(GetSessionID(), GetIPAddressString(), "SMTPDeliverer - ETRN - Authentication required");
+         return;
+      }
 
       std::vector<String> vecParams = StringParser::SplitString(sRequest,  " ");
 

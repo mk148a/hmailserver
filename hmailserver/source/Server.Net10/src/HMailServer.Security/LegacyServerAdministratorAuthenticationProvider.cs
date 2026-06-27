@@ -27,7 +27,7 @@ public sealed class LegacyServerAdministratorAuthenticationProvider : IServerAdm
 
         if (_storedPasswordHash.Length == 0)
         {
-            return password.Length == 0;
+            return false;
         }
 
         var encryptionType = _storedPasswordHash.Length switch

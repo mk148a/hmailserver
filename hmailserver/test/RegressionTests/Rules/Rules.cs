@@ -45,6 +45,42 @@ namespace RegressionTests.Rules
       }
 
       [Test]
+      public void ScriptFunctionRejectsExecutableExpressions()
+      {
+         LogHandler.DeleteEventLog();
+         var account = SingletonProvider<TestSetup>.Instance.AddAccount(_domain, "script-rule@example.test", "test");
+         var rule = account.Rules.Add();
+         rule.Name = "Script injection guard";
+         rule.Active = true;
+
+         var criteria = rule.Criterias.Add();
+         criteria.UsePredefined = true;
+         criteria.PredefinedField = eRulePredefinedField.eFTMessageSize;
+         criteria.MatchType = eRuleMatchType.eMTGreaterThan;
+         criteria.MatchValue = "0";
+         criteria.Save();
+
+         var action = rule.Actions.Add();
+         action.Type = eRuleActionType.eRARunScriptFunction;
+         action.ScriptFunction = "Safe(HMAILSERVER_MESSAGE); EventLog.Write('INJECTED');//";
+         action.Save();
+         rule.Save();
+
+         _settings.Scripting.Language = "JScript";
+         File.WriteAllText(
+            _settings.Scripting.CurrentScriptFile,
+            "function Safe(message) {}");
+         _settings.Scripting.Enabled = true;
+         _settings.Scripting.Reload();
+
+         SmtpClientSimulator.StaticSend(account.Address, account.Address, "Test", "Body");
+
+         var eventLogPath = LogHandler.GetEventLogFileName();
+         var eventLogText = File.Exists(eventLogPath) ? File.ReadAllText(eventLogPath) : string.Empty;
+         Assert.IsFalse(eventLogText.Contains("INJECTED"));
+      }
+
+      [Test]
       public void ActionAccountRuleMoveToExistingPublicFolder()
       {
          var application = SingletonProvider<TestSetup>.Instance.GetApp();

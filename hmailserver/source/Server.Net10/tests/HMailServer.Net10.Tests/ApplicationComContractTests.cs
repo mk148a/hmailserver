@@ -142,11 +142,12 @@ public sealed class ApplicationComContractTests
     }
 
     [TestMethod]
-    public void Application_EmptyAdministratorPasswordPreservesLegacyAnonymousAccess()
+    public void Application_DoesNotAttemptAnonymousAdministratorAccess()
     {
         var application = new Application(new RecordingAdministratorAuthenticationProvider(string.Empty));
 
-        Assert.IsInstanceOfType<Settings>(application.Settings);
+        var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
     }
 
     [TestMethod]

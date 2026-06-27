@@ -34,6 +34,9 @@ STDMETHODIMP InterfaceRuleAction::Save()
       if (!object_)
          return GetAccessDenied();
 
+      if (object_->GetType() == HM::RuleAction::ScriptFunction && !GetIsServerAdmin())
+         return GetAccessDenied();
+
       // Set the sort order of the rule.
       if (object_->GetID() == 0 && object_->GetSortOrder() == 0)
       {
@@ -154,6 +157,9 @@ STDMETHODIMP InterfaceRuleAction::put_Type(eRuleActionType newVal)
    try
    {
       if (!object_)
+         return GetAccessDenied();
+
+      if (newVal == eRARunScriptFunction && !GetIsServerAdmin())
          return GetAccessDenied();
 
       object_->SetType((HM::RuleAction::Type) newVal);
@@ -411,6 +417,9 @@ STDMETHODIMP InterfaceRuleAction::put_ScriptFunction(BSTR newVal)
    try
    {
       if (!object_)
+         return GetAccessDenied();
+
+      if (!GetIsServerAdmin())
          return GetAccessDenied();
 
       object_->SetScriptFunction(newVal);

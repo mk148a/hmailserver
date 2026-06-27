@@ -30,11 +30,11 @@ public sealed class LegacyServerAdministratorAuthenticationProviderTests
     }
 
     [TestMethod]
-    public void Authenticate_EmptyStoredHashPreservesLegacyAnonymousAdministratorBoundary()
+    public void Authenticate_EmptyStoredHashFailsClosed()
     {
         var provider = new LegacyServerAdministratorAuthenticationProvider(string.Empty);
 
-        Assert.IsTrue(provider.Authenticate("Administrator", string.Empty));
+        Assert.IsFalse(provider.Authenticate("Administrator", string.Empty));
         Assert.IsFalse(provider.Authenticate("Administrator", "non-empty"));
     }
 }

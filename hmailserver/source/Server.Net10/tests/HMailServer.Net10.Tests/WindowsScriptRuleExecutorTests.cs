@@ -2478,6 +2478,43 @@ End Sub
     }
 
     [TestMethod]
+    public void Execute_JScriptDeliveryFailedTreatsInjectedErrorAsData()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        var eventLogPath = Path.Combine(eventDirectory, "hmailserver_events.log");
+        const string attack = "\\\"); throw new Error(\"injected\"); //";
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnDeliveryFailed(message, recipient, errorMessage) {
+  EventLog.Write(errorMessage);
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript", eventLogPath);
+
+            var result = executor.Execute(
+                CreateDeliveryEventRequest(
+                    "Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray(),
+                    eventName: "OnDeliveryFailed",
+                    argumentShape: DeliveryEventScriptArgumentShape.MessageRecipientAndError,
+                    recipientAddress: "user@example.net",
+                    errorMessage: attack),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            AssertLegacyEventLogLines(eventLogPath, attack);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_RunsVbScriptExternalAccountDownloadWithFetchAccountAndMessage()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -2571,6 +2608,38 @@ function OnExternalAccountDownload(fetchAccount, message, uid) {
             Assert.IsTrue(result.Succeeded, result.Error);
             Assert.AreEqual(ExternalAccountDownloadDeleteAction.NeverDelete, result.DeleteAction);
             Assert.IsNull(result.MessageData);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptExternalAccountUidTreatsInjectionAsData()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        var eventLogPath = Path.Combine(eventDirectory, "hmailserver_events.log");
+        const string attack = "\\\"); throw new Error(\"injected\"); //";
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnExternalAccountDownload(fetchAccount, message, uid) {
+  EventLog.Write(uid);
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript", eventLogPath);
+
+            var result = executor.Execute(
+                CreateExternalAccountDownloadRequest(messageData: null, remoteUid: attack),
+                CancellationToken.None);
+
+            Assert.IsTrue(result.Succeeded, result.Error);
+            AssertLegacyEventLogLines(eventLogPath, attack);
         }
         finally
         {
@@ -2768,6 +2837,40 @@ End Sub
     }
 
     [TestMethod]
+    public void Execute_VbScriptClientPasswordTreatsExpressionPayloadAsData()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        const string expressionPayload = "x\" & CStr(1+1) & \"";
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """"
+Sub OnClientValidatePassword(account, password)
+   If password = "x"" & CStr(1+1) & """ Then
+      Result.Value = 1
+   Else
+      Result.Value = 0
+   End If
+End Sub
+"""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest(expressionPayload),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Reject, result.Decision);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_VbScriptClientValidatePasswordSeedsResultParameter()
     {
         var cscript = GetCscriptPathOrInconclusive();
@@ -2890,6 +2993,39 @@ function OnClientValidatePassword(oAccount, password) {
                 CancellationToken.None);
 
             Assert.AreEqual(ClientPasswordValidationScriptDecision.Reject, result.Decision);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
+    public void Execute_JScriptClientPasswordTreatsInjectionAsData()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        var eventLogPath = Path.Combine(eventDirectory, "hmailserver_events.log");
+        const string attack = "\\\"); Result.Value = 0; //";
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnClientValidatePassword(account, password) {
+  EventLog.Write(password);
+  Result.Value = 1;
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript", eventLogPath);
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest(attack),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Reject, result.Decision);
+            AssertLegacyEventLogLines(eventLogPath, attack);
         }
         finally
         {

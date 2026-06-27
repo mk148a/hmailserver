@@ -34,5 +34,18 @@ namespace RegressionTests.SMTP
          var response = smtpConn.SendAndReceive("RCPT TO: example@example.com A=B\r\n");
          Assert.AreEqual("550 Unsupported ESMTP extension: A=B\r\n", response);
       }
+
+      [Test]
+      public void EtrnRequiresAuthentication()
+      {
+         var smtpConn = new SmtpClientSimulator();
+         smtpConn.Connect();
+
+         smtpConn.Receive();
+         smtpConn.SendAndReceive("EHLO example.com\r\n");
+
+         var response = smtpConn.SendAndReceive("ETRN example.com\r\n");
+         Assert.AreEqual("530 Authentication required\r\n", response);
+      }
    }
 }
