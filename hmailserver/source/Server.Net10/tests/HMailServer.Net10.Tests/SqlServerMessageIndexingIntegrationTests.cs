@@ -145,6 +145,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             RuleAdministrationRuntimeHost.Configure(new SqlServerRuleAdministrationStore(connectionFactory));
             ImapFolderAdministrationRuntimeHost.Configure(new SqlServerImapFolderAdministrationStore(connectionFactory));
             RouteAdministrationRuntimeHost.Configure(new SqlServerRouteAdministrationStore(connectionFactory));
+            IncomingRelayAdministrationRuntimeHost.Configure(
+                new SqlServerIncomingRelayAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -239,6 +241,15 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(600, routes.get_ItemByDBID(600).ID);
             var pendingRouteAddresses = Assert.ThrowsExactly<COMException>(() => _ = routes[0].Addresses);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRouteAddresses.ErrorCode);
+            var incomingRelays = application.Settings.IncomingRelays;
+            Assert.AreEqual(2, incomingRelays.Count);
+            Assert.AreEqual("Alpha relay", incomingRelays[0].Name);
+            Assert.AreEqual("127.0.0.1", incomingRelays[0].LowerIP);
+            Assert.AreEqual("127.0.0.1", incomingRelays[0].UpperIP);
+            Assert.AreEqual("Beta relay", incomingRelays.get_ItemByName("BETA RELAY").Name);
+            Assert.AreEqual(800, incomingRelays.get_ItemByDBID(800).ID);
+            var pendingRelaySave = Assert.ThrowsExactly<COMException>(incomingRelays[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingRelaySave.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -591,6 +602,16 @@ CREATE TABLE dbo.hm_routes
     routetreatsenderaslocaldomain tinyint NOT NULL
 );
 
+CREATE TABLE dbo.hm_incoming_relays
+(
+    relayid int NOT NULL PRIMARY KEY,
+    relayname nvarchar(100) NOT NULL,
+    relaylowerip1 bigint NOT NULL,
+    relaylowerip2 bigint NULL,
+    relayupperip1 bigint NOT NULL,
+    relayupperip2 bigint NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
@@ -661,6 +682,12 @@ VALUES
      3, 10, 0, 0, N'', N'not-exposed', 0, 3, 1),
     (500, N'alpha.route.test', N'Alpha route', N'smtp.alpha.route.test', 2525,
      4, 15, 1, 1, N'relay-user', N'not-exposed', 1, 1, 0);
+
+INSERT INTO dbo.hm_incoming_relays
+    (relayid, relayname, relaylowerip1, relaylowerip2, relayupperip1, relayupperip2)
+VALUES
+    (800, N'Beta relay', 167772160, NULL, 167772415, NULL),
+    (700, N'Alpha relay', 2130706433, NULL, 2130706433, NULL);
 """;
 
         await using var connection = new SqlConnection(connectionString);

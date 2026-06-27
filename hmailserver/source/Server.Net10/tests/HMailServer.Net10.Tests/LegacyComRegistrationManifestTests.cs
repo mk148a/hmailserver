@@ -89,6 +89,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "IncomingRelays",
+            "{3E75EE53-EAA6-40A5-B2CE-9CB8D7EE9278}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "IncomingRelay",
+            "{CB3F5F58-436C-4358-8E1C-1BE1F6D822BC}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath);
@@ -191,6 +201,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.Routes",
                 @"hMailServer.Route.1",
                 @"hMailServer.Route",
+                @"hMailServer.IncomingRelays.1",
+                @"hMailServer.IncomingRelays",
+                @"hMailServer.IncomingRelay.1",
+                @"hMailServer.IncomingRelay",
                 @"hMailServer.Aliases.1",
                 @"hMailServer.Aliases",
                 @"hMailServer.Alias.1",
@@ -223,6 +237,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{9FCA085E-E475-4DEE-9D45-5519818DD6E0}",
                 @"CLSID\{7D174A9D-D44C-4627-BE78-E5DDC513C31F}",
                 @"CLSID\{3FF9BB08-7924-4418-BADA-7D959467D51B}",
+                @"CLSID\{3E75EE53-EAA6-40A5-B2CE-9CB8D7EE9278}",
+                @"CLSID\{CB3F5F58-436C-4358-8E1C-1BE1F6D822BC}",
                 @"CLSID\{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
                 @"CLSID\{335CE9E1-32C5-4CB0-8BF6-CB925196E4D6}",
                 @"CLSID\{C3DD0A4A-0551-442F-859A-76AAB92A6CF1}",

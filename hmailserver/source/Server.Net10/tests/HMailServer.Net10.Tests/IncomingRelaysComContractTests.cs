@@ -1,0 +1,179 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
+
+namespace HMailServer.Net10.Tests;
+
+[TestClass]
+public sealed class IncomingRelaysComContractTests
+{
+    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ENotImplemented = unchecked((int)0x80004001);
+    private const int DispEBadIndex = unchecked((int)0x8002000B);
+
+    [TestMethod]
+    public void Interfaces_PreserveLegacyIidsDispatchIdsAndCompleteVtableOrder()
+    {
+        AssertContract(
+            typeof(IInterfaceIncomingRelays),
+            "49D48933-3219-4D7E-84D5-B26FE5F0E165",
+            new[]
+            {
+                "get_Item", "get_ItemByDBID", "Delete", "DeleteByDBID", "Refresh",
+                "Add", "get_Count", "get_ItemByName"
+            });
+        Assert.AreEqual(
+            0,
+            typeof(IInterfaceIncomingRelays).GetProperty("Item")?.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(
+            7,
+            typeof(IInterfaceIncomingRelays).GetMethod("get_ItemByName")?.GetCustomAttribute<DispIdAttribute>()?.Value);
+
+        AssertContract(
+            typeof(IInterfaceIncomingRelay),
+            "088D748B-7CCE-4B8D-A103-D99DA83775AB",
+            new[]
+            {
+                "get_ID", "get_LowerIP", "set_LowerIP", "get_UpperIP", "set_UpperIP",
+                "get_Name", "set_Name", "Delete", "Save"
+            });
+        Assert.AreEqual(
+            5,
+            typeof(IInterfaceIncomingRelay).GetMethod(nameof(IInterfaceIncomingRelay.Save))
+                ?.GetCustomAttribute<DispIdAttribute>()?.Value);
+    }
+
+    [TestMethod]
+    public void ComClasses_PreserveLegacyIdentitiesAndDefaultInterfaces()
+    {
+        AssertComClass<IncomingRelays>(
+            "3E75EE53-EAA6-40A5-B2CE-9CB8D7EE9278",
+            "hMailServer.IncomingRelays.1",
+            typeof(IInterfaceIncomingRelays));
+        AssertComClass<IncomingRelay>(
+            "CB3F5F58-436C-4358-8E1C-1BE1F6D822BC",
+            "hMailServer.IncomingRelay.1",
+            typeof(IInterfaceIncomingRelay));
+    }
+
+    [TestMethod]
+    public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
+    {
+        var relaysError = Assert.ThrowsExactly<COMException>(() => _ = new IncomingRelays().Count);
+        var relayError = Assert.ThrowsExactly<COMException>(() => _ = new IncomingRelay().Name);
+        var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().IncomingRelays);
+
+        Assert.AreEqual(EAccessDenied, relaysError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ExposesReadOnlySnapshotsAndLegacyLookupErrors()
+    {
+        IInterfaceIncomingRelays relays = IncomingRelays.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1"),
+                Snapshot(20, "Beta relay", "10.0.0.0", "10.0.0.255")
+            });
+
+        Assert.AreEqual(2, relays.Count);
+        AssertRelay(relays[0], 10, "Alpha relay", "127.0.0.1", "127.0.0.1");
+        AssertRelay(relays.get_ItemByName("BETA RELAY"), 20, "Beta relay", "10.0.0.0", "10.0.0.255");
+        Assert.AreEqual(20, relays.get_ItemByDBID(20).ID);
+
+        var badIndex = Assert.ThrowsExactly<COMException>(() => _ = relays[2]);
+        var badName = Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByName("missing"));
+        var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByDBID(30));
+        var pendingAdd = Assert.ThrowsExactly<COMException>(() => relays.Add());
+        var pendingDelete = Assert.ThrowsExactly<COMException>(() => relays.Delete(0));
+        var pendingDeleteById = Assert.ThrowsExactly<COMException>(() => relays.DeleteByDBID(10));
+        var pendingRefresh = Assert.ThrowsExactly<COMException>(relays.Refresh);
+        var pendingMutation = Assert.ThrowsExactly<COMException>(() => relays[0].Name = "changed");
+        var pendingSave = Assert.ThrowsExactly<COMException>(relays[0].Save);
+        var pendingRelayDelete = Assert.ThrowsExactly<COMException>(relays[0].Delete);
+
+        Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, badName.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingAdd.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDeleteById.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingSave.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingRelayDelete.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_UsesConfiguredIncomingRelayRuntime()
+    {
+        IncomingRelayAdministrationRuntimeHost.Configure(
+            new FixedIncomingRelayAdministrationStore(
+                new[]
+                {
+                    Snapshot(20, "Beta relay", "10.0.0.0", "10.0.0.255"),
+                    Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1")
+                }));
+        IInterfaceSettings settings = Settings.CreateAuthorized();
+
+        var relays = settings.IncomingRelays;
+
+        Assert.AreEqual(2, relays.Count);
+        Assert.AreEqual("Alpha relay", relays[0].Name);
+    }
+
+    private static IncomingRelayAdministrationSnapshot Snapshot(
+        int id,
+        string name,
+        string lowerIp,
+        string upperIp) =>
+        new(id, name, lowerIp, upperIp);
+
+    private static void AssertRelay(
+        IInterfaceIncomingRelay relay,
+        int id,
+        string name,
+        string lowerIp,
+        string upperIp)
+    {
+        Assert.AreEqual(id, relay.ID);
+        Assert.AreEqual(name, relay.Name);
+        Assert.AreEqual(lowerIp, relay.LowerIP);
+        Assert.AreEqual(upperIp, relay.UpperIP);
+    }
+
+    private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
+    {
+        Assert.AreEqual(new Guid(interfaceId), contract.GUID);
+        Assert.AreEqual(ComInterfaceType.InterfaceIsDual, contract.GetCustomAttribute<InterfaceTypeAttribute>()?.Value);
+        Assert.AreEqual(
+            TypeLibTypeFlags.FDual | TypeLibTypeFlags.FNonExtensible | TypeLibTypeFlags.FDispatchable,
+            contract.GetCustomAttribute<TypeLibTypeAttribute>()?.Value);
+        CollectionAssert.AreEqual(
+            methodNames,
+            contract.GetMethods().OrderBy(static method => method.MetadataToken).Select(static method => method.Name).ToArray());
+    }
+
+    private static void AssertComClass<T>(string classId, string progId, Type defaultInterface)
+    {
+        var type = typeof(T);
+
+        Assert.AreEqual(new Guid(classId), type.GUID);
+        Assert.AreEqual(progId, type.GetCustomAttribute<ProgIdAttribute>()?.Value);
+        Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
+        Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
+        Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    private sealed class FixedIncomingRelayAdministrationStore(IReadOnlyList<IncomingRelayAdministrationSnapshot> relays)
+        : IIncomingRelayAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<IncomingRelayAdministrationSnapshot>> GetIncomingRelaysAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<IncomingRelayAdministrationSnapshot>>(
+                relays.OrderBy(relay => relay.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+}

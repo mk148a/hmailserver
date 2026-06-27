@@ -151,6 +151,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "IncomingRelays",
+            "{3E75EE53-EAA6-40A5-B2CE-9CB8D7EE9278}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "IncomingRelay",
+            "{CB3F5F58-436C-4358-8E1C-1BE1F6D822BC}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath,
