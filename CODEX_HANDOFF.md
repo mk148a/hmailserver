@@ -45,10 +45,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: Administrator object modeline sinirli read-only `Settings -> IncomingRelays` dilimiyle devam etmek. Legacy `IncomingRelays`/`IncomingRelay` COM kontratlari korunmali; authenticated Settings yolu `hm_incoming_relays` icinden `relayname asc` sirali count/index/name/id lookup ve read-only `ID`, `Name`, `LowerIP`, `UpperIP` scalar'larini acmali. Relay davranisi, SMTP trust kararlari, Add/Delete/Save/mutation ve daha derin davranislar acik `E_NOTIMPL` kalmali.
+Backlog'daki siradaki ana dilim: Administrator object modeline sinirli read-only `Settings -> TCPIPPorts` dilimiyle devam etmek. Legacy `TCPIPPorts`/`TCPIPPort` COM kontratlari korunmali; authenticated Settings yolu `hm_tcpipports` icinden `portaddress1 asc, portaddress2 asc, portnumber asc` sirali count/index/id lookup ve read-only `ID`, `Protocol`, `PortNumber`, `Address`, `UseSSL`, `SSLCertificateID`, `ConnectionSecurity` scalar'larini acmali. Listener yeniden konfigurasyonu, SetDefault, Add/Delete/Save/mutation ve daha derin davranislar acik `E_NOTIMPL` kalmali.
 
 Son tamamlanan kucuk dilimler:
 
+- Legacy `IncomingRelays` ve `IncomingRelay` COM kontratlari tam vtable/identity siralariyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Settings -> IncomingRelays` count/index/name/id lookup'u mevcut `hm_incoming_relays` SQL verisinden `relayname` sirasiyla geliyor. DB-backed adapter legacy iki kolonlu IP depolamasini COM'da `LowerIP`/`UpperIP` string'lerine ceviriyor; SMTP trust davranisi ve mutation'lar `E_NOTIMPL`, direct activation `E_ACCESSDENIED` kaliyor.
 - Authenticated `Application -> Rules`, mevcut testli `Rules`/`Rule` adapter ve SQL store hattini `ruleaccountid = 0` global-rule verisi icin yeniden kullaniyor. Yalniz server-admin Application yolu koleksiyona erisebiliyor; global/account rule ayrimi ve gercek SQL yolu test edildi. Criteria/actions, execution ve mutation sinirlari degismeden `E_NOTIMPL` kaliyor.
 - Legacy `Routes` ve `Route` COM kontratlari tam vtable/identity siralariyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Settings -> Routes` count/index/domain-name/id lookup'u mevcut `hm_routes` SQL verisinden legacy domain-name sirasiyla geliyor. DB-backed route adapter parola kolonunu okumadan ID, domain/description/target, retry, all-addresses, relayer auth kullanimi ve username'i, sender/recipient-local bayraklari ile connection-security/UseSSL scalar'larini read-only aciyor; obsolete `TreatSecurityAsLocalDomain` recipient-local alias'ini koruyor. Direct activation `E_ACCESSDENIED`; route-address alt koleksiyonu, parola setter'i ve mutation'lar `E_NOTIMPL` kaliyor.
 - Authenticated `Settings -> PublicFolders`, mevcut testli `IMAPFolders`/`IMAPFolder` adapter ve SQL store hattini `folderaccountid = 0` public-root verisi icin yeniden kullaniyor. Yalniz server-admin Settings yolu koleksiyona erisebiliyor; account/public kok ayrimi ve gercek SQL yolu test edildi. Messages, permissions, nested subfolders ve mutation sinirlari degismeden `E_NOTIMPL` kaliyor.
@@ -347,6 +348,7 @@ Son temiz dogrulama notlari:
 - Settings PublicFolders COM dilimi once authorized Settings yolunda `E_NOTIMPL` ile kanitlandi; dar Settings/folder/SQL-path filtresi 13/13, full Net10 testler 501/501 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 - Settings Routes COM dilimi once eksik contract/store derleme hatasiyla kanitlandi; dar contract/store/manifest/SQL-path filtresi 9/9, full Net10 testler 507/507 ve opt-in izole LocalDB integration testleri duzeltilen sequential-reader ordinal sirasi sonrasinda 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 - Application global Rules COM dilimi once `Application.Rules` yolunda `E_NOTIMPL` ile kanitlandi; dar Application/SQL-path filtresi 9/9, full Net10 testler 508/508 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
+- Settings IncomingRelays COM dilimi once eksik contract/store derleme hatasiyla kanitlandi; dar contract/store/manifest/SQL-path filtresi 9/9, full Net10 testler 514/514 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 
 Terminal/log incelemesi:
 
@@ -399,5 +401,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak `Settings -> IncomingRelays` read-only COM/Admin dilimini veya ayni buyuklukte baska bir Administrator object-model dilimini sec; once eksik legacy davranisi kanitlayan dar test yaz.
+5. Current Next Slice olarak `Settings -> TCPIPPorts` read-only COM/Admin dilimini veya ayni buyuklukte baska bir Administrator object-model dilimini sec; once eksik legacy davranisi kanitlayan dar test yaz.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.
