@@ -45,10 +45,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: Administrator object modeline sinirli read-only `Settings -> SecurityRanges` dilimiyle devam etmek. Legacy `SecurityRanges`/`SecurityRange` COM kontratlari korunmali; authenticated Settings yolu mevcut `hm_securityranges` verisinden count/index/name/id lookup ve temel read-only IP/range/priority/option scalar'larini acmali. IP policy enforcement, auto-ban runtime davranisi, `SetDefault`, Add/Delete/Save/mutation ve daha derin davranislar acik `E_NOTIMPL` kalmali.
+Backlog'daki siradaki ana dilim: Administrator object modeline sinirli read-only `Settings -> SSLCertificates` dilimiyle devam etmek. Legacy `SSLCertificates`/`SSLCertificate` COM kontratlari korunmali; authenticated Settings yolu mevcut `hm_sslcertificates` verisinden `sslcertificatename` sirasiyla count/index/id lookup ve read-only `ID`, `Name`, `CertificateFile`, `PrivateKeyFile` scalar'larini acmali. Sertifika dosyasi yukleme/dogrulama, TCP/IP port reconfiguration, `Clear`, Add/Delete/Save/mutation ve daha derin davranislar acik `E_NOTIMPL` kalmali.
 
 Son tamamlanan kucuk dilimler:
 
+- Legacy `SecurityRanges` ve `SecurityRange` COM kontratlari tam vtable/identity siralariyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Settings -> SecurityRanges` count/index/name/id lookup'u mevcut `hm_securityranges` SQL verisinden `rangeexpires`, `rangepriorityid desc`, `rangename` sirasiyla geliyor. DB-backed adapter legacy iki kolonlu IP depolamasini COM'da `LowerIP`/`UpperIP` string'lerine ceviriyor ve read-only IP range, priority, expiry ve option bit scalar'larini aciyor. IP policy enforcement, auto-ban runtime davranisi, `SetDefault`, mutation'lar ve direct activation sinirlari `E_NOTIMPL`/`E_ACCESSDENIED` kaliyor.
 - Legacy `TCPIPPorts` ve `TCPIPPort` COM kontratlari tam vtable/identity siralariyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Settings -> TCPIPPorts` count/index/id lookup'u mevcut `hm_tcpipports` SQL verisinden `portaddress1`, `portaddress2`, `portnumber` sirasiyla geliyor. DB-backed adapter legacy iki kolonlu IP depolamasini COM'da `Address` string'ine ceviriyor ve `ID`, `Protocol`, `PortNumber`, `Address`, `UseSSL`, `SSLCertificateID`, `ConnectionSecurity` scalar'larini read-only aciyor. Listener yeniden konfigurasyonu, `SetDefault`, mutation'lar ve direct activation sinirlari `E_NOTIMPL`/`E_ACCESSDENIED` kaliyor.
 - Legacy `IncomingRelays` ve `IncomingRelay` COM kontratlari tam vtable/identity siralariyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Settings -> IncomingRelays` count/index/name/id lookup'u mevcut `hm_incoming_relays` SQL verisinden `relayname` sirasiyla geliyor. DB-backed adapter legacy iki kolonlu IP depolamasini COM'da `LowerIP`/`UpperIP` string'lerine ceviriyor; SMTP trust davranisi ve mutation'lar `E_NOTIMPL`, direct activation `E_ACCESSDENIED` kaliyor.
 - Authenticated `Application -> Rules`, mevcut testli `Rules`/`Rule` adapter ve SQL store hattini `ruleaccountid = 0` global-rule verisi icin yeniden kullaniyor. Yalniz server-admin Application yolu koleksiyona erisebiliyor; global/account rule ayrimi ve gercek SQL yolu test edildi. Criteria/actions, execution ve mutation sinirlari degismeden `E_NOTIMPL` kaliyor.
@@ -351,6 +352,7 @@ Son temiz dogrulama notlari:
 - Application global Rules COM dilimi once `Application.Rules` yolunda `E_NOTIMPL` ile kanitlandi; dar Application/SQL-path filtresi 9/9, full Net10 testler 508/508 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 - Settings IncomingRelays COM dilimi once eksik contract/store derleme hatasiyla kanitlandi; dar contract/store/manifest/SQL-path filtresi 9/9, full Net10 testler 514/514 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 - Settings TCPIPPorts COM dilimi once eksik contract/store derleme hatasiyla kanitlandi; dar contract/store/manifest/SQL-path filtresi 10/10, full Net10 testler 521/521 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
+- Settings SecurityRanges COM dilimi once eksik contract/store derleme hatasiyla kanitlandi; dar contract/store/manifest/SQL-path filtresi 9/9, full Net10 testler 527/527 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 
 Terminal/log incelemesi:
 
@@ -403,5 +405,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak `Settings -> SecurityRanges` read-only COM/Admin dilimini veya ayni buyuklukte baska bir Administrator object-model dilimini sec; once eksik legacy davranisi kanitlayan dar test yaz.
+5. Current Next Slice olarak `Settings -> SSLCertificates` read-only COM/Admin dilimini veya ayni buyuklukte baska bir Administrator object-model dilimini sec; once eksik legacy davranisi kanitlayan dar test yaz.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.
