@@ -147,6 +147,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             RouteAdministrationRuntimeHost.Configure(new SqlServerRouteAdministrationStore(connectionFactory));
             IncomingRelayAdministrationRuntimeHost.Configure(
                 new SqlServerIncomingRelayAdministrationStore(connectionFactory));
+            TcpIpPortAdministrationRuntimeHost.Configure(
+                new SqlServerTcpIpPortAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -250,6 +252,19 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(800, incomingRelays.get_ItemByDBID(800).ID);
             var pendingRelaySave = Assert.ThrowsExactly<COMException>(incomingRelays[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRelaySave.ErrorCode);
+            var tcpIpPorts = application.Settings.TCPIPPorts;
+            Assert.AreEqual(2, tcpIpPorts.Count);
+            Assert.AreEqual(25, tcpIpPorts[0].PortNumber);
+            Assert.AreEqual(ComSessionType.Smtp, tcpIpPorts[0].Protocol);
+            Assert.AreEqual("0.0.0.0", tcpIpPorts[0].Address);
+            Assert.IsTrue(tcpIpPorts[0].UseSSL);
+            Assert.AreEqual(123, tcpIpPorts[0].SSLCertificateID);
+            Assert.AreEqual(ComConnectionSecurity.Tls, tcpIpPorts[0].ConnectionSecurity);
+            Assert.AreEqual("127.0.0.1", tcpIpPorts.get_ItemByDBID(901).Address);
+            Assert.IsFalse(tcpIpPorts.get_ItemByDBID(901).UseSSL);
+            Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, tcpIpPorts.get_ItemByDBID(901).ConnectionSecurity);
+            var pendingTcpIpPortSave = Assert.ThrowsExactly<COMException>(tcpIpPorts[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingTcpIpPortSave.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -612,6 +627,17 @@ CREATE TABLE dbo.hm_incoming_relays
     relayupperip2 bigint NULL
 );
 
+CREATE TABLE dbo.hm_tcpipports
+(
+    portid int NOT NULL PRIMARY KEY,
+    portprotocol int NOT NULL,
+    portnumber int NOT NULL,
+    portaddress1 bigint NOT NULL,
+    portaddress2 bigint NULL,
+    portconnectionsecurity tinyint NOT NULL,
+    portsslcertificateid bigint NOT NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
@@ -688,6 +714,13 @@ INSERT INTO dbo.hm_incoming_relays
 VALUES
     (800, N'Beta relay', 167772160, NULL, 167772415, NULL),
     (700, N'Alpha relay', 2130706433, NULL, 2130706433, NULL);
+
+INSERT INTO dbo.hm_tcpipports
+    (portid, portprotocol, portnumber, portaddress1, portaddress2,
+     portconnectionsecurity, portsslcertificateid)
+VALUES
+    (901, 5, 143, 2130706433, NULL, 3, 0),
+    (900, 1, 25, 0, NULL, 1, 123);
 """;
 
         await using var connection = new SqlConnection(connectionString);

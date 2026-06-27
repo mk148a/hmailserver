@@ -62,9 +62,6 @@ public interface IInterfaceAntiSpam;
 [ComVisible(true), Guid("0E90D7D8-0144-4021-9240-8CB9CC6F7628"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceServerMessages;
 
-[ComVisible(true), Guid("70471130-C8FA-4218-B68A-F1C9AD973FF6"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceTCPIPPorts;
-
 [ComVisible(true), Guid("A6C0B92B-3973-4E0A-86CB-440AD6C80B71"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceSSLCertificates;
 

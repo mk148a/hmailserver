@@ -23,6 +23,18 @@ public enum ComServerState
 }
 
 [ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD07")]
+public enum ComSessionType
+{
+    Unknown = 0,
+    Smtp = 1,
+    SmtpClient = 2,
+    Pop3 = 3,
+    Pop3Client = 4,
+    Imap = 5
+}
+
+[ComVisible(true)]
 [Guid("122C5B58-9A23-40F5-83C0-7B683D156522")]
 public enum ComConnectionSecurity
 {

@@ -461,6 +461,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceTCPIPPorts TCPIPPorts
+    {
+        get
+        {
+            EnsureAuthorized();
+            return TcpIpPortAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
+
     public override IInterfaceIncomingRelays IncomingRelays
     {
         get
@@ -530,7 +539,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public bool DisconnectInvalidClients { get => Unavailable<bool>(); set => Unavailable(); }
     public int MaxNumberOfInvalidCommands { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceServerMessages ServerMessages => Unavailable<IInterfaceServerMessages>();
-    public IInterfaceTCPIPPorts TCPIPPorts => Unavailable<IInterfaceTCPIPPorts>();
+    public virtual IInterfaceTCPIPPorts TCPIPPorts => Unavailable<IInterfaceTCPIPPorts>();
     public bool SMTPRelayerUseSSL { get => Unavailable<bool>(); set => Unavailable(); }
     public IInterfaceSSLCertificates SSLCertificates => Unavailable<IInterfaceSSLCertificates>();
     public bool AddDeliveredToHeader { get => Unavailable<bool>(); set => Unavailable(); }

@@ -165,6 +165,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "TCPIPPorts",
+            "{225808B4-6F03-4750-843F-3150EB1C357F}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "TCPIPPort",
+            "{556DF811-3E02-4106-BCA6-C75996825E9A}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath,
