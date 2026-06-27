@@ -154,6 +154,19 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(2048, accounts[0].MaxSize);
             Assert.AreEqual("Ada", accounts[0].PersonFirstName);
             Assert.AreEqual("Lovelace", accounts[0].PersonLastName);
+            Assert.IsTrue(accounts[0].VacationMessageIsOn);
+            Assert.AreEqual("Away until Monday", accounts[0].VacationMessage);
+            Assert.AreEqual("Auto reply", accounts[0].VacationSubject);
+            Assert.IsTrue(accounts[0].VacationMessageExpires);
+            Assert.AreEqual("2026-12-31", accounts[0].VacationMessageExpiresDate);
+            Assert.IsTrue(accounts[0].VacationMessageAbortSpamFlagged);
+            Assert.IsTrue(accounts[0].ForwardEnabled);
+            Assert.AreEqual("archive@example.test", accounts[0].ForwardAddress);
+            Assert.IsTrue(accounts[0].ForwardKeepOriginal);
+            Assert.IsTrue(accounts[0].ForwardAbortSpamFlagged);
+            Assert.IsTrue(accounts[0].SignatureEnabled);
+            Assert.AreEqual("Regards,\r\nAda", accounts[0].SignaturePlainText);
+            Assert.AreEqual("<p>Regards,<br>Ada</p>", accounts[0].SignatureHTML);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -427,7 +440,20 @@ CREATE TABLE dbo.hm_accounts
     accountadminlevel tinyint NOT NULL,
     accountmaxsize int NOT NULL,
     accountpersonfirstname nvarchar(60) NOT NULL,
-    accountpersonlastname nvarchar(60) NOT NULL
+    accountpersonlastname nvarchar(60) NOT NULL,
+    accountvacationmessageon tinyint NOT NULL,
+    accountvacationmessage nvarchar(1000) NOT NULL,
+    accountvacationsubject nvarchar(200) NOT NULL,
+    accountvacationexpires tinyint NOT NULL,
+    accountvacationexpiredate datetime NOT NULL,
+    accountvacationabortspamflagged tinyint NOT NULL,
+    accountforwardenabled tinyint NOT NULL,
+    accountforwardaddress nvarchar(255) NOT NULL,
+    accountforwardkeeporiginal tinyint NOT NULL,
+    accountforwardabortspamflagged tinyint NOT NULL,
+    accountenablesignature tinyint NOT NULL,
+    accountsignatureplaintext nvarchar(max) NOT NULL,
+    accountsignaturehtml nvarchar(max) NOT NULL
 );
 
 INSERT INTO dbo.hm_domains
@@ -441,11 +467,22 @@ VALUES
 
 INSERT INTO dbo.hm_accounts
     (accountid, accountdomainid, accountaddress, accountactive, accountadminlevel,
-     accountmaxsize, accountpersonfirstname, accountpersonlastname)
+     accountmaxsize, accountpersonfirstname, accountpersonlastname,
+     accountvacationmessageon, accountvacationmessage, accountvacationsubject,
+     accountvacationexpires, accountvacationexpiredate, accountvacationabortspamflagged,
+     accountforwardenabled, accountforwardaddress, accountforwardkeeporiginal,
+     accountforwardabortspamflagged, accountenablesignature, accountsignatureplaintext,
+     accountsignaturehtml)
 VALUES
-    (20, 10, N'user@example.test', 0, 0, 1024, N'Grace', N'Hopper'),
-    (10, 10, N'admin@example.test', 1, 2, 2048, N'Ada', N'Lovelace'),
-    (30, 30, N'outside@other.test', 1, 0, 512, N'Outside', N'Example');
+    (20, 10, N'user@example.test', 0, 0, 1024, N'Grace', N'Hopper',
+     0, N'', N'', 0, CONVERT(datetime, '2026-01-01T00:00:00', 126), 0,
+     0, N'', 0, 0, 0, N'', N''),
+    (10, 10, N'admin@example.test', 1, 2, 2048, N'Ada', N'Lovelace',
+     1, N'Away until Monday', N'Auto reply', 1, CONVERT(datetime, '2026-12-31T00:00:00', 126), 1,
+     1, N'archive@example.test', 1, 1, 1, N'Regards,' + CHAR(13) + CHAR(10) + N'Ada', N'<p>Regards,<br>Ada</p>'),
+    (30, 30, N'outside@other.test', 1, 0, 512, N'Outside', N'Example',
+     0, N'', N'', 0, CONVERT(datetime, '2026-01-01T00:00:00', 126), 0,
+     0, N'', 0, 0, 0, N'', N'');
 """;
 
         await using var connection = new SqlConnection(connectionString);

@@ -92,11 +92,11 @@ public sealed class Account : IInterfaceAccount
 
     public int MaxSize { get => _administrationSnapshot?.MaxSize ?? Read(_maxSize); set => Write(() => _maxSize = value); }
 
-    public bool VacationMessageIsOn { get => Read(_vacationMessageIsOn); set => Write(() => _vacationMessageIsOn = value); }
+    public bool VacationMessageIsOn { get => _administrationSnapshot?.VacationMessageIsOn ?? Read(_vacationMessageIsOn); set => Write(() => _vacationMessageIsOn = value); }
 
-    public string VacationMessage { get => Read(_vacationMessage); set => Write(() => _vacationMessage = value); }
+    public string VacationMessage { get => _administrationSnapshot?.VacationMessage ?? Read(_vacationMessage); set => Write(() => _vacationMessage = value); }
 
-    public string VacationSubject { get => Read(_vacationSubject); set => Write(() => _vacationSubject = value); }
+    public string VacationSubject { get => _administrationSnapshot?.VacationSubject ?? Read(_vacationSubject); set => Write(() => _vacationSubject = value); }
 
     public IInterfaceFetchAccounts FetchAccounts => NotImplemented<IInterfaceFetchAccounts>();
 
@@ -114,31 +114,31 @@ public sealed class Account : IInterfaceAccount
 
     public int QuotaUsed => Read(0);
 
-    public bool ForwardEnabled { get => Read(_forwardEnabled); set => Write(() => _forwardEnabled = value); }
+    public bool ForwardEnabled { get => _administrationSnapshot?.ForwardEnabled ?? Read(_forwardEnabled); set => Write(() => _forwardEnabled = value); }
 
-    public string ForwardAddress { get => Read(_forwardAddress); set => Write(() => _forwardAddress = value); }
+    public string ForwardAddress { get => _administrationSnapshot?.ForwardAddress ?? Read(_forwardAddress); set => Write(() => _forwardAddress = value); }
 
-    public bool ForwardKeepOriginal { get => Read(_forwardKeepOriginal); set => Write(() => _forwardKeepOriginal = value); }
+    public bool ForwardKeepOriginal { get => _administrationSnapshot?.ForwardKeepOriginal ?? Read(_forwardKeepOriginal); set => Write(() => _forwardKeepOriginal = value); }
 
-    public bool SignatureEnabled { get => Read(_signatureEnabled); set => Write(() => _signatureEnabled = value); }
+    public bool SignatureEnabled { get => _administrationSnapshot?.SignatureEnabled ?? Read(_signatureEnabled); set => Write(() => _signatureEnabled = value); }
 
-    public string SignaturePlainText { get => Read(_signaturePlainText); set => Write(() => _signaturePlainText = value); }
+    public string SignaturePlainText { get => _administrationSnapshot?.SignaturePlainText ?? Read(_signaturePlainText); set => Write(() => _signaturePlainText = value); }
 
-    public string SignatureHTML { get => Read(_signatureHtml); set => Write(() => _signatureHtml = value); }
+    public string SignatureHTML { get => _administrationSnapshot?.SignatureHtml ?? Read(_signatureHtml); set => Write(() => _signatureHtml = value); }
 
     public object LastLogonTime => Read(_lastLogonTime);
 
-    public bool VacationMessageExpires { get => Read(_vacationMessageExpires); set => Write(() => _vacationMessageExpires = value); }
+    public bool VacationMessageExpires { get => _administrationSnapshot?.VacationMessageExpires ?? Read(_vacationMessageExpires); set => Write(() => _vacationMessageExpires = value); }
 
-    public string VacationMessageExpiresDate { get => Read(_vacationMessageExpiresDate); set => Write(() => _vacationMessageExpiresDate = value); }
+    public string VacationMessageExpiresDate { get => _administrationSnapshot?.VacationMessageExpiresDate ?? Read(_vacationMessageExpiresDate); set => Write(() => _vacationMessageExpiresDate = value); }
 
     public string PersonFirstName { get => _administrationSnapshot?.PersonFirstName ?? Read(_personFirstName); set => Write(() => _personFirstName = value); }
 
     public string PersonLastName { get => _administrationSnapshot?.PersonLastName ?? Read(_personLastName); set => Write(() => _personLastName = value); }
 
-    public bool VacationMessageAbortSpamFlagged { get => Read(_vacationMessageAbortSpamFlagged); set => Write(() => _vacationMessageAbortSpamFlagged = value); }
+    public bool VacationMessageAbortSpamFlagged { get => _administrationSnapshot?.VacationMessageAbortSpamFlagged ?? Read(_vacationMessageAbortSpamFlagged); set => Write(() => _vacationMessageAbortSpamFlagged = value); }
 
-    public bool ForwardAbortSpamFlagged { get => Read(_forwardAbortSpamFlagged); set => Write(() => _forwardAbortSpamFlagged = value); }
+    public bool ForwardAbortSpamFlagged { get => _administrationSnapshot?.ForwardAbortSpamFlagged ?? Read(_forwardAbortSpamFlagged); set => Write(() => _forwardAbortSpamFlagged = value); }
 
     internal static Account CreateServerAdministrator() =>
         new("Administrator", ComAdminLevel.ServerAdministrator);

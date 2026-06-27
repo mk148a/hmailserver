@@ -16,7 +16,20 @@ SELECT
     accountadminlevel,
     accountmaxsize,
     accountpersonfirstname,
-    accountpersonlastname
+    accountpersonlastname,
+    accountvacationmessageon,
+    accountvacationmessage,
+    accountvacationsubject,
+    accountvacationexpires,
+    CONVERT(varchar(10), accountvacationexpiredate, 23) AS accountvacationexpiredate,
+    accountvacationabortspamflagged,
+    accountforwardenabled,
+    accountforwardaddress,
+    accountforwardkeeporiginal,
+    accountforwardabortspamflagged,
+    accountenablesignature,
+    CONVERT(nvarchar(max), accountsignatureplaintext) AS accountsignatureplaintext,
+    CONVERT(nvarchar(max), accountsignaturehtml) AS accountsignaturehtml
 FROM hm_accounts
 WHERE accountdomainid = @DomainID
 ORDER BY accountaddress ASC;
@@ -53,9 +66,25 @@ ORDER BY accountaddress ASC;
                     AdminLevel: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture),
                     MaxSize: reader.GetInt32(5),
                     PersonFirstName: reader.GetString(6),
-                    PersonLastName: reader.GetString(7)));
+                    PersonLastName: reader.GetString(7),
+                    VacationMessageIsOn: ReadLegacyBoolean(reader, 8),
+                    VacationMessage: reader.GetString(9),
+                    VacationSubject: reader.GetString(10),
+                    VacationMessageExpires: ReadLegacyBoolean(reader, 11),
+                    VacationMessageExpiresDate: reader.GetString(12),
+                    VacationMessageAbortSpamFlagged: ReadLegacyBoolean(reader, 13),
+                    ForwardEnabled: ReadLegacyBoolean(reader, 14),
+                    ForwardAddress: reader.GetString(15),
+                    ForwardKeepOriginal: ReadLegacyBoolean(reader, 16),
+                    ForwardAbortSpamFlagged: ReadLegacyBoolean(reader, 17),
+                    SignatureEnabled: ReadLegacyBoolean(reader, 18),
+                    SignaturePlainText: reader.GetString(19),
+                    SignatureHtml: reader.GetString(20)));
         }
 
         return accounts;
     }
+
+    private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
+        Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) != 0;
 }

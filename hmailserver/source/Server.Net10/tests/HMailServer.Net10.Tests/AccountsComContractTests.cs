@@ -70,7 +70,20 @@ public sealed class AccountsComContractTests
                     2,
                     MaxSize: 2048,
                     PersonFirstName: "Ada",
-                    PersonLastName: "Lovelace"),
+                    PersonLastName: "Lovelace",
+                    VacationMessageIsOn: true,
+                    VacationMessage: "Away until Monday",
+                    VacationSubject: "Auto reply",
+                    VacationMessageExpires: true,
+                    VacationMessageExpiresDate: "2026-12-31",
+                    VacationMessageAbortSpamFlagged: true,
+                    ForwardEnabled: true,
+                    ForwardAddress: "archive@example.test",
+                    ForwardKeepOriginal: true,
+                    ForwardAbortSpamFlagged: true,
+                    SignatureEnabled: true,
+                    SignaturePlainText: "Regards,\r\nAda",
+                    SignatureHtml: "<p>Regards,<br>Ada</p>"),
                 new AccountAdministrationSnapshot(
                     20,
                     100,
@@ -86,12 +99,14 @@ public sealed class AccountsComContractTests
         AssertAccount(accounts[0], 10, 100, "admin@example.test", true, ComAdminLevel.ServerAdministrator, 2048, "Ada", "Lovelace");
         AssertAccount(accounts.get_ItemByAddress("USER@EXAMPLE.TEST"), 20, 100, "user@example.test", false, ComAdminLevel.Normal, 1024, "Grace", "Hopper");
         AssertAccount(accounts.get_ItemByDBID(10), 10, 100, "admin@example.test", true, ComAdminLevel.ServerAdministrator, 2048, "Ada", "Lovelace");
+        AssertAccountDeliveryDetailScalars(accounts[0]);
 
         var badIndex = Assert.ThrowsExactly<COMException>(() => _ = accounts[2]);
         var badAddress = Assert.ThrowsExactly<COMException>(() => _ = accounts.get_ItemByAddress("missing@example.test"));
         var pendingRefresh = Assert.ThrowsExactly<COMException>(accounts.Refresh);
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].Address = "renamed@example.test");
         var pendingCoreScalarMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].MaxSize = 4096);
+        var pendingDeliveryScalarMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].ForwardEnabled = false);
         var pendingSensitiveRead = Assert.ThrowsExactly<COMException>(() => _ = accounts[0].Password);
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
@@ -99,6 +114,7 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingCoreScalarMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDeliveryScalarMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSensitiveRead.ErrorCode);
     }
 
@@ -138,6 +154,23 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(maxSize, account.MaxSize);
         Assert.AreEqual(personFirstName, account.PersonFirstName);
         Assert.AreEqual(personLastName, account.PersonLastName);
+    }
+
+    private static void AssertAccountDeliveryDetailScalars(IInterfaceAccount account)
+    {
+        Assert.IsTrue(account.VacationMessageIsOn);
+        Assert.AreEqual("Away until Monday", account.VacationMessage);
+        Assert.AreEqual("Auto reply", account.VacationSubject);
+        Assert.IsTrue(account.VacationMessageExpires);
+        Assert.AreEqual("2026-12-31", account.VacationMessageExpiresDate);
+        Assert.IsTrue(account.VacationMessageAbortSpamFlagged);
+        Assert.IsTrue(account.ForwardEnabled);
+        Assert.AreEqual("archive@example.test", account.ForwardAddress);
+        Assert.IsTrue(account.ForwardKeepOriginal);
+        Assert.IsTrue(account.ForwardAbortSpamFlagged);
+        Assert.IsTrue(account.SignatureEnabled);
+        Assert.AreEqual("Regards,\r\nAda", account.SignaturePlainText);
+        Assert.AreEqual("<p>Regards,<br>Ada</p>", account.SignatureHTML);
     }
 
     private sealed class FixedAccountAdministrationStore(IReadOnlyList<AccountAdministrationSnapshot> accounts)

@@ -8,4 +8,17 @@ public sealed record AccountAdministrationSnapshot(
     int AdminLevel,
     int MaxSize = 0,
     string PersonFirstName = "",
-    string PersonLastName = "");
+    string PersonLastName = "",
+    bool VacationMessageIsOn = false,
+    string VacationMessage = "",
+    string VacationSubject = "",
+    bool VacationMessageExpires = false,
+    string VacationMessageExpiresDate = "",
+    bool VacationMessageAbortSpamFlagged = false,
+    bool ForwardEnabled = false,
+    string ForwardAddress = "",
+    bool ForwardKeepOriginal = false,
+    bool ForwardAbortSpamFlagged = false,
+    bool SignatureEnabled = false,
+    string SignaturePlainText = "",
+    string SignatureHtml = "");
