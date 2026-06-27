@@ -90,7 +90,6 @@ public sealed class GroupsComContractTests
         var pendingDelete = Assert.ThrowsExactly<COMException>(() => groups.DeleteByDBID(10));
         var pendingAdd = Assert.ThrowsExactly<COMException>(() => groups.Add());
         var pendingRefresh = Assert.ThrowsExactly<COMException>(groups.Refresh);
-        var pendingMembers = Assert.ThrowsExactly<COMException>(() => _ = groups[0].Members);
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => groups[0].Name = "Changed");
         var pendingSave = Assert.ThrowsExactly<COMException>(groups[0].Save);
         var pendingGroupDelete = Assert.ThrowsExactly<COMException>(groups[0].Delete);
@@ -101,7 +100,6 @@ public sealed class GroupsComContractTests
         Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingAdd.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingMembers.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSave.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingGroupDelete.ErrorCode);

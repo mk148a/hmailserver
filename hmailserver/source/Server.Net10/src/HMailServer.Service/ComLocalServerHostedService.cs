@@ -86,6 +86,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Group).GUID,
                 static () => new Group()),
             new ComLocalServerRegistration(
+                typeof(GroupMembers).GUID,
+                static () => new GroupMembers()),
+            new ComLocalServerRegistration(
+                typeof(GroupMember).GUID,
+                static () => new GroupMember()),
+            new ComLocalServerRegistration(
                 typeof(Aliases).GUID,
                 static () => new Aliases()),
             new ComLocalServerRegistration(

@@ -155,6 +155,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 new SqlServerSslCertificateAdministrationStore(connectionFactory));
             GroupAdministrationRuntimeHost.Configure(
                 new SqlServerGroupAdministrationStore(connectionFactory));
+            GroupMemberAdministrationRuntimeHost.Configure(
+                new SqlServerGroupMemberAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -305,8 +307,14 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(1100, groups[0].ID);
             Assert.AreEqual("Support", groups.get_ItemByDBID(1200).Name);
             Assert.AreEqual(1200, groups.get_ItemByName("SUPPORT").ID);
-            var pendingGroupMembers = Assert.ThrowsExactly<COMException>(() => _ = groups[0].Members);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingGroupMembers.ErrorCode);
+            var groupMembers = groups[0].Members;
+            Assert.AreEqual(2, groupMembers.Count);
+            Assert.AreEqual(1300, groupMembers[0].ID);
+            Assert.AreEqual(1100, groupMembers[0].GroupID);
+            Assert.AreEqual(10, groupMembers[0].AccountID);
+            Assert.AreEqual(20, groupMembers.get_ItemByDBID(1400).AccountID);
+            var pendingGroupMemberAccount = Assert.ThrowsExactly<COMException>(() => _ = groupMembers[0].Account);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingGroupMemberAccount.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }
@@ -708,6 +716,13 @@ CREATE TABLE dbo.hm_groups
     groupname nvarchar(255) NOT NULL
 );
 
+CREATE TABLE dbo.hm_group_members
+(
+    memberid bigint NOT NULL PRIMARY KEY,
+    membergroupid bigint NOT NULL,
+    memberaccountid bigint NOT NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
@@ -810,6 +825,12 @@ INSERT INTO dbo.hm_groups (groupid, groupname)
 VALUES
     (1200, N'Support'),
     (1100, N'Administrators');
+
+INSERT INTO dbo.hm_group_members (memberid, membergroupid, memberaccountid)
+VALUES
+    (1500, 1200, 20),
+    (1400, 1100, 20),
+    (1300, 1100, 10);
 """;
 
         await using var connection = new SqlConnection(connectionString);

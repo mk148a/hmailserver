@@ -683,6 +683,7 @@ builder.Services.AddSingleton<ISecurityRangeAdministrationStore, SqlServerSecuri
 builder.Services.AddSingleton<ITcpIpPortAdministrationStore, SqlServerTcpIpPortAdministrationStore>();
 builder.Services.AddSingleton<ISslCertificateAdministrationStore, SqlServerSslCertificateAdministrationStore>();
 builder.Services.AddSingleton<IGroupAdministrationStore, SqlServerGroupAdministrationStore>();
+builder.Services.AddSingleton<IGroupMemberAdministrationStore, SqlServerGroupMemberAdministrationStore>();
 builder.Services.AddSingleton<IAliasAdministrationStore, SqlServerAliasAdministrationStore>();
 builder.Services.AddSingleton<IDistributionListAdministrationStore, SqlServerDistributionListAdministrationStore>();
 builder.Services.AddSingleton<IDistributionListRecipientAdministrationStore, SqlServerDistributionListRecipientAdministrationStore>();
@@ -755,6 +756,8 @@ SslCertificateAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<ISslCertificateAdministrationStore>());
 GroupAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IGroupAdministrationStore>());
+GroupMemberAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IGroupMemberAdministrationStore>());
 AliasAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IAliasAdministrationStore>());
 DistributionListAdministrationRuntimeHost.Configure(

@@ -139,6 +139,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "GroupMembers",
+            "{19BD0117-D6EF-49B3-AAC9-9CE70266AEFF}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "GroupMember",
+            "{2AF5F36A-6475-43D3-A037-D31C1FEA7BA8}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath);
@@ -261,6 +271,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.Groups",
                 @"hMailServer.Group.1",
                 @"hMailServer.Group",
+                @"hMailServer.GroupMembers.1",
+                @"hMailServer.GroupMembers",
+                @"hMailServer.GroupMember.1",
+                @"hMailServer.GroupMember",
                 @"hMailServer.Aliases.1",
                 @"hMailServer.Aliases",
                 @"hMailServer.Alias.1",
@@ -303,6 +317,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{11A68C45-EC73-496A-A300-2EB8820824EF}",
                 @"CLSID\{7573CF89-DF41-4079-91B1-894A0DF3E783}",
                 @"CLSID\{8F91E8CB-7DE5-494F-92BD-A245D8CC7E15}",
+                @"CLSID\{19BD0117-D6EF-49B3-AAC9-9CE70266AEFF}",
+                @"CLSID\{2AF5F36A-6475-43D3-A037-D31C1FEA7BA8}",
                 @"CLSID\{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
                 @"CLSID\{335CE9E1-32C5-4CB0-8BF6-CB925196E4D6}",
                 @"CLSID\{C3DD0A4A-0551-442F-859A-76AAB92A6CF1}",

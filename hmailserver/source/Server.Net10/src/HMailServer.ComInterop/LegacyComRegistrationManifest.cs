@@ -221,6 +221,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "GroupMembers",
+            "{19BD0117-D6EF-49B3-AAC9-9CE70266AEFF}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "GroupMember",
+            "{2AF5F36A-6475-43D3-A037-D31C1FEA7BA8}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Aliases",
             "{1FE5E5F1-870A-4139-9EC1-DFFA3A9A58C8}",
             executablePath,

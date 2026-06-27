@@ -175,7 +175,8 @@ public sealed class Group : IInterfaceGroup
 
     public string Name { get => Snapshot.Name; set => Unavailable(); }
 
-    public IInterfaceGroupMembers Members => Unavailable<IInterfaceGroupMembers>();
+    public IInterfaceGroupMembers Members =>
+        GroupMemberAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
     internal static Group CreateAuthorized(GroupAdministrationSnapshot group) => new(group);
 
