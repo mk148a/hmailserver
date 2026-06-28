@@ -23,6 +23,17 @@ public enum ComServerState
 }
 
 [ComVisible(true)]
+[Guid("F58B6982-4C39-11D9-B629-F87B01E1264F")]
+public enum ComDatabaseType
+{
+    Unknown = 0,
+    MySql = 1,
+    MSSQL = 2,
+    PostgreSql = 3,
+    MSSQLCE = 4
+}
+
+[ComVisible(true)]
 [Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD07")]
 public enum ComSessionType
 {

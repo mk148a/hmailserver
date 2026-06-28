@@ -60,6 +60,13 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "Database",
+            "{2F5BEF2E-C713-4826-88AE-A5FD9921907B}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Settings",
             "{FDF084A7-82DE-4EBE-8455-E506ACE01D63}",
             executablePath,

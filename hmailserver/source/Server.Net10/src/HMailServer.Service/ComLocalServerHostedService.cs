@@ -17,6 +17,9 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Application).GUID,
                 () => Application.CreateForRuntime(authenticationProvider)),
             new ComLocalServerRegistration(
+                typeof(Database).GUID,
+                static () => new Database()),
+            new ComLocalServerRegistration(
                 typeof(Settings).GUID,
                 static () => new Settings()),
             new ComLocalServerRegistration(

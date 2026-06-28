@@ -51,7 +51,8 @@ public sealed class Application : IInterfaceApplication
 
     public ComServerState ServerState => NotImplemented<ComServerState>();
 
-    public IInterfaceDatabase Database => NotImplemented<IInterfaceDatabase>();
+    public IInterfaceDatabase Database =>
+        DatabaseAdministrationRuntimeHost.CreateApplicationAdapter(() => _isServerAdministrator);
 
     public IInterfaceUtilities Utilities => NotImplemented<IInterfaceUtilities>();
 

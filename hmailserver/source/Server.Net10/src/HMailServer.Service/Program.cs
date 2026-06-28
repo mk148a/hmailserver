@@ -29,6 +29,7 @@ var initializationFile = LegacyInitializationFile.ResolvePath(
         ?? builder.Configuration["HMAILSERVER_INITIALIZATION_FILE"],
     AppContext.BaseDirectory);
 var administratorPasswordHash = LegacyInitializationFile.LoadAdministratorPasswordHash(initializationFile);
+var databaseConfiguration = LegacyInitializationFile.LoadDatabaseConfiguration(initializationFile);
 builder.Services.AddSingleton<IServerAdministratorAuthenticationProvider>(
     new LegacyServerAdministratorAuthenticationProvider(administratorPasswordHash));
 
@@ -672,6 +673,10 @@ builder.Services.AddSingleton<IImapSessionContextProvider>(
             : new ImapSessionContext()));
 builder.Services.AddSingleton<IMessageSearchBackfillStore, SqlServerMessageSearchBackfillStore>();
 builder.Services.AddSingleton<IMessageIndexingAdministrationStore, SqlServerMessageIndexingAdministrationStore>();
+builder.Services.AddSingleton<IDatabaseAdministrationStore>(
+    serviceProvider => new SqlServerDatabaseAdministrationStore(
+        serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
+        databaseConfiguration));
 builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
 builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdministrationStore>();
 builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAccountAdministrationStore>();
@@ -737,6 +742,8 @@ builder.Services.AddHostedService<SmtpTcpListenerHostedService>();
 var host = builder.Build();
 MessageIndexingRuntimeHost.Configure(
     host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());
+DatabaseAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IDatabaseAdministrationStore>());
 DomainAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAdministrationStore>());
 AccountAdministrationRuntimeHost.Configure(
