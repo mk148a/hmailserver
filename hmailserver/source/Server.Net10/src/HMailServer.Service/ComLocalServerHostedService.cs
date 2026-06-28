@@ -20,6 +20,9 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Database).GUID,
                 static () => new Database()),
             new ComLocalServerRegistration(
+                typeof(Utilities).GUID,
+                static () => new Utilities()),
+            new ComLocalServerRegistration(
                 typeof(Status).GUID,
                 static () => new Status()),
             new ComLocalServerRegistration(

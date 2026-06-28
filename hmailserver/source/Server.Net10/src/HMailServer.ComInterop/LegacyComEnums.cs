@@ -23,6 +23,28 @@ public enum ComServerState
 }
 
 [ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD03")]
+public enum ComRuleMatchType
+{
+    Unknown = 0,
+    Equals = 1,
+    Contains = 2,
+    LessThan = 3,
+    GreaterThan = 4,
+    RegExMatch = 5,
+    NotContains = 6,
+    NotEquals = 7,
+    Wildcard = 8
+}
+
+[ComVisible(true)]
+[Guid("87FDF5A8-567E-4BDD-B5E0-4742D4801A92")]
+public enum ComMaintenanceOperation
+{
+    UpdateImapFolderUid = 1
+}
+
+[ComVisible(true)]
 [Guid("F58B6982-4C39-11D9-B629-F87B01E1264F")]
 public enum ComDatabaseType
 {

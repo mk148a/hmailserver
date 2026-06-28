@@ -61,7 +61,8 @@ public sealed class Application : IInterfaceApplication
     public IInterfaceDatabase Database =>
         DatabaseAdministrationRuntimeHost.CreateApplicationAdapter(() => _isServerAdministrator);
 
-    public IInterfaceUtilities Utilities => NotImplemented<IInterfaceUtilities>();
+    public IInterfaceUtilities Utilities =>
+        HMailServer.ComInterop.Utilities.CreateForApplication(() => _isServerAdministrator);
 
     public IInterfaceStatus Status
     {

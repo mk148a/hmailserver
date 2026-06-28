@@ -14,6 +14,64 @@ public sealed class ComLocalServerHostTests
     private const int RegdbEClassNotRegistered = unchecked((int)0x80040154);
 
     [TestMethod]
+    public void RegisteredFactory_ActivatesUtilitiesWithPureHelpersAndAdministrativeBoundary()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var initializeResult = CoInitializeEx(nint.Zero, CoinitMultithreaded);
+        Assert.IsTrue(initializeResult >= 0 || initializeResult == RpcEChangedMode);
+
+        var classId = Guid.NewGuid();
+        using var host = new ComLocalServerHost(
+            new ComLocalServerRegistration(classId, static () => new Utilities()));
+
+        try
+        {
+            host.Start();
+
+            var interfaceId = typeof(IInterfaceUtilities).GUID;
+            var activateResult = CoCreateInstance(
+                in classId,
+                nint.Zero,
+                ClsctxLocalServer,
+                in interfaceId,
+                out var interfacePointer);
+
+            Assert.AreEqual(0, activateResult);
+            Assert.AreNotEqual(nint.Zero, interfacePointer);
+
+            try
+            {
+                var adapter = (IInterfaceUtilities)Marshal.GetObjectForIUnknown(interfacePointer);
+                Assert.AreEqual("dc647eb65e6711e155375218212b3964", adapter.MD5("Password"));
+
+                var denied = Assert.ThrowsExactly<COMException>(
+                    () => adapter.MakeDependent("MSSQLSERVER"));
+                Assert.AreEqual(unchecked((int)0x80070005), denied.ErrorCode);
+
+                if (Marshal.IsComObject(adapter))
+                {
+                    Marshal.FinalReleaseComObject(adapter);
+                }
+            }
+            finally
+            {
+                Marshal.Release(interfacePointer);
+            }
+        }
+        finally
+        {
+            if (initializeResult >= 0)
+            {
+                CoUninitialize();
+            }
+        }
+    }
+
+    [TestMethod]
     public void RegisteredFactory_ActivatesDirectMessageIndexingWithLegacyAccessDenied()
     {
         if (!OperatingSystem.IsWindows())
