@@ -28,7 +28,7 @@ Durum: production-ready degil. Proje ciddi bir parity seviyesine geldi, fakat ha
 Ana nedenler:
 
 - COM/Admin yuzeyi ve legacy object model henuz tam degil.
-- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary ve DKIM parser/canonicalization/body-hash/header-crypto temeli var; DKIM DNS/policy, DMARC ve daha sonra Administrator/COM setting parity eksik.
+- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary ve DKIM parser/canonicalization/body-hash/header-crypto/DNS lookup temeli var; DKIM message-level/policy, DMARC ve daha sonra Administrator/COM setting parity eksik.
 - Backup engine ve `OnBackupCompleted` / `OnBackupFailed` eventleri beklemede.
 - In-place upgrade runner, mandatory backup/rollback akis dokumani ve operasyonel servis install/uninstall paketi tamamlanmadi.
 - Buyuk olcekli performance/soak kabul testleri henuz production gate olarak tamamlanmadi.
@@ -38,7 +38,7 @@ Ana nedenler:
 - Full legacy script object model parity.
 - Backup engine tasarimi ve backup completed/failed eventlerinin gercek engine uzerinden baglanmasi.
 - Active Directory auth, master user ve daha derin account facade collections/methods.
-- DKIM verifier/policy, DMARC; daha sonra SPF/greylisting Administrator/COM setting parity.
+- DKIM message-level verifier/policy, DMARC; daha sonra SPF/greylisting Administrator/COM setting parity.
 - COM/API compatibility: mevcut GUID/ProgID/DISPID/type library sozlesmelerinin tam korunmasi ve Administrator-visible nesnelerin tamamlanmasi.
 - Migration/operations: in-place upgrade runner, mandatory backup checks, rollback-from-backup dokumani, orphan cleanup, health/metrics/logging, Windows Service install/uninstall.
 - SQL Server FTS integration testleri ve production acceptance: 100k mailbox SEARCH/SORT, 1k IMAP connection, SMTP queue latency, memory/handle leak soak.
@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: DKIM evaluation-only verifier cekirdegini DNS/public-key lookup ile ilerletmek. Siradaki kucuk slice `{selector}._domainkey.{domain}` TXT lookup'unu injected resolver boundary arkasindan yapmali, DKIM key record'unu (`v=DKIM1`, non-empty `p=`, optional `h=`, revoked key) parse/validate etmeli ve elde edilen public key'i mevcut body-hash + header-signature verifier'a beslemeli. SMTP reject, policy score, signing ve Administrator ayarlari bu cekirdek dogrulanmadan baglanmamali.
+Backlog'daki siradaki ana dilim: DKIM evaluation-only verifier cekirdegini message-level orchestration ile ilerletmek. Siradaki kucuk slice mesaj kaynagindan bir veya daha fazla `DKIM-Signature` field'i ile canonical header/body input'larini cikarmali, parser + DNS/public-key lookup + body-hash + header-signature dogrulamasini legacy-safe sirayla calistirmali ve herhangi bir signature dogrulanirsa `Pass` donmeli. SMTP reject, policy score, signing ve Administrator ayarlari bu cekirdek dogrulanmadan baglanmamali.
 
 Son tamamlanan kucuk dilimler:
 
+- DKIM DNS/public-key lookup cekirdegi eklendi: `{selector}._domainkey.{domain}` TXT lookup'u `IDkimTxtResolver` boundary arkasindan yapiliyor; key record `v=DKIM1`, non-empty/revoked `p=`, optional `h=`, `g=`, ve `t=s` sinirlariyla legacy result modeline map ediliyor. `SystemDkimTxtResolver` mevcut system DNS TXT resolver'ini yeniden kullaniyor ve async `DkimSignatureVerifier.VerifyAsync` DNS'ten gelen key'i body-hash + header-signature verifier'a besliyor. SMTP reject, policy score, signing ve Administrator ayarlari baglanmadi. Dar DKIM filtresi 31/31, prereq kontrolu temiz, Net10 build 0 uyari/0 hata ve full Net10 testleri 663/663 gecti.
 - DKIM header crypto verifier eklendi: signed header'lar ve `b=` blanked `DKIM-Signature` canonicalize edilip injected SubjectPublicKeyInfo public key ile `rsa-sha1`/`rsa-sha256` RSA/PKCS#1 imzasi dogrulaniyor. Full evaluation yalniz body hash ve header signature birlikte basarili olursa `Pass` modeli donuyor; signed-header/body/public-key/signature hatalari `PermFail`. Live DNS selector lookup, SMTP reject, policy score, signing ve Administrator ayarlari baglanmadi. Dar DKIM filtresi 23/23, prereq kontrolu temiz, Net10 build 0 uyari/0 hata ve full Net10 testleri 655/655 gecti.
 - DKIM body-hash verifier eklendi: parsed signature uzerinden canonicalized body icin `bh=` karsilastirmasi, opsiyonel `l=` body length siniri, SHA1/SHA256 secimi, body-hash match icin `Neutral` ve mismatch/uzunluk asimi icin `PermFail` sonuc modeli test edildi. SMTP reject, policy score, signing, DNS selector lookup, public-key/header crypto ve Administrator ayarlari baglanmadi. Dar DKIM filtresi 18/18, full Net10 testleri 650/650 ve Net10 build 0 uyari/0 hata ile gecti.
 - DKIM evaluation-only temeli eklendi: legacy `Neutral`/`Pass`/`TempFail`/`PermFail` sonuc modeli, deterministic `DKIM-Signature` tag parser'i, required-field validation, default/simple/relaxed canonicalization secimi, signed-header list parsing, `b=` signature-value blanking ve simple/relaxed body/header canonicalization testleri eklendi. SMTP reject, policy score, signing, DNS selector lookup, public-key/header crypto ve Administrator ayarlari baglanmadi. Dar DKIM filtresi 13/13, full Net10 testleri 645/645 ve Net10 build 0 uyari/0 hata ile gecti.
@@ -381,6 +382,7 @@ Son temiz dogrulama notlari:
 - Application Links COM dilimi once eksik contract/class/runtime derleme hatasiyla kanitlandi; dar Links/Application/manifest/process-host filtresi 23/23, full Net10 testler 589/589 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 - 28 Haziran security revalidation filtresi VBScript/JScript password, delivery/external-UID escaping, administrator authentication ve ClamAV kapsamini birlikte 10/10 gecti.
 - DKIM header crypto dilimi icin dar `DkimEvaluationTests` filtresi 23/23 gecti. Prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 655/655 gecti.
+- DKIM DNS/public-key lookup dilimi icin dar `DkimEvaluationTests` filtresi 31/31 gecti. Prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 663/663 gecti.
 
 Terminal/log incelemesi:
 
@@ -418,7 +420,7 @@ Terminal/log incelemesi:
    - In-place upgrade runner, backup zorunlulugu, rollback-from-backup akisi, service install/uninstall ve operator dokumani.
 
 3. Security + performance acceptance.
-   - DKIM DNS/policy, DMARC.
+   - DKIM message-level/policy, DMARC.
    - SQL Server FTS integration ve 100k mailbox SEARCH/SORT p95 hedefi.
    - 1k concurrent IMAP, SMTP queue latency, delivery throughput ve uzun soak memory/handle testleri.
 
@@ -433,5 +435,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak DKIM evaluation-only DNS/public-key lookup dilimini ele al; SMTP reject/policy score/signing/Admin wiring baglamadan injected resolver boundary ile selector TXT lookup + DKIM key-record validation'i dar testlerle kanitla.
+5. Current Next Slice olarak DKIM evaluation-only message-level orchestration dilimini ele al; SMTP reject/policy score/signing/Admin wiring baglamadan mesajdaki DKIM-Signature field'larini parser + DNS/key + body/header verifier zincirine bagladigini dar testlerle kanitla.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.
