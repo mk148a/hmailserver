@@ -5,6 +5,37 @@ namespace HMailServer.Security;
 
 public static class DkimSignatureVerifier
 {
+    public static async ValueTask<DkimEvaluation> VerifyAsync(
+        string headerBlock,
+        string body,
+        string signatureHeaderValue,
+        DkimSignature signature,
+        IDkimTxtResolver resolver,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(headerBlock);
+        ArgumentNullException.ThrowIfNull(body);
+        ArgumentNullException.ThrowIfNull(signatureHeaderValue);
+        ArgumentNullException.ThrowIfNull(signature);
+        ArgumentNullException.ThrowIfNull(resolver);
+
+        var keyLookup = await DkimPublicKeyLookup.LookupAsync(
+            signature,
+            resolver,
+            cancellationToken).ConfigureAwait(false);
+        if (keyLookup.Evaluation.Result != DkimResult.Neutral || keyLookup.KeyRecord is null)
+        {
+            return keyLookup.Evaluation;
+        }
+
+        return Verify(
+            headerBlock,
+            body,
+            signatureHeaderValue,
+            signature,
+            keyLookup.KeyRecord.PublicKey);
+    }
+
     public static DkimEvaluation Verify(
         string headerBlock,
         string body,

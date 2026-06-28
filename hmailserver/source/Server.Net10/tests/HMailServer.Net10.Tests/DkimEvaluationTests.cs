@@ -312,6 +312,133 @@ public sealed class DkimEvaluationTests
         StringAssert.Contains(result.Diagnostic, "public key");
     }
 
+    [TestMethod]
+    public async Task LookupAsync_QueriesSelectorDomainAndReturnsPublicKeyRecord()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; c=simple/simple; d=example.test; s=s1; i=user@example.test; " +
+            "h=from; bh=abc; b=def");
+        var resolver = new FakeDkimTxtResolver()
+            .AddTxt(
+                "s1._domainkey.example.test",
+                "v=DKIM1; k=rsa; h=sha256:sha1; p=YWJj; t=s");
+
+        var lookup = await DkimPublicKeyLookup.LookupAsync(signature, resolver);
+
+        Assert.AreEqual(DkimResult.Neutral, lookup.Evaluation.Result);
+        Assert.IsNotNull(lookup.KeyRecord);
+        Assert.AreEqual("s1._domainkey.example.test", lookup.KeyRecord.QueryName);
+        Assert.AreEqual("YWJj", lookup.KeyRecord.PublicKey);
+        Assert.AreEqual("s", lookup.KeyRecord.Flags);
+        CollectionAssert.Contains(resolver.Queries.ToArray(), "s1._domainkey.example.test");
+    }
+
+    [TestMethod]
+    public async Task LookupAsync_ReturnsTempFailForTemporaryDnsFailure()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; d=example.test; s=s1; h=from; bh=abc; b=def");
+        var resolver = new FakeDkimTxtResolver()
+            .SetResponse("s1._domainkey.example.test", DkimTxtResponse.TemporaryError());
+
+        var lookup = await DkimPublicKeyLookup.LookupAsync(signature, resolver);
+
+        Assert.AreEqual(DkimResult.TempFail, lookup.Evaluation.Result);
+        Assert.IsNull(lookup.KeyRecord);
+    }
+
+    [TestMethod]
+    public async Task LookupAsync_ReturnsPermFailWhenNoKeyExists()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; d=example.test; s=s1; h=from; bh=abc; b=def");
+
+        var lookup = await DkimPublicKeyLookup.LookupAsync(
+            signature,
+            new FakeDkimTxtResolver());
+
+        Assert.AreEqual(DkimResult.PermFail, lookup.Evaluation.Result);
+        StringAssert.Contains(lookup.Evaluation.Diagnostic, "no key");
+        Assert.IsNull(lookup.KeyRecord);
+    }
+
+    [TestMethod]
+    public async Task LookupAsync_ReturnsPermFailForRevokedKey()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; d=example.test; s=s1; h=from; bh=abc; b=def");
+        var resolver = new FakeDkimTxtResolver()
+            .AddTxt("s1._domainkey.example.test", "v=DKIM1; p=");
+
+        var lookup = await DkimPublicKeyLookup.LookupAsync(signature, resolver);
+
+        Assert.AreEqual(DkimResult.PermFail, lookup.Evaluation.Result);
+        StringAssert.Contains(lookup.Evaluation.Diagnostic, "revoked");
+    }
+
+    [TestMethod]
+    public async Task LookupAsync_ReturnsPermFailWhenHashAlgorithmIsNotAllowed()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; d=example.test; s=s1; h=from; bh=abc; b=def");
+        var resolver = new FakeDkimTxtResolver()
+            .AddTxt("s1._domainkey.example.test", "v=DKIM1; h=sha1; p=YWJj");
+
+        var lookup = await DkimPublicKeyLookup.LookupAsync(signature, resolver);
+
+        Assert.AreEqual(DkimResult.PermFail, lookup.Evaluation.Result);
+        StringAssert.Contains(lookup.Evaluation.Diagnostic, "h tag");
+    }
+
+    [TestMethod]
+    public async Task LookupAsync_ReturnsPermFailWhenStrictIdentityFlagRejectsSubdomainIdentity()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; d=example.test; s=s1; i=user@sub.example.test; " +
+            "h=from; bh=abc; b=def");
+        var resolver = new FakeDkimTxtResolver()
+            .AddTxt("s1._domainkey.example.test", "v=DKIM1; t=s; p=YWJj");
+
+        var lookup = await DkimPublicKeyLookup.LookupAsync(signature, resolver);
+
+        Assert.AreEqual(DkimResult.PermFail, lookup.Evaluation.Result);
+        StringAssert.Contains(lookup.Evaluation.Diagnostic, "t=s");
+    }
+
+    [TestMethod]
+    public async Task LookupAsync_ReturnsPermFailWhenGranularityDoesNotMatchIdentity()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; d=example.test; s=s1; i=user@example.test; " +
+            "h=from; bh=abc; b=def");
+        var resolver = new FakeDkimTxtResolver()
+            .AddTxt("s1._domainkey.example.test", "v=DKIM1; g=admin; p=YWJj");
+
+        var lookup = await DkimPublicKeyLookup.LookupAsync(signature, resolver);
+
+        Assert.AreEqual(DkimResult.PermFail, lookup.Evaluation.Result);
+        StringAssert.Contains(lookup.Evaluation.Diagnostic, "g tag");
+    }
+
+    [TestMethod]
+    public async Task VerifyAsync_UsesResolvedPublicKeyForFullVerification()
+    {
+        var fixture = CreateSignedFixture();
+        var resolver = new FakeDkimTxtResolver()
+            .AddTxt(
+                "s1._domainkey.example.test",
+                $"v=DKIM1; h=sha256; p={fixture.PublicKeyBase64}");
+
+        var result = await DkimSignatureVerifier.VerifyAsync(
+            fixture.HeaderBlock,
+            fixture.Body,
+            fixture.SignatureHeaderValue,
+            fixture.Signature,
+            resolver);
+
+        Assert.AreEqual(DkimResult.Pass, result.Result);
+    }
+
     private static DkimSignature ParseSignature(string value)
     {
         var parsed = DkimSignatureParser.TryParse(
@@ -402,4 +529,34 @@ public sealed class DkimEvaluationTests
         string SignatureHeaderValue,
         DkimSignature Signature,
         string PublicKeyBase64);
+
+    private sealed class FakeDkimTxtResolver : IDkimTxtResolver
+    {
+        private readonly Dictionary<string, DkimTxtResponse> _responses = new(StringComparer.OrdinalIgnoreCase);
+
+        public List<string> Queries { get; } = [];
+
+        public FakeDkimTxtResolver AddTxt(string domain, params string[] records) =>
+            SetResponse(domain, DkimTxtResponse.Success(records));
+
+        public FakeDkimTxtResolver SetResponse(string domain, DkimTxtResponse response)
+        {
+            _responses[Normalize(domain)] = response;
+            return this;
+        }
+
+        public ValueTask<DkimTxtResponse> QueryTxtAsync(
+            string domain,
+            CancellationToken cancellationToken)
+        {
+            var normalized = Normalize(domain);
+            Queries.Add(normalized);
+            return ValueTask.FromResult(_responses.TryGetValue(normalized, out var response)
+                ? response
+                : DkimTxtResponse.NoData());
+        }
+
+        private static string Normalize(string value) =>
+            value.Trim().TrimEnd('.').ToLowerInvariant();
+    }
 }
