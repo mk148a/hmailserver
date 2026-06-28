@@ -370,6 +370,10 @@ var greylistingOptions = new SmtpGreylistingOptions
         builder.Configuration["AntiAbuse:Greylisting:SkipAuthenticated"]
             ?? builder.Configuration["HMAILSERVER_GREYLISTING_SKIP_AUTHENTICATED"],
         defaultValue: true),
+    BypassOnSpfPass = ReadBool(
+        builder.Configuration["AntiAbuse:Greylisting:BypassOnSpfPass"]
+            ?? builder.Configuration["HMAILSERVER_GREYLISTING_BYPASS_ON_SPF_PASS"],
+        defaultValue: false),
     InitialDelay = TimeSpan.FromMinutes(
         Math.Max(
             0,

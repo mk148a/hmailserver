@@ -239,6 +239,100 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_DoesNotBypassGreylistingOnSpfPassByDefault()
+    {
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("Should-Not-Scan"));
+        var greylistingChecker = new FakeGreylistingChecker(
+            SmtpGreylistingResult.Defer(
+                "recipient@example.test",
+                "451 Please try again later."));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            spfPolicy: new FakeSpfPolicy(CreateSpfPolicyResult(SmtpSpfPolicyStatus.Pass)),
+            greylistingChecker: greylistingChecker);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: SPF Pass\r\n\r\nBody\r\n"u8.ToArray()) with { IsAuthenticated = false },
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("451 Please try again later.", result.FailureResponse);
+        Assert.AreEqual(1, greylistingChecker.Requests.Count);
+        Assert.AreEqual(0, antivirusScanner.ScannedMessages.Count);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_BypassesGreylistingOnSpfPassWhenConfigured()
+    {
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("After-Spf-Pass-Bypass"));
+        var greylistingChecker = new FakeGreylistingChecker(
+            SmtpGreylistingResult.Defer(
+                "recipient@example.test",
+                "451 Please try again later."));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            spfPolicy: new FakeSpfPolicy(CreateSpfPolicyResult(SmtpSpfPolicyStatus.Pass)),
+            greylistingChecker: greylistingChecker,
+            greylistingOptions: new SmtpGreylistingOptions { BypassOnSpfPass = true });
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: SPF Pass\r\n\r\nBody\r\n"u8.ToArray()) with { IsAuthenticated = false },
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Virus detected: After-Spf-Pass-Bypass", result.FailureResponse);
+        Assert.AreEqual(0, greylistingChecker.Requests.Count);
+        Assert.AreEqual(1, antivirusScanner.ScannedMessages.Count);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_DoesNotBypassGreylistingForNonPassSpfResults()
+    {
+        var nonPassingStatuses = new[]
+        {
+            SmtpSpfPolicyStatus.Fail,
+            SmtpSpfPolicyStatus.None,
+            SmtpSpfPolicyStatus.Neutral,
+            SmtpSpfPolicyStatus.SoftFail,
+            SmtpSpfPolicyStatus.TempError,
+            SmtpSpfPolicyStatus.PermError,
+            SmtpSpfPolicyStatus.Skipped
+        };
+
+        foreach (var status in nonPassingStatuses)
+        {
+            var greylistingChecker = new FakeGreylistingChecker(
+                SmtpGreylistingResult.Defer(
+                    "recipient@example.test",
+                    "451 Please try again later."));
+            var antivirusScanner = new FakeAntivirusScanner(
+                MessageAntivirusScanResult.Infected("Should-Not-Scan"));
+            var receiver = new SqlServerSmtpMessageReceiver(
+                new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+                new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+                antivirusScanner: antivirusScanner,
+                spfPolicy: new FakeSpfPolicy(CreateSpfPolicyResult(status)),
+                greylistingChecker: greylistingChecker,
+                greylistingOptions: new SmtpGreylistingOptions { BypassOnSpfPass = true });
+
+            var result = await receiver.ReceiveAsync(
+                CreateRequest("Subject: SPF NonPass\r\n\r\nBody\r\n"u8.ToArray()) with { IsAuthenticated = false },
+                CancellationToken.None);
+
+            Assert.IsFalse(result.Accepted, status.ToString());
+            Assert.AreEqual("451 Please try again later.", result.FailureResponse, status.ToString());
+            Assert.AreEqual(1, greylistingChecker.Requests.Count, status.ToString());
+            Assert.AreEqual(0, antivirusScanner.ScannedMessages.Count, status.ToString());
+        }
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_MarksSpfFailAsSpamWithoutRejectingMessage()
     {
         var statusRuntimeState = new ServerStatusRuntimeState();
@@ -574,6 +668,18 @@ public sealed class SqlServerSmtpMessageReceiverTests
             IsAuthenticated: true,
             IsEncryptedConnection: true);
 
+    private static SmtpSpfPolicyResult CreateSpfPolicyResult(SmtpSpfPolicyStatus status) =>
+        status == SmtpSpfPolicyStatus.Skipped
+            ? SmtpSpfPolicyResult.Skipped
+            : SmtpSpfPolicyResult.FromEvaluation(
+                status,
+                failScore: 3,
+                domain: "example.test",
+                sender: "sender@example.test",
+                heloDomain: "client.example",
+                matchedMechanism: status == SmtpSpfPolicyStatus.Pass ? "+all" : null,
+                diagnostic: status.ToString());
+
     private static byte[] CreateMessageWithAttachment(string fileName, string content)
     {
         var message = new MimeMessage();
@@ -740,10 +846,15 @@ public sealed class SqlServerSmtpMessageReceiverTests
             _result = result;
         }
 
+        public List<SmtpReceiveRequest> Requests { get; } = [];
+
         public ValueTask<SmtpGreylistingResult> CheckAsync(
             SmtpReceiveRequest request,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(_result);
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return ValueTask.FromResult(_result);
+        }
     }
 
     private sealed class FakeSpfPolicy : ISmtpSpfPolicy

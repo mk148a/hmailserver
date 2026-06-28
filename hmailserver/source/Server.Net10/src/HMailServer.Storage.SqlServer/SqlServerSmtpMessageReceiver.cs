@@ -22,6 +22,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly ISmtpSenderDomainMxChecker? _senderDomainMxChecker;
     private readonly ISmtpSpfPolicy? _spfPolicy;
     private readonly ISmtpGreylistingChecker? _greylistingChecker;
+    private readonly SmtpGreylistingOptions _greylistingOptions;
     private readonly ISmtpUrlBlockListChecker? _urlBlockListChecker;
     private readonly ServerStatusRuntimeState? _statusRuntimeState;
 
@@ -40,6 +41,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         ISmtpSenderDomainMxChecker? senderDomainMxChecker = null,
         ISmtpSpfPolicy? spfPolicy = null,
         ISmtpGreylistingChecker? greylistingChecker = null,
+        SmtpGreylistingOptions? greylistingOptions = null,
         ISmtpUrlBlockListChecker? urlBlockListChecker = null,
         ServerStatusRuntimeState? statusRuntimeState = null)
     {
@@ -55,6 +57,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _senderDomainMxChecker = senderDomainMxChecker;
         _spfPolicy = spfPolicy;
         _greylistingChecker = greylistingChecker;
+        _greylistingOptions = greylistingOptions ?? new SmtpGreylistingOptions();
         _urlBlockListChecker = urlBlockListChecker;
         _statusRuntimeState = statusRuntimeState;
     }
@@ -90,7 +93,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 
         var spfPolicyResult = await RunSpfPolicyAsync(request, cancellationToken).ConfigureAwait(false);
 
-        var greylistingFailure = await RunGreylistingCheckAsync(request, cancellationToken).ConfigureAwait(false);
+        var greylistingFailure = await RunGreylistingCheckAsync(request, spfPolicyResult, cancellationToken).ConfigureAwait(false);
         if (greylistingFailure is not null)
         {
             return greylistingFailure;
@@ -310,9 +313,15 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 
     private async ValueTask<SmtpReceiveResult?> RunGreylistingCheckAsync(
         SmtpReceiveRequest request,
+        SmtpSpfPolicyResult spfPolicyResult,
         CancellationToken cancellationToken)
     {
         if (_greylistingChecker is null)
+        {
+            return null;
+        }
+
+        if (_greylistingOptions.BypassOnSpfPass && spfPolicyResult.Passed)
         {
             return null;
         }

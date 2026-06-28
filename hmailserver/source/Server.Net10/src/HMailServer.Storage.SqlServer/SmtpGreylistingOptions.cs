@@ -6,6 +6,8 @@ public sealed record SmtpGreylistingOptions
 
     public bool SkipAuthenticated { get; init; } = true;
 
+    public bool BypassOnSpfPass { get; init; }
+
     public TimeSpan InitialDelay { get; init; } = TimeSpan.FromMinutes(30);
 
     public TimeSpan InitialRecordLifetime { get; init; } = TimeSpan.FromHours(24);
