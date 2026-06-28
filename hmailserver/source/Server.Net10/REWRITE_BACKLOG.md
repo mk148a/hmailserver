@@ -323,7 +323,8 @@ The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and t
    - Done: optional sender-domain MX checker with bounded lookup, authenticated-client bypass, null reverse-path/domain-literal skip, SMTP receiver rejection wiring, and fail-open transient DNS handling.
    - Done: optional SQL-backed greylisting checker with authenticated-client bypass, legacy triplet/white-address table compatibility, SMTP receiver temporary rejection wiring, and fail-open SQL error handling.
    - Done: optional SURBL checker with bounded MIME URL host extraction, parent-domain candidate limits, fail-open lookup errors, and SMTP receiver rejection wiring.
-   - Remaining: SPF, DKIM, DMARC.
+   - Done: SPF evaluation-only foundation with a bounded DNS resolver abstraction, deterministic record parser, RFC result model (`None`, `Neutral`, `Pass`, `Fail`, `SoftFail`, `TempError`, `PermError`), macro expansion, include/redirect/mechanism evaluation, and DNS term/void/recursion/MX/PTR limits. It is intentionally not wired into SMTP policy or rejection behavior yet.
+   - Remaining: SPF system-DNS resolver and disabled-by-default SMTP/anti-spam policy wiring, DKIM, DMARC.
    - Implicit TLS stream factories and listener ports; STARTTLS uses OS default TLS policy and online certificate revocation checks.
 
 6. COM/API compatibility.
@@ -380,4 +381,4 @@ The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and t
 
 ## Current Next Slice
 
-Begin the missing SPF mainline as an evaluation-only foundation: add a bounded DNS resolver abstraction, deterministic SPF parsing/evaluation result model and lookup/recursion limits with authoritative test vectors. Keep SMTP policy disabled by default and do not add reject/tempfail behavior until pass/fail/softfail/neutral/none/temperror/permerror and timeout paths are proven independently.
+Move SPF one small step closer to integration without changing default mail flow: add the production/system DNS resolver and a disabled-by-default SMTP/anti-spam policy boundary around the existing evaluator. Preserve the legacy semantics in tests: only `Fail` should become an SPF spam result, `Pass` may later feed greylisting bypass, and `None`/`Neutral`/`SoftFail`/`TempError`/`PermError` must not introduce default reject/tempfail behavior.

@@ -17,7 +17,7 @@ Legacy C++ server production referansi olmaya devam ediyor. .NET 10 agaci produc
 - SMTP tarafinda listener/session skeleton, STARTTLS, AUTH PLAIN/LOGIN, MAIL/RCPT/DATA staging, local/route recipient validation, durable queue persistence, global/account rule islemleri, delivery queue lease/load/dispatch, local delivery, remote SMTP sender, retry/backoff, bounce ve delivery status gozlemlenebilirligi eklendi.
 - POP3 tarafinda USER/PASS, CAPA, STAT/LIST/UIDL/RETR/TOP/DELE/RSET/NOOP/QUIT, mailbox lock, implicit TLS ve SQL/data-directory mailbox store eklendi.
 - External POP3 fetch icin SQL lease/UID store, POP3 network session, CAPA/STLS probing, UIDL/RETR/DELE/QUIT akis, recipient resolution, yeni/bilinen UIDL ve duplicate sequence baskilama, persisted known-UID duplicate toleransi, legacy `X-hMailServer-ExternalAccount` basligi, spam/AV entegrasyonu ve `OnExternalAccountDownload` script hook'u eklendi; fetch-account script facade'i `NextDownloadTime`/`IsLocked` alanlarini da tasiyor.
-- Modern security slice'lari eklendi: ClamAV, SpamAssassin, spam policy, attachment blocking, DNSBL, reverse DNS/PTR, sender-domain MX, greylisting, SURBL ve failed-logon auto-ban.
+- Modern security slice'lari eklendi: ClamAV, SpamAssassin, spam policy, attachment blocking, DNSBL, reverse DNS/PTR, sender-domain MX, greylisting, SURBL, failed-logon auto-ban ve davranis degistirmeyen SPF evaluation-only temeli.
 - Legacy script/event parity buyuk olcude ilerledi: `OnClientConnect`, `OnClientValidatePassword`, `OnClientLogon`, `OnHELO`, `OnRecipientUnknown`, `OnSMTPData`, `OnAcceptMessage`, `OnTooManyInvalidCommands`, delivery eventleri, `OnDeliveryFailed`, `OnError`, rule `ScriptFunction`, mesaj/recipient/attachment facade'leri, client `Authenticated`/`EncryptedConnection` alias'lari ve account-rule `Message.Copy(folderId)`.
 - Iki guvenlik raporu 21 benzersiz kayitta birlestirildi. `4dd984156` ile bos administrator hash'i fail-closed yapildi; legacy JScript event literal'lari, rule `ScriptFunction` runtime/COM yetki siniri, SMTP `ETRN`, WebAdmin session fixation ve CSRF rastgeleligi sertlestirildi. ClamAV framing duzeltmesinin daha once `d8942bc12` ile kapandigi dogrulandi; yeniden uretilemeyen iki VBScript iddiasi regresyon testleriyle izleniyor.
 
@@ -28,7 +28,7 @@ Durum: production-ready degil. Proje ciddi bir parity seviyesine geldi, fakat ha
 Ana nedenler:
 
 - COM/Admin yuzeyi ve legacy object model henuz tam degil.
-- SPF/DKIM/DMARC eksik.
+- SPF evaluation-only temeli var; SMTP policy wiring, DKIM ve DMARC eksik.
 - Backup engine ve `OnBackupCompleted` / `OnBackupFailed` eventleri beklemede.
 - In-place upgrade runner, mandatory backup/rollback akis dokumani ve operasyonel servis install/uninstall paketi tamamlanmadi.
 - Buyuk olcekli performance/soak kabul testleri henuz production gate olarak tamamlanmadi.
@@ -38,7 +38,7 @@ Ana nedenler:
 - Full legacy script object model parity.
 - Backup engine tasarimi ve backup completed/failed eventlerinin gercek engine uzerinden baglanmasi.
 - Active Directory auth, master user ve daha derin account facade collections/methods.
-- SPF, DKIM, DMARC.
+- SPF SMTP policy wiring, DKIM, DMARC.
 - COM/API compatibility: mevcut GUID/ProgID/DISPID/type library sozlesmelerinin tam korunmasi ve Administrator-visible nesnelerin tamamlanmasi.
 - Migration/operations: in-place upgrade runner, mandatory backup checks, rollback-from-backup dokumani, orphan cleanup, health/metrics/logging, Windows Service install/uninstall.
 - SQL Server FTS integration testleri ve production acceptance: 100k mailbox SEARCH/SORT, 1k IMAP connection, SMTP queue latency, memory/handle leak soak.
@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: eksik SPF hattina evaluation-only bir temel ile baslamak. Sinirli DNS resolver abstraction'i, deterministik SPF parse/evaluation result modeli ve lookup/recursion limitleri authoritative test vektorleriyle kanitlanmali. SMTP policy varsayilan olarak kapali kalmali; evaluator sonucu ve timeout/error yollari bagimsiz kanitlanmadan reject/tempfail davranisi eklenmemeli.
+Backlog'daki siradaki ana dilim: SPF'i davranis degistirmeden entegrasyona yaklastirmak. Mevcut evaluator ustune production/system DNS resolver ve disabled-by-default SMTP/anti-spam policy boundary eklenmeli. Legacy semantik testlerle korunmali: yalniz `Fail` SPF spam sonucu uretir, `Pass` daha sonra greylisting bypass'a bilgi olabilir, `None`/`Neutral`/`SoftFail`/`TempError`/`PermError` varsayilan reject/tempfail davranisi getirmemelidir.
 
 Son tamamlanan kucuk dilimler:
 
+- SPF evaluation-only temeli eklendi: bounded resolver abstraction, deterministik `v=spf1` parser'i, RFC 7208 sonuc modeli, macro expansion, `include`/`redirect` ve `all`/`a`/`mx`/`ptr`/`ip4`/`ip6`/`exists` mekanizmalari, global DNS-term/void-lookup/recursion/MX/PTR limitleri ve timeout/temporary-error yollari dar testlerle kapatildi. SMTP policy/reject/tempfail davranisi bilincli olarak baglanmadi. Dar SPF filtresi 25/25, full Net10 testleri 614/614 ve Net10 build 0 uyari/0 hata ile gecti.
 - Legacy `Links` COM kontrati tam vtable/identity sirasiyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Application -> Links`, mevcut read-only SQL administration store/adapter hatlarini yeniden kullanarak `Domain`, `Account`, `Alias` ve `DistributionList` DBID lookup'u aciyor; bilinmeyen ID `DISP_E_BADINDEX`, direct activation `E_ACCESSDENIED` kaliyor ve yeni SQL/mutation eklenmiyor.
 - Legacy `Utilities` COM kontrati tam vtable/identity sirasiyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. `Application -> Utilities` ile direct activation saf helper'larda legacy gibi auth istemeden `MD5`, salted `SHA256`, `GenerateGUID`, email/domain/IP validator, `IsStrongPassword` ve `CriteriaMatch` davranisini aciyor. DNS, Blowfish, local-host resolution, dependency/import/mass-mail/test-suite/message-ID/maintenance operasyonlari `E_NOTIMPL`; yan etkili uyeler once legacy server-admin sinirini uyguluyor.
 - 27 Haziran derlenmis guvenlik envanteri mevcut SEC-01..SEC-21 tablosuyla birlestirildi; yeni benzersiz kayit cikmadi. Tek kritik SEC-01, 28 Haziran'da rapordaki `x" & ... & "` payload sekliyle yeniden dogrulandi: VBScript quote doubling payload'i ifade olarak calistirmiyor, handler'a veri olarak iletiyor. WSH tabanli .NET security/ClamAV/admin-auth dar filtresi 10/10 gecti; production kodunda legacy davranisi bozacak gereksiz bir degisiklik yapilmadi.
@@ -411,7 +412,7 @@ Terminal/log incelemesi:
    - In-place upgrade runner, backup zorunlulugu, rollback-from-backup akisi, service install/uninstall ve operator dokumani.
 
 3. Security + performance acceptance.
-   - SPF/DKIM/DMARC.
+   - SPF SMTP policy wiring, DKIM/DMARC.
    - SQL Server FTS integration ve 100k mailbox SEARCH/SORT p95 hedefi.
    - 1k concurrent IMAP, SMTP queue latency, delivery throughput ve uzun soak memory/handle testleri.
 
@@ -426,5 +427,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak SPF evaluation-only temelini ele al; once authoritative standard/test vektorlerini ve mevcut SMTP policy sinirini oku, resolver/parsing/result/limit davranisini SMTP reddine baglamadan dar testlerle kanitla.
+5. Current Next Slice olarak SPF production/system DNS resolver + disabled-by-default SMTP/anti-spam policy boundary dilimini ele al; mevcut evaluator sonuc mapping'ini legacy semantics ile test et ve varsayilan mail kabul/red davranisini degistirme.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.
