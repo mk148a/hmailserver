@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using HMailServer.Security;
 
 namespace HMailServer.Net10.Tests;
@@ -227,6 +229,89 @@ public sealed class DkimEvaluationTests
         StringAssert.Contains(result.Diagnostic, "exceeds");
     }
 
+    [TestMethod]
+    public void Verify_ReturnsPassWhenBodyHashAndHeaderSignaturePass()
+    {
+        var fixture = CreateSignedFixture();
+
+        var result = DkimSignatureVerifier.Verify(
+            fixture.HeaderBlock,
+            fixture.Body,
+            fixture.SignatureHeaderValue,
+            fixture.Signature,
+            fixture.PublicKeyBase64);
+
+        Assert.AreEqual(DkimResult.Pass, result.Result);
+        StringAssert.Contains(result.Diagnostic, "header signature verified");
+    }
+
+    [TestMethod]
+    public void Verify_ReturnsPermFailWhenSignedHeaderChanges()
+    {
+        var fixture = CreateSignedFixture();
+        var tamperedHeaderBlock = fixture.HeaderBlock.Replace(
+            "Subject: Test",
+            "Subject: Tampered",
+            StringComparison.Ordinal);
+
+        var result = DkimSignatureVerifier.Verify(
+            tamperedHeaderBlock,
+            fixture.Body,
+            fixture.SignatureHeaderValue,
+            fixture.Signature,
+            fixture.PublicKeyBase64);
+
+        Assert.AreEqual(DkimResult.PermFail, result.Result);
+        StringAssert.Contains(result.Diagnostic, "signature does not match");
+    }
+
+    [TestMethod]
+    public void Verify_ReturnsPermFailWhenBodyHashFailsBeforeHeaderSignature()
+    {
+        var fixture = CreateSignedFixture();
+
+        var result = DkimSignatureVerifier.Verify(
+            fixture.HeaderBlock,
+            "tampered\r\n",
+            fixture.SignatureHeaderValue,
+            fixture.Signature,
+            fixture.PublicKeyBase64);
+
+        Assert.AreEqual(DkimResult.PermFail, result.Result);
+        StringAssert.Contains(result.Diagnostic, "body hash");
+    }
+
+    [TestMethod]
+    public void Verify_SupportsLegacyRsaSha1HeaderSignatures()
+    {
+        var fixture = CreateSignedFixture("rsa-sha1");
+
+        var result = DkimSignatureVerifier.Verify(
+            fixture.HeaderBlock,
+            fixture.Body,
+            fixture.SignatureHeaderValue,
+            fixture.Signature,
+            fixture.PublicKeyBase64);
+
+        Assert.AreEqual(DkimResult.Pass, result.Result);
+    }
+
+    [TestMethod]
+    public void Verify_ReturnsPermFailForInvalidPublicKey()
+    {
+        var fixture = CreateSignedFixture();
+
+        var result = DkimSignatureVerifier.Verify(
+            fixture.HeaderBlock,
+            fixture.Body,
+            fixture.SignatureHeaderValue,
+            fixture.Signature,
+            "not-base64");
+
+        Assert.AreEqual(DkimResult.PermFail, result.Result);
+        StringAssert.Contains(result.Diagnostic, "public key");
+    }
+
     private static DkimSignature ParseSignature(string value)
     {
         var parsed = DkimSignatureParser.TryParse(
@@ -238,4 +323,83 @@ public sealed class DkimEvaluationTests
         Assert.IsNotNull(signature);
         return signature;
     }
+
+    private static SignedDkimFixture CreateSignedFixture(
+        string algorithm = "rsa-sha256",
+        string body = "",
+        DkimCanonicalizationMethod headerCanonicalization = DkimCanonicalizationMethod.Relaxed,
+        DkimCanonicalizationMethod bodyCanonicalization = DkimCanonicalizationMethod.Simple)
+    {
+        const string headerBlock =
+            "From: sender@example.test\r\n" +
+            "Subject: Test\r\n";
+        var bodyHash = ComputeBodyHash(body, bodyCanonicalization, algorithm);
+        var unsignedSignatureHeaderValue =
+            $"v=1; a={algorithm}; c={ToDkimCanonicalizationName(headerCanonicalization)}/{ToDkimCanonicalizationName(bodyCanonicalization)}; " +
+            $"d=example.test; s=s1; h=from:subject; bh={bodyHash}; b=";
+        var signedHeaders = new[] { "from", "subject" };
+        using var rsa = RSA.Create(2048);
+        var canonicalizedHeader = DkimCanonicalizer.CanonicalizeHeaders(
+            headerBlock,
+            "DKIM-Signature",
+            unsignedSignatureHeaderValue,
+            signedHeaders,
+            headerCanonicalization,
+            out _);
+        var headerBytes = Encoding.Latin1.GetBytes(canonicalizedHeader);
+        var signatureValue = Convert.ToBase64String(rsa.SignData(
+            headerBytes,
+            ToHashAlgorithmName(algorithm),
+            RSASignaturePadding.Pkcs1));
+        var signatureHeaderValue = unsignedSignatureHeaderValue + signatureValue;
+        var signature = ParseSignature(signatureHeaderValue);
+        var publicKeyBase64 = Convert.ToBase64String(rsa.ExportSubjectPublicKeyInfo());
+
+        return new SignedDkimFixture(
+            headerBlock,
+            body,
+            signatureHeaderValue,
+            signature,
+            publicKeyBase64);
+    }
+
+    private static string ComputeBodyHash(
+        string body,
+        DkimCanonicalizationMethod bodyCanonicalization,
+        string algorithm)
+    {
+        var canonicalizedBody = DkimCanonicalizer.CanonicalizeBody(body, bodyCanonicalization);
+        var bodyBytes = Encoding.Latin1.GetBytes(canonicalizedBody);
+        var hash = algorithm switch
+        {
+            "rsa-sha1" => SHA1.HashData(bodyBytes),
+            "rsa-sha256" => SHA256.HashData(bodyBytes),
+            _ => throw new ArgumentOutOfRangeException(nameof(algorithm), algorithm, "Unsupported DKIM hash algorithm.")
+        };
+
+        return Convert.ToBase64String(hash);
+    }
+
+    private static HashAlgorithmName ToHashAlgorithmName(string algorithm) =>
+        algorithm switch
+        {
+            "rsa-sha1" => HashAlgorithmName.SHA1,
+            "rsa-sha256" => HashAlgorithmName.SHA256,
+            _ => throw new ArgumentOutOfRangeException(nameof(algorithm), algorithm, "Unsupported DKIM hash algorithm.")
+        };
+
+    private static string ToDkimCanonicalizationName(DkimCanonicalizationMethod canonicalization) =>
+        canonicalization switch
+        {
+            DkimCanonicalizationMethod.Simple => "simple",
+            DkimCanonicalizationMethod.Relaxed => "relaxed",
+            _ => throw new ArgumentOutOfRangeException(nameof(canonicalization), canonicalization, "Unsupported DKIM canonicalization.")
+        };
+
+    private sealed record SignedDkimFixture(
+        string HeaderBlock,
+        string Body,
+        string SignatureHeaderValue,
+        DkimSignature Signature,
+        string PublicKeyBase64);
 }
