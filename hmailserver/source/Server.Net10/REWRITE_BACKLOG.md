@@ -323,8 +323,8 @@ The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and t
    - Done: optional sender-domain MX checker with bounded lookup, authenticated-client bypass, null reverse-path/domain-literal skip, SMTP receiver rejection wiring, and fail-open transient DNS handling.
    - Done: optional SQL-backed greylisting checker with authenticated-client bypass, legacy triplet/white-address table compatibility, SMTP receiver temporary rejection wiring, and fail-open SQL error handling.
    - Done: optional SURBL checker with bounded MIME URL host extraction, parent-domain candidate limits, fail-open lookup errors, and SMTP receiver rejection wiring.
-   - Done: SPF evaluation and policy foundation with a bounded resolver abstraction, deterministic record parser, RFC result model (`None`, `Neutral`, `Pass`, `Fail`, `SoftFail`, `TempError`, `PermError`), macro expansion, include/redirect/mechanism evaluation, DNS term/void/recursion/MX/PTR limits, system-DNS TXT/A/AAAA/MX/PTR resolver, and disabled-by-default SMTP anti-spam policy wiring. The policy preserves the safe legacy subset: only `Fail` marks the message with the legacy spam flag, while `Pass` is retained for later greylisting-bypass parity and all other results fail open without reject/tempfail behavior.
-   - Remaining: SPF pass-to-greylisting-bypass/admin-setting parity, DKIM, DMARC.
+   - Done: SPF evaluation and policy foundation with a bounded resolver abstraction, deterministic record parser, RFC result model (`None`, `Neutral`, `Pass`, `Fail`, `SoftFail`, `TempError`, `PermError`), macro expansion, include/redirect/mechanism evaluation, DNS term/void/recursion/MX/PTR limits, system-DNS TXT/A/AAAA/MX/PTR resolver, disabled-by-default SMTP anti-spam policy wiring, and disabled-by-default SPF `Pass` greylisting bypass parity. The policy preserves the safe legacy subset: only `Fail` marks the message with the legacy spam flag, only `Pass` can bypass greylisting when explicitly enabled, and all other results fail open without bypass, reject, or tempfail behavior.
+   - Remaining: DKIM, DMARC; later Administrator/COM setting parity for SPF/greylisting knobs.
    - Implicit TLS stream factories and listener ports; STARTTLS uses OS default TLS policy and online certificate revocation checks.
 
 6. COM/API compatibility.
@@ -381,4 +381,4 @@ The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and t
 
 ## Current Next Slice
 
-Finish the remaining SPF parity edge without changing defaults: feed the preserved SPF `Pass` result into an explicit greylisting-bypass boundary, disabled unless the corresponding setting/config is enabled. Tests should prove default greylisting behavior is unchanged, SPF `Pass` can bypass only when enabled, and `Fail`/`None`/`Neutral`/`SoftFail`/`TempError`/`PermError` never bypass or introduce reject/tempfail behavior. After that, start DKIM as an evaluation-only foundation.
+Start DKIM as an evaluation-only foundation: parse canonical DKIM-Signature fields, model pass/fail/neutral/error outcomes, and add deterministic body/header canonicalization tests without wiring SMTP rejection or mutating mail flow. Keep signing, DNS selector lookup, policy scoring, and Administrator settings out of the first slice until the verifier core is proven.

@@ -28,7 +28,7 @@ Durum: production-ready degil. Proje ciddi bir parity seviyesine geldi, fakat ha
 Ana nedenler:
 
 - COM/Admin yuzeyi ve legacy object model henuz tam degil.
-- SPF evaluator ve disabled-by-default SMTP policy boundary var; SPF greylisting-bypass/admin parity, DKIM ve DMARC eksik.
+- SPF evaluator, disabled-by-default SMTP policy boundary ve explicit SPF-pass greylisting bypass boundary var; DKIM, DMARC ve daha sonra Administrator/COM setting parity eksik.
 - Backup engine ve `OnBackupCompleted` / `OnBackupFailed` eventleri beklemede.
 - In-place upgrade runner, mandatory backup/rollback akis dokumani ve operasyonel servis install/uninstall paketi tamamlanmadi.
 - Buyuk olcekli performance/soak kabul testleri henuz production gate olarak tamamlanmadi.
@@ -38,7 +38,7 @@ Ana nedenler:
 - Full legacy script object model parity.
 - Backup engine tasarimi ve backup completed/failed eventlerinin gercek engine uzerinden baglanmasi.
 - Active Directory auth, master user ve daha derin account facade collections/methods.
-- SPF greylisting-bypass/admin-setting parity, DKIM, DMARC.
+- DKIM, DMARC; daha sonra SPF/greylisting Administrator/COM setting parity.
 - COM/API compatibility: mevcut GUID/ProgID/DISPID/type library sozlesmelerinin tam korunmasi ve Administrator-visible nesnelerin tamamlanmasi.
 - Migration/operations: in-place upgrade runner, mandatory backup checks, rollback-from-backup dokumani, orphan cleanup, health/metrics/logging, Windows Service install/uninstall.
 - SQL Server FTS integration testleri ve production acceptance: 100k mailbox SEARCH/SORT, 1k IMAP connection, SMTP queue latency, memory/handle leak soak.
@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: kalan SPF parity kenarini varsayilan davranisi degistirmeden kapatmak. Mevcut SPF `Pass` sonucu explicit greylisting-bypass boundary'sine tasinmali ama setting/config acik degilken mevcut greylisting davranisi aynen kalmali. `Fail` yalniz spam flag/status uretmeye devam etmeli; `None`/`Neutral`/`SoftFail`/`TempError`/`PermError` bypass veya reject/tempfail uretmemeli. Bundan sonra DKIM evaluation-only temeline gecilebilir.
+Backlog'daki siradaki ana dilim: DKIM evaluation-only temeline baslamak. Ilk dilim DKIM-Signature alanlarini parse etmeli, pass/fail/neutral/error sonuc modelini ve body/header canonicalization testlerini kanitlamali; SMTP reject, policy score, signing, DNS selector lookup ve Administrator ayarlari bu cekirdek dogrulanmadan baglanmamali.
 
 Son tamamlanan kucuk dilimler:
 
+- SPF pass -> greylisting bypass parity eklendi: `HMAILSERVER_GREYLISTING_BYPASS_ON_SPF_PASS=false` varsayilani normal greylisting davranisini koruyor; yalniz explicit acikken SPF `Pass` greylisting lookup'unu bypass ediyor. `Fail`/`None`/`Neutral`/`SoftFail`/`TempError`/`PermError` bypass veya reject/tempfail uretmiyor. Dar greylisting/SPF/receiver filtresi 34/34, full Net10 testleri 632/632 ve Net10 build 0 uyari/0 hata ile gecti.
 - SPF system-DNS + disabled SMTP policy boundary eklendi: OS DNS server'lari uzerinden TXT/A/AAAA/MX/PTR cozen `SystemSpfDnsResolver`, `ISmtpSpfPolicy` boundary'si, `HMAILSERVER_SPF_ENABLED=false` varsayilani, authenticated ve `EnableSpamScan=false` skip yollari, `Fail` -> legacy spam flag/status mapping'i ve `Pass` result preservation tamamlandi. Reject/tempfail davranisi eklenmedi. Dar SPF/receiver filtresi 57/57, full Net10 testleri 629/629 ve Net10 build 0 uyari/0 hata ile gecti.
 - SPF evaluation-only temeli eklendi: bounded resolver abstraction, deterministik `v=spf1` parser'i, RFC 7208 sonuc modeli, macro expansion, `include`/`redirect` ve `all`/`a`/`mx`/`ptr`/`ip4`/`ip6`/`exists` mekanizmalari, global DNS-term/void-lookup/recursion/MX/PTR limitleri ve timeout/temporary-error yollari dar testlerle kapatildi. SMTP policy/reject/tempfail davranisi bilincli olarak baglanmadi. Dar SPF filtresi 25/25, full Net10 testleri 614/614 ve Net10 build 0 uyari/0 hata ile gecti.
 - Legacy `Links` COM kontrati tam vtable/identity sirasiyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Application -> Links`, mevcut read-only SQL administration store/adapter hatlarini yeniden kullanarak `Domain`, `Account`, `Alias` ve `DistributionList` DBID lookup'u aciyor; bilinmeyen ID `DISP_E_BADINDEX`, direct activation `E_ACCESSDENIED` kaliyor ve yeni SQL/mutation eklenmiyor.
@@ -413,7 +414,7 @@ Terminal/log incelemesi:
    - In-place upgrade runner, backup zorunlulugu, rollback-from-backup akisi, service install/uninstall ve operator dokumani.
 
 3. Security + performance acceptance.
-   - SPF greylisting-bypass parity, DKIM/DMARC.
+   - DKIM/DMARC.
    - SQL Server FTS integration ve 100k mailbox SEARCH/SORT p95 hedefi.
    - 1k concurrent IMAP, SMTP queue latency, delivery throughput ve uzun soak memory/handle testleri.
 
@@ -428,5 +429,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak SPF Pass -> greylisting bypass parity dilimini ele al; varsayilan davranisi degistirme, bypass'i yalniz explicit setting/config acikken uygula ve Fail/None/Neutral/SoftFail/TempError/PermError icin bypass/reject/tempfail uretme.
+5. Current Next Slice olarak DKIM evaluation-only temelini ele al; once legacy DKIM verifier davranisini ve canonicalization kurallarini oku, SMTP reject/policy score/signing/DNS selector lookup baglamadan parser/result/canonicalization cekirdegini dar testlerle kanitla.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.
