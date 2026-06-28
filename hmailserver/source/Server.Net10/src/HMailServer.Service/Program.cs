@@ -30,6 +30,9 @@ var initializationFile = LegacyInitializationFile.ResolvePath(
     AppContext.BaseDirectory);
 var administratorPasswordHash = LegacyInitializationFile.LoadAdministratorPasswordHash(initializationFile);
 var databaseConfiguration = LegacyInitializationFile.LoadDatabaseConfiguration(initializationFile);
+var applicationVersion = builder.Configuration["Application:Version"]
+    ?? builder.Configuration["HMAILSERVER_VERSION"]
+    ?? "1.0.0-B0";
 builder.Services.AddSingleton<IServerAdministratorAuthenticationProvider>(
     new LegacyServerAdministratorAuthenticationProvider(administratorPasswordHash));
 
@@ -685,6 +688,11 @@ builder.Services.AddSingleton<IDatabaseAdministrationStore>(
         serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
         databaseConfiguration));
 builder.Services.AddSingleton<ServerStatusRuntimeState>();
+builder.Services.AddSingleton<IApplicationRuntimeStore>(
+    serviceProvider => new ServerApplicationRuntimeStore(
+        serviceProvider.GetRequiredService<ServerStatusRuntimeState>(),
+        applicationVersion,
+        initializationFile));
 builder.Services.AddSingleton<IServerStatusAdministrationStore, SqlServerServerStatusAdministrationStore>();
 builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
 builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdministrationStore>();
@@ -749,6 +757,8 @@ builder.Services.AddHostedService<Pop3TcpListenerHostedService>();
 builder.Services.AddHostedService<SmtpTcpListenerHostedService>();
 
 var host = builder.Build();
+ApplicationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IApplicationRuntimeStore>());
 MessageIndexingRuntimeHost.Configure(
     host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());
 DatabaseAdministrationRuntimeHost.Configure(

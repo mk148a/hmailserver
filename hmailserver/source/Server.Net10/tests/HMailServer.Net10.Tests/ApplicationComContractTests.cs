@@ -9,10 +9,17 @@ namespace HMailServer.Net10.Tests;
 public sealed class ApplicationComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ENotImplemented = unchecked((int)0x80004001);
+
     [TestMethod]
     public void ApplicationInterface_PreservesLegacyIidDispatchIdsAndVtableOrder()
     {
         var contract = typeof(IInterfaceApplication);
+
+        Assert.AreEqual(new Guid("0005B084-4C3A-11D9-8530-B8CDE3157849"), typeof(ComServerState).GUID);
+        CollectionAssert.AreEqual(
+            new[] { 0, 1, 2, 3, 4 },
+            Enum.GetValues<ComServerState>().Select(static value => (int)value).ToArray());
 
         Assert.AreEqual(new Guid("2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8"), contract.GUID);
         Assert.AreEqual(ComInterfaceType.InterfaceIsDual, contract.GetCustomAttribute<InterfaceTypeAttribute>()?.Value);
@@ -96,6 +103,45 @@ public sealed class ApplicationComContractTests
     }
 
     [TestMethod]
+    public void Application_CoreScalarsPreserveLegacyAuthBoundariesAndUseConfiguredRuntime()
+    {
+        ApplicationRuntimeHost.Configure(
+            new FixedApplicationRuntimeStore(
+                new ApplicationRuntimeSnapshot(
+                    ServerState: (int)ComServerState.Running,
+                    Version: "5.7.0-B2643",
+                    InitializationFile: @"C:\Program Files\hMailServer\Bin\hMailServer.ini",
+                    VersionArchitecture: Environment.Is64BitProcess ? "x64" : "x86")));
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+
+        Assert.AreEqual("5.7.0-B2643", application.Version);
+        Assert.AreEqual(Environment.Is64BitProcess ? "x64" : "x86", application.VersionArchitecture);
+
+        var stateDenied = Assert.ThrowsExactly<COMException>(() => _ = application.ServerState);
+        var iniDenied = Assert.ThrowsExactly<COMException>(() => _ = application.InitializationFile);
+        Assert.AreEqual(EAccessDenied, stateDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, iniDenied.ErrorCode);
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        Assert.AreEqual(ComServerState.Running, application.ServerState);
+        Assert.AreEqual(@"C:\Program Files\hMailServer\Bin\hMailServer.ini", application.InitializationFile);
+    }
+
+    [TestMethod]
+    public void Application_ServiceControlOperationsRemainExplicitlyPending()
+    {
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        AssertOperationPending(application.Start);
+        AssertOperationPending(application.Stop);
+        AssertOperationPending(application.Connect);
+        AssertOperationPending(application.Reinitialize);
+        AssertOperationPending(application.SubmitEMail);
+    }
+
+    [TestMethod]
     public void Application_DomainsPreserveAdministratorBoundaryAndUseConfiguredRuntime()
     {
         DomainAdministrationRuntimeHost.Configure(
@@ -173,6 +219,13 @@ public sealed class ApplicationComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
+    private static void AssertOperationPending(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+
+        Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
     private sealed class RecordingAdministratorAuthenticationProvider(string password)
         : IServerAdministratorAuthenticationProvider
     {
@@ -197,5 +250,11 @@ public sealed class ApplicationComContractTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
                 rules.Where(rule => rule.AccountId == accountId).OrderBy(rule => rule.SortOrder).ToArray());
+    }
+
+    private sealed class FixedApplicationRuntimeStore(ApplicationRuntimeSnapshot snapshot)
+        : IApplicationRuntimeStore
+    {
+        public ApplicationRuntimeSnapshot GetSnapshot() => snapshot;
     }
 }

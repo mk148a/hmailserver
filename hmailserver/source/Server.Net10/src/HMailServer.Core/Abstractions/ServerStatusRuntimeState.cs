@@ -5,24 +5,29 @@ namespace HMailServer.Core.Abstractions;
 
 public sealed class ServerStatusRuntimeState
 {
+    private const int LegacyRunningState = 3;
+
     private readonly DateTimeOffset _startedAt;
     private readonly ConcurrentDictionary<int, int> _sessionCounts = new();
+    private int _serverState;
     private int _processedMessages;
     private int _removedViruses;
     private int _removedSpamMessages;
 
     public ServerStatusRuntimeState()
-        : this(DateTimeOffset.Now)
+        : this(DateTimeOffset.Now, LegacyRunningState)
     {
     }
 
-    public ServerStatusRuntimeState(DateTimeOffset startedAt)
+    public ServerStatusRuntimeState(DateTimeOffset startedAt, int serverState = LegacyRunningState)
     {
         _startedAt = startedAt;
+        _serverState = serverState;
     }
 
     public ServerStatusRuntimeCounters Capture() =>
         new(
+            Volatile.Read(ref _serverState),
             FormatLegacyLocalDateTime(_startedAt),
             Volatile.Read(ref _processedMessages),
             Volatile.Read(ref _removedViruses),
@@ -31,6 +36,8 @@ public sealed class ServerStatusRuntimeState
                 static pair => pair.Key,
                 static pair => Math.Max(0, pair.Value)),
             Environment.CurrentManagedThreadId);
+
+    public void SetServerState(int serverState) => Volatile.Write(ref _serverState, serverState);
 
     public void OnMessageProcessed() => Interlocked.Increment(ref _processedMessages);
 

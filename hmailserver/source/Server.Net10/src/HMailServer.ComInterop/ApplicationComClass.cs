@@ -49,7 +49,14 @@ public sealed class Application : IInterfaceApplication
         }
     }
 
-    public ComServerState ServerState => NotImplemented<ComServerState>();
+    public ComServerState ServerState
+    {
+        get
+        {
+            EnsureServerAdministrator();
+            return (ComServerState)ApplicationRuntimeHost.Snapshot.ServerState;
+        }
+    }
 
     public IInterfaceDatabase Database =>
         DatabaseAdministrationRuntimeHost.CreateApplicationAdapter(() => _isServerAdministrator);
@@ -65,9 +72,16 @@ public sealed class Application : IInterfaceApplication
         }
     }
 
-    public string Version => NotImplemented<string>();
+    public string Version => ApplicationRuntimeHost.Snapshot.Version;
 
-    public string InitializationFile => NotImplemented<string>();
+    public string InitializationFile
+    {
+        get
+        {
+            EnsureServerAdministrator();
+            return ApplicationRuntimeHost.Snapshot.InitializationFile;
+        }
+    }
 
     public IInterfaceRules Rules
     {
@@ -86,7 +100,7 @@ public sealed class Application : IInterfaceApplication
 
     public IInterfaceDiagnostics Diagnostics => NotImplemented<IInterfaceDiagnostics>();
 
-    public string VersionArchitecture => Environment.Is64BitProcess ? "64-bit" : "32-bit";
+    public string VersionArchitecture => ApplicationRuntimeHost.Snapshot.VersionArchitecture;
 
     public void Start() => NotImplemented();
 
@@ -124,4 +138,31 @@ public sealed class Application : IInterfaceApplication
 
     private static T NotImplemented<T>() =>
         throw new COMException("This legacy COM member has not been implemented by the .NET 10 rewrite.", ENotImplemented);
+}
+
+[ComVisible(false)]
+public static class ApplicationRuntimeHost
+{
+    private const int CoENotInitialized = unchecked((int)0x800401F0);
+
+    private static IApplicationRuntimeStore? _store;
+
+    public static void Configure(IApplicationRuntimeStore store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        Volatile.Write(ref _store, store);
+    }
+
+    internal static ApplicationRuntimeSnapshot Snapshot
+    {
+        get
+        {
+            var store = Volatile.Read(ref _store)
+                ?? throw new COMException(
+                    "The hMailServer application runtime has not been initialized.",
+                    CoENotInitialized);
+
+            return store.GetSnapshot();
+        }
+    }
 }

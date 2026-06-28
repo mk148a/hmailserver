@@ -9,8 +9,9 @@ public sealed class ServerStatusRuntimeStateTests
     public void Capture_ExposesLegacyCountersAndActiveSessionCounts()
     {
         var startedAt = new DateTimeOffset(new DateTime(2026, 6, 28, 1, 2, 3, DateTimeKind.Local));
-        var state = new ServerStatusRuntimeState(startedAt);
+        var state = new ServerStatusRuntimeState(startedAt, serverState: 2);
 
+        state.SetServerState(3);
         state.OnMessageProcessed();
         state.OnMessageProcessed();
         state.OnVirusRemoved();
@@ -22,6 +23,7 @@ public sealed class ServerStatusRuntimeStateTests
 
         var snapshot = state.Capture();
 
+        Assert.AreEqual(3, snapshot.ServerState);
         Assert.AreEqual("2026-06-28 01:02:03", snapshot.StartTime);
         Assert.AreEqual(2, snapshot.ProcessedMessages);
         Assert.AreEqual(1, snapshot.RemovedViruses);
