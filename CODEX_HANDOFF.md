@@ -47,10 +47,12 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: Administrator object modelinde sinirli `Application -> Utilities` pure-helper dilimiyle devam etmek. Legacy `Utilities` COM identity/vtable sozlesmesi korunmali; once yalniz deterministik ve non-mutating helper'lar (`MD5`, `SHA256`, `GenerateGUID`, email/domain/IP validator ve benzeri saf parsing kontrolleri) acilmali. DNS lookup, import, maintenance, dependency, mass-mail ve test-suite operasyonlari yan etki sinirlari tamamlanana kadar acik `E_NOTIMPL`/legacy auth-gated kalmali.
+Backlog'daki siradaki ana dilim: Administrator object modelinde sinirli `Application -> Links` read-only lookup dilimiyle devam etmek. Legacy `Links` COM identity/vtable sozlesmesi korunmali; authenticated DBID lookup icin mevcut SQL-backed `Domain`, `Account`, `Alias` ve `DistributionList` store/adapter hatlari yeniden kullanilmali. Bad-index/access-denied sinirlari korunmali; mutation veya yeni SQL davranisi eklenmemeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Legacy `Utilities` COM kontrati tam vtable/identity sirasiyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. `Application -> Utilities` ile direct activation saf helper'larda legacy gibi auth istemeden `MD5`, salted `SHA256`, `GenerateGUID`, email/domain/IP validator, `IsStrongPassword` ve `CriteriaMatch` davranisini aciyor. DNS, Blowfish, local-host resolution, dependency/import/mass-mail/test-suite/message-ID/maintenance operasyonlari `E_NOTIMPL`; yan etkili uyeler once legacy server-admin sinirini uyguluyor.
+- 27 Haziran derlenmis guvenlik envanteri mevcut SEC-01..SEC-21 tablosuyla birlestirildi; yeni benzersiz kayit cikmadi. Tek kritik SEC-01, 28 Haziran'da rapordaki `x" & ... & "` payload sekliyle yeniden dogrulandi: VBScript quote doubling payload'i ifade olarak calistirmiyor, handler'a veri olarak iletiyor. WSH tabanli .NET security/ClamAV/admin-auth dar filtresi 10/10 gecti; production kodunda legacy davranisi bozacak gereksiz bir degisiklik yapilmadi.
 - Legacy `Application` core scalar davranisi runtime/configuration boundary arkasindan eklendi: `Version` legacy gibi auth istemeden donuyor, `ServerState` ve `InitializationFile` server-admin auth istiyor, `VersionArchitecture` legacy `x86`/`x64` formatina cekildi. `Start`, `Stop`, `Connect`, `Reinitialize` ve `SubmitEMail` yan etkili operasyonlari bilincli olarak `E_NOTIMPL` kaliyor.
 - Legacy `Status` COM kontrati tam vtable/identity sirasiyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Application -> Status` delivery queue metnini `hm_messages`/`hm_messagerecipients` uzerinden, `StartTime`, processed/spam/virus sayaçlari, `SessionCount` ve `ThreadID` degerlerini runtime snapshot boundary uzerinden read-only aciyor. SMTP/POP3/IMAP session count lease'leri ile delivery completed, spam-detected ve virus-detected counter hook'lari baglandi; direct activation `E_ACCESSDENIED` kaliyor.
 - Legacy `ServerMessages` ve `ServerMessage` COM kontratlari tam vtable/identity siralariyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Settings -> ServerMessages` count/index/name/id lookup'u mevcut `hm_servermessages` SQL verisinden `smname` sirasiyla geliyor ve `ID`, `Name`, `Text` scalar'larini read-only aciyor. Delivery template execution, `Refresh`, `Save`, mutation'lar ve direct activation sinirlari `E_NOTIMPL`/`E_ACCESSDENIED` kaliyor.
@@ -368,6 +370,8 @@ Son temiz dogrulama notlari:
 - Settings SSLCertificates COM dilimi once eksik contract/store derleme hatasiyla kanitlandi; dar contract/store/manifest/SQL-path filtresi 9/9, full Net10 testler 533/533 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 - Settings Groups COM dilimi once eksik contract/store derleme hatasiyla kanitlandi; dar contract/store/manifest/SQL-path filtresi 9/9, full Net10 testler 539/539 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 - Group Members COM dilimi once eksik contract/store derleme hatasiyla kanitlandi; dar contract/store/Groups/manifest/SQL-path filtresi 14/14, full Net10 testler 545/545 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
+- Application Utilities COM dilimi once eksik contract/enum/class derleme hatasiyla kanitlandi; dar Utilities/Application/manifest/process-host filtresi 21/21, full Net10 testler 582/582 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
+- 28 Haziran security revalidation filtresi VBScript/JScript password, delivery/external-UID escaping, administrator authentication ve ClamAV kapsamini birlikte 10/10 gecti.
 
 Terminal/log incelemesi:
 
@@ -420,5 +424,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak `Application -> Utilities` pure-helper COM/Admin dilimini ele al; once legacy `Utilities` contract/identity ve saf helper davranisini kanitlayan dar test yaz.
+5. Current Next Slice olarak `Application -> Links` read-only COM/Admin dilimini ele al; once legacy `Links` contract/identity ve mevcut store/adapter'lar uzerinden authenticated DBID lookup davranisini kanitlayan dar test yaz.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.

@@ -2,13 +2,13 @@
 
 This backlog tracks the remaining production-parity work for the side-by-side .NET 10 rewrite. Keep it current as each slice lands.
 
-## Consolidated Security Review Triage (2026-06-27)
+## Consolidated Security Review Triage (2026-06-28)
 
-The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and the 2026-06-27 compiled inventory were merged and exact duplicates removed. The 21 unique records below are classified from the current source tree rather than copied from report severity labels without verification.
+The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and the maintainer-supplied 2026-06-27 compiled inventory were merged and exact duplicates removed. The newer inventory adds no unique finding beyond the 21 records already tracked below. Status and severity are classified from the current source tree rather than copied from report labels without verification.
 
 | ID | Severity | Finding | Current HEAD status / next action |
 | --- | --- | --- | --- |
-| SEC-01 | Critical | VBScript injection in `OnClientValidatePassword` | Disputed/not reproduced: VBScript quote doubling keeps the reported expression payload inside the string literal. Legacy and .NET regression coverage keeps this boundary monitored. |
+| SEC-01 | Critical | VBScript injection in `OnClientValidatePassword` | Disputed/not reproduced after 2026-06-28 revalidation: VBScript quote doubling keeps the reported `x" & ... & "` expression shape inside the string literal. Executable Windows Script Host coverage proves the payload reaches the handler as data; matching legacy regression coverage keeps this boundary monitored. |
 | SEC-02 | High | JScript injection in `OnClientValidatePassword` | Fixed by `4dd984156`: backslashes are escaped before apostrophes and line separators are neutralized; regression coverage added. |
 | SEC-03 | High | VBScript injection in `OnDeliveryFailed` | Disputed/not reproduced: the current legacy path removes quotes and the .NET runner emits a safely escaped literal. Keep under regression coverage. |
 | SEC-04 | High | Custom antivirus command-template injection | Hardened by `0e3e90d61`: the attacker-influenced message file path is now inserted as a quoted/escaped Windows command-line argument, including legacy quoted `%FILE%` templates. Remaining migration debt: replace the server-admin command template with structured executable/argument configuration if the custom scanner feature is carried forward. |
@@ -363,6 +363,7 @@ The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and t
    - Done: preserve the legacy `Database` COM vtable/enum/identity contract, register its hosted class identity, expose `Application -> Database` read-only required/current version, requires-upgrade, exists, connected, type, server, and database-name scalars from SQL/runtime plus configured/default legacy `hMailServer.ini`, preserve legacy per-member authentication for admin-only configuration fields, keep direct activation access-denied, and leave SQL execution, transactions, database creation/default-selection, script execution, message-file utility, and prerequisite operations explicit `E_NOTIMPL`.
    - Done: preserve the legacy `Status` COM vtable/identity contract, register its hosted class identity, expose authenticated `Application -> Status` delivery-queue text plus start-time, processed-message, spam, virus, session-count, and thread-ID values from SQL/runtime snapshot boundaries, keep direct activation access-denied, and wire SMTP/POP3/IMAP session counts plus delivery/spam/virus counters without widening administrative mutation scope.
    - Done: expose bounded read-only `Application` core scalars from a runtime/configuration boundary: unauthenticated legacy `Version`, authenticated `ServerState` and `InitializationFile`, and legacy `VersionArchitecture` (`x86`/`x64`), while keeping `Start`, `Stop`, `Connect`, `Reinitialize`, and `SubmitEMail` explicit `E_NOTIMPL`.
+   - Done: preserve the legacy `Utilities` COM identity/vtable contract and hosted class registration, expose the non-mutating `MD5`, legacy salted `SHA256`, `GenerateGUID`, email/domain/IP validators, `IsStrongPassword`, and `CriteriaMatch` helpers without authentication as legacy does, and keep DNS, Blowfish, local-host resolution, dependency/import/mass-mail/test-suite/message-ID/maintenance operations explicit `E_NOTIMPL`, with legacy server-admin checks retained for side-effecting members.
    - Remaining: implement the database-backed Administrator object model in bounded slices.
 
 7. Migration, operations, and observability.
@@ -378,4 +379,4 @@ The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and t
 
 ## Current Next Slice
 
-Resume the Administrator object model with a bounded `Application -> Utilities` pure-helper slice: preserve the legacy `Utilities` COM identity/vtable contract, expose only deterministic/non-mutating helpers first (`MD5`, `SHA256`, `GenerateGUID`, email/domain/IP validators, and similarly pure parsing checks), and keep DNS lookup, import, maintenance, dependency, mass-mail, and test-suite operations explicit `E_NOTIMPL`/legacy auth-gated until their side effects are bounded.
+Resume the Administrator object model with a bounded `Application -> Links` read-only lookup slice: preserve the legacy `Links` COM identity/vtable contract, expose authenticated DBID lookup for `Domain`, `Account`, `Alias`, and `DistributionList` by reusing the existing SQL administration stores/adapters, preserve bad-index and access-denied boundaries, and add no mutations or new SQL behavior.
