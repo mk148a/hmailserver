@@ -801,6 +801,11 @@ DistributionListRecipientAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDistributionListRecipientAdministrationStore>());
 DomainAliasAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAliasAdministrationStore>());
+LinksAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IDomainAdministrationStore>(),
+    host.Services.GetRequiredService<IAccountAdministrationStore>(),
+    host.Services.GetRequiredService<IAliasAdministrationStore>(),
+    host.Services.GetRequiredService<IDistributionListAdministrationStore>());
 await host.RunAsync().ConfigureAwait(false);
 
 static bool ReadBool(string? value, bool defaultValue)

@@ -97,7 +97,14 @@ public sealed class Application : IInterfaceApplication
 
     public IInterfaceGlobalObjects GlobalObjects => NotImplemented<IInterfaceGlobalObjects>();
 
-    public IInterfaceLinks Links => NotImplemented<IInterfaceLinks>();
+    public IInterfaceLinks Links
+    {
+        get
+        {
+            EnsureServerAdministrator();
+            return LinksAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
 
     public IInterfaceDiagnostics Diagnostics => NotImplemented<IInterfaceDiagnostics>();
 

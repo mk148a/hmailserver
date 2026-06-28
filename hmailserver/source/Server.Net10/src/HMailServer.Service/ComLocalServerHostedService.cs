@@ -23,6 +23,9 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Utilities).GUID,
                 static () => new Utilities()),
             new ComLocalServerRegistration(
+                typeof(Links).GUID,
+                static () => new Links()),
+            new ComLocalServerRegistration(
                 typeof(Status).GUID,
                 static () => new Status()),
             new ComLocalServerRegistration(

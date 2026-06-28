@@ -72,6 +72,61 @@ public sealed class ComLocalServerHostTests
     }
 
     [TestMethod]
+    public void RegisteredFactory_ActivatesDirectLinksWithLegacyAccessDenied()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var initializeResult = CoInitializeEx(nint.Zero, CoinitMultithreaded);
+        Assert.IsTrue(initializeResult >= 0 || initializeResult == RpcEChangedMode);
+
+        var classId = Guid.NewGuid();
+        using var host = new ComLocalServerHost(
+            new ComLocalServerRegistration(classId, static () => new Links()));
+
+        try
+        {
+            host.Start();
+
+            var interfaceId = typeof(IInterfaceLinks).GUID;
+            var activateResult = CoCreateInstance(
+                in classId,
+                nint.Zero,
+                ClsctxLocalServer,
+                in interfaceId,
+                out var interfacePointer);
+
+            Assert.AreEqual(0, activateResult);
+            Assert.AreNotEqual(nint.Zero, interfacePointer);
+
+            try
+            {
+                var adapter = (IInterfaceLinks)Marshal.GetObjectForIUnknown(interfacePointer);
+                var denied = Assert.ThrowsExactly<COMException>(() => _ = adapter.get_Domain(10));
+                Assert.AreEqual(unchecked((int)0x80070005), denied.ErrorCode);
+
+                if (Marshal.IsComObject(adapter))
+                {
+                    Marshal.FinalReleaseComObject(adapter);
+                }
+            }
+            finally
+            {
+                Marshal.Release(interfacePointer);
+            }
+        }
+        finally
+        {
+            if (initializeResult >= 0)
+            {
+                CoUninitialize();
+            }
+        }
+    }
+
+    [TestMethod]
     public void RegisteredFactory_ActivatesDirectMessageIndexingWithLegacyAccessDenied()
     {
         if (!OperatingSystem.IsWindows())

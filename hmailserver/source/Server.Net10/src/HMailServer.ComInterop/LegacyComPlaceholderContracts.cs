@@ -14,9 +14,6 @@ public interface IInterfaceBackupManager;
 [ComVisible(true), Guid("F0FE3307-66D9-480D-B1B5-3AF6CD3C0C8A"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceGlobalObjects;
 
-[ComVisible(true), Guid("E252D063-7E86-4FCE-B702-A5E89E0DFB48"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceLinks;
-
 [ComVisible(true), Guid("FB8812B0-524A-4922-9E29-A7E9A9E9151D"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceDiagnostics;
 
