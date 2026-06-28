@@ -153,4 +153,89 @@ public sealed class DkimEvaluationTests
             "dkim-signature:v=1; a=rsa-sha256; d=example.test; s=s1; h=from:subject; bh=abc; b=; q=dns/txt",
             canonicalized);
     }
+
+    [TestMethod]
+    public void VerifyBodyHash_ReturnsNeutralForMatchingSimpleSha256BodyHash()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; c=simple/simple; d=example.test; s=s1; h=from; " +
+            "bh=frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=; b=def");
+
+        var result = DkimBodyHashVerifier.VerifyBodyHash(
+            string.Empty,
+            signature);
+
+        Assert.AreEqual(DkimResult.Neutral, result.Result);
+        StringAssert.Contains(result.Diagnostic, "body hash verified");
+    }
+
+    [TestMethod]
+    public void VerifyBodyHash_UsesRelaxedBodyCanonicalizationAndIgnoredBhWhitespace()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; c=simple/relaxed; d=example.test; s=s1; h=from; " +
+            "bh=47DEQpj8HBSa+/TImW+5 JCeuQeRkm5NMpJWZG3hSuFU=; b=def");
+
+        var result = DkimBodyHashVerifier.VerifyBodyHash(
+            "\r\n\r\n",
+            signature);
+
+        Assert.AreEqual(DkimResult.Neutral, result.Result);
+    }
+
+    [TestMethod]
+    public void VerifyBodyHash_ReturnsPermFailForMismatchedBodyHash()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; c=simple/simple; d=example.test; s=s1; h=from; " +
+            "bh=frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=; b=def");
+
+        var result = DkimBodyHashVerifier.VerifyBodyHash(
+            "tampered\r\n",
+            signature);
+
+        Assert.AreEqual(DkimResult.PermFail, result.Result);
+        StringAssert.Contains(result.Diagnostic, "does not match");
+    }
+
+    [TestMethod]
+    public void VerifyBodyHash_AppliesBodyLengthBeforeSha1Hashing()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha1; c=simple/simple; d=example.test; s=s1; h=from; l=5; " +
+            "bh=qvTGHdzF6KLavt4PO0gs2a6pQ00=; b=def");
+
+        var result = DkimBodyHashVerifier.VerifyBodyHash(
+            "hello world\r\n",
+            signature);
+
+        Assert.AreEqual(DkimResult.Neutral, result.Result);
+    }
+
+    [TestMethod]
+    public void VerifyBodyHash_ReturnsPermFailWhenBodyLengthExceedsCanonicalizedBody()
+    {
+        var signature = ParseSignature(
+            "v=1; a=rsa-sha256; c=simple/simple; d=example.test; s=s1; h=from; l=8; " +
+            "bh=LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ=; b=def");
+
+        var result = DkimBodyHashVerifier.VerifyBodyHash(
+            "short",
+            signature);
+
+        Assert.AreEqual(DkimResult.PermFail, result.Result);
+        StringAssert.Contains(result.Diagnostic, "exceeds");
+    }
+
+    private static DkimSignature ParseSignature(string value)
+    {
+        var parsed = DkimSignatureParser.TryParse(
+            value,
+            out var signature,
+            out var diagnostic);
+
+        Assert.IsTrue(parsed, diagnostic);
+        Assert.IsNotNull(signature);
+        return signature;
+    }
 }
