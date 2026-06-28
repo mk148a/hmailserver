@@ -12,6 +12,44 @@
 #define new DEBUG_NEW
 #endif
 
+namespace
+{
+   HM::String QuoteWindowsCommandLineArgument(const HM::String &argument)
+   {
+      HM::String quoted = _T("\"");
+      int backslashCount = 0;
+
+      for (int i = 0; i < argument.GetLength(); i++)
+      {
+         TCHAR ch = argument[i];
+
+         if (ch == _T('\\'))
+         {
+            backslashCount++;
+            continue;
+         }
+
+         if (ch == _T('"'))
+         {
+            quoted.append(backslashCount * 2 + 1, _T('\\'));
+            quoted += ch;
+         }
+         else
+         {
+            quoted.append(backslashCount, _T('\\'));
+            quoted += ch;
+         }
+
+         backslashCount = 0;
+      }
+
+      quoted.append(backslashCount * 2, _T('\\'));
+      quoted += _T("\"");
+
+      return quoted;
+   }
+}
+
 namespace HM
 {
    CustomVirusScanner::CustomVirusScanner(void)
@@ -41,14 +79,20 @@ namespace HM
       String sPath = FileUtilities::GetFilePath(sFilename);
 
       String sCommandLine;
+      String quotedFilename = QuoteWindowsCommandLineArgument(sFilename);
 
-      if (executablePath.Find(_T("%FILE%")) >= 0)
+      if (executablePath.Find(_T("\"%FILE%\"")) >= 0)
       {
          sCommandLine = executablePath;
-         sCommandLine.Replace(_T("%FILE%"), sFilename);
+         sCommandLine.Replace(_T("\"%FILE%\""), quotedFilename);
+      }
+      else if (executablePath.Find(_T("%FILE%")) >= 0)
+      {
+         sCommandLine = executablePath;
+         sCommandLine.Replace(_T("%FILE%"), quotedFilename);
       }
       else
-         sCommandLine.Format(_T("%s %s"), executablePath.c_str(), sFilename.c_str());
+         sCommandLine.Format(_T("%s %s"), executablePath.c_str(), quotedFilename.c_str());
 
       unsigned int exitCode = 0;
       ProcessLauncher launcher(sCommandLine, sPath);
