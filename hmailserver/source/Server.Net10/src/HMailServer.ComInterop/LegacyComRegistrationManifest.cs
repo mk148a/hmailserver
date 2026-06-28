@@ -67,6 +67,13 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "Directories",
+            "{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Domains",
             "{82AFD03C-58A4-4F04-8277-6B2812780E45}",
             executablePath,

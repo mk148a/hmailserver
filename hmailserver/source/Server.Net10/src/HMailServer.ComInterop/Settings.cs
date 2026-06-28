@@ -479,6 +479,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceDirectories Directories
+    {
+        get
+        {
+            EnsureAuthorized();
+            return DirectoryAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
+
     public override IInterfaceTCPIPPorts TCPIPPorts
     {
         get
@@ -582,7 +591,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public string IMAPPublicFolderName { get => Unavailable<string>(); set => Unavailable(); }
     public bool IMAPACLEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public void SetAdministratorPassword(string newVal) => Unavailable();
-    public IInterfaceDirectories Directories => Unavailable<IInterfaceDirectories>();
+    public virtual IInterfaceDirectories Directories => Unavailable<IInterfaceDirectories>();
     public virtual IInterfaceIMAPFolders PublicFolders => Unavailable<IInterfaceIMAPFolders>();
     public string PublicFolderDiskName => Unavailable<string>();
     public virtual IInterfaceGroups Groups => Unavailable<IInterfaceGroups>();

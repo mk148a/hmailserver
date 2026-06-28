@@ -29,6 +29,11 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "Directories",
+            "{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Domains",
             "{82AFD03C-58A4-4F04-8277-6B2812780E45}",
             executablePath);
@@ -237,6 +242,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.Application",
                 @"hMailServer.Settings.1",
                 @"hMailServer.Settings",
+                @"hMailServer.Directories.1",
+                @"hMailServer.Directories",
                 @"hMailServer.Domains.1",
                 @"hMailServer.Domains",
                 @"hMailServer.Domain.1",
@@ -309,6 +316,7 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.MessageIndexing",
                 @"CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}",
                 @"CLSID\{FDF084A7-82DE-4EBE-8455-E506ACE01D63}",
+                @"CLSID\{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
                 @"CLSID\{82AFD03C-58A4-4F04-8277-6B2812780E45}",
                 @"CLSID\{C535E4AF-9DB3-41FC-B434-FFCDAE0EFBD5}",
                 @"CLSID\{403A75B8-499A-44C1-93D3-6A8A460AA88D}",
