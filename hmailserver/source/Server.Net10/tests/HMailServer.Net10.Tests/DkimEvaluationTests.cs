@@ -439,6 +439,114 @@ public sealed class DkimEvaluationTests
         Assert.AreEqual(DkimResult.Pass, result.Result);
     }
 
+    [TestMethod]
+    public async Task VerifyMessageAsync_ReturnsNeutralWhenMessageHasNoDkimSignature()
+    {
+        const string message =
+            "From: sender@example.test\r\n" +
+            "Subject: Test\r\n" +
+            "\r\n";
+
+        var result = await DkimMessageVerifier.VerifyAsync(
+            message,
+            new FakeDkimTxtResolver());
+
+        Assert.AreEqual(DkimResult.Neutral, result.Result);
+        StringAssert.Contains(result.Diagnostic, "no DKIM-Signature");
+    }
+
+    [TestMethod]
+    public async Task VerifyMessageAsync_ReturnsPassForResolvedDkimSignature()
+    {
+        var fixture = CreateSignedFixture();
+        var resolver = new FakeDkimTxtResolver()
+            .AddTxt(
+                "s1._domainkey.example.test",
+                $"v=DKIM1; h=sha256; p={fixture.PublicKeyBase64}");
+
+        var result = await DkimMessageVerifier.VerifyAsync(
+            RawMessageFor(fixture),
+            resolver);
+
+        Assert.AreEqual(DkimResult.Pass, result.Result);
+    }
+
+    [TestMethod]
+    public async Task VerifyMessageAsync_ContinuesPastInvalidSignatureAndPassesLaterSignature()
+    {
+        var fixture = CreateSignedFixture();
+        var message =
+            fixture.HeaderBlock +
+            "DKIM-Signature: v=2; a=rsa-sha256; d=example.test; s=bad; h=from; bh=abc; b=def\r\n" +
+            "DKIM-Signature: " + fixture.SignatureHeaderValue + "\r\n" +
+            "\r\n" +
+            fixture.Body;
+        var resolver = new FakeDkimTxtResolver()
+            .AddTxt(
+                "s1._domainkey.example.test",
+                $"v=DKIM1; h=sha256; p={fixture.PublicKeyBase64}");
+
+        var result = await DkimMessageVerifier.VerifyAsync(
+            message,
+            resolver);
+
+        Assert.AreEqual(DkimResult.Pass, result.Result);
+    }
+
+    [TestMethod]
+    public async Task VerifyMessageAsync_ReturnsLastNonPassSignatureResultLikeLegacyVerifier()
+    {
+        var fixture = CreateSignedFixture();
+
+        var result = await DkimMessageVerifier.VerifyAsync(
+            RawMessageFor(fixture),
+            new FakeDkimTxtResolver());
+
+        Assert.AreEqual(DkimResult.PermFail, result.Result);
+        StringAssert.Contains(result.Diagnostic, "no key");
+    }
+
+    [TestMethod]
+    public async Task VerifyMessageAsync_ReturnsTempFailForTemporaryKeyLookupFailure()
+    {
+        var fixture = CreateSignedFixture();
+        var resolver = new FakeDkimTxtResolver()
+            .SetResponse(
+                "s1._domainkey.example.test",
+                DkimTxtResponse.TemporaryError());
+
+        var result = await DkimMessageVerifier.VerifyAsync(
+            RawMessageFor(fixture),
+            resolver);
+
+        Assert.AreEqual(DkimResult.TempFail, result.Result);
+    }
+
+    [TestMethod]
+    public async Task VerifyMessageAsync_IgnoresSignaturesAfterLegacyFiveSignatureLimit()
+    {
+        var fixture = CreateSignedFixture();
+        var message =
+            fixture.HeaderBlock +
+            string.Concat(Enumerable.Repeat(
+                "DKIM-Signature: v=2; a=rsa-sha256; d=example.test; s=bad; h=from; bh=abc; b=def\r\n",
+                5)) +
+            "DKIM-Signature: " + fixture.SignatureHeaderValue + "\r\n" +
+            "\r\n" +
+            fixture.Body;
+        var resolver = new FakeDkimTxtResolver()
+            .AddTxt(
+                "s1._domainkey.example.test",
+                $"v=DKIM1; h=sha256; p={fixture.PublicKeyBase64}");
+
+        var result = await DkimMessageVerifier.VerifyAsync(
+            message,
+            resolver);
+
+        Assert.AreEqual(DkimResult.Neutral, result.Result);
+        Assert.AreEqual(0, resolver.Queries.Count);
+    }
+
     private static DkimSignature ParseSignature(string value)
     {
         var parsed = DkimSignatureParser.TryParse(
@@ -489,6 +597,12 @@ public sealed class DkimEvaluationTests
             signature,
             publicKeyBase64);
     }
+
+    private static string RawMessageFor(SignedDkimFixture fixture) =>
+        fixture.HeaderBlock +
+        "DKIM-Signature: " + fixture.SignatureHeaderValue + "\r\n" +
+        "\r\n" +
+        fixture.Body;
 
     private static string ComputeBodyHash(
         string body,
