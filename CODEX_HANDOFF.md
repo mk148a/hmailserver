@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: Administrator object modelinde sinirli `Application -> Links` read-only lookup dilimiyle devam etmek. Legacy `Links` COM identity/vtable sozlesmesi korunmali; authenticated DBID lookup icin mevcut SQL-backed `Domain`, `Account`, `Alias` ve `DistributionList` store/adapter hatlari yeniden kullanilmali. Bad-index/access-denied sinirlari korunmali; mutation veya yeni SQL davranisi eklenmemeli.
+Backlog'daki siradaki ana dilim: eksik SPF hattina evaluation-only bir temel ile baslamak. Sinirli DNS resolver abstraction'i, deterministik SPF parse/evaluation result modeli ve lookup/recursion limitleri authoritative test vektorleriyle kanitlanmali. SMTP policy varsayilan olarak kapali kalmali; evaluator sonucu ve timeout/error yollari bagimsiz kanitlanmadan reject/tempfail davranisi eklenmemeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Legacy `Links` COM kontrati tam vtable/identity sirasiyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Application -> Links`, mevcut read-only SQL administration store/adapter hatlarini yeniden kullanarak `Domain`, `Account`, `Alias` ve `DistributionList` DBID lookup'u aciyor; bilinmeyen ID `DISP_E_BADINDEX`, direct activation `E_ACCESSDENIED` kaliyor ve yeni SQL/mutation eklenmiyor.
 - Legacy `Utilities` COM kontrati tam vtable/identity sirasiyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. `Application -> Utilities` ile direct activation saf helper'larda legacy gibi auth istemeden `MD5`, salted `SHA256`, `GenerateGUID`, email/domain/IP validator, `IsStrongPassword` ve `CriteriaMatch` davranisini aciyor. DNS, Blowfish, local-host resolution, dependency/import/mass-mail/test-suite/message-ID/maintenance operasyonlari `E_NOTIMPL`; yan etkili uyeler once legacy server-admin sinirini uyguluyor.
 - 27 Haziran derlenmis guvenlik envanteri mevcut SEC-01..SEC-21 tablosuyla birlestirildi; yeni benzersiz kayit cikmadi. Tek kritik SEC-01, 28 Haziran'da rapordaki `x" & ... & "` payload sekliyle yeniden dogrulandi: VBScript quote doubling payload'i ifade olarak calistirmiyor, handler'a veri olarak iletiyor. WSH tabanli .NET security/ClamAV/admin-auth dar filtresi 10/10 gecti; production kodunda legacy davranisi bozacak gereksiz bir degisiklik yapilmadi.
 - Legacy `Application` core scalar davranisi runtime/configuration boundary arkasindan eklendi: `Version` legacy gibi auth istemeden donuyor, `ServerState` ve `InitializationFile` server-admin auth istiyor, `VersionArchitecture` legacy `x86`/`x64` formatina cekildi. `Start`, `Stop`, `Connect`, `Reinitialize` ve `SubmitEMail` yan etkili operasyonlari bilincli olarak `E_NOTIMPL` kaliyor.
@@ -371,6 +372,7 @@ Son temiz dogrulama notlari:
 - Settings Groups COM dilimi once eksik contract/store derleme hatasiyla kanitlandi; dar contract/store/manifest/SQL-path filtresi 9/9, full Net10 testler 539/539 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 - Group Members COM dilimi once eksik contract/store derleme hatasiyla kanitlandi; dar contract/store/Groups/manifest/SQL-path filtresi 14/14, full Net10 testler 545/545 ve opt-in izole LocalDB integration testleri 6/6 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 - Application Utilities COM dilimi once eksik contract/enum/class derleme hatasiyla kanitlandi; dar Utilities/Application/manifest/process-host filtresi 21/21, full Net10 testler 582/582 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
+- Application Links COM dilimi once eksik contract/class/runtime derleme hatasiyla kanitlandi; dar Links/Application/manifest/process-host filtresi 23/23, full Net10 testler 589/589 gecti. Net10 build portable/Windows COM hedeflerinde 0 uyari/0 hata ile basarili oldu.
 - 28 Haziran security revalidation filtresi VBScript/JScript password, delivery/external-UID escaping, administrator authentication ve ClamAV kapsamini birlikte 10/10 gecti.
 
 Terminal/log incelemesi:
@@ -424,5 +426,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak `Application -> Links` read-only COM/Admin dilimini ele al; once legacy `Links` contract/identity ve mevcut store/adapter'lar uzerinden authenticated DBID lookup davranisini kanitlayan dar test yaz.
+5. Current Next Slice olarak SPF evaluation-only temelini ele al; once authoritative standard/test vektorlerini ve mevcut SMTP policy sinirini oku, resolver/parsing/result/limit davranisini SMTP reddine baglamadan dar testlerle kanitla.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.
