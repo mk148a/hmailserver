@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: Administrator object modelinde sinirli read-only `Application` core scalar dilimiyle devam etmek. Legacy `ServerState`, `Version` ve `InitializationFile` COM DISPID/return sozlesmeleri korunmali; degerler runtime/configuration boundary arkasindan acilmali. `Start`, `Stop`, `Connect`, `Reinitialize` ve `SubmitEMail` gibi yan etkili operasyonlar davranis siniri tamamlanana kadar acik `E_NOTIMPL` kalmali.
+Backlog'daki siradaki ana dilim: Administrator object modelinde sinirli `Application -> Utilities` pure-helper dilimiyle devam etmek. Legacy `Utilities` COM identity/vtable sozlesmesi korunmali; once yalniz deterministik ve non-mutating helper'lar (`MD5`, `SHA256`, `GenerateGUID`, email/domain/IP validator ve benzeri saf parsing kontrolleri) acilmali. DNS lookup, import, maintenance, dependency, mass-mail ve test-suite operasyonlari yan etki sinirlari tamamlanana kadar acik `E_NOTIMPL`/legacy auth-gated kalmali.
 
 Son tamamlanan kucuk dilimler:
 
+- Legacy `Application` core scalar davranisi runtime/configuration boundary arkasindan eklendi: `Version` legacy gibi auth istemeden donuyor, `ServerState` ve `InitializationFile` server-admin auth istiyor, `VersionArchitecture` legacy `x86`/`x64` formatina cekildi. `Start`, `Stop`, `Connect`, `Reinitialize` ve `SubmitEMail` yan etkili operasyonlari bilincli olarak `E_NOTIMPL` kaliyor.
 - Legacy `Status` COM kontrati tam vtable/identity sirasiyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Application -> Status` delivery queue metnini `hm_messages`/`hm_messagerecipients` uzerinden, `StartTime`, processed/spam/virus sayaçlari, `SessionCount` ve `ThreadID` degerlerini runtime snapshot boundary uzerinden read-only aciyor. SMTP/POP3/IMAP session count lease'leri ile delivery completed, spam-detected ve virus-detected counter hook'lari baglandi; direct activation `E_ACCESSDENIED` kaliyor.
 - Legacy `ServerMessages` ve `ServerMessage` COM kontratlari tam vtable/identity siralariyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Settings -> ServerMessages` count/index/name/id lookup'u mevcut `hm_servermessages` SQL verisinden `smname` sirasiyla geliyor ve `ID`, `Name`, `Text` scalar'larini read-only aciyor. Delivery template execution, `Refresh`, `Save`, mutation'lar ve direct activation sinirlari `E_NOTIMPL`/`E_ACCESSDENIED` kaliyor.
 - Legacy `Directories` COM kontrati tam vtable/identity sirasiyla eklendi; hosted class manifest ve process-local service registration kapsamina alindi. Authenticated `Settings -> Directories` configured/default legacy `hMailServer.ini` degerlerinden `ProgramDirectory`, `DatabaseDirectory`, `DataDirectory`, `LogDirectory`, `TempDirectory`, `EventDirectory` ve `DBScriptDirectory` scalar'larini legacy normalization ile read-only aciyor. Directory mutation/persistence ve direct activation sinirlari `E_NOTIMPL`/`E_ACCESSDENIED` kaliyor.
@@ -419,5 +420,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak read-only `Application` core scalar COM/Admin dilimini ele al; once `ServerState`, `Version` ve `InitializationFile` legacy contract/runtime-config davranisini kanitlayan dar test yaz.
+5. Current Next Slice olarak `Application -> Utilities` pure-helper COM/Admin dilimini ele al; once legacy `Utilities` contract/identity ve saf helper davranisini kanitlayan dar test yaz.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.
