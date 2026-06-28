@@ -324,7 +324,8 @@ The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and t
    - Done: optional SQL-backed greylisting checker with authenticated-client bypass, legacy triplet/white-address table compatibility, SMTP receiver temporary rejection wiring, and fail-open SQL error handling.
    - Done: optional SURBL checker with bounded MIME URL host extraction, parent-domain candidate limits, fail-open lookup errors, and SMTP receiver rejection wiring.
    - Done: SPF evaluation and policy foundation with a bounded resolver abstraction, deterministic record parser, RFC result model (`None`, `Neutral`, `Pass`, `Fail`, `SoftFail`, `TempError`, `PermError`), macro expansion, include/redirect/mechanism evaluation, DNS term/void/recursion/MX/PTR limits, system-DNS TXT/A/AAAA/MX/PTR resolver, disabled-by-default SMTP anti-spam policy wiring, and disabled-by-default SPF `Pass` greylisting bypass parity. The policy preserves the safe legacy subset: only `Fail` marks the message with the legacy spam flag, only `Pass` can bypass greylisting when explicitly enabled, and all other results fail open without bypass, reject, or tempfail behavior.
-   - Remaining: DKIM, DMARC; later Administrator/COM setting parity for SPF/greylisting knobs.
+   - Done: DKIM evaluation-only foundation with the legacy result model (`Neutral`, `Pass`, `TempFail`, `PermFail`), deterministic `DKIM-Signature` tag parser, required-field validation, default/simple/relaxed canonicalization selection, signed-header list parsing, `b=` signature-value blanking, and simple/relaxed body/header canonicalization tests. This first slice does not perform DNS selector lookup, public-key/header cryptographic verification, SMTP rejection, policy scoring, signing, or Administrator setting wiring.
+   - Remaining: DKIM body-hash/header verification core, DKIM DNS/public-key lookup, DKIM policy/Admin wiring, DMARC; later Administrator/COM setting parity for SPF/greylisting knobs.
    - Implicit TLS stream factories and listener ports; STARTTLS uses OS default TLS policy and online certificate revocation checks.
 
 6. COM/API compatibility.
@@ -381,4 +382,4 @@ The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and t
 
 ## Current Next Slice
 
-Start DKIM as an evaluation-only foundation: parse canonical DKIM-Signature fields, model pass/fail/neutral/error outcomes, and add deterministic body/header canonicalization tests without wiring SMTP rejection or mutating mail flow. Keep signing, DNS selector lookup, policy scoring, and Administrator settings out of the first slice until the verifier core is proven.
+Continue DKIM as an evaluation-only verifier core: compute and compare the `bh=` body hash from parsed signatures, honor optional `l=` body length over canonicalized body data, and keep deterministic tests for `Neutral`/`PermFail` outcomes without SMTP rejection, policy scoring, signing, DNS selector lookup, or Administrator settings. Keep public-key/header cryptographic verification for the next bounded DKIM slice after body-hash behavior is proven.
