@@ -628,12 +628,19 @@ builder.Services.AddSingleton(deliveryStatusMaintenanceOptions);
 builder.Services.AddSingleton<SqlServerDeliveryQueueStatusMaintenanceStore>();
 if (deliveryStatusSqlEnabled)
 {
-    builder.Services.AddSingleton<IDeliveryQueueStatusObserver, SqlServerDeliveryQueueStatusObserver>();
+    builder.Services.AddSingleton<SqlServerDeliveryQueueStatusObserver>();
+    builder.Services.AddSingleton<IDeliveryQueueStatusObserver>(
+        serviceProvider => new ServerStatusDeliveryQueueStatusObserver(
+            serviceProvider.GetRequiredService<SqlServerDeliveryQueueStatusObserver>(),
+            serviceProvider.GetRequiredService<ServerStatusRuntimeState>()));
     builder.Services.AddSingleton<IDeliveryQueueStatusMetricsStore, SqlServerDeliveryQueueStatusMetricsStore>();
 }
 else
 {
-    builder.Services.AddSingleton<IDeliveryQueueStatusObserver>(NullDeliveryQueueStatusObserver.Instance);
+    builder.Services.AddSingleton<IDeliveryQueueStatusObserver>(
+        serviceProvider => new ServerStatusDeliveryQueueStatusObserver(
+            NullDeliveryQueueStatusObserver.Instance,
+            serviceProvider.GetRequiredService<ServerStatusRuntimeState>()));
 }
 
 builder.Services.AddSingleton<LocalDeliveryTargetDispatcher>();
@@ -677,6 +684,8 @@ builder.Services.AddSingleton<IDatabaseAdministrationStore>(
     serviceProvider => new SqlServerDatabaseAdministrationStore(
         serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
         databaseConfiguration));
+builder.Services.AddSingleton<ServerStatusRuntimeState>();
+builder.Services.AddSingleton<IServerStatusAdministrationStore, SqlServerServerStatusAdministrationStore>();
 builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
 builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdministrationStore>();
 builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAccountAdministrationStore>();
@@ -744,6 +753,8 @@ MessageIndexingRuntimeHost.Configure(
     host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());
 DatabaseAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDatabaseAdministrationStore>());
+StatusAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IServerStatusAdministrationStore>());
 DomainAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAdministrationStore>());
 AccountAdministrationRuntimeHost.Configure(

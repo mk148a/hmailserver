@@ -5,9 +5,6 @@ namespace HMailServer.ComInterop;
 [ComVisible(true), Guid("F6BB0F43-EDEE-49A8-8166-672F3017426F"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceUtilities;
 
-[ComVisible(true), Guid("C3E2DFFB-BE53-4BE6-BE57-7C5609938CEB"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceStatus;
-
 [ComVisible(true), Guid("D79148F6-78A9-4F60-B8E8-48C33D888FC5"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceRuleCriterias;
 

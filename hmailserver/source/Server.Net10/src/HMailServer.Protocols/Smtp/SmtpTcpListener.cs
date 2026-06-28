@@ -8,12 +8,14 @@ namespace HMailServer.Protocols.Smtp;
 
 public sealed class SmtpTcpListener
 {
+    private const int LegacySmtpSessionType = 1;
     private static readonly Encoding ResponseEncoding = Encoding.ASCII;
 
     private readonly SmtpSession _session;
     private readonly ISmtpConnectionStreamFactory _streamFactory;
     private readonly SmtpTcpListenerOptions _options;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
+    private readonly ServerStatusRuntimeState? _statusRuntimeState;
     private readonly SemaphoreSlim _connectionSlots;
     private readonly ConcurrentDictionary<Task, byte> _sessions = new();
     private readonly TaskCompletionSource<IPEndPoint> _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -23,12 +25,14 @@ public sealed class SmtpTcpListener
         SmtpSession session,
         ISmtpConnectionStreamFactory streamFactory,
         SmtpTcpListenerOptions options,
-        ISmtpEventScriptExecutor? eventScriptExecutor = null)
+        ISmtpEventScriptExecutor? eventScriptExecutor = null,
+        ServerStatusRuntimeState? statusRuntimeState = null)
     {
         _session = session;
         _streamFactory = streamFactory;
         _options = options;
         _eventScriptExecutor = eventScriptExecutor;
+        _statusRuntimeState = statusRuntimeState;
         ValidateOptions(options);
         _connectionSlots = new SemaphoreSlim(options.MaxConcurrentConnections, options.MaxConcurrentConnections);
     }
@@ -104,6 +108,7 @@ public sealed class SmtpTcpListener
         try
         {
             using (client)
+            using (_statusRuntimeState?.TrackSession(LegacySmtpSessionType))
             {
                 var connectionContext = CreateConnectionContext(client);
                 if (!ProtocolClientConnectEventRunner.Run(

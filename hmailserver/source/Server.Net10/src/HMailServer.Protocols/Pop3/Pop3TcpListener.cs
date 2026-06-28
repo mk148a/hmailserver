@@ -9,12 +9,14 @@ namespace HMailServer.Protocols.Pop3;
 
 public sealed class Pop3TcpListener
 {
+    private const int LegacyPop3SessionType = 3;
     private static readonly Encoding ResponseEncoding = Encoding.ASCII;
 
     private readonly Pop3Session _session;
     private readonly IPop3ConnectionStreamFactory _streamFactory;
     private readonly Pop3TcpListenerOptions _options;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
+    private readonly ServerStatusRuntimeState? _statusRuntimeState;
     private readonly SemaphoreSlim _connectionSlots;
     private readonly ConcurrentDictionary<Task, byte> _sessions = new();
     private readonly TaskCompletionSource<IPEndPoint> _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -24,12 +26,14 @@ public sealed class Pop3TcpListener
         Pop3Session session,
         IPop3ConnectionStreamFactory streamFactory,
         Pop3TcpListenerOptions options,
-        ISmtpEventScriptExecutor? eventScriptExecutor = null)
+        ISmtpEventScriptExecutor? eventScriptExecutor = null,
+        ServerStatusRuntimeState? statusRuntimeState = null)
     {
         _session = session;
         _streamFactory = streamFactory;
         _options = options;
         _eventScriptExecutor = eventScriptExecutor;
+        _statusRuntimeState = statusRuntimeState;
         ValidateOptions(options);
         _connectionSlots = new SemaphoreSlim(options.MaxConcurrentConnections, options.MaxConcurrentConnections);
     }
@@ -105,6 +109,7 @@ public sealed class Pop3TcpListener
         try
         {
             using (client)
+            using (_statusRuntimeState?.TrackSession(LegacyPop3SessionType))
             {
                 var connectionContext = CreateConnectionContext(client, isEncryptedConnection: false);
                 if (!ProtocolClientConnectEventRunner.Run(

@@ -22,6 +22,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly ISmtpSenderDomainMxChecker? _senderDomainMxChecker;
     private readonly ISmtpGreylistingChecker? _greylistingChecker;
     private readonly ISmtpUrlBlockListChecker? _urlBlockListChecker;
+    private readonly ServerStatusRuntimeState? _statusRuntimeState;
 
     public SqlServerSmtpMessageReceiver(
         SqlServerConnectionFactory connectionFactory,
@@ -37,7 +38,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         ISmtpReverseDnsChecker? reverseDnsChecker = null,
         ISmtpSenderDomainMxChecker? senderDomainMxChecker = null,
         ISmtpGreylistingChecker? greylistingChecker = null,
-        ISmtpUrlBlockListChecker? urlBlockListChecker = null)
+        ISmtpUrlBlockListChecker? urlBlockListChecker = null,
+        ServerStatusRuntimeState? statusRuntimeState = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
         _ruleProcessor = ruleProcessor;
@@ -51,6 +53,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _senderDomainMxChecker = senderDomainMxChecker;
         _greylistingChecker = greylistingChecker;
         _urlBlockListChecker = urlBlockListChecker;
+        _statusRuntimeState = statusRuntimeState;
     }
 
     public async ValueTask<SmtpReceiveResult> ReceiveAsync(
@@ -349,6 +352,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
                 messageData = policyResult.MessageData;
                 if (policyResult.RejectMessage)
                 {
+                    _statusRuntimeState?.OnSpamMessageDetected();
                     return new SpamScanApplicationResult(
                         request with { MessageData = messageData },
                         SmtpQueueWriteRequest.RecentFlag,
@@ -360,6 +364,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 
                 if (policyResult.MarkAsSpam)
                 {
+                    _statusRuntimeState?.OnSpamMessageDetected();
                     messageFlags |= SmtpQueueWriteRequest.SpamFlag;
                 }
             }
@@ -467,6 +472,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 
         if (scanResult.IsInfected)
         {
+            _statusRuntimeState?.OnVirusRemoved();
             return SmtpReceiveResult.Failure(BuildVirusDetectedResponse(scanResult.VirusName));
         }
 

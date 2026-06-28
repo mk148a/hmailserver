@@ -8,6 +8,7 @@ namespace HMailServer.Protocols.Imap;
 
 public sealed class ImapTcpListener
 {
+    private const int LegacyImapSessionType = 5;
     private static readonly Encoding ResponseEncoding = Encoding.ASCII;
 
     private readonly ImapSession _session;
@@ -15,6 +16,7 @@ public sealed class ImapTcpListener
     private readonly IImapConnectionStreamFactory _streamFactory;
     private readonly ImapTcpListenerOptions _options;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
+    private readonly ServerStatusRuntimeState? _statusRuntimeState;
     private readonly SemaphoreSlim _connectionSlots;
     private readonly ConcurrentDictionary<Task, byte> _sessions = new();
     private readonly TaskCompletionSource<IPEndPoint> _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -25,13 +27,15 @@ public sealed class ImapTcpListener
         IImapSessionContextProvider contextProvider,
         IImapConnectionStreamFactory streamFactory,
         ImapTcpListenerOptions options,
-        ISmtpEventScriptExecutor? eventScriptExecutor = null)
+        ISmtpEventScriptExecutor? eventScriptExecutor = null,
+        ServerStatusRuntimeState? statusRuntimeState = null)
     {
         _session = session;
         _contextProvider = contextProvider;
         _streamFactory = streamFactory;
         _options = options;
         _eventScriptExecutor = eventScriptExecutor;
+        _statusRuntimeState = statusRuntimeState;
         ValidateOptions(options);
         _connectionSlots = new SemaphoreSlim(options.MaxConcurrentConnections, options.MaxConcurrentConnections);
     }
@@ -107,6 +111,7 @@ public sealed class ImapTcpListener
         try
         {
             using (client)
+            using (_statusRuntimeState?.TrackSession(LegacyImapSessionType))
             {
                 var context = AddConnectionContext(
                     await _contextProvider.GetContextAsync(cancellationToken).ConfigureAwait(false),

@@ -56,7 +56,14 @@ public sealed class Application : IInterfaceApplication
 
     public IInterfaceUtilities Utilities => NotImplemented<IInterfaceUtilities>();
 
-    public IInterfaceStatus Status => NotImplemented<IInterfaceStatus>();
+    public IInterfaceStatus Status
+    {
+        get
+        {
+            EnsureServerAdministrator();
+            return StatusAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
 
     public string Version => NotImplemented<string>();
 
