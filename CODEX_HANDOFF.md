@@ -28,7 +28,7 @@ Durum: production-ready degil. Proje ciddi bir parity seviyesine geldi, fakat ha
 Ana nedenler:
 
 - COM/Admin yuzeyi ve legacy object model henuz tam degil.
-- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary ve DKIM parser/canonicalization temeli var; DKIM body/hash/header verification, DMARC ve daha sonra Administrator/COM setting parity eksik.
+- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary ve DKIM parser/canonicalization/body-hash temeli var; DKIM header crypto/DNS/policy, DMARC ve daha sonra Administrator/COM setting parity eksik.
 - Backup engine ve `OnBackupCompleted` / `OnBackupFailed` eventleri beklemede.
 - In-place upgrade runner, mandatory backup/rollback akis dokumani ve operasyonel servis install/uninstall paketi tamamlanmadi.
 - Buyuk olcekli performance/soak kabul testleri henuz production gate olarak tamamlanmadi.
@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: DKIM evaluation-only verifier cekirdegini body-hash dogrulama ile ilerletmek. Siradaki kucuk slice parsed signature uzerinden `bh=` body hash'ini canonicalized body ile karsilastirmali, opsiyonel `l=` body length'i kanitlamali ve `Neutral`/`PermFail` sonuclarini test etmeli; SMTP reject, policy score, signing, DNS selector lookup, public-key/header crypto ve Administrator ayarlari bu cekirdek dogrulanmadan baglanmamali.
+Backlog'daki siradaki ana dilim: DKIM evaluation-only verifier cekirdegini header cryptographic verification ile ilerletmek. Siradaki kucuk slice signed header'lari ve `b=` blanked `DKIM-Signature` alanini canonicalize edip injected public-key boundary arkasindan `rsa-sha1`/`rsa-sha256` signature dogrulamasini kanitlamali; live DNS selector lookup, SMTP reject, policy score, signing ve Administrator ayarlari bu cekirdek dogrulanmadan baglanmamali.
 
 Son tamamlanan kucuk dilimler:
 
+- DKIM body-hash verifier eklendi: parsed signature uzerinden canonicalized body icin `bh=` karsilastirmasi, opsiyonel `l=` body length siniri, SHA1/SHA256 secimi, body-hash match icin `Neutral` ve mismatch/uzunluk asimi icin `PermFail` sonuc modeli test edildi. SMTP reject, policy score, signing, DNS selector lookup, public-key/header crypto ve Administrator ayarlari baglanmadi. Dar DKIM filtresi 18/18, full Net10 testleri 650/650 ve Net10 build 0 uyari/0 hata ile gecti.
 - DKIM evaluation-only temeli eklendi: legacy `Neutral`/`Pass`/`TempFail`/`PermFail` sonuc modeli, deterministic `DKIM-Signature` tag parser'i, required-field validation, default/simple/relaxed canonicalization secimi, signed-header list parsing, `b=` signature-value blanking ve simple/relaxed body/header canonicalization testleri eklendi. SMTP reject, policy score, signing, DNS selector lookup, public-key/header crypto ve Administrator ayarlari baglanmadi. Dar DKIM filtresi 13/13, full Net10 testleri 645/645 ve Net10 build 0 uyari/0 hata ile gecti.
 - SPF pass -> greylisting bypass parity eklendi: `HMAILSERVER_GREYLISTING_BYPASS_ON_SPF_PASS=false` varsayilani normal greylisting davranisini koruyor; yalniz explicit acikken SPF `Pass` greylisting lookup'unu bypass ediyor. `Fail`/`None`/`Neutral`/`SoftFail`/`TempError`/`PermError` bypass veya reject/tempfail uretmiyor. Dar greylisting/SPF/receiver filtresi 34/34, full Net10 testleri 632/632 ve Net10 build 0 uyari/0 hata ile gecti.
 - SPF system-DNS + disabled SMTP policy boundary eklendi: OS DNS server'lari uzerinden TXT/A/AAAA/MX/PTR cozen `SystemSpfDnsResolver`, `ISmtpSpfPolicy` boundary'si, `HMAILSERVER_SPF_ENABLED=false` varsayilani, authenticated ve `EnableSpamScan=false` skip yollari, `Fail` -> legacy spam flag/status mapping'i ve `Pass` result preservation tamamlandi. Reject/tempfail davranisi eklenmedi. Dar SPF/receiver filtresi 57/57, full Net10 testleri 629/629 ve Net10 build 0 uyari/0 hata ile gecti.
@@ -430,5 +431,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak DKIM evaluation-only body-hash verifier dilimini ele al; SMTP reject/policy score/signing/DNS selector lookup/public-key header crypto baglamadan `bh=` ve opsiyonel `l=` davranisini dar testlerle kanitla.
+5. Current Next Slice olarak DKIM evaluation-only header crypto dilimini ele al; live DNS selector lookup/SMTP reject/policy score/signing/Admin wiring baglamadan injected public-key boundary ile canonicalized header signature dogrulamasini dar testlerle kanitla.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.
