@@ -20,6 +20,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly ISmtpDnsBlockListChecker? _dnsBlockListChecker;
     private readonly ISmtpReverseDnsChecker? _reverseDnsChecker;
     private readonly ISmtpSenderDomainMxChecker? _senderDomainMxChecker;
+    private readonly ISmtpSpfPolicy? _spfPolicy;
     private readonly ISmtpGreylistingChecker? _greylistingChecker;
     private readonly ISmtpUrlBlockListChecker? _urlBlockListChecker;
     private readonly ServerStatusRuntimeState? _statusRuntimeState;
@@ -37,6 +38,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         ISmtpDnsBlockListChecker? dnsBlockListChecker = null,
         ISmtpReverseDnsChecker? reverseDnsChecker = null,
         ISmtpSenderDomainMxChecker? senderDomainMxChecker = null,
+        ISmtpSpfPolicy? spfPolicy = null,
         ISmtpGreylistingChecker? greylistingChecker = null,
         ISmtpUrlBlockListChecker? urlBlockListChecker = null,
         ServerStatusRuntimeState? statusRuntimeState = null)
@@ -51,6 +53,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _dnsBlockListChecker = dnsBlockListChecker;
         _reverseDnsChecker = reverseDnsChecker;
         _senderDomainMxChecker = senderDomainMxChecker;
+        _spfPolicy = spfPolicy;
         _greylistingChecker = greylistingChecker;
         _urlBlockListChecker = urlBlockListChecker;
         _statusRuntimeState = statusRuntimeState;
@@ -84,6 +87,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         {
             return senderDomainMxFailure;
         }
+
+        var spfPolicyResult = await RunSpfPolicyAsync(request, cancellationToken).ConfigureAwait(false);
 
         var greylistingFailure = await RunGreylistingCheckAsync(request, cancellationToken).ConfigureAwait(false);
         if (greylistingFailure is not null)
@@ -160,6 +165,15 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 
         request = spamScanResult.Request;
         var messageFlags = spamScanResult.MessageFlags;
+        if (spfPolicyResult.MarkAsSpam)
+        {
+            if ((messageFlags & SmtpQueueWriteRequest.SpamFlag) == 0)
+            {
+                _statusRuntimeState?.OnSpamMessageDetected();
+            }
+
+            messageFlags |= SmtpQueueWriteRequest.SpamFlag;
+        }
 
         request = await RunAttachmentPolicyAsync(request, cancellationToken).ConfigureAwait(false);
 
@@ -322,6 +336,31 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         catch
         {
             return null;
+        }
+    }
+
+    private async ValueTask<SmtpSpfPolicyResult> RunSpfPolicyAsync(
+        SmtpReceiveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_spfPolicy is null)
+        {
+            return SmtpSpfPolicyResult.Skipped;
+        }
+
+        try
+        {
+            return await _spfPolicy
+                .CheckAsync(request, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return SmtpSpfPolicyResult.Skipped;
         }
     }
 

@@ -239,6 +239,39 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_MarksSpfFailAsSpamWithoutRejectingMessage()
+    {
+        var statusRuntimeState = new ServerStatusRuntimeState();
+        var spfPolicy = new FakeSpfPolicy(
+            SmtpSpfPolicyResult.FromEvaluation(
+                SmtpSpfPolicyStatus.Fail,
+                failScore: 3,
+                domain: "example.test",
+                sender: "sender@example.test",
+                heloDomain: "client.example",
+                matchedMechanism: "-all",
+                diagnostic: "Blocked by SPF."));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("After-Spf-Test"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            spfPolicy: spfPolicy,
+            statusRuntimeState: statusRuntimeState);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: SPF\r\n\r\nBody\r\n"u8.ToArray()) with { IsAuthenticated = false },
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Virus detected: After-Spf-Test", result.FailureResponse);
+        Assert.AreEqual(1, spfPolicy.Requests.Count);
+        Assert.AreEqual(1, antivirusScanner.ScannedMessages.Count);
+        Assert.AreEqual(1, statusRuntimeState.Capture().RemovedSpamMessages);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_PassesAcceptEventMutatedMessageToRuleProcessor()
     {
         var mutatedMessage = Encoding.Latin1.GetBytes("Subject: Mutated\r\nX-Event: yes\r\n\r\nBody\r\n");
@@ -711,6 +744,26 @@ public sealed class SqlServerSmtpMessageReceiverTests
             SmtpReceiveRequest request,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(_result);
+    }
+
+    private sealed class FakeSpfPolicy : ISmtpSpfPolicy
+    {
+        private readonly SmtpSpfPolicyResult _result;
+
+        public FakeSpfPolicy(SmtpSpfPolicyResult result)
+        {
+            _result = result;
+        }
+
+        public List<SmtpReceiveRequest> Requests { get; } = [];
+
+        public ValueTask<SmtpSpfPolicyResult> CheckAsync(
+            SmtpReceiveRequest request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return ValueTask.FromResult(_result);
+        }
     }
 
     private sealed class FakeUrlBlockListChecker : ISmtpUrlBlockListChecker

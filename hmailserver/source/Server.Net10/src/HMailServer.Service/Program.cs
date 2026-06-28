@@ -243,6 +243,34 @@ var spamPolicyEnabled = spamPolicyOptions.AddSpamHeader
     || spamPolicyOptions.PrependSubject
     || spamPolicyOptions.SpamMarkThreshold > 0
     || spamPolicyOptions.SpamDeleteThreshold > 0;
+var spfPolicyOptions = new SmtpSpfPolicyOptions
+{
+    Enabled = ReadBool(
+        builder.Configuration["AntiSpam:Spf:Enabled"]
+            ?? builder.Configuration["HMAILSERVER_SPF_ENABLED"],
+        defaultValue: false),
+    SkipAuthenticated = ReadBool(
+        builder.Configuration["AntiSpam:Spf:SkipAuthenticated"]
+            ?? builder.Configuration["HMAILSERVER_SPF_SKIP_AUTHENTICATED"],
+        defaultValue: true),
+    FailScore = Math.Max(
+        0,
+        ReadInt(
+            builder.Configuration["AntiSpam:Spf:FailScore"]
+                ?? builder.Configuration["HMAILSERVER_SPF_FAIL_SCORE"],
+            defaultValue: 3))
+};
+var spfEvaluatorOptions = new SpfEvaluatorOptions
+{
+    EvaluationTimeout = TimeSpan.FromSeconds(
+        Math.Max(
+            1,
+            ReadInt(
+                builder.Configuration["AntiSpam:Spf:TimeoutSeconds"]
+                    ?? builder.Configuration["HMAILSERVER_SPF_TIMEOUT_SECONDS"],
+                defaultValue: 20)))
+};
+var spfPolicyEnabled = spfPolicyOptions.Enabled;
 var attachmentPolicyOptions = new MessageAttachmentPolicyOptions
 {
     Enabled = ReadBool(
@@ -515,6 +543,8 @@ builder.Services.AddSingleton(smtpRuleOptions);
 builder.Services.AddSingleton(scriptingOptions);
 builder.Services.AddSingleton(spamAssassinOptions);
 builder.Services.AddSingleton(spamPolicyOptions);
+builder.Services.AddSingleton(spfPolicyOptions);
+builder.Services.AddSingleton(spfEvaluatorOptions);
 builder.Services.AddSingleton(attachmentPolicyOptions);
 builder.Services.AddSingleton(dnsBlockListOptions);
 builder.Services.AddSingleton(reverseDnsOptions);
@@ -545,6 +575,12 @@ if (spamAssassinEnabled)
 if (spamPolicyEnabled)
 {
     builder.Services.AddSingleton<IMessageSpamPolicy, MessageSpamPolicy>();
+}
+if (spfPolicyEnabled)
+{
+    builder.Services.AddSingleton<ISpfDnsResolver, SystemSpfDnsResolver>();
+    builder.Services.AddSingleton<SpfEvaluator>();
+    builder.Services.AddSingleton<ISmtpSpfPolicy, SmtpSpfPolicy>();
 }
 if (attachmentPolicyEnabled)
 {
