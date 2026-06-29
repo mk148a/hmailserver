@@ -90,6 +90,76 @@ public sealed class SmtpDmarcPolicyTests
     }
 
     [TestMethod]
+    public async Task CheckAsync_UsesOrganizationalDomainForParentRecordFallback()
+    {
+        var resolver = new FakeDmarcTxtResolver()
+            .AddTxt("_dmarc.example.co.uk", "v=DMARC1; p=none; sp=reject");
+        var organizationalDomainResolver = new FixedOrganizationalDomainResolver("example.co.uk");
+        var policy = new SmtpDmarcPolicy(
+            resolver,
+            new SmtpDmarcPolicyOptions { Enabled = true },
+            organizationalDomainResolver);
+
+        var result = await policy.CheckAsync(
+            CreateRequest("From: Sender <sender@mail.example.co.uk>\r\nSubject: DMARC\r\n\r\nBody\r\n"),
+            SmtpSpfPolicyResult.Skipped,
+            SmtpDkimPolicyResult.Skipped,
+            CancellationToken.None);
+
+        Assert.AreEqual(SmtpDmarcPolicyStatus.Fail, result.Status);
+        Assert.AreEqual(SmtpDmarcAppliedPolicy.Reject, result.AppliedPolicy);
+        CollectionAssert.AreEqual(
+            new[] { "_dmarc.mail.example.co.uk", "_dmarc.example.co.uk" },
+            resolver.Queries.ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "mail.example.co.uk" },
+            organizationalDomainResolver.Domains.ToArray());
+    }
+
+    [TestMethod]
+    public async Task CheckAsync_UsesOrganizationalDomainForRelaxedSiblingAlignment()
+    {
+        var resolver = new FakeDmarcTxtResolver()
+            .AddTxt("_dmarc.example.co.uk", "v=DMARC1; p=reject");
+        var policy = new SmtpDmarcPolicy(
+            resolver,
+            new SmtpDmarcPolicyOptions { Enabled = true },
+            new FixedOrganizationalDomainResolver("example.co.uk"));
+
+        var result = await policy.CheckAsync(
+            CreateRequest("From: Sender <sender@mail.example.co.uk>\r\nSubject: DMARC\r\n\r\nBody\r\n"),
+            CreateSpfPolicyResult(SmtpSpfPolicyStatus.Pass, "bounce.example.co.uk"),
+            SmtpDkimPolicyResult.Skipped,
+            CancellationToken.None);
+
+        Assert.AreEqual(SmtpDmarcPolicyStatus.Pass, result.Status);
+        Assert.IsTrue(result.Passed);
+    }
+
+    [TestMethod]
+    public async Task CheckAsync_ContinuesExactDomainEvaluationWhenOrganizationalResolverFails()
+    {
+        var resolver = new FakeDmarcTxtResolver()
+            .AddTxt("_dmarc.mail.example.co.uk", "v=DMARC1; p=reject");
+        var policy = new SmtpDmarcPolicy(
+            resolver,
+            new SmtpDmarcPolicyOptions { Enabled = true },
+            new ThrowingOrganizationalDomainResolver());
+
+        var result = await policy.CheckAsync(
+            CreateRequest("From: Sender <sender@mail.example.co.uk>\r\nSubject: DMARC\r\n\r\nBody\r\n"),
+            SmtpSpfPolicyResult.Skipped,
+            SmtpDkimPolicyResult.Skipped,
+            CancellationToken.None);
+
+        Assert.AreEqual(SmtpDmarcPolicyStatus.Fail, result.Status);
+        Assert.AreEqual(SmtpDmarcAppliedPolicy.Reject, result.AppliedPolicy);
+        CollectionAssert.AreEqual(
+            new[] { "_dmarc.mail.example.co.uk" },
+            resolver.Queries.ToArray());
+    }
+
+    [TestMethod]
     public async Task CheckAsync_MapsPolicyFailureWithoutRejectingOrMarkingSpamByDefault()
     {
         var resolver = new FakeDmarcTxtResolver()
@@ -260,5 +330,27 @@ public sealed class SmtpDmarcPolicyTests
             string domain,
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException("DNS unavailable");
+    }
+
+    private sealed class FixedOrganizationalDomainResolver(string? organizationalDomain)
+        : IDmarcOrganizationalDomainResolver
+    {
+        public List<string> Domains { get; } = [];
+
+        public ValueTask<string?> ResolveAsync(
+            string domain,
+            CancellationToken cancellationToken)
+        {
+            Domains.Add(domain);
+            return ValueTask.FromResult(organizationalDomain);
+        }
+    }
+
+    private sealed class ThrowingOrganizationalDomainResolver : IDmarcOrganizationalDomainResolver
+    {
+        public ValueTask<string?> ResolveAsync(
+            string domain,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("PSL unavailable");
     }
 }

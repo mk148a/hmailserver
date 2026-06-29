@@ -311,6 +311,16 @@ var dmarcPolicyOptions = new SmtpDmarcPolicyOptions
             defaultValue: 5))
 };
 var dmarcPolicyEnabled = dmarcPolicyOptions.Enabled;
+var configuredDmarcPublicSuffixListPath =
+    builder.Configuration["AntiSpam:Dmarc:PublicSuffixListPath"]
+    ?? builder.Configuration["HMAILSERVER_DMARC_PUBLIC_SUFFIX_LIST"];
+var dmarcPublicSuffixListPath = ResolveOptionalPath(
+    configuredDmarcPublicSuffixListPath,
+    "public_suffix_list.dat");
+var dmarcOrganizationalDomainResolverEnabled = dmarcPolicyEnabled
+    && dmarcPublicSuffixListPath is not null
+    && (!string.IsNullOrWhiteSpace(configuredDmarcPublicSuffixListPath)
+        || File.Exists(dmarcPublicSuffixListPath));
 var attachmentPolicyOptions = new MessageAttachmentPolicyOptions
 {
     Enabled = ReadBool(
@@ -639,6 +649,11 @@ if (dkimPolicyEnabled)
 if (dmarcPolicyEnabled)
 {
     builder.Services.AddSingleton<IDmarcTxtResolver, SystemDmarcTxtResolver>();
+    if (dmarcOrganizationalDomainResolverEnabled && dmarcPublicSuffixListPath is not null)
+    {
+        builder.Services.AddSingleton<IDmarcOrganizationalDomainResolver>(
+            new PublicSuffixDmarcOrganizationalDomainResolver(dmarcPublicSuffixListPath));
+    }
     builder.Services.AddSingleton<ISmtpDmarcPolicy, SmtpDmarcPolicy>();
 }
 if (attachmentPolicyEnabled)
@@ -954,6 +969,25 @@ static long ReadLong(string? value, long defaultValue)
     }
 
     return long.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+}
+
+static string? ResolveOptionalPath(string? configuredPath, string defaultFileName)
+{
+    try
+    {
+        var candidate = string.IsNullOrWhiteSpace(configuredPath)
+            ? Path.Combine(AppContext.BaseDirectory, defaultFileName)
+            : configuredPath.Trim();
+        return Path.IsPathFullyQualified(candidate)
+            ? Path.GetFullPath(candidate)
+            : Path.GetFullPath(candidate, AppContext.BaseDirectory);
+    }
+    catch (Exception exception) when (exception is ArgumentException
+                                      or NotSupportedException
+                                      or PathTooLongException)
+    {
+        return null;
+    }
 }
 
 static X509Certificate2? LoadCertificate(string? path, string? password)

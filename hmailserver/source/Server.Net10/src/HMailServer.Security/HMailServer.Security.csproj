@@ -8,5 +8,6 @@
     <EmbeddedResource Include="..\..\..\Server\Common\Util\BlowFish.h2" LogicalName="HMailServer.Security.Legacy.BlowFish.h2" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Ini" Version="10.0.9" />
     <PackageReference Include="MimeKit" Version="4.17.0" />
+    <PackageReference Include="Nager.PublicSuffix" Version="3.8.0" />
   </ItemGroup>
 </Project>

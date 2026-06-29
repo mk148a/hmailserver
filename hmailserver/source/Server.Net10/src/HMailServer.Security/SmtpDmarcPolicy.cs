@@ -7,13 +7,16 @@ public sealed class SmtpDmarcPolicy : ISmtpDmarcPolicy
 {
     private readonly IDmarcTxtResolver _resolver;
     private readonly SmtpDmarcPolicyOptions _options;
+    private readonly IDmarcOrganizationalDomainResolver? _organizationalDomainResolver;
 
     public SmtpDmarcPolicy(
         IDmarcTxtResolver resolver,
-        SmtpDmarcPolicyOptions? options = null)
+        SmtpDmarcPolicyOptions? options = null,
+        IDmarcOrganizationalDomainResolver? organizationalDomainResolver = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         _options = options ?? new SmtpDmarcPolicyOptions();
+        _organizationalDomainResolver = organizationalDomainResolver;
     }
 
     public async ValueTask<SmtpDmarcPolicyResult> CheckAsync(
@@ -48,12 +51,17 @@ public sealed class SmtpDmarcPolicy : ISmtpDmarcPolicy
 
         try
         {
+            var organizationalDomain = await ResolveOrganizationalDomainAsync(
+                    headerFromDomain,
+                    cancellationToken)
+                .ConfigureAwait(false);
             var evaluation = await DmarcEvaluator
                 .EvaluateAsync(
                     new DmarcEvaluationRequest(
                         headerFromDomain,
                         BuildSpfResult(spfPolicyResult),
-                        BuildDkimResults(dkimPolicyResult)),
+                        BuildDkimResults(dkimPolicyResult),
+                        organizationalDomain),
                     _resolver,
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -79,6 +87,31 @@ public sealed class SmtpDmarcPolicy : ISmtpDmarcPolicy
                 failureScore: 0,
                 headerFromDomain,
                 "DMARC policy evaluation failed open: " + ex.GetType().Name);
+        }
+    }
+
+    private async ValueTask<string?> ResolveOrganizationalDomainAsync(
+        string headerFromDomain,
+        CancellationToken cancellationToken)
+    {
+        if (_organizationalDomainResolver is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await _organizationalDomainResolver
+                .ResolveAsync(headerFromDomain, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return null;
         }
     }
 
