@@ -15,6 +15,7 @@ public sealed record SmtpDkimPolicyResult(
     bool MarkAsSpam,
     bool Passed,
     int Score,
+    IReadOnlyList<string> PassingDomains,
     string Diagnostic)
 {
     public static SmtpDkimPolicyResult Skipped { get; } =
@@ -24,12 +25,14 @@ public sealed record SmtpDkimPolicyResult(
             MarkAsSpam: false,
             Passed: false,
             Score: 0,
+            PassingDomains: Array.Empty<string>(),
             Diagnostic: string.Empty);
 
     public static SmtpDkimPolicyResult FromEvaluation(
         SmtpDkimPolicyStatus status,
         int failureScore,
-        string diagnostic)
+        string diagnostic,
+        IReadOnlyList<string>? passingDomains = null)
     {
         var failed = status == SmtpDkimPolicyStatus.PermFail;
         return new SmtpDkimPolicyResult(
@@ -38,6 +41,9 @@ public sealed record SmtpDkimPolicyResult(
             MarkAsSpam: failed,
             Passed: status == SmtpDkimPolicyStatus.Pass,
             Score: failed ? Math.Max(0, failureScore) : 0,
+            PassingDomains: status == SmtpDkimPolicyStatus.Pass
+                ? passingDomains ?? Array.Empty<string>()
+                : Array.Empty<string>(),
             diagnostic);
     }
 }

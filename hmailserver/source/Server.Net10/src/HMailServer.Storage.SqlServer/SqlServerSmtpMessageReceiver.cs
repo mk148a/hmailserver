@@ -22,6 +22,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly ISmtpSenderDomainMxChecker? _senderDomainMxChecker;
     private readonly ISmtpSpfPolicy? _spfPolicy;
     private readonly ISmtpDkimPolicy? _dkimPolicy;
+    private readonly ISmtpDmarcPolicy? _dmarcPolicy;
     private readonly ISmtpGreylistingChecker? _greylistingChecker;
     private readonly SmtpGreylistingOptions _greylistingOptions;
     private readonly ISmtpUrlBlockListChecker? _urlBlockListChecker;
@@ -42,6 +43,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         ISmtpSenderDomainMxChecker? senderDomainMxChecker = null,
         ISmtpSpfPolicy? spfPolicy = null,
         ISmtpDkimPolicy? dkimPolicy = null,
+        ISmtpDmarcPolicy? dmarcPolicy = null,
         ISmtpGreylistingChecker? greylistingChecker = null,
         SmtpGreylistingOptions? greylistingOptions = null,
         ISmtpUrlBlockListChecker? urlBlockListChecker = null,
@@ -59,6 +61,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _senderDomainMxChecker = senderDomainMxChecker;
         _spfPolicy = spfPolicy;
         _dkimPolicy = dkimPolicy;
+        _dmarcPolicy = dmarcPolicy;
         _greylistingChecker = greylistingChecker;
         _greylistingOptions = greylistingOptions ?? new SmtpGreylistingOptions();
         _urlBlockListChecker = urlBlockListChecker;
@@ -164,6 +167,12 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         }
 
         var dkimPolicyResult = await RunDkimPolicyAsync(request, cancellationToken).ConfigureAwait(false);
+        var dmarcPolicyResult = await RunDmarcPolicyAsync(
+                request,
+                spfPolicyResult,
+                dkimPolicyResult,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         var spamScanResult = await RunSpamScanAsync(request, cancellationToken).ConfigureAwait(false);
         if (spamScanResult.FailureResult is not null)
@@ -184,6 +193,16 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         }
 
         if (dkimPolicyResult.MarkAsSpam)
+        {
+            if ((messageFlags & SmtpQueueWriteRequest.SpamFlag) == 0)
+            {
+                _statusRuntimeState?.OnSpamMessageDetected();
+            }
+
+            messageFlags |= SmtpQueueWriteRequest.SpamFlag;
+        }
+
+        if (dmarcPolicyResult.MarkAsSpam)
         {
             if ((messageFlags & SmtpQueueWriteRequest.SpamFlag) == 0)
             {
@@ -410,6 +429,33 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         catch
         {
             return SmtpDkimPolicyResult.Skipped;
+        }
+    }
+
+    private async ValueTask<SmtpDmarcPolicyResult> RunDmarcPolicyAsync(
+        SmtpReceiveRequest request,
+        SmtpSpfPolicyResult spfPolicyResult,
+        SmtpDkimPolicyResult dkimPolicyResult,
+        CancellationToken cancellationToken)
+    {
+        if (_dmarcPolicy is null)
+        {
+            return SmtpDmarcPolicyResult.Skipped;
+        }
+
+        try
+        {
+            return await _dmarcPolicy
+                .CheckAsync(request, spfPolicyResult, dkimPolicyResult, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return SmtpDmarcPolicyResult.Skipped;
         }
     }
 

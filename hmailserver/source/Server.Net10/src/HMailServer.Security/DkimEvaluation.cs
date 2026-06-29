@@ -16,7 +16,14 @@ public enum DkimCanonicalizationMethod
 
 public sealed record DkimEvaluation(
     DkimResult Result,
-    string Diagnostic);
+    string Diagnostic,
+    IReadOnlyList<string> PassingDomains)
+{
+    public DkimEvaluation(DkimResult result, string diagnostic)
+        : this(result, diagnostic, Array.Empty<string>())
+    {
+    }
+}
 
 public sealed record DkimSignature(
     string Version,

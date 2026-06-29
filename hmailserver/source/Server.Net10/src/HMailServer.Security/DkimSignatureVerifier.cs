@@ -135,7 +135,8 @@ public static class DkimSignatureVerifier
             return verified
                 ? new DkimEvaluation(
                     DkimResult.Pass,
-                    "DKIM body hash and header signature verified.")
+                    "DKIM body hash and header signature verified.",
+                    [signature.Domain])
                 : new DkimEvaluation(
                     DkimResult.PermFail,
                     "DKIM header signature verification failed: the signature does not match the canonicalized headers.");

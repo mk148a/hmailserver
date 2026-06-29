@@ -52,6 +52,7 @@ public sealed class SmtpDkimPolicyTests
         Assert.IsTrue(result.Passed);
         Assert.IsFalse(result.MarkAsSpam);
         Assert.AreEqual(0, result.Score);
+        CollectionAssert.AreEqual(new[] { "example.test" }, result.PassingDomains.ToArray());
         CollectionAssert.Contains(resolver.Queries.ToArray(), "s1._domainkey.example.test");
     }
 
@@ -73,6 +74,7 @@ public sealed class SmtpDkimPolicyTests
         Assert.IsTrue(result.MarkAsSpam);
         Assert.IsFalse(result.Passed);
         Assert.AreEqual(7, result.Score);
+        Assert.AreEqual(0, result.PassingDomains.Count);
         StringAssert.Contains(result.Diagnostic, "no key");
     }
 

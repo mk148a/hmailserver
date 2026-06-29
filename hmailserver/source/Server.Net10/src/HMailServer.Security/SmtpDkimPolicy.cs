@@ -39,7 +39,8 @@ public sealed class SmtpDkimPolicy : ISmtpDkimPolicy
             return SmtpDkimPolicyResult.FromEvaluation(
                 MapStatus(evaluation.Result),
                 _options.FailureScore,
-                evaluation.Diagnostic);
+                evaluation.Diagnostic,
+                evaluation.PassingDomains);
         }
         catch (OperationCanceledException)
         {

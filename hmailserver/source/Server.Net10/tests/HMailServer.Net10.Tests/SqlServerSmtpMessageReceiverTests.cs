@@ -431,6 +431,81 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_PassesSpfAndDkimResultsToDmarcPolicy()
+    {
+        var spfPolicy = new FakeSpfPolicy(CreateSpfPolicyResult(SmtpSpfPolicyStatus.Pass));
+        var dkimPolicy = new FakeDkimPolicy(
+            SmtpDkimPolicyResult.FromEvaluation(
+                SmtpDkimPolicyStatus.Pass,
+                failureScore: 5,
+                diagnostic: "DKIM pass.",
+                passingDomains: ["example.test"]));
+        var dmarcPolicy = new FakeDmarcPolicy(
+            SmtpDmarcPolicyResult.FromEvaluation(
+                SmtpDmarcPolicyStatus.Pass,
+                SmtpDmarcAppliedPolicy.None,
+                markFailuresAsSpam: false,
+                failureScore: 0,
+                headerFromDomain: "example.test",
+                diagnostic: "DMARC pass."));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("After-Dmarc-Test"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            spfPolicy: spfPolicy,
+            dkimPolicy: dkimPolicy,
+            dmarcPolicy: dmarcPolicy);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("From: Sender <sender@example.test>\r\nSubject: DMARC\r\n\r\nBody\r\n"u8.ToArray()) with { IsAuthenticated = false },
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Virus detected: After-Dmarc-Test", result.FailureResponse);
+        Assert.AreEqual(1, spfPolicy.Requests.Count);
+        Assert.AreEqual(1, dkimPolicy.Requests.Count);
+        Assert.AreEqual(1, dmarcPolicy.Requests.Count);
+        Assert.IsTrue(dmarcPolicy.Requests[0].SpfPolicyResult.Passed);
+        CollectionAssert.AreEqual(
+            new[] { "example.test" },
+            dmarcPolicy.Requests[0].DkimPolicyResult.PassingDomains.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_MarksDmarcPolicyFailureAsSpamWithoutRejectingMessage()
+    {
+        var statusRuntimeState = new ServerStatusRuntimeState();
+        var dmarcPolicy = new FakeDmarcPolicy(
+            SmtpDmarcPolicyResult.FromEvaluation(
+                SmtpDmarcPolicyStatus.Fail,
+                SmtpDmarcAppliedPolicy.Reject,
+                markFailuresAsSpam: true,
+                failureScore: 6,
+                headerFromDomain: "example.test",
+                diagnostic: "Rejected by DMARC."));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("After-Dmarc-Failure"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            dmarcPolicy: dmarcPolicy,
+            statusRuntimeState: statusRuntimeState);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("From: Sender <sender@example.test>\r\nSubject: DMARC\r\n\r\nBody\r\n"u8.ToArray()) with { IsAuthenticated = false },
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Virus detected: After-Dmarc-Failure", result.FailureResponse);
+        Assert.AreEqual(1, dmarcPolicy.Requests.Count);
+        Assert.AreEqual(1, antivirusScanner.ScannedMessages.Count);
+        Assert.AreEqual(1, statusRuntimeState.Capture().RemovedSpamMessages);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_PassesAcceptEventMutatedMessageToRuleProcessor()
     {
         var mutatedMessage = Encoding.Latin1.GetBytes("Subject: Mutated\r\nX-Event: yes\r\n\r\nBody\r\n");
@@ -969,6 +1044,33 @@ public sealed class SqlServerSmtpMessageReceiverTests
             return ValueTask.FromResult(_result);
         }
     }
+
+    private sealed class FakeDmarcPolicy : ISmtpDmarcPolicy
+    {
+        private readonly SmtpDmarcPolicyResult _result;
+
+        public FakeDmarcPolicy(SmtpDmarcPolicyResult result)
+        {
+            _result = result;
+        }
+
+        public List<DmarcPolicyRequest> Requests { get; } = [];
+
+        public ValueTask<SmtpDmarcPolicyResult> CheckAsync(
+            SmtpReceiveRequest request,
+            SmtpSpfPolicyResult spfPolicyResult,
+            SmtpDkimPolicyResult dkimPolicyResult,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(new DmarcPolicyRequest(request, spfPolicyResult, dkimPolicyResult));
+            return ValueTask.FromResult(_result);
+        }
+    }
+
+    private sealed record DmarcPolicyRequest(
+        SmtpReceiveRequest Request,
+        SmtpSpfPolicyResult SpfPolicyResult,
+        SmtpDkimPolicyResult DkimPolicyResult);
 
     private sealed class FakeUrlBlockListChecker : ISmtpUrlBlockListChecker
     {
