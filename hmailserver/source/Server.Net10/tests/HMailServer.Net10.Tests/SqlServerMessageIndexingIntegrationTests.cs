@@ -337,6 +337,91 @@ public sealed class SqlServerMessageIndexingIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task AuthenticatedComPath_FetchAccountsStayScopedToSelectedAccountAgainstIsolatedDatabase()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateDomainAndAccountSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
+            DomainAdministrationRuntimeHost.Configure(new SqlServerDomainAdministrationStore(connectionFactory));
+            AccountAdministrationRuntimeHost.Configure(new SqlServerAccountAdministrationStore(connectionFactory));
+            FetchAccountAdministrationRuntimeHost.Configure(
+                new SqlServerFetchAccountAdministrationStore(connectionFactory));
+            var application = Application.CreateForRuntime(
+                new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
+
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+            var accounts = application.Domains.get_ItemByName("example.test").Accounts;
+
+            var adminFetchAccounts = accounts.get_ItemByDBID(10).FetchAccounts;
+            Assert.AreEqual(1, adminFetchAccounts.Count);
+            Assert.AreEqual(1000, adminFetchAccounts[0].ID);
+            Assert.AreEqual("External POP3", adminFetchAccounts.get_ItemByDBID(1000).Name);
+            Assert.AreEqual("pop3.example.test", adminFetchAccounts[0].ServerAddress);
+            Assert.AreEqual(995, adminFetchAccounts[0].Port);
+            Assert.AreEqual("external-user", adminFetchAccounts[0].Username);
+            Assert.AreEqual(15, adminFetchAccounts[0].MinutesBetweenFetch);
+            Assert.AreEqual(14, adminFetchAccounts[0].DaysToKeepMessages);
+            Assert.IsTrue(adminFetchAccounts[0].Enabled);
+            Assert.IsTrue(adminFetchAccounts[0].ProcessMIMERecipients);
+            Assert.IsTrue(adminFetchAccounts[0].ProcessMIMEDate);
+            Assert.AreEqual(ComConnectionSecurity.Tls, adminFetchAccounts[0].ConnectionSecurity);
+            Assert.IsTrue(adminFetchAccounts[0].UseSSL);
+            Assert.IsTrue(adminFetchAccounts[0].UseAntiSpam);
+            Assert.IsTrue(adminFetchAccounts[0].UseAntiVirus);
+            Assert.IsTrue(adminFetchAccounts[0].EnableRouteRecipients);
+            Assert.AreEqual("To,CC,X-RCPT-TO", adminFetchAccounts[0].MIMERecipientHeaders);
+            Assert.AreEqual("2026-07-01 02:03:04", adminFetchAccounts[0].NextDownloadTime);
+            Assert.IsTrue(adminFetchAccounts[0].IsLocked);
+
+            var outsideAccountLookup = Assert.ThrowsExactly<COMException>(
+                () => _ = adminFetchAccounts.get_ItemByDBID(2000));
+            var pendingPasswordRead = Assert.ThrowsExactly<COMException>(() => _ = adminFetchAccounts[0].Password);
+            Assert.AreEqual(unchecked((int)0x8002000B), outsideAccountLookup.ErrorCode);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingPasswordRead.ErrorCode);
+
+            var userFetchAccounts = accounts.get_ItemByDBID(20).FetchAccounts;
+            Assert.AreEqual(1, userFetchAccounts.Count);
+            Assert.AreEqual(2000, userFetchAccounts[0].ID);
+            Assert.AreEqual(20, userFetchAccounts[0].AccountID);
+            Assert.AreEqual("User POP3", userFetchAccounts[0].Name);
+            Assert.AreEqual("pop3-user.example.test", userFetchAccounts[0].ServerAddress);
+            Assert.AreEqual(110, userFetchAccounts[0].Port);
+            Assert.AreEqual("user-external", userFetchAccounts[0].Username);
+            Assert.AreEqual(30, userFetchAccounts[0].MinutesBetweenFetch);
+            Assert.AreEqual(7, userFetchAccounts[0].DaysToKeepMessages);
+            Assert.IsTrue(userFetchAccounts[0].Enabled);
+            Assert.IsFalse(userFetchAccounts[0].ProcessMIMERecipients);
+            Assert.IsFalse(userFetchAccounts[0].ProcessMIMEDate);
+            Assert.AreEqual(ComConnectionSecurity.None, userFetchAccounts[0].ConnectionSecurity);
+            Assert.IsFalse(userFetchAccounts[0].UseSSL);
+            Assert.IsFalse(userFetchAccounts[0].UseAntiSpam);
+            Assert.IsFalse(userFetchAccounts[0].UseAntiVirus);
+            Assert.IsFalse(userFetchAccounts[0].EnableRouteRecipients);
+            Assert.AreEqual("To,CC", userFetchAccounts[0].MIMERecipientHeaders);
+            Assert.AreEqual("2026-07-02 02:03:04", userFetchAccounts[0].NextDownloadTime);
+            Assert.IsFalse(userFetchAccounts[0].IsLocked);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task AuthenticatedComPath_ExecutesAliasLookupAgainstIsolatedDatabase()
     {
         var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);

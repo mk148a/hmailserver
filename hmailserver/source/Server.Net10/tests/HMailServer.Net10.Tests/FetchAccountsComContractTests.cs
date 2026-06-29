@@ -68,6 +68,21 @@ public sealed class FetchAccountsComContractTests
     }
 
     [TestMethod]
+    public void ConnectionSecurityEnum_PreservesLegacyValuesAndGuid()
+    {
+        Assert.AreEqual(new Guid("122C5B58-9A23-40F5-83C0-7B683D156522"), typeof(ComConnectionSecurity).GUID);
+        var values = Enum.GetNames<ComConnectionSecurity>()
+            .ToDictionary(
+                static name => name,
+                static name => Convert.ToInt32(Enum.Parse<ComConnectionSecurity>(name)));
+
+        Assert.AreEqual(0, values[nameof(ComConnectionSecurity.None)]);
+        Assert.AreEqual(1, values[nameof(ComConnectionSecurity.Tls)]);
+        Assert.AreEqual(2, values[nameof(ComConnectionSecurity.StartTlsOptional)]);
+        Assert.AreEqual(3, values[nameof(ComConnectionSecurity.StartTlsRequired)]);
+    }
+
+    [TestMethod]
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var accountsError = Assert.ThrowsExactly<COMException>(() => _ = new FetchAccounts().Count);
@@ -109,6 +124,71 @@ public sealed class FetchAccountsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_KeepsLegacyUseSslAliasLimitedToDirectTls()
+    {
+        IInterfaceFetchAccounts accounts = FetchAccounts.CreateAuthorized(
+            new[]
+            {
+                CreateSnapshot(10, 100, "Plain POP3", ComConnectionSecurity.None),
+                CreateSnapshot(20, 100, "Implicit TLS POP3", ComConnectionSecurity.Tls),
+                CreateSnapshot(30, 100, "Optional STARTTLS POP3", ComConnectionSecurity.StartTlsOptional),
+                CreateSnapshot(40, 100, "Required STARTTLS POP3", ComConnectionSecurity.StartTlsRequired)
+            });
+
+        Assert.IsFalse(accounts[0].UseSSL);
+        Assert.AreEqual(ComConnectionSecurity.None, accounts[0].ConnectionSecurity);
+        Assert.IsTrue(accounts[1].UseSSL);
+        Assert.AreEqual(ComConnectionSecurity.Tls, accounts[1].ConnectionSecurity);
+        Assert.IsFalse(accounts[2].UseSSL);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsOptional, accounts[2].ConnectionSecurity);
+        Assert.IsFalse(accounts[3].UseSSL);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, accounts[3].ConnectionSecurity);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_PreservesReadOnlyAndPendingMutationBoundaries()
+    {
+        IInterfaceFetchAccounts accounts = FetchAccounts.CreateAuthorized(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+
+        var pendingDelete = Assert.ThrowsExactly<COMException>(() => accounts.Delete(0));
+        var pendingDeleteByDbId = Assert.ThrowsExactly<COMException>(() => accounts.DeleteByDBID(10));
+        var pendingServerAddress = Assert.ThrowsExactly<COMException>(() => accounts[0].ServerAddress = "changed.example");
+        var pendingPort = Assert.ThrowsExactly<COMException>(() => accounts[0].Port = 110);
+        var pendingServerType = Assert.ThrowsExactly<COMException>(() => accounts[0].ServerType = 1);
+        var pendingUsername = Assert.ThrowsExactly<COMException>(() => accounts[0].Username = "changed-user");
+        var pendingPasswordWrite = Assert.ThrowsExactly<COMException>(() => accounts[0].Password = "secret");
+        var pendingMinutes = Assert.ThrowsExactly<COMException>(() => accounts[0].MinutesBetweenFetch = 30);
+        var pendingDays = Assert.ThrowsExactly<COMException>(() => accounts[0].DaysToKeepMessages = 30);
+        var pendingAccountId = Assert.ThrowsExactly<COMException>(() => accounts[0].AccountID = 200);
+        var pendingEnabled = Assert.ThrowsExactly<COMException>(() => accounts[0].Enabled = false);
+        var pendingMimeRecipients = Assert.ThrowsExactly<COMException>(() => accounts[0].ProcessMIMERecipients = false);
+        var pendingMimeDate = Assert.ThrowsExactly<COMException>(() => accounts[0].ProcessMIMEDate = false);
+        var pendingUseSsl = Assert.ThrowsExactly<COMException>(() => accounts[0].UseSSL = false);
+        var pendingSpam = Assert.ThrowsExactly<COMException>(() => accounts[0].UseAntiSpam = false);
+        var pendingVirus = Assert.ThrowsExactly<COMException>(() => accounts[0].UseAntiVirus = false);
+        var pendingRoutes = Assert.ThrowsExactly<COMException>(() => accounts[0].EnableRouteRecipients = false);
+        var pendingSecurity = Assert.ThrowsExactly<COMException>(
+            () => accounts[0].ConnectionSecurity = ComConnectionSecurity.None);
+        var pendingHeaders = Assert.ThrowsExactly<COMException>(() => accounts[0].MIMERecipientHeaders = "To");
+        var pendingSave = Assert.ThrowsExactly<COMException>(accounts[0].Save);
+        var pendingDownload = Assert.ThrowsExactly<COMException>(accounts[0].DownloadNow);
+        var pendingAccountDelete = Assert.ThrowsExactly<COMException>(accounts[0].Delete);
+
+        foreach (var error in new[]
+                 {
+                     pendingDelete, pendingDeleteByDbId, pendingServerAddress, pendingPort, pendingServerType,
+                     pendingUsername, pendingPasswordWrite, pendingMinutes, pendingDays, pendingAccountId,
+                     pendingEnabled, pendingMimeRecipients, pendingMimeDate, pendingUseSsl, pendingSpam,
+                     pendingVirus, pendingRoutes, pendingSecurity, pendingHeaders, pendingSave, pendingDownload,
+                     pendingAccountDelete
+                 })
+        {
+            Assert.AreEqual(ENotImplemented, error.ErrorCode);
+        }
+    }
+
+    [TestMethod]
     public void AccountFetchAccounts_UsesConfiguredRuntimeForSelectedAccount()
     {
         FetchAccountAdministrationRuntimeHost.Configure(
@@ -130,6 +210,13 @@ public sealed class FetchAccountsComContractTests
         int id,
         int accountId,
         string name) =>
+        CreateSnapshot(id, accountId, name, ComConnectionSecurity.Tls);
+
+    private static FetchAccountAdministrationSnapshot CreateSnapshot(
+        int id,
+        int accountId,
+        string name,
+        ComConnectionSecurity connectionSecurity) =>
         new(
             Id: id,
             AccountId: accountId,
@@ -143,7 +230,7 @@ public sealed class FetchAccountsComContractTests
             Enabled: true,
             ProcessMimeRecipients: true,
             ProcessMimeDate: true,
-            ConnectionSecurity: (int)ComConnectionSecurity.Tls,
+            ConnectionSecurity: (int)connectionSecurity,
             UseAntiSpam: true,
             UseAntiVirus: true,
             EnableRouteRecipients: true,

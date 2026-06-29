@@ -34,4 +34,46 @@ public sealed class SqlServerFetchAccountAdministrationStoreTests
         StringAssert.Contains(sql, "ORDER BY faid ASC");
         Assert.IsFalse(sql.Contains("fapassword", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void GetFetchAccountsSql_ProjectsOnlyReadOnlyAdministrationColumnsInReaderOrder()
+    {
+        var sql = SqlServerFetchAccountAdministrationStore.GetFetchAccountsSql;
+
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_fetchaccounts_uids", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("fapassword", StringComparison.OrdinalIgnoreCase));
+
+        var projectedColumns = new[]
+        {
+            "faid,",
+            "faaccountid,",
+            "faaccountname,",
+            "faserveraddress,",
+            "faserverport,",
+            "faservertype,",
+            "fausername,",
+            "faminutes,",
+            "fadaystokeep,",
+            "faactive,",
+            "faprocessmimerecipients,",
+            "faprocessmimedate,",
+            "faconnectionsecurity,",
+            "fauseantispam,",
+            "fauseantivirus,",
+            "faenablerouterecipients,",
+            "famimerecipientheaders,",
+            "CONVERT(varchar(19), fanexttry, 120) AS fanexttry,",
+            "falocked"
+        };
+        var previousIndex = -1;
+
+        foreach (var column in projectedColumns)
+        {
+            var index = sql.IndexOf(column, StringComparison.OrdinalIgnoreCase);
+            Assert.IsTrue(index > previousIndex, $"Expected `{column}` after the previous projected column.");
+            previousIndex = index;
+        }
+    }
 }
