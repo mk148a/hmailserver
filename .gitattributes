@@ -3,6 +3,10 @@
 ###############################################################################
 * text=auto
 
+# Pinned third-party snapshots are hashed byte-for-byte during build.
+hmailserver/source/Server.Net10/assets/public_suffix_list.dat text eol=lf
+hmailserver/source/Server.Net10/assets/public_suffix_list.meta.json text eol=lf
+
 ###############################################################################
 # Set default behavior for command prompt diff.
 #

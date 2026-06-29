@@ -19,5 +19,7 @@
     <ProjectReference Include="..\..\src\HMailServer.Security\HMailServer.Security.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Search.SqlServer\HMailServer.Search.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Storage.SqlServer\HMailServer.Storage.SqlServer.csproj" />
+    <Content Include="..\..\assets\public_suffix_list.dat" Link="public_suffix_list.dat" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\assets\public_suffix_list.meta.json" Link="public_suffix_list.meta.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
