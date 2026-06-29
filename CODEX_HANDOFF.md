@@ -28,7 +28,7 @@ Durum: production-ready degil. Proje ciddi bir parity seviyesine geldi, fakat ha
 Ana nedenler:
 
 - COM/Admin yuzeyi ve legacy object model henuz tam degil.
-- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary, DKIM parser/canonicalization/body-hash/header-crypto/DNS lookup/message-level verification + disabled-by-default policy boundary ve DMARC evaluation-only foundation temeli var; DKIM Administrator/COM setting parity, DMARC SMTP/Admin policy wiring ve daha sonra SPF/greylisting Administrator/COM setting parity eksik.
+- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary, DKIM parser/canonicalization/body-hash/header-crypto/DNS lookup/message-level verification + disabled-by-default policy boundary, DKIM pass-domain result surface ve disabled-by-default DMARC evaluation/SMTP policy boundary temeli var; DKIM Administrator/COM setting parity, DMARC organizational-domain/enforcement/Admin policy wiring ve daha sonra SPF/greylisting Administrator/COM setting parity eksik.
 - Backup engine ve `OnBackupCompleted` / `OnBackupFailed` eventleri beklemede.
 - In-place upgrade runner, mandatory backup/rollback akis dokumani ve operasyonel servis install/uninstall paketi tamamlanmadi.
 - Buyuk olcekli performance/soak kabul testleri henuz production gate olarak tamamlanmadi.
@@ -38,7 +38,7 @@ Ana nedenler:
 - Full legacy script object model parity.
 - Backup engine tasarimi ve backup completed/failed eventlerinin gercek engine uzerinden baglanmasi.
 - Active Directory auth, master user ve daha derin account facade collections/methods.
-- DKIM Administrator/COM setting parity, DMARC SMTP/Admin policy wiring; daha sonra SPF/greylisting Administrator/COM setting parity.
+- DKIM Administrator/COM setting parity, DMARC organizational-domain/enforcement/Admin policy wiring; daha sonra SPF/greylisting Administrator/COM setting parity.
 - COM/API compatibility: mevcut GUID/ProgID/DISPID/type library sozlesmelerinin tam korunmasi ve Administrator-visible nesnelerin tamamlanmasi.
 - Migration/operations: in-place upgrade runner, mandatory backup checks, rollback-from-backup dokumani, orphan cleanup, health/metrics/logging, Windows Service install/uninstall.
 - SQL Server FTS integration testleri ve production acceptance: 100k mailbox SEARCH/SORT, 1k IMAP connection, SMTP queue latency, memory/handle leak soak.
@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: mail-authentication hattini DMARC SMTP/Admin entegrasyonuna dogru kontrollu ilerletmek. Siradaki kucuk slice mevcut DMARC evaluator uzerine disabled-by-default SMTP DMARC policy/input plumbing eklemeli, SPF/DKIM pass-domain yuzeylerini yalniz gerektigi kadar genisletmeli ve fail-open/no reject/quarantine varsayilanlarini koruyarak Administrator/COM setting plumbing'i bu slice'a almamali.
+Backlog'daki siradaki ana dilim: mail-authentication hattini DMARC production-parity'ye dogru kontrollu ilerletmek. Siradaki kucuk slice SMTP DMARC policy icin injected organizational-domain/public-suffix boundary eklemeli; parent-domain DMARC record fallback'i bu boundary'den beslenmeli, disabled-by-default/fail-open/no reject/quarantine varsayilanlari korunmali ve Administrator/COM setting plumbing'i bu slice'a alinmamali.
 
 Son tamamlanan kucuk dilimler:
 
+- Disabled-by-default SMTP DMARC policy/input boundary eklendi: `HMAILSERVER_DMARC_ENABLED=false` varsayilani SMTP davranisini degistirmiyor; explicit acikken RFC5322.From domain'i cikariliyor, SPF sonucu ve DKIM pass signing-domain listesi DMARC evaluator'a veri olarak tasiniyor, malformed input/DNS/runtime hatalari fail-open kaliyor ve yalniz `HMAILSERVER_DMARC_MARK_FAILURES_AS_SPAM=true` ile policy failure mevcut spam-flag yoluna map edilebiliyor. Direct SMTP reject/quarantine, organizational-domain/public-suffix discovery, signing ve Administrator/COM setting plumbing baglanmadi. Dar `SmtpDmarcPolicyTests` + `SmtpDkimPolicyTests` + receiver filtresi 38/38, prereq kontrolu temiz, Net10 build 0 uyari/0 hata ve full Net10 testleri 698/698 gecti.
 - DMARC evaluation-only foundation eklendi: injected TXT resolver arkasinda DMARC record/result modeli, deterministic `p`/`sp`/`aspf`/`adkim`/`pct` parser'i, exact-domain + optional organizational-domain fallback lookup'u, strict/relaxed SPF ve DKIM alignment kontrolleri, subdomain policy secimi, temp DNS failure ile malformed/duplicate record sonuc map'leri kapatildi. SPF/DKIM sonuclari yalniz veri olarak tuketiliyor; SMTP reject/quarantine, spam scoring, signing ve Administrator/COM setting plumbing baglanmadi. Dar `DmarcEvaluationTests` 12/12, prereq kontrolu temiz, Net10 build 0 uyari/0 hata ve full Net10 testleri 688/688 gecti.
 - Disabled-by-default DKIM SMTP policy boundary eklendi: `HMAILSERVER_DKIM_ENABLED=false` varsayilani SMTP davranisini degistirmiyor; explicit acikken message-level verifier sonucunu tuketiyor, legacy spam-test subset'ine uygun sekilde yalniz `PermFail` icin configured failure score ile spam flag/status uretip `Pass` sonucunu pass sinyali olarak tasiyor, `Neutral`/`TempFail` fail-open kaliyor ve dogrudan SMTP reject eklenmiyor. Signing, DMARC ve Administrator/COM setting plumbing baglanmadi. Dar `SmtpDkimPolicyTests` 5/5 ve receiver DKIM filtresi 2/2 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 676/676 gecti.
 - WebAdmin AV/SpamAssassin AJAX test action'lari GET + URL token yerine `application/x-www-form-urlencoded` POST body kullanacak sekilde daraltildi; `background_ajax_virustest.php` ve `background_ajax_spamassassintest.php` POST-only oldu ve mevcut server-admin/CSRF kontrolleri korunuyor. Bu SEC-14/15/16 icin kismi hardening; egress/private-network allowlist politikasi ve diger legacy mutation linkleri P1 olarak kaliyor.
@@ -426,7 +427,7 @@ Terminal/log incelemesi:
    - In-place upgrade runner, backup zorunlulugu, rollback-from-backup akisi, service install/uninstall ve operator dokumani.
 
 3. Security + performance acceptance.
-   - DKIM Administrator/COM setting parity, DMARC SMTP/Admin policy wiring.
+   - DKIM Administrator/COM setting parity, DMARC organizational-domain/enforcement/Admin policy wiring.
    - SQL Server FTS integration ve 100k mailbox SEARCH/SORT p95 hedefi.
    - 1k concurrent IMAP, SMTP queue latency, delivery throughput ve uzun soak memory/handle testleri.
 
@@ -441,5 +442,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak disabled-by-default DMARC SMTP policy/input plumbing dilimini ele al; mevcut evaluator uzerine SPF/DKIM pass-domain verisini yalniz gerektigi kadar tasiyarak fail-open/no reject/quarantine varsayilanlarini koru ve Administrator/COM setting plumbing'i bu slice'a alma.
+5. Current Next Slice olarak DMARC organizational-domain/public-suffix boundary dilimini ele al; SMTP DMARC policy parent-domain fallback'ini bu boundary'den besle, disabled-by-default/fail-open/no reject/quarantine varsayilanlarini koru ve Administrator/COM setting plumbing'i bu slice'a alma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; push'i kullanici acikca isterse yap.
