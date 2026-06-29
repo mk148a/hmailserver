@@ -15,4 +15,11 @@ public sealed record DomainAdministrationSnapshot(
     bool MaxNumberOfAccountsEnabled = false,
     bool MaxNumberOfAliasesEnabled = false,
     bool MaxNumberOfDistributionListsEnabled = false,
-    int MaxAccountSize = 0);
+    int MaxAccountSize = 0,
+    bool DkimSignEnabled = false,
+    string DkimSelector = "",
+    string DkimPrivateKeyFile = "",
+    int DkimHeaderCanonicalizationMethod = 2,
+    int DkimBodyCanonicalizationMethod = 2,
+    int DkimSigningAlgorithm = 2,
+    bool DkimSignAliasesEnabled = false);

@@ -73,13 +73,35 @@ public sealed class DomainsComContractTests
     }
 
     [TestMethod]
+    public void DkimEnums_PreserveLegacyValuesAndGuids()
+    {
+        Assert.AreEqual(new Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD13"), typeof(ComDkimCanonicalizationMethod).GUID);
+        Assert.AreEqual(new Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD14"), typeof(ComDkimAlgorithm).GUID);
+        var canonicalizationValues = Enum.GetNames<ComDkimCanonicalizationMethod>()
+            .ToDictionary(
+                static name => name,
+                static name => Convert.ToInt32(Enum.Parse<ComDkimCanonicalizationMethod>(name)));
+        var algorithmValues = Enum.GetNames<ComDkimAlgorithm>()
+            .ToDictionary(
+                static name => name,
+                static name => Convert.ToInt32(Enum.Parse<ComDkimAlgorithm>(name)));
+
+        Assert.AreEqual(1, canonicalizationValues[nameof(ComDkimCanonicalizationMethod.Simple)]);
+        Assert.AreEqual(2, canonicalizationValues[nameof(ComDkimCanonicalizationMethod.Relaxed)]);
+        Assert.AreEqual(1, algorithmValues[nameof(ComDkimAlgorithm.SHA1)]);
+        Assert.AreEqual(2, algorithmValues[nameof(ComDkimAlgorithm.SHA256)]);
+    }
+
+    [TestMethod]
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var domainsError = Assert.ThrowsExactly<COMException>(() => _ = new Domains().Count);
         var domainError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().Name);
+        var dkimError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().DKIMSignEnabled);
 
         Assert.AreEqual(EAccessDenied, domainsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, domainError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, dkimError.ErrorCode);
     }
 
     [TestMethod]
@@ -103,21 +125,40 @@ public sealed class DomainsComContractTests
                     MaxNumberOfAccountsEnabled: true,
                     MaxNumberOfAliasesEnabled: false,
                     MaxNumberOfDistributionListsEnabled: true,
-                    MaxAccountSize: 512),
+                    MaxAccountSize: 512,
+                    DkimSignEnabled: true,
+                    DkimSelector: "alpha-selector",
+                    DkimPrivateKeyFile: @"C:\keys\alpha.pem",
+                    DkimHeaderCanonicalizationMethod: (int)ComDkimCanonicalizationMethod.Simple,
+                    DkimBodyCanonicalizationMethod: (int)ComDkimCanonicalizationMethod.Relaxed,
+                    DkimSigningAlgorithm: (int)ComDkimAlgorithm.SHA1,
+                    DkimSignAliasesEnabled: true),
                 new DomainAdministrationSnapshot(20, "beta.example", false)
             });
 
         Assert.AreEqual(2, domains.Count);
         AssertDomain(domains[0], 10, "alpha.example", true);
         AssertCoreScalars(domains[0]);
+        AssertDkimScalars(domains[0]);
         AssertDomain(domains.get_ItemByName("BETA.EXAMPLE"), 20, "beta.example", false);
         AssertDomain(domains.get_ItemByDBID(10), 10, "alpha.example", true);
+        AssertDkimDefaults(domains[1]);
 
         var badIndex = Assert.ThrowsExactly<COMException>(() => _ = domains[2]);
         var badName = Assert.ThrowsExactly<COMException>(() => _ = domains.get_ItemByName("missing.example"));
         var pendingRefresh = Assert.ThrowsExactly<COMException>(domains.Refresh);
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => domains[0].Active = false);
         var pendingScalarMutation = Assert.ThrowsExactly<COMException>(() => domains[0].Postmaster = "changed@alpha.example");
+        var pendingDkimEnabled = Assert.ThrowsExactly<COMException>(() => domains[0].DKIMSignEnabled = false);
+        var pendingDkimSelector = Assert.ThrowsExactly<COMException>(() => domains[0].DKIMSelector = "changed");
+        var pendingDkimKeyFile = Assert.ThrowsExactly<COMException>(() => domains[0].DKIMPrivateKeyFile = @"C:\keys\changed.pem");
+        var pendingDkimHeader = Assert.ThrowsExactly<COMException>(
+            () => domains[0].DKIMHeaderCanonicalizationMethod = ComDkimCanonicalizationMethod.Relaxed);
+        var pendingDkimBody = Assert.ThrowsExactly<COMException>(
+            () => domains[0].DKIMBodyCanonicalizationMethod = ComDkimCanonicalizationMethod.Simple);
+        var pendingDkimAlgorithm = Assert.ThrowsExactly<COMException>(
+            () => domains[0].DKIMSigningAlgorithm = ComDkimAlgorithm.SHA256);
+        var pendingDkimAliases = Assert.ThrowsExactly<COMException>(() => domains[0].DKIMSignAliasesEnabled = false);
         var pendingNonCoreScalar = Assert.ThrowsExactly<COMException>(() => _ = domains[0].ADDomainName);
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
@@ -125,6 +166,13 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingScalarMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDkimEnabled.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDkimSelector.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDkimKeyFile.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDkimHeader.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDkimBody.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDkimAlgorithm.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDkimAliases.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingNonCoreScalar.ErrorCode);
     }
 
@@ -172,5 +220,27 @@ public sealed class DomainsComContractTests
         Assert.IsFalse(domain.MaxNumberOfAliasesEnabled);
         Assert.IsTrue(domain.MaxNumberOfDistributionListsEnabled);
         Assert.AreEqual(512, domain.MaxAccountSize);
+    }
+
+    private static void AssertDkimScalars(IInterfaceDomain domain)
+    {
+        Assert.IsTrue(domain.DKIMSignEnabled);
+        Assert.AreEqual("alpha-selector", domain.DKIMSelector);
+        Assert.AreEqual(@"C:\keys\alpha.pem", domain.DKIMPrivateKeyFile);
+        Assert.AreEqual(ComDkimCanonicalizationMethod.Simple, domain.DKIMHeaderCanonicalizationMethod);
+        Assert.AreEqual(ComDkimCanonicalizationMethod.Relaxed, domain.DKIMBodyCanonicalizationMethod);
+        Assert.AreEqual(ComDkimAlgorithm.SHA1, domain.DKIMSigningAlgorithm);
+        Assert.IsTrue(domain.DKIMSignAliasesEnabled);
+    }
+
+    private static void AssertDkimDefaults(IInterfaceDomain domain)
+    {
+        Assert.IsFalse(domain.DKIMSignEnabled);
+        Assert.AreEqual(string.Empty, domain.DKIMSelector);
+        Assert.AreEqual(string.Empty, domain.DKIMPrivateKeyFile);
+        Assert.AreEqual(ComDkimCanonicalizationMethod.Relaxed, domain.DKIMHeaderCanonicalizationMethod);
+        Assert.AreEqual(ComDkimCanonicalizationMethod.Relaxed, domain.DKIMBodyCanonicalizationMethod);
+        Assert.AreEqual(ComDkimAlgorithm.SHA256, domain.DKIMSigningAlgorithm);
+        Assert.IsFalse(domain.DKIMSignAliasesEnabled);
     }
 }

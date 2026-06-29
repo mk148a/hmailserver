@@ -23,7 +23,28 @@ public sealed class SqlServerDomainAdministrationStoreTests
         StringAssert.Contains(sql, "domainmaxnoofdistributionlists");
         StringAssert.Contains(sql, "domainlimitationsenabled");
         StringAssert.Contains(sql, "domainmaxaccountsize");
+        StringAssert.Contains(sql, "domainantispamoptions");
+        StringAssert.Contains(sql, "domaindkimselector");
+        StringAssert.Contains(sql, "domaindkimprivatekeyfile");
         StringAssert.Contains(sql, "FROM hm_domains");
         StringAssert.Contains(sql, "ORDER BY domainname ASC");
+    }
+
+    [TestMethod]
+    public void GetDomainsSql_KeepsDkimProjectionReadOnlyAndDomainScoped()
+    {
+        var sql = SqlServerDomainAdministrationStore.GetDomainsSql;
+
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("OPENROWSET", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("BULK", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(sql, "FROM hm_domains");
+        StringAssert.Contains(sql, "domainantispamoptions");
+        StringAssert.Contains(sql, "domaindkimselector");
+        StringAssert.Contains(sql, "domaindkimprivatekeyfile");
     }
 }

@@ -7,6 +7,12 @@ namespace HMailServer.Storage.SqlServer;
 
 public sealed class SqlServerDomainAdministrationStore : IDomainAdministrationStore
 {
+    private const int AntiSpamOptionDkimSign = 2;
+    private const int AntiSpamOptionDkimSimpleHeader = 4;
+    private const int AntiSpamOptionDkimSimpleBody = 8;
+    private const int AntiSpamOptionDkimSha1 = 16;
+    private const int AntiSpamOptionDkimSignAliases = 32;
+
     public const string GetDomainsSql = """
 SELECT
     domainid,
@@ -21,7 +27,10 @@ SELECT
     domainmaxnoofaliases,
     domainmaxnoofdistributionlists,
     domainlimitationsenabled,
-    domainmaxaccountsize
+    domainmaxaccountsize,
+    domainantispamoptions,
+    domaindkimselector,
+    domaindkimprivatekeyfile
 FROM hm_domains
 ORDER BY domainname ASC;
 """;
@@ -59,6 +68,7 @@ ORDER BY domainname ASC;
             var maxNumberOfDistributionLists = reader.GetInt32(10);
             var limitationsEnabled = Convert.ToInt32(reader.GetValue(11), CultureInfo.InvariantCulture);
             var maxAccountSize = reader.GetInt32(12);
+            var antiSpamOptions = Convert.ToInt32(reader.GetValue(13), CultureInfo.InvariantCulture);
             domains.Add(
                 new DomainAdministrationSnapshot(
                     Id: id,
@@ -75,7 +85,17 @@ ORDER BY domainname ASC;
                     MaxNumberOfAccountsEnabled: (limitationsEnabled & 1) != 0,
                     MaxNumberOfAliasesEnabled: (limitationsEnabled & 2) != 0,
                     MaxNumberOfDistributionListsEnabled: (limitationsEnabled & 4) != 0,
-                    MaxAccountSize: maxAccountSize));
+                    MaxAccountSize: maxAccountSize,
+                    DkimSignEnabled: (antiSpamOptions & AntiSpamOptionDkimSign) != 0,
+                    DkimSelector: reader.GetString(14),
+                    DkimPrivateKeyFile: reader.GetString(15),
+                    DkimHeaderCanonicalizationMethod:
+                        (antiSpamOptions & AntiSpamOptionDkimSimpleHeader) != 0 ? 1 : 2,
+                    DkimBodyCanonicalizationMethod:
+                        (antiSpamOptions & AntiSpamOptionDkimSimpleBody) != 0 ? 1 : 2,
+                    DkimSigningAlgorithm:
+                        (antiSpamOptions & AntiSpamOptionDkimSha1) != 0 ? 1 : 2,
+                    DkimSignAliasesEnabled: (antiSpamOptions & AntiSpamOptionDkimSignAliases) != 0));
         }
 
         return domains;

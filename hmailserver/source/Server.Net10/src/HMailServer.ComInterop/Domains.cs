@@ -492,6 +492,48 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         set => DomainComAuthorization.Unavailable(this);
     }
 
+    public override bool DKIMSignEnabled
+    {
+        get => Snapshot.DkimSignEnabled;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override string DKIMSelector
+    {
+        get => Snapshot.DkimSelector;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override string DKIMPrivateKeyFile
+    {
+        get => Snapshot.DkimPrivateKeyFile;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override ComDkimCanonicalizationMethod DKIMHeaderCanonicalizationMethod
+    {
+        get => (ComDkimCanonicalizationMethod)Snapshot.DkimHeaderCanonicalizationMethod;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override ComDkimCanonicalizationMethod DKIMBodyCanonicalizationMethod
+    {
+        get => (ComDkimCanonicalizationMethod)Snapshot.DkimBodyCanonicalizationMethod;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override ComDkimAlgorithm DKIMSigningAlgorithm
+    {
+        get => (ComDkimAlgorithm)Snapshot.DkimSigningAlgorithm;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override bool DKIMSignAliasesEnabled
+    {
+        get => Snapshot.DkimSignAliasesEnabled;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
     public override IInterfaceAccounts Accounts =>
         AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
@@ -561,13 +603,13 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public virtual bool MaxNumberOfAliasesEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool MaxNumberOfDistributionListsEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual int MaxAccountSize { get => Unavailable<int>(); set => Unavailable(); }
-    public bool DKIMSignEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public string DKIMSelector { get => Unavailable<string>(); set => Unavailable(); }
-    public string DKIMPrivateKeyFile { get => Unavailable<string>(); set => Unavailable(); }
-    public ComDkimCanonicalizationMethod DKIMHeaderCanonicalizationMethod { get => Unavailable<ComDkimCanonicalizationMethod>(); set => Unavailable(); }
-    public ComDkimCanonicalizationMethod DKIMBodyCanonicalizationMethod { get => Unavailable<ComDkimCanonicalizationMethod>(); set => Unavailable(); }
-    public ComDkimAlgorithm DKIMSigningAlgorithm { get => Unavailable<ComDkimAlgorithm>(); set => Unavailable(); }
-    public bool DKIMSignAliasesEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool DKIMSignEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual string DKIMSelector { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string DKIMPrivateKeyFile { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual ComDkimCanonicalizationMethod DKIMHeaderCanonicalizationMethod { get => Unavailable<ComDkimCanonicalizationMethod>(); set => Unavailable(); }
+    public virtual ComDkimCanonicalizationMethod DKIMBodyCanonicalizationMethod { get => Unavailable<ComDkimCanonicalizationMethod>(); set => Unavailable(); }
+    public virtual ComDkimAlgorithm DKIMSigningAlgorithm { get => Unavailable<ComDkimAlgorithm>(); set => Unavailable(); }
+    public virtual bool DKIMSignAliasesEnabled { get => Unavailable<bool>(); set => Unavailable(); }
 
     private T Unavailable<T>() => DomainComAuthorization.Unavailable<T>(this);
 
