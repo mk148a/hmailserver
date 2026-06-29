@@ -271,6 +271,24 @@ var spfEvaluatorOptions = new SpfEvaluatorOptions
                 defaultValue: 20)))
 };
 var spfPolicyEnabled = spfPolicyOptions.Enabled;
+var dkimPolicyOptions = new SmtpDkimPolicyOptions
+{
+    Enabled = ReadBool(
+        builder.Configuration["AntiSpam:Dkim:Enabled"]
+            ?? builder.Configuration["HMAILSERVER_DKIM_ENABLED"],
+        defaultValue: false),
+    SkipAuthenticated = ReadBool(
+        builder.Configuration["AntiSpam:Dkim:SkipAuthenticated"]
+            ?? builder.Configuration["HMAILSERVER_DKIM_SKIP_AUTHENTICATED"],
+        defaultValue: true),
+    FailureScore = Math.Max(
+        0,
+        ReadInt(
+            builder.Configuration["AntiSpam:Dkim:FailureScore"]
+                ?? builder.Configuration["HMAILSERVER_DKIM_FAILURE_SCORE"],
+            defaultValue: 5))
+};
+var dkimPolicyEnabled = dkimPolicyOptions.Enabled;
 var attachmentPolicyOptions = new MessageAttachmentPolicyOptions
 {
     Enabled = ReadBool(
@@ -549,6 +567,7 @@ builder.Services.AddSingleton(spamAssassinOptions);
 builder.Services.AddSingleton(spamPolicyOptions);
 builder.Services.AddSingleton(spfPolicyOptions);
 builder.Services.AddSingleton(spfEvaluatorOptions);
+builder.Services.AddSingleton(dkimPolicyOptions);
 builder.Services.AddSingleton(attachmentPolicyOptions);
 builder.Services.AddSingleton(dnsBlockListOptions);
 builder.Services.AddSingleton(reverseDnsOptions);
@@ -585,6 +604,11 @@ if (spfPolicyEnabled)
     builder.Services.AddSingleton<ISpfDnsResolver, SystemSpfDnsResolver>();
     builder.Services.AddSingleton<SpfEvaluator>();
     builder.Services.AddSingleton<ISmtpSpfPolicy, SmtpSpfPolicy>();
+}
+if (dkimPolicyEnabled)
+{
+    builder.Services.AddSingleton<IDkimTxtResolver, SystemDkimTxtResolver>();
+    builder.Services.AddSingleton<ISmtpDkimPolicy, SmtpDkimPolicy>();
 }
 if (attachmentPolicyEnabled)
 {

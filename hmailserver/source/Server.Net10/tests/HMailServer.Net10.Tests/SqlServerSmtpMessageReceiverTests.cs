@@ -366,6 +366,71 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_MarksDkimPermFailAsSpamWithoutRejectingMessage()
+    {
+        var statusRuntimeState = new ServerStatusRuntimeState();
+        var dkimPolicy = new FakeDkimPolicy(
+            SmtpDkimPolicyResult.FromEvaluation(
+                SmtpDkimPolicyStatus.PermFail,
+                failureScore: 5,
+                diagnostic: "Rejected by DKIM."));
+        var antivirusScanner = new FakeAntivirusScanner(
+            MessageAntivirusScanResult.Infected("After-Dkim-Test"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            antivirusScanner: antivirusScanner,
+            dkimPolicy: dkimPolicy,
+            statusRuntimeState: statusRuntimeState);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: DKIM\r\n\r\nBody\r\n"u8.ToArray()) with { IsAuthenticated = false },
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 Virus detected: After-Dkim-Test", result.FailureResponse);
+        Assert.AreEqual(1, dkimPolicy.Requests.Count);
+        Assert.AreEqual(1, antivirusScanner.ScannedMessages.Count);
+        Assert.AreEqual(1, statusRuntimeState.Capture().RemovedSpamMessages);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_DoesNotMarkNonPermFailDkimResultsAsSpam()
+    {
+        var statuses = new[]
+        {
+            SmtpDkimPolicyStatus.Pass,
+            SmtpDkimPolicyStatus.Neutral,
+            SmtpDkimPolicyStatus.TempFail,
+            SmtpDkimPolicyStatus.Skipped
+        };
+
+        foreach (var status in statuses)
+        {
+            var statusRuntimeState = new ServerStatusRuntimeState();
+            var dkimPolicy = new FakeDkimPolicy(CreateDkimPolicyResult(status));
+            var antivirusScanner = new FakeAntivirusScanner(
+                MessageAntivirusScanResult.Infected("After-Dkim-NonPermFail"));
+            var receiver = new SqlServerSmtpMessageReceiver(
+                new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+                new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+                antivirusScanner: antivirusScanner,
+                dkimPolicy: dkimPolicy,
+                statusRuntimeState: statusRuntimeState);
+
+            var result = await receiver.ReceiveAsync(
+                CreateRequest("Subject: DKIM\r\n\r\nBody\r\n"u8.ToArray()) with { IsAuthenticated = false },
+                CancellationToken.None);
+
+            Assert.IsFalse(result.Accepted, status.ToString());
+            Assert.AreEqual("554 Virus detected: After-Dkim-NonPermFail", result.FailureResponse, status.ToString());
+            Assert.AreEqual(1, dkimPolicy.Requests.Count, status.ToString());
+            Assert.AreEqual(1, antivirusScanner.ScannedMessages.Count, status.ToString());
+            Assert.AreEqual(0, statusRuntimeState.Capture().RemovedSpamMessages, status.ToString());
+        }
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_PassesAcceptEventMutatedMessageToRuleProcessor()
     {
         var mutatedMessage = Encoding.Latin1.GetBytes("Subject: Mutated\r\nX-Event: yes\r\n\r\nBody\r\n");
@@ -680,6 +745,14 @@ public sealed class SqlServerSmtpMessageReceiverTests
                 matchedMechanism: status == SmtpSpfPolicyStatus.Pass ? "+all" : null,
                 diagnostic: status.ToString());
 
+    private static SmtpDkimPolicyResult CreateDkimPolicyResult(SmtpDkimPolicyStatus status) =>
+        status == SmtpDkimPolicyStatus.Skipped
+            ? SmtpDkimPolicyResult.Skipped
+            : SmtpDkimPolicyResult.FromEvaluation(
+                status,
+                failureScore: 5,
+                diagnostic: status.ToString());
+
     private static byte[] CreateMessageWithAttachment(string fileName, string content)
     {
         var message = new MimeMessage();
@@ -869,6 +942,26 @@ public sealed class SqlServerSmtpMessageReceiverTests
         public List<SmtpReceiveRequest> Requests { get; } = [];
 
         public ValueTask<SmtpSpfPolicyResult> CheckAsync(
+            SmtpReceiveRequest request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return ValueTask.FromResult(_result);
+        }
+    }
+
+    private sealed class FakeDkimPolicy : ISmtpDkimPolicy
+    {
+        private readonly SmtpDkimPolicyResult _result;
+
+        public FakeDkimPolicy(SmtpDkimPolicyResult result)
+        {
+            _result = result;
+        }
+
+        public List<SmtpReceiveRequest> Requests { get; } = [];
+
+        public ValueTask<SmtpDkimPolicyResult> CheckAsync(
             SmtpReceiveRequest request,
             CancellationToken cancellationToken)
         {
