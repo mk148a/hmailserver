@@ -28,7 +28,7 @@ Durum: production-ready degil. Proje ciddi bir parity seviyesine geldi, fakat ha
 Ana nedenler:
 
 - COM/Admin yuzeyi ve legacy object model henuz tam degil.
-- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary ve DKIM parser/canonicalization/body-hash/header-crypto/DNS lookup/message-level verification + disabled-by-default policy boundary temeli var; DKIM Administrator/COM setting parity, DMARC ve daha sonra SPF/greylisting Administrator/COM setting parity eksik.
+- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary, DKIM parser/canonicalization/body-hash/header-crypto/DNS lookup/message-level verification + disabled-by-default policy boundary ve DMARC evaluation-only foundation temeli var; DKIM Administrator/COM setting parity, DMARC SMTP/Admin policy wiring ve daha sonra SPF/greylisting Administrator/COM setting parity eksik.
 - Backup engine ve `OnBackupCompleted` / `OnBackupFailed` eventleri beklemede.
 - In-place upgrade runner, mandatory backup/rollback akis dokumani ve operasyonel servis install/uninstall paketi tamamlanmadi.
 - Buyuk olcekli performance/soak kabul testleri henuz production gate olarak tamamlanmadi.
@@ -38,7 +38,7 @@ Ana nedenler:
 - Full legacy script object model parity.
 - Backup engine tasarimi ve backup completed/failed eventlerinin gercek engine uzerinden baglanmasi.
 - Active Directory auth, master user ve daha derin account facade collections/methods.
-- DKIM Administrator/COM setting parity, DMARC; daha sonra SPF/greylisting Administrator/COM setting parity.
+- DKIM Administrator/COM setting parity, DMARC SMTP/Admin policy wiring; daha sonra SPF/greylisting Administrator/COM setting parity.
 - COM/API compatibility: mevcut GUID/ProgID/DISPID/type library sozlesmelerinin tam korunmasi ve Administrator-visible nesnelerin tamamlanmasi.
 - Migration/operations: in-place upgrade runner, mandatory backup checks, rollback-from-backup dokumani, orphan cleanup, health/metrics/logging, Windows Service install/uninstall.
 - SQL Server FTS integration testleri ve production acceptance: 100k mailbox SEARCH/SORT, 1k IMAP connection, SMTP queue latency, memory/handle leak soak.
@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: mail-authentication hattini DMARC evaluation-only foundation ile ilerletmek. Siradaki kucuk slice injected DNS arkasinda DMARC record/result modelini kurmali, SPF/DKIM sonuclarini yalniz veri olarak tuketmeli ve SMTP reject/quarantine policy, signing, Administrator/COM setting plumbing ya da production policy default'larini bu slice'a almamali.
+Backlog'daki siradaki ana dilim: mail-authentication hattini DMARC SMTP/Admin entegrasyonuna dogru kontrollu ilerletmek. Siradaki kucuk slice mevcut DMARC evaluator uzerine disabled-by-default SMTP DMARC policy/input plumbing eklemeli, SPF/DKIM pass-domain yuzeylerini yalniz gerektigi kadar genisletmeli ve fail-open/no reject/quarantine varsayilanlarini koruyarak Administrator/COM setting plumbing'i bu slice'a almamali.
 
 Son tamamlanan kucuk dilimler:
 
+- DMARC evaluation-only foundation eklendi: injected TXT resolver arkasinda DMARC record/result modeli, deterministic `p`/`sp`/`aspf`/`adkim`/`pct` parser'i, exact-domain + optional organizational-domain fallback lookup'u, strict/relaxed SPF ve DKIM alignment kontrolleri, subdomain policy secimi, temp DNS failure ile malformed/duplicate record sonuc map'leri kapatildi. SPF/DKIM sonuclari yalniz veri olarak tuketiliyor; SMTP reject/quarantine, spam scoring, signing ve Administrator/COM setting plumbing baglanmadi. Dar `DmarcEvaluationTests` 12/12, prereq kontrolu temiz, Net10 build 0 uyari/0 hata ve full Net10 testleri 688/688 gecti.
 - Disabled-by-default DKIM SMTP policy boundary eklendi: `HMAILSERVER_DKIM_ENABLED=false` varsayilani SMTP davranisini degistirmiyor; explicit acikken message-level verifier sonucunu tuketiyor, legacy spam-test subset'ine uygun sekilde yalniz `PermFail` icin configured failure score ile spam flag/status uretip `Pass` sonucunu pass sinyali olarak tasiyor, `Neutral`/`TempFail` fail-open kaliyor ve dogrudan SMTP reject eklenmiyor. Signing, DMARC ve Administrator/COM setting plumbing baglanmadi. Dar `SmtpDkimPolicyTests` 5/5 ve receiver DKIM filtresi 2/2 gecti; prereq kontrolu temizdi, Net10 build 0 uyari/0 hata ile basarili oldu ve full Net10 testler 676/676 gecti.
 - WebAdmin AV/SpamAssassin AJAX test action'lari GET + URL token yerine `application/x-www-form-urlencoded` POST body kullanacak sekilde daraltildi; `background_ajax_virustest.php` ve `background_ajax_spamassassintest.php` POST-only oldu ve mevcut server-admin/CSRF kontrolleri korunuyor. Bu SEC-14/15/16 icin kismi hardening; egress/private-network allowlist politikasi ve diger legacy mutation linkleri P1 olarak kaliyor.
 - DKIM message-level verifier cekirdegi eklendi: raw/header-body mesaj girdilerinden `DKIM-Signature` field'lari cikariliyor, legacy gibi ilk 5 imza degerlendiriliyor, parse edilemeyen imzalar `Neutral` olarak atlanip devam ediliyor, herhangi bir imza body-hash + header-signature + DNS key zincirinden `Pass` alirsa hemen `Pass` donuluyor, aksi halde legacy dongudeki son non-pass sonuc korunuyor. SMTP reject, policy score, signing ve Administrator ayarlari baglanmadi. Dar DKIM filtresi 37/37, prereq kontrolu temiz, Net10 build 0 uyari/0 hata ve full Net10 testleri 669/669 gecti.
@@ -425,7 +426,7 @@ Terminal/log incelemesi:
    - In-place upgrade runner, backup zorunlulugu, rollback-from-backup akisi, service install/uninstall ve operator dokumani.
 
 3. Security + performance acceptance.
-   - DKIM Administrator/COM setting parity, DMARC.
+   - DKIM Administrator/COM setting parity, DMARC SMTP/Admin policy wiring.
    - SQL Server FTS integration ve 100k mailbox SEARCH/SORT p95 hedefi.
    - 1k concurrent IMAP, SMTP queue latency, delivery throughput ve uzun soak memory/handle testleri.
 
@@ -440,5 +441,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak DMARC evaluation-only foundation dilimini ele al; SMTP reject/quarantine/signing/Admin wiring baglamadan injected DNS arkasinda DMARC record/result modelini ve SPF/DKIM sonuclarini veri olarak tuketen cekirdegi dar testlerle kanitla.
-6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle ve tek push ile gonder.
+5. Current Next Slice olarak disabled-by-default DMARC SMTP policy/input plumbing dilimini ele al; mevcut evaluator uzerine SPF/DKIM pass-domain verisini yalniz gerektigi kadar tasiyarak fail-open/no reject/quarantine varsayilanlarini koru ve Administrator/COM setting plumbing'i bu slice'a alma.
+6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; push'i kullanici acikca isterse yap.
