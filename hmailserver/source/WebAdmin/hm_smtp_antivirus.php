@@ -63,33 +63,51 @@ $avactiondeletattachmentschecked = hmailCheckedIf1($avaction == 1);
 
 <script language="javascript" type="text/javascript">
 <!-- 
+var csrfToken = "<?php echo EscapeStringForJs($csrftoken); ?>";
+
+function formParameter(name, value)
+{
+   return encodeURIComponent(name) + "=" + encodeURIComponent(value);
+}
+
 function testVirusScanner(scannerType)
 {
    httpObject = getHTTPObject();
    if (httpObject != null) 
    {
+	  var parameters = [
+		  formParameter("page", "background_ajax_virustest"),
+		  formParameter("csrftoken", csrfToken)
+	  ];
+
 	  switch (scannerType)
 	  {
 	      case "ClamAV":
 			  document.getElementById('ClamAVTestResult').innerHTML = "";
 			  var clamAVHost = document.getElementById('ClamAVHost').value;
 			  var clamAPort = document.getElementById('ClamAVPort').value;
-			  var url = "index.php?page=background_ajax_virustest&csrftoken=<?php echo $csrftoken?>&TestType=ClamAV&Hostname="+ clamAVHost + "&Port=" + clamAPort;
-			  sendRequest(url, "ClamAVTestResult");
+			  parameters.push(formParameter("TestType", "ClamAV"));
+			  parameters.push(formParameter("Hostname", clamAVHost));
+			  parameters.push(formParameter("Port", clamAPort));
+			  sendRequest(parameters.join("&"), "ClamAVTestResult");
 		  break;
 	      case "ClamWin":
 			  document.getElementById('ClamWinTestResult').innerHTML = "";
 			  var executable = document.getElementById('clamwinexecutable').value;
 			  var database = document.getElementById('clamwindbfolder').value;
-			  var url = "index.php?page=background_ajax_virustest&csrftoken=<?php echo $csrftoken?>&TestType=ClamWin&Executable="+ executable + "&DatabaseFolder=" + database;
-			  sendRequest(url, "ClamWinTestResult");
+			  parameters.push(formParameter("TestType", "ClamWin"));
+			  parameters.push(formParameter("Executable", executable));
+			  parameters.push(formParameter("DatabaseFolder", database));
+			  sendRequest(parameters.join("&"), "ClamWinTestResult");
 		  break;
 		  case "External":
 			  document.getElementById('ExternalTestResult').innerHTML = "";
 			  var executable = document.getElementById('customscannerexecutable').value;
 			  var returnValue = document.getElementById('customscannerreturnvalue').value;
-			  var url = "index.php?page=background_ajax_virustest&csrftoken=<?php echo $csrftoken?>&TestType=External&Executable="+ executable + "&ReturnValue=" + returnValue;
-			  sendRequest(url, "ExternalTestResult");
+			  parameters.push(formParameter("TestType", "External"));
+			  parameters.push(formParameter("Executable", executable));
+			  parameters.push(formParameter("ReturnValue", returnValue));
+			  sendRequest(parameters.join("&"), "ExternalTestResult");
 			  break;
 		  default:
 			alert(scannerType);
@@ -100,14 +118,15 @@ function testVirusScanner(scannerType)
    }
 }
 
-function sendRequest(url, responseDiv)
+function sendRequest(parameters, responseDiv)
 {
-   httpObject.open("GET", url, true);
-   httpObject.send(null);
+   httpObject.open("POST", "index.php", true);
+   httpObject.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
    httpObject.onreadystatechange = function()
 	 {
 		printResponse(httpObject, responseDiv);
 	} ;
+   httpObject.send(parameters);
 }
 
 function printResponse(httpObject, elementName)

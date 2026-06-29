@@ -4,6 +4,8 @@
       
 	if (hmailGetAdminLevel() != ADMIN_SERVER)
 		hmailHackingAttemp(); // The user is not server administrator.
+
+	hmailRequirePost();
   
    $TestType = hmailGetVar("TestType", "");
    $AntiVirusSettings = $obBaseApp->Settings->AntiVirus;

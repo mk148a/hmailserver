@@ -76,6 +76,13 @@ $PrependSubjectChecked = hmailCheckedIf1($PrependSubject);
 
 <script language="javascript" type="text/javascript">
 <!-- 
+var csrfToken = "<?php echo EscapeStringForJs($csrftoken); ?>";
+
+function formParameter(name, value)
+{
+   return encodeURIComponent(name) + "=" + encodeURIComponent(value);
+}
+
 function HandleSpamAssassinTestResult()
 {
    if (httpObject.readyState == 4)
@@ -94,11 +101,17 @@ function TestSpamAssassinConnection()
    {
       document.getElementById('SpamAssassinTestResult').innerHTML = "";
       
-      var url = "index.php?page=background_ajax_spamassassintest&csrftoken=<?php echo $csrftoken?>&Hostname="+ document.getElementById('SpamAssassinHost').value + "&Port=" + document.getElementById('SpamAssassinPort').value;
+      var parameters = [
+         formParameter("page", "background_ajax_spamassassintest"),
+         formParameter("csrftoken", csrfToken),
+         formParameter("Hostname", document.getElementById('SpamAssassinHost').value),
+         formParameter("Port", document.getElementById('SpamAssassinPort').value)
+      ].join("&");
       
-      httpObject.open("GET", url, true);
-      httpObject.send(null);
+      httpObject.open("POST", "index.php", true);
+      httpObject.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
       httpObject.onreadystatechange = HandleSpamAssassinTestResult;
+      httpObject.send(parameters);
       
    }
 }

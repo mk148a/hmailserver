@@ -392,4 +392,15 @@ function validate_csrf_token_supplied()
 	}
 }
 
+function hmailRequirePost()
+{
+	if ($_SERVER['REQUEST_METHOD'] == 'POST')
+		return;
+
+	header("HTTP/1.1 405 Method Not Allowed");
+	header("Allow: POST");
+	echo "Method not allowed.";
+	die;
+}
+
 ?>
