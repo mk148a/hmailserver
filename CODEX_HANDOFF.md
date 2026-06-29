@@ -28,7 +28,7 @@ Durum: production-ready degil. Proje ciddi bir parity seviyesine geldi, fakat ha
 Ana nedenler:
 
 - COM/Admin yuzeyi ve legacy object model henuz tam degil.
-- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary, DKIM parser/canonicalization/body-hash/header-crypto/DNS lookup/message-level verification + disabled-by-default policy boundary, DKIM pass-domain result surface, disabled-by-default DMARC evaluation/SMTP policy boundary ve offline local-PSL organizational-domain resolver temeli var; DKIM Administrator/COM setting parity, packaged PSL lifecycle, DMARC enforcement/Admin policy wiring ve daha sonra SPF/greylisting Administrator/COM setting parity eksik.
+- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary, DKIM parser/canonicalization/body-hash/header-crypto/DNS lookup/message-level verification + disabled-by-default policy boundary, DKIM pass-domain result surface, disabled-by-default DMARC evaluation/SMTP policy boundary, offline local-PSL organizational-domain resolver ve pinned/paketlenmis PSL lifecycle var; DKIM Administrator/COM setting parity, DMARC enforcement/Admin policy wiring ve daha sonra SPF/greylisting Administrator/COM setting parity eksik.
 - Backup engine ve `OnBackupCompleted` / `OnBackupFailed` eventleri beklemede.
 - In-place upgrade runner, mandatory backup/rollback akis dokumani ve operasyonel servis install/uninstall paketi tamamlanmadi.
 - Buyuk olcekli performance/soak kabul testleri henuz production gate olarak tamamlanmadi.
@@ -38,7 +38,7 @@ Ana nedenler:
 - Full legacy script object model parity.
 - Backup engine tasarimi ve backup completed/failed eventlerinin gercek engine uzerinden baglanmasi.
 - Active Directory auth, master user ve daha derin account facade collections/methods.
-- DKIM Administrator/COM setting parity, packaged PSL snapshot/update/freshness lifecycle ve DMARC enforcement/Admin policy wiring; daha sonra SPF/greylisting Administrator/COM setting parity.
+- DKIM Administrator/COM setting parity ve DMARC enforcement/Admin policy wiring; daha sonra SPF/greylisting Administrator/COM setting parity.
 - COM/API compatibility: mevcut GUID/ProgID/DISPID/type library sozlesmelerinin tam korunmasi ve Administrator-visible nesnelerin tamamlanmasi.
 - Migration/operations: in-place upgrade runner, mandatory backup checks, rollback-from-backup dokumani, orphan cleanup, health/metrics/logging, Windows Service install/uninstall.
 - SQL Server FTS integration testleri ve production acceptance: 100k mailbox SEARCH/SORT, 1k IMAP connection, SMTP queue latency, memory/handle leak soak.
@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: DMARC operasyonlarini production-parity'ye dogru ilerletmek. Siradaki kucuk slice resmi PSL snapshot'ini publish/install ciktilarina pinned ve tekrarlanabilir sekilde paketlemeli, deterministic refresh/freshness proseduru eklemeli, SMTP hot path'inde online download yapmamali ve disabled-by-default/fail-open/no reject/quarantine varsayilanlarini korumali.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice mevcut `hm_domains` DKIM ayarlarini authenticated `Domain` COM getter'larinda read-only acmali; kurulu vtable/DISPID/enum degerlerini korumali ve setter, signing, private-key dosya icerigi okuma veya SMTP policy davranisi eklememeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Resmi Public Suffix List snapshot'i `2026-06-24_06-18-09_UTC` / `18ecca5d54471f21918798da451dd8d03a18f3c7` commit'ine ve `8208f0c918c6cb3ab77b484635fc8683c94cbfff818be81950908e881a5f8be2` SHA-256 degerine pinlendi. Snapshot + deterministic metadata Service build/publish ciktilarina kopyalaniyor; offline build gate header/hash/byte length'i dogruluyor ve maintainer-only refresh komutu expected commit + hash olmadan calismiyor. Runtime/SMTP download eklenmedi. Dar DMARC/PSL filtresi 32/32, prereq temiz, Net10 build 0 uyari/0 hata, publish hash smoke testi basarili ve full Net10 testleri 708/708 gecti.
 - DMARC organizational-domain/public-suffix boundary eklendi: `IDmarcOrganizationalDomainResolver` arkasinda Nager.PublicSuffix 3.8.0 ile local PSL dosyasi lazy/thread-safe tek sefer yukleniyor; `HMAILSERVER_DMARC_PUBLIC_SUFFIX_LIST`/`AntiSpam:Dmarc:PublicSuffixListPath` veya executable yanindaki `public_suffix_list.dat` kullaniliyor. Valid liste parent-record fallback, `sp=` secimi ve relaxed sibling alignment'i aciyor; wildcard/exception kurallari testli, missing/invalid/unreadable liste exact-domain DMARC'a fail-open kaliyor ve SMTP path'inde online download yok. Dar DMARC filtresi 30/30, prereq temiz, Net10 build 0 uyari/0 hata ve full Net10 testleri 706/706 gecti.
 - Disabled-by-default SMTP DMARC policy/input boundary eklendi: `HMAILSERVER_DMARC_ENABLED=false` varsayilani SMTP davranisini degistirmiyor; explicit acikken RFC5322.From domain'i cikariliyor, SPF sonucu ve DKIM pass signing-domain listesi DMARC evaluator'a veri olarak tasiniyor, malformed input/DNS/runtime hatalari fail-open kaliyor ve yalniz `HMAILSERVER_DMARC_MARK_FAILURES_AS_SPAM=true` ile policy failure mevcut spam-flag yoluna map edilebiliyor. Direct SMTP reject/quarantine, organizational-domain/public-suffix discovery, signing ve Administrator/COM setting plumbing baglanmadi. Dar `SmtpDmarcPolicyTests` + `SmtpDkimPolicyTests` + receiver filtresi 38/38, prereq kontrolu temiz, Net10 build 0 uyari/0 hata ve full Net10 testleri 698/698 gecti.
 - DMARC evaluation-only foundation eklendi: injected TXT resolver arkasinda DMARC record/result modeli, deterministic `p`/`sp`/`aspf`/`adkim`/`pct` parser'i, exact-domain + optional organizational-domain fallback lookup'u, strict/relaxed SPF ve DKIM alignment kontrolleri, subdomain policy secimi, temp DNS failure ile malformed/duplicate record sonuc map'leri kapatildi. SPF/DKIM sonuclari yalniz veri olarak tuketiliyor; SMTP reject/quarantine, spam scoring, signing ve Administrator/COM setting plumbing baglanmadi. Dar `DmarcEvaluationTests` 12/12, prereq kontrolu temiz, Net10 build 0 uyari/0 hata ve full Net10 testleri 688/688 gecti.
@@ -428,7 +429,7 @@ Terminal/log incelemesi:
    - In-place upgrade runner, backup zorunlulugu, rollback-from-backup akisi, service install/uninstall ve operator dokumani.
 
 3. Security + performance acceptance.
-   - DKIM Administrator/COM setting parity, packaged PSL lifecycle, DMARC enforcement/Admin policy wiring.
+   - DKIM Administrator/COM setting parity ve DMARC enforcement/Admin policy wiring.
    - SQL Server FTS integration ve 100k mailbox SEARCH/SORT p95 hedefi.
    - 1k concurrent IMAP, SMTP queue latency, delivery throughput ve uzun soak memory/handle testleri.
 
@@ -443,5 +444,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak pinned official PSL snapshot packaging/refresh dilimini ele al; publish/install ciktilarina tekrarlanabilir sekilde dahil et, freshness proseduru ekle, SMTP hot path'inde online download yapma ve disabled-by-default/fail-open/no reject/quarantine varsayilanlarini koru.
+5. Current Next Slice olarak `hm_domains` DKIM configuration -> authenticated read-only `Domain` COM getter parity dilimini ele al; mevcut vtable/DISPID/enum degerlerini koru, setter/signing/private-key dosya icerigi okuma/SMTP policy kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; push'i kullanici acikca isterse yap.
