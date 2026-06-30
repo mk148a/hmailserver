@@ -45,7 +45,8 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'tcpipthreads' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'MaxNumberOfMXHosts' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'VerifyRemoteSslCertificate' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'SslCipherList' THEN settingstring END), N'')
+    COALESCE(MAX(CASE WHEN settingname = N'SslCipherList' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'IPv6Preferred' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -86,7 +87,8 @@ WHERE settingname IN
     N'tcpipthreads',
     N'MaxNumberOfMXHosts',
     N'VerifyRemoteSslCertificate',
-    N'SslCipherList'
+    N'SslCipherList',
+    N'IPv6Preferred'
 );
 """;
 
@@ -150,6 +152,7 @@ WHERE settingname IN
             TcpIpThreads: reader.GetInt32(34),
             MaxNumberOfMxHosts: reader.GetInt32(35),
             VerifyRemoteSslCertificate: reader.GetInt32(36) != 0,
-            SslCipherList: reader.GetString(37));
+            SslCipherList: reader.GetString(37),
+            Ipv6PreferredEnabled: reader.GetInt32(38) != 0);
     }
 }

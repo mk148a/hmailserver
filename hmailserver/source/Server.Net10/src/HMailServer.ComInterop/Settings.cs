@@ -902,6 +902,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.SslCipherList = value;
     }
 
+    public override bool IPv6PreferredEnabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.IPv6PreferredEnabled
+                : _administrationSnapshot.Ipv6PreferredEnabled;
+        }
+        set => base.IPv6PreferredEnabled = value;
+    }
+
     public override IInterfaceIMAPFolders PublicFolders
     {
         get
@@ -1082,7 +1094,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual bool IMAPSASLPlainEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool IMAPSASLInitialResponseEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool TlsVersion13Enabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool IPv6PreferredEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool IPv6PreferredEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool TlsOptionPreferServerCiphersEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool TlsOptionPrioritizeChaChaEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool RewriteEnvelopeFromWhenForwarding { get => Unavailable<bool>(); set => Unavailable(); }

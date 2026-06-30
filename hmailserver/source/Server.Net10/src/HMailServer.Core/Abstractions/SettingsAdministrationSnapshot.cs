@@ -38,4 +38,5 @@ public sealed record SettingsAdministrationSnapshot(
     int TcpIpThreads = 0,
     int MaxNumberOfMxHosts = 0,
     bool VerifyRemoteSslCertificate = false,
-    string SslCipherList = "");
+    string SslCipherList = "",
+    bool Ipv6PreferredEnabled = false);

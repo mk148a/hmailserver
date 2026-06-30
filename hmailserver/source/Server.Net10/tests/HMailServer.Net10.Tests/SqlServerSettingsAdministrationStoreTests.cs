@@ -53,6 +53,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         Assert.IsFalse(sql.Contains("MaxAsynchronousThreads", StringComparison.OrdinalIgnoreCase));
         StringAssert.Contains(sql, "settingname = N'VerifyRemoteSslCertificate'");
         StringAssert.Contains(sql, "settingname = N'SslCipherList'");
+        StringAssert.Contains(sql, "settingname = N'IPv6Preferred'");
     }
 
     [TestMethod]
