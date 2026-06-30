@@ -105,6 +105,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(domains[0].AntiSpamEnableGreylisting);
             Assert.AreEqual("corp.alpha.example", domains[0].ADDomainName);
             Assert.AreEqual(4096, domains[0].MaxSize);
+            Assert.AreEqual(3072L, domains[0].AllocatedSize);
             Assert.AreEqual(200, domains[0].MaxNumberOfAccounts);
             Assert.AreEqual(30, domains[0].MaxNumberOfAliases);
             Assert.AreEqual(12, domains[0].MaxNumberOfDistributionLists);
@@ -129,6 +130,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsFalse(domains.get_ItemByDBID(20).Active);
             Assert.IsFalse(domains.get_ItemByDBID(20).AntiSpamEnableGreylisting);
             Assert.AreEqual(string.Empty, domains.get_ItemByDBID(20).ADDomainName);
+            Assert.AreEqual(128L, domains.get_ItemByDBID(20).AllocatedSize);
             Assert.IsFalse(domains.get_ItemByDBID(20).SignatureEnabled);
             Assert.AreEqual(
                 ComDomainSignatureMethod.SetIfNotSpecifiedInAccount,
@@ -679,6 +681,13 @@ CREATE TABLE dbo.hm_domains
     domaindkimprivatekeyfile nvarchar(255) NOT NULL
 );
 
+CREATE TABLE dbo.hm_accounts
+(
+    accountid int NOT NULL PRIMARY KEY,
+    accountdomainid int NOT NULL,
+    accountmaxsize int NOT NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainaddomain, domainmaxsize,
@@ -690,6 +699,12 @@ INSERT INTO dbo.hm_domains
 VALUES
     (20, N'beta.example', 0, N'postmaster@beta.example', 512, 0, N'+', N'', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N''),
     (10, N'alpha.example', 1, N'postmaster@alpha.example', 1024, 1, N'+', N'corp.alpha.example', 4096, 200, 30, 12, 5, 512, 1, 3, N'Alpha plain signature', N'<p>Alpha HTML signature</p>', 1, 0, 55, N'alpha-selector', N'C:\keys\alpha.pem');
+
+INSERT INTO dbo.hm_accounts (accountid, accountdomainid, accountmaxsize)
+VALUES
+    (100, 10, 1024),
+    (101, 10, 2048),
+    (200, 20, 128);
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -1033,6 +1048,13 @@ CREATE TABLE dbo.hm_domains
     domaindkimprivatekeyfile nvarchar(255) NOT NULL
 );
 
+CREATE TABLE dbo.hm_accounts
+(
+    accountid int NOT NULL PRIMARY KEY,
+    accountdomainid int NOT NULL,
+    accountmaxsize int NOT NULL
+);
+
 CREATE TABLE dbo.hm_aliases
 (
     aliasid int NOT NULL PRIMARY KEY,
@@ -1095,6 +1117,13 @@ CREATE TABLE dbo.hm_domains
     domainantispamoptions int NOT NULL,
     domaindkimselector nvarchar(255) NOT NULL,
     domaindkimprivatekeyfile nvarchar(255) NOT NULL
+);
+
+CREATE TABLE dbo.hm_accounts
+(
+    accountid int NOT NULL PRIMARY KEY,
+    accountdomainid int NOT NULL,
+    accountmaxsize int NOT NULL
 );
 
 CREATE TABLE dbo.hm_distributionlists
@@ -1177,6 +1206,13 @@ CREATE TABLE dbo.hm_domains
     domainantispamoptions int NOT NULL,
     domaindkimselector nvarchar(255) NOT NULL,
     domaindkimprivatekeyfile nvarchar(255) NOT NULL
+);
+
+CREATE TABLE dbo.hm_accounts
+(
+    accountid int NOT NULL PRIMARY KEY,
+    accountdomainid int NOT NULL,
+    accountmaxsize int NOT NULL
 );
 
 CREATE TABLE dbo.hm_domain_aliases

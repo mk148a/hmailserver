@@ -24,6 +24,11 @@ SELECT
     domainuseplusaddressing,
     domainplusaddressingchar,
     domainaddomain,
+    (
+        SELECT COALESCE(SUM(CAST(accountmaxsize AS bigint)), 0)
+        FROM hm_accounts
+        WHERE accountdomainid = hm_domains.domainid
+    ) AS domainallocatedsize,
     domainmaxsize,
     domainmaxnoofaccounts,
     domainmaxnoofaliases,
@@ -71,19 +76,20 @@ ORDER BY domainname ASC;
             var plusAddressingEnabled = Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture) != 0;
             var plusAddressingCharacter = reader.GetString(6);
             var adDomainName = reader.GetString(7);
-            var maxSize = reader.GetInt32(8);
-            var maxNumberOfAccounts = reader.GetInt32(9);
-            var maxNumberOfAliases = reader.GetInt32(10);
-            var maxNumberOfDistributionLists = reader.GetInt32(11);
-            var limitationsEnabled = Convert.ToInt32(reader.GetValue(12), CultureInfo.InvariantCulture);
-            var maxAccountSize = reader.GetInt32(13);
-            var signatureEnabled = Convert.ToInt32(reader.GetValue(14), CultureInfo.InvariantCulture) != 0;
-            var signatureMethod = Convert.ToInt32(reader.GetValue(15), CultureInfo.InvariantCulture);
-            var signaturePlainText = reader.GetString(16);
-            var signatureHtml = reader.GetString(17);
-            var addSignaturesToReplies = Convert.ToInt32(reader.GetValue(18), CultureInfo.InvariantCulture) != 0;
-            var addSignaturesToLocalMail = Convert.ToInt32(reader.GetValue(19), CultureInfo.InvariantCulture) != 0;
-            var antiSpamOptions = Convert.ToInt32(reader.GetValue(20), CultureInfo.InvariantCulture);
+            var allocatedSize = Convert.ToInt64(reader.GetValue(8), CultureInfo.InvariantCulture);
+            var maxSize = reader.GetInt32(9);
+            var maxNumberOfAccounts = reader.GetInt32(10);
+            var maxNumberOfAliases = reader.GetInt32(11);
+            var maxNumberOfDistributionLists = reader.GetInt32(12);
+            var limitationsEnabled = Convert.ToInt32(reader.GetValue(13), CultureInfo.InvariantCulture);
+            var maxAccountSize = reader.GetInt32(14);
+            var signatureEnabled = Convert.ToInt32(reader.GetValue(15), CultureInfo.InvariantCulture) != 0;
+            var signatureMethod = Convert.ToInt32(reader.GetValue(16), CultureInfo.InvariantCulture);
+            var signaturePlainText = reader.GetString(17);
+            var signatureHtml = reader.GetString(18);
+            var addSignaturesToReplies = Convert.ToInt32(reader.GetValue(19), CultureInfo.InvariantCulture) != 0;
+            var addSignaturesToLocalMail = Convert.ToInt32(reader.GetValue(20), CultureInfo.InvariantCulture) != 0;
+            var antiSpamOptions = Convert.ToInt32(reader.GetValue(21), CultureInfo.InvariantCulture);
             domains.Add(
                 new DomainAdministrationSnapshot(
                     Id: id,
@@ -96,6 +102,7 @@ ORDER BY domainname ASC;
                     AntiSpamEnableGreylisting: (antiSpamOptions & AntiSpamOptionUseGreylisting) != 0,
                     AdDomainName: adDomainName,
                     MaxSize: maxSize,
+                    AllocatedSize: allocatedSize,
                     MaxNumberOfAccounts: maxNumberOfAccounts,
                     MaxNumberOfAliases: maxNumberOfAliases,
                     MaxNumberOfDistributionLists: maxNumberOfDistributionLists,
@@ -110,8 +117,8 @@ ORDER BY domainname ASC;
                     AddSignaturesToReplies: addSignaturesToReplies,
                     AddSignaturesToLocalMail: addSignaturesToLocalMail,
                     DkimSignEnabled: (antiSpamOptions & AntiSpamOptionDkimSign) != 0,
-                    DkimSelector: reader.GetString(21),
-                    DkimPrivateKeyFile: reader.GetString(22),
+                    DkimSelector: reader.GetString(22),
+                    DkimPrivateKeyFile: reader.GetString(23),
                     DkimHeaderCanonicalizationMethod:
                         (antiSpamOptions & AntiSpamOptionDkimSimpleHeader) != 0 ? 1 : 2,
                     DkimBodyCanonicalizationMethod:

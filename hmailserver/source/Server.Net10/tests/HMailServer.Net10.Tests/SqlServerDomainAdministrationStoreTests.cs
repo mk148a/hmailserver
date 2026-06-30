@@ -18,6 +18,7 @@ public sealed class SqlServerDomainAdministrationStoreTests
         StringAssert.Contains(sql, "domainuseplusaddressing");
         StringAssert.Contains(sql, "domainplusaddressingchar");
         StringAssert.Contains(sql, "domainaddomain");
+        StringAssert.Contains(sql, "domainallocatedsize");
         StringAssert.Contains(sql, "domainmaxsize");
         StringAssert.Contains(sql, "domainmaxnoofaccounts");
         StringAssert.Contains(sql, "domainmaxnoofaliases");
@@ -49,7 +50,12 @@ public sealed class SqlServerDomainAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("OPENROWSET", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("BULK", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_messages", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SUM(messagesize", StringComparison.OrdinalIgnoreCase));
         StringAssert.Contains(sql, "FROM hm_domains");
+        StringAssert.Contains(sql, "FROM hm_accounts");
+        StringAssert.Contains(sql, "SUM(CAST(accountmaxsize AS bigint))");
+        StringAssert.Contains(sql, "accountdomainid = hm_domains.domainid");
         StringAssert.Contains(sql, "domainaddomain");
         StringAssert.Contains(sql, "domainantispamoptions");
         StringAssert.Contains(sql, "domaindkimselector");

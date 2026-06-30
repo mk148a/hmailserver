@@ -11,6 +11,7 @@ public sealed record DomainAdministrationSnapshot(
     bool AntiSpamEnableGreylisting = false,
     string AdDomainName = "",
     int MaxSize = 0,
+    long AllocatedSize = 0,
     int MaxNumberOfAccounts = 0,
     int MaxNumberOfAliases = 0,
     int MaxNumberOfDistributionLists = 0,
