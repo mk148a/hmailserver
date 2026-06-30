@@ -32,7 +32,11 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'EnableImapSASLPlain' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'EnableImapSASLInitialResponse' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'imappublicfoldername' THEN settingstring END), N''),
-    COALESCE(MAX(CASE WHEN settingname = N'IMAPHierarchyDelimiter' THEN settingstring END), N'')
+    COALESCE(MAX(CASE WHEN settingname = N'IMAPHierarchyDelimiter' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'authallowplaintext' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'allowmailfromnull' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'smtpallowincorrectlineendings' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'adddeliveredtoheader' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -60,7 +64,11 @@ WHERE settingname IN
     N'EnableImapSASLPlain',
     N'EnableImapSASLInitialResponse',
     N'imappublicfoldername',
-    N'IMAPHierarchyDelimiter'
+    N'IMAPHierarchyDelimiter',
+    N'authallowplaintext',
+    N'allowmailfromnull',
+    N'smtpallowincorrectlineendings',
+    N'adddeliveredtoheader'
 );
 """;
 
@@ -111,6 +119,10 @@ WHERE settingname IN
             ImapSaslPlainEnabled: reader.GetInt32(21) != 0,
             ImapSaslInitialResponseEnabled: reader.GetInt32(22) != 0,
             ImapPublicFolderName: reader.GetString(23),
-            ImapHierarchyDelimiter: reader.GetString(24));
+            ImapHierarchyDelimiter: reader.GetString(24),
+            AllowSmtpAuthPlain: reader.GetInt32(25) != 0,
+            AllowMailFromNull: reader.GetInt32(26) != 0,
+            AllowIncorrectLineEndings: reader.GetInt32(27) != 0,
+            AddDeliveredToHeader: reader.GetInt32(28) != 0);
     }
 }

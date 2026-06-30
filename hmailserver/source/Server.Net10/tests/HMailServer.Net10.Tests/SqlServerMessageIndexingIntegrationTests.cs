@@ -123,6 +123,10 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsFalse(settings.IMAPSASLInitialResponseEnabled);
             Assert.AreEqual("#Shared", settings.IMAPPublicFolderName);
             Assert.AreEqual("/", settings.IMAPHierarchyDelimiter);
+            Assert.IsTrue(settings.AllowSMTPAuthPlain);
+            Assert.IsTrue(settings.DenyMailFromNull);
+            Assert.IsTrue(settings.AllowIncorrectLineEndings);
+            Assert.IsFalse(settings.AddDeliveredToHeader);
         }
         finally
         {
@@ -767,6 +771,10 @@ VALUES
     (N'EnableImapSASLInitialResponse', N'', 0),
     (N'imappublicfoldername', N'#Shared', 0),
     (N'IMAPHierarchyDelimiter', N'/', 0),
+    (N'authallowplaintext', N'', 1),
+    (N'allowmailfromnull', N'', 0),
+    (N'smtpallowincorrectlineendings', N'', 1),
+    (N'adddeliveredtoheader', N'', 0),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

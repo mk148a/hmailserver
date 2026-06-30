@@ -39,6 +39,10 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'EnableImapSASLInitialResponse'");
         StringAssert.Contains(sql, "settingname = N'imappublicfoldername'");
         StringAssert.Contains(sql, "settingname = N'IMAPHierarchyDelimiter'");
+        StringAssert.Contains(sql, "settingname = N'authallowplaintext'");
+        StringAssert.Contains(sql, "settingname = N'allowmailfromnull'");
+        StringAssert.Contains(sql, "settingname = N'smtpallowincorrectlineendings'");
+        StringAssert.Contains(sql, "settingname = N'adddeliveredtoheader'");
     }
 
     [TestMethod]

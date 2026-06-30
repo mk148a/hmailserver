@@ -461,6 +461,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.MaxPOP3Connections = value;
     }
 
+    public override bool AllowSMTPAuthPlain
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.AllowSMTPAuthPlain
+                : _administrationSnapshot.AllowSmtpAuthPlain;
+        }
+        set => base.AllowSMTPAuthPlain = value;
+    }
+
+    public override bool DenyMailFromNull
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.DenyMailFromNull
+                : !_administrationSnapshot.AllowMailFromNull;
+        }
+        set => base.DenyMailFromNull = value;
+    }
+
     public override int SMTPNoOfTries
     {
         get
@@ -737,6 +761,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.IMAPHierarchyDelimiter = value;
     }
 
+    public override bool AllowIncorrectLineEndings
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.AllowIncorrectLineEndings
+                : _administrationSnapshot.AllowIncorrectLineEndings;
+        }
+        set => base.AllowIncorrectLineEndings = value;
+    }
+
+    public override bool AddDeliveredToHeader
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.AddDeliveredToHeader
+                : _administrationSnapshot.AddDeliveredToHeader;
+        }
+        set => base.AddDeliveredToHeader = value;
+    }
+
     public override IInterfaceMessageIndexing MessageIndexing
     {
         get
@@ -852,8 +900,8 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual int MaxSMTPConnections { get => Unavailable<int>(); set => Unavailable(); }
     public virtual int MaxPOP3Connections { get => Unavailable<int>(); set => Unavailable(); }
     public string MirrorEMailAddress { get => Unavailable<string>(); set => Unavailable(); }
-    public bool AllowSMTPAuthPlain { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool DenyMailFromNull { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool AllowSMTPAuthPlain { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool DenyMailFromNull { get => Unavailable<bool>(); set => Unavailable(); }
     public IInterfaceLogging Logging => Unavailable<IInterfaceLogging>();
     public virtual IInterfaceSecurityRanges SecurityRanges => Unavailable<IInterfaceSecurityRanges>();
     public virtual int SMTPNoOfTries { get => Unavailable<int>(); set => Unavailable(); }
@@ -887,7 +935,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual bool IMAPIdleEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public int WorkerThreadPriority { get => Unavailable<int>(); set => Unavailable(); }
     public int TCPIPThreads { get => Unavailable<int>(); set => Unavailable(); }
-    public bool AllowIncorrectLineEndings { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool AllowIncorrectLineEndings { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual int MaxSMTPRecipientsInBatch { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceAntiSpam AntiSpam => Unavailable<IInterfaceAntiSpam>();
     public virtual bool DisconnectInvalidClients { get => Unavailable<bool>(); set => Unavailable(); }
@@ -896,7 +944,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual IInterfaceTCPIPPorts TCPIPPorts => Unavailable<IInterfaceTCPIPPorts>();
     public bool SMTPRelayerUseSSL { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual IInterfaceSSLCertificates SSLCertificates => Unavailable<IInterfaceSSLCertificates>();
-    public bool AddDeliveredToHeader { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool AddDeliveredToHeader { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string IMAPPublicFolderName { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool IMAPACLEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public void SetAdministratorPassword(string newVal) => Unavailable();

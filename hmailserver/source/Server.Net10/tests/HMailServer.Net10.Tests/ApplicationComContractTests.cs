@@ -116,7 +116,11 @@ public sealed class ApplicationComContractTests
                     ImapSaslPlainEnabled: true,
                     ImapSaslInitialResponseEnabled: false,
                     ImapPublicFolderName: "#Shared",
-                    ImapHierarchyDelimiter: "/")));
+                    ImapHierarchyDelimiter: "/",
+                    AllowSmtpAuthPlain: true,
+                    AllowMailFromNull: false,
+                    AllowIncorrectLineEndings: true,
+                    AddDeliveredToHeader: false)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -154,6 +158,10 @@ public sealed class ApplicationComContractTests
         Assert.IsFalse(settings.IMAPSASLInitialResponseEnabled);
         Assert.AreEqual("#Shared", settings.IMAPPublicFolderName);
         Assert.AreEqual("/", settings.IMAPHierarchyDelimiter);
+        Assert.IsTrue(settings.AllowSMTPAuthPlain);
+        Assert.IsTrue(settings.DenyMailFromNull);
+        Assert.IsTrue(settings.AllowIncorrectLineEndings);
+        Assert.IsFalse(settings.AddDeliveredToHeader);
     }
 
     [TestMethod]

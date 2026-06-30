@@ -45,13 +45,17 @@ public sealed class SettingsComContractTests
     {
         var expected = new[]
         {
+            (Name: nameof(IInterfaceSettings.AllowSMTPAuthPlain), DispId: 8),
+            (Name: nameof(IInterfaceSettings.DenyMailFromNull), DispId: 11),
             (Name: nameof(IInterfaceSettings.ServiceSMTP), DispId: 26),
             (Name: nameof(IInterfaceSettings.ServicePOP3), DispId: 27),
             (Name: nameof(IInterfaceSettings.ServiceIMAP), DispId: 28),
             (Name: nameof(IInterfaceSettings.IMAPSortEnabled), DispId: 54),
             (Name: nameof(IInterfaceSettings.IMAPQuotaEnabled), DispId: 55),
             (Name: nameof(IInterfaceSettings.IMAPIdleEnabled), DispId: 56),
+            (Name: nameof(IInterfaceSettings.AllowIncorrectLineEndings), DispId: 61),
             (Name: nameof(IInterfaceSettings.DisconnectInvalidClients), DispId: 64),
+            (Name: nameof(IInterfaceSettings.AddDeliveredToHeader), DispId: 73),
             (Name: nameof(IInterfaceSettings.IMAPACLEnabled), DispId: 75),
             (Name: nameof(IInterfaceSettings.IMAPSASLPlainEnabled), DispId: 101),
             (Name: nameof(IInterfaceSettings.IMAPSASLInitialResponseEnabled), DispId: 102)
@@ -107,6 +111,7 @@ public sealed class SettingsComContractTests
         var imapCapabilityError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSortEnabled);
         var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
         var imapNamingError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPPublicFolderName);
+        var smtpPolicyError = Assert.ThrowsExactly<COMException>(() => _ = settings.AllowSMTPAuthPlain);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -114,6 +119,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, imapCapabilityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapNamingError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, smtpPolicyError.ErrorCode);
     }
 
     [TestMethod]
@@ -156,7 +162,11 @@ public sealed class SettingsComContractTests
                 ImapSaslPlainEnabled: true,
                 ImapSaslInitialResponseEnabled: false,
                 ImapPublicFolderName: "#Shared",
-                ImapHierarchyDelimiter: "/"));
+                ImapHierarchyDelimiter: "/",
+                AllowSmtpAuthPlain: true,
+                AllowMailFromNull: false,
+                AllowIncorrectLineEndings: true,
+                AddDeliveredToHeader: false));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -183,6 +193,10 @@ public sealed class SettingsComContractTests
         Assert.IsFalse(settings.IMAPSASLInitialResponseEnabled);
         Assert.AreEqual("#Shared", settings.IMAPPublicFolderName);
         Assert.AreEqual("/", settings.IMAPHierarchyDelimiter);
+        Assert.IsTrue(settings.AllowSMTPAuthPlain);
+        Assert.IsTrue(settings.DenyMailFromNull);
+        Assert.IsTrue(settings.AllowIncorrectLineEndings);
+        Assert.IsFalse(settings.AddDeliveredToHeader);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -259,6 +273,18 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.IMAPHierarchyDelimiter = ".").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.AllowSMTPAuthPlain = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.DenyMailFromNull = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.AllowIncorrectLineEndings = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.AddDeliveredToHeader = true).ErrorCode);
     }
 
     [TestMethod]
