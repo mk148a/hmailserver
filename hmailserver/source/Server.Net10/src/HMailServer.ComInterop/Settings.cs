@@ -521,6 +521,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.SMTPMinutesBetweenTry = value;
     }
 
+    public override string SMTPRelayer
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SMTPRelayer
+                : _administrationSnapshot.SmtpRelayer;
+        }
+        set => base.SMTPRelayer = value;
+    }
+
     public override string WelcomeSMTP
     {
         get
@@ -603,6 +615,42 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 : _administrationSnapshot.HostName;
         }
         set => base.HostName = value;
+    }
+
+    public override bool SMTPRelayerRequiresAuthentication
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SMTPRelayerRequiresAuthentication
+                : _administrationSnapshot.SmtpRelayerRequiresAuthentication;
+        }
+        set => base.SMTPRelayerRequiresAuthentication = value;
+    }
+
+    public override string SMTPRelayerUsername
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SMTPRelayerUsername
+                : _administrationSnapshot.SmtpRelayerUsername;
+        }
+        set => base.SMTPRelayerUsername = value;
+    }
+
+    public override int SMTPRelayerPort
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SMTPRelayerPort
+                : _administrationSnapshot.SmtpRelayerPort;
+        }
+        set => base.SMTPRelayerPort = value;
     }
 
     public override int MaxDeliveryThreads
@@ -878,6 +926,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.MaxNumberOfMXHosts = value;
     }
 
+    public override ComConnectionSecurity SMTPRelayerConnectionSecurity
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SMTPRelayerConnectionSecurity
+                : (ComConnectionSecurity)_administrationSnapshot.SmtpRelayerConnectionSecurity;
+        }
+        set => base.SMTPRelayerConnectionSecurity = value;
+    }
+
     public override bool VerifyRemoteSslCertificate
     {
         get
@@ -1074,7 +1134,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual IInterfaceSecurityRanges SecurityRanges => Unavailable<IInterfaceSecurityRanges>();
     public virtual int SMTPNoOfTries { get => Unavailable<int>(); set => Unavailable(); }
     public virtual int SMTPMinutesBetweenTry { get => Unavailable<int>(); set => Unavailable(); }
-    public string SMTPRelayer { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string SMTPRelayer { get => Unavailable<string>(); set => Unavailable(); }
     public virtual string WelcomeSMTP { get => Unavailable<string>(); set => Unavailable(); }
     public virtual string WelcomePOP3 { get => Unavailable<string>(); set => Unavailable(); }
     public virtual string WelcomeIMAP { get => Unavailable<string>(); set => Unavailable(); }
@@ -1085,10 +1145,10 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public IInterfaceAntiVirus AntiVirus => Unavailable<IInterfaceAntiVirus>();
     public virtual IInterfaceRoutes Routes => Unavailable<IInterfaceRoutes>();
     public virtual string HostName { get => Unavailable<string>(); set => Unavailable(); }
-    public bool SMTPRelayerRequiresAuthentication { get => Unavailable<bool>(); set => Unavailable(); }
-    public string SMTPRelayerUsername { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual bool SMTPRelayerRequiresAuthentication { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual string SMTPRelayerUsername { get => Unavailable<string>(); set => Unavailable(); }
     public void SetSMTPRelayerPassword(string newVal) => Unavailable();
-    public int SMTPRelayerPort { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int SMTPRelayerPort { get => Unavailable<int>(); set => Unavailable(); }
     public string UserInterfaceLanguage { get => Unavailable<string>(); set => Unavailable(); }
     public IInterfaceScripting Scripting => Unavailable<IInterfaceScripting>();
     public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
@@ -1130,7 +1190,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public int MaxAsynchronousThreads { get => Unavailable<int>(); set => Unavailable(); }
     public virtual IInterfaceMessageIndexing MessageIndexing => Unavailable<IInterfaceMessageIndexing>();
     public virtual int MaxNumberOfMXHosts { get => Unavailable<int>(); set => Unavailable(); }
-    public ComConnectionSecurity SMTPRelayerConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
+    public virtual ComConnectionSecurity SMTPRelayerConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
     public ComConnectionSecurity SMTPConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
     public virtual bool VerifyRemoteSslCertificate { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string SslCipherList { get => Unavailable<string>(); set => Unavailable(); }

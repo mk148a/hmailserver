@@ -50,7 +50,12 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'AutoBanOnLogonFailureEnabled' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'MaxInvalidLogonAttempts' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'LogonAttemptsWithinMinutes' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'AutoBanMinutes' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'AutoBanMinutes' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'smtprelayer' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'usesmtprelayerauthentication' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'smtprelayerusername' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'smtprelayerport' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'smtprelayerconnectionsecurity' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -96,7 +101,12 @@ WHERE settingname IN
     N'AutoBanOnLogonFailureEnabled',
     N'MaxInvalidLogonAttempts',
     N'LogonAttemptsWithinMinutes',
-    N'AutoBanMinutes'
+    N'AutoBanMinutes',
+    N'smtprelayer',
+    N'usesmtprelayerauthentication',
+    N'smtprelayerusername',
+    N'smtprelayerport',
+    N'smtprelayerconnectionsecurity'
 );
 """;
 
@@ -165,6 +175,11 @@ WHERE settingname IN
             AutoBanOnLogonFailure: reader.GetInt32(39) != 0,
             MaxInvalidLogonAttempts: reader.GetInt32(40),
             MaxInvalidLogonAttemptsWithin: reader.GetInt32(41),
-            AutoBanMinutes: reader.GetInt32(42));
+            AutoBanMinutes: reader.GetInt32(42),
+            SmtpRelayer: reader.GetString(43),
+            SmtpRelayerRequiresAuthentication: reader.GetInt32(44) != 0,
+            SmtpRelayerUsername: reader.GetString(45),
+            SmtpRelayerPort: reader.GetInt32(46),
+            SmtpRelayerConnectionSecurity: reader.GetInt32(47));
     }
 }

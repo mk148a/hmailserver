@@ -134,7 +134,12 @@ public sealed class ApplicationComContractTests
                     AutoBanOnLogonFailure: true,
                     MaxInvalidLogonAttempts: 3,
                     MaxInvalidLogonAttemptsWithin: 30,
-                    AutoBanMinutes: 60)));
+                    AutoBanMinutes: 60,
+                    SmtpRelayer: "relay.example.test",
+                    SmtpRelayerRequiresAuthentication: true,
+                    SmtpRelayerUsername: "relay-user",
+                    SmtpRelayerPort: 587,
+                    SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.StartTlsRequired)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -160,6 +165,11 @@ public sealed class ApplicationComContractTests
         Assert.IsTrue(settings.ServiceIMAP);
         Assert.AreEqual(4, settings.SMTPNoOfTries);
         Assert.AreEqual(60, settings.SMTPMinutesBetweenTry);
+        Assert.AreEqual("relay.example.test", settings.SMTPRelayer);
+        Assert.IsTrue(settings.SMTPRelayerRequiresAuthentication);
+        Assert.AreEqual("relay-user", settings.SMTPRelayerUsername);
+        Assert.AreEqual(587, settings.SMTPRelayerPort);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);

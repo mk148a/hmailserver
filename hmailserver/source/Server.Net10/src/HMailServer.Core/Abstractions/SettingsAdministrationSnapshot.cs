@@ -43,4 +43,9 @@ public sealed record SettingsAdministrationSnapshot(
     bool AutoBanOnLogonFailure = false,
     int MaxInvalidLogonAttempts = 0,
     int MaxInvalidLogonAttemptsWithin = 0,
-    int AutoBanMinutes = 0);
+    int AutoBanMinutes = 0,
+    string SmtpRelayer = "",
+    bool SmtpRelayerRequiresAuthentication = false,
+    string SmtpRelayerUsername = "",
+    int SmtpRelayerPort = 0,
+    int SmtpRelayerConnectionSecurity = 0);

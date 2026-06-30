@@ -58,6 +58,11 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'MaxInvalidLogonAttempts'");
         StringAssert.Contains(sql, "settingname = N'LogonAttemptsWithinMinutes'");
         StringAssert.Contains(sql, "settingname = N'AutoBanMinutes'");
+        StringAssert.Contains(sql, "settingname = N'smtprelayer'");
+        StringAssert.Contains(sql, "settingname = N'usesmtprelayerauthentication'");
+        StringAssert.Contains(sql, "settingname = N'smtprelayerusername'");
+        StringAssert.Contains(sql, "settingname = N'smtprelayerport'");
+        StringAssert.Contains(sql, "settingname = N'smtprelayerconnectionsecurity'");
     }
 
     [TestMethod]
@@ -71,6 +76,6 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("password", StringComparison.OrdinalIgnoreCase));
-        Assert.IsFalse(sql.Contains("smtprelayer", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("smtprelayerpassword", StringComparison.OrdinalIgnoreCase));
     }
 }
