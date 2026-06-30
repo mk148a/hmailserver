@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice bounded read-only `Settings` integer limit set'ini (`MaxSMTPConnections`, `MaxPOP3Connections`, `MaxIMAPConnections`, `MaxDeliveryThreads`) existing `hm_settings.settinginteger` satirlarindan acmali; kurulu vtable/DISPID ve legacy setting-name degerlerini korumali ve setter, live listener/delivery-worker reconfiguration, service state veya daha genis Settings/Admin davranisi eklememeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice bounded read-only `Settings` protocol-enabled flag set'ini (`ServiceSMTP`, `ServicePOP3`, `ServiceIMAP`) existing `protocolsmtp`/`protocolpop3`/`protocolimap` `hm_settings.settinginteger` satirlarindan acmali; kurulu vtable/DISPID ve `VARIANT_BOOL` marshaling'i korumali ve setter, live listener enable/disable, service state veya daha genis Settings/Admin davranisi eklememeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Settings` snapshot/store'u legacy integer limit getter'larini read-only acacak sekilde genisletildi: `MaxSMTPConnections`, `MaxPOP3Connections`, `MaxIMAPConnections` ve `MaxDeliveryThreads` mevcut legacy `hm_settings.settinginteger` satirlarindan geliyor. Setter'lar `E_NOTIMPL`; live listener/delivery-worker reconfiguration ve service state kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 24/24, full Net10 testleri 719/719 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` yolu legacy `HostName`, `WelcomeSMTP`, `WelcomePOP3` ve `WelcomeIMAP` getter'larini existing `hm_settings.settingstring` satirlarindan read-only acacak sekilde genisletildi. Installed vtable/DISPID ve direct-activation `E_ACCESSDENIED` siniri korundu; setter'lar `E_NOTIMPL`, listener reconfiguration, service state, secret settings ve genis Settings mutation kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 24/24, full Net10 testleri 719/719 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Domains` koleksiyonu legacy `Domains.Names` getter'ini read-only acacak sekilde genisletildi; loaded domain snapshot'larindan `id\tname\tactive\r\n` formatini uretiyor. `Refresh`, collection mutation ve database reload kapsam disi kaldi. Dar domain contract/integration filtresi 6/6, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Account` adapter'i non-secret Active Directory scalar getter'larini read-only acacak sekilde genisletildi: `IsAD`, `ADDomain`, ve `ADUsername` mevcut `hm_accounts.accountisad`/`accountaddomain`/`accountadusername` kolonlarindan geliyor. Setter, AD auth, password/security-sensitive alanlar ve account mutation kapsam disi kaldi. Dar account contract/store/integration filtresi 15/15, full Net10 testleri 715/715 gecti.
@@ -200,7 +201,7 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesinden once tamamlanan kod commit'i:
 
 ```text
-46fdd0344 feat(net10): expose settings host and welcome COM getters
+a61713572 feat(net10): expose settings limit COM getters
 ```
 
 Son 30 commit icinde one cikan son dilimler:
@@ -456,5 +457,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only `Settings` integer limit dilimini ele al: `MaxSMTPConnections`, `MaxPOP3Connections`, `MaxIMAPConnections`, `MaxDeliveryThreads`; existing `hm_settings.settinginteger` satirlarini ve legacy setting-name degerlerini kullan, mevcut vtable/DISPID degerlerini koru, setter/live listener veya delivery-worker reconfiguration/service state kapsamlarini acma.
+5. Current Next Slice olarak authenticated read-only `Settings` protocol-enabled flag dilimini ele al: `ServiceSMTP`, `ServicePOP3`, `ServiceIMAP`; existing `protocolsmtp`/`protocolpop3`/`protocolimap` `hm_settings.settinginteger` satirlarini kullan, mevcut vtable/DISPID ve `VARIANT_BOOL` marshaling'i koru, setter/live listener enable-disable/service state kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; en gec her 10 committe bir push yap ve bu iki commitlik landing sonunda push ederek branch'i temiz birak.
