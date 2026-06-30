@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded Settings numeric runtime slice read-only `Settings.RuleLoopLimit`, `WorkerThreadPriority`, `TCPIPThreads` ve `MaxNumberOfMXHosts` getter'larini existing `rulelooplimit`/`workerthreadpriority`/`tcpipthreads`/`MaxNumberOfMXHosts` `hm_settings.settinginteger` satirlarindan acmali; kurulu vtable/DISPID 48/57/60/90 ve integer marshaling'i sabit kalmali ve setter, live rule loop/runtime thread tuning, SMTP MX scheduling veya daha genis Settings/Admin mutation davranisi eklenmemeli. `MaxAsynchronousThreads` storage kaniti ayrica dogrulanmadan bu dilime alinmamali.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded Settings SSL/TLS scalar slice read-only `Settings.VerifyRemoteSslCertificate` ve `SslCipherList` getter'larini existing `VerifyRemoteSslCertificate` `hm_settings.settinginteger` ve `SslCipherList` `hm_settings.settingstring` satirlarindan acmali; kurulu vtable/DISPID 93/94 ve `VARIANT_BOOL`/`BSTR` marshaling'i sabit kalmali ve setter, live TLS listener/client reload, cipher validation, certificate policy, TLS version flag veya daha genis Settings/Admin mutation davranisi eklenmemeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Settings` snapshot/store'u Settings numeric runtime getter'larini read-only acacak sekilde genisletildi: `RuleLoopLimit`, `WorkerThreadPriority`, `TCPIPThreads` ve `MaxNumberOfMXHosts` mevcut legacy `rulelooplimit`/`workerthreadpriority`/`tcpipthreads`/`MaxNumberOfMXHosts` `hm_settings.settinginteger` satirlarindan geliyor. DISPIDs 48/57/60/90 ve integer metadata'si contract testinde kilitlendi. Setter'lar `E_NOTIMPL`, live rule-loop/thread tuning, SMTP MX scheduling ve `MaxAsynchronousThreads` storage dogrulanmadan kapsam disi kaldi. Dar filtre 22/22, full Net10 testleri 722/722 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u SMTP routing string getter'larini read-only acacak sekilde genisletildi: `MirrorEMailAddress`, `DefaultDomain` ve `SMTPDeliveryBindToIP` mevcut legacy `mirroremailaddress`/`defaultdomain`/`smtpdeliverybindtoip` `hm_settings.settingstring` satirlarindan geliyor. DISPIDs 7/50/51 ve `BSTR` metadata'si contract testinde kilitlendi. Setter'lar `E_NOTIMPL`, relayer credential ve live SMTP routing/bind degisikligi kapsam disi kaldi. Dar filtre 21/21, full Net10 testleri 721/721 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u SMTP policy getter'larini read-only acacak sekilde genisletildi: `AllowSMTPAuthPlain`, `DenyMailFromNull`, `AllowIncorrectLineEndings` ve `AddDeliveredToHeader` mevcut legacy `authallowplaintext`/`allowmailfromnull`/`smtpallowincorrectlineendings`/`adddeliveredtoheader` `hm_settings.settinginteger` satirlarindan geliyor. `DenyMailFromNull`, raw `AllowMailFromNull` degerini legacy gibi ters ceviriyor; DISPIDs 8/11/61/73 ve `VARIANT_BOOL` metadata'si contract testinde kilitlendi. Setter'lar `E_NOTIMPL`, live SMTP authentication/session/delivery degisikligi kapsam disi kaldi. Dar filtre 26/26, full Net10 testleri 721/721 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u IMAP naming getter'larini read-only acacak sekilde genisletildi: `IMAPPublicFolderName` ve `IMAPHierarchyDelimiter` mevcut legacy `imappublicfoldername`/`IMAPHierarchyDelimiter` `hm_settings.settingstring` satirlarindan geliyor. DISPIDs 74/87 ve `BSTR` metadata'si yeni contract testinde kilitlendi; setter'lar `E_NOTIMPL`, folder/rule rename-rewrite ve live IMAP namespace degisikligi kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 26/26, full Net10 testleri 721/721 gecti; Windows service/COM build 0 uyari/0 hata verdi.
@@ -209,7 +210,7 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesinden once tamamlanan kod commit'i:
 
 ```text
-ddf3af79e feat(net10): expose settings SMTP routing getters
+fc6f37de5 feat(net10): expose settings runtime numeric getters
 ```
 
 Son 30 commit icinde one cikan son dilimler:
@@ -465,5 +466,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only Settings numeric runtime getter'larini ele al: `Settings.RuleLoopLimit`, `WorkerThreadPriority`, `TCPIPThreads`, `MaxNumberOfMXHosts`; existing `rulelooplimit`/`workerthreadpriority`/`tcpipthreads`/`MaxNumberOfMXHosts` `hm_settings.settinginteger` satirlarini kullan, mevcut vtable/DISPID 48/57/60/90 ve integer marshaling'ini koru, setter/live rule-loop/thread-tuning/SMTP MX scheduling kapsamlarini acma. `MaxAsynchronousThreads` icin storage row'unu ayrica dogrulamadan ekleme.
+5. Current Next Slice olarak authenticated read-only Settings SSL/TLS scalar getter'larini ele al: `Settings.VerifyRemoteSslCertificate`, `SslCipherList`; existing `VerifyRemoteSslCertificate` `hm_settings.settinginteger` ve `SslCipherList` `hm_settings.settingstring` satirlarini kullan, mevcut vtable/DISPID 93/94 ve `VARIANT_BOOL`/`BSTR` marshaling'ini koru, setter/live TLS reload/cipher validation/certificate policy/TLS version flag kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; en gec her 10 committe bir push yap ve bu iki commitlik landing sonunda push ederek branch'i temiz birak.
