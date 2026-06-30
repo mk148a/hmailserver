@@ -142,7 +142,7 @@ public sealed class Account : IInterfaceAccount
         }
     }
 
-    public int QuotaUsed => Read(0);
+    public int QuotaUsed => _administrationSnapshot?.QuotaUsed ?? Read(0);
 
     public bool ForwardEnabled { get => _administrationSnapshot?.ForwardEnabled ?? Read(_forwardEnabled); set => Write(() => _forwardEnabled = value); }
 

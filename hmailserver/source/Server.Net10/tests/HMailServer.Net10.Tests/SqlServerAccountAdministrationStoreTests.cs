@@ -38,5 +38,10 @@ public sealed class SqlServerAccountAdministrationStoreTests
         StringAssert.Contains(sql, "messageaccountid = hm_accounts.accountid");
         StringAssert.Contains(sql, "WHERE accountdomainid = @DomainID");
         StringAssert.Contains(sql, "ORDER BY accountaddress ASC");
+        Assert.IsFalse(sql.Contains(" JOIN ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("messagefilename", StringComparison.OrdinalIgnoreCase));
     }
 }

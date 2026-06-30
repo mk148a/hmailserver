@@ -52,10 +52,12 @@ public sealed class AccountsComContractTests
         var accountsError = Assert.ThrowsExactly<COMException>(() => _ = new Accounts().Count);
         var accountError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Address);
         var sizeError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Size);
+        var quotaUsedError = Assert.ThrowsExactly<COMException>(() => _ = new Account().QuotaUsed);
 
         Assert.AreEqual(EAccessDenied, accountsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, accountError.ErrorCode);
         Assert.AreEqual(EAccessDenied, sizeError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, quotaUsedError.ErrorCode);
     }
 
     [TestMethod]
@@ -70,8 +72,9 @@ public sealed class AccountsComContractTests
                     "admin@example.test",
                     true,
                     2,
-                    MaxSize: 2048,
+                    MaxSize: 2,
                     Size: 2.5f,
+                    QuotaUsed: 125,
                     PersonFirstName: "Ada",
                     PersonLastName: "Lovelace",
                     VacationMessageIsOn: true,
@@ -93,16 +96,17 @@ public sealed class AccountsComContractTests
                     "user@example.test",
                     false,
                     0,
-                    MaxSize: 1024,
+                    MaxSize: 0,
                     Size: 0.125f,
+                    QuotaUsed: 0,
                     PersonFirstName: "Grace",
                     PersonLastName: "Hopper")
             });
 
         Assert.AreEqual(2, accounts.Count);
-        AssertAccount(accounts[0], 10, 100, "admin@example.test", true, ComAdminLevel.ServerAdministrator, 2048, 2.5f, "Ada", "Lovelace");
-        AssertAccount(accounts.get_ItemByAddress("USER@EXAMPLE.TEST"), 20, 100, "user@example.test", false, ComAdminLevel.Normal, 1024, 0.125f, "Grace", "Hopper");
-        AssertAccount(accounts.get_ItemByDBID(10), 10, 100, "admin@example.test", true, ComAdminLevel.ServerAdministrator, 2048, 2.5f, "Ada", "Lovelace");
+        AssertAccount(accounts[0], 10, 100, "admin@example.test", true, ComAdminLevel.ServerAdministrator, 2, 2.5f, 125, "Ada", "Lovelace");
+        AssertAccount(accounts.get_ItemByAddress("USER@EXAMPLE.TEST"), 20, 100, "user@example.test", false, ComAdminLevel.Normal, 0, 0.125f, 0, "Grace", "Hopper");
+        AssertAccount(accounts.get_ItemByDBID(10), 10, 100, "admin@example.test", true, ComAdminLevel.ServerAdministrator, 2, 2.5f, 125, "Ada", "Lovelace");
         AssertAccountDeliveryDetailScalars(accounts[0]);
 
         var badIndex = Assert.ThrowsExactly<COMException>(() => _ = accounts[2]);
@@ -148,6 +152,7 @@ public sealed class AccountsComContractTests
         ComAdminLevel adminLevel,
         int maxSize,
         float size,
+        int quotaUsed,
         string personFirstName,
         string personLastName)
     {
@@ -158,6 +163,7 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(adminLevel, account.AdminLevel);
         Assert.AreEqual(maxSize, account.MaxSize);
         Assert.AreEqual(size, account.Size, 0.0001f);
+        Assert.AreEqual(quotaUsed, account.QuotaUsed);
         Assert.AreEqual(personFirstName, account.PersonFirstName);
         Assert.AreEqual(personLastName, account.PersonLastName);
     }

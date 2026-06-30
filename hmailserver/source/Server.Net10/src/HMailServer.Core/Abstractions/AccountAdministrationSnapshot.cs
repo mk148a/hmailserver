@@ -8,6 +8,7 @@ public sealed record AccountAdministrationSnapshot(
     int AdminLevel,
     int MaxSize = 0,
     float Size = 0f,
+    int QuotaUsed = 0,
     string PersonFirstName = "",
     string PersonLastName = "",
     bool VacationMessageIsOn = false,

@@ -205,8 +205,9 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("admin@example.test", accounts[0].Address);
             Assert.AreEqual(10, accounts[0].DomainID);
             Assert.AreEqual(ComAdminLevel.ServerAdministrator, accounts[0].AdminLevel);
-            Assert.AreEqual(2048, accounts[0].MaxSize);
+            Assert.AreEqual(2, accounts[0].MaxSize);
             Assert.AreEqual(2.5f, accounts[0].Size, 0.0001f);
+            Assert.AreEqual(125, accounts[0].QuotaUsed);
             Assert.AreEqual("Ada", accounts[0].PersonFirstName);
             Assert.AreEqual("Lovelace", accounts[0].PersonLastName);
             Assert.IsTrue(accounts[0].VacationMessageIsOn);
@@ -235,6 +236,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             var pendingSensitiveRead = Assert.ThrowsExactly<COMException>(() => _ = fetchAccounts[0].Password);
             Assert.AreEqual(unchecked((int)0x80004001), pendingSensitiveRead.ErrorCode);
             Assert.AreEqual(0.125f, accounts.get_ItemByDBID(20).Size, 0.0001f);
+            Assert.AreEqual(0, accounts.get_ItemByDBID(20).QuotaUsed);
             var rules = accounts[0].Rules;
             Assert.AreEqual(2, rules.Count);
             Assert.AreEqual("First rule", rules[0].Name);
@@ -942,7 +944,7 @@ VALUES
     (20, 10, N'user@example.test', 0, 0, 1024, N'Grace', N'Hopper',
      0, N'', N'', 0, CONVERT(datetime, '2026-01-01T00:00:00', 126), 0,
      0, N'', 0, 0, 0, N'', N''),
-    (10, 10, N'admin@example.test', 1, 2, 2048, N'Ada', N'Lovelace',
+    (10, 10, N'admin@example.test', 1, 2, 2, N'Ada', N'Lovelace',
      1, N'Away until Monday', N'Auto reply', 1, CONVERT(datetime, '2026-12-31T00:00:00', 126), 1,
      1, N'archive@example.test', 1, 1, 1, N'Regards,' + CHAR(13) + CHAR(10) + N'Ada', N'<p>Regards,<br>Ada</p>'),
     (30, 30, N'outside@other.test', 1, 0, 512, N'Outside', N'Example',

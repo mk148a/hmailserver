@@ -62,6 +62,8 @@ ORDER BY accountaddress ASC;
         var accounts = new List<AccountAdministrationSnapshot>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
+            var maxSize = reader.GetInt32(5);
+            var sizeBytes = Convert.ToInt64(reader.GetValue(6), CultureInfo.InvariantCulture);
             accounts.Add(
                 new AccountAdministrationSnapshot(
                     Id: reader.GetInt32(0),
@@ -69,9 +71,9 @@ ORDER BY accountaddress ASC;
                     Address: reader.GetString(2),
                     Active: Convert.ToInt32(reader.GetValue(3), CultureInfo.InvariantCulture) != 0,
                     AdminLevel: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture),
-                    MaxSize: reader.GetInt32(5),
-                    Size: CalculateLegacySizeMb(
-                        Convert.ToInt64(reader.GetValue(6), CultureInfo.InvariantCulture)),
+                    MaxSize: maxSize,
+                    Size: CalculateLegacySizeMb(sizeBytes),
+                    QuotaUsed: CalculateLegacyQuotaUsed(sizeBytes, maxSize),
                     PersonFirstName: reader.GetString(7),
                     PersonLastName: reader.GetString(8),
                     VacationMessageIsOn: ReadLegacyBoolean(reader, 9),
@@ -94,6 +96,18 @@ ORDER BY accountaddress ASC;
 
     private static float CalculateLegacySizeMb(long sizeBytes) =>
         MathF.Round((float)sizeBytes / (1024 * 1024), 3, MidpointRounding.AwayFromZero);
+
+    private static int CalculateLegacyQuotaUsed(long sizeBytes, int maxSizeMb)
+    {
+        var maxSizeKilobytes = (long)maxSizeMb * 1024;
+        if (maxSizeKilobytes <= 0)
+        {
+            return 0;
+        }
+
+        var currentSizeKilobytes = sizeBytes / 1024;
+        return (int)(((float)currentSizeKilobytes / maxSizeKilobytes) * 100);
+    }
 
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
         Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) != 0;
