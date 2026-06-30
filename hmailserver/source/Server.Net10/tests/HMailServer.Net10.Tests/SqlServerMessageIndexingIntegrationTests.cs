@@ -123,6 +123,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(settings.TlsVersion13Enabled);
             Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
             Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
+            Assert.AreEqual("master-user", settings.IMAPMasterUser);
             Assert.AreEqual(20480, settings.MaxMessageSize);
             Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
             Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -823,6 +824,7 @@ VALUES
     (N'SmtpDeliveryConnectionSecurity', N'', 2),
     (N'SslVersions', N'', 26),
     (N'TlsOptions', N'', 2),
+    (N'ImapMasterUser', N'master-user', 0),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

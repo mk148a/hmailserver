@@ -66,6 +66,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'SmtpDeliveryConnectionSecurity'");
         StringAssert.Contains(sql, "settingname = N'SslVersions'");
         StringAssert.Contains(sql, "settingname = N'TlsOptions'");
+        StringAssert.Contains(sql, "settingname = N'ImapMasterUser'");
     }
 
     [TestMethod]

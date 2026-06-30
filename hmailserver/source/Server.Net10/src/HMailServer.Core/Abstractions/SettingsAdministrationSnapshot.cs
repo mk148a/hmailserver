@@ -51,4 +51,5 @@ public sealed record SettingsAdministrationSnapshot(
     int SmtpRelayerConnectionSecurity = 0,
     int SmtpConnectionSecurity = 0,
     int SslVersions = 0,
-    int TlsOptions = 0);
+    int TlsOptions = 0,
+    string ImapMasterUser = "");

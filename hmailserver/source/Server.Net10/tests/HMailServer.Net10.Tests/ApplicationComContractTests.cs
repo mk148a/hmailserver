@@ -142,7 +142,8 @@ public sealed class ApplicationComContractTests
                     SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.StartTlsRequired,
                     SmtpConnectionSecurity: (int)ComConnectionSecurity.StartTlsOptional,
                     SslVersions: 26,
-                    TlsOptions: 2)));
+                    TlsOptions: 2,
+                    ImapMasterUser: "master-user")));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -180,6 +181,7 @@ public sealed class ApplicationComContractTests
         Assert.IsTrue(settings.TlsVersion13Enabled);
         Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
         Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
+        Assert.AreEqual("master-user", settings.IMAPMasterUser);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);

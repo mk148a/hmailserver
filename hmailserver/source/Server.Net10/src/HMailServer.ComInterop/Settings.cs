@@ -1028,6 +1028,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.TlsOptionPrioritizeChaChaEnabled = value;
     }
 
+    public override string IMAPMasterUser
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.IMAPMasterUser
+                : _administrationSnapshot.ImapMasterUser;
+        }
+        set => base.IMAPMasterUser = value;
+    }
+
     public override bool VerifyRemoteSslCertificate
     {
         get
@@ -1290,7 +1302,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual bool TlsVersion11Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool TlsVersion12Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public int CrashSimulationMode { get => Unavailable<int>(); set => Unavailable(); }
-    public string IMAPMasterUser { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string IMAPMasterUser { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool IMAPSASLPlainEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool IMAPSASLInitialResponseEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool TlsVersion13Enabled { get => Unavailable<bool>(); set => Unavailable(); }

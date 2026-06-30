@@ -123,7 +123,8 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.SMTPDeliveryBindToIP), DispId: 51),
             (Name: nameof(IInterfaceSettings.IMAPPublicFolderName), DispId: 74),
             (Name: nameof(IInterfaceSettings.IMAPHierarchyDelimiter), DispId: 87),
-            (Name: nameof(IInterfaceSettings.SslCipherList), DispId: 94)
+            (Name: nameof(IInterfaceSettings.SslCipherList), DispId: 94),
+            (Name: nameof(IInterfaceSettings.IMAPMasterUser), DispId: 100)
         };
 
         foreach (var item in expected)
@@ -180,6 +181,7 @@ public sealed class SettingsComContractTests
         var relayerError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayer);
         var smtpConnectionSecurityError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPConnectionSecurity);
         var tlsVersionError = Assert.ThrowsExactly<COMException>(() => _ = settings.TlsVersion10Enabled);
+        var imapMasterUserError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPMasterUser);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -196,6 +198,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, relayerError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpConnectionSecurityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, tlsVersionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, imapMasterUserError.ErrorCode);
     }
 
     [TestMethod]
@@ -264,7 +267,8 @@ public sealed class SettingsComContractTests
                 SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.StartTlsRequired,
                 SmtpConnectionSecurity: (int)ComConnectionSecurity.StartTlsOptional,
                 SslVersions: 26,
-                TlsOptions: 2));
+                TlsOptions: 2,
+                ImapMasterUser: "master-user"));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -291,6 +295,7 @@ public sealed class SettingsComContractTests
         Assert.IsTrue(settings.TlsVersion13Enabled);
         Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
         Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
+        Assert.AreEqual("master-user", settings.IMAPMasterUser);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -403,6 +408,9 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.TlsOptionPrioritizeChaChaEnabled = true).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.IMAPMasterUser = "changed-master").ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayerUseSSL = true).ErrorCode);
