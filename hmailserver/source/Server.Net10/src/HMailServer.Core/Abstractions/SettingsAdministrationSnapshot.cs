@@ -36,4 +36,6 @@ public sealed record SettingsAdministrationSnapshot(
     int RuleLoopLimit = 0,
     int WorkerThreadPriority = 0,
     int TcpIpThreads = 0,
-    int MaxNumberOfMxHosts = 0);
+    int MaxNumberOfMxHosts = 0,
+    bool VerifyRemoteSslCertificate = false,
+    string SslCipherList = "");

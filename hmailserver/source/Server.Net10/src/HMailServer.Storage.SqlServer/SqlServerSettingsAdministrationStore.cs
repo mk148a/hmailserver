@@ -43,7 +43,9 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'rulelooplimit' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'workerthreadpriority' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'tcpipthreads' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'MaxNumberOfMXHosts' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'MaxNumberOfMXHosts' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'VerifyRemoteSslCertificate' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'SslCipherList' THEN settingstring END), N'')
 FROM hm_settings
 WHERE settingname IN
 (
@@ -82,7 +84,9 @@ WHERE settingname IN
     N'rulelooplimit',
     N'workerthreadpriority',
     N'tcpipthreads',
-    N'MaxNumberOfMXHosts'
+    N'MaxNumberOfMXHosts',
+    N'VerifyRemoteSslCertificate',
+    N'SslCipherList'
 );
 """;
 
@@ -144,6 +148,8 @@ WHERE settingname IN
             RuleLoopLimit: reader.GetInt32(32),
             WorkerThreadPriority: reader.GetInt32(33),
             TcpIpThreads: reader.GetInt32(34),
-            MaxNumberOfMxHosts: reader.GetInt32(35));
+            MaxNumberOfMxHosts: reader.GetInt32(35),
+            VerifyRemoteSslCertificate: reader.GetInt32(36) != 0,
+            SslCipherList: reader.GetString(37));
     }
 }

@@ -878,6 +878,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.MaxNumberOfMXHosts = value;
     }
 
+    public override bool VerifyRemoteSslCertificate
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.VerifyRemoteSslCertificate
+                : _administrationSnapshot.VerifyRemoteSslCertificate;
+        }
+        set => base.VerifyRemoteSslCertificate = value;
+    }
+
+    public override string SslCipherList
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SslCipherList
+                : _administrationSnapshot.SslCipherList;
+        }
+        set => base.SslCipherList = value;
+    }
+
     public override IInterfaceIMAPFolders PublicFolders
     {
         get
@@ -1048,8 +1072,8 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual int MaxNumberOfMXHosts { get => Unavailable<int>(); set => Unavailable(); }
     public ComConnectionSecurity SMTPRelayerConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
     public ComConnectionSecurity SMTPConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
-    public bool VerifyRemoteSslCertificate { get => Unavailable<bool>(); set => Unavailable(); }
-    public string SslCipherList { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual bool VerifyRemoteSslCertificate { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual string SslCipherList { get => Unavailable<string>(); set => Unavailable(); }
     public bool TlsVersion10Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool TlsVersion11Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool TlsVersion12Enabled { get => Unavailable<bool>(); set => Unavailable(); }

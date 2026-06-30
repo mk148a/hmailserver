@@ -51,6 +51,8 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'tcpipthreads'");
         StringAssert.Contains(sql, "settingname = N'MaxNumberOfMXHosts'");
         Assert.IsFalse(sql.Contains("MaxAsynchronousThreads", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(sql, "settingname = N'VerifyRemoteSslCertificate'");
+        StringAssert.Contains(sql, "settingname = N'SslCipherList'");
     }
 
     [TestMethod]

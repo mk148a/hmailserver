@@ -134,6 +134,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(-1, settings.WorkerThreadPriority);
             Assert.AreEqual(16, settings.TCPIPThreads);
             Assert.AreEqual(22, settings.MaxNumberOfMXHosts);
+            Assert.IsTrue(settings.VerifyRemoteSslCertificate);
+            Assert.AreEqual("TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256", settings.SslCipherList);
         }
         finally
         {
@@ -789,6 +791,8 @@ VALUES
     (N'workerthreadpriority', N'', -1),
     (N'tcpipthreads', N'', 16),
     (N'MaxNumberOfMXHosts', N'', 22),
+    (N'VerifyRemoteSslCertificate', N'', 1),
+    (N'SslCipherList', N'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256', 0),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

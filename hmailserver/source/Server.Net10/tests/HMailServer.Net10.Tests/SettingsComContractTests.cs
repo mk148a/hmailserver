@@ -57,6 +57,7 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.DisconnectInvalidClients), DispId: 64),
             (Name: nameof(IInterfaceSettings.AddDeliveredToHeader), DispId: 73),
             (Name: nameof(IInterfaceSettings.IMAPACLEnabled), DispId: 75),
+            (Name: nameof(IInterfaceSettings.VerifyRemoteSslCertificate), DispId: 93),
             (Name: nameof(IInterfaceSettings.IMAPSASLPlainEnabled), DispId: 101),
             (Name: nameof(IInterfaceSettings.IMAPSASLInitialResponseEnabled), DispId: 102)
         };
@@ -106,7 +107,8 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.DefaultDomain), DispId: 50),
             (Name: nameof(IInterfaceSettings.SMTPDeliveryBindToIP), DispId: 51),
             (Name: nameof(IInterfaceSettings.IMAPPublicFolderName), DispId: 74),
-            (Name: nameof(IInterfaceSettings.IMAPHierarchyDelimiter), DispId: 87)
+            (Name: nameof(IInterfaceSettings.IMAPHierarchyDelimiter), DispId: 87),
+            (Name: nameof(IInterfaceSettings.SslCipherList), DispId: 94)
         };
 
         foreach (var item in expected)
@@ -138,6 +140,7 @@ public sealed class SettingsComContractTests
         var smtpPolicyError = Assert.ThrowsExactly<COMException>(() => _ = settings.AllowSMTPAuthPlain);
         var smtpRoutingError = Assert.ThrowsExactly<COMException>(() => _ = settings.MirrorEMailAddress);
         var numericRuntimeError = Assert.ThrowsExactly<COMException>(() => _ = settings.RuleLoopLimit);
+        var sslScalarError = Assert.ThrowsExactly<COMException>(() => _ = settings.VerifyRemoteSslCertificate);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -148,6 +151,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, smtpPolicyError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpRoutingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, numericRuntimeError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, sslScalarError.ErrorCode);
     }
 
     [TestMethod]
@@ -201,7 +205,9 @@ public sealed class SettingsComContractTests
                 RuleLoopLimit: 9,
                 WorkerThreadPriority: -1,
                 TcpIpThreads: 16,
-                MaxNumberOfMxHosts: 22));
+                MaxNumberOfMxHosts: 22,
+                VerifyRemoteSslCertificate: true,
+                SslCipherList: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256"));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -239,6 +245,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(-1, settings.WorkerThreadPriority);
         Assert.AreEqual(16, settings.TCPIPThreads);
         Assert.AreEqual(22, settings.MaxNumberOfMXHosts);
+        Assert.IsTrue(settings.VerifyRemoteSslCertificate);
+        Assert.AreEqual("TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256", settings.SslCipherList);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -348,6 +356,12 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.MaxNumberOfMXHosts = 30).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.VerifyRemoteSslCertificate = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.SslCipherList = "DEFAULT").ErrorCode);
     }
 
     [TestMethod]
