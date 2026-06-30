@@ -184,6 +184,7 @@ public sealed class ApplicationComContractTests
         Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
         Assert.AreEqual("master-user", settings.IMAPMasterUser);
         Assert.AreEqual(15, settings.MaxAsynchronousThreads);
+        Assert.AreEqual("#Public", settings.PublicFolderDiskName);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);

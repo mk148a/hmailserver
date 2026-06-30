@@ -144,6 +144,19 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void PublicFolderDiskName_PreservesGetterOnlyDispidAndBstrMarshaling()
+    {
+        var property = typeof(IInterfaceSettings).GetProperty(nameof(IInterfaceSettings.PublicFolderDiskName));
+
+        Assert.IsNotNull(property);
+        Assert.AreEqual(79, property.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(
+            UnmanagedType.BStr,
+            property.GetMethod?.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.IsNull(property.SetMethod);
+    }
+
+    [TestMethod]
     public void EnumProperties_PreserveLegacyDispidsAndTypes()
     {
         var expected = new[]
@@ -184,6 +197,7 @@ public sealed class SettingsComContractTests
         var tlsVersionError = Assert.ThrowsExactly<COMException>(() => _ = settings.TlsVersion10Enabled);
         var imapMasterUserError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPMasterUser);
         var asynchronousThreadsError = Assert.ThrowsExactly<COMException>(() => _ = settings.MaxAsynchronousThreads);
+        var publicFolderDiskNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.PublicFolderDiskName);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -202,6 +216,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, tlsVersionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapMasterUserError.ErrorCode);
         Assert.AreEqual(EAccessDenied, asynchronousThreadsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, publicFolderDiskNameError.ErrorCode);
     }
 
     [TestMethod]
@@ -301,6 +316,7 @@ public sealed class SettingsComContractTests
         Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
         Assert.AreEqual("master-user", settings.IMAPMasterUser);
         Assert.AreEqual(15, settings.MaxAsynchronousThreads);
+        Assert.AreEqual("#Public", settings.PublicFolderDiskName);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);

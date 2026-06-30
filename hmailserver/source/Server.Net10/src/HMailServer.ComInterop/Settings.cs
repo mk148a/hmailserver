@@ -1217,6 +1217,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override string PublicFolderDiskName
+    {
+        get
+        {
+            EnsureAuthorized();
+            return "#Public";
+        }
+    }
+
     private static bool HasFlag(int value, int flag) => (value & flag) != 0;
 
     internal static Settings CreateAuthorized() => new(authorized: true);
@@ -1294,7 +1303,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public void SetAdministratorPassword(string newVal) => Unavailable();
     public virtual IInterfaceDirectories Directories => Unavailable<IInterfaceDirectories>();
     public virtual IInterfaceIMAPFolders PublicFolders => Unavailable<IInterfaceIMAPFolders>();
-    public string PublicFolderDiskName => Unavailable<string>();
+    public virtual string PublicFolderDiskName => Unavailable<string>();
     public virtual IInterfaceGroups Groups => Unavailable<IInterfaceGroups>();
     public virtual IInterfaceIncomingRelays IncomingRelays => Unavailable<IInterfaceIncomingRelays>();
     public virtual bool AutoBanOnLogonFailure { get => Unavailable<bool>(); set => Unavailable(); }
