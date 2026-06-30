@@ -17,6 +17,7 @@ public sealed class SqlServerAccountAdministrationStoreTests
         StringAssert.Contains(sql, "accountadminlevel");
         StringAssert.Contains(sql, "accountmaxsize");
         StringAssert.Contains(sql, "accountsizebytes");
+        StringAssert.Contains(sql, "accountlastlogontime");
         StringAssert.Contains(sql, "accountpersonfirstname");
         StringAssert.Contains(sql, "accountpersonlastname");
         StringAssert.Contains(sql, "accountvacationmessageon");

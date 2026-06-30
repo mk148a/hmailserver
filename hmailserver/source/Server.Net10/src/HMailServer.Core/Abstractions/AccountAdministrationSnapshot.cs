@@ -9,6 +9,7 @@ public sealed record AccountAdministrationSnapshot(
     int MaxSize = 0,
     float Size = 0f,
     int QuotaUsed = 0,
+    DateTime LastLogonTime = default,
     string PersonFirstName = "",
     string PersonLastName = "",
     bool VacationMessageIsOn = false,

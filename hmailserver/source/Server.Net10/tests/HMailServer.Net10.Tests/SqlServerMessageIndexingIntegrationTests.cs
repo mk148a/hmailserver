@@ -208,6 +208,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(2, accounts[0].MaxSize);
             Assert.AreEqual(2.5f, accounts[0].Size, 0.0001f);
             Assert.AreEqual(125, accounts[0].QuotaUsed);
+            Assert.AreEqual(new DateTime(2026, 3, 4, 5, 6, 7), accounts[0].LastLogonTime);
             Assert.AreEqual("Ada", accounts[0].PersonFirstName);
             Assert.AreEqual("Lovelace", accounts[0].PersonLastName);
             Assert.IsTrue(accounts[0].VacationMessageIsOn);
@@ -237,6 +238,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(unchecked((int)0x80004001), pendingSensitiveRead.ErrorCode);
             Assert.AreEqual(0.125f, accounts.get_ItemByDBID(20).Size, 0.0001f);
             Assert.AreEqual(0, accounts.get_ItemByDBID(20).QuotaUsed);
+            Assert.AreEqual(new DateTime(2026, 2, 3, 4, 5, 6), accounts.get_ItemByDBID(20).LastLogonTime);
             var rules = accounts[0].Rules;
             Assert.AreEqual(2, rules.Count);
             Assert.AreEqual("First rule", rules[0].Name);
@@ -784,7 +786,8 @@ CREATE TABLE dbo.hm_accounts
     accountforwardabortspamflagged tinyint NOT NULL,
     accountenablesignature tinyint NOT NULL,
     accountsignatureplaintext nvarchar(max) NOT NULL,
-    accountsignaturehtml nvarchar(max) NOT NULL
+    accountsignaturehtml nvarchar(max) NOT NULL,
+    accountlastlogontime datetime NOT NULL
 );
 
 CREATE TABLE dbo.hm_messages
@@ -939,17 +942,17 @@ INSERT INTO dbo.hm_accounts
      accountvacationexpires, accountvacationexpiredate, accountvacationabortspamflagged,
      accountforwardenabled, accountforwardaddress, accountforwardkeeporiginal,
      accountforwardabortspamflagged, accountenablesignature, accountsignatureplaintext,
-     accountsignaturehtml)
+     accountsignaturehtml, accountlastlogontime)
 VALUES
     (20, 10, N'user@example.test', 0, 0, 1024, N'Grace', N'Hopper',
      0, N'', N'', 0, CONVERT(datetime, '2026-01-01T00:00:00', 126), 0,
-     0, N'', 0, 0, 0, N'', N''),
+     0, N'', 0, 0, 0, N'', N'', CONVERT(datetime, '2026-02-03T04:05:06', 126)),
     (10, 10, N'admin@example.test', 1, 2, 2, N'Ada', N'Lovelace',
      1, N'Away until Monday', N'Auto reply', 1, CONVERT(datetime, '2026-12-31T00:00:00', 126), 1,
-     1, N'archive@example.test', 1, 1, 1, N'Regards,' + CHAR(13) + CHAR(10) + N'Ada', N'<p>Regards,<br>Ada</p>'),
+     1, N'archive@example.test', 1, 1, 1, N'Regards,' + CHAR(13) + CHAR(10) + N'Ada', N'<p>Regards,<br>Ada</p>', CONVERT(datetime, '2026-03-04T05:06:07', 126)),
     (30, 30, N'outside@other.test', 1, 0, 512, N'Outside', N'Example',
      0, N'', N'', 0, CONVERT(datetime, '2026-01-01T00:00:00', 126), 0,
-     0, N'', 0, 0, 0, N'', N'');
+     0, N'', 0, 0, 0, N'', N'', CONVERT(datetime, '2026-04-05T06:07:08', 126));
 
 INSERT INTO dbo.hm_messages (messageid, messageaccountid, messagesize)
 VALUES

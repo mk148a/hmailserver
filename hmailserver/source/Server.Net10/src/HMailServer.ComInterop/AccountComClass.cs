@@ -156,7 +156,7 @@ public sealed class Account : IInterfaceAccount
 
     public string SignatureHTML { get => _administrationSnapshot?.SignatureHtml ?? Read(_signatureHtml); set => Write(() => _signatureHtml = value); }
 
-    public object LastLogonTime => Read(_lastLogonTime);
+    public object LastLogonTime => _administrationSnapshot?.LastLogonTime ?? Read(_lastLogonTime);
 
     public bool VacationMessageExpires { get => _administrationSnapshot?.VacationMessageExpires ?? Read(_vacationMessageExpires); set => Write(() => _vacationMessageExpires = value); }
 

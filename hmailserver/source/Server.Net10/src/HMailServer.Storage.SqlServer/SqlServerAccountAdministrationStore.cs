@@ -20,6 +20,7 @@ SELECT
         FROM hm_messages
         WHERE messageaccountid = hm_accounts.accountid
     ) AS accountsizebytes,
+    accountlastlogontime,
     accountpersonfirstname,
     accountpersonlastname,
     accountvacationmessageon,
@@ -74,21 +75,22 @@ ORDER BY accountaddress ASC;
                     MaxSize: maxSize,
                     Size: CalculateLegacySizeMb(sizeBytes),
                     QuotaUsed: CalculateLegacyQuotaUsed(sizeBytes, maxSize),
-                    PersonFirstName: reader.GetString(7),
-                    PersonLastName: reader.GetString(8),
-                    VacationMessageIsOn: ReadLegacyBoolean(reader, 9),
-                    VacationMessage: reader.GetString(10),
-                    VacationSubject: reader.GetString(11),
-                    VacationMessageExpires: ReadLegacyBoolean(reader, 12),
-                    VacationMessageExpiresDate: reader.GetString(13),
-                    VacationMessageAbortSpamFlagged: ReadLegacyBoolean(reader, 14),
-                    ForwardEnabled: ReadLegacyBoolean(reader, 15),
-                    ForwardAddress: reader.GetString(16),
-                    ForwardKeepOriginal: ReadLegacyBoolean(reader, 17),
-                    ForwardAbortSpamFlagged: ReadLegacyBoolean(reader, 18),
-                    SignatureEnabled: ReadLegacyBoolean(reader, 19),
-                    SignaturePlainText: reader.GetString(20),
-                    SignatureHtml: reader.GetString(21)));
+                    LastLogonTime: reader.GetDateTime(7),
+                    PersonFirstName: reader.GetString(8),
+                    PersonLastName: reader.GetString(9),
+                    VacationMessageIsOn: ReadLegacyBoolean(reader, 10),
+                    VacationMessage: reader.GetString(11),
+                    VacationSubject: reader.GetString(12),
+                    VacationMessageExpires: ReadLegacyBoolean(reader, 13),
+                    VacationMessageExpiresDate: reader.GetString(14),
+                    VacationMessageAbortSpamFlagged: ReadLegacyBoolean(reader, 15),
+                    ForwardEnabled: ReadLegacyBoolean(reader, 16),
+                    ForwardAddress: reader.GetString(17),
+                    ForwardKeepOriginal: ReadLegacyBoolean(reader, 18),
+                    ForwardAbortSpamFlagged: ReadLegacyBoolean(reader, 19),
+                    SignatureEnabled: ReadLegacyBoolean(reader, 20),
+                    SignaturePlainText: reader.GetString(21),
+                    SignatureHtml: reader.GetString(22)));
         }
 
         return accounts;
