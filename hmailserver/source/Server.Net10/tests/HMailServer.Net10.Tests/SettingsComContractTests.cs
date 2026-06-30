@@ -138,11 +138,20 @@ public sealed class SettingsComContractTests
     [TestMethod]
     public void EnumProperties_PreserveLegacyDispidsAndTypes()
     {
-        var property = typeof(IInterfaceSettings).GetProperty(nameof(IInterfaceSettings.SMTPRelayerConnectionSecurity));
+        var expected = new[]
+        {
+            (Name: nameof(IInterfaceSettings.SMTPRelayerConnectionSecurity), DispId: 91),
+            (Name: nameof(IInterfaceSettings.SMTPConnectionSecurity), DispId: 92)
+        };
 
-        Assert.IsNotNull(property);
-        Assert.AreEqual(91, property.GetCustomAttribute<DispIdAttribute>()?.Value);
-        Assert.AreEqual(typeof(ComConnectionSecurity), property.PropertyType);
+        foreach (var item in expected)
+        {
+            var property = typeof(IInterfaceSettings).GetProperty(item.Name);
+
+            Assert.IsNotNull(property);
+            Assert.AreEqual(item.DispId, property.GetCustomAttribute<DispIdAttribute>()?.Value);
+            Assert.AreEqual(typeof(ComConnectionSecurity), property.PropertyType);
+        }
     }
 
     [TestMethod]
@@ -163,6 +172,7 @@ public sealed class SettingsComContractTests
         var networkPreferenceError = Assert.ThrowsExactly<COMException>(() => _ = settings.IPv6PreferredEnabled);
         var autoBanError = Assert.ThrowsExactly<COMException>(() => _ = settings.AutoBanOnLogonFailure);
         var relayerError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayer);
+        var smtpConnectionSecurityError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPConnectionSecurity);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -177,6 +187,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, networkPreferenceError.ErrorCode);
         Assert.AreEqual(EAccessDenied, autoBanError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, smtpConnectionSecurityError.ErrorCode);
     }
 
     [TestMethod]
@@ -242,7 +253,8 @@ public sealed class SettingsComContractTests
                 SmtpRelayerRequiresAuthentication: true,
                 SmtpRelayerUsername: "relay-user",
                 SmtpRelayerPort: 587,
-                SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.StartTlsRequired));
+                SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.StartTlsRequired,
+                SmtpConnectionSecurity: (int)ComConnectionSecurity.StartTlsOptional));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -262,6 +274,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual("relay-user", settings.SMTPRelayerUsername);
         Assert.AreEqual(587, settings.SMTPRelayerPort);
         Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsOptional, settings.SMTPConnectionSecurity);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -353,6 +366,9 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayerConnectionSecurity = ComConnectionSecurity.None).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.SMTPConnectionSecurity = ComConnectionSecurity.None).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayerUseSSL = true).ErrorCode);

@@ -938,6 +938,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.SMTPRelayerConnectionSecurity = value;
     }
 
+    public override ComConnectionSecurity SMTPConnectionSecurity
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SMTPConnectionSecurity
+                : (ComConnectionSecurity)_administrationSnapshot.SmtpConnectionSecurity;
+        }
+        set => base.SMTPConnectionSecurity = value;
+    }
+
     public override bool VerifyRemoteSslCertificate
     {
         get
@@ -1191,7 +1203,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual IInterfaceMessageIndexing MessageIndexing => Unavailable<IInterfaceMessageIndexing>();
     public virtual int MaxNumberOfMXHosts { get => Unavailable<int>(); set => Unavailable(); }
     public virtual ComConnectionSecurity SMTPRelayerConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
-    public ComConnectionSecurity SMTPConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
+    public virtual ComConnectionSecurity SMTPConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
     public virtual bool VerifyRemoteSslCertificate { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string SslCipherList { get => Unavailable<string>(); set => Unavailable(); }
     public bool TlsVersion10Enabled { get => Unavailable<bool>(); set => Unavailable(); }

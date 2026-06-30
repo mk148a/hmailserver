@@ -116,6 +116,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("relay-user", settings.SMTPRelayerUsername);
             Assert.AreEqual(587, settings.SMTPRelayerPort);
             Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
+            Assert.AreEqual(ComConnectionSecurity.StartTlsOptional, settings.SMTPConnectionSecurity);
             Assert.AreEqual(20480, settings.MaxMessageSize);
             Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
             Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -813,6 +814,7 @@ VALUES
     (N'smtprelayerusername', N'relay-user', 0),
     (N'smtprelayerport', N'', 587),
     (N'smtprelayerconnectionsecurity', N'', 3),
+    (N'SmtpDeliveryConnectionSecurity', N'', 2),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 
