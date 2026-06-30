@@ -48,7 +48,11 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.ServiceSMTP), DispId: 26),
             (Name: nameof(IInterfaceSettings.ServicePOP3), DispId: 27),
             (Name: nameof(IInterfaceSettings.ServiceIMAP), DispId: 28),
-            (Name: nameof(IInterfaceSettings.DisconnectInvalidClients), DispId: 64)
+            (Name: nameof(IInterfaceSettings.IMAPSortEnabled), DispId: 54),
+            (Name: nameof(IInterfaceSettings.IMAPQuotaEnabled), DispId: 55),
+            (Name: nameof(IInterfaceSettings.IMAPIdleEnabled), DispId: 56),
+            (Name: nameof(IInterfaceSettings.DisconnectInvalidClients), DispId: 64),
+            (Name: nameof(IInterfaceSettings.IMAPACLEnabled), DispId: 75)
         };
 
         foreach (var item in expected)
@@ -74,10 +78,12 @@ public sealed class SettingsComContractTests
         var indexingError = Assert.ThrowsExactly<COMException>(() => _ = settings.MessageIndexing);
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxSMTPConnections);
         var hostNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.HostName);
+        var imapCapabilityError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSortEnabled);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, imapCapabilityError.ErrorCode);
     }
 
     [TestMethod]
@@ -112,7 +118,11 @@ public sealed class SettingsComContractTests
                 MaxMessageSize: 20480,
                 MaxSmtpRecipientsInBatch: 100,
                 DisconnectInvalidClients: true,
-                MaxNumberOfInvalidCommands: 12));
+                MaxNumberOfInvalidCommands: 12,
+                ImapSortEnabled: true,
+                ImapQuotaEnabled: false,
+                ImapIdleEnabled: true,
+                ImapAclEnabled: false));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -131,6 +141,10 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);
         Assert.AreEqual(12, settings.MaxNumberOfInvalidCommands);
+        Assert.IsTrue(settings.IMAPSortEnabled);
+        Assert.IsFalse(settings.IMAPQuotaEnabled);
+        Assert.IsTrue(settings.IMAPIdleEnabled);
+        Assert.IsFalse(settings.IMAPACLEnabled);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -183,6 +197,18 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.MaxNumberOfInvalidCommands = 6).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.IMAPSortEnabled = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.IMAPQuotaEnabled = true).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.IMAPIdleEnabled = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.IMAPACLEnabled = true).ErrorCode);
     }
 
     [TestMethod]

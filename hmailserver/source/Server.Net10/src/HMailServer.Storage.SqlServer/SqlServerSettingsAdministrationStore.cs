@@ -24,7 +24,11 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'maxmessagesize' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'maxsmtprecipientsinbatch' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'disconnectinvalidclients' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'maximumincorrectcommands' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'maximumincorrectcommands' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'enableimapsort' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'enableimapquota' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'enableimapidle' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'enableimapacl' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -44,7 +48,11 @@ WHERE settingname IN
     N'maxmessagesize',
     N'maxsmtprecipientsinbatch',
     N'disconnectinvalidclients',
-    N'maximumincorrectcommands'
+    N'maximumincorrectcommands',
+    N'enableimapsort',
+    N'enableimapquota',
+    N'enableimapidle',
+    N'enableimapacl'
 );
 """;
 
@@ -87,6 +95,10 @@ WHERE settingname IN
             MaxMessageSize: reader.GetInt32(13),
             MaxSmtpRecipientsInBatch: reader.GetInt32(14),
             DisconnectInvalidClients: reader.GetInt32(15) != 0,
-            MaxNumberOfInvalidCommands: reader.GetInt32(16));
+            MaxNumberOfInvalidCommands: reader.GetInt32(16),
+            ImapSortEnabled: reader.GetInt32(17) != 0,
+            ImapQuotaEnabled: reader.GetInt32(18) != 0,
+            ImapIdleEnabled: reader.GetInt32(19) != 0,
+            ImapAclEnabled: reader.GetInt32(20) != 0);
     }
 }

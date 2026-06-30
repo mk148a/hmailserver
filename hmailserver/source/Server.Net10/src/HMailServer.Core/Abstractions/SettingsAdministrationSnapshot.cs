@@ -17,4 +17,8 @@ public sealed record SettingsAdministrationSnapshot(
     int MaxMessageSize = 0,
     int MaxSmtpRecipientsInBatch = 0,
     bool DisconnectInvalidClients = false,
-    int MaxNumberOfInvalidCommands = 0);
+    int MaxNumberOfInvalidCommands = 0,
+    bool ImapSortEnabled = false,
+    bool ImapQuotaEnabled = false,
+    bool ImapIdleEnabled = false,
+    bool ImapAclEnabled = false);

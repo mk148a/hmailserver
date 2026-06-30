@@ -31,6 +31,10 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'maxsmtprecipientsinbatch'");
         StringAssert.Contains(sql, "settingname = N'disconnectinvalidclients'");
         StringAssert.Contains(sql, "settingname = N'maximumincorrectcommands'");
+        StringAssert.Contains(sql, "settingname = N'enableimapsort'");
+        StringAssert.Contains(sql, "settingname = N'enableimapquota'");
+        StringAssert.Contains(sql, "settingname = N'enableimapidle'");
+        StringAssert.Contains(sql, "settingname = N'enableimapacl'");
     }
 
     [TestMethod]

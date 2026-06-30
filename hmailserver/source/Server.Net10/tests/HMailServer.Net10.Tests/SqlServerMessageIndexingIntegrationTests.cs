@@ -115,6 +115,10 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
             Assert.IsTrue(settings.DisconnectInvalidClients);
             Assert.AreEqual(12, settings.MaxNumberOfInvalidCommands);
+            Assert.IsTrue(settings.IMAPSortEnabled);
+            Assert.IsFalse(settings.IMAPQuotaEnabled);
+            Assert.IsTrue(settings.IMAPIdleEnabled);
+            Assert.IsFalse(settings.IMAPACLEnabled);
         }
         finally
         {
@@ -751,6 +755,10 @@ VALUES
     (N'maxsmtprecipientsinbatch', N'', 100),
     (N'disconnectinvalidclients', N'', 1),
     (N'maximumincorrectcommands', N'', 12),
+    (N'enableimapsort', N'', 1),
+    (N'enableimapquota', N'', 0),
+    (N'enableimapidle', N'', 1),
+    (N'enableimapacl', N'', 0),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

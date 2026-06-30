@@ -593,6 +593,42 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.MaxIMAPConnections = value;
     }
 
+    public override bool IMAPSortEnabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.IMAPSortEnabled
+                : _administrationSnapshot.ImapSortEnabled;
+        }
+        set => base.IMAPSortEnabled = value;
+    }
+
+    public override bool IMAPQuotaEnabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.IMAPQuotaEnabled
+                : _administrationSnapshot.ImapQuotaEnabled;
+        }
+        set => base.IMAPQuotaEnabled = value;
+    }
+
+    public override bool IMAPIdleEnabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.IMAPIdleEnabled
+                : _administrationSnapshot.ImapIdleEnabled;
+        }
+        set => base.IMAPIdleEnabled = value;
+    }
+
     public override int MaxMessageSize
     {
         get
@@ -639,6 +675,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 : _administrationSnapshot.MaxNumberOfInvalidCommands;
         }
         set => base.MaxNumberOfInvalidCommands = value;
+    }
+
+    public override bool IMAPACLEnabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.IMAPACLEnabled
+                : _administrationSnapshot.ImapAclEnabled;
+        }
+        set => base.IMAPACLEnabled = value;
     }
 
     public override IInterfaceMessageIndexing MessageIndexing
@@ -786,9 +834,9 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public string DefaultDomain { get => Unavailable<string>(); set => Unavailable(); }
     public string SMTPDeliveryBindToIP { get => Unavailable<string>(); set => Unavailable(); }
     public virtual int MaxIMAPConnections { get => Unavailable<int>(); set => Unavailable(); }
-    public bool IMAPSortEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool IMAPQuotaEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool IMAPIdleEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool IMAPSortEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool IMAPQuotaEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool IMAPIdleEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public int WorkerThreadPriority { get => Unavailable<int>(); set => Unavailable(); }
     public int TCPIPThreads { get => Unavailable<int>(); set => Unavailable(); }
     public bool AllowIncorrectLineEndings { get => Unavailable<bool>(); set => Unavailable(); }
@@ -802,7 +850,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual IInterfaceSSLCertificates SSLCertificates => Unavailable<IInterfaceSSLCertificates>();
     public bool AddDeliveredToHeader { get => Unavailable<bool>(); set => Unavailable(); }
     public string IMAPPublicFolderName { get => Unavailable<string>(); set => Unavailable(); }
-    public bool IMAPACLEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool IMAPACLEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public void SetAdministratorPassword(string newVal) => Unavailable();
     public virtual IInterfaceDirectories Directories => Unavailable<IInterfaceDirectories>();
     public virtual IInterfaceIMAPFolders PublicFolders => Unavailable<IInterfaceIMAPFolders>();

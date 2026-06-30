@@ -108,7 +108,11 @@ public sealed class ApplicationComContractTests
                     MaxMessageSize: 20480,
                     MaxSmtpRecipientsInBatch: 100,
                     DisconnectInvalidClients: true,
-                    MaxNumberOfInvalidCommands: 12)));
+                    MaxNumberOfInvalidCommands: 12,
+                    ImapSortEnabled: true,
+                    ImapQuotaEnabled: false,
+                    ImapIdleEnabled: true,
+                    ImapAclEnabled: false)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -138,6 +142,10 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);
         Assert.AreEqual(12, settings.MaxNumberOfInvalidCommands);
+        Assert.IsTrue(settings.IMAPSortEnabled);
+        Assert.IsFalse(settings.IMAPQuotaEnabled);
+        Assert.IsTrue(settings.IMAPIdleEnabled);
+        Assert.IsFalse(settings.IMAPACLEnabled);
     }
 
     [TestMethod]
