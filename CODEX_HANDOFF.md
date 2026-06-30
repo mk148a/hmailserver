@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice `Domains.Names` getter'ini authenticated read-only collection scalar olarak acmali; mevcut loaded domain snapshot'larindan legacy `id\tname\tactive\r\n` formatini uretmeli, kurulu vtable/DISPID degerlerini korumali ve `Refresh`, collection mutation, database reload veya domain mutation davranisi eklememeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice bounded read-only `Settings` string scalar set'ini (`HostName`, `WelcomeSMTP`, `WelcomePOP3`, `WelcomeIMAP`) existing `hm_settings` satirlarindan acmali; kurulu vtable/DISPID degerlerini korumali ve setter, listener reconfiguration, service state, secret settings veya daha genis Settings/Admin davranisi eklememeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Domains` koleksiyonu legacy `Domains.Names` getter'ini read-only acacak sekilde genisletildi; loaded domain snapshot'larindan `id\tname\tactive\r\n` formatini uretiyor. `Refresh`, collection mutation ve database reload kapsam disi kaldi. Dar domain contract/integration filtresi 6/6, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Account` adapter'i non-secret Active Directory scalar getter'larini read-only acacak sekilde genisletildi: `IsAD`, `ADDomain`, ve `ADUsername` mevcut `hm_accounts.accountisad`/`accountaddomain`/`accountadusername` kolonlarindan geliyor. Setter, AD auth, password/security-sensitive alanlar ve account mutation kapsam disi kaldi. Dar account contract/store/integration filtresi 15/15, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Account` adapter'i legacy `Account.LastLogonTime` getter'ini mevcut `hm_accounts.accountlastlogontime` degerinden read-only acacak sekilde genisletildi. Login-time update, authentication davranisi ve account mutation kapsam disi kaldi. Dar account contract/store/integration filtresi 15/15, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Account` adapter'i legacy `Account.QuotaUsed` getter'ini secili account'un `hm_messages.messagesize` byte toplami ve `accountmaxsize` MB limitinden legacy integer yuzde/truncation davranisiyla read-only acacak sekilde genisletildi. Quota enforcement, account mutation ve filesystem/mailbox scan davranisi kapsam disi kaldi. Dar account contract/store/integration filtresi 15/15, full Net10 testleri 715/715 gecti.
@@ -454,5 +455,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only `Domains.Names` getter parity dilimini ele al; legacy `id\tname\tactive\r\n` string formatini once dar testle sabitle, mevcut vtable/DISPID degerlerini koru, Refresh/collection mutation/database reload kapsamlarini acma.
+5. Current Next Slice olarak authenticated read-only `Settings` string scalar dilimini ele al: `HostName`, `WelcomeSMTP`, `WelcomePOP3`, `WelcomeIMAP`; existing `hm_settings` satirlarini kullan, mevcut vtable/DISPID degerlerini koru, setter/listener reconfiguration/service state/secret settings kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; push'i kullanici acikca isterse yap.
