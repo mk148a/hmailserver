@@ -120,6 +120,7 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.MirrorEMailAddress), DispId: 7),
             (Name: nameof(IInterfaceSettings.SMTPRelayer), DispId: 22),
             (Name: nameof(IInterfaceSettings.SMTPRelayerUsername), DispId: 35),
+            (Name: nameof(IInterfaceSettings.UserInterfaceLanguage), DispId: 42),
             (Name: nameof(IInterfaceSettings.DefaultDomain), DispId: 50),
             (Name: nameof(IInterfaceSettings.SMTPDeliveryBindToIP), DispId: 51),
             (Name: nameof(IInterfaceSettings.IMAPPublicFolderName), DispId: 74),
@@ -198,6 +199,7 @@ public sealed class SettingsComContractTests
         var imapMasterUserError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPMasterUser);
         var asynchronousThreadsError = Assert.ThrowsExactly<COMException>(() => _ = settings.MaxAsynchronousThreads);
         var publicFolderDiskNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.PublicFolderDiskName);
+        var userInterfaceLanguageError = Assert.ThrowsExactly<COMException>(() => _ = settings.UserInterfaceLanguage);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -217,6 +219,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, imapMasterUserError.ErrorCode);
         Assert.AreEqual(EAccessDenied, asynchronousThreadsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, publicFolderDiskNameError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, userInterfaceLanguageError.ErrorCode);
     }
 
     [TestMethod]
@@ -287,7 +290,8 @@ public sealed class SettingsComContractTests
                 SslVersions: 26,
                 TlsOptions: 2,
                 ImapMasterUser: "master-user",
-                MaxAsynchronousThreads: 15));
+                MaxAsynchronousThreads: 15),
+            new SettingsRuntimeConfiguration(UserInterfaceLanguage: "Swedish"));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -317,6 +321,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual("master-user", settings.IMAPMasterUser);
         Assert.AreEqual(15, settings.MaxAsynchronousThreads);
         Assert.AreEqual("#Public", settings.PublicFolderDiskName);
+        Assert.AreEqual("Swedish", settings.UserInterfaceLanguage);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -435,6 +440,9 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.MaxAsynchronousThreads = 20).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.UserInterfaceLanguage = "English").ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayerUseSSL = true).ErrorCode);

@@ -30,6 +30,7 @@ var initializationFile = LegacyInitializationFile.ResolvePath(
     AppContext.BaseDirectory);
 var administratorPasswordHash = LegacyInitializationFile.LoadAdministratorPasswordHash(initializationFile);
 var databaseConfiguration = LegacyInitializationFile.LoadDatabaseConfiguration(initializationFile);
+var userInterfaceLanguage = LegacyInitializationFile.LoadUserInterfaceLanguage(initializationFile);
 var applicationVersion = builder.Configuration["Application:Version"]
     ?? builder.Configuration["HMAILSERVER_VERSION"]
     ?? "1.0.0-B0";
@@ -877,7 +878,8 @@ DatabaseAdministrationRuntimeHost.Configure(
 StatusAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IServerStatusAdministrationStore>());
 SettingsAdministrationRuntimeHost.Configure(
-    host.Services.GetRequiredService<ISettingsAdministrationStore>());
+    host.Services.GetRequiredService<ISettingsAdministrationStore>(),
+    new SettingsRuntimeConfiguration(userInterfaceLanguage));
 DomainAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAdministrationStore>());
 AccountAdministrationRuntimeHost.Configure(

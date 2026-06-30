@@ -144,7 +144,8 @@ public sealed class ApplicationComContractTests
                     SslVersions: 26,
                     TlsOptions: 2,
                     ImapMasterUser: "master-user",
-                    MaxAsynchronousThreads: 15)));
+                    MaxAsynchronousThreads: 15)),
+            new SettingsRuntimeConfiguration(UserInterfaceLanguage: "Swedish"));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -185,6 +186,7 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual("master-user", settings.IMAPMasterUser);
         Assert.AreEqual(15, settings.MaxAsynchronousThreads);
         Assert.AreEqual("#Public", settings.PublicFolderDiskName);
+        Assert.AreEqual("Swedish", settings.UserInterfaceLanguage);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);

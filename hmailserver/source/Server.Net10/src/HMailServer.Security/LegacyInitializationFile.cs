@@ -43,6 +43,17 @@ public static class LegacyInitializationFile
             DatabaseName: configuration["Database:Database"] ?? string.Empty);
     }
 
+    public static string LoadUserInterfaceLanguage(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var configuration = new ConfigurationBuilder()
+            .AddIniFile(Path.GetFullPath(path), optional: true, reloadOnChange: false)
+            .Build();
+
+        return configuration["Settings:UseLanguage"] ?? "English";
+    }
+
     private static int ParseDatabaseType(string? value)
     {
         return value switch

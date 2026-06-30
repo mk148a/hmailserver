@@ -54,6 +54,26 @@ public sealed class LegacyInitializationFileTests
         }
     }
 
+    [TestMethod]
+    public void LoadUserInterfaceLanguage_ReadsLegacySettingAndPreservesEnglishDefault()
+    {
+        var configuredPath = CreateTemporaryInitializationFile("[Settings]\nUseLanguage=Swedish\n");
+        var missingKeyPath = CreateTemporaryInitializationFile("[Settings]\nRewriteEnvelopeFromWhenForwarding=1\n");
+        var missingPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ini");
+
+        try
+        {
+            Assert.AreEqual("Swedish", LegacyInitializationFile.LoadUserInterfaceLanguage(configuredPath));
+            Assert.AreEqual("English", LegacyInitializationFile.LoadUserInterfaceLanguage(missingKeyPath));
+            Assert.AreEqual("English", LegacyInitializationFile.LoadUserInterfaceLanguage(missingPath));
+        }
+        finally
+        {
+            File.Delete(configuredPath);
+            File.Delete(missingKeyPath);
+        }
+    }
+
     private static string CreateTemporaryInitializationFile(string contents)
     {
         var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ini");

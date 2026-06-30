@@ -432,15 +432,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
     private const int TlsOptionPrioritizeChaChaFlag = 4;
     private readonly bool _authorized;
     private readonly SettingsAdministrationSnapshot? _administrationSnapshot;
+    private readonly SettingsRuntimeConfiguration _runtimeConfiguration = new();
 
     public Settings()
     {
     }
 
-    private Settings(bool authorized, SettingsAdministrationSnapshot? administrationSnapshot = null)
+    private Settings(
+        bool authorized,
+        SettingsAdministrationSnapshot? administrationSnapshot = null,
+        SettingsRuntimeConfiguration? runtimeConfiguration = null)
     {
         _authorized = authorized;
         _administrationSnapshot = administrationSnapshot;
+        _runtimeConfiguration = runtimeConfiguration ?? new SettingsRuntimeConfiguration();
+    }
+
+    public override string UserInterfaceLanguage
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _runtimeConfiguration.UserInterfaceLanguage;
+        }
+        set => base.UserInterfaceLanguage = value;
     }
 
     public override int MaxSMTPConnections
@@ -1230,10 +1245,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
 
     internal static Settings CreateAuthorized() => new(authorized: true);
 
-    internal static Settings CreateAuthorized(SettingsAdministrationSnapshot snapshot)
+    internal static Settings CreateAuthorized(
+        SettingsAdministrationSnapshot snapshot,
+        SettingsRuntimeConfiguration? runtimeConfiguration = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Settings(authorized: true, administrationSnapshot: snapshot);
+        return new Settings(
+            authorized: true,
+            administrationSnapshot: snapshot,
+            runtimeConfiguration: runtimeConfiguration);
     }
 
     void ISettingsAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
@@ -1274,7 +1294,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual string SMTPRelayerUsername { get => Unavailable<string>(); set => Unavailable(); }
     public void SetSMTPRelayerPassword(string newVal) => Unavailable();
     public virtual int SMTPRelayerPort { get => Unavailable<int>(); set => Unavailable(); }
-    public string UserInterfaceLanguage { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string UserInterfaceLanguage { get => Unavailable<string>(); set => Unavailable(); }
     public IInterfaceScripting Scripting => Unavailable<IInterfaceScripting>();
     public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceCache Cache => Unavailable<IInterfaceCache>();
@@ -1338,31 +1358,42 @@ public abstract class SettingsComAdapter : IInterfaceSettings
 }
 
 [ComVisible(false)]
+public sealed record SettingsRuntimeConfiguration(string UserInterfaceLanguage = "English");
+
+[ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost
 {
-    private static ISettingsAdministrationStore? _store;
+    private sealed record RuntimeConfiguration(
+        ISettingsAdministrationStore Store,
+        SettingsRuntimeConfiguration Settings);
 
-    public static void Configure(ISettingsAdministrationStore store)
+    private static RuntimeConfiguration? _configuration;
+
+    public static void Configure(
+        ISettingsAdministrationStore store,
+        SettingsRuntimeConfiguration? settings = null)
     {
         ArgumentNullException.ThrowIfNull(store);
-        Volatile.Write(ref _store, store);
+        Volatile.Write(
+            ref _configuration,
+            new RuntimeConfiguration(store, settings ?? new SettingsRuntimeConfiguration()));
     }
 
     internal static Settings CreateAuthorizedAdapter()
     {
-        var store = Volatile.Read(ref _store);
-        if (store is null)
+        var configuration = Volatile.Read(ref _configuration);
+        if (configuration is null)
         {
             return Settings.CreateAuthorized();
         }
 
-        var snapshot = store
+        var snapshot = configuration.Store
             .GetSettingsAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return Settings.CreateAuthorized(snapshot);
+        return Settings.CreateAuthorized(snapshot, configuration.Settings);
     }
 }
 
