@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded SMTP guardrail slice read-only `Settings.MaxMessageSize`, `MaxSMTPRecipientsInBatch`, `DisconnectInvalidClients` ve `MaxNumberOfInvalidCommands` getter'larini existing `maxmessagesize`/`maxsmtprecipientsinbatch`/`disconnectinvalidclients`/`maximumincorrectcommands` `hm_settings.settinginteger` satirlarindan acmali; kurulu vtable/DISPID ve `VARIANT_BOOL` marshaling'i korumali ve setter, live SMTP session/listener policy degisikligi veya daha genis Settings/Admin davranisi eklememeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded IMAP capability slice read-only `Settings.IMAPSortEnabled`, `IMAPQuotaEnabled`, `IMAPIdleEnabled` ve `IMAPACLEnabled` getter'larini existing `enableimapsort`/`enableimapquota`/`enableimapidle`/`enableimapacl` `hm_settings.settinginteger` satirlarindan acmali; kurulu vtable/DISPID ve `VARIANT_BOOL` marshaling'i korumali ve setter, live IMAP capability/session degisikligi veya daha genis Settings/Admin davranisi eklememeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Settings` snapshot/store'u SMTP guardrail getter'larini read-only acacak sekilde genisletildi: `MaxMessageSize`, `MaxSMTPRecipientsInBatch`, `DisconnectInvalidClients` ve `MaxNumberOfInvalidCommands` mevcut legacy `hm_settings.settinginteger` satirlarindan geliyor. `DisconnectInvalidClients` `VARIANT_BOOL` metadata'si contract testinde kilitlendi; setter'lar `E_NOTIMPL`, live SMTP session/listener policy degisikligi kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 25/25, full Net10 testleri 720/720 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u legacy retry getter'larini read-only acacak sekilde genisletildi: `SMTPNoOfTries` `smtpnoofretries`, `SMTPMinutesBetweenTry` ise `smtpminutesbetweenretries` satirindan geliyor; obsolete `smtpnooftries` decoy satiri SQL store'dan acikca dislandi. Setter'lar `E_NOTIMPL`, delivery retry scheduling degisikligi kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 25/25, full Net10 testleri 720/720 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u legacy protocol-enabled getter'larini read-only acacak sekilde genisletildi: `ServiceSMTP`, `ServicePOP3` ve `ServiceIMAP` mevcut `protocolsmtp`/`protocolpop3`/`protocolimap` `hm_settings.settinginteger` satirlarindan geliyor. `VARIANT_BOOL` getter/setter metadata'si contract testinde kilitlendi; setter'lar `E_NOTIMPL`, live listener enable/disable ve service state kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 25/25, full Net10 testleri 720/720 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u legacy integer limit getter'larini read-only acacak sekilde genisletildi: `MaxSMTPConnections`, `MaxPOP3Connections`, `MaxIMAPConnections` ve `MaxDeliveryThreads` mevcut legacy `hm_settings.settinginteger` satirlarindan geliyor. Setter'lar `E_NOTIMPL`; live listener/delivery-worker reconfiguration ve service state kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 24/24, full Net10 testleri 719/719 gecti; Windows service/COM build 0 uyari/0 hata verdi.
@@ -203,7 +204,7 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesinden once tamamlanan kod commit'i:
 
 ```text
-80c7248be feat(net10): expose settings retry COM getters
+6706b14d2 feat(net10): expose settings SMTP guardrail getters
 ```
 
 Son 30 commit icinde one cikan son dilimler:
@@ -459,5 +460,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only SMTP guardrail getter'larini ele al: `Settings.MaxMessageSize`, `MaxSMTPRecipientsInBatch`, `DisconnectInvalidClients`, `MaxNumberOfInvalidCommands`; existing `maxmessagesize`/`maxsmtprecipientsinbatch`/`disconnectinvalidclients`/`maximumincorrectcommands` `hm_settings.settinginteger` satirlarini kullan, mevcut vtable/DISPID ve `VARIANT_BOOL` marshaling'i koru, setter/live SMTP session-listener policy kapsamlarini acma.
+5. Current Next Slice olarak authenticated read-only IMAP capability getter'larini ele al: `Settings.IMAPSortEnabled`, `IMAPQuotaEnabled`, `IMAPIdleEnabled`, `IMAPACLEnabled`; existing `enableimapsort`/`enableimapquota`/`enableimapidle`/`enableimapacl` `hm_settings.settinginteger` satirlarini kullan, mevcut vtable/DISPID ve `VARIANT_BOOL` marshaling'i koru, setter/live IMAP capability-session kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; en gec her 10 committe bir push yap ve bu iki commitlik landing sonunda push ederek branch'i temiz birak.
