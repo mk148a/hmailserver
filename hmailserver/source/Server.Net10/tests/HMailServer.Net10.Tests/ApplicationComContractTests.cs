@@ -123,7 +123,11 @@ public sealed class ApplicationComContractTests
                     AddDeliveredToHeader: false,
                     MirrorEmailAddress: "archive@example.test",
                     DefaultDomain: "example.test",
-                    SmtpDeliveryBindToIp: "192.0.2.25")));
+                    SmtpDeliveryBindToIp: "192.0.2.25",
+                    RuleLoopLimit: 9,
+                    WorkerThreadPriority: -1,
+                    TcpIpThreads: 16,
+                    MaxNumberOfMxHosts: 22)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -168,6 +172,10 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual("archive@example.test", settings.MirrorEMailAddress);
         Assert.AreEqual("example.test", settings.DefaultDomain);
         Assert.AreEqual("192.0.2.25", settings.SMTPDeliveryBindToIP);
+        Assert.AreEqual(9, settings.RuleLoopLimit);
+        Assert.AreEqual(-1, settings.WorkerThreadPriority);
+        Assert.AreEqual(16, settings.TCPIPThreads);
+        Assert.AreEqual(22, settings.MaxNumberOfMXHosts);
     }
 
     [TestMethod]

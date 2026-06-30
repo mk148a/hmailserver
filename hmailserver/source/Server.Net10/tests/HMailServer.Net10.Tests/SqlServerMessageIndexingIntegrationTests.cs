@@ -130,6 +130,10 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("archive@example.test", settings.MirrorEMailAddress);
             Assert.AreEqual("example.test", settings.DefaultDomain);
             Assert.AreEqual("192.0.2.25", settings.SMTPDeliveryBindToIP);
+            Assert.AreEqual(9, settings.RuleLoopLimit);
+            Assert.AreEqual(-1, settings.WorkerThreadPriority);
+            Assert.AreEqual(16, settings.TCPIPThreads);
+            Assert.AreEqual(22, settings.MaxNumberOfMXHosts);
         }
         finally
         {
@@ -781,6 +785,10 @@ VALUES
     (N'mirroremailaddress', N'archive@example.test', 0),
     (N'defaultdomain', N'example.test', 0),
     (N'smtpdeliverybindtoip', N'192.0.2.25', 0),
+    (N'rulelooplimit', N'', 9),
+    (N'workerthreadpriority', N'', -1),
+    (N'tcpipthreads', N'', 16),
+    (N'MaxNumberOfMXHosts', N'', 22),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

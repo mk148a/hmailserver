@@ -665,6 +665,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.IMAPIdleEnabled = value;
     }
 
+    public override int WorkerThreadPriority
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.WorkerThreadPriority
+                : _administrationSnapshot.WorkerThreadPriority;
+        }
+        set => base.WorkerThreadPriority = value;
+    }
+
+    public override int TCPIPThreads
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.TCPIPThreads
+                : _administrationSnapshot.TcpIpThreads;
+        }
+        set => base.TCPIPThreads = value;
+    }
+
     public override int MaxMessageSize
     {
         get
@@ -675,6 +699,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 : _administrationSnapshot.MaxMessageSize;
         }
         set => base.MaxMessageSize = value;
+    }
+
+    public override int RuleLoopLimit
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.RuleLoopLimit
+                : _administrationSnapshot.RuleLoopLimit;
+        }
+        set => base.RuleLoopLimit = value;
     }
 
     public override string DefaultDomain
@@ -830,6 +866,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override int MaxNumberOfMXHosts
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxNumberOfMXHosts
+                : _administrationSnapshot.MaxNumberOfMxHosts;
+        }
+        set => base.MaxNumberOfMXHosts = value;
+    }
+
     public override IInterfaceIMAPFolders PublicFolders
     {
         get
@@ -961,7 +1009,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public IInterfaceScripting Scripting => Unavailable<IInterfaceScripting>();
     public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceCache Cache => Unavailable<IInterfaceCache>();
-    public int RuleLoopLimit { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int RuleLoopLimit { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceBackupSettings Backup => Unavailable<IInterfaceBackupSettings>();
     public virtual string DefaultDomain { get => Unavailable<string>(); set => Unavailable(); }
     public virtual string SMTPDeliveryBindToIP { get => Unavailable<string>(); set => Unavailable(); }
@@ -969,8 +1017,8 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual bool IMAPSortEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool IMAPQuotaEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool IMAPIdleEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public int WorkerThreadPriority { get => Unavailable<int>(); set => Unavailable(); }
-    public int TCPIPThreads { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int WorkerThreadPriority { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int TCPIPThreads { get => Unavailable<int>(); set => Unavailable(); }
     public virtual bool AllowIncorrectLineEndings { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual int MaxSMTPRecipientsInBatch { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceAntiSpam AntiSpam => Unavailable<IInterfaceAntiSpam>();
@@ -997,7 +1045,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual string IMAPHierarchyDelimiter { get => Unavailable<string>(); set => Unavailable(); }
     public int MaxAsynchronousThreads { get => Unavailable<int>(); set => Unavailable(); }
     public virtual IInterfaceMessageIndexing MessageIndexing => Unavailable<IInterfaceMessageIndexing>();
-    public int MaxNumberOfMXHosts { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxNumberOfMXHosts { get => Unavailable<int>(); set => Unavailable(); }
     public ComConnectionSecurity SMTPRelayerConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
     public ComConnectionSecurity SMTPConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
     public bool VerifyRemoteSslCertificate { get => Unavailable<bool>(); set => Unavailable(); }

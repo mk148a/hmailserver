@@ -46,6 +46,11 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'mirroremailaddress'");
         StringAssert.Contains(sql, "settingname = N'defaultdomain'");
         StringAssert.Contains(sql, "settingname = N'smtpdeliverybindtoip'");
+        StringAssert.Contains(sql, "settingname = N'rulelooplimit'");
+        StringAssert.Contains(sql, "settingname = N'workerthreadpriority'");
+        StringAssert.Contains(sql, "settingname = N'tcpipthreads'");
+        StringAssert.Contains(sql, "settingname = N'MaxNumberOfMXHosts'");
+        Assert.IsFalse(sql.Contains("MaxAsynchronousThreads", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]

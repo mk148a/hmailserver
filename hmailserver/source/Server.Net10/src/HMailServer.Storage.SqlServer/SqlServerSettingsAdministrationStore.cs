@@ -39,7 +39,11 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'adddeliveredtoheader' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'mirroremailaddress' THEN settingstring END), N''),
     COALESCE(MAX(CASE WHEN settingname = N'defaultdomain' THEN settingstring END), N''),
-    COALESCE(MAX(CASE WHEN settingname = N'smtpdeliverybindtoip' THEN settingstring END), N'')
+    COALESCE(MAX(CASE WHEN settingname = N'smtpdeliverybindtoip' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'rulelooplimit' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'workerthreadpriority' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'tcpipthreads' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'MaxNumberOfMXHosts' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -74,7 +78,11 @@ WHERE settingname IN
     N'adddeliveredtoheader',
     N'mirroremailaddress',
     N'defaultdomain',
-    N'smtpdeliverybindtoip'
+    N'smtpdeliverybindtoip',
+    N'rulelooplimit',
+    N'workerthreadpriority',
+    N'tcpipthreads',
+    N'MaxNumberOfMXHosts'
 );
 """;
 
@@ -132,6 +140,10 @@ WHERE settingname IN
             AddDeliveredToHeader: reader.GetInt32(28) != 0,
             MirrorEmailAddress: reader.GetString(29),
             DefaultDomain: reader.GetString(30),
-            SmtpDeliveryBindToIp: reader.GetString(31));
+            SmtpDeliveryBindToIp: reader.GetString(31),
+            RuleLoopLimit: reader.GetInt32(32),
+            WorkerThreadPriority: reader.GetInt32(33),
+            TcpIpThreads: reader.GetInt32(34),
+            MaxNumberOfMxHosts: reader.GetInt32(35));
     }
 }

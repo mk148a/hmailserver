@@ -77,6 +77,27 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void IntegerProperties_PreserveLegacyDispids()
+    {
+        var expected = new[]
+        {
+            (Name: nameof(IInterfaceSettings.RuleLoopLimit), DispId: 48),
+            (Name: nameof(IInterfaceSettings.WorkerThreadPriority), DispId: 57),
+            (Name: nameof(IInterfaceSettings.TCPIPThreads), DispId: 60),
+            (Name: nameof(IInterfaceSettings.MaxNumberOfMXHosts), DispId: 90)
+        };
+
+        foreach (var item in expected)
+        {
+            var property = typeof(IInterfaceSettings).GetProperty(item.Name);
+
+            Assert.IsNotNull(property);
+            Assert.AreEqual(item.DispId, property.GetCustomAttribute<DispIdAttribute>()?.Value);
+            Assert.AreEqual(typeof(int), property.PropertyType);
+        }
+    }
+
+    [TestMethod]
     public void StringProperties_PreserveLegacyDispidsAndBstrMarshaling()
     {
         var expected = new[]
@@ -116,6 +137,7 @@ public sealed class SettingsComContractTests
         var imapNamingError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPPublicFolderName);
         var smtpPolicyError = Assert.ThrowsExactly<COMException>(() => _ = settings.AllowSMTPAuthPlain);
         var smtpRoutingError = Assert.ThrowsExactly<COMException>(() => _ = settings.MirrorEMailAddress);
+        var numericRuntimeError = Assert.ThrowsExactly<COMException>(() => _ = settings.RuleLoopLimit);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -125,6 +147,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, imapNamingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpPolicyError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpRoutingError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, numericRuntimeError.ErrorCode);
     }
 
     [TestMethod]
@@ -174,7 +197,11 @@ public sealed class SettingsComContractTests
                 AddDeliveredToHeader: false,
                 MirrorEmailAddress: "archive@example.test",
                 DefaultDomain: "example.test",
-                SmtpDeliveryBindToIp: "192.0.2.25"));
+                SmtpDeliveryBindToIp: "192.0.2.25",
+                RuleLoopLimit: 9,
+                WorkerThreadPriority: -1,
+                TcpIpThreads: 16,
+                MaxNumberOfMxHosts: 22));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -208,6 +235,10 @@ public sealed class SettingsComContractTests
         Assert.AreEqual("archive@example.test", settings.MirrorEMailAddress);
         Assert.AreEqual("example.test", settings.DefaultDomain);
         Assert.AreEqual("192.0.2.25", settings.SMTPDeliveryBindToIP);
+        Assert.AreEqual(9, settings.RuleLoopLimit);
+        Assert.AreEqual(-1, settings.WorkerThreadPriority);
+        Assert.AreEqual(16, settings.TCPIPThreads);
+        Assert.AreEqual(22, settings.MaxNumberOfMXHosts);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -305,6 +336,18 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPDeliveryBindToIP = "192.0.2.26").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.RuleLoopLimit = 10).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.WorkerThreadPriority = 1).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.TCPIPThreads = 20).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxNumberOfMXHosts = 30).ErrorCode);
     }
 
     [TestMethod]

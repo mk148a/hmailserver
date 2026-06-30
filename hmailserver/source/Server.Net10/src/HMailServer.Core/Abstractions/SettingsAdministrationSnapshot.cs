@@ -32,4 +32,8 @@ public sealed record SettingsAdministrationSnapshot(
     bool AddDeliveredToHeader = false,
     string MirrorEmailAddress = "",
     string DefaultDomain = "",
-    string SmtpDeliveryBindToIp = "");
+    string SmtpDeliveryBindToIp = "",
+    int RuleLoopLimit = 0,
+    int WorkerThreadPriority = 0,
+    int TcpIpThreads = 0,
+    int MaxNumberOfMxHosts = 0);
