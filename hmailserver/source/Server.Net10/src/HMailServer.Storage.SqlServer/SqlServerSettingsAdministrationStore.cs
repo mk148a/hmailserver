@@ -11,9 +11,23 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
     COALESCE(MAX(CASE WHEN settingname = N'welcomesmtp' THEN settingstring END), N''),
     COALESCE(MAX(CASE WHEN settingname = N'welcomepop3' THEN settingstring END), N''),
-    COALESCE(MAX(CASE WHEN settingname = N'welcomeimap' THEN settingstring END), N'')
+    COALESCE(MAX(CASE WHEN settingname = N'welcomeimap' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'maxsmtpconnections' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'maxpop3connections' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'maximapconnections' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'maxdelivertythreads' THEN settinginteger END), 0)
 FROM hm_settings
-WHERE settingname IN (N'hostname', N'welcomesmtp', N'welcomepop3', N'welcomeimap');
+WHERE settingname IN
+(
+    N'hostname',
+    N'welcomesmtp',
+    N'welcomepop3',
+    N'welcomeimap',
+    N'maxsmtpconnections',
+    N'maxpop3connections',
+    N'maximapconnections',
+    N'maxdelivertythreads'
+);
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
@@ -42,6 +56,10 @@ WHERE settingname IN (N'hostname', N'welcomesmtp', N'welcomepop3', N'welcomeimap
             HostName: reader.GetString(0),
             WelcomeSmtp: reader.GetString(1),
             WelcomePop3: reader.GetString(2),
-            WelcomeImap: reader.GetString(3));
+            WelcomeImap: reader.GetString(3),
+            MaxSmtpConnections: reader.GetInt32(4),
+            MaxPop3Connections: reader.GetInt32(5),
+            MaxImapConnections: reader.GetInt32(6),
+            MaxDeliveryThreads: reader.GetInt32(7));
     }
 }

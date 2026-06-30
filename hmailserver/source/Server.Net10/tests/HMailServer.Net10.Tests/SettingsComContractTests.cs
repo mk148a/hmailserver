@@ -66,19 +66,27 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedSettings_ExposesReadOnlyHostAndWelcomeStrings()
+    public void AuthorizedSettings_ExposesReadOnlyHostWelcomeAndLimitScalars()
     {
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
                 HostName: "mail.example.test",
                 WelcomeSmtp: "SMTP ready",
                 WelcomePop3: "POP3 ready",
-                WelcomeImap: "IMAP ready"));
+                WelcomeImap: "IMAP ready",
+                MaxSmtpConnections: 100,
+                MaxPop3Connections: 50,
+                MaxImapConnections: 75,
+                MaxDeliveryThreads: 10));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
         Assert.AreEqual("POP3 ready", settings.WelcomePOP3);
         Assert.AreEqual("IMAP ready", settings.WelcomeIMAP);
+        Assert.AreEqual(100, settings.MaxSMTPConnections);
+        Assert.AreEqual(50, settings.MaxPOP3Connections);
+        Assert.AreEqual(75, settings.MaxIMAPConnections);
+        Assert.AreEqual(10, settings.MaxDeliveryThreads);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -92,6 +100,18 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.WelcomeIMAP = "changed").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxSMTPConnections = 200).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxPOP3Connections = 200).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxIMAPConnections = 200).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxDeliveryThreads = 20).ErrorCode);
     }
 
     [TestMethod]

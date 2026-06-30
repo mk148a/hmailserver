@@ -6,16 +6,21 @@ namespace HMailServer.Net10.Tests;
 public sealed class SqlServerSettingsAdministrationStoreTests
 {
     [TestMethod]
-    public void GetSettingsSql_ReadsOnlyLegacyHostAndWelcomeStrings()
+    public void GetSettingsSql_ReadsOnlyLegacyHostWelcomeAndLimitScalars()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;
 
         StringAssert.Contains(sql, "settingstring");
+        StringAssert.Contains(sql, "settinginteger");
         StringAssert.Contains(sql, "FROM hm_settings");
         StringAssert.Contains(sql, "settingname = N'hostname'");
         StringAssert.Contains(sql, "settingname = N'welcomesmtp'");
         StringAssert.Contains(sql, "settingname = N'welcomepop3'");
         StringAssert.Contains(sql, "settingname = N'welcomeimap'");
+        StringAssert.Contains(sql, "settingname = N'maxsmtpconnections'");
+        StringAssert.Contains(sql, "settingname = N'maxpop3connections'");
+        StringAssert.Contains(sql, "settingname = N'maximapconnections'");
+        StringAssert.Contains(sql, "settingname = N'maxdelivertythreads'");
     }
 
     [TestMethod]

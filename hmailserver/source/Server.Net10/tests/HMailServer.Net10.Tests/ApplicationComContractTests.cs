@@ -95,7 +95,11 @@ public sealed class ApplicationComContractTests
                     HostName: "mail.example.test",
                     WelcomeSmtp: "SMTP ready",
                     WelcomePop3: "POP3 ready",
-                    WelcomeImap: "IMAP ready")));
+                    WelcomeImap: "IMAP ready",
+                    MaxSmtpConnections: 100,
+                    MaxPop3Connections: 50,
+                    MaxImapConnections: 75,
+                    MaxDeliveryThreads: 10)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -112,6 +116,10 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
         Assert.AreEqual("POP3 ready", settings.WelcomePOP3);
         Assert.AreEqual("IMAP ready", settings.WelcomeIMAP);
+        Assert.AreEqual(100, settings.MaxSMTPConnections);
+        Assert.AreEqual(50, settings.MaxPOP3Connections);
+        Assert.AreEqual(75, settings.MaxIMAPConnections);
+        Assert.AreEqual(10, settings.MaxDeliveryThreads);
     }
 
     [TestMethod]

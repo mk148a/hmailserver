@@ -437,6 +437,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         _administrationSnapshot = administrationSnapshot;
     }
 
+    public override int MaxSMTPConnections
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxSMTPConnections
+                : _administrationSnapshot.MaxSmtpConnections;
+        }
+        set => base.MaxSMTPConnections = value;
+    }
+
+    public override int MaxPOP3Connections
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxPOP3Connections
+                : _administrationSnapshot.MaxPop3Connections;
+        }
+        set => base.MaxPOP3Connections = value;
+    }
+
     public override string WelcomeSMTP
     {
         get
@@ -483,6 +507,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 : _administrationSnapshot.HostName;
         }
         set => base.HostName = value;
+    }
+
+    public override int MaxDeliveryThreads
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxDeliveryThreads
+                : _administrationSnapshot.MaxDeliveryThreads;
+        }
+        set => base.MaxDeliveryThreads = value;
+    }
+
+    public override int MaxIMAPConnections
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxIMAPConnections
+                : _administrationSnapshot.MaxImapConnections;
+        }
+        set => base.MaxIMAPConnections = value;
     }
 
     public override IInterfaceMessageIndexing MessageIndexing
@@ -597,8 +645,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
 [ComVisible(false)]
 public abstract class SettingsComAdapter : IInterfaceSettings
 {
-    public int MaxSMTPConnections { get => Unavailable<int>(); set => Unavailable(); }
-    public int MaxPOP3Connections { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxSMTPConnections { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxPOP3Connections { get => Unavailable<int>(); set => Unavailable(); }
     public string MirrorEMailAddress { get => Unavailable<string>(); set => Unavailable(); }
     public bool AllowSMTPAuthPlain { get => Unavailable<bool>(); set => Unavailable(); }
     public bool DenyMailFromNull { get => Unavailable<bool>(); set => Unavailable(); }
@@ -613,7 +661,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public bool ServiceSMTP { get => Unavailable<bool>(); set => Unavailable(); }
     public bool ServicePOP3 { get => Unavailable<bool>(); set => Unavailable(); }
     public bool ServiceIMAP { get => Unavailable<bool>(); set => Unavailable(); }
-    public int MaxDeliveryThreads { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxDeliveryThreads { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceAntiVirus AntiVirus => Unavailable<IInterfaceAntiVirus>();
     public virtual IInterfaceRoutes Routes => Unavailable<IInterfaceRoutes>();
     public virtual string HostName { get => Unavailable<string>(); set => Unavailable(); }
@@ -629,7 +677,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public IInterfaceBackupSettings Backup => Unavailable<IInterfaceBackupSettings>();
     public string DefaultDomain { get => Unavailable<string>(); set => Unavailable(); }
     public string SMTPDeliveryBindToIP { get => Unavailable<string>(); set => Unavailable(); }
-    public int MaxIMAPConnections { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxIMAPConnections { get => Unavailable<int>(); set => Unavailable(); }
     public bool IMAPSortEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool IMAPQuotaEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool IMAPIdleEnabled { get => Unavailable<bool>(); set => Unavailable(); }
