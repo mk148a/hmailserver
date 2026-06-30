@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded IMAP naming slice read-only `Settings.IMAPPublicFolderName` ve `IMAPHierarchyDelimiter` getter'larini existing `imappublicfoldername`/`IMAPHierarchyDelimiter` `hm_settings.settingstring` satirlarindan acmali; kurulu vtable/DISPID 74/87 ve `BSTR` marshaling'i korumali ve setter, folder/rule rename-rewrite, live IMAP namespace degisikligi veya daha genis Settings/Admin davranisi eklememeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded SMTP policy slice read-only `Settings.AllowSMTPAuthPlain`, `DenyMailFromNull`, `AllowIncorrectLineEndings` ve `AddDeliveredToHeader` getter'larini existing `authallowplaintext`/`allowmailfromnull`/`smtpallowincorrectlineendings`/`adddeliveredtoheader` `hm_settings.settinginteger` satirlarindan acmali; `DenyMailFromNull` legacy inversion davranisini korumali, kurulu vtable/DISPID 8/11/61/73 ve `VARIANT_BOOL` marshaling'i sabit kalmali ve setter/live SMTP auth-session-delivery davranisi eklenmemeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Settings` snapshot/store'u IMAP naming getter'larini read-only acacak sekilde genisletildi: `IMAPPublicFolderName` ve `IMAPHierarchyDelimiter` mevcut legacy `imappublicfoldername`/`IMAPHierarchyDelimiter` `hm_settings.settingstring` satirlarindan geliyor. DISPIDs 74/87 ve `BSTR` metadata'si yeni contract testinde kilitlendi; setter'lar `E_NOTIMPL`, folder/rule rename-rewrite ve live IMAP namespace degisikligi kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 26/26, full Net10 testleri 721/721 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u IMAP SASL getter'larini read-only acacak sekilde genisletildi: `IMAPSASLPlainEnabled` ve `IMAPSASLInitialResponseEnabled` mevcut legacy `EnableImapSASLPlain`/`EnableImapSASLInitialResponse` `hm_settings.settinginteger` satirlarindan geliyor. DISPIDs 101/102 ve `VARIANT_BOOL` metadata'si contract testinde kilitlendi; setter'lar `E_NOTIMPL`, live IMAP authentication/capability degisikligi kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 25/25, full Net10 testleri 720/720 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u IMAP capability getter'larini read-only acacak sekilde genisletildi: `IMAPSortEnabled`, `IMAPQuotaEnabled`, `IMAPIdleEnabled` ve `IMAPACLEnabled` mevcut legacy `enableimapsort`/`enableimapquota`/`enableimapidle`/`enableimapacl` `hm_settings.settinginteger` satirlarindan geliyor. DISPIDs ve `VARIANT_BOOL` metadata'si contract testinde kilitlendi; setter'lar `E_NOTIMPL`, live IMAP capability/session degisikligi kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 25/25, full Net10 testleri 720/720 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u SMTP guardrail getter'larini read-only acacak sekilde genisletildi: `MaxMessageSize`, `MaxSMTPRecipientsInBatch`, `DisconnectInvalidClients` ve `MaxNumberOfInvalidCommands` mevcut legacy `hm_settings.settinginteger` satirlarindan geliyor. `DisconnectInvalidClients` `VARIANT_BOOL` metadata'si contract testinde kilitlendi; setter'lar `E_NOTIMPL`, live SMTP session/listener policy degisikligi kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 25/25, full Net10 testleri 720/720 gecti; Windows service/COM build 0 uyari/0 hata verdi.
@@ -206,7 +207,7 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesinden once tamamlanan kod commit'i:
 
 ```text
-3b305bb2c feat(net10): expose settings IMAP SASL getters
+6b40594fc feat(net10): expose settings IMAP naming getters
 ```
 
 Son 30 commit icinde one cikan son dilimler:
@@ -462,5 +463,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only IMAP naming getter'larini ele al: `Settings.IMAPPublicFolderName` ve `IMAPHierarchyDelimiter`; existing `imappublicfoldername`/`IMAPHierarchyDelimiter` `hm_settings.settingstring` satirlarini kullan, mevcut vtable/DISPID 74/87 ve `BSTR` marshaling'i koru, setter/folder-rule rename-rewrite/live IMAP namespace kapsamlarini acma.
+5. Current Next Slice olarak authenticated read-only SMTP policy getter'larini ele al: `Settings.AllowSMTPAuthPlain`, `DenyMailFromNull`, `AllowIncorrectLineEndings`, `AddDeliveredToHeader`; existing `authallowplaintext`/`allowmailfromnull`/`smtpallowincorrectlineendings`/`adddeliveredtoheader` `hm_settings.settinginteger` satirlarini kullan, `DenyMailFromNull` legacy inversion davranisini ve mevcut vtable/DISPID 8/11/61/73 ile `VARIANT_BOOL` marshaling'ini koru, setter/live SMTP auth-session-delivery kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; en gec her 10 committe bir push yap ve bu iki commitlik landing sonunda push ederek branch'i temiz birak.
