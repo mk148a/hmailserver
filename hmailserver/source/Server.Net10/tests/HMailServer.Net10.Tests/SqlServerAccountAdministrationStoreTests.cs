@@ -15,6 +15,9 @@ public sealed class SqlServerAccountAdministrationStoreTests
         StringAssert.Contains(sql, "accountaddress");
         StringAssert.Contains(sql, "accountactive");
         StringAssert.Contains(sql, "accountadminlevel");
+        StringAssert.Contains(sql, "accountisad");
+        StringAssert.Contains(sql, "accountaddomain");
+        StringAssert.Contains(sql, "accountadusername");
         StringAssert.Contains(sql, "accountmaxsize");
         StringAssert.Contains(sql, "accountsizebytes");
         StringAssert.Contains(sql, "accountlastlogontime");
@@ -43,6 +46,7 @@ public sealed class SqlServerAccountAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("accountpassword", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("messagefilename", StringComparison.OrdinalIgnoreCase));
     }
 }

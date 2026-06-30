@@ -14,6 +14,9 @@ SELECT
     accountaddress,
     accountactive,
     accountadminlevel,
+    accountisad,
+    accountaddomain,
+    accountadusername,
     accountmaxsize,
     (
         SELECT COALESCE(SUM(CAST(messagesize AS bigint)), 0)
@@ -63,8 +66,8 @@ ORDER BY accountaddress ASC;
         var accounts = new List<AccountAdministrationSnapshot>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var maxSize = reader.GetInt32(5);
-            var sizeBytes = Convert.ToInt64(reader.GetValue(6), CultureInfo.InvariantCulture);
+            var maxSize = reader.GetInt32(8);
+            var sizeBytes = Convert.ToInt64(reader.GetValue(9), CultureInfo.InvariantCulture);
             accounts.Add(
                 new AccountAdministrationSnapshot(
                     Id: reader.GetInt32(0),
@@ -72,25 +75,28 @@ ORDER BY accountaddress ASC;
                     Address: reader.GetString(2),
                     Active: Convert.ToInt32(reader.GetValue(3), CultureInfo.InvariantCulture) != 0,
                     AdminLevel: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture),
+                    IsActiveDirectoryAccount: ReadLegacyBoolean(reader, 5),
+                    ActiveDirectoryDomain: reader.GetString(6),
+                    ActiveDirectoryUsername: reader.GetString(7),
                     MaxSize: maxSize,
                     Size: CalculateLegacySizeMb(sizeBytes),
                     QuotaUsed: CalculateLegacyQuotaUsed(sizeBytes, maxSize),
-                    LastLogonTime: reader.GetDateTime(7),
-                    PersonFirstName: reader.GetString(8),
-                    PersonLastName: reader.GetString(9),
-                    VacationMessageIsOn: ReadLegacyBoolean(reader, 10),
-                    VacationMessage: reader.GetString(11),
-                    VacationSubject: reader.GetString(12),
-                    VacationMessageExpires: ReadLegacyBoolean(reader, 13),
-                    VacationMessageExpiresDate: reader.GetString(14),
-                    VacationMessageAbortSpamFlagged: ReadLegacyBoolean(reader, 15),
-                    ForwardEnabled: ReadLegacyBoolean(reader, 16),
-                    ForwardAddress: reader.GetString(17),
-                    ForwardKeepOriginal: ReadLegacyBoolean(reader, 18),
-                    ForwardAbortSpamFlagged: ReadLegacyBoolean(reader, 19),
-                    SignatureEnabled: ReadLegacyBoolean(reader, 20),
-                    SignaturePlainText: reader.GetString(21),
-                    SignatureHtml: reader.GetString(22)));
+                    LastLogonTime: reader.GetDateTime(10),
+                    PersonFirstName: reader.GetString(11),
+                    PersonLastName: reader.GetString(12),
+                    VacationMessageIsOn: ReadLegacyBoolean(reader, 13),
+                    VacationMessage: reader.GetString(14),
+                    VacationSubject: reader.GetString(15),
+                    VacationMessageExpires: ReadLegacyBoolean(reader, 16),
+                    VacationMessageExpiresDate: reader.GetString(17),
+                    VacationMessageAbortSpamFlagged: ReadLegacyBoolean(reader, 18),
+                    ForwardEnabled: ReadLegacyBoolean(reader, 19),
+                    ForwardAddress: reader.GetString(20),
+                    ForwardKeepOriginal: ReadLegacyBoolean(reader, 21),
+                    ForwardAbortSpamFlagged: ReadLegacyBoolean(reader, 22),
+                    SignatureEnabled: ReadLegacyBoolean(reader, 23),
+                    SignaturePlainText: reader.GetString(24),
+                    SignatureHtml: reader.GetString(25)));
         }
 
         return accounts;

@@ -64,7 +64,7 @@ public sealed class Account : IInterfaceAccount
         set => Write(() => _active = value);
     }
 
-    public string ADDomain { get => Read(_activeDirectoryDomain); set => Write(() => _activeDirectoryDomain = value); }
+    public string ADDomain { get => _administrationSnapshot?.ActiveDirectoryDomain ?? Read(_activeDirectoryDomain); set => Write(() => _activeDirectoryDomain = value); }
 
     public string Address
     {
@@ -80,13 +80,13 @@ public sealed class Account : IInterfaceAccount
 
     public int ID => _administrationSnapshot?.Id ?? Read(0);
 
-    public bool IsAD { get => Read(_isActiveDirectoryAccount); set => Write(() => _isActiveDirectoryAccount = value); }
+    public bool IsAD { get => _administrationSnapshot?.IsActiveDirectoryAccount ?? Read(_isActiveDirectoryAccount); set => Write(() => _isActiveDirectoryAccount = value); }
 
     public string Password { get => Read(_password); set => Write(() => _password = value); }
 
     public float Size => _administrationSnapshot?.Size ?? Read(0f);
 
-    public string ADUsername { get => Read(_activeDirectoryUsername); set => Write(() => _activeDirectoryUsername = value); }
+    public string ADUsername { get => _administrationSnapshot?.ActiveDirectoryUsername ?? Read(_activeDirectoryUsername); set => Write(() => _activeDirectoryUsername = value); }
 
     public IInterfaceMessages Messages => NotImplemented<IInterfaceMessages>();
 

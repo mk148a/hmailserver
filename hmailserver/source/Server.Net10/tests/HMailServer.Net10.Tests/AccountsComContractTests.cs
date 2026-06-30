@@ -51,12 +51,18 @@ public sealed class AccountsComContractTests
     {
         var accountsError = Assert.ThrowsExactly<COMException>(() => _ = new Accounts().Count);
         var accountError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Address);
+        var adDomainError = Assert.ThrowsExactly<COMException>(() => _ = new Account().ADDomain);
+        var isAdError = Assert.ThrowsExactly<COMException>(() => _ = new Account().IsAD);
+        var adUsernameError = Assert.ThrowsExactly<COMException>(() => _ = new Account().ADUsername);
         var sizeError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Size);
         var quotaUsedError = Assert.ThrowsExactly<COMException>(() => _ = new Account().QuotaUsed);
         var lastLogonError = Assert.ThrowsExactly<COMException>(() => _ = new Account().LastLogonTime);
 
         Assert.AreEqual(EAccessDenied, accountsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, accountError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, adDomainError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, isAdError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, adUsernameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, sizeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, quotaUsedError.ErrorCode);
         Assert.AreEqual(EAccessDenied, lastLogonError.ErrorCode);
@@ -74,6 +80,9 @@ public sealed class AccountsComContractTests
                     "admin@example.test",
                     true,
                     2,
+                    IsActiveDirectoryAccount: true,
+                    ActiveDirectoryDomain: "corp.example.test",
+                    ActiveDirectoryUsername: "ada.lovelace",
                     MaxSize: 2,
                     Size: 2.5f,
                     QuotaUsed: 125,
@@ -99,6 +108,9 @@ public sealed class AccountsComContractTests
                     "user@example.test",
                     false,
                     0,
+                    IsActiveDirectoryAccount: false,
+                    ActiveDirectoryDomain: "",
+                    ActiveDirectoryUsername: "",
                     MaxSize: 0,
                     Size: 0.125f,
                     QuotaUsed: 0,
@@ -108,15 +120,18 @@ public sealed class AccountsComContractTests
             });
 
         Assert.AreEqual(2, accounts.Count);
-        AssertAccount(accounts[0], 10, 100, "admin@example.test", true, ComAdminLevel.ServerAdministrator, 2, 2.5f, 125, new DateTime(2026, 3, 4, 5, 6, 7), "Ada", "Lovelace");
-        AssertAccount(accounts.get_ItemByAddress("USER@EXAMPLE.TEST"), 20, 100, "user@example.test", false, ComAdminLevel.Normal, 0, 0.125f, 0, new DateTime(2026, 2, 3, 4, 5, 6), "Grace", "Hopper");
-        AssertAccount(accounts.get_ItemByDBID(10), 10, 100, "admin@example.test", true, ComAdminLevel.ServerAdministrator, 2, 2.5f, 125, new DateTime(2026, 3, 4, 5, 6, 7), "Ada", "Lovelace");
+        AssertAccount(accounts[0], 10, 100, "admin@example.test", true, ComAdminLevel.ServerAdministrator, true, "corp.example.test", "ada.lovelace", 2, 2.5f, 125, new DateTime(2026, 3, 4, 5, 6, 7), "Ada", "Lovelace");
+        AssertAccount(accounts.get_ItemByAddress("USER@EXAMPLE.TEST"), 20, 100, "user@example.test", false, ComAdminLevel.Normal, false, "", "", 0, 0.125f, 0, new DateTime(2026, 2, 3, 4, 5, 6), "Grace", "Hopper");
+        AssertAccount(accounts.get_ItemByDBID(10), 10, 100, "admin@example.test", true, ComAdminLevel.ServerAdministrator, true, "corp.example.test", "ada.lovelace", 2, 2.5f, 125, new DateTime(2026, 3, 4, 5, 6, 7), "Ada", "Lovelace");
         AssertAccountDeliveryDetailScalars(accounts[0]);
 
         var badIndex = Assert.ThrowsExactly<COMException>(() => _ = accounts[2]);
         var badAddress = Assert.ThrowsExactly<COMException>(() => _ = accounts.get_ItemByAddress("missing@example.test"));
         var pendingRefresh = Assert.ThrowsExactly<COMException>(accounts.Refresh);
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].Address = "renamed@example.test");
+        var pendingAdFlagMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].IsAD = false);
+        var pendingAdDomainMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].ADDomain = "other.example.test");
+        var pendingAdUsernameMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].ADUsername = "other-user");
         var pendingCoreScalarMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].MaxSize = 4096);
         var pendingDeliveryScalarMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].ForwardEnabled = false);
         var pendingSensitiveRead = Assert.ThrowsExactly<COMException>(() => _ = accounts[0].Password);
@@ -125,6 +140,9 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(DispEBadIndex, badAddress.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingAdFlagMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingAdDomainMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingAdUsernameMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingCoreScalarMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDeliveryScalarMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSensitiveRead.ErrorCode);
@@ -154,6 +172,9 @@ public sealed class AccountsComContractTests
         string address,
         bool active,
         ComAdminLevel adminLevel,
+        bool isActiveDirectoryAccount,
+        string activeDirectoryDomain,
+        string activeDirectoryUsername,
         int maxSize,
         float size,
         int quotaUsed,
@@ -166,6 +187,9 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(address, account.Address);
         Assert.AreEqual(active, account.Active);
         Assert.AreEqual(adminLevel, account.AdminLevel);
+        Assert.AreEqual(isActiveDirectoryAccount, account.IsAD);
+        Assert.AreEqual(activeDirectoryDomain, account.ADDomain);
+        Assert.AreEqual(activeDirectoryUsername, account.ADUsername);
         Assert.AreEqual(maxSize, account.MaxSize);
         Assert.AreEqual(size, account.Size, 0.0001f);
         Assert.AreEqual(quotaUsed, account.QuotaUsed);
