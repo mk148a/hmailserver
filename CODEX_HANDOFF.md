@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded public-folder disk-name Settings slice read-only `Settings.PublicFolderDiskName` getter'ini legacy sabit `#Public` olarak acmali; kurulu getter-only DISPID 79 ve `BSTR` marshaling sabit kalmali ve filesystem access, public-folder creation/rename behavior, data-directory reconfiguration veya daha genis Settings/Admin mutation davranisi eklenmemeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded UI-language Settings slice read-only `Settings.UserInterfaceLanguage` getter'ini configured/default legacy `hMailServer.ini` `[Settings] UseLanguage` degerinden acmali; eksik degerde legacy `English` default'u, kurulu DISPID 42 ve `BSTR` marshaling sabit kalmali ve setter, INI persistence, Administrator UI resource reload veya daha genis Settings/Admin mutation davranisi eklenmemeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Settings` yolu getter-only `PublicFolderDiskName` degerini legacy gibi sabit `#Public` olarak dondurecek sekilde genisletildi. DISPID 79, getter-only yuzey ve `BSTR` metadata'si contract testinde kilitlendi; direct activation `E_ACCESSDENIED` kaldi. Filesystem access, public-folder creation/rename behavior, data-directory reconfiguration ve daha genis Settings/Admin mutation kapsam disi kaldi. Dar filtre 21/21, full Net10 testleri 724/724 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u asynchronous-thread getter'ini read-only acacak sekilde genisletildi: `MaxAsynchronousThreads` mevcut legacy `MaxNumberOfAsynchronousTasks` `hm_settings.settinginteger` satirindan geliyor; COM property adinin SQL storage adi olarak kullanilmadigi store testinde kilitlendi. DISPID 88 ve integer metadata'si korundu. Setter, live work-queue resizing, service restart/reconfiguration ve daha genis Settings/Admin mutation kapsam disi kaldi. Dar filtre 23/23, full Net10 testleri 723/723 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u IMAP master-user getter'ini read-only acacak sekilde genisletildi: `IMAPMasterUser` mevcut legacy `ImapMasterUser` `hm_settings.settingstring` satirindan geliyor. DISPID 100 ve `BSTR` metadata'si contract testinde kilitlendi. Setter, IMAP authentication/master-user behavior, live IMAP configuration reload, secret handling ve daha genis Settings/Admin mutation kapsam disi kaldi. Dar filtre 23/23, full Net10 testleri 723/723 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u TLS bitmask getter'larini read-only acacak sekilde genisletildi: `TlsVersion10Enabled`, `TlsVersion11Enabled`, `TlsVersion12Enabled`, `TlsVersion13Enabled`, `TlsOptionPreferServerCiphersEnabled` ve `TlsOptionPrioritizeChaChaEnabled` mevcut legacy `SslVersions`/`TlsOptions` `hm_settings.settinginteger` bitmask satirlarindan geliyor. Legacy bitler TLS version icin 2/4/8/16 ve TLS option icin 2/4 olarak map ediliyor. DISPIDs 96/97/98/103/105/106 ve `VARIANT_BOOL` metadata'si contract testinde kilitlendi. Setter'lar, live TLS reload/listener context rebuild, cipher validation, OS TLS policy degisikligi ve daha genis Settings/Admin mutation kapsam disi kaldi. Dar filtre 23/23, full Net10 testleri 723/723 gecti; Windows service/COM build 0 uyari/0 hata verdi.
@@ -218,7 +219,7 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesinden once tamamlanan kod commit'i:
 
 ```text
-baeb06b9f feat(net10): expose settings asynchronous threads getter
+70fe33517 feat(net10): expose public folder disk name getter
 ```
 
 Son 30 commit icinde one cikan son dilimler:
@@ -474,5 +475,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only `Settings.PublicFolderDiskName` getter'ini ele al: legacy sabit `#Public` degerini kullan, mevcut getter-only DISPID 79 ve `BSTR` marshaling'i koru, filesystem/public-folder mutation/data-directory reconfiguration kapsamlarini acma.
+5. Current Next Slice olarak authenticated read-only `Settings.UserInterfaceLanguage` getter'ini ele al: configured/default legacy `hMailServer.ini` `[Settings] UseLanguage` degerini ve eksik durumda `English` default'unu kullan, mevcut DISPID 42 ve `BSTR` marshaling'i koru, setter/INI persistence/Administrator UI resource reload kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; en gec her 10 committe bir push yap ve bu iki commitlik landing sonunda push ederek branch'i temiz birak.
