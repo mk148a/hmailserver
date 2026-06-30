@@ -7,6 +7,7 @@ namespace HMailServer.Storage.SqlServer;
 
 public sealed class SqlServerDomainAdministrationStore : IDomainAdministrationStore
 {
+    private const int AntiSpamOptionUseGreylisting = 1;
     private const int AntiSpamOptionDkimSign = 2;
     private const int AntiSpamOptionDkimSimpleHeader = 4;
     private const int AntiSpamOptionDkimSimpleBody = 8;
@@ -90,6 +91,7 @@ ORDER BY domainname ASC;
                     MaxMessageSize: maxMessageSize,
                     PlusAddressingEnabled: plusAddressingEnabled,
                     PlusAddressingCharacter: plusAddressingCharacter,
+                    AntiSpamEnableGreylisting: (antiSpamOptions & AntiSpamOptionUseGreylisting) != 0,
                     MaxSize: maxSize,
                     MaxNumberOfAccounts: maxNumberOfAccounts,
                     MaxNumberOfAliases: maxNumberOfAliases,

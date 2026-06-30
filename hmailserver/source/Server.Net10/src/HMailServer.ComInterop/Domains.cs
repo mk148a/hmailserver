@@ -444,6 +444,12 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         set => DomainComAuthorization.Unavailable(this);
     }
 
+    public override bool AntiSpamEnableGreylisting
+    {
+        get => Snapshot.AntiSpamEnableGreylisting;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
     public override int MaxSize
     {
         get => Snapshot.MaxSize;
@@ -622,7 +628,7 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
     public virtual bool PlusAddressingEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string PlusAddressingCharacter { get => Unavailable<string>(); set => Unavailable(); }
-    public bool AntiSpamEnableGreylisting { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool AntiSpamEnableGreylisting { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual int MaxSize { get => Unavailable<int>(); set => Unavailable(); }
     public int Size => Unavailable<int>();
     public long AllocatedSize => Unavailable<long>();

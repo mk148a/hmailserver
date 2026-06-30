@@ -102,6 +102,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(1024, domains[0].MaxMessageSize);
             Assert.IsTrue(domains[0].PlusAddressingEnabled);
             Assert.AreEqual("+", domains[0].PlusAddressingCharacter);
+            Assert.IsTrue(domains[0].AntiSpamEnableGreylisting);
             Assert.AreEqual(4096, domains[0].MaxSize);
             Assert.AreEqual(200, domains[0].MaxNumberOfAccounts);
             Assert.AreEqual(30, domains[0].MaxNumberOfAliases);
@@ -125,6 +126,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(domains[0].DKIMSignAliasesEnabled);
             Assert.AreEqual("beta.example", domains.get_ItemByName("BETA.EXAMPLE").Name);
             Assert.IsFalse(domains.get_ItemByDBID(20).Active);
+            Assert.IsFalse(domains.get_ItemByDBID(20).AntiSpamEnableGreylisting);
             Assert.IsFalse(domains.get_ItemByDBID(20).SignatureEnabled);
             Assert.AreEqual(
                 ComDomainSignatureMethod.SetIfNotSpecifiedInAccount,
@@ -684,7 +686,7 @@ INSERT INTO dbo.hm_domains
      domaindkimselector, domaindkimprivatekeyfile)
 VALUES
     (20, N'beta.example', 0, N'postmaster@beta.example', 512, 0, N'+', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N''),
-    (10, N'alpha.example', 1, N'postmaster@alpha.example', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512, 1, 3, N'Alpha plain signature', N'<p>Alpha HTML signature</p>', 1, 0, 54, N'alpha-selector', N'C:\keys\alpha.pem');
+    (10, N'alpha.example', 1, N'postmaster@alpha.example', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512, 1, 3, N'Alpha plain signature', N'<p>Alpha HTML signature</p>', 1, 0, 55, N'alpha-selector', N'C:\keys\alpha.pem');
 """;
 
         await using var connection = new SqlConnection(connectionString);

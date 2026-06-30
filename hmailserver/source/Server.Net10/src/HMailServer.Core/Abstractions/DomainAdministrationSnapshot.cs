@@ -8,6 +8,7 @@ public sealed record DomainAdministrationSnapshot(
     int MaxMessageSize = 0,
     bool PlusAddressingEnabled = false,
     string PlusAddressingCharacter = "",
+    bool AntiSpamEnableGreylisting = false,
     int MaxSize = 0,
     int MaxNumberOfAccounts = 0,
     int MaxNumberOfAliases = 0,
