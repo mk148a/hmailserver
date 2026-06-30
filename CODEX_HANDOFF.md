@@ -47,11 +47,12 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice `Account.QuotaUsed` getter'ini authenticated read-only computed scalar olarak acmali; legacy `AccountSizeCache` davranisina uygun sekilde secili account'un `hm_messages.messagesize` byte toplamindan ve `accountmaxsize` MB limitinden integer yuzde degerini dondurmeli, kurulu vtable/DISPID degerlerini korumali ve quota enforcement, account mutation veya filesystem/mailbox scan davranisi eklememeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice `Account.LastLogonTime` getter'ini authenticated read-only scalar olarak acmali; mevcut `hm_accounts.accountlastlogontime` degerini legacy VARIANT date sekline uygun dondurmeli, kurulu vtable/DISPID degerlerini korumali ve login-time update, authentication davranisi, account mutation veya daha genis account davranisi eklememeli.
 
 Son tamamlanan kucuk dilimler:
 
-- Authenticated SQL-backed `Account` adapter'i legacy `Account.Size` getter'ini secili account'un `hm_messages.messagesize` byte toplamindan 3 basamakli MB float degeri olarak read-only acacak sekilde genisletildi. `QuotaUsed`, quota enforcement, account mutation ve filesystem/mailbox scan davranisi kapsam disi kaldi. Dar account contract/store/integration filtresi 15/15, full Net10 testleri 715/715 gecti.
+- Authenticated SQL-backed `Account` adapter'i legacy `Account.QuotaUsed` getter'ini secili account'un `hm_messages.messagesize` byte toplami ve `accountmaxsize` MB limitinden legacy integer yuzde/truncation davranisiyla read-only acacak sekilde genisletildi. Quota enforcement, account mutation ve filesystem/mailbox scan davranisi kapsam disi kaldi. Dar account contract/store/integration filtresi 15/15, full Net10 testleri 715/715 gecti.
+- Authenticated SQL-backed `Account` adapter'i legacy `Account.Size` getter'ini secili account'un `hm_messages.messagesize` byte toplamindan 3 basamakli MB float degeri olarak read-only acacak sekilde genisletildi. Quota enforcement, account mutation ve filesystem/mailbox scan davranisi kapsam disi kaldi. Dar account contract/store/integration filtresi 15/15, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Domain` adapter'i legacy MSSQL `Domain.Size` getter'ini read-only aggregate olarak acacak sekilde genisletildi; SQL shape `hm_messages.messagesize` toplamindan MB'a truncate ediyor ve legacy `messageaccountid IN (SELECT accountdomainid ...)` davranisi dar store/integration testleriyle sabitlendi. Quota enforcement, account mutation ve filesystem/mailbox scan davranisi kapsam disi kaldi. Dar domain contract/store/integration filtresi 8/8, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Domain` adapter'i legacy `Domain.AllocatedSize` getter'ini secili domain'in `hm_accounts.accountmaxsize` toplamindan gelen read-only aggregate olarak acacak sekilde genisletildi. `Domain.Size`, quota enforcement, account mutation ve filesystem/mailbox scan davranisi kapsam disi kaldi. Dar domain contract/store/integration filtresi 8/8, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Domain` adapter'i mevcut `hm_domains.domainaddomain` degerini read-only `Domain.ADDomainName` getter'i olarak acacak sekilde genisletildi. Setter, AD synchronization ve authentication davranisi kapsam disi kaldi. Dar domain contract/store/integration filtresi 8/8, full Net10 testleri 715/715 gecti.
@@ -451,5 +452,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only `Account.QuotaUsed` computed scalar parity dilimini ele al; legacy integer yuzde davranisini once dar testle sabitle, mevcut vtable/DISPID degerlerini koru, quota enforcement/account mutation/filesystem scan kapsamlarini acma.
+5. Current Next Slice olarak authenticated read-only `Account.LastLogonTime` scalar parity dilimini ele al; legacy VARIANT date davranisini once dar testle sabitle, mevcut vtable/DISPID degerlerini koru, login-time update/authentication/account mutation kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; push'i kullanici acikca isterse yap.
