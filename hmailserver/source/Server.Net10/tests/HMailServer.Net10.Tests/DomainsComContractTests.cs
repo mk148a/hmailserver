@@ -73,10 +73,15 @@ public sealed class DomainsComContractTests
     }
 
     [TestMethod]
-    public void DkimEnums_PreserveLegacyValuesAndGuids()
+    public void DomainEnums_PreserveLegacyValuesAndGuids()
     {
+        Assert.AreEqual(new Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD08"), typeof(ComDomainSignatureMethod).GUID);
         Assert.AreEqual(new Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD13"), typeof(ComDkimCanonicalizationMethod).GUID);
         Assert.AreEqual(new Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD14"), typeof(ComDkimAlgorithm).GUID);
+        var signatureMethodValues = Enum.GetNames<ComDomainSignatureMethod>()
+            .ToDictionary(
+                static name => name,
+                static name => Convert.ToInt32(Enum.Parse<ComDomainSignatureMethod>(name)));
         var canonicalizationValues = Enum.GetNames<ComDkimCanonicalizationMethod>()
             .ToDictionary(
                 static name => name,
@@ -86,6 +91,10 @@ public sealed class DomainsComContractTests
                 static name => name,
                 static name => Convert.ToInt32(Enum.Parse<ComDkimAlgorithm>(name)));
 
+        Assert.AreEqual(0, signatureMethodValues[nameof(ComDomainSignatureMethod.Unknown)]);
+        Assert.AreEqual(1, signatureMethodValues[nameof(ComDomainSignatureMethod.SetIfNotSpecifiedInAccount)]);
+        Assert.AreEqual(2, signatureMethodValues[nameof(ComDomainSignatureMethod.OverwriteAccountSignature)]);
+        Assert.AreEqual(3, signatureMethodValues[nameof(ComDomainSignatureMethod.AppendToAccountSignature)]);
         Assert.AreEqual(1, canonicalizationValues[nameof(ComDkimCanonicalizationMethod.Simple)]);
         Assert.AreEqual(2, canonicalizationValues[nameof(ComDkimCanonicalizationMethod.Relaxed)]);
         Assert.AreEqual(1, algorithmValues[nameof(ComDkimAlgorithm.SHA1)]);
@@ -97,10 +106,12 @@ public sealed class DomainsComContractTests
     {
         var domainsError = Assert.ThrowsExactly<COMException>(() => _ = new Domains().Count);
         var domainError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().Name);
+        var signatureError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().SignatureEnabled);
         var dkimError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().DKIMSignEnabled);
 
         Assert.AreEqual(EAccessDenied, domainsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, domainError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, signatureError.ErrorCode);
         Assert.AreEqual(EAccessDenied, dkimError.ErrorCode);
     }
 
@@ -126,6 +137,12 @@ public sealed class DomainsComContractTests
                     MaxNumberOfAliasesEnabled: false,
                     MaxNumberOfDistributionListsEnabled: true,
                     MaxAccountSize: 512,
+                    SignatureEnabled: true,
+                    SignatureMethod: (int)ComDomainSignatureMethod.AppendToAccountSignature,
+                    SignaturePlainText: "Alpha plain signature",
+                    SignatureHtml: "<p>Alpha HTML signature</p>",
+                    AddSignaturesToReplies: true,
+                    AddSignaturesToLocalMail: false,
                     DkimSignEnabled: true,
                     DkimSelector: "alpha-selector",
                     DkimPrivateKeyFile: @"C:\keys\alpha.pem",
@@ -139,9 +156,11 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(2, domains.Count);
         AssertDomain(domains[0], 10, "alpha.example", true);
         AssertCoreScalars(domains[0]);
+        AssertSignatureScalars(domains[0]);
         AssertDkimScalars(domains[0]);
         AssertDomain(domains.get_ItemByName("BETA.EXAMPLE"), 20, "beta.example", false);
         AssertDomain(domains.get_ItemByDBID(10), 10, "alpha.example", true);
+        AssertSignatureDefaults(domains[1]);
         AssertDkimDefaults(domains[1]);
 
         var badIndex = Assert.ThrowsExactly<COMException>(() => _ = domains[2]);
@@ -149,6 +168,17 @@ public sealed class DomainsComContractTests
         var pendingRefresh = Assert.ThrowsExactly<COMException>(domains.Refresh);
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => domains[0].Active = false);
         var pendingScalarMutation = Assert.ThrowsExactly<COMException>(() => domains[0].Postmaster = "changed@alpha.example");
+        var pendingSignatureEnabled = Assert.ThrowsExactly<COMException>(() => domains[0].SignatureEnabled = false);
+        var pendingSignatureMethod = Assert.ThrowsExactly<COMException>(
+            () => domains[0].SignatureMethod = ComDomainSignatureMethod.OverwriteAccountSignature);
+        var pendingSignaturePlain = Assert.ThrowsExactly<COMException>(
+            () => domains[0].SignaturePlainText = "changed");
+        var pendingSignatureHtml = Assert.ThrowsExactly<COMException>(
+            () => domains[0].SignatureHTML = "<p>changed</p>");
+        var pendingSignatureReplies = Assert.ThrowsExactly<COMException>(
+            () => domains[0].AddSignaturesToReplies = false);
+        var pendingSignatureLocal = Assert.ThrowsExactly<COMException>(
+            () => domains[0].AddSignaturesToLocalMail = true);
         var pendingDkimEnabled = Assert.ThrowsExactly<COMException>(() => domains[0].DKIMSignEnabled = false);
         var pendingDkimSelector = Assert.ThrowsExactly<COMException>(() => domains[0].DKIMSelector = "changed");
         var pendingDkimKeyFile = Assert.ThrowsExactly<COMException>(() => domains[0].DKIMPrivateKeyFile = @"C:\keys\changed.pem");
@@ -166,6 +196,12 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingScalarMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingSignatureEnabled.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingSignatureMethod.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingSignaturePlain.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingSignatureHtml.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingSignatureReplies.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingSignatureLocal.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDkimEnabled.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDkimSelector.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDkimKeyFile.ErrorCode);
@@ -220,6 +256,26 @@ public sealed class DomainsComContractTests
         Assert.IsFalse(domain.MaxNumberOfAliasesEnabled);
         Assert.IsTrue(domain.MaxNumberOfDistributionListsEnabled);
         Assert.AreEqual(512, domain.MaxAccountSize);
+    }
+
+    private static void AssertSignatureScalars(IInterfaceDomain domain)
+    {
+        Assert.IsTrue(domain.SignatureEnabled);
+        Assert.AreEqual(ComDomainSignatureMethod.AppendToAccountSignature, domain.SignatureMethod);
+        Assert.AreEqual("Alpha plain signature", domain.SignaturePlainText);
+        Assert.AreEqual("<p>Alpha HTML signature</p>", domain.SignatureHTML);
+        Assert.IsTrue(domain.AddSignaturesToReplies);
+        Assert.IsFalse(domain.AddSignaturesToLocalMail);
+    }
+
+    private static void AssertSignatureDefaults(IInterfaceDomain domain)
+    {
+        Assert.IsFalse(domain.SignatureEnabled);
+        Assert.AreEqual(ComDomainSignatureMethod.SetIfNotSpecifiedInAccount, domain.SignatureMethod);
+        Assert.AreEqual(string.Empty, domain.SignaturePlainText);
+        Assert.AreEqual(string.Empty, domain.SignatureHTML);
+        Assert.IsFalse(domain.AddSignaturesToReplies);
+        Assert.IsTrue(domain.AddSignaturesToLocalMail);
     }
 
     private static void AssertDkimScalars(IInterfaceDomain domain)

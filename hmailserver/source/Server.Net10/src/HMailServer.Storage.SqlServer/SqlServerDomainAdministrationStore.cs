@@ -28,6 +28,12 @@ SELECT
     domainmaxnoofdistributionlists,
     domainlimitationsenabled,
     domainmaxaccountsize,
+    domainenablesignature,
+    domainsignaturemethod,
+    domainsignatureplaintext,
+    domainsignaturehtml,
+    domainaddsignaturestoreplies,
+    domainaddsignaturestolocalemail,
     domainantispamoptions,
     domaindkimselector,
     domaindkimprivatekeyfile
@@ -68,7 +74,13 @@ ORDER BY domainname ASC;
             var maxNumberOfDistributionLists = reader.GetInt32(10);
             var limitationsEnabled = Convert.ToInt32(reader.GetValue(11), CultureInfo.InvariantCulture);
             var maxAccountSize = reader.GetInt32(12);
-            var antiSpamOptions = Convert.ToInt32(reader.GetValue(13), CultureInfo.InvariantCulture);
+            var signatureEnabled = Convert.ToInt32(reader.GetValue(13), CultureInfo.InvariantCulture) != 0;
+            var signatureMethod = Convert.ToInt32(reader.GetValue(14), CultureInfo.InvariantCulture);
+            var signaturePlainText = reader.GetString(15);
+            var signatureHtml = reader.GetString(16);
+            var addSignaturesToReplies = Convert.ToInt32(reader.GetValue(17), CultureInfo.InvariantCulture) != 0;
+            var addSignaturesToLocalMail = Convert.ToInt32(reader.GetValue(18), CultureInfo.InvariantCulture) != 0;
+            var antiSpamOptions = Convert.ToInt32(reader.GetValue(19), CultureInfo.InvariantCulture);
             domains.Add(
                 new DomainAdministrationSnapshot(
                     Id: id,
@@ -86,9 +98,15 @@ ORDER BY domainname ASC;
                     MaxNumberOfAliasesEnabled: (limitationsEnabled & 2) != 0,
                     MaxNumberOfDistributionListsEnabled: (limitationsEnabled & 4) != 0,
                     MaxAccountSize: maxAccountSize,
+                    SignatureEnabled: signatureEnabled,
+                    SignatureMethod: signatureMethod,
+                    SignaturePlainText: signaturePlainText,
+                    SignatureHtml: signatureHtml,
+                    AddSignaturesToReplies: addSignaturesToReplies,
+                    AddSignaturesToLocalMail: addSignaturesToLocalMail,
                     DkimSignEnabled: (antiSpamOptions & AntiSpamOptionDkimSign) != 0,
-                    DkimSelector: reader.GetString(14),
-                    DkimPrivateKeyFile: reader.GetString(15),
+                    DkimSelector: reader.GetString(20),
+                    DkimPrivateKeyFile: reader.GetString(21),
                     DkimHeaderCanonicalizationMethod:
                         (antiSpamOptions & AntiSpamOptionDkimSimpleHeader) != 0 ? 1 : 2,
                     DkimBodyCanonicalizationMethod:

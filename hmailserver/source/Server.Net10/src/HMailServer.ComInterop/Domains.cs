@@ -492,6 +492,42 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         set => DomainComAuthorization.Unavailable(this);
     }
 
+    public override bool SignatureEnabled
+    {
+        get => Snapshot.SignatureEnabled;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override ComDomainSignatureMethod SignatureMethod
+    {
+        get => (ComDomainSignatureMethod)Snapshot.SignatureMethod;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override string SignaturePlainText
+    {
+        get => Snapshot.SignaturePlainText;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override string SignatureHTML
+    {
+        get => Snapshot.SignatureHtml;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override bool AddSignaturesToReplies
+    {
+        get => Snapshot.AddSignaturesToReplies;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
+    public override bool AddSignaturesToLocalMail
+    {
+        get => Snapshot.AddSignaturesToLocalMail;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
     public override bool DKIMSignEnabled
     {
         get => Snapshot.DkimSignEnabled;
@@ -590,12 +626,12 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public virtual int MaxSize { get => Unavailable<int>(); set => Unavailable(); }
     public int Size => Unavailable<int>();
     public long AllocatedSize => Unavailable<long>();
-    public bool SignatureEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public ComDomainSignatureMethod SignatureMethod { get => Unavailable<ComDomainSignatureMethod>(); set => Unavailable(); }
-    public string SignaturePlainText { get => Unavailable<string>(); set => Unavailable(); }
-    public string SignatureHTML { get => Unavailable<string>(); set => Unavailable(); }
-    public bool AddSignaturesToReplies { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool AddSignaturesToLocalMail { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool SignatureEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual ComDomainSignatureMethod SignatureMethod { get => Unavailable<ComDomainSignatureMethod>(); set => Unavailable(); }
+    public virtual string SignaturePlainText { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string SignatureHTML { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual bool AddSignaturesToReplies { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool AddSignaturesToLocalMail { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual int MaxNumberOfAccounts { get => Unavailable<int>(); set => Unavailable(); }
     public virtual int MaxNumberOfAliases { get => Unavailable<int>(); set => Unavailable(); }
     public virtual int MaxNumberOfDistributionLists { get => Unavailable<int>(); set => Unavailable(); }

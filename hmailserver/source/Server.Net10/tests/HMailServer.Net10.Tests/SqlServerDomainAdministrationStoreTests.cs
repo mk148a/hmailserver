@@ -23,6 +23,12 @@ public sealed class SqlServerDomainAdministrationStoreTests
         StringAssert.Contains(sql, "domainmaxnoofdistributionlists");
         StringAssert.Contains(sql, "domainlimitationsenabled");
         StringAssert.Contains(sql, "domainmaxaccountsize");
+        StringAssert.Contains(sql, "domainenablesignature");
+        StringAssert.Contains(sql, "domainsignaturemethod");
+        StringAssert.Contains(sql, "domainsignatureplaintext");
+        StringAssert.Contains(sql, "domainsignaturehtml");
+        StringAssert.Contains(sql, "domainaddsignaturestoreplies");
+        StringAssert.Contains(sql, "domainaddsignaturestolocalemail");
         StringAssert.Contains(sql, "domainantispamoptions");
         StringAssert.Contains(sql, "domaindkimselector");
         StringAssert.Contains(sql, "domaindkimprivatekeyfile");
@@ -31,7 +37,7 @@ public sealed class SqlServerDomainAdministrationStoreTests
     }
 
     [TestMethod]
-    public void GetDomainsSql_KeepsDkimProjectionReadOnlyAndDomainScoped()
+    public void GetDomainsSql_KeepsDkimAndSignatureProjectionReadOnlyAndDomainScoped()
     {
         var sql = SqlServerDomainAdministrationStore.GetDomainsSql;
 
@@ -46,5 +52,11 @@ public sealed class SqlServerDomainAdministrationStoreTests
         StringAssert.Contains(sql, "domainantispamoptions");
         StringAssert.Contains(sql, "domaindkimselector");
         StringAssert.Contains(sql, "domaindkimprivatekeyfile");
+        StringAssert.Contains(sql, "domainenablesignature");
+        StringAssert.Contains(sql, "domainsignaturemethod");
+        StringAssert.Contains(sql, "domainsignatureplaintext");
+        StringAssert.Contains(sql, "domainsignaturehtml");
+        StringAssert.Contains(sql, "domainaddsignaturestoreplies");
+        StringAssert.Contains(sql, "domainaddsignaturestolocalemail");
     }
 }
