@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded SMTP delivery connection-security Settings slice read-only `Settings.SMTPConnectionSecurity` getter'ini existing `SmtpDeliveryConnectionSecurity` `hm_settings.settinginteger` satirindan acmali; kurulu DISPID 92 ve `ComConnectionSecurity` enum degerleri sabit kalmali ve setter, WebAdmin/Admin mutation, live SMTP delivery routing, delivery-worker reconfiguration, TLS policy degisikligi veya daha genis Settings/Admin mutation davranisi eklenmemeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded TLS bitmask Settings slice read-only `Settings.TlsVersion10Enabled`, `TlsVersion11Enabled`, `TlsVersion12Enabled`, `TlsVersion13Enabled`, `TlsOptionPreferServerCiphersEnabled` ve `TlsOptionPrioritizeChaChaEnabled` getter'larini existing `SslVersions` ve `TlsOptions` `hm_settings.settinginteger` bitmask satirlarindan acmali; kurulu DISPID 96/97/98/103/105/106 ve `VARIANT_BOOL` marshaling'i sabit kalmali, legacy bitler TLS version icin 2/4/8/16 ve TLS option icin 2/4 olarak map edilmeli ve setter, live TLS reload/listener context rebuild, cipher validation, OS TLS policy degisikligi veya daha genis Settings/Admin mutation davranisi eklenmemeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Settings` snapshot/store'u SMTP delivery connection-security getter'ini read-only acacak sekilde genisletildi: `SMTPConnectionSecurity` mevcut legacy `SmtpDeliveryConnectionSecurity` `hm_settings.settinginteger` satirindan geliyor. DISPID 92 ve `ComConnectionSecurity` enum tipi contract testinde kilitlendi. Setter, WebAdmin/Admin mutation, live SMTP delivery routing, delivery-worker reconfiguration ve TLS policy degisikligi kapsam disi kaldi. Dar filtre 23/23, full Net10 testleri 723/723 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u non-secret SMTP relayer getter'larini read-only acacak sekilde genisletildi: `SMTPRelayer`, `SMTPRelayerRequiresAuthentication`, `SMTPRelayerUsername`, `SMTPRelayerPort` ve `SMTPRelayerConnectionSecurity` mevcut legacy `smtprelayer`/`usesmtprelayerauthentication`/`smtprelayerusername`/`smtprelayerport`/`smtprelayerconnectionsecurity` `hm_settings` satirlarindan geliyor. DISPIDs 22/34/35/37/91, `BSTR`/`VARIANT_BOOL`/integer/enum metadata'si ve `ComConnectionSecurity` enum tipi contract testinde kilitlendi. `smtprelayerpassword` store projection disinda kaldi; `SetSMTPRelayerPassword`, legacy `SMTPRelayerUseSSL`, setter'lar, credential handling ve live SMTP delivery routing kapsam disi kaldi. Dar filtre 23/23, full Net10 testleri 723/723 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u auto-ban scalar getter'larini read-only acacak sekilde genisletildi: `AutoBanOnLogonFailure`, `MaxInvalidLogonAttempts`, `MaxInvalidLogonAttemptsWithin` ve `AutoBanMinutes` mevcut legacy `AutoBanOnLogonFailureEnabled`/`MaxInvalidLogonAttempts`/`LogonAttemptsWithinMinutes`/`AutoBanMinutes` `hm_settings.settinginteger` satirlarindan geliyor. DISPIDs 82/83/84/85 ve `VARIANT_BOOL`/integer metadata'si contract testinde kilitlendi. Setter'lar, `ClearLogonFailureList`, live auto-ban policy/security-range mutation ve daha genis Settings/Admin mutation kapsam disi kaldi. Dar filtre 22/22, full Net10 testleri 722/722 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u network preference getter'ini read-only acacak sekilde genisletildi: `IPv6PreferredEnabled` mevcut legacy `IPv6Preferred` `hm_settings.settinginteger` satirindan geliyor. DISPID 104 ve `VARIANT_BOOL` metadata'si contract testinde kilitlendi. Setter ve live network preference/reconfiguration davranisi kapsam disi kaldi. Dar filtre 22/22, full Net10 testleri 722/722 gecti; Windows service/COM build 0 uyari/0 hata verdi.
@@ -214,7 +215,7 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesinden once tamamlanan kod commit'i:
 
 ```text
-69d293025 feat(net10): expose settings SMTP relayer getters
+69a198f52 feat(net10): expose settings SMTP delivery security getter
 ```
 
 Son 30 commit icinde one cikan son dilimler:
@@ -470,5 +471,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only `Settings.SMTPConnectionSecurity` getter'ini ele al: existing `SmtpDeliveryConnectionSecurity` `hm_settings.settinginteger` satirini kullan, mevcut DISPID 92 ve `ComConnectionSecurity` enum degerlerini koru, setter/WebAdmin-Admin mutation/live SMTP delivery routing/delivery-worker reconfiguration/TLS policy kapsamlarini acma.
+5. Current Next Slice olarak authenticated read-only TLS bitmask getter'larini ele al: `Settings.TlsVersion10Enabled`, `TlsVersion11Enabled`, `TlsVersion12Enabled`, `TlsVersion13Enabled`, `TlsOptionPreferServerCiphersEnabled`, `TlsOptionPrioritizeChaChaEnabled`; existing `SslVersions` ve `TlsOptions` `hm_settings.settinginteger` bitmask satirlarini kullan, DISPID 96/97/98/103/105/106 ve `VARIANT_BOOL` marshaling'ini koru, TLS version bitlerini 2/4/8/16 ve TLS option bitlerini 2/4 olarak map et, setter/live TLS reload/listener context rebuild/cipher validation/OS TLS policy kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; en gec her 10 committe bir push yap ve bu iki commitlik landing sonunda push ederek branch'i temiz birak.
