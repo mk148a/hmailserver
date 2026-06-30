@@ -28,7 +28,9 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'enableimapsort' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'enableimapquota' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'enableimapidle' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'enableimapacl' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'enableimapacl' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'EnableImapSASLPlain' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'EnableImapSASLInitialResponse' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -52,7 +54,9 @@ WHERE settingname IN
     N'enableimapsort',
     N'enableimapquota',
     N'enableimapidle',
-    N'enableimapacl'
+    N'enableimapacl',
+    N'EnableImapSASLPlain',
+    N'EnableImapSASLInitialResponse'
 );
 """;
 
@@ -99,6 +103,8 @@ WHERE settingname IN
             ImapSortEnabled: reader.GetInt32(17) != 0,
             ImapQuotaEnabled: reader.GetInt32(18) != 0,
             ImapIdleEnabled: reader.GetInt32(19) != 0,
-            ImapAclEnabled: reader.GetInt32(20) != 0);
+            ImapAclEnabled: reader.GetInt32(20) != 0,
+            ImapSaslPlainEnabled: reader.GetInt32(21) != 0,
+            ImapSaslInitialResponseEnabled: reader.GetInt32(22) != 0);
     }
 }

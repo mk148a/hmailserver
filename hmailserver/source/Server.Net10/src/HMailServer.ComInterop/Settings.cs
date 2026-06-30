@@ -689,6 +689,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.IMAPACLEnabled = value;
     }
 
+    public override bool IMAPSASLPlainEnabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.IMAPSASLPlainEnabled
+                : _administrationSnapshot.ImapSaslPlainEnabled;
+        }
+        set => base.IMAPSASLPlainEnabled = value;
+    }
+
+    public override bool IMAPSASLInitialResponseEnabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.IMAPSASLInitialResponseEnabled
+                : _administrationSnapshot.ImapSaslInitialResponseEnabled;
+        }
+        set => base.IMAPSASLInitialResponseEnabled = value;
+    }
+
     public override IInterfaceMessageIndexing MessageIndexing
     {
         get
@@ -875,8 +899,8 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public bool TlsVersion12Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public int CrashSimulationMode { get => Unavailable<int>(); set => Unavailable(); }
     public string IMAPMasterUser { get => Unavailable<string>(); set => Unavailable(); }
-    public bool IMAPSASLPlainEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool IMAPSASLInitialResponseEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool IMAPSASLPlainEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool IMAPSASLInitialResponseEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool TlsVersion13Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool IPv6PreferredEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool TlsOptionPreferServerCiphersEnabled { get => Unavailable<bool>(); set => Unavailable(); }

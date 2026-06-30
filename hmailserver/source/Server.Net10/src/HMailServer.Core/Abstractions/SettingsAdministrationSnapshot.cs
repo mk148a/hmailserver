@@ -21,4 +21,6 @@ public sealed record SettingsAdministrationSnapshot(
     bool ImapSortEnabled = false,
     bool ImapQuotaEnabled = false,
     bool ImapIdleEnabled = false,
-    bool ImapAclEnabled = false);
+    bool ImapAclEnabled = false,
+    bool ImapSaslPlainEnabled = false,
+    bool ImapSaslInitialResponseEnabled = false);

@@ -52,7 +52,9 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.IMAPQuotaEnabled), DispId: 55),
             (Name: nameof(IInterfaceSettings.IMAPIdleEnabled), DispId: 56),
             (Name: nameof(IInterfaceSettings.DisconnectInvalidClients), DispId: 64),
-            (Name: nameof(IInterfaceSettings.IMAPACLEnabled), DispId: 75)
+            (Name: nameof(IInterfaceSettings.IMAPACLEnabled), DispId: 75),
+            (Name: nameof(IInterfaceSettings.IMAPSASLPlainEnabled), DispId: 101),
+            (Name: nameof(IInterfaceSettings.IMAPSASLInitialResponseEnabled), DispId: 102)
         };
 
         foreach (var item in expected)
@@ -79,11 +81,13 @@ public sealed class SettingsComContractTests
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxSMTPConnections);
         var hostNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.HostName);
         var imapCapabilityError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSortEnabled);
+        var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapCapabilityError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
     }
 
     [TestMethod]
@@ -122,7 +126,9 @@ public sealed class SettingsComContractTests
                 ImapSortEnabled: true,
                 ImapQuotaEnabled: false,
                 ImapIdleEnabled: true,
-                ImapAclEnabled: false));
+                ImapAclEnabled: false,
+                ImapSaslPlainEnabled: true,
+                ImapSaslInitialResponseEnabled: false));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -145,6 +151,8 @@ public sealed class SettingsComContractTests
         Assert.IsFalse(settings.IMAPQuotaEnabled);
         Assert.IsTrue(settings.IMAPIdleEnabled);
         Assert.IsFalse(settings.IMAPACLEnabled);
+        Assert.IsTrue(settings.IMAPSASLPlainEnabled);
+        Assert.IsFalse(settings.IMAPSASLInitialResponseEnabled);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -209,6 +217,12 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.IMAPACLEnabled = true).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.IMAPSASLPlainEnabled = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.IMAPSASLInitialResponseEnabled = true).ErrorCode);
     }
 
     [TestMethod]

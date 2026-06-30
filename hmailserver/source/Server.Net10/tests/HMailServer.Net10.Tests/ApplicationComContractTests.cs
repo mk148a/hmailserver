@@ -112,7 +112,9 @@ public sealed class ApplicationComContractTests
                     ImapSortEnabled: true,
                     ImapQuotaEnabled: false,
                     ImapIdleEnabled: true,
-                    ImapAclEnabled: false)));
+                    ImapAclEnabled: false,
+                    ImapSaslPlainEnabled: true,
+                    ImapSaslInitialResponseEnabled: false)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -146,6 +148,8 @@ public sealed class ApplicationComContractTests
         Assert.IsFalse(settings.IMAPQuotaEnabled);
         Assert.IsTrue(settings.IMAPIdleEnabled);
         Assert.IsFalse(settings.IMAPACLEnabled);
+        Assert.IsTrue(settings.IMAPSASLPlainEnabled);
+        Assert.IsFalse(settings.IMAPSASLInitialResponseEnabled);
     }
 
     [TestMethod]

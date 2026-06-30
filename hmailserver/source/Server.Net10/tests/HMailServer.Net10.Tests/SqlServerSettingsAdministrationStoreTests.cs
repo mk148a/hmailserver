@@ -35,6 +35,8 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'enableimapquota'");
         StringAssert.Contains(sql, "settingname = N'enableimapidle'");
         StringAssert.Contains(sql, "settingname = N'enableimapacl'");
+        StringAssert.Contains(sql, "settingname = N'EnableImapSASLPlain'");
+        StringAssert.Contains(sql, "settingname = N'EnableImapSASLInitialResponse'");
     }
 
     [TestMethod]
