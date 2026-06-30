@@ -56,7 +56,9 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'smtprelayerusername' THEN settingstring END), N''),
     COALESCE(MAX(CASE WHEN settingname = N'smtprelayerport' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'smtprelayerconnectionsecurity' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'SmtpDeliveryConnectionSecurity' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'SmtpDeliveryConnectionSecurity' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'SslVersions' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'TlsOptions' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -108,7 +110,9 @@ WHERE settingname IN
     N'smtprelayerusername',
     N'smtprelayerport',
     N'smtprelayerconnectionsecurity',
-    N'SmtpDeliveryConnectionSecurity'
+    N'SmtpDeliveryConnectionSecurity',
+    N'SslVersions',
+    N'TlsOptions'
 );
 """;
 
@@ -183,6 +187,8 @@ WHERE settingname IN
             SmtpRelayerUsername: reader.GetString(45),
             SmtpRelayerPort: reader.GetInt32(46),
             SmtpRelayerConnectionSecurity: reader.GetInt32(47),
-            SmtpConnectionSecurity: reader.GetInt32(48));
+            SmtpConnectionSecurity: reader.GetInt32(48),
+            SslVersions: reader.GetInt32(49),
+            TlsOptions: reader.GetInt32(50));
     }
 }

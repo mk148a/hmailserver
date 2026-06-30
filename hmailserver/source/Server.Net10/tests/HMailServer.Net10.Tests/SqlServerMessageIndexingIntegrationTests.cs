@@ -117,6 +117,12 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(587, settings.SMTPRelayerPort);
             Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
             Assert.AreEqual(ComConnectionSecurity.StartTlsOptional, settings.SMTPConnectionSecurity);
+            Assert.IsTrue(settings.TlsVersion10Enabled);
+            Assert.IsFalse(settings.TlsVersion11Enabled);
+            Assert.IsTrue(settings.TlsVersion12Enabled);
+            Assert.IsTrue(settings.TlsVersion13Enabled);
+            Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
+            Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
             Assert.AreEqual(20480, settings.MaxMessageSize);
             Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
             Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -815,6 +821,8 @@ VALUES
     (N'smtprelayerport', N'', 587),
     (N'smtprelayerconnectionsecurity', N'', 3),
     (N'SmtpDeliveryConnectionSecurity', N'', 2),
+    (N'SslVersions', N'', 26),
+    (N'TlsOptions', N'', 2),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

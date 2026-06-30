@@ -424,6 +424,12 @@ public interface IInterfaceSettings
 public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundary
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int TlsVersion10Flag = 2;
+    private const int TlsVersion11Flag = 4;
+    private const int TlsVersion12Flag = 8;
+    private const int TlsVersion13Flag = 16;
+    private const int TlsOptionPreferServerCiphersFlag = 2;
+    private const int TlsOptionPrioritizeChaChaFlag = 4;
     private readonly bool _authorized;
     private readonly SettingsAdministrationSnapshot? _administrationSnapshot;
 
@@ -950,6 +956,78 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.SMTPConnectionSecurity = value;
     }
 
+    public override bool TlsVersion10Enabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.TlsVersion10Enabled
+                : HasFlag(_administrationSnapshot.SslVersions, TlsVersion10Flag);
+        }
+        set => base.TlsVersion10Enabled = value;
+    }
+
+    public override bool TlsVersion11Enabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.TlsVersion11Enabled
+                : HasFlag(_administrationSnapshot.SslVersions, TlsVersion11Flag);
+        }
+        set => base.TlsVersion11Enabled = value;
+    }
+
+    public override bool TlsVersion12Enabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.TlsVersion12Enabled
+                : HasFlag(_administrationSnapshot.SslVersions, TlsVersion12Flag);
+        }
+        set => base.TlsVersion12Enabled = value;
+    }
+
+    public override bool TlsVersion13Enabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.TlsVersion13Enabled
+                : HasFlag(_administrationSnapshot.SslVersions, TlsVersion13Flag);
+        }
+        set => base.TlsVersion13Enabled = value;
+    }
+
+    public override bool TlsOptionPreferServerCiphersEnabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.TlsOptionPreferServerCiphersEnabled
+                : HasFlag(_administrationSnapshot.TlsOptions, TlsOptionPreferServerCiphersFlag);
+        }
+        set => base.TlsOptionPreferServerCiphersEnabled = value;
+    }
+
+    public override bool TlsOptionPrioritizeChaChaEnabled
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.TlsOptionPrioritizeChaChaEnabled
+                : HasFlag(_administrationSnapshot.TlsOptions, TlsOptionPrioritizeChaChaFlag);
+        }
+        set => base.TlsOptionPrioritizeChaChaEnabled = value;
+    }
+
     public override bool VerifyRemoteSslCertificate
     {
         get
@@ -1115,6 +1193,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    private static bool HasFlag(int value, int flag) => (value & flag) != 0;
+
     internal static Settings CreateAuthorized() => new(authorized: true);
 
     internal static Settings CreateAuthorized(SettingsAdministrationSnapshot snapshot)
@@ -1206,17 +1286,17 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual ComConnectionSecurity SMTPConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }
     public virtual bool VerifyRemoteSslCertificate { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string SslCipherList { get => Unavailable<string>(); set => Unavailable(); }
-    public bool TlsVersion10Enabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool TlsVersion11Enabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool TlsVersion12Enabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool TlsVersion10Enabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool TlsVersion11Enabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool TlsVersion12Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public int CrashSimulationMode { get => Unavailable<int>(); set => Unavailable(); }
     public string IMAPMasterUser { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool IMAPSASLPlainEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool IMAPSASLInitialResponseEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool TlsVersion13Enabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool TlsVersion13Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool IPv6PreferredEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool TlsOptionPreferServerCiphersEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool TlsOptionPrioritizeChaChaEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool TlsOptionPreferServerCiphersEnabled { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool TlsOptionPrioritizeChaChaEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool RewriteEnvelopeFromWhenForwarding { get => Unavailable<bool>(); set => Unavailable(); }
 
     private T Unavailable<T>() => SettingsComAuthorization.Unavailable<T>(this);

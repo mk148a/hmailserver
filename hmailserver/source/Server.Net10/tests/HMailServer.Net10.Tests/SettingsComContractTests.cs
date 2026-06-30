@@ -60,9 +60,15 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.IMAPACLEnabled), DispId: 75),
             (Name: nameof(IInterfaceSettings.AutoBanOnLogonFailure), DispId: 82),
             (Name: nameof(IInterfaceSettings.VerifyRemoteSslCertificate), DispId: 93),
+            (Name: nameof(IInterfaceSettings.TlsVersion10Enabled), DispId: 96),
+            (Name: nameof(IInterfaceSettings.TlsVersion11Enabled), DispId: 97),
+            (Name: nameof(IInterfaceSettings.TlsVersion12Enabled), DispId: 98),
             (Name: nameof(IInterfaceSettings.IMAPSASLPlainEnabled), DispId: 101),
             (Name: nameof(IInterfaceSettings.IMAPSASLInitialResponseEnabled), DispId: 102),
-            (Name: nameof(IInterfaceSettings.IPv6PreferredEnabled), DispId: 104)
+            (Name: nameof(IInterfaceSettings.TlsVersion13Enabled), DispId: 103),
+            (Name: nameof(IInterfaceSettings.IPv6PreferredEnabled), DispId: 104),
+            (Name: nameof(IInterfaceSettings.TlsOptionPreferServerCiphersEnabled), DispId: 105),
+            (Name: nameof(IInterfaceSettings.TlsOptionPrioritizeChaChaEnabled), DispId: 106)
         };
 
         foreach (var item in expected)
@@ -173,6 +179,7 @@ public sealed class SettingsComContractTests
         var autoBanError = Assert.ThrowsExactly<COMException>(() => _ = settings.AutoBanOnLogonFailure);
         var relayerError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayer);
         var smtpConnectionSecurityError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPConnectionSecurity);
+        var tlsVersionError = Assert.ThrowsExactly<COMException>(() => _ = settings.TlsVersion10Enabled);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -188,6 +195,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, autoBanError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpConnectionSecurityError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, tlsVersionError.ErrorCode);
     }
 
     [TestMethod]
@@ -254,7 +262,9 @@ public sealed class SettingsComContractTests
                 SmtpRelayerUsername: "relay-user",
                 SmtpRelayerPort: 587,
                 SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.StartTlsRequired,
-                SmtpConnectionSecurity: (int)ComConnectionSecurity.StartTlsOptional));
+                SmtpConnectionSecurity: (int)ComConnectionSecurity.StartTlsOptional,
+                SslVersions: 26,
+                TlsOptions: 2));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -275,6 +285,12 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(587, settings.SMTPRelayerPort);
         Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
         Assert.AreEqual(ComConnectionSecurity.StartTlsOptional, settings.SMTPConnectionSecurity);
+        Assert.IsTrue(settings.TlsVersion10Enabled);
+        Assert.IsFalse(settings.TlsVersion11Enabled);
+        Assert.IsTrue(settings.TlsVersion12Enabled);
+        Assert.IsTrue(settings.TlsVersion13Enabled);
+        Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
+        Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -369,6 +385,24 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPConnectionSecurity = ComConnectionSecurity.None).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.TlsVersion10Enabled = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.TlsVersion11Enabled = true).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.TlsVersion12Enabled = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.TlsVersion13Enabled = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.TlsOptionPreferServerCiphersEnabled = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.TlsOptionPrioritizeChaChaEnabled = true).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayerUseSSL = true).ErrorCode);

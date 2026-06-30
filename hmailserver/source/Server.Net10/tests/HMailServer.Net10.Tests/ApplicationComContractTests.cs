@@ -140,7 +140,9 @@ public sealed class ApplicationComContractTests
                     SmtpRelayerUsername: "relay-user",
                     SmtpRelayerPort: 587,
                     SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.StartTlsRequired,
-                    SmtpConnectionSecurity: (int)ComConnectionSecurity.StartTlsOptional)));
+                    SmtpConnectionSecurity: (int)ComConnectionSecurity.StartTlsOptional,
+                    SslVersions: 26,
+                    TlsOptions: 2)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -172,6 +174,12 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual(587, settings.SMTPRelayerPort);
         Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
         Assert.AreEqual(ComConnectionSecurity.StartTlsOptional, settings.SMTPConnectionSecurity);
+        Assert.IsTrue(settings.TlsVersion10Enabled);
+        Assert.IsFalse(settings.TlsVersion11Enabled);
+        Assert.IsTrue(settings.TlsVersion12Enabled);
+        Assert.IsTrue(settings.TlsVersion13Enabled);
+        Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
+        Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);

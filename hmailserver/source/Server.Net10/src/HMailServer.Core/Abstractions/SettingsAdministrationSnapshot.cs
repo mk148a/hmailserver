@@ -49,4 +49,6 @@ public sealed record SettingsAdministrationSnapshot(
     string SmtpRelayerUsername = "",
     int SmtpRelayerPort = 0,
     int SmtpRelayerConnectionSecurity = 0,
-    int SmtpConnectionSecurity = 0);
+    int SmtpConnectionSecurity = 0,
+    int SslVersions = 0,
+    int TlsOptions = 0);
