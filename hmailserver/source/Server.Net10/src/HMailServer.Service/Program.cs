@@ -804,6 +804,7 @@ builder.Services.AddSingleton<IApplicationRuntimeStore>(
         applicationVersion,
         initializationFile));
 builder.Services.AddSingleton<IServerStatusAdministrationStore, SqlServerServerStatusAdministrationStore>();
+builder.Services.AddSingleton<ISettingsAdministrationStore, SqlServerSettingsAdministrationStore>();
 builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
 builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdministrationStore>();
 builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAccountAdministrationStore>();
@@ -875,6 +876,8 @@ DatabaseAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDatabaseAdministrationStore>());
 StatusAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IServerStatusAdministrationStore>());
+SettingsAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<ISettingsAdministrationStore>());
 DomainAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAdministrationStore>());
 AccountAdministrationRuntimeHost.Configure(

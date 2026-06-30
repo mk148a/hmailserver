@@ -1,4 +1,5 @@
 using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
@@ -64,6 +65,47 @@ public sealed class SqlServerMessageIndexingIntegrationTests
         }
         finally
         {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task AuthenticatedComPath_ReadsSettingsHostAndWelcomeStringsFromIsolatedDatabase()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateSettingsSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            SettingsAdministrationRuntimeHost.Configure(
+                new SqlServerSettingsAdministrationStore(
+                    new SqlServerConnectionFactory(testConnectionString)));
+            var application = Application.CreateForRuntime(
+                new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
+
+            Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+            var settings = application.Settings;
+
+            Assert.AreEqual("mail.example.test", settings.HostName);
+            Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
+            Assert.AreEqual("POP3 ready", settings.WelcomePOP3);
+            Assert.AreEqual("IMAP ready", settings.WelcomeIMAP);
+        }
+        finally
+        {
+            SettingsAdministrationRuntimeHost.Configure(new FixedSettingsAdministrationStore());
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
         }
@@ -658,6 +700,31 @@ VALUES (1, 2), (2, 2), (3, 3);
 
 INSERT INTO dbo.hm_message_search_documents (messageid)
 VALUES (1);
+""";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task CreateSettingsSchemaAndSeedAsync(string connectionString)
+    {
+        const string sql = """
+CREATE TABLE dbo.hm_settings
+(
+    settingname nvarchar(30) NOT NULL PRIMARY KEY,
+    settingstring nvarchar(4000) NOT NULL,
+    settinginteger int NOT NULL
+);
+
+INSERT INTO dbo.hm_settings (settingname, settingstring, settinginteger)
+VALUES
+    (N'hostname', N'mail.example.test', 0),
+    (N'welcomesmtp', N'SMTP ready', 0),
+    (N'welcomepop3', N'POP3 ready', 0),
+    (N'welcomeimap', N'IMAP ready', 0),
+    (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -1322,5 +1389,16 @@ VALUES
             $"ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{databaseName}];",
             connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private sealed class FixedSettingsAdministrationStore : ISettingsAdministrationStore
+    {
+        public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(CancellationToken cancellationToken) =>
+            ValueTask.FromResult(
+                new SettingsAdministrationSnapshot(
+                    HostName: string.Empty,
+                    WelcomeSmtp: string.Empty,
+                    WelcomePop3: string.Empty,
+                    WelcomeImap: string.Empty));
     }
 }

@@ -47,9 +47,11 @@ public sealed class SettingsComContractTests
 
         var indexingError = Assert.ThrowsExactly<COMException>(() => _ = settings.MessageIndexing);
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxSMTPConnections);
+        var hostNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.HostName);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
     }
 
     [TestMethod]
@@ -61,6 +63,35 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(42, settings.MessageIndexing.TotalMessageCount);
         var unimplemented = Assert.ThrowsExactly<COMException>(() => _ = settings.MaxSMTPConnections);
         Assert.AreEqual(ENotImplemented, unimplemented.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ExposesReadOnlyHostAndWelcomeStrings()
+    {
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: "SMTP ready",
+                WelcomePop3: "POP3 ready",
+                WelcomeImap: "IMAP ready"));
+
+        Assert.AreEqual("mail.example.test", settings.HostName);
+        Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
+        Assert.AreEqual("POP3 ready", settings.WelcomePOP3);
+        Assert.AreEqual("IMAP ready", settings.WelcomeIMAP);
+
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.HostName = "changed.example.test").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.WelcomeSMTP = "changed").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.WelcomePOP3 = "changed").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.WelcomeIMAP = "changed").ErrorCode);
     }
 
     [TestMethod]

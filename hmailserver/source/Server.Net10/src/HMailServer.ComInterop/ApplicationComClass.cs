@@ -36,7 +36,7 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return HMailServer.ComInterop.Settings.CreateAuthorized();
+            return SettingsAdministrationRuntimeHost.CreateAuthorizedAdapter();
         }
     }
 

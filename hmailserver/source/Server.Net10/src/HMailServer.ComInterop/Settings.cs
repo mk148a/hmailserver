@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using HMailServer.Core.Abstractions;
 
 namespace HMailServer.ComInterop;
 
@@ -424,14 +425,64 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
     private readonly bool _authorized;
+    private readonly SettingsAdministrationSnapshot? _administrationSnapshot;
 
     public Settings()
     {
     }
 
-    private Settings(bool authorized)
+    private Settings(bool authorized, SettingsAdministrationSnapshot? administrationSnapshot = null)
     {
         _authorized = authorized;
+        _administrationSnapshot = administrationSnapshot;
+    }
+
+    public override string WelcomeSMTP
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.WelcomeSMTP
+                : _administrationSnapshot.WelcomeSmtp;
+        }
+        set => base.WelcomeSMTP = value;
+    }
+
+    public override string WelcomePOP3
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.WelcomePOP3
+                : _administrationSnapshot.WelcomePop3;
+        }
+        set => base.WelcomePOP3 = value;
+    }
+
+    public override string WelcomeIMAP
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.WelcomeIMAP
+                : _administrationSnapshot.WelcomeImap;
+        }
+        set => base.WelcomeIMAP = value;
+    }
+
+    public override string HostName
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.HostName
+                : _administrationSnapshot.HostName;
+        }
+        set => base.HostName = value;
     }
 
     public override IInterfaceMessageIndexing MessageIndexing
@@ -526,6 +577,12 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
 
     internal static Settings CreateAuthorized() => new(authorized: true);
 
+    internal static Settings CreateAuthorized(SettingsAdministrationSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return new Settings(authorized: true, administrationSnapshot: snapshot);
+    }
+
     void ISettingsAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
 
     private void EnsureAuthorized()
@@ -550,16 +607,16 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public int SMTPNoOfTries { get => Unavailable<int>(); set => Unavailable(); }
     public int SMTPMinutesBetweenTry { get => Unavailable<int>(); set => Unavailable(); }
     public string SMTPRelayer { get => Unavailable<string>(); set => Unavailable(); }
-    public string WelcomeSMTP { get => Unavailable<string>(); set => Unavailable(); }
-    public string WelcomePOP3 { get => Unavailable<string>(); set => Unavailable(); }
-    public string WelcomeIMAP { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string WelcomeSMTP { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string WelcomePOP3 { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string WelcomeIMAP { get => Unavailable<string>(); set => Unavailable(); }
     public bool ServiceSMTP { get => Unavailable<bool>(); set => Unavailable(); }
     public bool ServicePOP3 { get => Unavailable<bool>(); set => Unavailable(); }
     public bool ServiceIMAP { get => Unavailable<bool>(); set => Unavailable(); }
     public int MaxDeliveryThreads { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceAntiVirus AntiVirus => Unavailable<IInterfaceAntiVirus>();
     public virtual IInterfaceRoutes Routes => Unavailable<IInterfaceRoutes>();
-    public string HostName { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string HostName { get => Unavailable<string>(); set => Unavailable(); }
     public bool SMTPRelayerRequiresAuthentication { get => Unavailable<bool>(); set => Unavailable(); }
     public string SMTPRelayerUsername { get => Unavailable<string>(); set => Unavailable(); }
     public void SetSMTPRelayerPassword(string newVal) => Unavailable();
@@ -625,6 +682,35 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     private T Unavailable<T>() => SettingsComAuthorization.Unavailable<T>(this);
 
     private void Unavailable() => SettingsComAuthorization.Unavailable(this);
+}
+
+[ComVisible(false)]
+public static class SettingsAdministrationRuntimeHost
+{
+    private static ISettingsAdministrationStore? _store;
+
+    public static void Configure(ISettingsAdministrationStore store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        Volatile.Write(ref _store, store);
+    }
+
+    internal static Settings CreateAuthorizedAdapter()
+    {
+        var store = Volatile.Read(ref _store);
+        if (store is null)
+        {
+            return Settings.CreateAuthorized();
+        }
+
+        var snapshot = store
+            .GetSettingsAsync(CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return Settings.CreateAuthorized(snapshot);
+    }
 }
 
 [ComVisible(false)]

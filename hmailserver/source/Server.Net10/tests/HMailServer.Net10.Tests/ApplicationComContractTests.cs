@@ -89,6 +89,13 @@ public sealed class ApplicationComContractTests
     [TestMethod]
     public void Application_AuthenticationPreservesLegacyAdministratorBoundary()
     {
+        SettingsAdministrationRuntimeHost.Configure(
+            new FixedSettingsAdministrationStore(
+                new SettingsAdministrationSnapshot(
+                    HostName: "mail.example.test",
+                    WelcomeSmtp: "SMTP ready",
+                    WelcomePop3: "POP3 ready",
+                    WelcomeImap: "IMAP ready")));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -99,7 +106,12 @@ public sealed class ApplicationComContractTests
 
         Assert.IsNotNull(account);
         Assert.AreEqual(ComAdminLevel.ServerAdministrator, account.AdminLevel);
-        Assert.IsInstanceOfType<Settings>(application.Settings);
+        var settings = application.Settings;
+        Assert.IsInstanceOfType<Settings>(settings);
+        Assert.AreEqual("mail.example.test", settings.HostName);
+        Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
+        Assert.AreEqual("POP3 ready", settings.WelcomePOP3);
+        Assert.AreEqual("IMAP ready", settings.WelcomeIMAP);
     }
 
     [TestMethod]
@@ -240,6 +252,13 @@ public sealed class ApplicationComContractTests
         public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(domains);
+    }
+
+    private sealed class FixedSettingsAdministrationStore(SettingsAdministrationSnapshot snapshot)
+        : ISettingsAdministrationStore
+    {
+        public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(CancellationToken cancellationToken) =>
+            ValueTask.FromResult(snapshot);
     }
 
     private sealed class FixedRuleAdministrationStore(IReadOnlyList<RuleAdministrationSnapshot> rules)
