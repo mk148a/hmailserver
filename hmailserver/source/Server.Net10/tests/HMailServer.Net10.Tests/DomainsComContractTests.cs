@@ -107,6 +107,7 @@ public sealed class DomainsComContractTests
         var domainsError = Assert.ThrowsExactly<COMException>(() => _ = new Domains().Count);
         var domainError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().Name);
         var adDomainError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().ADDomainName);
+        var sizeError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().Size);
         var allocatedSizeError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().AllocatedSize);
         var greylistingError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().AntiSpamEnableGreylisting);
         var signatureError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().SignatureEnabled);
@@ -115,6 +116,7 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(EAccessDenied, domainsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, domainError.ErrorCode);
         Assert.AreEqual(EAccessDenied, adDomainError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, sizeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, allocatedSizeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, greylistingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, signatureError.ErrorCode);
@@ -138,6 +140,7 @@ public sealed class DomainsComContractTests
                     AntiSpamEnableGreylisting: true,
                     AdDomainName: "corp.alpha.example",
                     MaxSize: 2048,
+                    Size: 2,
                     AllocatedSize: 1536,
                     MaxNumberOfAccounts: 100,
                     MaxNumberOfAliases: 25,
@@ -170,6 +173,7 @@ public sealed class DomainsComContractTests
         AssertDomain(domains.get_ItemByName("BETA.EXAMPLE"), 20, "beta.example", false);
         AssertDomain(domains.get_ItemByDBID(10), 10, "alpha.example", true);
         Assert.IsFalse(domains[1].AntiSpamEnableGreylisting);
+        Assert.AreEqual(0, domains[1].Size);
         Assert.AreEqual(0L, domains[1].AllocatedSize);
         AssertSignatureDefaults(domains[1]);
         AssertDkimDefaults(domains[1]);
@@ -183,7 +187,6 @@ public sealed class DomainsComContractTests
             () => domains[0].AntiSpamEnableGreylisting = false);
         var pendingAdDomainMutation = Assert.ThrowsExactly<COMException>(
             () => domains[0].ADDomainName = "changed.example");
-        var pendingSize = Assert.ThrowsExactly<COMException>(() => _ = domains[0].Size);
         var pendingSignatureEnabled = Assert.ThrowsExactly<COMException>(() => domains[0].SignatureEnabled = false);
         var pendingSignatureMethod = Assert.ThrowsExactly<COMException>(
             () => domains[0].SignatureMethod = ComDomainSignatureMethod.OverwriteAccountSignature);
@@ -213,7 +216,6 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(ENotImplemented, pendingScalarMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingGreylisting.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingAdDomainMutation.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingSize.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSignatureEnabled.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSignatureMethod.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSignaturePlain.ErrorCode);
@@ -268,6 +270,7 @@ public sealed class DomainsComContractTests
         Assert.IsTrue(domain.AntiSpamEnableGreylisting);
         Assert.AreEqual("corp.alpha.example", domain.ADDomainName);
         Assert.AreEqual(2048, domain.MaxSize);
+        Assert.AreEqual(2, domain.Size);
         Assert.AreEqual(1536L, domain.AllocatedSize);
         Assert.AreEqual(100, domain.MaxNumberOfAccounts);
         Assert.AreEqual(25, domain.MaxNumberOfAliases);

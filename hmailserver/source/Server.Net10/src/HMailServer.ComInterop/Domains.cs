@@ -462,6 +462,8 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         set => DomainComAuthorization.Unavailable(this);
     }
 
+    public override int Size => Snapshot.Size;
+
     public override long AllocatedSize => Snapshot.AllocatedSize;
 
     public override int MaxNumberOfAccounts
@@ -638,7 +640,7 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public virtual string PlusAddressingCharacter { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool AntiSpamEnableGreylisting { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual int MaxSize { get => Unavailable<int>(); set => Unavailable(); }
-    public int Size => Unavailable<int>();
+    public virtual int Size => Unavailable<int>();
     public virtual long AllocatedSize => Unavailable<long>();
     public virtual bool SignatureEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual ComDomainSignatureMethod SignatureMethod { get => Unavailable<ComDomainSignatureMethod>(); set => Unavailable(); }

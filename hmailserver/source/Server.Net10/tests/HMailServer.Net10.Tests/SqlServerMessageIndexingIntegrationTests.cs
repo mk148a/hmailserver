@@ -105,6 +105,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(domains[0].AntiSpamEnableGreylisting);
             Assert.AreEqual("corp.alpha.example", domains[0].ADDomainName);
             Assert.AreEqual(4096, domains[0].MaxSize);
+            Assert.AreEqual(2, domains[0].Size);
             Assert.AreEqual(3072L, domains[0].AllocatedSize);
             Assert.AreEqual(200, domains[0].MaxNumberOfAccounts);
             Assert.AreEqual(30, domains[0].MaxNumberOfAliases);
@@ -130,6 +131,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsFalse(domains.get_ItemByDBID(20).Active);
             Assert.IsFalse(domains.get_ItemByDBID(20).AntiSpamEnableGreylisting);
             Assert.AreEqual(string.Empty, domains.get_ItemByDBID(20).ADDomainName);
+            Assert.AreEqual(1, domains.get_ItemByDBID(20).Size);
             Assert.AreEqual(128L, domains.get_ItemByDBID(20).AllocatedSize);
             Assert.IsFalse(domains.get_ItemByDBID(20).SignatureEnabled);
             Assert.AreEqual(
@@ -688,6 +690,13 @@ CREATE TABLE dbo.hm_accounts
     accountmaxsize int NOT NULL
 );
 
+CREATE TABLE dbo.hm_messages
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messageaccountid int NOT NULL,
+    messagesize bigint NOT NULL
+);
+
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
      domainuseplusaddressing, domainplusaddressingchar, domainaddomain, domainmaxsize,
@@ -705,6 +714,12 @@ VALUES
     (100, 10, 1024),
     (101, 10, 2048),
     (200, 20, 128);
+
+INSERT INTO dbo.hm_messages (messageid, messageaccountid, messagesize)
+VALUES
+    (1000, 10, 2621440),
+    (1001, 100, 7340032),
+    (2000, 20, 1048576);
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -766,6 +781,13 @@ CREATE TABLE dbo.hm_accounts
     accountenablesignature tinyint NOT NULL,
     accountsignatureplaintext nvarchar(max) NOT NULL,
     accountsignaturehtml nvarchar(max) NOT NULL
+);
+
+CREATE TABLE dbo.hm_messages
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messageaccountid int NOT NULL,
+    messagesize bigint NOT NULL
 );
 
 CREATE TABLE dbo.hm_fetchaccounts
@@ -1055,6 +1077,13 @@ CREATE TABLE dbo.hm_accounts
     accountmaxsize int NOT NULL
 );
 
+CREATE TABLE dbo.hm_messages
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messageaccountid int NOT NULL,
+    messagesize bigint NOT NULL
+);
+
 CREATE TABLE dbo.hm_aliases
 (
     aliasid int NOT NULL PRIMARY KEY,
@@ -1124,6 +1153,13 @@ CREATE TABLE dbo.hm_accounts
     accountid int NOT NULL PRIMARY KEY,
     accountdomainid int NOT NULL,
     accountmaxsize int NOT NULL
+);
+
+CREATE TABLE dbo.hm_messages
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messageaccountid int NOT NULL,
+    messagesize bigint NOT NULL
 );
 
 CREATE TABLE dbo.hm_distributionlists
@@ -1213,6 +1249,13 @@ CREATE TABLE dbo.hm_accounts
     accountid int NOT NULL PRIMARY KEY,
     accountdomainid int NOT NULL,
     accountmaxsize int NOT NULL
+);
+
+CREATE TABLE dbo.hm_messages
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messageaccountid int NOT NULL,
+    messagesize bigint NOT NULL
 );
 
 CREATE TABLE dbo.hm_domain_aliases
