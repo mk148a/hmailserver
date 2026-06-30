@@ -28,7 +28,7 @@ Durum: production-ready degil. Proje ciddi bir parity seviyesine geldi, fakat ha
 Ana nedenler:
 
 - COM/Admin yuzeyi ve legacy object model henuz tam degil.
-- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary, DKIM parser/canonicalization/body-hash/header-crypto/DNS lookup/message-level verification + disabled-by-default policy boundary, DKIM pass-domain result surface, disabled-by-default DMARC evaluation/SMTP policy boundary, offline local-PSL organizational-domain resolver ve pinned/paketlenmis PSL lifecycle var; DKIM Administrator/COM setting parity, DMARC enforcement/Admin policy wiring ve daha sonra SPF/greylisting Administrator/COM setting parity eksik.
+- SPF evaluator, disabled-by-default SMTP policy boundary, explicit SPF-pass greylisting bypass boundary, DKIM parser/canonicalization/body-hash/header-crypto/DNS lookup/message-level verification + disabled-by-default policy boundary, DKIM pass-domain result surface, disabled-by-default DMARC evaluation/SMTP policy boundary, offline local-PSL organizational-domain resolver ve pinned/paketlenmis PSL lifecycle var; DKIM signing/setter/Admin mutation wiring, DMARC enforcement/Admin policy wiring ve daha sonra SPF/greylisting Administrator/COM setting parity eksik.
 - Backup engine ve `OnBackupCompleted` / `OnBackupFailed` eventleri beklemede.
 - In-place upgrade runner, mandatory backup/rollback akis dokumani ve operasyonel servis install/uninstall paketi tamamlanmadi.
 - Buyuk olcekli performance/soak kabul testleri henuz production gate olarak tamamlanmadi.
@@ -38,7 +38,7 @@ Ana nedenler:
 - Full legacy script object model parity.
 - Backup engine tasarimi ve backup completed/failed eventlerinin gercek engine uzerinden baglanmasi.
 - Active Directory auth, master user ve daha derin account facade collections/methods.
-- DKIM Administrator/COM setting parity ve DMARC enforcement/Admin policy wiring; daha sonra SPF/greylisting Administrator/COM setting parity.
+- DKIM signing/setter/Admin mutation wiring ve DMARC enforcement/Admin policy wiring; daha sonra SPF/greylisting Administrator/COM setting parity.
 - COM/API compatibility: mevcut GUID/ProgID/DISPID/type library sozlesmelerinin tam korunmasi ve Administrator-visible nesnelerin tamamlanmasi.
 - Migration/operations: in-place upgrade runner, mandatory backup checks, rollback-from-backup dokumani, orphan cleanup, health/metrics/logging, Windows Service install/uninstall.
 - SQL Server FTS integration testleri ve production acceptance: 100k mailbox SEARCH/SORT, 1k IMAP connection, SMTP queue latency, memory/handle leak soak.
@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice bounded read-only `Settings` string scalar set'ini (`HostName`, `WelcomeSMTP`, `WelcomePOP3`, `WelcomeIMAP`) existing `hm_settings` satirlarindan acmali; kurulu vtable/DISPID degerlerini korumali ve setter, listener reconfiguration, service state, secret settings veya daha genis Settings/Admin davranisi eklememeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice bounded read-only `Settings` integer limit set'ini (`MaxSMTPConnections`, `MaxPOP3Connections`, `MaxIMAPConnections`, `MaxDeliveryThreads`) existing `hm_settings.settinginteger` satirlarindan acmali; kurulu vtable/DISPID ve legacy setting-name degerlerini korumali ve setter, live listener/delivery-worker reconfiguration, service state veya daha genis Settings/Admin davranisi eklememeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Settings` yolu legacy `HostName`, `WelcomeSMTP`, `WelcomePOP3` ve `WelcomeIMAP` getter'larini existing `hm_settings.settingstring` satirlarindan read-only acacak sekilde genisletildi. Installed vtable/DISPID ve direct-activation `E_ACCESSDENIED` siniri korundu; setter'lar `E_NOTIMPL`, listener reconfiguration, service state, secret settings ve genis Settings mutation kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 24/24, full Net10 testleri 719/719 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Domains` koleksiyonu legacy `Domains.Names` getter'ini read-only acacak sekilde genisletildi; loaded domain snapshot'larindan `id\tname\tactive\r\n` formatini uretiyor. `Refresh`, collection mutation ve database reload kapsam disi kaldi. Dar domain contract/integration filtresi 6/6, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Account` adapter'i non-secret Active Directory scalar getter'larini read-only acacak sekilde genisletildi: `IsAD`, `ADDomain`, ve `ADUsername` mevcut `hm_accounts.accountisad`/`accountaddomain`/`accountadusername` kolonlarindan geliyor. Setter, AD auth, password/security-sensitive alanlar ve account mutation kapsam disi kaldi. Dar account contract/store/integration filtresi 15/15, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Account` adapter'i legacy `Account.LastLogonTime` getter'ini mevcut `hm_accounts.accountlastlogontime` degerinden read-only acacak sekilde genisletildi. Login-time update, authentication davranisi ve account mutation kapsam disi kaldi. Dar account contract/store/integration filtresi 15/15, full Net10 testleri 715/715 gecti.
@@ -196,10 +197,10 @@ Branch:
 net10-modernization...origin/net10-modernization
 ```
 
-Bu dokuman guncellemesi baslamadan once bilinen origin head:
+Bu dokuman guncellemesinden once tamamlanan kod commit'i:
 
 ```text
-c09dacdaa docs(net10): document vb result parameter
+46fdd0344 feat(net10): expose settings host and welcome COM getters
 ```
 
 Son 30 commit icinde one cikan son dilimler:
@@ -440,7 +441,7 @@ Terminal/log incelemesi:
    - In-place upgrade runner, backup zorunlulugu, rollback-from-backup akisi, service install/uninstall ve operator dokumani.
 
 3. Security + performance acceptance.
-   - DKIM Administrator/COM setting parity ve DMARC enforcement/Admin policy wiring.
+   - DKIM signing/setter/Admin mutation wiring ve DMARC enforcement/Admin policy wiring.
    - SQL Server FTS integration ve 100k mailbox SEARCH/SORT p95 hedefi.
    - 1k concurrent IMAP, SMTP queue latency, delivery throughput ve uzun soak memory/handle testleri.
 
@@ -455,5 +456,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only `Settings` string scalar dilimini ele al: `HostName`, `WelcomeSMTP`, `WelcomePOP3`, `WelcomeIMAP`; existing `hm_settings` satirlarini kullan, mevcut vtable/DISPID degerlerini koru, setter/listener reconfiguration/service state/secret settings kapsamlarini acma.
-6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; push'i kullanici acikca isterse yap.
+5. Current Next Slice olarak authenticated read-only `Settings` integer limit dilimini ele al: `MaxSMTPConnections`, `MaxPOP3Connections`, `MaxIMAPConnections`, `MaxDeliveryThreads`; existing `hm_settings.settinginteger` satirlarini ve legacy setting-name degerlerini kullan, mevcut vtable/DISPID degerlerini koru, setter/live listener veya delivery-worker reconfiguration/service state kapsamlarini acma.
+6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; en gec her 10 committe bir push yap ve bu iki commitlik landing sonunda push ederek branch'i temiz birak.
