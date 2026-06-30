@@ -74,6 +74,28 @@ public sealed class LegacyInitializationFileTests
         }
     }
 
+    [TestMethod]
+    public void LoadRewriteEnvelopeFromWhenForwarding_EnablesOnlyLegacyIntegerOne()
+    {
+        var enabledPath = CreateTemporaryInitializationFile(
+            "[Settings]\nRewriteEnvelopeFromWhenForwarding=1\n");
+        var disabledPath = CreateTemporaryInitializationFile(
+            "[Settings]\nRewriteEnvelopeFromWhenForwarding=2\n");
+        var missingPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ini");
+
+        try
+        {
+            Assert.IsTrue(LegacyInitializationFile.LoadRewriteEnvelopeFromWhenForwarding(enabledPath));
+            Assert.IsFalse(LegacyInitializationFile.LoadRewriteEnvelopeFromWhenForwarding(disabledPath));
+            Assert.IsFalse(LegacyInitializationFile.LoadRewriteEnvelopeFromWhenForwarding(missingPath));
+        }
+        finally
+        {
+            File.Delete(enabledPath);
+            File.Delete(disabledPath);
+        }
+    }
+
     private static string CreateTemporaryInitializationFile(string contents)
     {
         var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ini");

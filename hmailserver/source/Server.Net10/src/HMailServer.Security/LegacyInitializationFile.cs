@@ -54,6 +54,20 @@ public static class LegacyInitializationFile
         return configuration["Settings:UseLanguage"] ?? "English";
     }
 
+    public static bool LoadRewriteEnvelopeFromWhenForwarding(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var configuration = new ConfigurationBuilder()
+            .AddIniFile(Path.GetFullPath(path), optional: true, reloadOnChange: false)
+            .Build();
+
+        return int.TryParse(
+                configuration["Settings:RewriteEnvelopeFromWhenForwarding"],
+                out var value)
+            && value == 1;
+    }
+
     private static int ParseDatabaseType(string? value)
     {
         return value switch

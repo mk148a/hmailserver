@@ -458,6 +458,16 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.UserInterfaceLanguage = value;
     }
 
+    public override bool RewriteEnvelopeFromWhenForwarding
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _runtimeConfiguration.RewriteEnvelopeFromWhenForwarding;
+        }
+        set => base.RewriteEnvelopeFromWhenForwarding = value;
+    }
+
     public override int MaxSMTPConnections
     {
         get
@@ -1350,7 +1360,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual bool IPv6PreferredEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool TlsOptionPreferServerCiphersEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool TlsOptionPrioritizeChaChaEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool RewriteEnvelopeFromWhenForwarding { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool RewriteEnvelopeFromWhenForwarding { get => Unavailable<bool>(); set => Unavailable(); }
 
     private T Unavailable<T>() => SettingsComAuthorization.Unavailable<T>(this);
 
@@ -1358,7 +1368,9 @@ public abstract class SettingsComAdapter : IInterfaceSettings
 }
 
 [ComVisible(false)]
-public sealed record SettingsRuntimeConfiguration(string UserInterfaceLanguage = "English");
+public sealed record SettingsRuntimeConfiguration(
+    string UserInterfaceLanguage = "English",
+    bool RewriteEnvelopeFromWhenForwarding = false);
 
 [ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost

@@ -68,7 +68,8 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.TlsVersion13Enabled), DispId: 103),
             (Name: nameof(IInterfaceSettings.IPv6PreferredEnabled), DispId: 104),
             (Name: nameof(IInterfaceSettings.TlsOptionPreferServerCiphersEnabled), DispId: 105),
-            (Name: nameof(IInterfaceSettings.TlsOptionPrioritizeChaChaEnabled), DispId: 106)
+            (Name: nameof(IInterfaceSettings.TlsOptionPrioritizeChaChaEnabled), DispId: 106),
+            (Name: nameof(IInterfaceSettings.RewriteEnvelopeFromWhenForwarding), DispId: 107)
         };
 
         foreach (var item in expected)
@@ -200,6 +201,7 @@ public sealed class SettingsComContractTests
         var asynchronousThreadsError = Assert.ThrowsExactly<COMException>(() => _ = settings.MaxAsynchronousThreads);
         var publicFolderDiskNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.PublicFolderDiskName);
         var userInterfaceLanguageError = Assert.ThrowsExactly<COMException>(() => _ = settings.UserInterfaceLanguage);
+        var rewriteEnvelopeError = Assert.ThrowsExactly<COMException>(() => _ = settings.RewriteEnvelopeFromWhenForwarding);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -220,6 +222,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, asynchronousThreadsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, publicFolderDiskNameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, userInterfaceLanguageError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, rewriteEnvelopeError.ErrorCode);
     }
 
     [TestMethod]
@@ -291,7 +294,9 @@ public sealed class SettingsComContractTests
                 TlsOptions: 2,
                 ImapMasterUser: "master-user",
                 MaxAsynchronousThreads: 15),
-            new SettingsRuntimeConfiguration(UserInterfaceLanguage: "Swedish"));
+            new SettingsRuntimeConfiguration(
+                UserInterfaceLanguage: "Swedish",
+                RewriteEnvelopeFromWhenForwarding: true));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -322,6 +327,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(15, settings.MaxAsynchronousThreads);
         Assert.AreEqual("#Public", settings.PublicFolderDiskName);
         Assert.AreEqual("Swedish", settings.UserInterfaceLanguage);
+        Assert.IsTrue(settings.RewriteEnvelopeFromWhenForwarding);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -443,6 +449,9 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.UserInterfaceLanguage = "English").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.RewriteEnvelopeFromWhenForwarding = false).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayerUseSSL = true).ErrorCode);
