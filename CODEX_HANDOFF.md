@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice mevcut `hm_domains.domainantispamoptions` greylisting flag'ini authenticated `Domain.AntiSpamEnableGreylisting` COM getter'inda read-only acmali; kurulu vtable/DISPID degerlerini korumali ve setter, SMTP policy davranisi veya greylisting runtime degisikligi eklememeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice mevcut `hm_domains.domainaddomain` degerini authenticated `Domain.ADDomainName` COM getter'inda read-only acmali; kurulu vtable/DISPID degerlerini korumali ve setter, AD synchronization veya authentication davranisi eklememeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated SQL-backed `Domain` adapter'i mevcut `hm_domains.domainantispamoptions` greylisting flag'ini read-only `Domain.AntiSpamEnableGreylisting` getter'i olarak acacak sekilde genisletildi. Setter, SMTP policy davranisi ve runtime greylisting degisikligi kapsam disi kaldi. Dar domain contract/store/integration filtresi 8/8, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Domain` adapter'i mevcut `hm_domains` signature ayarlarini read-only COM getter'lariyla acacak sekilde genisletildi: `SignatureEnabled`, `SignatureMethod`, `SignaturePlainText`, `SignatureHTML`, `AddSignaturesToReplies` ve `AddSignaturesToLocalMail` mevcut legacy kolonlardan geliyor. Setter'lar, message mutation, SMTP signature uygulama davranisi ve migration kapsam disi kaldi. Dar domain contract/store/integration filtresi 8/8, full Net10 testleri 715/715 gecti.
 - Authenticated SQL-backed `Domain` adapter'i mevcut `hm_domains` DKIM ayarlarini read-only COM getter'lariyla acacak sekilde genisletildi: `DKIMSignEnabled`, selector, private-key file path, header/body canonicalization, signing algorithm ve alias-signing flag'i legacy `domainantispamoptions` bitleri ile `domaindkimselector`/`domaindkimprivatekeyfile` kolonlarindan geliyor. Setter'lar, signing, private-key file icerigi okuma ve SMTP policy davranisi kapsam disi kaldi. Dar domain contract/store/integration filtresi 8/8, full Net10 testleri 715/715 gecti.
 - Resmi Public Suffix List snapshot'i `2026-06-24_06-18-09_UTC` / `18ecca5d54471f21918798da451dd8d03a18f3c7` commit'ine ve `8208f0c918c6cb3ab77b484635fc8683c94cbfff818be81950908e881a5f8be2` SHA-256 degerine pinlendi. Snapshot + deterministic metadata Service build/publish ciktilarina kopyalaniyor; offline build gate header/hash/byte length'i dogruluyor ve maintainer-only refresh komutu expected commit + hash olmadan calismiyor. Runtime/SMTP download eklenmedi. Dar DMARC/PSL filtresi 32/32, prereq temiz, Net10 build 0 uyari/0 hata, publish hash smoke testi basarili ve full Net10 testleri 708/708 gecti.
@@ -446,5 +447,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak `hm_domains.domainantispamoptions` greylisting flag -> authenticated read-only `Domain.AntiSpamEnableGreylisting` COM getter parity dilimini ele al; mevcut vtable/DISPID degerlerini koru, setter/SMTP policy/runtime greylisting kapsamlarini acma.
+5. Current Next Slice olarak `hm_domains.domainaddomain` -> authenticated read-only `Domain.ADDomainName` COM getter parity dilimini ele al; mevcut vtable/DISPID degerlerini koru, setter/AD synchronization/authentication kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; push'i kullanici acikca isterse yap.
