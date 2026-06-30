@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki kucuk slice bounded read-only `Settings.SMTPNoOfTries` ve `Settings.SMTPMinutesBetweenTry` getter'larini legacy `smtpnoofretries` ve `smtpminutesbetweenretries` `hm_settings.settinginteger` satirlarindan acmali; obsolete `smtpnooftries` satirini okumamali, kurulu vtable/DISPID degerlerini korumali ve setter, delivery retry scheduling degisikligi veya daha genis Settings/Admin davranisi eklememeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded SMTP guardrail slice read-only `Settings.MaxMessageSize`, `MaxSMTPRecipientsInBatch`, `DisconnectInvalidClients` ve `MaxNumberOfInvalidCommands` getter'larini existing `maxmessagesize`/`maxsmtprecipientsinbatch`/`disconnectinvalidclients`/`maximumincorrectcommands` `hm_settings.settinginteger` satirlarindan acmali; kurulu vtable/DISPID ve `VARIANT_BOOL` marshaling'i korumali ve setter, live SMTP session/listener policy degisikligi veya daha genis Settings/Admin davranisi eklememeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Settings` snapshot/store'u legacy retry getter'larini read-only acacak sekilde genisletildi: `SMTPNoOfTries` `smtpnoofretries`, `SMTPMinutesBetweenTry` ise `smtpminutesbetweenretries` satirindan geliyor; obsolete `smtpnooftries` decoy satiri SQL store'dan acikca dislandi. Setter'lar `E_NOTIMPL`, delivery retry scheduling degisikligi kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 25/25, full Net10 testleri 720/720 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u legacy protocol-enabled getter'larini read-only acacak sekilde genisletildi: `ServiceSMTP`, `ServicePOP3` ve `ServiceIMAP` mevcut `protocolsmtp`/`protocolpop3`/`protocolimap` `hm_settings.settinginteger` satirlarindan geliyor. `VARIANT_BOOL` getter/setter metadata'si contract testinde kilitlendi; setter'lar `E_NOTIMPL`, live listener enable/disable ve service state kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 25/25, full Net10 testleri 720/720 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u legacy integer limit getter'larini read-only acacak sekilde genisletildi: `MaxSMTPConnections`, `MaxPOP3Connections`, `MaxIMAPConnections` ve `MaxDeliveryThreads` mevcut legacy `hm_settings.settinginteger` satirlarindan geliyor. Setter'lar `E_NOTIMPL`; live listener/delivery-worker reconfiguration ve service state kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 24/24, full Net10 testleri 719/719 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` yolu legacy `HostName`, `WelcomeSMTP`, `WelcomePOP3` ve `WelcomeIMAP` getter'larini existing `hm_settings.settingstring` satirlarindan read-only acacak sekilde genisletildi. Installed vtable/DISPID ve direct-activation `E_ACCESSDENIED` siniri korundu; setter'lar `E_NOTIMPL`, listener reconfiguration, service state, secret settings ve genis Settings mutation kapsam disi kaldi. Dar Settings/Application/COM-host/store/integration filtresi 24/24, full Net10 testleri 719/719 gecti; Windows service/COM build 0 uyari/0 hata verdi.
@@ -202,7 +203,7 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesinden once tamamlanan kod commit'i:
 
 ```text
-ef3508ebb feat(net10): expose settings protocol COM getters
+80c7248be feat(net10): expose settings retry COM getters
 ```
 
 Son 30 commit icinde one cikan son dilimler:
@@ -458,5 +459,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only `Settings.SMTPNoOfTries` ve `Settings.SMTPMinutesBetweenTry` getter'larini ele al; legacy `smtpnoofretries` ve `smtpminutesbetweenretries` `hm_settings.settinginteger` satirlarini kullan, obsolete `smtpnooftries` satirini okuma, mevcut vtable/DISPID degerlerini koru, setter/delivery retry scheduling kapsamlarini acma.
+5. Current Next Slice olarak authenticated read-only SMTP guardrail getter'larini ele al: `Settings.MaxMessageSize`, `MaxSMTPRecipientsInBatch`, `DisconnectInvalidClients`, `MaxNumberOfInvalidCommands`; existing `maxmessagesize`/`maxsmtprecipientsinbatch`/`disconnectinvalidclients`/`maximumincorrectcommands` `hm_settings.settinginteger` satirlarini kullan, mevcut vtable/DISPID ve `VARIANT_BOOL` marshaling'i koru, setter/live SMTP session-listener policy kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; en gec her 10 committe bir push yap ve bu iki commitlik landing sonunda push ederek branch'i temiz birak.
