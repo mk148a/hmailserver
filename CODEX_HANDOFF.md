@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded Settings network preference slice read-only `Settings.IPv6PreferredEnabled` getter'ini existing `IPv6Preferred` `hm_settings.settinginteger` satirindan acmali; kurulu vtable/DISPID 104 ve `VARIANT_BOOL` marshaling'i sabit kalmali ve setter, socket/listener resolver preference, live network reconfiguration veya daha genis Settings/Admin mutation davranisi eklenmemeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded Settings auto-ban scalar slice read-only `Settings.AutoBanOnLogonFailure`, `MaxInvalidLogonAttempts`, `MaxInvalidLogonAttemptsWithin` ve `AutoBanMinutes` getter'larini existing `AutoBanOnLogonFailureEnabled`/`MaxInvalidLogonAttempts`/`LogonAttemptsWithinMinutes`/`AutoBanMinutes` `hm_settings.settinginteger` satirlarindan acmali; kurulu vtable/DISPID 82/83/84/85 ve `VARIANT_BOOL`/integer marshaling'i sabit kalmali ve setter, `ClearLogonFailureList`, live auto-ban policy/security-range mutation veya daha genis Settings/Admin mutation davranisi eklenmemeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Settings` snapshot/store'u network preference getter'ini read-only acacak sekilde genisletildi: `IPv6PreferredEnabled` mevcut legacy `IPv6Preferred` `hm_settings.settinginteger` satirindan geliyor. DISPID 104 ve `VARIANT_BOOL` metadata'si contract testinde kilitlendi. Setter ve live network preference/reconfiguration davranisi kapsam disi kaldi. Dar filtre 22/22, full Net10 testleri 722/722 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u SSL/TLS scalar getter'larini read-only acacak sekilde genisletildi: `VerifyRemoteSslCertificate` ve `SslCipherList` mevcut legacy `VerifyRemoteSslCertificate` `hm_settings.settinginteger` ve `SslCipherList` `hm_settings.settingstring` satirlarindan geliyor. DISPIDs 93/94 ve `VARIANT_BOOL`/`BSTR` metadata'si contract testinde kilitlendi. Setter'lar `E_NOTIMPL`, live TLS reload, cipher validation, certificate policy ve TLS version flag davranisi kapsam disi kaldi. Dar filtre 22/22, full Net10 testleri 722/722 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u Settings numeric runtime getter'larini read-only acacak sekilde genisletildi: `RuleLoopLimit`, `WorkerThreadPriority`, `TCPIPThreads` ve `MaxNumberOfMXHosts` mevcut legacy `rulelooplimit`/`workerthreadpriority`/`tcpipthreads`/`MaxNumberOfMXHosts` `hm_settings.settinginteger` satirlarindan geliyor. DISPIDs 48/57/60/90 ve integer metadata'si contract testinde kilitlendi. Setter'lar `E_NOTIMPL`, live rule-loop/thread tuning, SMTP MX scheduling ve `MaxAsynchronousThreads` storage dogrulanmadan kapsam disi kaldi. Dar filtre 22/22, full Net10 testleri 722/722 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` snapshot/store'u SMTP routing string getter'larini read-only acacak sekilde genisletildi: `MirrorEMailAddress`, `DefaultDomain` ve `SMTPDeliveryBindToIP` mevcut legacy `mirroremailaddress`/`defaultdomain`/`smtpdeliverybindtoip` `hm_settings.settingstring` satirlarindan geliyor. DISPIDs 7/50/51 ve `BSTR` metadata'si contract testinde kilitlendi. Setter'lar `E_NOTIMPL`, relayer credential ve live SMTP routing/bind degisikligi kapsam disi kaldi. Dar filtre 21/21, full Net10 testleri 721/721 gecti; Windows service/COM build 0 uyari/0 hata verdi.
@@ -211,7 +212,7 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesinden once tamamlanan kod commit'i:
 
 ```text
-45bc684bf feat(net10): expose settings SSL scalar getters
+42cdeb180 feat(net10): expose settings IPv6 preference getter
 ```
 
 Son 30 commit icinde one cikan son dilimler:
@@ -467,5 +468,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only Settings network preference getter'ini ele al: `Settings.IPv6PreferredEnabled`; existing `IPv6Preferred` `hm_settings.settinginteger` satirini kullan, mevcut vtable/DISPID 104 ve `VARIANT_BOOL` marshaling'ini koru, setter/socket-listener resolver preference/live network reconfiguration kapsamlarini acma.
+5. Current Next Slice olarak authenticated read-only Settings auto-ban scalar getter'larini ele al: `Settings.AutoBanOnLogonFailure`, `MaxInvalidLogonAttempts`, `MaxInvalidLogonAttemptsWithin`, `AutoBanMinutes`; existing `AutoBanOnLogonFailureEnabled`/`MaxInvalidLogonAttempts`/`LogonAttemptsWithinMinutes`/`AutoBanMinutes` `hm_settings.settinginteger` satirlarini kullan, mevcut vtable/DISPID 82/83/84/85 ve `VARIANT_BOOL`/integer marshaling'ini koru, setter/`ClearLogonFailureList`/live auto-ban policy-security-range mutation kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; en gec her 10 committe bir push yap ve bu iki commitlik landing sonunda push ederek branch'i temiz birak.
