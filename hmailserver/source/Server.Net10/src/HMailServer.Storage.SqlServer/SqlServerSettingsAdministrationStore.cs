@@ -30,7 +30,9 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'enableimapidle' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'enableimapacl' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'EnableImapSASLPlain' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'EnableImapSASLInitialResponse' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'EnableImapSASLInitialResponse' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'imappublicfoldername' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'IMAPHierarchyDelimiter' THEN settingstring END), N'')
 FROM hm_settings
 WHERE settingname IN
 (
@@ -56,7 +58,9 @@ WHERE settingname IN
     N'enableimapidle',
     N'enableimapacl',
     N'EnableImapSASLPlain',
-    N'EnableImapSASLInitialResponse'
+    N'EnableImapSASLInitialResponse',
+    N'imappublicfoldername',
+    N'IMAPHierarchyDelimiter'
 );
 """;
 
@@ -105,6 +109,8 @@ WHERE settingname IN
             ImapIdleEnabled: reader.GetInt32(19) != 0,
             ImapAclEnabled: reader.GetInt32(20) != 0,
             ImapSaslPlainEnabled: reader.GetInt32(21) != 0,
-            ImapSaslInitialResponseEnabled: reader.GetInt32(22) != 0);
+            ImapSaslInitialResponseEnabled: reader.GetInt32(22) != 0,
+            ImapPublicFolderName: reader.GetString(23),
+            ImapHierarchyDelimiter: reader.GetString(24));
     }
 }

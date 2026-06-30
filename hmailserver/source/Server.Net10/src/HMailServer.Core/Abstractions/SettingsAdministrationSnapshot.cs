@@ -23,4 +23,6 @@ public sealed record SettingsAdministrationSnapshot(
     bool ImapIdleEnabled = false,
     bool ImapAclEnabled = false,
     bool ImapSaslPlainEnabled = false,
-    bool ImapSaslInitialResponseEnabled = false);
+    bool ImapSaslInitialResponseEnabled = false,
+    string ImapPublicFolderName = "",
+    string ImapHierarchyDelimiter = "");

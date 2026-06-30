@@ -713,6 +713,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.IMAPSASLInitialResponseEnabled = value;
     }
 
+    public override string IMAPPublicFolderName
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.IMAPPublicFolderName
+                : _administrationSnapshot.ImapPublicFolderName;
+        }
+        set => base.IMAPPublicFolderName = value;
+    }
+
+    public override string IMAPHierarchyDelimiter
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.IMAPHierarchyDelimiter
+                : _administrationSnapshot.ImapHierarchyDelimiter;
+        }
+        set => base.IMAPHierarchyDelimiter = value;
+    }
+
     public override IInterfaceMessageIndexing MessageIndexing
     {
         get
@@ -873,7 +897,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public bool SMTPRelayerUseSSL { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual IInterfaceSSLCertificates SSLCertificates => Unavailable<IInterfaceSSLCertificates>();
     public bool AddDeliveredToHeader { get => Unavailable<bool>(); set => Unavailable(); }
-    public string IMAPPublicFolderName { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string IMAPPublicFolderName { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool IMAPACLEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public void SetAdministratorPassword(string newVal) => Unavailable();
     public virtual IInterfaceDirectories Directories => Unavailable<IInterfaceDirectories>();
@@ -886,7 +910,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public int MaxInvalidLogonAttemptsWithin { get => Unavailable<int>(); set => Unavailable(); }
     public int AutoBanMinutes { get => Unavailable<int>(); set => Unavailable(); }
     public void ClearLogonFailureList() => Unavailable();
-    public string IMAPHierarchyDelimiter { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string IMAPHierarchyDelimiter { get => Unavailable<string>(); set => Unavailable(); }
     public int MaxAsynchronousThreads { get => Unavailable<int>(); set => Unavailable(); }
     public virtual IInterfaceMessageIndexing MessageIndexing => Unavailable<IInterfaceMessageIndexing>();
     public int MaxNumberOfMXHosts { get => Unavailable<int>(); set => Unavailable(); }

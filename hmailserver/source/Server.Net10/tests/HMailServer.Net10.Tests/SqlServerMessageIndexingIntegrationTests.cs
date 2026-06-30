@@ -121,6 +121,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsFalse(settings.IMAPACLEnabled);
             Assert.IsTrue(settings.IMAPSASLPlainEnabled);
             Assert.IsFalse(settings.IMAPSASLInitialResponseEnabled);
+            Assert.AreEqual("#Shared", settings.IMAPPublicFolderName);
+            Assert.AreEqual("/", settings.IMAPHierarchyDelimiter);
         }
         finally
         {
@@ -763,6 +765,8 @@ VALUES
     (N'enableimapacl', N'', 0),
     (N'EnableImapSASLPlain', N'', 1),
     (N'EnableImapSASLInitialResponse', N'', 0),
+    (N'imappublicfoldername', N'#Shared', 0),
+    (N'IMAPHierarchyDelimiter', N'/', 0),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

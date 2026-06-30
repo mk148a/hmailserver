@@ -73,6 +73,30 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void ImapNamingProperties_PreserveLegacyDispidsAndBstrMarshaling()
+    {
+        var expected = new[]
+        {
+            (Name: nameof(IInterfaceSettings.IMAPPublicFolderName), DispId: 74),
+            (Name: nameof(IInterfaceSettings.IMAPHierarchyDelimiter), DispId: 87)
+        };
+
+        foreach (var item in expected)
+        {
+            var property = typeof(IInterfaceSettings).GetProperty(item.Name);
+
+            Assert.IsNotNull(property);
+            Assert.AreEqual(item.DispId, property.GetCustomAttribute<DispIdAttribute>()?.Value);
+            Assert.AreEqual(
+                UnmanagedType.BStr,
+                property.GetMethod?.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+            Assert.AreEqual(
+                UnmanagedType.BStr,
+                property.SetMethod?.GetParameters()[0].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        }
+    }
+
+    [TestMethod]
     public void DirectActivation_DeniesLegacySettingsAccess()
     {
         var settings = new Settings();
@@ -82,12 +106,14 @@ public sealed class SettingsComContractTests
         var hostNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.HostName);
         var imapCapabilityError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSortEnabled);
         var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
+        var imapNamingError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPPublicFolderName);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapCapabilityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, imapNamingError.ErrorCode);
     }
 
     [TestMethod]
@@ -128,7 +154,9 @@ public sealed class SettingsComContractTests
                 ImapIdleEnabled: true,
                 ImapAclEnabled: false,
                 ImapSaslPlainEnabled: true,
-                ImapSaslInitialResponseEnabled: false));
+                ImapSaslInitialResponseEnabled: false,
+                ImapPublicFolderName: "#Shared",
+                ImapHierarchyDelimiter: "/"));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -153,6 +181,8 @@ public sealed class SettingsComContractTests
         Assert.IsFalse(settings.IMAPACLEnabled);
         Assert.IsTrue(settings.IMAPSASLPlainEnabled);
         Assert.IsFalse(settings.IMAPSASLInitialResponseEnabled);
+        Assert.AreEqual("#Shared", settings.IMAPPublicFolderName);
+        Assert.AreEqual("/", settings.IMAPHierarchyDelimiter);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -223,6 +253,12 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.IMAPSASLInitialResponseEnabled = true).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.IMAPPublicFolderName = "#Changed").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.IMAPHierarchyDelimiter = ".").ErrorCode);
     }
 
     [TestMethod]
