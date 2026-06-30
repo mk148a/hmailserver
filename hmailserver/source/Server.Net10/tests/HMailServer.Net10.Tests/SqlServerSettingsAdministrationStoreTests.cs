@@ -43,6 +43,9 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'allowmailfromnull'");
         StringAssert.Contains(sql, "settingname = N'smtpallowincorrectlineendings'");
         StringAssert.Contains(sql, "settingname = N'adddeliveredtoheader'");
+        StringAssert.Contains(sql, "settingname = N'mirroremailaddress'");
+        StringAssert.Contains(sql, "settingname = N'defaultdomain'");
+        StringAssert.Contains(sql, "settingname = N'smtpdeliverybindtoip'");
     }
 
     [TestMethod]

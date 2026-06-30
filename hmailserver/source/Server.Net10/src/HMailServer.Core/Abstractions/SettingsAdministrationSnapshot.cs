@@ -29,4 +29,7 @@ public sealed record SettingsAdministrationSnapshot(
     bool AllowSmtpAuthPlain = false,
     bool AllowMailFromNull = false,
     bool AllowIncorrectLineEndings = false,
-    bool AddDeliveredToHeader = false);
+    bool AddDeliveredToHeader = false,
+    string MirrorEmailAddress = "",
+    string DefaultDomain = "",
+    string SmtpDeliveryBindToIp = "");

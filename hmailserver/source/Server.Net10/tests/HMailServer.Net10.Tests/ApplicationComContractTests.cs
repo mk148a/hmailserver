@@ -120,7 +120,10 @@ public sealed class ApplicationComContractTests
                     AllowSmtpAuthPlain: true,
                     AllowMailFromNull: false,
                     AllowIncorrectLineEndings: true,
-                    AddDeliveredToHeader: false)));
+                    AddDeliveredToHeader: false,
+                    MirrorEmailAddress: "archive@example.test",
+                    DefaultDomain: "example.test",
+                    SmtpDeliveryBindToIp: "192.0.2.25")));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -162,6 +165,9 @@ public sealed class ApplicationComContractTests
         Assert.IsTrue(settings.DenyMailFromNull);
         Assert.IsTrue(settings.AllowIncorrectLineEndings);
         Assert.IsFalse(settings.AddDeliveredToHeader);
+        Assert.AreEqual("archive@example.test", settings.MirrorEMailAddress);
+        Assert.AreEqual("example.test", settings.DefaultDomain);
+        Assert.AreEqual("192.0.2.25", settings.SMTPDeliveryBindToIP);
     }
 
     [TestMethod]

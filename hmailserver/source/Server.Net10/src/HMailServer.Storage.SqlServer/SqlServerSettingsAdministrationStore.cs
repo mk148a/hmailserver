@@ -36,7 +36,10 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'authallowplaintext' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'allowmailfromnull' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'smtpallowincorrectlineendings' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'adddeliveredtoheader' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'adddeliveredtoheader' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'mirroremailaddress' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'defaultdomain' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'smtpdeliverybindtoip' THEN settingstring END), N'')
 FROM hm_settings
 WHERE settingname IN
 (
@@ -68,7 +71,10 @@ WHERE settingname IN
     N'authallowplaintext',
     N'allowmailfromnull',
     N'smtpallowincorrectlineendings',
-    N'adddeliveredtoheader'
+    N'adddeliveredtoheader',
+    N'mirroremailaddress',
+    N'defaultdomain',
+    N'smtpdeliverybindtoip'
 );
 """;
 
@@ -123,6 +129,9 @@ WHERE settingname IN
             AllowSmtpAuthPlain: reader.GetInt32(25) != 0,
             AllowMailFromNull: reader.GetInt32(26) != 0,
             AllowIncorrectLineEndings: reader.GetInt32(27) != 0,
-            AddDeliveredToHeader: reader.GetInt32(28) != 0);
+            AddDeliveredToHeader: reader.GetInt32(28) != 0,
+            MirrorEmailAddress: reader.GetString(29),
+            DefaultDomain: reader.GetString(30),
+            SmtpDeliveryBindToIp: reader.GetString(31));
     }
 }

@@ -77,10 +77,13 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
-    public void ImapNamingProperties_PreserveLegacyDispidsAndBstrMarshaling()
+    public void StringProperties_PreserveLegacyDispidsAndBstrMarshaling()
     {
         var expected = new[]
         {
+            (Name: nameof(IInterfaceSettings.MirrorEMailAddress), DispId: 7),
+            (Name: nameof(IInterfaceSettings.DefaultDomain), DispId: 50),
+            (Name: nameof(IInterfaceSettings.SMTPDeliveryBindToIP), DispId: 51),
             (Name: nameof(IInterfaceSettings.IMAPPublicFolderName), DispId: 74),
             (Name: nameof(IInterfaceSettings.IMAPHierarchyDelimiter), DispId: 87)
         };
@@ -112,6 +115,7 @@ public sealed class SettingsComContractTests
         var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
         var imapNamingError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPPublicFolderName);
         var smtpPolicyError = Assert.ThrowsExactly<COMException>(() => _ = settings.AllowSMTPAuthPlain);
+        var smtpRoutingError = Assert.ThrowsExactly<COMException>(() => _ = settings.MirrorEMailAddress);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -120,6 +124,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapNamingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpPolicyError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, smtpRoutingError.ErrorCode);
     }
 
     [TestMethod]
@@ -166,7 +171,10 @@ public sealed class SettingsComContractTests
                 AllowSmtpAuthPlain: true,
                 AllowMailFromNull: false,
                 AllowIncorrectLineEndings: true,
-                AddDeliveredToHeader: false));
+                AddDeliveredToHeader: false,
+                MirrorEmailAddress: "archive@example.test",
+                DefaultDomain: "example.test",
+                SmtpDeliveryBindToIp: "192.0.2.25"));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -197,6 +205,9 @@ public sealed class SettingsComContractTests
         Assert.IsTrue(settings.DenyMailFromNull);
         Assert.IsTrue(settings.AllowIncorrectLineEndings);
         Assert.IsFalse(settings.AddDeliveredToHeader);
+        Assert.AreEqual("archive@example.test", settings.MirrorEMailAddress);
+        Assert.AreEqual("example.test", settings.DefaultDomain);
+        Assert.AreEqual("192.0.2.25", settings.SMTPDeliveryBindToIP);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -285,6 +296,15 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.AddDeliveredToHeader = true).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MirrorEMailAddress = "other@example.test").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.DefaultDomain = "other.test").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.SMTPDeliveryBindToIP = "192.0.2.26").ErrorCode);
     }
 
     [TestMethod]

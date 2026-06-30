@@ -127,6 +127,9 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(settings.DenyMailFromNull);
             Assert.IsTrue(settings.AllowIncorrectLineEndings);
             Assert.IsFalse(settings.AddDeliveredToHeader);
+            Assert.AreEqual("archive@example.test", settings.MirrorEMailAddress);
+            Assert.AreEqual("example.test", settings.DefaultDomain);
+            Assert.AreEqual("192.0.2.25", settings.SMTPDeliveryBindToIP);
         }
         finally
         {
@@ -775,6 +778,9 @@ VALUES
     (N'allowmailfromnull', N'', 0),
     (N'smtpallowincorrectlineendings', N'', 1),
     (N'adddeliveredtoheader', N'', 0),
+    (N'mirroremailaddress', N'archive@example.test', 0),
+    (N'defaultdomain', N'example.test', 0),
+    (N'smtpdeliverybindtoip', N'192.0.2.25', 0),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

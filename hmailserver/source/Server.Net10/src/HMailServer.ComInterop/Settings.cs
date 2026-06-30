@@ -461,6 +461,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.MaxPOP3Connections = value;
     }
 
+    public override string MirrorEMailAddress
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MirrorEMailAddress
+                : _administrationSnapshot.MirrorEmailAddress;
+        }
+        set => base.MirrorEMailAddress = value;
+    }
+
     public override bool AllowSMTPAuthPlain
     {
         get
@@ -663,6 +675,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 : _administrationSnapshot.MaxMessageSize;
         }
         set => base.MaxMessageSize = value;
+    }
+
+    public override string DefaultDomain
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.DefaultDomain
+                : _administrationSnapshot.DefaultDomain;
+        }
+        set => base.DefaultDomain = value;
+    }
+
+    public override string SMTPDeliveryBindToIP
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SMTPDeliveryBindToIP
+                : _administrationSnapshot.SmtpDeliveryBindToIp;
+        }
+        set => base.SMTPDeliveryBindToIP = value;
     }
 
     public override int MaxSMTPRecipientsInBatch
@@ -899,7 +935,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
 {
     public virtual int MaxSMTPConnections { get => Unavailable<int>(); set => Unavailable(); }
     public virtual int MaxPOP3Connections { get => Unavailable<int>(); set => Unavailable(); }
-    public string MirrorEMailAddress { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string MirrorEMailAddress { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool AllowSMTPAuthPlain { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool DenyMailFromNull { get => Unavailable<bool>(); set => Unavailable(); }
     public IInterfaceLogging Logging => Unavailable<IInterfaceLogging>();
@@ -927,8 +963,8 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public IInterfaceCache Cache => Unavailable<IInterfaceCache>();
     public int RuleLoopLimit { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceBackupSettings Backup => Unavailable<IInterfaceBackupSettings>();
-    public string DefaultDomain { get => Unavailable<string>(); set => Unavailable(); }
-    public string SMTPDeliveryBindToIP { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string DefaultDomain { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string SMTPDeliveryBindToIP { get => Unavailable<string>(); set => Unavailable(); }
     public virtual int MaxIMAPConnections { get => Unavailable<int>(); set => Unavailable(); }
     public virtual bool IMAPSortEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool IMAPQuotaEnabled { get => Unavailable<bool>(); set => Unavailable(); }
