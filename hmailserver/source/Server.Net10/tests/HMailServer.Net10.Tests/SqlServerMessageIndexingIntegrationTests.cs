@@ -97,6 +97,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             var domains = application.Domains;
 
             Assert.AreEqual(2, domains.Count);
+            Assert.AreEqual("10\talpha.example\t1\r\n20\tbeta.example\t0\r\n", domains.Names);
             Assert.AreEqual("alpha.example", domains[0].Name);
             Assert.AreEqual("postmaster@alpha.example", domains[0].Postmaster);
             Assert.AreEqual(1024, domains[0].MaxMessageSize);

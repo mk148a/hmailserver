@@ -105,6 +105,7 @@ public sealed class DomainsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var domainsError = Assert.ThrowsExactly<COMException>(() => _ = new Domains().Count);
+        var namesError = Assert.ThrowsExactly<COMException>(() => _ = new Domains().Names);
         var domainError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().Name);
         var adDomainError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().ADDomainName);
         var sizeError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().Size);
@@ -114,6 +115,7 @@ public sealed class DomainsComContractTests
         var dkimError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().DKIMSignEnabled);
 
         Assert.AreEqual(EAccessDenied, domainsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, namesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, domainError.ErrorCode);
         Assert.AreEqual(EAccessDenied, adDomainError.ErrorCode);
         Assert.AreEqual(EAccessDenied, sizeError.ErrorCode);
@@ -166,6 +168,7 @@ public sealed class DomainsComContractTests
             });
 
         Assert.AreEqual(2, domains.Count);
+        Assert.AreEqual("10\talpha.example\t1\r\n20\tbeta.example\t0\r\n", domains.Names);
         AssertDomain(domains[0], 10, "alpha.example", true);
         AssertCoreScalars(domains[0]);
         AssertSignatureScalars(domains[0]);

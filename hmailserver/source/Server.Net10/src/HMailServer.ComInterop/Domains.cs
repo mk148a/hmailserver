@@ -318,7 +318,8 @@ public sealed class Domains : IInterfaceDomains
 
     public int Count => GetDomains().Count;
 
-    public string Names => Unavailable<string>();
+    public string Names => string.Concat(
+        GetDomains().Select(static domain => $"{domain.Id}\t{domain.Name}\t{(domain.Active ? 1 : 0)}\r\n"));
 
     internal static Domains CreateAuthorized(IReadOnlyList<DomainAdministrationSnapshot> domains)
     {
