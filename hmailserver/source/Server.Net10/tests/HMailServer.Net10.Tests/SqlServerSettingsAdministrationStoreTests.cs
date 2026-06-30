@@ -6,7 +6,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class SqlServerSettingsAdministrationStoreTests
 {
     [TestMethod]
-    public void GetSettingsSql_ReadsOnlyLegacyHostWelcomeLimitProtocolAndRetryScalars()
+    public void GetSettingsSql_ReadsOnlyBoundedLegacyAdministrationScalars()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;
 
@@ -27,6 +27,10 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'smtpnoofretries'");
         StringAssert.Contains(sql, "settingname = N'smtpminutesbetweenretries'");
         Assert.IsFalse(sql.Contains("N'smtpnooftries'", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(sql, "settingname = N'maxmessagesize'");
+        StringAssert.Contains(sql, "settingname = N'maxsmtprecipientsinbatch'");
+        StringAssert.Contains(sql, "settingname = N'disconnectinvalidclients'");
+        StringAssert.Contains(sql, "settingname = N'maximumincorrectcommands'");
     }
 
     [TestMethod]

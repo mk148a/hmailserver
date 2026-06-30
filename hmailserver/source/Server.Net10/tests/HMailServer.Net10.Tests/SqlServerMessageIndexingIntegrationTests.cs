@@ -72,7 +72,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
-    public async Task AuthenticatedComPath_ReadsSettingsHostWelcomeLimitsProtocolsAndRetriesFromIsolatedDatabase()
+    public async Task AuthenticatedComPath_ReadsBoundedSettingsScalarsFromIsolatedDatabase()
     {
         var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
         if (string.IsNullOrWhiteSpace(serverConnectionString))
@@ -111,6 +111,10 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(settings.ServiceIMAP);
             Assert.AreEqual(4, settings.SMTPNoOfTries);
             Assert.AreEqual(60, settings.SMTPMinutesBetweenTry);
+            Assert.AreEqual(20480, settings.MaxMessageSize);
+            Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
+            Assert.IsTrue(settings.DisconnectInvalidClients);
+            Assert.AreEqual(12, settings.MaxNumberOfInvalidCommands);
         }
         finally
         {
@@ -743,6 +747,10 @@ VALUES
     (N'smtpnoofretries', N'', 4),
     (N'smtpminutesbetweenretries', N'', 60),
     (N'smtpnooftries', N'', 999),
+    (N'maxmessagesize', N'', 20480),
+    (N'maxsmtprecipientsinbatch', N'', 100),
+    (N'disconnectinvalidclients', N'', 1),
+    (N'maximumincorrectcommands', N'', 12),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

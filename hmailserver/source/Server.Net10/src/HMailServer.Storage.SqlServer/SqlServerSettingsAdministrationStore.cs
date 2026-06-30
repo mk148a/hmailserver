@@ -20,7 +20,11 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'protocolpop3' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'protocolimap' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'smtpnoofretries' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'smtpminutesbetweenretries' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'smtpminutesbetweenretries' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'maxmessagesize' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'maxsmtprecipientsinbatch' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'disconnectinvalidclients' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'maximumincorrectcommands' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -36,7 +40,11 @@ WHERE settingname IN
     N'protocolpop3',
     N'protocolimap',
     N'smtpnoofretries',
-    N'smtpminutesbetweenretries'
+    N'smtpminutesbetweenretries',
+    N'maxmessagesize',
+    N'maxsmtprecipientsinbatch',
+    N'disconnectinvalidclients',
+    N'maximumincorrectcommands'
 );
 """;
 
@@ -75,6 +83,10 @@ WHERE settingname IN
             ServicePop3: reader.GetInt32(9) != 0,
             ServiceImap: reader.GetInt32(10) != 0,
             SmtpNoOfTries: reader.GetInt32(11),
-            SmtpMinutesBetweenTry: reader.GetInt32(12));
+            SmtpMinutesBetweenTry: reader.GetInt32(12),
+            MaxMessageSize: reader.GetInt32(13),
+            MaxSmtpRecipientsInBatch: reader.GetInt32(14),
+            DisconnectInvalidClients: reader.GetInt32(15) != 0,
+            MaxNumberOfInvalidCommands: reader.GetInt32(16));
     }
 }

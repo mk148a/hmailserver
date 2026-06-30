@@ -41,13 +41,14 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
-    public void ProtocolServiceProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
+    public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
         {
             (Name: nameof(IInterfaceSettings.ServiceSMTP), DispId: 26),
             (Name: nameof(IInterfaceSettings.ServicePOP3), DispId: 27),
-            (Name: nameof(IInterfaceSettings.ServiceIMAP), DispId: 28)
+            (Name: nameof(IInterfaceSettings.ServiceIMAP), DispId: 28),
+            (Name: nameof(IInterfaceSettings.DisconnectInvalidClients), DispId: 64)
         };
 
         foreach (var item in expected)
@@ -91,7 +92,7 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedSettings_ExposesReadOnlyHostWelcomeLimitProtocolAndRetryScalars()
+    public void AuthorizedSettings_ExposesReadOnlyBoundedAdministrationScalars()
     {
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
@@ -107,7 +108,11 @@ public sealed class SettingsComContractTests
                 ServicePop3: false,
                 ServiceImap: true,
                 SmtpNoOfTries: 4,
-                SmtpMinutesBetweenTry: 60));
+                SmtpMinutesBetweenTry: 60,
+                MaxMessageSize: 20480,
+                MaxSmtpRecipientsInBatch: 100,
+                DisconnectInvalidClients: true,
+                MaxNumberOfInvalidCommands: 12));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -122,6 +127,10 @@ public sealed class SettingsComContractTests
         Assert.IsTrue(settings.ServiceIMAP);
         Assert.AreEqual(4, settings.SMTPNoOfTries);
         Assert.AreEqual(60, settings.SMTPMinutesBetweenTry);
+        Assert.AreEqual(20480, settings.MaxMessageSize);
+        Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
+        Assert.IsTrue(settings.DisconnectInvalidClients);
+        Assert.AreEqual(12, settings.MaxNumberOfInvalidCommands);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -162,6 +171,18 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPMinutesBetweenTry = 30).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxMessageSize = 10240).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxSMTPRecipientsInBatch = 50).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.DisconnectInvalidClients = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxNumberOfInvalidCommands = 6).ErrorCode);
     }
 
     [TestMethod]

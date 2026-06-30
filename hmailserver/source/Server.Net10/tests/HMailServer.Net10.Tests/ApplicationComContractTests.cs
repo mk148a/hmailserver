@@ -104,7 +104,11 @@ public sealed class ApplicationComContractTests
                     ServicePop3: false,
                     ServiceImap: true,
                     SmtpNoOfTries: 4,
-                    SmtpMinutesBetweenTry: 60)));
+                    SmtpMinutesBetweenTry: 60,
+                    MaxMessageSize: 20480,
+                    MaxSmtpRecipientsInBatch: 100,
+                    DisconnectInvalidClients: true,
+                    MaxNumberOfInvalidCommands: 12)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -130,6 +134,10 @@ public sealed class ApplicationComContractTests
         Assert.IsTrue(settings.ServiceIMAP);
         Assert.AreEqual(4, settings.SMTPNoOfTries);
         Assert.AreEqual(60, settings.SMTPMinutesBetweenTry);
+        Assert.AreEqual(20480, settings.MaxMessageSize);
+        Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
+        Assert.IsTrue(settings.DisconnectInvalidClients);
+        Assert.AreEqual(12, settings.MaxNumberOfInvalidCommands);
     }
 
     [TestMethod]

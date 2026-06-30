@@ -593,6 +593,54 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.MaxIMAPConnections = value;
     }
 
+    public override int MaxMessageSize
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxMessageSize
+                : _administrationSnapshot.MaxMessageSize;
+        }
+        set => base.MaxMessageSize = value;
+    }
+
+    public override int MaxSMTPRecipientsInBatch
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxSMTPRecipientsInBatch
+                : _administrationSnapshot.MaxSmtpRecipientsInBatch;
+        }
+        set => base.MaxSMTPRecipientsInBatch = value;
+    }
+
+    public override bool DisconnectInvalidClients
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.DisconnectInvalidClients
+                : _administrationSnapshot.DisconnectInvalidClients;
+        }
+        set => base.DisconnectInvalidClients = value;
+    }
+
+    public override int MaxNumberOfInvalidCommands
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxNumberOfInvalidCommands
+                : _administrationSnapshot.MaxNumberOfInvalidCommands;
+        }
+        set => base.MaxNumberOfInvalidCommands = value;
+    }
+
     public override IInterfaceMessageIndexing MessageIndexing
     {
         get
@@ -731,7 +779,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public int SMTPRelayerPort { get => Unavailable<int>(); set => Unavailable(); }
     public string UserInterfaceLanguage { get => Unavailable<string>(); set => Unavailable(); }
     public IInterfaceScripting Scripting => Unavailable<IInterfaceScripting>();
-    public int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceCache Cache => Unavailable<IInterfaceCache>();
     public int RuleLoopLimit { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceBackupSettings Backup => Unavailable<IInterfaceBackupSettings>();
@@ -744,10 +792,10 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public int WorkerThreadPriority { get => Unavailable<int>(); set => Unavailable(); }
     public int TCPIPThreads { get => Unavailable<int>(); set => Unavailable(); }
     public bool AllowIncorrectLineEndings { get => Unavailable<bool>(); set => Unavailable(); }
-    public int MaxSMTPRecipientsInBatch { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxSMTPRecipientsInBatch { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceAntiSpam AntiSpam => Unavailable<IInterfaceAntiSpam>();
-    public bool DisconnectInvalidClients { get => Unavailable<bool>(); set => Unavailable(); }
-    public int MaxNumberOfInvalidCommands { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual bool DisconnectInvalidClients { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual int MaxNumberOfInvalidCommands { get => Unavailable<int>(); set => Unavailable(); }
     public virtual IInterfaceServerMessages ServerMessages => Unavailable<IInterfaceServerMessages>();
     public virtual IInterfaceTCPIPPorts TCPIPPorts => Unavailable<IInterfaceTCPIPPorts>();
     public bool SMTPRelayerUseSSL { get => Unavailable<bool>(); set => Unavailable(); }

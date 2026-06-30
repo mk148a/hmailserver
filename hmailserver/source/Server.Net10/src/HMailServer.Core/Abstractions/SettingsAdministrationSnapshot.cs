@@ -13,4 +13,8 @@ public sealed record SettingsAdministrationSnapshot(
     bool ServicePop3 = false,
     bool ServiceImap = false,
     int SmtpNoOfTries = 0,
-    int SmtpMinutesBetweenTry = 0);
+    int SmtpMinutesBetweenTry = 0,
+    int MaxMessageSize = 0,
+    int MaxSmtpRecipientsInBatch = 0,
+    bool DisconnectInvalidClients = false,
+    int MaxNumberOfInvalidCommands = 0);
