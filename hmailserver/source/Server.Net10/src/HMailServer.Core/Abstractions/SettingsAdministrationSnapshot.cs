@@ -52,4 +52,5 @@ public sealed record SettingsAdministrationSnapshot(
     int SmtpConnectionSecurity = 0,
     int SslVersions = 0,
     int TlsOptions = 0,
-    string ImapMasterUser = "");
+    string ImapMasterUser = "",
+    int MaxAsynchronousThreads = 0);

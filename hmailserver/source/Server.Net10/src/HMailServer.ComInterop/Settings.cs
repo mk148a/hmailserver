@@ -1040,6 +1040,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.IMAPMasterUser = value;
     }
 
+    public override int MaxAsynchronousThreads
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxAsynchronousThreads
+                : _administrationSnapshot.MaxAsynchronousThreads;
+        }
+        set => base.MaxAsynchronousThreads = value;
+    }
+
     public override bool VerifyRemoteSslCertificate
     {
         get
@@ -1291,7 +1303,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual int AutoBanMinutes { get => Unavailable<int>(); set => Unavailable(); }
     public void ClearLogonFailureList() => Unavailable();
     public virtual string IMAPHierarchyDelimiter { get => Unavailable<string>(); set => Unavailable(); }
-    public int MaxAsynchronousThreads { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxAsynchronousThreads { get => Unavailable<int>(); set => Unavailable(); }
     public virtual IInterfaceMessageIndexing MessageIndexing => Unavailable<IInterfaceMessageIndexing>();
     public virtual int MaxNumberOfMXHosts { get => Unavailable<int>(); set => Unavailable(); }
     public virtual ComConnectionSecurity SMTPRelayerConnectionSecurity { get => Unavailable<ComConnectionSecurity>(); set => Unavailable(); }

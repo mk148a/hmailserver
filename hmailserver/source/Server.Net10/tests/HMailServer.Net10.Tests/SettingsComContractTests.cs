@@ -98,6 +98,7 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.MaxInvalidLogonAttempts), DispId: 83),
             (Name: nameof(IInterfaceSettings.MaxInvalidLogonAttemptsWithin), DispId: 84),
             (Name: nameof(IInterfaceSettings.AutoBanMinutes), DispId: 85),
+            (Name: nameof(IInterfaceSettings.MaxAsynchronousThreads), DispId: 88),
             (Name: nameof(IInterfaceSettings.MaxNumberOfMXHosts), DispId: 90)
         };
 
@@ -182,6 +183,7 @@ public sealed class SettingsComContractTests
         var smtpConnectionSecurityError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPConnectionSecurity);
         var tlsVersionError = Assert.ThrowsExactly<COMException>(() => _ = settings.TlsVersion10Enabled);
         var imapMasterUserError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPMasterUser);
+        var asynchronousThreadsError = Assert.ThrowsExactly<COMException>(() => _ = settings.MaxAsynchronousThreads);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -199,6 +201,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, smtpConnectionSecurityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, tlsVersionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapMasterUserError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, asynchronousThreadsError.ErrorCode);
     }
 
     [TestMethod]
@@ -268,7 +271,8 @@ public sealed class SettingsComContractTests
                 SmtpConnectionSecurity: (int)ComConnectionSecurity.StartTlsOptional,
                 SslVersions: 26,
                 TlsOptions: 2,
-                ImapMasterUser: "master-user"));
+                ImapMasterUser: "master-user",
+                MaxAsynchronousThreads: 15));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -296,6 +300,7 @@ public sealed class SettingsComContractTests
         Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
         Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
         Assert.AreEqual("master-user", settings.IMAPMasterUser);
+        Assert.AreEqual(15, settings.MaxAsynchronousThreads);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -411,6 +416,9 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.IMAPMasterUser = "changed-master").ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxAsynchronousThreads = 20).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayerUseSSL = true).ErrorCode);
