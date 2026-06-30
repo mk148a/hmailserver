@@ -102,7 +102,9 @@ public sealed class ApplicationComContractTests
                     MaxDeliveryThreads: 10,
                     ServiceSmtp: true,
                     ServicePop3: false,
-                    ServiceImap: true)));
+                    ServiceImap: true,
+                    SmtpNoOfTries: 4,
+                    SmtpMinutesBetweenTry: 60)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -126,6 +128,8 @@ public sealed class ApplicationComContractTests
         Assert.IsTrue(settings.ServiceSMTP);
         Assert.IsFalse(settings.ServicePOP3);
         Assert.IsTrue(settings.ServiceIMAP);
+        Assert.AreEqual(4, settings.SMTPNoOfTries);
+        Assert.AreEqual(60, settings.SMTPMinutesBetweenTry);
     }
 
     [TestMethod]

@@ -72,7 +72,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
-    public async Task AuthenticatedComPath_ReadsSettingsHostWelcomeLimitsAndProtocolsFromIsolatedDatabase()
+    public async Task AuthenticatedComPath_ReadsSettingsHostWelcomeLimitsProtocolsAndRetriesFromIsolatedDatabase()
     {
         var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
         if (string.IsNullOrWhiteSpace(serverConnectionString))
@@ -109,6 +109,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(settings.ServiceSMTP);
             Assert.IsFalse(settings.ServicePOP3);
             Assert.IsTrue(settings.ServiceIMAP);
+            Assert.AreEqual(4, settings.SMTPNoOfTries);
+            Assert.AreEqual(60, settings.SMTPMinutesBetweenTry);
         }
         finally
         {
@@ -738,6 +740,9 @@ VALUES
     (N'protocolsmtp', N'', 1),
     (N'protocolpop3', N'', 0),
     (N'protocolimap', N'', 1),
+    (N'smtpnoofretries', N'', 4),
+    (N'smtpminutesbetweenretries', N'', 60),
+    (N'smtpnooftries', N'', 999),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

@@ -461,6 +461,30 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.MaxPOP3Connections = value;
     }
 
+    public override int SMTPNoOfTries
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SMTPNoOfTries
+                : _administrationSnapshot.SmtpNoOfTries;
+        }
+        set => base.SMTPNoOfTries = value;
+    }
+
+    public override int SMTPMinutesBetweenTry
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SMTPMinutesBetweenTry
+                : _administrationSnapshot.SmtpMinutesBetweenTry;
+        }
+        set => base.SMTPMinutesBetweenTry = value;
+    }
+
     public override string WelcomeSMTP
     {
         get
@@ -688,8 +712,8 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public bool DenyMailFromNull { get => Unavailable<bool>(); set => Unavailable(); }
     public IInterfaceLogging Logging => Unavailable<IInterfaceLogging>();
     public virtual IInterfaceSecurityRanges SecurityRanges => Unavailable<IInterfaceSecurityRanges>();
-    public int SMTPNoOfTries { get => Unavailable<int>(); set => Unavailable(); }
-    public int SMTPMinutesBetweenTry { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int SMTPNoOfTries { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int SMTPMinutesBetweenTry { get => Unavailable<int>(); set => Unavailable(); }
     public string SMTPRelayer { get => Unavailable<string>(); set => Unavailable(); }
     public virtual string WelcomeSMTP { get => Unavailable<string>(); set => Unavailable(); }
     public virtual string WelcomePOP3 { get => Unavailable<string>(); set => Unavailable(); }

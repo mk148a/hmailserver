@@ -6,7 +6,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class SqlServerSettingsAdministrationStoreTests
 {
     [TestMethod]
-    public void GetSettingsSql_ReadsOnlyLegacyHostWelcomeLimitAndProtocolScalars()
+    public void GetSettingsSql_ReadsOnlyLegacyHostWelcomeLimitProtocolAndRetryScalars()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;
 
@@ -24,6 +24,9 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'protocolsmtp'");
         StringAssert.Contains(sql, "settingname = N'protocolpop3'");
         StringAssert.Contains(sql, "settingname = N'protocolimap'");
+        StringAssert.Contains(sql, "settingname = N'smtpnoofretries'");
+        StringAssert.Contains(sql, "settingname = N'smtpminutesbetweenretries'");
+        Assert.IsFalse(sql.Contains("N'smtpnooftries'", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]

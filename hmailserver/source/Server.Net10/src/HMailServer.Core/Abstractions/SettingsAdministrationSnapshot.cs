@@ -11,4 +11,6 @@ public sealed record SettingsAdministrationSnapshot(
     int MaxDeliveryThreads = 0,
     bool ServiceSmtp = false,
     bool ServicePop3 = false,
-    bool ServiceImap = false);
+    bool ServiceImap = false,
+    int SmtpNoOfTries = 0,
+    int SmtpMinutesBetweenTry = 0);

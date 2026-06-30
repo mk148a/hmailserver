@@ -18,7 +18,9 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'maxdelivertythreads' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'protocolsmtp' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'protocolpop3' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'protocolimap' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'protocolimap' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'smtpnoofretries' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'smtpminutesbetweenretries' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -32,7 +34,9 @@ WHERE settingname IN
     N'maxdelivertythreads',
     N'protocolsmtp',
     N'protocolpop3',
-    N'protocolimap'
+    N'protocolimap',
+    N'smtpnoofretries',
+    N'smtpminutesbetweenretries'
 );
 """;
 
@@ -69,6 +73,8 @@ WHERE settingname IN
             MaxDeliveryThreads: reader.GetInt32(7),
             ServiceSmtp: reader.GetInt32(8) != 0,
             ServicePop3: reader.GetInt32(9) != 0,
-            ServiceImap: reader.GetInt32(10) != 0);
+            ServiceImap: reader.GetInt32(10) != 0,
+            SmtpNoOfTries: reader.GetInt32(11),
+            SmtpMinutesBetweenTry: reader.GetInt32(12));
     }
 }

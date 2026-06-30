@@ -91,7 +91,7 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedSettings_ExposesReadOnlyHostWelcomeLimitAndProtocolScalars()
+    public void AuthorizedSettings_ExposesReadOnlyHostWelcomeLimitProtocolAndRetryScalars()
     {
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
@@ -105,7 +105,9 @@ public sealed class SettingsComContractTests
                 MaxDeliveryThreads: 10,
                 ServiceSmtp: true,
                 ServicePop3: false,
-                ServiceImap: true));
+                ServiceImap: true,
+                SmtpNoOfTries: 4,
+                SmtpMinutesBetweenTry: 60));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -118,6 +120,8 @@ public sealed class SettingsComContractTests
         Assert.IsTrue(settings.ServiceSMTP);
         Assert.IsFalse(settings.ServicePOP3);
         Assert.IsTrue(settings.ServiceIMAP);
+        Assert.AreEqual(4, settings.SMTPNoOfTries);
+        Assert.AreEqual(60, settings.SMTPMinutesBetweenTry);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -152,6 +156,12 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.ServiceIMAP = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.SMTPNoOfTries = 8).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.SMTPMinutesBetweenTry = 30).ErrorCode);
     }
 
     [TestMethod]
