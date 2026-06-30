@@ -147,7 +147,8 @@ public sealed class ApplicationComContractTests
                     MaxAsynchronousThreads: 15)),
             new SettingsRuntimeConfiguration(
                 UserInterfaceLanguage: "Swedish",
-                RewriteEnvelopeFromWhenForwarding: true));
+                RewriteEnvelopeFromWhenForwarding: true,
+                CrashSimulationMode: 3));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -190,6 +191,7 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual("#Public", settings.PublicFolderDiskName);
         Assert.AreEqual("Swedish", settings.UserInterfaceLanguage);
         Assert.IsTrue(settings.RewriteEnvelopeFromWhenForwarding);
+        Assert.AreEqual(3, settings.CrashSimulationMode);
         Assert.AreEqual(20480, settings.MaxMessageSize);
         Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
         Assert.IsTrue(settings.DisconnectInvalidClients);

@@ -468,6 +468,16 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.RewriteEnvelopeFromWhenForwarding = value;
     }
 
+    public override int CrashSimulationMode
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _runtimeConfiguration.CrashSimulationMode;
+        }
+        set => base.CrashSimulationMode = value;
+    }
+
     public override int MaxSMTPConnections
     {
         get
@@ -1352,7 +1362,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual bool TlsVersion10Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool TlsVersion11Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool TlsVersion12Enabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public int CrashSimulationMode { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int CrashSimulationMode { get => Unavailable<int>(); set => Unavailable(); }
     public virtual string IMAPMasterUser { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool IMAPSASLPlainEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool IMAPSASLInitialResponseEnabled { get => Unavailable<bool>(); set => Unavailable(); }
@@ -1370,7 +1380,8 @@ public abstract class SettingsComAdapter : IInterfaceSettings
 [ComVisible(false)]
 public sealed record SettingsRuntimeConfiguration(
     string UserInterfaceLanguage = "English",
-    bool RewriteEnvelopeFromWhenForwarding = false);
+    bool RewriteEnvelopeFromWhenForwarding = false,
+    int CrashSimulationMode = 0);
 
 [ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost
