@@ -206,6 +206,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(10, accounts[0].DomainID);
             Assert.AreEqual(ComAdminLevel.ServerAdministrator, accounts[0].AdminLevel);
             Assert.AreEqual(2048, accounts[0].MaxSize);
+            Assert.AreEqual(2.5f, accounts[0].Size, 0.0001f);
             Assert.AreEqual("Ada", accounts[0].PersonFirstName);
             Assert.AreEqual("Lovelace", accounts[0].PersonLastName);
             Assert.IsTrue(accounts[0].VacationMessageIsOn);
@@ -233,6 +234,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("2026-07-01 02:03:04", fetchAccounts[0].NextDownloadTime);
             var pendingSensitiveRead = Assert.ThrowsExactly<COMException>(() => _ = fetchAccounts[0].Password);
             Assert.AreEqual(unchecked((int)0x80004001), pendingSensitiveRead.ErrorCode);
+            Assert.AreEqual(0.125f, accounts.get_ItemByDBID(20).Size, 0.0001f);
             var rules = accounts[0].Rules;
             Assert.AreEqual(2, rules.Count);
             Assert.AreEqual("First rule", rules[0].Name);
@@ -946,6 +948,12 @@ VALUES
     (30, 30, N'outside@other.test', 1, 0, 512, N'Outside', N'Example',
      0, N'', N'', 0, CONVERT(datetime, '2026-01-01T00:00:00', 126), 0,
      0, N'', 0, 0, 0, N'', N'');
+
+INSERT INTO dbo.hm_messages (messageid, messageaccountid, messagesize)
+VALUES
+    (3000, 10, 2621440),
+    (3001, 20, 131072),
+    (3002, 30, 1048576);
 
 INSERT INTO dbo.hm_fetchaccounts
     (faid, faactive, faaccountid, faaccountname, faserveraddress, faserverport,

@@ -16,6 +16,7 @@ public sealed class SqlServerAccountAdministrationStoreTests
         StringAssert.Contains(sql, "accountactive");
         StringAssert.Contains(sql, "accountadminlevel");
         StringAssert.Contains(sql, "accountmaxsize");
+        StringAssert.Contains(sql, "accountsizebytes");
         StringAssert.Contains(sql, "accountpersonfirstname");
         StringAssert.Contains(sql, "accountpersonlastname");
         StringAssert.Contains(sql, "accountvacationmessageon");
@@ -32,6 +33,9 @@ public sealed class SqlServerAccountAdministrationStoreTests
         StringAssert.Contains(sql, "accountsignatureplaintext");
         StringAssert.Contains(sql, "accountsignaturehtml");
         StringAssert.Contains(sql, "FROM hm_accounts");
+        StringAssert.Contains(sql, "FROM hm_messages");
+        StringAssert.Contains(sql, "SUM(CAST(messagesize AS bigint))");
+        StringAssert.Contains(sql, "messageaccountid = hm_accounts.accountid");
         StringAssert.Contains(sql, "WHERE accountdomainid = @DomainID");
         StringAssert.Contains(sql, "ORDER BY accountaddress ASC");
     }

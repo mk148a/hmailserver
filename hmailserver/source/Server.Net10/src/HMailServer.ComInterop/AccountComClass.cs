@@ -84,7 +84,7 @@ public sealed class Account : IInterfaceAccount
 
     public string Password { get => Read(_password); set => Write(() => _password = value); }
 
-    public float Size => Read(0f);
+    public float Size => _administrationSnapshot?.Size ?? Read(0f);
 
     public string ADUsername { get => Read(_activeDirectoryUsername); set => Write(() => _activeDirectoryUsername = value); }
 

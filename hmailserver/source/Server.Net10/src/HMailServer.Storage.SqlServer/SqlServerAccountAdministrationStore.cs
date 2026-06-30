@@ -15,6 +15,11 @@ SELECT
     accountactive,
     accountadminlevel,
     accountmaxsize,
+    (
+        SELECT COALESCE(SUM(CAST(messagesize AS bigint)), 0)
+        FROM hm_messages
+        WHERE messageaccountid = hm_accounts.accountid
+    ) AS accountsizebytes,
     accountpersonfirstname,
     accountpersonlastname,
     accountvacationmessageon,
@@ -65,25 +70,30 @@ ORDER BY accountaddress ASC;
                     Active: Convert.ToInt32(reader.GetValue(3), CultureInfo.InvariantCulture) != 0,
                     AdminLevel: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture),
                     MaxSize: reader.GetInt32(5),
-                    PersonFirstName: reader.GetString(6),
-                    PersonLastName: reader.GetString(7),
-                    VacationMessageIsOn: ReadLegacyBoolean(reader, 8),
-                    VacationMessage: reader.GetString(9),
-                    VacationSubject: reader.GetString(10),
-                    VacationMessageExpires: ReadLegacyBoolean(reader, 11),
-                    VacationMessageExpiresDate: reader.GetString(12),
-                    VacationMessageAbortSpamFlagged: ReadLegacyBoolean(reader, 13),
-                    ForwardEnabled: ReadLegacyBoolean(reader, 14),
-                    ForwardAddress: reader.GetString(15),
-                    ForwardKeepOriginal: ReadLegacyBoolean(reader, 16),
-                    ForwardAbortSpamFlagged: ReadLegacyBoolean(reader, 17),
-                    SignatureEnabled: ReadLegacyBoolean(reader, 18),
-                    SignaturePlainText: reader.GetString(19),
-                    SignatureHtml: reader.GetString(20)));
+                    Size: CalculateLegacySizeMb(
+                        Convert.ToInt64(reader.GetValue(6), CultureInfo.InvariantCulture)),
+                    PersonFirstName: reader.GetString(7),
+                    PersonLastName: reader.GetString(8),
+                    VacationMessageIsOn: ReadLegacyBoolean(reader, 9),
+                    VacationMessage: reader.GetString(10),
+                    VacationSubject: reader.GetString(11),
+                    VacationMessageExpires: ReadLegacyBoolean(reader, 12),
+                    VacationMessageExpiresDate: reader.GetString(13),
+                    VacationMessageAbortSpamFlagged: ReadLegacyBoolean(reader, 14),
+                    ForwardEnabled: ReadLegacyBoolean(reader, 15),
+                    ForwardAddress: reader.GetString(16),
+                    ForwardKeepOriginal: ReadLegacyBoolean(reader, 17),
+                    ForwardAbortSpamFlagged: ReadLegacyBoolean(reader, 18),
+                    SignatureEnabled: ReadLegacyBoolean(reader, 19),
+                    SignaturePlainText: reader.GetString(20),
+                    SignatureHtml: reader.GetString(21)));
         }
 
         return accounts;
     }
+
+    private static float CalculateLegacySizeMb(long sizeBytes) =>
+        MathF.Round((float)sizeBytes / (1024 * 1024), 3, MidpointRounding.AwayFromZero);
 
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
         Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) != 0;
