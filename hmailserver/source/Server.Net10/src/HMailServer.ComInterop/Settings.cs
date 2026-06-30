@@ -497,6 +497,42 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.WelcomeIMAP = value;
     }
 
+    public override bool ServiceSMTP
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.ServiceSMTP
+                : _administrationSnapshot.ServiceSmtp;
+        }
+        set => base.ServiceSMTP = value;
+    }
+
+    public override bool ServicePOP3
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.ServicePOP3
+                : _administrationSnapshot.ServicePop3;
+        }
+        set => base.ServicePOP3 = value;
+    }
+
+    public override bool ServiceIMAP
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.ServiceIMAP
+                : _administrationSnapshot.ServiceImap;
+        }
+        set => base.ServiceIMAP = value;
+    }
+
     public override string HostName
     {
         get
@@ -658,9 +694,9 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual string WelcomeSMTP { get => Unavailable<string>(); set => Unavailable(); }
     public virtual string WelcomePOP3 { get => Unavailable<string>(); set => Unavailable(); }
     public virtual string WelcomeIMAP { get => Unavailable<string>(); set => Unavailable(); }
-    public bool ServiceSMTP { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool ServicePOP3 { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool ServiceIMAP { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool ServiceSMTP { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool ServicePOP3 { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool ServiceIMAP { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual int MaxDeliveryThreads { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceAntiVirus AntiVirus => Unavailable<IInterfaceAntiVirus>();
     public virtual IInterfaceRoutes Routes => Unavailable<IInterfaceRoutes>();

@@ -99,7 +99,10 @@ public sealed class ApplicationComContractTests
                     MaxSmtpConnections: 100,
                     MaxPop3Connections: 50,
                     MaxImapConnections: 75,
-                    MaxDeliveryThreads: 10)));
+                    MaxDeliveryThreads: 10,
+                    ServiceSmtp: true,
+                    ServicePop3: false,
+                    ServiceImap: true)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -120,6 +123,9 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual(50, settings.MaxPOP3Connections);
         Assert.AreEqual(75, settings.MaxIMAPConnections);
         Assert.AreEqual(10, settings.MaxDeliveryThreads);
+        Assert.IsTrue(settings.ServiceSMTP);
+        Assert.IsFalse(settings.ServicePOP3);
+        Assert.IsTrue(settings.ServiceIMAP);
     }
 
     [TestMethod]

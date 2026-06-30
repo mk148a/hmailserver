@@ -6,7 +6,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class SqlServerSettingsAdministrationStoreTests
 {
     [TestMethod]
-    public void GetSettingsSql_ReadsOnlyLegacyHostWelcomeAndLimitScalars()
+    public void GetSettingsSql_ReadsOnlyLegacyHostWelcomeLimitAndProtocolScalars()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;
 
@@ -21,10 +21,13 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'maxpop3connections'");
         StringAssert.Contains(sql, "settingname = N'maximapconnections'");
         StringAssert.Contains(sql, "settingname = N'maxdelivertythreads'");
+        StringAssert.Contains(sql, "settingname = N'protocolsmtp'");
+        StringAssert.Contains(sql, "settingname = N'protocolpop3'");
+        StringAssert.Contains(sql, "settingname = N'protocolimap'");
     }
 
     [TestMethod]
-    public void GetSettingsSql_RemainsReadOnlyAndExcludesSecretOrRuntimeConfiguration()
+    public void GetSettingsSql_RemainsReadOnlyAndExcludesSecrets()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;
 
@@ -35,8 +38,5 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("password", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("smtprelayer", StringComparison.OrdinalIgnoreCase));
-        Assert.IsFalse(sql.Contains("protocolsmtp", StringComparison.OrdinalIgnoreCase));
-        Assert.IsFalse(sql.Contains("protocolpop3", StringComparison.OrdinalIgnoreCase));
-        Assert.IsFalse(sql.Contains("protocolimap", StringComparison.OrdinalIgnoreCase));
     }
 }

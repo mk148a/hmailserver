@@ -41,6 +41,31 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void ProtocolServiceProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
+    {
+        var expected = new[]
+        {
+            (Name: nameof(IInterfaceSettings.ServiceSMTP), DispId: 26),
+            (Name: nameof(IInterfaceSettings.ServicePOP3), DispId: 27),
+            (Name: nameof(IInterfaceSettings.ServiceIMAP), DispId: 28)
+        };
+
+        foreach (var item in expected)
+        {
+            var property = typeof(IInterfaceSettings).GetProperty(item.Name);
+
+            Assert.IsNotNull(property);
+            Assert.AreEqual(item.DispId, property.GetCustomAttribute<DispIdAttribute>()?.Value);
+            Assert.AreEqual(
+                UnmanagedType.VariantBool,
+                property.GetMethod?.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+            Assert.AreEqual(
+                UnmanagedType.VariantBool,
+                property.SetMethod?.GetParameters()[0].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        }
+    }
+
+    [TestMethod]
     public void DirectActivation_DeniesLegacySettingsAccess()
     {
         var settings = new Settings();
@@ -66,7 +91,7 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedSettings_ExposesReadOnlyHostWelcomeAndLimitScalars()
+    public void AuthorizedSettings_ExposesReadOnlyHostWelcomeLimitAndProtocolScalars()
     {
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
@@ -77,7 +102,10 @@ public sealed class SettingsComContractTests
                 MaxSmtpConnections: 100,
                 MaxPop3Connections: 50,
                 MaxImapConnections: 75,
-                MaxDeliveryThreads: 10));
+                MaxDeliveryThreads: 10,
+                ServiceSmtp: true,
+                ServicePop3: false,
+                ServiceImap: true));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -87,6 +115,9 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(50, settings.MaxPOP3Connections);
         Assert.AreEqual(75, settings.MaxIMAPConnections);
         Assert.AreEqual(10, settings.MaxDeliveryThreads);
+        Assert.IsTrue(settings.ServiceSMTP);
+        Assert.IsFalse(settings.ServicePOP3);
+        Assert.IsTrue(settings.ServiceIMAP);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -112,6 +143,15 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.MaxDeliveryThreads = 20).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.ServiceSMTP = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.ServicePOP3 = true).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.ServiceIMAP = false).ErrorCode);
     }
 
     [TestMethod]
