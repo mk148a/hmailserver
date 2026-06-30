@@ -47,10 +47,11 @@ Ana nedenler:
 
 ## Current Next Slice
 
-Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded crash-simulation Settings slice read-only `Settings.CrashSimulationMode` getter'ini process-local runtime degerinden acmali; bu deger legacy gibi `0` baslamali, kurulu DISPID 99 ve integer marshaling sabit kalmali ve setter, SMTP crash/fault injection, exception-handler test behavior veya daha genis Settings/Admin mutation davranisi eklenmemeli.
+Backlog'daki siradaki ana dilim: legacy Administrator parity'yi ilerletmek. Siradaki bounded Logging object slice complete legacy `Logging` IID/vtable/class identity'sini korumali, class'i register/host etmeli ve authenticated `Settings -> Logging` yolunda existing `hm_settings` satirlarindan read-only persisted logging flags/device/format degerlerini acmali. Direct activation `E_ACCESSDENIED` kalmali; setter'lar, live logging, current-log path/file access, logger reconfiguration veya daha genis Settings/Admin mutation davranisi eklenmemeli.
 
 Son tamamlanan kucuk dilimler:
 
+- Authenticated `Application -> Settings` yolu process-local `CrashSimulationMode` getter'ini acacak sekilde genisletildi. Runtime snapshot legacy default `0` ile basliyor ve enjekte edilen runtime degeri de ayni getter'dan okunuyor. DISPID 99/integer metadata'si, direct-activation `E_ACCESSDENIED` ve setter `E_NOTIMPL` sinirlari testlerde kilitlendi. SMTP crash/fault injection ve exception-handler test behavior kapsam disi kaldi. Dar filtre 21/21, full Net10 testleri 726/726 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` yolu INI-backed `RewriteEnvelopeFromWhenForwarding` getter'ini acacak sekilde genisletildi. Service configured/default legacy `hMailServer.ini` `[Settings] RewriteEnvelopeFromWhenForwarding` degerini runtime configuration snapshot'ina yukluyor; yalniz integer `1` true, diger degerler ve eksik dosya/anahtar false oluyor. DISPID 107 ve `VARIANT_BOOL` metadata'si, direct-activation `E_ACCESSDENIED` ve setter `E_NOTIMPL` sinirlari testlerde kilitlendi. INI persistence, SMTP/rule forwarding behavior ve DKIM signing interaction kapsam disi kaldi. Dar filtre 26/26, full Net10 testleri 726/726 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` yolu INI-backed `UserInterfaceLanguage` getter'ini acacak sekilde genisletildi. Service configured/default legacy `hMailServer.ini` `[Settings] UseLanguage` degerini runtime configuration snapshot'ina yukluyor; eksik dosya veya anahtar legacy gibi `English` donduruyor. DISPID 42 ve `BSTR` metadata'si, direct-activation `E_ACCESSDENIED` ve setter `E_NOTIMPL` sinirlari testlerde kilitlendi. INI persistence ve Administrator UI resource reload kapsam disi kaldi. Dar filtre 25/25, full Net10 testleri 725/725 gecti; Windows service/COM build 0 uyari/0 hata verdi.
 - Authenticated `Application -> Settings` yolu getter-only `PublicFolderDiskName` degerini legacy gibi sabit `#Public` olarak dondurecek sekilde genisletildi. DISPID 79, getter-only yuzey ve `BSTR` metadata'si contract testinde kilitlendi; direct activation `E_ACCESSDENIED` kaldi. Filesystem access, public-folder creation/rename behavior, data-directory reconfiguration ve daha genis Settings/Admin mutation kapsam disi kaldi. Dar filtre 21/21, full Net10 testleri 724/724 gecti; Windows service/COM build 0 uyari/0 hata verdi.
@@ -221,7 +222,7 @@ net10-modernization...origin/net10-modernization
 Bu dokuman guncellemesinden once tamamlanan kod commit'i:
 
 ```text
-b98c5bdaf feat(net10): expose forwarding envelope setting getter
+74434165b feat(net10): expose crash simulation mode getter
 ```
 
 Son 30 commit icinde one cikan son dilimler:
@@ -477,5 +478,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak authenticated read-only `Settings.CrashSimulationMode` getter'ini ele al: process-local runtime degerini legacy default `0` ile kullan, mevcut DISPID 99 ve integer marshaling'i koru, setter/SMTP crash-fault injection/exception-handler test behavior kapsamlarini acma.
+5. Current Next Slice olarak complete legacy `Logging` IID/vtable/class identity'sini koru, class'i register/host et ve authenticated `Settings -> Logging` yolunda existing `hm_settings` logging flags/device/format degerlerini read-only ac; direct activation `E_ACCESSDENIED` kalsin, setter/live logging/current-log file access/logger reconfiguration kapsamlarini acma.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; en gec her 10 committe bir push yap ve bu iki commitlik landing sonunda push ederek branch'i temiz birak.
