@@ -46,7 +46,11 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'MaxNumberOfMXHosts' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'VerifyRemoteSslCertificate' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'SslCipherList' THEN settingstring END), N''),
-    COALESCE(MAX(CASE WHEN settingname = N'IPv6Preferred' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'IPv6Preferred' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'AutoBanOnLogonFailureEnabled' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'MaxInvalidLogonAttempts' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'LogonAttemptsWithinMinutes' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'AutoBanMinutes' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -88,7 +92,11 @@ WHERE settingname IN
     N'MaxNumberOfMXHosts',
     N'VerifyRemoteSslCertificate',
     N'SslCipherList',
-    N'IPv6Preferred'
+    N'IPv6Preferred',
+    N'AutoBanOnLogonFailureEnabled',
+    N'MaxInvalidLogonAttempts',
+    N'LogonAttemptsWithinMinutes',
+    N'AutoBanMinutes'
 );
 """;
 
@@ -153,6 +161,10 @@ WHERE settingname IN
             MaxNumberOfMxHosts: reader.GetInt32(35),
             VerifyRemoteSslCertificate: reader.GetInt32(36) != 0,
             SslCipherList: reader.GetString(37),
-            Ipv6PreferredEnabled: reader.GetInt32(38) != 0);
+            Ipv6PreferredEnabled: reader.GetInt32(38) != 0,
+            AutoBanOnLogonFailure: reader.GetInt32(39) != 0,
+            MaxInvalidLogonAttempts: reader.GetInt32(40),
+            MaxInvalidLogonAttemptsWithin: reader.GetInt32(41),
+            AutoBanMinutes: reader.GetInt32(42));
     }
 }

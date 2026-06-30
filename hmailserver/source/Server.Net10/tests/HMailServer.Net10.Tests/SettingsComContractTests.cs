@@ -57,6 +57,7 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.DisconnectInvalidClients), DispId: 64),
             (Name: nameof(IInterfaceSettings.AddDeliveredToHeader), DispId: 73),
             (Name: nameof(IInterfaceSettings.IMAPACLEnabled), DispId: 75),
+            (Name: nameof(IInterfaceSettings.AutoBanOnLogonFailure), DispId: 82),
             (Name: nameof(IInterfaceSettings.VerifyRemoteSslCertificate), DispId: 93),
             (Name: nameof(IInterfaceSettings.IMAPSASLPlainEnabled), DispId: 101),
             (Name: nameof(IInterfaceSettings.IMAPSASLInitialResponseEnabled), DispId: 102),
@@ -86,6 +87,9 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.RuleLoopLimit), DispId: 48),
             (Name: nameof(IInterfaceSettings.WorkerThreadPriority), DispId: 57),
             (Name: nameof(IInterfaceSettings.TCPIPThreads), DispId: 60),
+            (Name: nameof(IInterfaceSettings.MaxInvalidLogonAttempts), DispId: 83),
+            (Name: nameof(IInterfaceSettings.MaxInvalidLogonAttemptsWithin), DispId: 84),
+            (Name: nameof(IInterfaceSettings.AutoBanMinutes), DispId: 85),
             (Name: nameof(IInterfaceSettings.MaxNumberOfMXHosts), DispId: 90)
         };
 
@@ -143,6 +147,7 @@ public sealed class SettingsComContractTests
         var numericRuntimeError = Assert.ThrowsExactly<COMException>(() => _ = settings.RuleLoopLimit);
         var sslScalarError = Assert.ThrowsExactly<COMException>(() => _ = settings.VerifyRemoteSslCertificate);
         var networkPreferenceError = Assert.ThrowsExactly<COMException>(() => _ = settings.IPv6PreferredEnabled);
+        var autoBanError = Assert.ThrowsExactly<COMException>(() => _ = settings.AutoBanOnLogonFailure);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -155,6 +160,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, numericRuntimeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, sslScalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, networkPreferenceError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, autoBanError.ErrorCode);
     }
 
     [TestMethod]
@@ -211,7 +217,11 @@ public sealed class SettingsComContractTests
                 MaxNumberOfMxHosts: 22,
                 VerifyRemoteSslCertificate: true,
                 SslCipherList: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
-                Ipv6PreferredEnabled: true));
+                Ipv6PreferredEnabled: true,
+                AutoBanOnLogonFailure: true,
+                MaxInvalidLogonAttempts: 3,
+                MaxInvalidLogonAttemptsWithin: 30,
+                AutoBanMinutes: 60));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -252,6 +262,10 @@ public sealed class SettingsComContractTests
         Assert.IsTrue(settings.VerifyRemoteSslCertificate);
         Assert.AreEqual("TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256", settings.SslCipherList);
         Assert.IsTrue(settings.IPv6PreferredEnabled);
+        Assert.IsTrue(settings.AutoBanOnLogonFailure);
+        Assert.AreEqual(3, settings.MaxInvalidLogonAttempts);
+        Assert.AreEqual(30, settings.MaxInvalidLogonAttemptsWithin);
+        Assert.AreEqual(60, settings.AutoBanMinutes);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -370,6 +384,18 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.IPv6PreferredEnabled = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.AutoBanOnLogonFailure = false).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxInvalidLogonAttempts = 4).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxInvalidLogonAttemptsWithin = 45).ErrorCode);
+        Assert.AreEqual(
+            ENotImplemented,
+            Assert.ThrowsExactly<COMException>(() => settings.AutoBanMinutes = 120).ErrorCode);
     }
 
     [TestMethod]

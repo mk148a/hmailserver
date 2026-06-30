@@ -130,7 +130,11 @@ public sealed class ApplicationComContractTests
                     MaxNumberOfMxHosts: 22,
                     VerifyRemoteSslCertificate: true,
                     SslCipherList: "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
-                    Ipv6PreferredEnabled: true)));
+                    Ipv6PreferredEnabled: true,
+                    AutoBanOnLogonFailure: true,
+                    MaxInvalidLogonAttempts: 3,
+                    MaxInvalidLogonAttemptsWithin: 30,
+                    AutoBanMinutes: 60)));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -182,6 +186,10 @@ public sealed class ApplicationComContractTests
         Assert.IsTrue(settings.VerifyRemoteSslCertificate);
         Assert.AreEqual("TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256", settings.SslCipherList);
         Assert.IsTrue(settings.IPv6PreferredEnabled);
+        Assert.IsTrue(settings.AutoBanOnLogonFailure);
+        Assert.AreEqual(3, settings.MaxInvalidLogonAttempts);
+        Assert.AreEqual(30, settings.MaxInvalidLogonAttemptsWithin);
+        Assert.AreEqual(60, settings.AutoBanMinutes);
     }
 
     [TestMethod]

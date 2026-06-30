@@ -54,6 +54,10 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'VerifyRemoteSslCertificate'");
         StringAssert.Contains(sql, "settingname = N'SslCipherList'");
         StringAssert.Contains(sql, "settingname = N'IPv6Preferred'");
+        StringAssert.Contains(sql, "settingname = N'AutoBanOnLogonFailureEnabled'");
+        StringAssert.Contains(sql, "settingname = N'MaxInvalidLogonAttempts'");
+        StringAssert.Contains(sql, "settingname = N'LogonAttemptsWithinMinutes'");
+        StringAssert.Contains(sql, "settingname = N'AutoBanMinutes'");
     }
 
     [TestMethod]

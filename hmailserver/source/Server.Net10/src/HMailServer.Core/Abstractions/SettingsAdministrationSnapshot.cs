@@ -39,4 +39,8 @@ public sealed record SettingsAdministrationSnapshot(
     int MaxNumberOfMxHosts = 0,
     bool VerifyRemoteSslCertificate = false,
     string SslCipherList = "",
-    bool Ipv6PreferredEnabled = false);
+    bool Ipv6PreferredEnabled = false,
+    bool AutoBanOnLogonFailure = false,
+    int MaxInvalidLogonAttempts = 0,
+    int MaxInvalidLogonAttemptsWithin = 0,
+    int AutoBanMinutes = 0);

@@ -914,6 +914,54 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.IPv6PreferredEnabled = value;
     }
 
+    public override bool AutoBanOnLogonFailure
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.AutoBanOnLogonFailure
+                : _administrationSnapshot.AutoBanOnLogonFailure;
+        }
+        set => base.AutoBanOnLogonFailure = value;
+    }
+
+    public override int MaxInvalidLogonAttempts
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxInvalidLogonAttempts
+                : _administrationSnapshot.MaxInvalidLogonAttempts;
+        }
+        set => base.MaxInvalidLogonAttempts = value;
+    }
+
+    public override int MaxInvalidLogonAttemptsWithin
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxInvalidLogonAttemptsWithin
+                : _administrationSnapshot.MaxInvalidLogonAttemptsWithin;
+        }
+        set => base.MaxInvalidLogonAttemptsWithin = value;
+    }
+
+    public override int AutoBanMinutes
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.AutoBanMinutes
+                : _administrationSnapshot.AutoBanMinutes;
+        }
+        set => base.AutoBanMinutes = value;
+    }
+
     public override IInterfaceIMAPFolders PublicFolders
     {
         get
@@ -1073,10 +1121,10 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public string PublicFolderDiskName => Unavailable<string>();
     public virtual IInterfaceGroups Groups => Unavailable<IInterfaceGroups>();
     public virtual IInterfaceIncomingRelays IncomingRelays => Unavailable<IInterfaceIncomingRelays>();
-    public bool AutoBanOnLogonFailure { get => Unavailable<bool>(); set => Unavailable(); }
-    public int MaxInvalidLogonAttempts { get => Unavailable<int>(); set => Unavailable(); }
-    public int MaxInvalidLogonAttemptsWithin { get => Unavailable<int>(); set => Unavailable(); }
-    public int AutoBanMinutes { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual bool AutoBanOnLogonFailure { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual int MaxInvalidLogonAttempts { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int MaxInvalidLogonAttemptsWithin { get => Unavailable<int>(); set => Unavailable(); }
+    public virtual int AutoBanMinutes { get => Unavailable<int>(); set => Unavailable(); }
     public void ClearLogonFailureList() => Unavailable();
     public virtual string IMAPHierarchyDelimiter { get => Unavailable<string>(); set => Unavailable(); }
     public int MaxAsynchronousThreads { get => Unavailable<int>(); set => Unavailable(); }

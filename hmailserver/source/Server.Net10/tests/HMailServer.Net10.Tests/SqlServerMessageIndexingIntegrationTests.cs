@@ -137,6 +137,10 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(settings.VerifyRemoteSslCertificate);
             Assert.AreEqual("TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256", settings.SslCipherList);
             Assert.IsTrue(settings.IPv6PreferredEnabled);
+            Assert.IsTrue(settings.AutoBanOnLogonFailure);
+            Assert.AreEqual(3, settings.MaxInvalidLogonAttempts);
+            Assert.AreEqual(30, settings.MaxInvalidLogonAttemptsWithin);
+            Assert.AreEqual(60, settings.AutoBanMinutes);
         }
         finally
         {
@@ -795,6 +799,10 @@ VALUES
     (N'VerifyRemoteSslCertificate', N'', 1),
     (N'SslCipherList', N'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256', 0),
     (N'IPv6Preferred', N'', 1),
+    (N'AutoBanOnLogonFailureEnabled', N'', 1),
+    (N'MaxInvalidLogonAttempts', N'', 3),
+    (N'LogonAttemptsWithinMinutes', N'', 30),
+    (N'AutoBanMinutes', N'', 60),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 
