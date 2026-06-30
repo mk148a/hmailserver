@@ -103,6 +103,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(domains[0].PlusAddressingEnabled);
             Assert.AreEqual("+", domains[0].PlusAddressingCharacter);
             Assert.IsTrue(domains[0].AntiSpamEnableGreylisting);
+            Assert.AreEqual("corp.alpha.example", domains[0].ADDomainName);
             Assert.AreEqual(4096, domains[0].MaxSize);
             Assert.AreEqual(200, domains[0].MaxNumberOfAccounts);
             Assert.AreEqual(30, domains[0].MaxNumberOfAliases);
@@ -127,6 +128,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("beta.example", domains.get_ItemByName("BETA.EXAMPLE").Name);
             Assert.IsFalse(domains.get_ItemByDBID(20).Active);
             Assert.IsFalse(domains.get_ItemByDBID(20).AntiSpamEnableGreylisting);
+            Assert.AreEqual(string.Empty, domains.get_ItemByDBID(20).ADDomainName);
             Assert.IsFalse(domains.get_ItemByDBID(20).SignatureEnabled);
             Assert.AreEqual(
                 ComDomainSignatureMethod.SetIfNotSpecifiedInAccount,
@@ -659,6 +661,7 @@ CREATE TABLE dbo.hm_domains
     domainmaxmessagesize int NOT NULL,
     domainuseplusaddressing tinyint NOT NULL,
     domainplusaddressingchar nvarchar(1) NOT NULL,
+    domainaddomain nvarchar(255) NOT NULL,
     domainmaxsize int NOT NULL,
     domainmaxnoofaccounts int NOT NULL,
     domainmaxnoofaliases int NOT NULL,
@@ -678,15 +681,15 @@ CREATE TABLE dbo.hm_domains
 
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
-     domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
+     domainuseplusaddressing, domainplusaddressingchar, domainaddomain, domainmaxsize,
      domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
      domainlimitationsenabled, domainmaxaccountsize, domainenablesignature,
      domainsignaturemethod, domainsignatureplaintext, domainsignaturehtml,
      domainaddsignaturestoreplies, domainaddsignaturestolocalemail, domainantispamoptions,
      domaindkimselector, domaindkimprivatekeyfile)
 VALUES
-    (20, N'beta.example', 0, N'postmaster@beta.example', 512, 0, N'+', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N''),
-    (10, N'alpha.example', 1, N'postmaster@alpha.example', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512, 1, 3, N'Alpha plain signature', N'<p>Alpha HTML signature</p>', 1, 0, 55, N'alpha-selector', N'C:\keys\alpha.pem');
+    (20, N'beta.example', 0, N'postmaster@beta.example', 512, 0, N'+', N'', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N''),
+    (10, N'alpha.example', 1, N'postmaster@alpha.example', 1024, 1, N'+', N'corp.alpha.example', 4096, 200, 30, 12, 5, 512, 1, 3, N'Alpha plain signature', N'<p>Alpha HTML signature</p>', 1, 0, 55, N'alpha-selector', N'C:\keys\alpha.pem');
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -707,6 +710,7 @@ CREATE TABLE dbo.hm_domains
     domainmaxmessagesize int NOT NULL,
     domainuseplusaddressing tinyint NOT NULL,
     domainplusaddressingchar nvarchar(1) NOT NULL,
+    domainaddomain nvarchar(255) NOT NULL,
     domainmaxsize int NOT NULL,
     domainmaxnoofaccounts int NOT NULL,
     domainmaxnoofaliases int NOT NULL,
@@ -877,15 +881,15 @@ CREATE TABLE dbo.hm_group_members
 
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
-     domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
+     domainuseplusaddressing, domainplusaddressingchar, domainaddomain, domainmaxsize,
      domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
      domainlimitationsenabled, domainmaxaccountsize, domainenablesignature,
      domainsignaturemethod, domainsignatureplaintext, domainsignaturehtml,
      domainaddsignaturestoreplies, domainaddsignaturestolocalemail, domainantispamoptions,
      domaindkimselector, domaindkimprivatekeyfile)
 VALUES
-    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512, 0, 1, N'', N'', 0, 1, 54, N'example-selector', N'C:\keys\example.pem'),
-    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N'');
+    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', N'', 4096, 200, 30, 12, 5, 512, 0, 1, N'', N'', 0, 1, 54, N'example-selector', N'C:\keys\example.pem'),
+    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', N'', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N'');
 
 INSERT INTO dbo.hm_accounts
     (accountid, accountdomainid, accountaddress, accountactive, accountadminlevel,
@@ -1011,6 +1015,7 @@ CREATE TABLE dbo.hm_domains
     domainmaxmessagesize int NOT NULL,
     domainuseplusaddressing tinyint NOT NULL,
     domainplusaddressingchar nvarchar(1) NOT NULL,
+    domainaddomain nvarchar(255) NOT NULL,
     domainmaxsize int NOT NULL,
     domainmaxnoofaccounts int NOT NULL,
     domainmaxnoofaliases int NOT NULL,
@@ -1039,15 +1044,15 @@ CREATE TABLE dbo.hm_aliases
 
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
-     domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
+     domainuseplusaddressing, domainplusaddressingchar, domainaddomain, domainmaxsize,
      domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
      domainlimitationsenabled, domainmaxaccountsize, domainenablesignature,
      domainsignaturemethod, domainsignatureplaintext, domainsignaturehtml,
      domainaddsignaturestoreplies, domainaddsignaturestolocalemail, domainantispamoptions,
      domaindkimselector, domaindkimprivatekeyfile)
 VALUES
-    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512, 0, 1, N'', N'', 0, 1, 0, N'', N''),
-    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N'');
+    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', N'', 4096, 200, 30, 12, 5, 512, 0, 1, N'', N'', 0, 1, 0, N'', N''),
+    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', N'', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N'');
 
 INSERT INTO dbo.hm_aliases (aliasid, aliasdomainid, aliasname, aliasvalue, aliasactive)
 VALUES
@@ -1074,6 +1079,7 @@ CREATE TABLE dbo.hm_domains
     domainmaxmessagesize int NOT NULL,
     domainuseplusaddressing tinyint NOT NULL,
     domainplusaddressingchar nvarchar(1) NOT NULL,
+    domainaddomain nvarchar(255) NOT NULL,
     domainmaxsize int NOT NULL,
     domainmaxnoofaccounts int NOT NULL,
     domainmaxnoofaliases int NOT NULL,
@@ -1111,15 +1117,15 @@ CREATE TABLE dbo.hm_distributionlistsrecipients
 
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
-     domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
+     domainuseplusaddressing, domainplusaddressingchar, domainaddomain, domainmaxsize,
      domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
      domainlimitationsenabled, domainmaxaccountsize, domainenablesignature,
      domainsignaturemethod, domainsignatureplaintext, domainsignaturehtml,
      domainaddsignaturestoreplies, domainaddsignaturestolocalemail, domainantispamoptions,
      domaindkimselector, domaindkimprivatekeyfile)
 VALUES
-    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512, 0, 1, N'', N'', 0, 1, 0, N'', N''),
-    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N'');
+    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', N'', 4096, 200, 30, 12, 5, 512, 0, 1, N'', N'', 0, 1, 0, N'', N''),
+    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', N'', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N'');
 
 INSERT INTO dbo.hm_distributionlists
     (distributionlistid, distributionlistdomainid, distributionlistaddress, distributionlistenabled,
@@ -1155,6 +1161,7 @@ CREATE TABLE dbo.hm_domains
     domainmaxmessagesize int NOT NULL,
     domainuseplusaddressing tinyint NOT NULL,
     domainplusaddressingchar nvarchar(1) NOT NULL,
+    domainaddomain nvarchar(255) NOT NULL,
     domainmaxsize int NOT NULL,
     domainmaxnoofaccounts int NOT NULL,
     domainmaxnoofaliases int NOT NULL,
@@ -1181,15 +1188,15 @@ CREATE TABLE dbo.hm_domain_aliases
 
 INSERT INTO dbo.hm_domains
     (domainid, domainname, domainactive, domainpostmaster, domainmaxmessagesize,
-     domainuseplusaddressing, domainplusaddressingchar, domainmaxsize,
+     domainuseplusaddressing, domainplusaddressingchar, domainaddomain, domainmaxsize,
      domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
      domainlimitationsenabled, domainmaxaccountsize, domainenablesignature,
      domainsignaturemethod, domainsignatureplaintext, domainsignaturehtml,
      domainaddsignaturestoreplies, domainaddsignaturestolocalemail, domainantispamoptions,
      domaindkimselector, domaindkimprivatekeyfile)
 VALUES
-    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', 4096, 200, 30, 12, 5, 512, 0, 1, N'', N'', 0, 1, 0, N'', N''),
-    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N'');
+    (10, N'example.test', 1, N'postmaster@example.test', 1024, 1, N'+', N'', 4096, 200, 30, 12, 5, 512, 0, 1, N'', N'', 0, 1, 0, N'', N''),
+    (30, N'other.test', 1, N'postmaster@other.test', 512, 0, N'+', N'', 2048, 50, 10, 5, 0, 256, 0, 1, N'', N'', 0, 1, 0, N'', N'');
 
 INSERT INTO dbo.hm_domain_aliases (daid, dadomainid, daalias)
 VALUES

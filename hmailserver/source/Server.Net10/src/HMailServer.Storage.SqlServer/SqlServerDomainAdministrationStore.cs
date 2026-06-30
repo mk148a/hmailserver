@@ -23,6 +23,7 @@ SELECT
     domainmaxmessagesize,
     domainuseplusaddressing,
     domainplusaddressingchar,
+    domainaddomain,
     domainmaxsize,
     domainmaxnoofaccounts,
     domainmaxnoofaliases,
@@ -69,19 +70,20 @@ ORDER BY domainname ASC;
             var maxMessageSize = reader.GetInt32(4);
             var plusAddressingEnabled = Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture) != 0;
             var plusAddressingCharacter = reader.GetString(6);
-            var maxSize = reader.GetInt32(7);
-            var maxNumberOfAccounts = reader.GetInt32(8);
-            var maxNumberOfAliases = reader.GetInt32(9);
-            var maxNumberOfDistributionLists = reader.GetInt32(10);
-            var limitationsEnabled = Convert.ToInt32(reader.GetValue(11), CultureInfo.InvariantCulture);
-            var maxAccountSize = reader.GetInt32(12);
-            var signatureEnabled = Convert.ToInt32(reader.GetValue(13), CultureInfo.InvariantCulture) != 0;
-            var signatureMethod = Convert.ToInt32(reader.GetValue(14), CultureInfo.InvariantCulture);
-            var signaturePlainText = reader.GetString(15);
-            var signatureHtml = reader.GetString(16);
-            var addSignaturesToReplies = Convert.ToInt32(reader.GetValue(17), CultureInfo.InvariantCulture) != 0;
-            var addSignaturesToLocalMail = Convert.ToInt32(reader.GetValue(18), CultureInfo.InvariantCulture) != 0;
-            var antiSpamOptions = Convert.ToInt32(reader.GetValue(19), CultureInfo.InvariantCulture);
+            var adDomainName = reader.GetString(7);
+            var maxSize = reader.GetInt32(8);
+            var maxNumberOfAccounts = reader.GetInt32(9);
+            var maxNumberOfAliases = reader.GetInt32(10);
+            var maxNumberOfDistributionLists = reader.GetInt32(11);
+            var limitationsEnabled = Convert.ToInt32(reader.GetValue(12), CultureInfo.InvariantCulture);
+            var maxAccountSize = reader.GetInt32(13);
+            var signatureEnabled = Convert.ToInt32(reader.GetValue(14), CultureInfo.InvariantCulture) != 0;
+            var signatureMethod = Convert.ToInt32(reader.GetValue(15), CultureInfo.InvariantCulture);
+            var signaturePlainText = reader.GetString(16);
+            var signatureHtml = reader.GetString(17);
+            var addSignaturesToReplies = Convert.ToInt32(reader.GetValue(18), CultureInfo.InvariantCulture) != 0;
+            var addSignaturesToLocalMail = Convert.ToInt32(reader.GetValue(19), CultureInfo.InvariantCulture) != 0;
+            var antiSpamOptions = Convert.ToInt32(reader.GetValue(20), CultureInfo.InvariantCulture);
             domains.Add(
                 new DomainAdministrationSnapshot(
                     Id: id,
@@ -92,6 +94,7 @@ ORDER BY domainname ASC;
                     PlusAddressingEnabled: plusAddressingEnabled,
                     PlusAddressingCharacter: plusAddressingCharacter,
                     AntiSpamEnableGreylisting: (antiSpamOptions & AntiSpamOptionUseGreylisting) != 0,
+                    AdDomainName: adDomainName,
                     MaxSize: maxSize,
                     MaxNumberOfAccounts: maxNumberOfAccounts,
                     MaxNumberOfAliases: maxNumberOfAliases,
@@ -107,8 +110,8 @@ ORDER BY domainname ASC;
                     AddSignaturesToReplies: addSignaturesToReplies,
                     AddSignaturesToLocalMail: addSignaturesToLocalMail,
                     DkimSignEnabled: (antiSpamOptions & AntiSpamOptionDkimSign) != 0,
-                    DkimSelector: reader.GetString(20),
-                    DkimPrivateKeyFile: reader.GetString(21),
+                    DkimSelector: reader.GetString(21),
+                    DkimPrivateKeyFile: reader.GetString(22),
                     DkimHeaderCanonicalizationMethod:
                         (antiSpamOptions & AntiSpamOptionDkimSimpleHeader) != 0 ? 1 : 2,
                     DkimBodyCanonicalizationMethod:

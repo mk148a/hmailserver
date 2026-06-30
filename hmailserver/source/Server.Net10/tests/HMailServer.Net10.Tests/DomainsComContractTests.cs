@@ -106,12 +106,14 @@ public sealed class DomainsComContractTests
     {
         var domainsError = Assert.ThrowsExactly<COMException>(() => _ = new Domains().Count);
         var domainError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().Name);
+        var adDomainError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().ADDomainName);
         var greylistingError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().AntiSpamEnableGreylisting);
         var signatureError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().SignatureEnabled);
         var dkimError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().DKIMSignEnabled);
 
         Assert.AreEqual(EAccessDenied, domainsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, domainError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, adDomainError.ErrorCode);
         Assert.AreEqual(EAccessDenied, greylistingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, signatureError.ErrorCode);
         Assert.AreEqual(EAccessDenied, dkimError.ErrorCode);
@@ -132,6 +134,7 @@ public sealed class DomainsComContractTests
                     PlusAddressingEnabled: true,
                     PlusAddressingCharacter: "+",
                     AntiSpamEnableGreylisting: true,
+                    AdDomainName: "corp.alpha.example",
                     MaxSize: 2048,
                     MaxNumberOfAccounts: 100,
                     MaxNumberOfAliases: 25,
@@ -174,6 +177,8 @@ public sealed class DomainsComContractTests
         var pendingScalarMutation = Assert.ThrowsExactly<COMException>(() => domains[0].Postmaster = "changed@alpha.example");
         var pendingGreylisting = Assert.ThrowsExactly<COMException>(
             () => domains[0].AntiSpamEnableGreylisting = false);
+        var pendingAdDomainMutation = Assert.ThrowsExactly<COMException>(
+            () => domains[0].ADDomainName = "changed.example");
         var pendingSignatureEnabled = Assert.ThrowsExactly<COMException>(() => domains[0].SignatureEnabled = false);
         var pendingSignatureMethod = Assert.ThrowsExactly<COMException>(
             () => domains[0].SignatureMethod = ComDomainSignatureMethod.OverwriteAccountSignature);
@@ -195,7 +200,6 @@ public sealed class DomainsComContractTests
         var pendingDkimAlgorithm = Assert.ThrowsExactly<COMException>(
             () => domains[0].DKIMSigningAlgorithm = ComDkimAlgorithm.SHA256);
         var pendingDkimAliases = Assert.ThrowsExactly<COMException>(() => domains[0].DKIMSignAliasesEnabled = false);
-        var pendingNonCoreScalar = Assert.ThrowsExactly<COMException>(() => _ = domains[0].ADDomainName);
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badName.ErrorCode);
@@ -203,6 +207,7 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingScalarMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingGreylisting.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingAdDomainMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSignatureEnabled.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSignatureMethod.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSignaturePlain.ErrorCode);
@@ -216,7 +221,6 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(ENotImplemented, pendingDkimBody.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDkimAlgorithm.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDkimAliases.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingNonCoreScalar.ErrorCode);
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
@@ -256,6 +260,7 @@ public sealed class DomainsComContractTests
         Assert.IsTrue(domain.PlusAddressingEnabled);
         Assert.AreEqual("+", domain.PlusAddressingCharacter);
         Assert.IsTrue(domain.AntiSpamEnableGreylisting);
+        Assert.AreEqual("corp.alpha.example", domain.ADDomainName);
         Assert.AreEqual(2048, domain.MaxSize);
         Assert.AreEqual(100, domain.MaxNumberOfAccounts);
         Assert.AreEqual(25, domain.MaxNumberOfAliases);

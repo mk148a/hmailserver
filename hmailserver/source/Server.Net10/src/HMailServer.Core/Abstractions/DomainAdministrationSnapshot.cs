@@ -9,6 +9,7 @@ public sealed record DomainAdministrationSnapshot(
     bool PlusAddressingEnabled = false,
     string PlusAddressingCharacter = "",
     bool AntiSpamEnableGreylisting = false,
+    string AdDomainName = "",
     int MaxSize = 0,
     int MaxNumberOfAccounts = 0,
     int MaxNumberOfAliases = 0,

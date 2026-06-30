@@ -450,6 +450,12 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         set => DomainComAuthorization.Unavailable(this);
     }
 
+    public override string ADDomainName
+    {
+        get => Snapshot.AdDomainName;
+        set => DomainComAuthorization.Unavailable(this);
+    }
+
     public override int MaxSize
     {
         get => Snapshot.MaxSize;
@@ -623,7 +629,7 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public virtual IInterfaceDistributionLists DistributionLists => Unavailable<IInterfaceDistributionLists>();
     public virtual string Postmaster { get => Unavailable<string>(); set => Unavailable(); }
     public virtual IInterfaceDomainAliases DomainAliases => Unavailable<IInterfaceDomainAliases>();
-    public string ADDomainName { get => Unavailable<string>(); set => Unavailable(); }
+    public virtual string ADDomainName { get => Unavailable<string>(); set => Unavailable(); }
     public void SynchronizeDirectory() => Unavailable();
     public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
     public virtual bool PlusAddressingEnabled { get => Unavailable<bool>(); set => Unavailable(); }
