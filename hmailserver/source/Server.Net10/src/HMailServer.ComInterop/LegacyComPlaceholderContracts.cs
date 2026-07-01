@@ -29,9 +29,6 @@ public interface IInterfaceAntiVirus;
 [ComVisible(true), Guid("315BF27F-F832-4FBE-83FE-1C5A5011FAC7"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceRouteAddresses;
 
-[ComVisible(true), Guid("B1EA04C0-B0B7-4638-80E4-41278CEF8C19"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceScripting;
-
 [ComVisible(true), Guid("AE45B7CD-C050-4B14-A983-30D53059D24F"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceCache;
 

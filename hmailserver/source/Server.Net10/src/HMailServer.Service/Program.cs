@@ -887,7 +887,8 @@ SettingsAdministrationRuntimeHost.Configure(
     new SettingsRuntimeConfiguration(
         UserInterfaceLanguage: userInterfaceLanguage,
         RewriteEnvelopeFromWhenForwarding: rewriteEnvelopeFromWhenForwarding,
-        LoggingDirectory: directoryAdministrationSnapshot.LogDirectory));
+        LoggingDirectory: directoryAdministrationSnapshot.LogDirectory,
+        ScriptingDirectory: directoryAdministrationSnapshot.EventDirectory));
 DomainAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAdministrationStore>());
 AccountAdministrationRuntimeHost.Configure(

@@ -57,4 +57,6 @@ public sealed record SettingsAdministrationSnapshot(
     int LoggingMask = 0,
     int LogDevice = 0,
     int LogFormat = 0,
-    bool AwStatsEnabled = false);
+    bool AwStatsEnabled = false,
+    bool UseScriptServer = false,
+    string ScriptLanguage = "");

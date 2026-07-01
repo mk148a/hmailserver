@@ -90,7 +90,9 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             await CreateSettingsSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
             SettingsAdministrationRuntimeHost.Configure(
                 new SqlServerSettingsAdministrationStore(
-                    new SqlServerConnectionFactory(testConnectionString)));
+                    new SqlServerConnectionFactory(testConnectionString)),
+                new SettingsRuntimeConfiguration(
+                    ScriptingDirectory: @"C:\hMailServer\Events\"));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -137,6 +139,10 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(logging.LogIMAP);
             Assert.IsTrue(logging.AWStatsEnabled);
             Assert.IsTrue(logging.KeepFilesOpen);
+            var scripting = settings.Scripting;
+            Assert.IsTrue(scripting.Enabled);
+            Assert.AreEqual("JScript", scripting.Language);
+            Assert.AreEqual(@"C:\hMailServer\Events\", scripting.Directory);
             Assert.AreEqual(20480, settings.MaxMessageSize);
             Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
             Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -843,6 +849,8 @@ VALUES
     (N'logdevice', N'', 2),
     (N'logformat', N'', 1),
     (N'awstatsenabled', N'', 1),
+    (N'usescriptserver', N'', 1),
+    (N'scriptlanguage', N'JScript', 0),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

@@ -1117,6 +1117,21 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceScripting Scripting
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.Scripting
+                : HMailServer.ComInterop.Scripting.CreateAuthorized(
+                    new ScriptingAdministrationSnapshot(
+                        _administrationSnapshot.UseScriptServer,
+                        _administrationSnapshot.ScriptLanguage,
+                        _runtimeConfiguration.ScriptingDirectory));
+        }
+    }
+
     public override bool VerifyRemoteSslCertificate
     {
         get
@@ -1345,7 +1360,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public void SetSMTPRelayerPassword(string newVal) => Unavailable();
     public virtual int SMTPRelayerPort { get => Unavailable<int>(); set => Unavailable(); }
     public virtual string UserInterfaceLanguage { get => Unavailable<string>(); set => Unavailable(); }
-    public IInterfaceScripting Scripting => Unavailable<IInterfaceScripting>();
+    public virtual IInterfaceScripting Scripting => Unavailable<IInterfaceScripting>();
     public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceCache Cache => Unavailable<IInterfaceCache>();
     public virtual int RuleLoopLimit { get => Unavailable<int>(); set => Unavailable(); }
@@ -1413,7 +1428,8 @@ public sealed record SettingsRuntimeConfiguration(
     bool RewriteEnvelopeFromWhenForwarding = false,
     int CrashSimulationMode = 0,
     string LoggingDirectory = "",
-    TimeProvider? LoggingTimeProvider = null);
+    TimeProvider? LoggingTimeProvider = null,
+    string ScriptingDirectory = "");
 
 [ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost

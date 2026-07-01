@@ -148,12 +148,15 @@ public sealed class ApplicationComContractTests
                     LoggingMask: 1 + 2 + 8 + 16 + 32 + 64 + 256,
                     LogDevice: 2,
                     LogFormat: 1,
-                    AwStatsEnabled: true)),
+                    AwStatsEnabled: true,
+                    UseScriptServer: true,
+                    ScriptLanguage: "JScript")),
             new SettingsRuntimeConfiguration(
                 UserInterfaceLanguage: "Swedish",
                 RewriteEnvelopeFromWhenForwarding: true,
                 CrashSimulationMode: 3,
-                LoggingDirectory: @"C:\hMailServer\Logs\"));
+                LoggingDirectory: @"C:\hMailServer\Logs\",
+                ScriptingDirectory: @"C:\hMailServer\Events\"));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -207,6 +210,10 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual(@"C:\hMailServer\Logs\", logging.Directory);
         Assert.IsTrue(logging.AWStatsEnabled);
         Assert.IsTrue(logging.KeepFilesOpen);
+        var scripting = settings.Scripting;
+        Assert.IsTrue(scripting.Enabled);
+        Assert.AreEqual("JScript", scripting.Language);
+        Assert.AreEqual(@"C:\hMailServer\Events\", scripting.Directory);
         Assert.AreEqual("#Public", settings.PublicFolderDiskName);
         Assert.AreEqual("Swedish", settings.UserInterfaceLanguage);
         Assert.IsTrue(settings.RewriteEnvelopeFromWhenForwarding);

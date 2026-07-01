@@ -72,6 +72,8 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'logdevice'");
         StringAssert.Contains(sql, "settingname = N'logformat'");
         StringAssert.Contains(sql, "settingname = N'awstatsenabled'");
+        StringAssert.Contains(sql, "settingname = N'usescriptserver'");
+        StringAssert.Contains(sql, "settingname = N'scriptlanguage'");
     }
 
     [TestMethod]

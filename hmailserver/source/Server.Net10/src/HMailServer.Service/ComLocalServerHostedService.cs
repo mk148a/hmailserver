@@ -1,6 +1,7 @@
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 using Microsoft.Extensions.Hosting;
+using ScriptingComClass = HMailServer.ComInterop.Scripting;
 
 namespace HMailServer.Service;
 
@@ -34,6 +35,9 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
             new ComLocalServerRegistration(
                 typeof(Logging).GUID,
                 static () => new Logging()),
+            new ComLocalServerRegistration(
+                typeof(ScriptingComClass).GUID,
+                static () => new ScriptingComClass()),
             new ComLocalServerRegistration(
                 typeof(Directories).GUID,
                 static () => new Directories()),
