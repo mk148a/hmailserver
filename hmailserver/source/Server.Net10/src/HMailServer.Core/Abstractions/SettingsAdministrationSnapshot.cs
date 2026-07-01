@@ -53,4 +53,8 @@ public sealed record SettingsAdministrationSnapshot(
     int SslVersions = 0,
     int TlsOptions = 0,
     string ImapMasterUser = "",
-    int MaxAsynchronousThreads = 0);
+    int MaxAsynchronousThreads = 0,
+    int LoggingMask = 0,
+    int LogDevice = 0,
+    int LogFormat = 0,
+    bool AwStatsEnabled = false);

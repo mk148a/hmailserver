@@ -68,6 +68,10 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'SslVersions'");
         StringAssert.Contains(sql, "settingname = N'TlsOptions'");
         StringAssert.Contains(sql, "settingname = N'ImapMasterUser'");
+        StringAssert.Contains(sql, "settingname = N'logging'");
+        StringAssert.Contains(sql, "settingname = N'logdevice'");
+        StringAssert.Contains(sql, "settingname = N'logformat'");
+        StringAssert.Contains(sql, "settingname = N'awstatsenabled'");
     }
 
     [TestMethod]

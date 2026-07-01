@@ -23,9 +23,6 @@ public interface IInterfaceMessages;
 [ComVisible(true), Guid("CBE3FE9E-3642-4BA1-9BE0-6E766C0DE961"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceIMAPFolderPermissions;
 
-[ComVisible(true), Guid("AAD8A0DF-2963-4C5B-A906-6B07B9CC0643"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceLogging;
-
 [ComVisible(true), Guid("952EE84F-C1D4-4869-8B86-76A3BA8F39FA"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceAntiVirus;
 

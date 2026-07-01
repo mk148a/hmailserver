@@ -23,6 +23,23 @@ public enum ComServerState
 }
 
 [ComVisible(true)]
+[Guid("027282DE-4C3A-11D9-93CE-D4EDF9405FEE")]
+public enum ComLogDevice
+{
+    Unknown = 0,
+    Sql = 1,
+    File = 2
+}
+
+[ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD00")]
+public enum ComLogOutputFormat
+{
+    Default = 1,
+    Csa = 2
+}
+
+[ComVisible(true)]
 [Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD03")]
 public enum ComRuleMatchType
 {

@@ -60,7 +60,11 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'SslVersions' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'TlsOptions' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'ImapMasterUser' THEN settingstring END), N''),
-    COALESCE(MAX(CASE WHEN settingname = N'MaxNumberOfAsynchronousTasks' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'MaxNumberOfAsynchronousTasks' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'logging' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'logdevice' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'logformat' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'awstatsenabled' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -116,7 +120,11 @@ WHERE settingname IN
     N'SslVersions',
     N'TlsOptions',
     N'ImapMasterUser',
-    N'MaxNumberOfAsynchronousTasks'
+    N'MaxNumberOfAsynchronousTasks',
+    N'logging',
+    N'logdevice',
+    N'logformat',
+    N'awstatsenabled'
 );
 """;
 
@@ -195,6 +203,10 @@ WHERE settingname IN
             SslVersions: reader.GetInt32(49),
             TlsOptions: reader.GetInt32(50),
             ImapMasterUser: reader.GetString(51),
-            MaxAsynchronousThreads: reader.GetInt32(52));
+            MaxAsynchronousThreads: reader.GetInt32(52),
+            LoggingMask: reader.GetInt32(53),
+            LogDevice: reader.GetInt32(54),
+            LogFormat: reader.GetInt32(55),
+            AwStatsEnabled: reader.GetInt32(56) != 0);
     }
 }

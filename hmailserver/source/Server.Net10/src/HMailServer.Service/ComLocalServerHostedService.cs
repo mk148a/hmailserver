@@ -32,6 +32,9 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Settings).GUID,
                 static () => new Settings()),
             new ComLocalServerRegistration(
+                typeof(Logging).GUID,
+                static () => new Logging()),
+            new ComLocalServerRegistration(
                 typeof(Directories).GUID,
                 static () => new Directories()),
             new ComLocalServerRegistration(

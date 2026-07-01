@@ -144,7 +144,11 @@ public sealed class ApplicationComContractTests
                     SslVersions: 26,
                     TlsOptions: 2,
                     ImapMasterUser: "master-user",
-                    MaxAsynchronousThreads: 15)),
+                    MaxAsynchronousThreads: 15,
+                    LoggingMask: 1 + 2 + 8 + 16 + 32 + 64 + 256,
+                    LogDevice: 2,
+                    LogFormat: 1,
+                    AwStatsEnabled: true)),
             new SettingsRuntimeConfiguration(
                 UserInterfaceLanguage: "Swedish",
                 RewriteEnvelopeFromWhenForwarding: true,
@@ -188,6 +192,18 @@ public sealed class ApplicationComContractTests
         Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
         Assert.AreEqual("master-user", settings.IMAPMasterUser);
         Assert.AreEqual(15, settings.MaxAsynchronousThreads);
+        var logging = settings.Logging;
+        Assert.IsTrue(logging.Enabled);
+        Assert.IsTrue(logging.LogSMTP);
+        Assert.IsFalse(logging.LogPOP3);
+        Assert.IsTrue(logging.LogTCPIP);
+        Assert.IsTrue(logging.LogApplication);
+        Assert.AreEqual(ComLogDevice.File, logging.Device);
+        Assert.AreEqual(ComLogOutputFormat.Csa, logging.LogFormat);
+        Assert.IsTrue(logging.LogDebug);
+        Assert.IsTrue(logging.LogIMAP);
+        Assert.IsTrue(logging.AWStatsEnabled);
+        Assert.IsTrue(logging.KeepFilesOpen);
         Assert.AreEqual("#Public", settings.PublicFolderDiskName);
         Assert.AreEqual("Swedish", settings.UserInterfaceLanguage);
         Assert.IsTrue(settings.RewriteEnvelopeFromWhenForwarding);

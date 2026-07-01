@@ -125,6 +125,18 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
             Assert.AreEqual("master-user", settings.IMAPMasterUser);
             Assert.AreEqual(15, settings.MaxAsynchronousThreads);
+            var logging = settings.Logging;
+            Assert.IsTrue(logging.Enabled);
+            Assert.IsTrue(logging.LogSMTP);
+            Assert.IsFalse(logging.LogPOP3);
+            Assert.IsTrue(logging.LogTCPIP);
+            Assert.IsTrue(logging.LogApplication);
+            Assert.AreEqual(ComLogDevice.File, logging.Device);
+            Assert.AreEqual(ComLogOutputFormat.Csa, logging.LogFormat);
+            Assert.IsTrue(logging.LogDebug);
+            Assert.IsTrue(logging.LogIMAP);
+            Assert.IsTrue(logging.AWStatsEnabled);
+            Assert.IsTrue(logging.KeepFilesOpen);
             Assert.AreEqual(20480, settings.MaxMessageSize);
             Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
             Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -827,6 +839,10 @@ VALUES
     (N'TlsOptions', N'', 2),
     (N'ImapMasterUser', N'master-user', 0),
     (N'MaxNumberOfAsynchronousTasks', N'', 15),
+    (N'logging', N'', 379),
+    (N'logdevice', N'', 2),
+    (N'logformat', N'', 1),
+    (N'awstatsenabled', N'', 1),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 

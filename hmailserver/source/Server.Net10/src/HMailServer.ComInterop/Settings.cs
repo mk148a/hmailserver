@@ -1087,6 +1087,22 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.MaxAsynchronousThreads = value;
     }
 
+    public override IInterfaceLogging Logging
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.Logging
+                : HMailServer.ComInterop.Logging.CreateAuthorized(
+                    new LoggingAdministrationSnapshot(
+                        _administrationSnapshot.LoggingMask,
+                        _administrationSnapshot.LogDevice,
+                        _administrationSnapshot.LogFormat,
+                        _administrationSnapshot.AwStatsEnabled));
+        }
+    }
+
     public override bool VerifyRemoteSslCertificate
     {
         get
@@ -1295,7 +1311,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual string MirrorEMailAddress { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool AllowSMTPAuthPlain { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool DenyMailFromNull { get => Unavailable<bool>(); set => Unavailable(); }
-    public IInterfaceLogging Logging => Unavailable<IInterfaceLogging>();
+    public virtual IInterfaceLogging Logging => Unavailable<IInterfaceLogging>();
     public virtual IInterfaceSecurityRanges SecurityRanges => Unavailable<IInterfaceSecurityRanges>();
     public virtual int SMTPNoOfTries { get => Unavailable<int>(); set => Unavailable(); }
     public virtual int SMTPMinutesBetweenTry { get => Unavailable<int>(); set => Unavailable(); }
