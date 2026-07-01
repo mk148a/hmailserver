@@ -106,7 +106,14 @@ public sealed class Application : IInterfaceApplication
         }
     }
 
-    public IInterfaceGlobalObjects GlobalObjects => NotImplemented<IInterfaceGlobalObjects>();
+    public IInterfaceGlobalObjects GlobalObjects
+    {
+        get
+        {
+            EnsureServerAdministrator();
+            return HMailServer.ComInterop.GlobalObjects.CreateAuthorized();
+        }
+    }
 
     public IInterfaceLinks Links
     {

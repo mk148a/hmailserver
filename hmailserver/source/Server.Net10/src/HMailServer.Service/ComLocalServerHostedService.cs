@@ -48,6 +48,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Backup).GUID,
                 static () => new Backup()),
             new ComLocalServerRegistration(
+                typeof(GlobalObjects).GUID,
+                static () => new GlobalObjects()),
+            new ComLocalServerRegistration(
+                typeof(DeliveryQueue).GUID,
+                static () => new DeliveryQueue()),
+            new ComLocalServerRegistration(
                 typeof(Directories).GUID,
                 static () => new Directories()),
             new ComLocalServerRegistration(

@@ -130,6 +130,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "GlobalObjects",
+            "{D8CC854E-F6F6-402C-ADF7-73F4569B9F8B}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "DeliveryQueue",
+            "{27473BB7-4272-4693-ACA6-FD9D4C9C3FC5}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Directories",
             "{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
             executablePath,

@@ -8,8 +8,8 @@ public interface IInterfaceRuleCriterias;
 [ComVisible(true), Guid("DBFD3E11-9121-4DDD-944B-5AF29BF3D2DF"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceRuleActions;
 
-[ComVisible(true), Guid("F0FE3307-66D9-480D-B1B5-3AF6CD3C0C8A"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceGlobalObjects;
+[ComVisible(true), Guid("94720D8A-BC4D-493D-8BDC-8FB28BF31BA5"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceLanguages;
 
 [ComVisible(true), Guid("FB8812B0-524A-4922-9E29-A7E9A9E9151D"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceDiagnostics;

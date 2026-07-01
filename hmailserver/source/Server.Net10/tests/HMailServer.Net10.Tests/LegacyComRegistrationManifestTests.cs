@@ -74,6 +74,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "GlobalObjects",
+            "{D8CC854E-F6F6-402C-ADF7-73F4569B9F8B}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "DeliveryQueue",
+            "{27473BB7-4272-4693-ACA6-FD9D4C9C3FC5}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Directories",
             "{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
             executablePath);
@@ -305,6 +315,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.BackupManager",
                 @"hMailServer.Backup.1",
                 @"hMailServer.Backup",
+                @"hMailServer.GlobalObjects.1",
+                @"hMailServer.GlobalObjects",
+                @"hMailServer.DeliveryQueue.1",
+                @"hMailServer.DeliveryQueue",
                 @"hMailServer.Directories.1",
                 @"hMailServer.Directories",
                 @"hMailServer.Domains.1",
@@ -388,6 +402,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{E0213ECF-BAEC-4E20-9813-0F75A97D0B16}",
                 @"CLSID\{1BBE5234-D331-41DF-85D7-CAF0B00B3BF7}",
                 @"CLSID\{B088FED1-A784-4CDB-ADDF-E7332CB7F72F}",
+                @"CLSID\{D8CC854E-F6F6-402C-ADF7-73F4569B9F8B}",
+                @"CLSID\{27473BB7-4272-4693-ACA6-FD9D4C9C3FC5}",
                 @"CLSID\{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
                 @"CLSID\{82AFD03C-58A4-4F04-8277-6B2812780E45}",
                 @"CLSID\{C535E4AF-9DB3-41FC-B434-FFCDAE0EFBD5}",
