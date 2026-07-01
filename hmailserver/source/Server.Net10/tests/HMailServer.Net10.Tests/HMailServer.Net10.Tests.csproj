@@ -21,5 +21,6 @@
     <ProjectReference Include="..\..\src\HMailServer.Storage.SqlServer\HMailServer.Storage.SqlServer.csproj" />
     <Content Include="..\..\assets\public_suffix_list.dat" Link="public_suffix_list.dat" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\assets\public_suffix_list.meta.json" Link="public_suffix_list.meta.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\..\..\installation\Extras\7za.exe" Link="7za.exe" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

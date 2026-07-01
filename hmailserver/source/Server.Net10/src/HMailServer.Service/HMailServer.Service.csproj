@@ -18,6 +18,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.9" />
     <Content Include="..\..\assets\public_suffix_list.dat" Link="public_suffix_list.dat" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\assets\public_suffix_list.meta.json" Link="public_suffix_list.meta.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\..\..\installation\Extras\7za.exe" Link="7za.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="VerifyPublicSuffixSnapshot" BeforeTargets="PrepareForBuild">
     <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\..\..\..\build\update-public-suffix-list.ps1&quot; -Check" />

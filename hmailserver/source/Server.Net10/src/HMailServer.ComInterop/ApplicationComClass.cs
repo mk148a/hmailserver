@@ -15,16 +15,20 @@ public sealed class Application : IInterfaceApplication
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly IServerAdministratorAuthenticationProvider? _authenticationProvider;
+    private readonly IBackupArchiveMetadataReader? _backupArchiveMetadataReader;
     private bool _isServerAdministrator;
 
     public Application()
     {
     }
 
-    internal Application(IServerAdministratorAuthenticationProvider authenticationProvider)
+    internal Application(
+        IServerAdministratorAuthenticationProvider authenticationProvider,
+        IBackupArchiveMetadataReader? backupArchiveMetadataReader = null)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
+        _backupArchiveMetadataReader = backupArchiveMetadataReader;
     }
 
     [ComVisible(false)]
@@ -98,7 +102,7 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return HMailServer.ComInterop.BackupManager.CreateAuthorized();
+            return HMailServer.ComInterop.BackupManager.CreateAuthorized(_backupArchiveMetadataReader);
         }
     }
 

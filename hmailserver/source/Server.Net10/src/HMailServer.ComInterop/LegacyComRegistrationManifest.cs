@@ -123,6 +123,13 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "Backup",
+            "{B088FED1-A784-4CDB-ADDF-E7332CB7F72F}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Directories",
             "{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
             executablePath,

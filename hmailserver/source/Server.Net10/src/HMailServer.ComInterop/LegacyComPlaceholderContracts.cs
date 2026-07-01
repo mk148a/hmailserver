@@ -8,9 +8,6 @@ public interface IInterfaceRuleCriterias;
 [ComVisible(true), Guid("DBFD3E11-9121-4DDD-944B-5AF29BF3D2DF"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceRuleActions;
 
-[ComVisible(true), Guid("BC84454B-FCE1-41FA-A3DD-2C57F61D4310"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceBackup;
-
 [ComVisible(true), Guid("F0FE3307-66D9-480D-B1B5-3AF6CD3C0C8A"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceGlobalObjects;
 

@@ -70,21 +70,29 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedBackupManager_KeepsOperationsPendingWithoutFileAccess()
+    public void AuthorizedBackupManager_LoadsMetadataThroughInjectedReaderAndKeepsStartPending()
     {
         var path = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}.xml");
-        IInterfaceBackupManager manager = BackupManagerComClass.CreateAuthorized();
+        var reader = new RecordingBackupArchiveMetadataReader(13);
+        IInterfaceBackupManager manager = BackupManagerComClass.CreateAuthorized(reader);
 
         AssertPending(manager.StartBackup);
-        AssertPending(() => manager.LoadBackup(path));
+        var backup = manager.LoadBackup(path);
+
+        Assert.AreEqual(path, reader.ArchivePath);
+        Assert.IsTrue(backup.ContainsSettings);
+        Assert.IsFalse(backup.ContainsDomains);
+        Assert.IsTrue(backup.ContainsMessages);
         Assert.IsFalse(File.Exists(path));
     }
 
     [TestMethod]
     public void AuthenticatedApplication_ExposesAuthorizedBackupManagerChild()
     {
+        var reader = new RecordingBackupArchiveMetadataReader(2);
         var application = new Application(
-            new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
+            new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"),
+            reader);
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.BackupManager);
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
@@ -95,6 +103,8 @@ public sealed class BackupManagerComContractTests
 
         Assert.IsInstanceOfType<BackupManagerComClass>(manager);
         AssertPending(manager.StartBackup);
+        Assert.IsTrue(manager.LoadBackup(@"D:\Backups\sample.7z").ContainsDomains);
+        Assert.AreEqual(@"D:\Backups\sample.7z", reader.ArchivePath);
     }
 
     private static void AssertPending(Action action)
@@ -102,5 +112,16 @@ public sealed class BackupManagerComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private sealed class RecordingBackupArchiveMetadataReader(int options) : IBackupArchiveMetadataReader
+    {
+        public string? ArchivePath { get; private set; }
+
+        public int ReadContainsOptions(string archivePath)
+        {
+            ArchivePath = archivePath;
+            return options;
+        }
     }
 }
