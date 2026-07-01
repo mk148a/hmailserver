@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using HMailServer.Core.Abstractions;
 
@@ -128,14 +129,16 @@ public sealed class Logging : LoggingComAdapter
     private const int EAccessDenied = unchecked((int)0x80070005);
 
     private readonly LoggingAdministrationSnapshot? _snapshot;
+    private readonly TimeProvider _timeProvider = TimeProvider.System;
 
     public Logging()
     {
     }
 
-    private Logging(LoggingAdministrationSnapshot snapshot)
+    private Logging(LoggingAdministrationSnapshot snapshot, TimeProvider? timeProvider)
     {
         _snapshot = snapshot;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public override bool Enabled { get => HasFlag(EnabledFlag); set => base.Enabled = value; }
@@ -175,12 +178,24 @@ public sealed class Logging : LoggingComAdapter
 
     public override bool AWStatsEnabled { get => Snapshot.AwStatsEnabled; set => base.AWStatsEnabled = value; }
 
+    public override string CurrentEventLog => BuildCurrentLogPath("hmailserver_events.log");
+
+    public override string CurrentErrorLog =>
+        BuildCurrentLogPath($"ERROR_hmailserver_{GetCurrentDate()}.log");
+
+    public override string CurrentAwstatsLog => BuildCurrentLogPath("hmailserver_awstats.log");
+
+    public override string CurrentDefaultLog =>
+        BuildCurrentLogPath($"hmailserver_{GetCurrentDate()}.log");
+
     public override bool KeepFilesOpen { get => HasFlag(KeepFilesOpenFlag); set => base.KeepFilesOpen = value; }
 
-    internal static Logging CreateAuthorized(LoggingAdministrationSnapshot snapshot)
+    internal static Logging CreateAuthorized(
+        LoggingAdministrationSnapshot snapshot,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Logging(snapshot);
+        return new Logging(snapshot, timeProvider);
     }
 
     private LoggingAdministrationSnapshot Snapshot =>
@@ -189,6 +204,11 @@ public sealed class Logging : LoggingComAdapter
             EAccessDenied);
 
     private bool HasFlag(int flag) => (Snapshot.LoggingMask & flag) != 0;
+
+    private string BuildCurrentLogPath(string fileName) => $"{Snapshot.Directory}\\{fileName}";
+
+    private string GetCurrentDate() =>
+        _timeProvider.GetLocalNow().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
 
 [ComVisible(false)]
@@ -208,10 +228,10 @@ public abstract class LoggingComAdapter : IInterfaceLogging
     public string LiveLog => Unavailable<string>();
     public virtual bool AWStatsEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool MaskPasswordsInLog { get => Unavailable<bool>(); set => Unavailable(); }
-    public string CurrentEventLog => Unavailable<string>();
-    public string CurrentErrorLog => Unavailable<string>();
-    public string CurrentAwstatsLog => Unavailable<string>();
-    public string CurrentDefaultLog => Unavailable<string>();
+    public virtual string CurrentEventLog => Unavailable<string>();
+    public virtual string CurrentErrorLog => Unavailable<string>();
+    public virtual string CurrentAwstatsLog => Unavailable<string>();
+    public virtual string CurrentDefaultLog => Unavailable<string>();
     public virtual bool KeepFilesOpen { get => Unavailable<bool>(); set => Unavailable(); }
     public bool LiveLoggingEnabled => Unavailable<bool>();
 

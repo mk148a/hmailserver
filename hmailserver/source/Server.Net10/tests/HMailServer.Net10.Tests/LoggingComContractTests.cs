@@ -183,10 +183,12 @@ public sealed class LoggingComContractTests
     {
         var loggingError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().Enabled);
         var directoryError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().Directory);
+        var currentLogError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().CurrentDefaultLog);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Logging);
 
         Assert.AreEqual(EAccessDenied, loggingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, directoryError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, currentLogError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -228,12 +230,37 @@ public sealed class LoggingComContractTests
         AssertPending(() => logging.AWStatsEnabled = false);
         AssertPending(() => _ = logging.MaskPasswordsInLog);
         AssertPending(() => logging.MaskPasswordsInLog = false);
-        AssertPending(() => _ = logging.CurrentEventLog);
-        AssertPending(() => _ = logging.CurrentErrorLog);
-        AssertPending(() => _ = logging.CurrentAwstatsLog);
-        AssertPending(() => _ = logging.CurrentDefaultLog);
         AssertPending(() => logging.KeepFilesOpen = false);
         AssertPending(() => _ = logging.LiveLoggingEnabled);
+    }
+
+    [TestMethod]
+    public void AuthorizedLogging_CurrentLogPathsUseLegacyShapesAndCurrentLocalDate()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"hmailserver-logs-{Guid.NewGuid():N}") + "\\";
+        var timeProvider = new AdjustableTimeProvider(
+            DateTimeOffset.Parse("2026-07-01T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture));
+        IInterfaceLogging logging = Logging.CreateAuthorized(
+            new LoggingAdministrationSnapshot(
+                LoggingMask: 0,
+                Device: 0,
+                LogFormat: 0,
+                AwStatsEnabled: false,
+                Directory: directory),
+            timeProvider);
+
+        Assert.IsFalse(System.IO.Directory.Exists(directory));
+        Assert.AreEqual($"{directory}\\hmailserver_events.log", logging.CurrentEventLog);
+        Assert.AreEqual($"{directory}\\ERROR_hmailserver_2026-07-01.log", logging.CurrentErrorLog);
+        Assert.AreEqual($"{directory}\\hmailserver_awstats.log", logging.CurrentAwstatsLog);
+        Assert.AreEqual($"{directory}\\hmailserver_2026-07-01.log", logging.CurrentDefaultLog);
+
+        timeProvider.SetUtcNow(
+            DateTimeOffset.Parse("2026-07-02T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture));
+
+        Assert.AreEqual($"{directory}\\ERROR_hmailserver_2026-07-02.log", logging.CurrentErrorLog);
+        Assert.AreEqual($"{directory}\\hmailserver_2026-07-02.log", logging.CurrentDefaultLog);
+        Assert.IsFalse(System.IO.Directory.Exists(directory));
     }
 
     [TestMethod]
@@ -250,7 +277,11 @@ public sealed class LoggingComContractTests
                 LogFormat: 0,
                 AwStatsEnabled: false),
             new SettingsRuntimeConfiguration(
-                LoggingDirectory: @"E:\hMailServer\Logs\"));
+                LoggingDirectory: @"E:\hMailServer\Logs\",
+                LoggingTimeProvider: new AdjustableTimeProvider(
+                    DateTimeOffset.Parse(
+                        "2026-07-03T12:00:00Z",
+                        System.Globalization.CultureInfo.InvariantCulture))));
 
         var logging = settings.Logging;
 
@@ -264,6 +295,7 @@ public sealed class LoggingComContractTests
         Assert.IsFalse(logging.LogDebug);
         Assert.IsFalse(logging.LogIMAP);
         Assert.AreEqual(@"E:\hMailServer\Logs\", logging.Directory);
+        Assert.AreEqual(@"E:\hMailServer\Logs\\hmailserver_2026-07-03.log", logging.CurrentDefaultLog);
         Assert.IsFalse(logging.AWStatsEnabled);
         Assert.IsFalse(logging.KeepFilesOpen);
     }
@@ -298,5 +330,21 @@ public sealed class LoggingComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private sealed class AdjustableTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _utcNow;
+
+        public AdjustableTimeProvider(DateTimeOffset utcNow)
+        {
+            _utcNow = utcNow;
+        }
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+
+        public void SetUtcNow(DateTimeOffset utcNow) => _utcNow = utcNow;
     }
 }

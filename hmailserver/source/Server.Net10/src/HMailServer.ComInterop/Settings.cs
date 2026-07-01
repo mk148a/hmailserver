@@ -1100,7 +1100,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         _administrationSnapshot.LogDevice,
                         _administrationSnapshot.LogFormat,
                         _administrationSnapshot.AwStatsEnabled,
-                        _runtimeConfiguration.LoggingDirectory));
+                        _runtimeConfiguration.LoggingDirectory),
+                    _runtimeConfiguration.LoggingTimeProvider);
         }
     }
 
@@ -1399,7 +1400,8 @@ public sealed record SettingsRuntimeConfiguration(
     string UserInterfaceLanguage = "English",
     bool RewriteEnvelopeFromWhenForwarding = false,
     int CrashSimulationMode = 0,
-    string LoggingDirectory = "");
+    string LoggingDirectory = "",
+    TimeProvider? LoggingTimeProvider = null);
 
 [ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost
