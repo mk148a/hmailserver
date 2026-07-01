@@ -1099,7 +1099,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         _administrationSnapshot.LoggingMask,
                         _administrationSnapshot.LogDevice,
                         _administrationSnapshot.LogFormat,
-                        _administrationSnapshot.AwStatsEnabled));
+                        _administrationSnapshot.AwStatsEnabled,
+                        _runtimeConfiguration.LoggingDirectory));
         }
     }
 
@@ -1397,7 +1398,8 @@ public abstract class SettingsComAdapter : IInterfaceSettings
 public sealed record SettingsRuntimeConfiguration(
     string UserInterfaceLanguage = "English",
     bool RewriteEnvelopeFromWhenForwarding = false,
-    int CrashSimulationMode = 0);
+    int CrashSimulationMode = 0,
+    string LoggingDirectory = "");
 
 [ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost

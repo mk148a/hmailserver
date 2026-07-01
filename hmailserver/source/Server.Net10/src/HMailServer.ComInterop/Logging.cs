@@ -171,6 +171,8 @@ public sealed class Logging : LoggingComAdapter
 
     public override bool LogIMAP { get => HasFlag(ImapFlag); set => base.LogIMAP = value; }
 
+    public override string Directory => Snapshot.Directory;
+
     public override bool AWStatsEnabled { get => Snapshot.AwStatsEnabled; set => base.AWStatsEnabled = value; }
 
     public override bool KeepFilesOpen { get => HasFlag(KeepFilesOpenFlag); set => base.KeepFilesOpen = value; }
@@ -202,7 +204,7 @@ public abstract class LoggingComAdapter : IInterfaceLogging
     public virtual bool LogDebug { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool LogIMAP { get => Unavailable<bool>(); set => Unavailable(); }
     public void EnableLiveLogging(bool newVal) => Unavailable();
-    public string Directory => Unavailable<string>();
+    public virtual string Directory => Unavailable<string>();
     public string LiveLog => Unavailable<string>();
     public virtual bool AWStatsEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public bool MaskPasswordsInLog { get => Unavailable<bool>(); set => Unavailable(); }

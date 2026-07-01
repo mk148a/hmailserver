@@ -152,7 +152,8 @@ public sealed class ApplicationComContractTests
             new SettingsRuntimeConfiguration(
                 UserInterfaceLanguage: "Swedish",
                 RewriteEnvelopeFromWhenForwarding: true,
-                CrashSimulationMode: 3));
+                CrashSimulationMode: 3,
+                LoggingDirectory: @"C:\hMailServer\Logs\"));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -202,6 +203,7 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual(ComLogOutputFormat.Csa, logging.LogFormat);
         Assert.IsTrue(logging.LogDebug);
         Assert.IsTrue(logging.LogIMAP);
+        Assert.AreEqual(@"C:\hMailServer\Logs\", logging.Directory);
         Assert.IsTrue(logging.AWStatsEnabled);
         Assert.IsTrue(logging.KeepFilesOpen);
         Assert.AreEqual("#Public", settings.PublicFolderDiskName);

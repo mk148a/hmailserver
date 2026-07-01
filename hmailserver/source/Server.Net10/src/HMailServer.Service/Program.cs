@@ -871,6 +871,9 @@ builder.Services.AddHostedService<Pop3TcpListenerHostedService>();
 builder.Services.AddHostedService<SmtpTcpListenerHostedService>();
 
 var host = builder.Build();
+var directoryAdministrationStore = host.Services.GetRequiredService<IDirectoryAdministrationStore>();
+var directoryAdministrationSnapshot = await directoryAdministrationStore
+    .GetDirectoriesAsync(CancellationToken.None);
 ApplicationRuntimeHost.Configure(
     host.Services.GetRequiredService<IApplicationRuntimeStore>());
 MessageIndexingRuntimeHost.Configure(
@@ -883,7 +886,8 @@ SettingsAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<ISettingsAdministrationStore>(),
     new SettingsRuntimeConfiguration(
         UserInterfaceLanguage: userInterfaceLanguage,
-        RewriteEnvelopeFromWhenForwarding: rewriteEnvelopeFromWhenForwarding));
+        RewriteEnvelopeFromWhenForwarding: rewriteEnvelopeFromWhenForwarding,
+        LoggingDirectory: directoryAdministrationSnapshot.LogDirectory));
 DomainAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAdministrationStore>());
 AccountAdministrationRuntimeHost.Configure(
@@ -907,7 +911,7 @@ SslCertificateAdministrationRuntimeHost.Configure(
 ServerMessageAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IServerMessageAdministrationStore>());
 DirectoryAdministrationRuntimeHost.Configure(
-    host.Services.GetRequiredService<IDirectoryAdministrationStore>());
+    directoryAdministrationStore);
 GroupAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IGroupAdministrationStore>());
 GroupMemberAdministrationRuntimeHost.Configure(

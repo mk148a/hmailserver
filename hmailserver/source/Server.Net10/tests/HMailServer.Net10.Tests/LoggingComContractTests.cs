@@ -182,9 +182,11 @@ public sealed class LoggingComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var loggingError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().Enabled);
+        var directoryError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().Directory);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Logging);
 
         Assert.AreEqual(EAccessDenied, loggingError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, directoryError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -196,7 +198,8 @@ public sealed class LoggingComContractTests
                 LoggingMask: 1 + 2 + 8 + 16 + 32 + 64 + 256,
                 Device: 2,
                 LogFormat: 1,
-                AwStatsEnabled: true));
+                AwStatsEnabled: true,
+                Directory: @"C:\hMailServer\Logs\"));
 
         Assert.IsTrue(logging.Enabled);
         Assert.IsTrue(logging.LogSMTP);
@@ -207,6 +210,7 @@ public sealed class LoggingComContractTests
         Assert.AreEqual(ComLogOutputFormat.Csa, logging.LogFormat);
         Assert.IsTrue(logging.LogDebug);
         Assert.IsTrue(logging.LogIMAP);
+        Assert.AreEqual(@"C:\hMailServer\Logs\", logging.Directory);
         Assert.IsTrue(logging.AWStatsEnabled);
         Assert.IsTrue(logging.KeepFilesOpen);
 
@@ -220,7 +224,6 @@ public sealed class LoggingComContractTests
         AssertPending(() => logging.LogDebug = false);
         AssertPending(() => logging.LogIMAP = false);
         AssertPending(() => logging.EnableLiveLogging(true));
-        AssertPending(() => _ = logging.Directory);
         AssertPending(() => _ = logging.LiveLog);
         AssertPending(() => logging.AWStatsEnabled = false);
         AssertPending(() => _ = logging.MaskPasswordsInLog);
@@ -245,7 +248,9 @@ public sealed class LoggingComContractTests
                 LoggingMask: 1 + 4 + 8,
                 LogDevice: 1,
                 LogFormat: 0,
-                AwStatsEnabled: false));
+                AwStatsEnabled: false),
+            new SettingsRuntimeConfiguration(
+                LoggingDirectory: @"E:\hMailServer\Logs\"));
 
         var logging = settings.Logging;
 
@@ -258,6 +263,7 @@ public sealed class LoggingComContractTests
         Assert.AreEqual(ComLogOutputFormat.Default, logging.LogFormat);
         Assert.IsFalse(logging.LogDebug);
         Assert.IsFalse(logging.LogIMAP);
+        Assert.AreEqual(@"E:\hMailServer\Logs\", logging.Directory);
         Assert.IsFalse(logging.AWStatsEnabled);
         Assert.IsFalse(logging.KeepFilesOpen);
     }
