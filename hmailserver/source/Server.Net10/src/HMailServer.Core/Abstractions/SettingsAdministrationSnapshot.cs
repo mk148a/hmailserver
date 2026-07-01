@@ -59,4 +59,6 @@ public sealed record SettingsAdministrationSnapshot(
     int LogFormat = 0,
     bool AwStatsEnabled = false,
     bool UseScriptServer = false,
-    string ScriptLanguage = "");
+    string ScriptLanguage = "",
+    string BackupDestination = "",
+    int BackupOptions = 0);

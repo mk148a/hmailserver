@@ -1132,6 +1132,21 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceBackupSettings Backup
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.Backup
+                : HMailServer.ComInterop.BackupSettings.CreateAuthorized(
+                    new BackupSettingsAdministrationSnapshot(
+                        _administrationSnapshot.BackupDestination,
+                        _administrationSnapshot.BackupOptions,
+                        _runtimeConfiguration.LoggingDirectory));
+        }
+    }
+
     public override bool VerifyRemoteSslCertificate
     {
         get
@@ -1364,7 +1379,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
     public IInterfaceCache Cache => Unavailable<IInterfaceCache>();
     public virtual int RuleLoopLimit { get => Unavailable<int>(); set => Unavailable(); }
-    public IInterfaceBackupSettings Backup => Unavailable<IInterfaceBackupSettings>();
+    public virtual IInterfaceBackupSettings Backup => Unavailable<IInterfaceBackupSettings>();
     public virtual string DefaultDomain { get => Unavailable<string>(); set => Unavailable(); }
     public virtual string SMTPDeliveryBindToIP { get => Unavailable<string>(); set => Unavailable(); }
     public virtual int MaxIMAPConnections { get => Unavailable<int>(); set => Unavailable(); }

@@ -66,7 +66,9 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'logformat' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'awstatsenabled' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'usescriptserver' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'scriptlanguage' THEN settingstring END), N'')
+    COALESCE(MAX(CASE WHEN settingname = N'scriptlanguage' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'backupdestination' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'backupoptions' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -128,7 +130,9 @@ WHERE settingname IN
     N'logformat',
     N'awstatsenabled',
     N'usescriptserver',
-    N'scriptlanguage'
+    N'scriptlanguage',
+    N'backupdestination',
+    N'backupoptions'
 );
 """;
 
@@ -213,6 +217,8 @@ WHERE settingname IN
             LogFormat: reader.GetInt32(55),
             AwStatsEnabled: reader.GetInt32(56) != 0,
             UseScriptServer: reader.GetInt32(57) != 0,
-            ScriptLanguage: reader.GetString(58));
+            ScriptLanguage: reader.GetString(58),
+            BackupDestination: reader.GetString(59),
+            BackupOptions: reader.GetInt32(60));
     }
 }

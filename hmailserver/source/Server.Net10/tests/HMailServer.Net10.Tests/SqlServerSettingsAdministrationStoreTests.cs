@@ -74,6 +74,8 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'awstatsenabled'");
         StringAssert.Contains(sql, "settingname = N'usescriptserver'");
         StringAssert.Contains(sql, "settingname = N'scriptlanguage'");
+        StringAssert.Contains(sql, "settingname = N'backupdestination'");
+        StringAssert.Contains(sql, "settingname = N'backupoptions'");
     }
 
     [TestMethod]
@@ -88,5 +90,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("password", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("smtprelayerpassword", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hmailserver_backup.log", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("xp_", StringComparison.OrdinalIgnoreCase));
     }
 }

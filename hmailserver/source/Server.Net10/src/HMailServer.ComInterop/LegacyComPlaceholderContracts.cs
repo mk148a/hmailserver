@@ -32,8 +32,5 @@ public interface IInterfaceRouteAddresses;
 [ComVisible(true), Guid("AE45B7CD-C050-4B14-A983-30D53059D24F"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceCache;
 
-[ComVisible(true), Guid("2C5559F0-DF3F-43C0-935C-F79D41CF8A5B"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceBackupSettings;
-
 [ComVisible(true), Guid("998A7E66-21FA-47CC-9DB4-81822F2D05C9"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceAntiSpam;

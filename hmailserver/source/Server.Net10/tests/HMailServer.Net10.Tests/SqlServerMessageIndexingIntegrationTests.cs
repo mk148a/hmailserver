@@ -92,6 +92,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 new SqlServerSettingsAdministrationStore(
                     new SqlServerConnectionFactory(testConnectionString)),
                 new SettingsRuntimeConfiguration(
+                    LoggingDirectory: @"C:\hMailServer\Logs",
                     ScriptingDirectory: @"C:\hMailServer\Events\"));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
@@ -144,6 +145,13 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("JScript", scripting.Language);
             Assert.AreEqual(@"C:\hMailServer\Events\", scripting.Directory);
             Assert.AreEqual(@"C:\hMailServer\Events\\EventHandlers.js", scripting.CurrentScriptFile);
+            var backup = settings.Backup;
+            Assert.AreEqual(@"D:\hMailServer Backup", backup.Destination);
+            Assert.IsTrue(backup.BackupSettings);
+            Assert.IsFalse(backup.BackupDomains);
+            Assert.IsTrue(backup.BackupMessages);
+            Assert.IsTrue(backup.CompressDestinationFiles);
+            Assert.AreEqual(@"C:\hMailServer\Logs\hmailserver_backup.log", backup.LogFile);
             Assert.AreEqual(20480, settings.MaxMessageSize);
             Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
             Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -852,6 +860,8 @@ VALUES
     (N'awstatsenabled', N'', 1),
     (N'usescriptserver', N'', 1),
     (N'scriptlanguage', N'JScript', 0),
+    (N'backupdestination', N'D:\hMailServer Backup', 0),
+    (N'backupoptions', N'', 13),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 """;
 
