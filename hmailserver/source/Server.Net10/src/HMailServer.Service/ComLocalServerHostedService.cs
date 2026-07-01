@@ -42,6 +42,9 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(BackupSettings).GUID,
                 static () => new BackupSettings()),
             new ComLocalServerRegistration(
+                typeof(BackupManager).GUID,
+                static () => new BackupManager()),
+            new ComLocalServerRegistration(
                 typeof(Directories).GUID,
                 static () => new Directories()),
             new ComLocalServerRegistration(

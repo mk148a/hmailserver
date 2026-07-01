@@ -64,6 +64,11 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "BackupManager",
+            "{1BBE5234-D331-41DF-85D7-CAF0B00B3BF7}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Directories",
             "{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
             executablePath);
@@ -291,6 +296,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.Scripting",
                 @"hMailServer.BackupSettings.1",
                 @"hMailServer.BackupSettings",
+                @"hMailServer.BackupManager.1",
+                @"hMailServer.BackupManager",
                 @"hMailServer.Directories.1",
                 @"hMailServer.Directories",
                 @"hMailServer.Domains.1",
@@ -372,6 +379,7 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{E3E22438-871F-49CF-A47E-4D3A144BD002}",
                 @"CLSID\{68A73A47-5B56-43A3-BC11-CFC436F3BA9E}",
                 @"CLSID\{E0213ECF-BAEC-4E20-9813-0F75A97D0B16}",
+                @"CLSID\{1BBE5234-D331-41DF-85D7-CAF0B00B3BF7}",
                 @"CLSID\{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
                 @"CLSID\{82AFD03C-58A4-4F04-8277-6B2812780E45}",
                 @"CLSID\{C535E4AF-9DB3-41FC-B434-FFCDAE0EFBD5}",

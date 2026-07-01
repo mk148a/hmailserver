@@ -1,0 +1,106 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
+using HMailServer.Security;
+using BackupManagerComClass = HMailServer.ComInterop.BackupManager;
+
+namespace HMailServer.Net10.Tests;
+
+[TestClass]
+public sealed class BackupManagerComContractTests
+{
+    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ENotImplemented = unchecked((int)0x80004001);
+
+    [TestMethod]
+    public void Interface_PreservesLegacyIidCompleteVtableAndMarshaling()
+    {
+        var contract = typeof(IInterfaceBackupManager);
+
+        Assert.AreEqual(new Guid("E773E8FC-1C9A-4E96-A73C-CC02E7649637"), contract.GUID);
+        Assert.AreEqual(
+            ComInterfaceType.InterfaceIsDual,
+            contract.GetCustomAttribute<InterfaceTypeAttribute>()?.Value);
+        Assert.AreEqual(
+            TypeLibTypeFlags.FDual | TypeLibTypeFlags.FNonExtensible | TypeLibTypeFlags.FDispatchable,
+            contract.GetCustomAttribute<TypeLibTypeAttribute>()?.Value);
+        CollectionAssert.AreEqual(
+            new[] { "StartBackup", "LoadBackup" },
+            contract.GetMethods()
+                .OrderBy(static method => method.MetadataToken)
+                .Select(static method => method.Name)
+                .ToArray());
+
+        Assert.AreEqual(1, contract.GetMethod(nameof(IInterfaceBackupManager.StartBackup))?.GetCustomAttribute<DispIdAttribute>()?.Value);
+        var loadBackup = contract.GetMethod(nameof(IInterfaceBackupManager.LoadBackup));
+        Assert.IsNotNull(loadBackup);
+        Assert.AreEqual(2, loadBackup.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(typeof(IInterfaceBackup), loadBackup.ReturnType);
+        Assert.AreEqual(UnmanagedType.BStr, loadBackup.GetParameters()[0].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(new Guid("BC84454B-FCE1-41FA-A3DD-2C57F61D4310"), typeof(IInterfaceBackup).GUID);
+    }
+
+    [TestMethod]
+    public void ComClass_PreservesLegacyIdentityAndDefaultInterface()
+    {
+        var type = typeof(BackupManagerComClass);
+
+        Assert.AreEqual(new Guid("1BBE5234-D331-41DF-85D7-CAF0B00B3BF7"), type.GUID);
+        Assert.AreEqual("hMailServer.BackupManager.1", type.GetCustomAttribute<ProgIdAttribute>()?.Value);
+        Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
+        Assert.AreEqual(typeof(IInterfaceBackupManager), type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
+        Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    [TestMethod]
+    public void DirectActivation_PreservesLegacyAccessDeniedBoundaryWithoutFileAccess()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}.xml");
+        var manager = new BackupManagerComClass();
+
+        var startError = Assert.ThrowsExactly<COMException>(manager.StartBackup);
+        var loadError = Assert.ThrowsExactly<COMException>(() => manager.LoadBackup(path));
+        var applicationError = Assert.ThrowsExactly<COMException>(() => _ = new Application().BackupManager);
+
+        Assert.AreEqual(EAccessDenied, startError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, loadError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, applicationError.ErrorCode);
+        Assert.IsFalse(File.Exists(path));
+    }
+
+    [TestMethod]
+    public void AuthorizedBackupManager_KeepsOperationsPendingWithoutFileAccess()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}.xml");
+        IInterfaceBackupManager manager = BackupManagerComClass.CreateAuthorized();
+
+        AssertPending(manager.StartBackup);
+        AssertPending(() => manager.LoadBackup(path));
+        Assert.IsFalse(File.Exists(path));
+    }
+
+    [TestMethod]
+    public void AuthenticatedApplication_ExposesAuthorizedBackupManagerChild()
+    {
+        var application = new Application(
+            new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
+
+        var denied = Assert.ThrowsExactly<COMException>(() => _ = application.BackupManager);
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.IsNull(application.Authenticate("administrator", "wrong"));
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+
+        var manager = application.BackupManager;
+
+        Assert.IsInstanceOfType<BackupManagerComClass>(manager);
+        AssertPending(manager.StartBackup);
+    }
+
+    private static void AssertPending(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+
+        Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+}

@@ -93,7 +93,14 @@ public sealed class Application : IInterfaceApplication
         }
     }
 
-    public IInterfaceBackupManager BackupManager => NotImplemented<IInterfaceBackupManager>();
+    public IInterfaceBackupManager BackupManager
+    {
+        get
+        {
+            EnsureServerAdministrator();
+            return HMailServer.ComInterop.BackupManager.CreateAuthorized();
+        }
+    }
 
     public IInterfaceGlobalObjects GlobalObjects => NotImplemented<IInterfaceGlobalObjects>();
 
