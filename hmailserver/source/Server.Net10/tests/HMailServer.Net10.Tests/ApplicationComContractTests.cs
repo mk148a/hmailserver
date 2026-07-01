@@ -183,6 +183,7 @@ public sealed class ApplicationComContractTests
         Assert.IsTrue(settings.SMTPRelayerRequiresAuthentication);
         Assert.AreEqual("relay-user", settings.SMTPRelayerUsername);
         Assert.AreEqual(587, settings.SMTPRelayerPort);
+        Assert.IsFalse(settings.SMTPRelayerUseSSL);
         Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
         Assert.AreEqual(ComConnectionSecurity.StartTlsOptional, settings.SMTPConnectionSecurity);
         Assert.IsTrue(settings.TlsVersion10Enabled);

@@ -196,6 +196,7 @@ public sealed class SettingsComContractTests
         var networkPreferenceError = Assert.ThrowsExactly<COMException>(() => _ = settings.IPv6PreferredEnabled);
         var autoBanError = Assert.ThrowsExactly<COMException>(() => _ = settings.AutoBanOnLogonFailure);
         var relayerError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayer);
+        var relayerUseSslError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayerUseSSL);
         var smtpConnectionSecurityError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPConnectionSecurity);
         var tlsVersionError = Assert.ThrowsExactly<COMException>(() => _ = settings.TlsVersion10Enabled);
         var imapMasterUserError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPMasterUser);
@@ -218,6 +219,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, networkPreferenceError.ErrorCode);
         Assert.AreEqual(EAccessDenied, autoBanError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayerUseSslError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpConnectionSecurityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, tlsVersionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapMasterUserError.ErrorCode);
@@ -364,9 +366,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(3, settings.MaxInvalidLogonAttempts);
         Assert.AreEqual(30, settings.MaxInvalidLogonAttemptsWithin);
         Assert.AreEqual(60, settings.AutoBanMinutes);
-        Assert.AreEqual(
-            ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayerUseSSL).ErrorCode);
+        Assert.IsFalse(settings.SMTPRelayerUseSSL);
 
         Assert.AreEqual(
             ENotImplemented,
@@ -554,6 +554,31 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.AutoBanMinutes = 120).ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
+    {
+        var cases = new[]
+        {
+            (ComConnectionSecurity.None, false),
+            (ComConnectionSecurity.Tls, true),
+            (ComConnectionSecurity.StartTlsOptional, false),
+            (ComConnectionSecurity.StartTlsRequired, false)
+        };
+
+        foreach (var (connectionSecurity, expected) in cases)
+        {
+            IInterfaceSettings settings = Settings.CreateAuthorized(
+                new SettingsAdministrationSnapshot(
+                    HostName: string.Empty,
+                    WelcomeSmtp: string.Empty,
+                    WelcomePop3: string.Empty,
+                    WelcomeImap: string.Empty,
+                    SmtpRelayerConnectionSecurity: (int)connectionSecurity));
+
+            Assert.AreEqual(expected, settings.SMTPRelayerUseSSL, connectionSecurity.ToString());
+        }
     }
 
     [TestMethod]

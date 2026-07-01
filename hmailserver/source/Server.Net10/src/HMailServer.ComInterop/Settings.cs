@@ -979,6 +979,18 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.SMTPRelayerConnectionSecurity = value;
     }
 
+    public override bool SMTPRelayerUseSSL
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.SMTPRelayerUseSSL
+                : _administrationSnapshot.SmtpRelayerConnectionSecurity == (int)ComConnectionSecurity.Tls;
+        }
+        set => base.SMTPRelayerUseSSL = value;
+    }
+
     public override ComConnectionSecurity SMTPConnectionSecurity
     {
         get
@@ -1353,7 +1365,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual int MaxNumberOfInvalidCommands { get => Unavailable<int>(); set => Unavailable(); }
     public virtual IInterfaceServerMessages ServerMessages => Unavailable<IInterfaceServerMessages>();
     public virtual IInterfaceTCPIPPorts TCPIPPorts => Unavailable<IInterfaceTCPIPPorts>();
-    public bool SMTPRelayerUseSSL { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool SMTPRelayerUseSSL { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual IInterfaceSSLCertificates SSLCertificates => Unavailable<IInterfaceSSLCertificates>();
     public virtual bool AddDeliveredToHeader { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string IMAPPublicFolderName { get => Unavailable<string>(); set => Unavailable(); }
