@@ -214,6 +214,7 @@ public sealed class ApplicationComContractTests
         Assert.IsTrue(scripting.Enabled);
         Assert.AreEqual("JScript", scripting.Language);
         Assert.AreEqual(@"C:\hMailServer\Events\", scripting.Directory);
+        Assert.AreEqual(@"C:\hMailServer\Events\\EventHandlers.js", scripting.CurrentScriptFile);
         Assert.AreEqual("#Public", settings.PublicFolderDiskName);
         Assert.AreEqual("Swedish", settings.UserInterfaceLanguage);
         Assert.IsTrue(settings.RewriteEnvelopeFromWhenForwarding);

@@ -72,9 +72,11 @@ public sealed class ScriptingComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var scriptingError = Assert.ThrowsExactly<COMException>(() => _ = new ScriptingComClass().Enabled);
+        var currentScriptFileError = Assert.ThrowsExactly<COMException>(() => _ = new ScriptingComClass().CurrentScriptFile);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Scripting);
 
         Assert.AreEqual(EAccessDenied, scriptingError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, currentScriptFileError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -90,12 +92,40 @@ public sealed class ScriptingComContractTests
         Assert.IsTrue(scripting.Enabled);
         Assert.AreEqual("JScript", scripting.Language);
         Assert.AreEqual(@"C:\hMailServer\Events\", scripting.Directory);
+        Assert.AreEqual(@"C:\hMailServer\Events\\EventHandlers.js", scripting.CurrentScriptFile);
 
         AssertPending(() => scripting.Enabled = false);
         AssertPending(() => scripting.Language = "VBScript");
         AssertPending(scripting.Reload);
         AssertPending(() => _ = scripting.CheckSyntax());
-        AssertPending(() => _ = scripting.CurrentScriptFile);
+    }
+
+    [TestMethod]
+    public void AuthorizedScripting_CurrentScriptFileUsesLegacyCaseSensitiveExtensionMappingWithoutFileAccess()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"hmailserver-events-{Guid.NewGuid():N}") + "\\";
+        var cases = new[]
+        {
+            ("VBScript", "vbs"),
+            ("JScript", "js"),
+            ("vbscript", string.Empty),
+            ("Unknown", string.Empty)
+        };
+
+        Assert.IsFalse(System.IO.Directory.Exists(directory));
+
+        foreach (var (language, extension) in cases)
+        {
+            IInterfaceScripting scripting = ScriptingComClass.CreateAuthorized(
+                new ScriptingAdministrationSnapshot(
+                    Enabled: true,
+                    Language: language,
+                    Directory: directory));
+
+            Assert.AreEqual($"{directory}\\EventHandlers.{extension}", scripting.CurrentScriptFile, language);
+        }
+
+        Assert.IsFalse(System.IO.Directory.Exists(directory));
     }
 
     [TestMethod]
@@ -117,6 +147,7 @@ public sealed class ScriptingComContractTests
         Assert.IsTrue(scripting.Enabled);
         Assert.AreEqual("VBScript", scripting.Language);
         Assert.AreEqual(@"E:\hMailServer\Events\", scripting.Directory);
+        Assert.AreEqual(@"E:\hMailServer\Events\\EventHandlers.vbs", scripting.CurrentScriptFile);
     }
 
     private static void AssertBstrProperty(Type contract, string name, int dispatchId, bool canWrite)

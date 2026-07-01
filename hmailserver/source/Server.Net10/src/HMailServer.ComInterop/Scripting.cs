@@ -63,6 +63,21 @@ public sealed class Scripting : ScriptingComAdapter
 
     public override string Directory => Snapshot.Directory;
 
+    public override string CurrentScriptFile
+    {
+        get
+        {
+            var extension = Snapshot.Language switch
+            {
+                "VBScript" => "vbs",
+                "JScript" => "js",
+                _ => string.Empty
+            };
+
+            return $"{Snapshot.Directory}\\EventHandlers.{extension}";
+        }
+    }
+
     internal static Scripting CreateAuthorized(ScriptingAdministrationSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -83,7 +98,7 @@ public abstract class ScriptingComAdapter : IInterfaceScripting
     public void Reload() => Unavailable();
     public string CheckSyntax() => Unavailable<string>();
     public virtual string Directory => Unavailable<string>();
-    public string CurrentScriptFile => Unavailable<string>();
+    public virtual string CurrentScriptFile => Unavailable<string>();
 
     private T Unavailable<T>() => ScriptingComAuthorization.Unavailable<T>(this);
 

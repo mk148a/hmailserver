@@ -143,6 +143,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(scripting.Enabled);
             Assert.AreEqual("JScript", scripting.Language);
             Assert.AreEqual(@"C:\hMailServer\Events\", scripting.Directory);
+            Assert.AreEqual(@"C:\hMailServer\Events\\EventHandlers.js", scripting.CurrentScriptFile);
             Assert.AreEqual(20480, settings.MaxMessageSize);
             Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
             Assert.IsTrue(settings.DisconnectInvalidClients);
