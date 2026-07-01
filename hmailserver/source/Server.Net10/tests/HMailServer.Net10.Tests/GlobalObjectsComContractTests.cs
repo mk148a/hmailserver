@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
 using HMailServer.Security;
 
 namespace HMailServer.Net10.Tests;
@@ -10,6 +11,9 @@ public sealed class GlobalObjectsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
+
+    [TestInitialize]
+    public void ResetRuntimeHost() => DeliveryQueueAdministrationRuntimeHost.ResetForTests();
 
     [TestMethod]
     public void Interfaces_PreserveLegacyIidsCompleteVtablesAndHyperParameters()
@@ -99,6 +103,21 @@ public sealed class GlobalObjectsComContractTests
         Assert.IsInstanceOfType<DeliveryQueue>(application.GlobalObjects.DeliveryQueue);
     }
 
+    [TestMethod]
+    public void AuthorizedQueue_ResetDeliveryTimeUsesRuntimeStoreAndPreservesOtherPendingMethods()
+    {
+        var store = new RecordingDeliveryQueueAdministrationStore();
+        DeliveryQueueAdministrationRuntimeHost.Configure(store);
+        var queue = GlobalObjects.CreateAuthorized().DeliveryQueue;
+
+        queue.ResetDeliveryTime(long.MaxValue);
+
+        Assert.AreEqual(long.MaxValue, store.MessageId);
+        AssertPending(queue.Clear);
+        AssertPending(queue.StartDelivery);
+        AssertPending(() => queue.Remove(long.MaxValue));
+    }
+
     private static void AssertDualContract(Type contract, string iid)
     {
         Assert.AreEqual(new Guid(iid), contract.GUID);
@@ -130,5 +149,17 @@ public sealed class GlobalObjectsComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private sealed class RecordingDeliveryQueueAdministrationStore : IDeliveryQueueAdministrationStore
+    {
+        public long? MessageId { get; private set; }
+
+        public ValueTask<bool> ResetDeliveryTimeAsync(long messageId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            MessageId = messageId;
+            return ValueTask.FromResult(true);
+        }
     }
 }

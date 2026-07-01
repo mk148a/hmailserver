@@ -193,6 +193,84 @@ public sealed class SqlServerMessageIndexingIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task AuthenticatedComPath_ResetsOnlyEligibleDeliveryQueueTimeAgainstIsolatedDatabase()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateDeliveryQueueAdministrationSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            DeliveryQueueAdministrationRuntimeHost.Configure(
+                new SqlServerDeliveryQueueAdministrationStore(
+                    new SqlServerConnectionFactory(testConnectionString)));
+            var application = Application.CreateForRuntime(
+                new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
+
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+            var queue = application.GlobalObjects.DeliveryQueue;
+
+            queue.ResetDeliveryTime(10);
+            queue.ResetDeliveryTime(20);
+            queue.ResetDeliveryTime(999);
+
+            await using var connection = new SqlConnection(testConnectionString);
+            await connection.OpenAsync().ConfigureAwait(false);
+            await using var command = new SqlCommand(
+                """
+SELECT
+    messageid,
+    messagetype,
+    messagenexttrytime,
+    messagecurnooftries,
+    messagelocked,
+    messageleaseowner,
+    messageleaseexpiresutc
+FROM hm_messages
+ORDER BY messageid;
+""",
+                connection);
+            await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+
+            Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
+            Assert.AreEqual(10L, reader.GetInt64(0));
+            Assert.AreEqual(1, reader.GetInt32(1));
+            var resetTime = reader.GetDateTime(2);
+            Assert.IsTrue(resetTime <= DateTime.UtcNow);
+            Assert.IsTrue(resetTime >= DateTime.UtcNow.AddMinutes(-5));
+            Assert.AreEqual(7, reader.GetInt32(3));
+            Assert.AreEqual(1, reader.GetInt32(4));
+            Assert.AreEqual("worker-a", reader.GetString(5));
+            Assert.AreEqual(new DateTime(2099, 1, 1), reader.GetDateTime(6));
+
+            Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
+            Assert.AreEqual(20L, reader.GetInt64(0));
+            Assert.AreEqual(2, reader.GetInt32(1));
+            Assert.AreEqual(new DateTime(2099, 1, 1), reader.GetDateTime(2));
+            Assert.AreEqual(9, reader.GetInt32(3));
+            Assert.AreEqual(0, reader.GetInt32(4));
+            Assert.IsTrue(reader.IsDBNull(5));
+            Assert.IsTrue(reader.IsDBNull(6));
+            Assert.IsFalse(await reader.ReadAsync().ConfigureAwait(false));
+        }
+        finally
+        {
+            DeliveryQueueAdministrationRuntimeHost.ResetForTests();
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task AuthenticatedComPath_ExecutesDomainLookupAgainstIsolatedDatabase()
     {
         var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -863,6 +941,41 @@ VALUES
     (N'backupdestination', N'D:\hMailServer Backup', 0),
     (N'backupoptions', N'', 13),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
+""";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task CreateDeliveryQueueAdministrationSchemaAndSeedAsync(string connectionString)
+    {
+        const string sql = """
+CREATE TABLE dbo.hm_messages
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messagetype int NOT NULL,
+    messagenexttrytime datetime2 NOT NULL,
+    messagecurnooftries int NOT NULL,
+    messagelocked int NOT NULL,
+    messageleaseowner nvarchar(128) NULL,
+    messageleaseexpiresutc datetime2 NULL
+);
+
+INSERT INTO dbo.hm_messages
+(
+    messageid,
+    messagetype,
+    messagenexttrytime,
+    messagecurnooftries,
+    messagelocked,
+    messageleaseowner,
+    messageleaseexpiresutc
+)
+VALUES
+    (10, 3, '2099-01-01T00:00:00', 7, 1, N'worker-a', '2099-01-01T00:00:00'),
+    (20, 2, '2099-01-01T00:00:00', 9, 0, NULL, NULL);
 """;
 
         await using var connection = new SqlConnection(connectionString);

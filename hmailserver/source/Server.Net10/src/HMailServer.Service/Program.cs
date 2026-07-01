@@ -722,6 +722,7 @@ builder.Services.AddSingleton<ISmtpAccountRuleProcessor>(static serviceProvider 
 builder.Services.AddSingleton<ISmtpMessageReceiver, SqlServerSmtpMessageReceiver>();
 builder.Services.AddSingleton<ISmtpRecipientValidator, SqlServerSmtpRecipientValidator>();
 builder.Services.AddSingleton<IDeliveryQueueLeaseStore, SqlServerDeliveryQueueLeaseStore>();
+builder.Services.AddSingleton<IDeliveryQueueAdministrationStore, SqlServerDeliveryQueueAdministrationStore>();
 builder.Services.AddSingleton<IDeliveryQueueMessageStore, SqlServerDeliveryQueueMessageStore>();
 builder.Services.AddSingleton<IDeliveryQueueRecipientStore, SqlServerDeliveryQueueRecipientStore>();
 builder.Services.AddSingleton<IDeliveryTargetResolver, SqlServerDeliveryTargetResolver>();
@@ -882,6 +883,8 @@ DatabaseAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDatabaseAdministrationStore>());
 StatusAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IServerStatusAdministrationStore>());
+DeliveryQueueAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IDeliveryQueueAdministrationStore>());
 SettingsAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<ISettingsAdministrationStore>(),
     new SettingsRuntimeConfiguration(

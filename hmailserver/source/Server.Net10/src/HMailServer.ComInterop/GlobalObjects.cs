@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using HMailServer.Core.Abstractions;
 
 namespace HMailServer.ComInterop;
 
@@ -60,7 +61,7 @@ public sealed class GlobalObjects : IInterfaceGlobalObjects
         get
         {
             EnsureAuthorized();
-            return HMailServer.ComInterop.DeliveryQueue.CreateAuthorized();
+            return DeliveryQueueAdministrationRuntimeHost.CreateAuthorizedAdapter();
         }
     }
 
@@ -99,27 +100,50 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly bool _authorized;
+    private readonly IDeliveryQueueAdministrationStore? _store;
 
     public DeliveryQueue()
     {
     }
 
-    private DeliveryQueue(bool authorized)
+    private DeliveryQueue(bool authorized, IDeliveryQueueAdministrationStore? store = null)
     {
         _authorized = authorized;
+        _store = store;
     }
 
     public void Clear() => Unavailable();
 
-    public void ResetDeliveryTime(long messageId) => Unavailable();
+    public void ResetDeliveryTime(long messageId)
+    {
+        EnsureAuthorized();
+        if (_store is null)
+        {
+            throw NotImplemented();
+        }
+
+        _ = _store
+            .ResetDeliveryTimeAsync(messageId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+    }
 
     public void StartDelivery() => Unavailable();
 
     public void Remove(long messageId) => Unavailable();
 
-    internal static DeliveryQueue CreateAuthorized() => new(authorized: true);
+    internal static DeliveryQueue CreateAuthorized(IDeliveryQueueAdministrationStore? store = null) =>
+        new(authorized: true, store);
 
     private void Unavailable()
+    {
+        EnsureAuthorized();
+
+        throw NotImplemented();
+    }
+
+    private void EnsureAuthorized()
     {
         if (!_authorized)
         {
@@ -127,9 +151,26 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
                 "DeliveryQueue access requires an authenticated server administrator.",
                 EAccessDenied);
         }
-
-        throw new COMException(
-            "This DeliveryQueue member is not implemented by the .NET 10 rewrite yet.",
-            ENotImplemented);
     }
+
+    private static COMException NotImplemented() => new(
+        "This DeliveryQueue member is not implemented by the .NET 10 rewrite yet.",
+        ENotImplemented);
+}
+
+[ComVisible(false)]
+public static class DeliveryQueueAdministrationRuntimeHost
+{
+    private static IDeliveryQueueAdministrationStore? _store;
+
+    public static void Configure(IDeliveryQueueAdministrationStore store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        Volatile.Write(ref _store, store);
+    }
+
+    internal static DeliveryQueue CreateAuthorizedAdapter() =>
+        DeliveryQueue.CreateAuthorized(Volatile.Read(ref _store));
+
+    internal static void ResetForTests() => Volatile.Write(ref _store, null);
 }
