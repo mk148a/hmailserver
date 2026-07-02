@@ -202,7 +202,8 @@ public sealed class Rule : IInterfaceRule
     public IInterfaceRuleCriterias Criterias =>
         RuleCriteriaAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
-    public IInterfaceRuleActions Actions => Unavailable<IInterfaceRuleActions>();
+    public IInterfaceRuleActions Actions =>
+        RuleActionAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
     internal static Rule CreateAuthorized(RuleAdministrationSnapshot rule) => new(rule);
 

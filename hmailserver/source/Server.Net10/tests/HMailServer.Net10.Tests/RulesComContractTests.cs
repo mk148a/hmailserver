@@ -86,14 +86,12 @@ public sealed class RulesComContractTests
         var pendingRefresh = Assert.ThrowsExactly<COMException>(rules.Refresh);
         var pendingAdd = Assert.ThrowsExactly<COMException>(() => rules.Add());
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => rules[0].Name = "changed");
-        var pendingActions = Assert.ThrowsExactly<COMException>(() => _ = rules[0].Actions);
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingAdd.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingActions.ErrorCode);
     }
 
     [TestMethod]

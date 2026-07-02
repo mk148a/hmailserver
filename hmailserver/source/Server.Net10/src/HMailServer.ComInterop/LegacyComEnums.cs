@@ -78,6 +78,23 @@ public enum ComRuleMatchType
 }
 
 [ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD04")]
+public enum ComRuleActionType
+{
+    Unknown = 0,
+    DeleteEmail = 1,
+    ForwardEmail = 2,
+    Reply = 3,
+    MoveToImapFolder = 4,
+    RunScriptFunction = 5,
+    StopRuleProcessing = 6,
+    SetHeaderValue = 7,
+    SendUsingRoute = 8,
+    CreateCopy = 9,
+    BindToAddress = 10
+}
+
+[ComVisible(true)]
 [Guid("87FDF5A8-567E-4BDD-B5E0-4742D4801A92")]
 public enum ComMaintenanceOperation
 {

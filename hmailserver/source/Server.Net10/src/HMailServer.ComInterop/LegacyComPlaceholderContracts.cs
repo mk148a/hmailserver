@@ -2,9 +2,6 @@ using System.Runtime.InteropServices;
 
 namespace HMailServer.ComInterop;
 
-[ComVisible(true), Guid("DBFD3E11-9121-4DDD-944B-5AF29BF3D2DF"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceRuleActions;
-
 [ComVisible(true), Guid("FB8812B0-524A-4922-9E29-A7E9A9E9151D"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceDiagnostics;
 

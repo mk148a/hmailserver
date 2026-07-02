@@ -559,6 +559,8 @@ ORDER BY messageid;
             RuleAdministrationRuntimeHost.Configure(new SqlServerRuleAdministrationStore(connectionFactory));
             RuleCriteriaAdministrationRuntimeHost.Configure(
                 new SqlServerRuleCriteriaAdministrationStore(connectionFactory));
+            RuleActionAdministrationRuntimeHost.Configure(
+                new SqlServerRuleActionAdministrationStore(connectionFactory));
             ImapFolderAdministrationRuntimeHost.Configure(new SqlServerImapFolderAdministrationStore(connectionFactory));
             RouteAdministrationRuntimeHost.Configure(new SqlServerRouteAdministrationStore(connectionFactory));
             RouteAddressAdministrationRuntimeHost.Configure(
@@ -651,6 +653,29 @@ ORDER BY messageid;
             Assert.AreEqual(unchecked((int)0x8002000B), outsideRuleCriterion.ErrorCode);
             var pendingRuleCriterionSave = Assert.ThrowsExactly<COMException>(firstRuleCriteria[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRuleCriterionSave.ErrorCode);
+            var firstRuleActions = rules[0].Actions;
+            Assert.AreEqual(2, firstRuleActions.Count);
+            Assert.AreEqual(20000, firstRuleActions[0].ID);
+            Assert.AreEqual(200, firstRuleActions[0].RuleID);
+            Assert.AreEqual(ComRuleActionType.Reply, firstRuleActions[0].Type);
+            Assert.AreEqual("Invoice received", firstRuleActions[0].Subject);
+            Assert.AreEqual("Thank you", firstRuleActions[0].Body);
+            Assert.AreEqual("Billing", firstRuleActions[0].FromName);
+            Assert.AreEqual("billing@example.test", firstRuleActions[0].FromAddress);
+            Assert.AreEqual("reply.eml", firstRuleActions[0].Filename);
+            Assert.AreEqual("sender@example.test", firstRuleActions[0].To);
+            Assert.AreEqual("Processed", firstRuleActions[0].IMAPFolder);
+            Assert.AreEqual("HandleInvoice", firstRuleActions[0].ScriptFunction);
+            Assert.AreEqual("X-Processed", firstRuleActions[0].HeaderName);
+            Assert.AreEqual("yes", firstRuleActions[0].Value);
+            Assert.AreEqual(500, firstRuleActions[0].RouteID);
+            Assert.IsTrue(firstRuleActions[0].AbortSpamFlagged);
+            Assert.AreEqual(ComRuleActionType.SendUsingRoute, firstRuleActions.get_ItemByDBID(20001).Type);
+            var outsideRuleAction = Assert.ThrowsExactly<COMException>(
+                () => _ = firstRuleActions.get_ItemByDBID(30000));
+            Assert.AreEqual(unchecked((int)0x8002000B), outsideRuleAction.ErrorCode);
+            var pendingRuleActionSave = Assert.ThrowsExactly<COMException>(firstRuleActions[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingRuleActionSave.ErrorCode);
             var globalRules = application.Rules;
             Assert.AreEqual(2, globalRules.Count);
             Assert.AreEqual("Global first", globalRules[0].Name);
@@ -663,6 +688,10 @@ ORDER BY messageid;
             Assert.AreEqual(1, globalRuleCriteria.Count);
             Assert.AreEqual(1000, globalRuleCriteria[0].ID);
             Assert.AreEqual(100, globalRuleCriteria[0].RuleID);
+            var globalRuleActions = globalRules[0].Actions;
+            Assert.AreEqual(1, globalRuleActions.Count);
+            Assert.AreEqual(10000, globalRuleActions[0].ID);
+            Assert.AreEqual(ComRuleActionType.SetHeaderValue, globalRuleActions[0].Type);
             var folders = accounts[0].IMAPFolders;
             Assert.AreEqual(2, folders.Count);
             Assert.AreEqual(100, folders[0].ID);
@@ -1515,6 +1544,26 @@ CREATE TABLE dbo.hm_rule_criterias
     criteriamatchvalue nvarchar(255) NOT NULL
 );
 
+CREATE TABLE dbo.hm_rule_actions
+(
+    actionid int NOT NULL PRIMARY KEY,
+    actionruleid int NOT NULL,
+    actiontype tinyint NOT NULL,
+    actionimapfolder nvarchar(255) NOT NULL,
+    actionsubject nvarchar(255) NOT NULL,
+    actionfromname nvarchar(255) NOT NULL,
+    actionfromaddress nvarchar(255) NOT NULL,
+    actionto nvarchar(255) NOT NULL,
+    actionbody nvarchar(max) NOT NULL,
+    actionfilename nvarchar(255) NOT NULL,
+    actionsortorder int NOT NULL,
+    actionscriptfunction nvarchar(255) NOT NULL,
+    actionheader nvarchar(80) NOT NULL,
+    actionvalue nvarchar(255) NOT NULL,
+    actionrouteid int NOT NULL,
+    actionabortspamflagged tinyint NOT NULL
+);
+
 CREATE TABLE dbo.hm_imapfolders
 (
     folderid int NOT NULL PRIMARY KEY,
@@ -1683,6 +1732,20 @@ VALUES
     (2001, 200, 0, 0, N'X-Priority', 1, N'high'),
     (3000, 300, 1, 2, N'', 1, N'user@example.test'),
     (4000, 400, 1, 3, N'', 2, N'support@example.test');
+
+INSERT INTO dbo.hm_rule_actions
+    (actionid, actionruleid, actiontype, actionimapfolder, actionsubject,
+     actionfromname, actionfromaddress, actionto, actionbody, actionfilename,
+     actionsortorder, actionscriptfunction, actionheader, actionvalue,
+     actionrouteid, actionabortspamflagged)
+VALUES
+    (10000, 100, 7, N'', N'', N'', N'', N'', N'', N'', 1, N'', N'X-Global', N'yes', 0, 0),
+    (20001, 200, 8, N'', N'', N'', N'', N'', N'', N'', 2, N'', N'', N'', 500, 0),
+    (20000, 200, 3, N'Processed', N'Invoice received', N'Billing', N'billing@example.test',
+     N'sender@example.test', N'Thank you', N'reply.eml', 1, N'HandleInvoice',
+     N'X-Processed', N'yes', 500, 1),
+    (30000, 300, 1, N'', N'', N'', N'', N'', N'', N'', 1, N'', N'', N'', 0, 0),
+    (40000, 400, 2, N'', N'', N'', N'', N'', N'', N'', 1, N'', N'', N'', 0, 0);
 
 INSERT INTO dbo.hm_imapfolders
     (folderid, folderaccountid, folderparentid, foldername, folderissubscribed,
