@@ -36,6 +36,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(AntiVirus).GUID,
                 static () => new AntiVirus()),
             new ComLocalServerRegistration(
+                typeof(BlockedAttachments).GUID,
+                static () => new BlockedAttachments()),
+            new ComLocalServerRegistration(
+                typeof(BlockedAttachment).GUID,
+                static () => new BlockedAttachment()),
+            new ComLocalServerRegistration(
                 typeof(Logging).GUID,
                 static () => new Logging()),
             new ComLocalServerRegistration(

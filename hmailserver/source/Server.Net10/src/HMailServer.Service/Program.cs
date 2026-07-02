@@ -829,6 +829,7 @@ builder.Services.AddSingleton<IApplicationRuntimeStore>(
         initializationFile));
 builder.Services.AddSingleton<IServerStatusAdministrationStore, SqlServerServerStatusAdministrationStore>();
 builder.Services.AddSingleton<ISettingsAdministrationStore, SqlServerSettingsAdministrationStore>();
+builder.Services.AddSingleton<IBlockedAttachmentAdministrationStore, SqlServerBlockedAttachmentAdministrationStore>();
 builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
 builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdministrationStore>();
 builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAccountAdministrationStore>();
@@ -919,6 +920,8 @@ SettingsAdministrationRuntimeHost.Configure(
         RewriteEnvelopeFromWhenForwarding: rewriteEnvelopeFromWhenForwarding,
         LoggingDirectory: directoryAdministrationSnapshot.LogDirectory,
         ScriptingDirectory: directoryAdministrationSnapshot.EventDirectory));
+BlockedAttachmentAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IBlockedAttachmentAdministrationStore>());
 DomainAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAdministrationStore>());
 AccountAdministrationRuntimeHost.Configure(

@@ -102,6 +102,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "BlockedAttachments",
+            "{1E93E771-45C1-4CAD-9BF6-5D79723C9CBE}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "BlockedAttachment",
+            "{773BCF69-C1C2-48CD-A8F8-E89A1F74E4B3}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Logging",
             "{E3E22438-871F-49CF-A47E-4D3A144BD002}",
             executablePath,

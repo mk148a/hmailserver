@@ -25,9 +25,3 @@ public interface IInterfaceCache;
 
 [ComVisible(true), Guid("998A7E66-21FA-47CC-9DB4-81822F2D05C9"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceAntiSpam;
-
-[ComVisible(true), Guid("BF5CBCFF-CD54-4FAB-AE60-ADFA9C961C1A"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceBlockedAttachment;
-
-[ComVisible(true), Guid("8979F461-AD9D-49E8-8068-BBAB43FBA31A"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceBlockedAttachments;

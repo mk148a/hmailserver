@@ -170,7 +170,6 @@ public sealed class AntiVirusComContractTests
         AssertPending(() => antivirus.CustomScannerExecutable = @"D:\Other\scan.cmd");
         AssertPending(() => antivirus.CustomScannerReturnValue = 1);
         AssertPending(() => antivirus.MaximumMessageSize = 2048);
-        AssertPending(() => _ = antivirus.BlockedAttachments);
         AssertPending(() => antivirus.EnableAttachmentBlocking = false);
         AssertPending(() => antivirus.ClamAVEnabled = false);
         AssertPending(() => antivirus.ClamAVHost = "clamav.example.test");

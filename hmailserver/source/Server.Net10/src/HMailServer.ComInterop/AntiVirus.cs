@@ -162,7 +162,14 @@ public sealed class AntiVirus : IInterfaceAntiVirus
 
     public int MaximumMessageSize { get => Snapshot.MaximumMessageSize; set => Unavailable(); }
 
-    public IInterfaceBlockedAttachments BlockedAttachments => Unavailable<IInterfaceBlockedAttachments>();
+    public IInterfaceBlockedAttachments BlockedAttachments
+    {
+        get
+        {
+            _ = Snapshot;
+            return BlockedAttachmentAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
 
     public bool EnableAttachmentBlocking { get => Snapshot.EnableAttachmentBlocking; set => Unavailable(); }
 

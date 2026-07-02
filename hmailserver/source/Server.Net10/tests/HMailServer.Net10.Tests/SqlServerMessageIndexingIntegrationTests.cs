@@ -89,12 +89,14 @@ public sealed class SqlServerMessageIndexingIntegrationTests
         try
         {
             await CreateSettingsSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
             SettingsAdministrationRuntimeHost.Configure(
-                new SqlServerSettingsAdministrationStore(
-                    new SqlServerConnectionFactory(testConnectionString)),
+                new SqlServerSettingsAdministrationStore(connectionFactory),
                 new SettingsRuntimeConfiguration(
                     LoggingDirectory: @"C:\hMailServer\Logs",
                     ScriptingDirectory: @"C:\hMailServer\Events\"));
+            BlockedAttachmentAdministrationRuntimeHost.Configure(
+                new SqlServerBlockedAttachmentAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -153,6 +155,28 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(backup.BackupMessages);
             Assert.IsTrue(backup.CompressDestinationFiles);
             Assert.AreEqual(@"C:\hMailServer\Logs\hmailserver_backup.log", backup.LogFile);
+            var antiVirus = settings.AntiVirus;
+            Assert.IsTrue(antiVirus.ClamWinEnabled);
+            Assert.AreEqual(@"C:\ClamWin\bin\clamscan.exe", antiVirus.ClamWinExecutable);
+            Assert.AreEqual(@"C:\ClamWin\db", antiVirus.ClamWinDBFolder);
+            Assert.AreEqual(ComAntivirusAction.DeleteAttachments, antiVirus.Action);
+            Assert.IsTrue(antiVirus.NotifyReceiver);
+            Assert.IsFalse(antiVirus.NotifySender);
+            Assert.IsTrue(antiVirus.CustomScannerEnabled);
+            Assert.AreEqual(@"C:\Tools\virus-scan.cmd", antiVirus.CustomScannerExecutable);
+            Assert.AreEqual(7, antiVirus.CustomScannerReturnValue);
+            Assert.AreEqual(4096, antiVirus.MaximumMessageSize);
+            Assert.IsTrue(antiVirus.EnableAttachmentBlocking);
+            Assert.IsTrue(antiVirus.ClamAVEnabled);
+            Assert.AreEqual("127.0.0.1", antiVirus.ClamAVHost);
+            Assert.AreEqual(3310, antiVirus.ClamAVPort);
+            var blockedAttachments = antiVirus.BlockedAttachments;
+            Assert.AreEqual(2, blockedAttachments.Count);
+            Assert.AreEqual("*.bat", blockedAttachments[0].Wildcard);
+            Assert.AreEqual("Batch file", blockedAttachments[0].Description);
+            Assert.AreEqual("*.exe", blockedAttachments.get_ItemByDBID(20).Wildcard);
+            var pendingBlockedAttachmentSave = Assert.ThrowsExactly<COMException>(blockedAttachments[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingBlockedAttachmentSave.ErrorCode);
             Assert.AreEqual(20480, settings.MaxMessageSize);
             Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
             Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -187,6 +211,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
         finally
         {
             SettingsAdministrationRuntimeHost.Configure(new FixedSettingsAdministrationStore());
+            BlockedAttachmentAdministrationRuntimeHost.Configure(
+                new FixedBlockedAttachmentAdministrationStore(Array.Empty<BlockedAttachmentAdministrationSnapshot>()));
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
         }
@@ -936,6 +962,13 @@ CREATE TABLE dbo.hm_settings
     settinginteger int NOT NULL
 );
 
+CREATE TABLE dbo.hm_blocked_attachments
+(
+    baid int NOT NULL PRIMARY KEY,
+    bawildcard nvarchar(255) NOT NULL,
+    badescription nvarchar(255) NOT NULL
+);
+
 INSERT INTO dbo.hm_settings (settingname, settingstring, settinginteger)
 VALUES
     (N'hostname', N'mail.example.test', 0),
@@ -1000,7 +1033,26 @@ VALUES
     (N'scriptlanguage', N'JScript', 0),
     (N'backupdestination', N'D:\hMailServer Backup', 0),
     (N'backupoptions', N'', 13),
+    (N'avclamwinenable', N'', 1),
+    (N'avclamwinexec', N'C:\ClamWin\bin\clamscan.exe', 0),
+    (N'avclamwindb', N'C:\ClamWin\db', 0),
+    (N'avaction', N'', 1),
+    (N'avnotifyreceiver', N'', 1),
+    (N'avnotifysender', N'', 0),
+    (N'usecustomvirusscanner', N'', 1),
+    (N'customvirusscannerexecutable', N'C:\Tools\virus-scan.cmd', 0),
+    (N'customviursscannerreturnvalue', N'', 7),
+    (N'avmaxmsgsize', N'', 4096),
+    (N'enableattachmentblocking', N'', 1),
+    (N'ClamAVEnabled', N'', 1),
+    (N'ClamAVHost', N'127.0.0.1', 0),
+    (N'ClamAVPort', N'', 3310),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
+
+INSERT INTO dbo.hm_blocked_attachments (baid, bawildcard, badescription)
+VALUES
+    (20, N'*.exe', N'Executable file'),
+    (10, N'*.bat', N'Batch file');
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -1733,6 +1785,15 @@ VALUES
                     WelcomeSmtp: string.Empty,
                     WelcomePop3: string.Empty,
                     WelcomeImap: string.Empty));
+    }
+
+    private sealed class FixedBlockedAttachmentAdministrationStore(
+        IReadOnlyList<BlockedAttachmentAdministrationSnapshot> attachments)
+        : IBlockedAttachmentAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>> GetBlockedAttachmentsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(attachments);
     }
 
     private sealed class IntegrationDeliveryQueueClearObserver : IDeliveryQueueClearObserver
