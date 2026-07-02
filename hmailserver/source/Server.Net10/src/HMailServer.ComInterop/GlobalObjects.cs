@@ -102,6 +102,7 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
     private readonly bool _authorized;
     private readonly IDeliveryQueueAdministrationStore? _store;
     private readonly IDeliveryQueueWakeSignal? _wakeSignal;
+    private readonly IDeliveryQueueClearCoordinator? _clearCoordinator;
 
     public DeliveryQueue()
     {
@@ -110,14 +111,25 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
     private DeliveryQueue(
         bool authorized,
         IDeliveryQueueAdministrationStore? store = null,
-        IDeliveryQueueWakeSignal? wakeSignal = null)
+        IDeliveryQueueWakeSignal? wakeSignal = null,
+        IDeliveryQueueClearCoordinator? clearCoordinator = null)
     {
         _authorized = authorized;
         _store = store;
         _wakeSignal = wakeSignal;
+        _clearCoordinator = clearCoordinator;
     }
 
-    public void Clear() => Unavailable();
+    public void Clear()
+    {
+        EnsureAuthorized();
+        if (_clearCoordinator is null)
+        {
+            throw NotImplemented();
+        }
+
+        _clearCoordinator.Schedule();
+    }
 
     public void ResetDeliveryTime(long messageId)
     {
@@ -162,8 +174,9 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
 
     internal static DeliveryQueue CreateAuthorized(
         IDeliveryQueueAdministrationStore? store = null,
-        IDeliveryQueueWakeSignal? wakeSignal = null) =>
-        new(authorized: true, store, wakeSignal);
+        IDeliveryQueueWakeSignal? wakeSignal = null,
+        IDeliveryQueueClearCoordinator? clearCoordinator = null) =>
+        new(authorized: true, store, wakeSignal, clearCoordinator);
 
     private void Unavailable()
     {
@@ -192,24 +205,29 @@ public static class DeliveryQueueAdministrationRuntimeHost
 {
     private static IDeliveryQueueAdministrationStore? _store;
     private static IDeliveryQueueWakeSignal? _wakeSignal;
+    private static IDeliveryQueueClearCoordinator? _clearCoordinator;
 
     public static void Configure(
         IDeliveryQueueAdministrationStore store,
-        IDeliveryQueueWakeSignal? wakeSignal = null)
+        IDeliveryQueueWakeSignal? wakeSignal = null,
+        IDeliveryQueueClearCoordinator? clearCoordinator = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         Volatile.Write(ref _store, store);
         Volatile.Write(ref _wakeSignal, wakeSignal);
+        Volatile.Write(ref _clearCoordinator, clearCoordinator);
     }
 
     internal static DeliveryQueue CreateAuthorizedAdapter() =>
         DeliveryQueue.CreateAuthorized(
             Volatile.Read(ref _store),
-            Volatile.Read(ref _wakeSignal));
+            Volatile.Read(ref _wakeSignal),
+            Volatile.Read(ref _clearCoordinator));
 
     internal static void ResetForTests()
     {
         Volatile.Write(ref _store, null);
         Volatile.Write(ref _wakeSignal, null);
+        Volatile.Write(ref _clearCoordinator, null);
     }
 }

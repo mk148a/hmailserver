@@ -112,17 +112,19 @@ public sealed class GlobalObjectsComContractTests
     {
         var store = new RecordingDeliveryQueueAdministrationStore();
         var wakeSignal = new RecordingDeliveryQueueWakeSignal();
-        DeliveryQueueAdministrationRuntimeHost.Configure(store, wakeSignal);
+        var clearCoordinator = new RecordingDeliveryQueueClearCoordinator();
+        DeliveryQueueAdministrationRuntimeHost.Configure(store, wakeSignal, clearCoordinator);
         var queue = GlobalObjects.CreateAuthorized().DeliveryQueue;
 
+        queue.Clear();
         queue.ResetDeliveryTime(long.MaxValue);
         queue.StartDelivery();
         queue.Remove(long.MinValue);
 
+        Assert.AreEqual(1, clearCoordinator.ScheduleCount);
         Assert.AreEqual(long.MaxValue, store.MessageId);
         Assert.AreEqual(long.MinValue, store.RemovedMessageId);
         Assert.AreEqual(1, wakeSignal.SignalCount);
-        AssertPending(queue.Clear);
     }
 
     private static void AssertDualContract(Type contract, string iid)
@@ -179,6 +181,11 @@ public sealed class GlobalObjectsComContractTests
             RemovedMessageId = messageId;
             return ValueTask.FromResult(true);
         }
+
+        public ValueTask<int> ClearBatchAsync(
+            int batchSize,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingDeliveryQueueWakeSignal : IDeliveryQueueWakeSignal
@@ -191,5 +198,12 @@ public sealed class GlobalObjectsComContractTests
             TimeSpan timeout,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class RecordingDeliveryQueueClearCoordinator : IDeliveryQueueClearCoordinator
+    {
+        public int ScheduleCount { get; private set; }
+
+        public void Schedule() => ScheduleCount++;
     }
 }

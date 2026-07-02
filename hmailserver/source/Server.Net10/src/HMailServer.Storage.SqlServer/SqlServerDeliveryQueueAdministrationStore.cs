@@ -52,6 +52,55 @@ COMMIT TRANSACTION;
 SELECT @MessageFileName;
 """;
 
+    public const string ClearBatchSql = """
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+DECLARE @Candidates TABLE
+(
+    MessageId bigint NOT NULL PRIMARY KEY
+);
+
+DECLARE @Removed TABLE
+(
+    MessageId bigint NOT NULL PRIMARY KEY,
+    MessageFileName nvarchar(255) NOT NULL
+);
+
+INSERT INTO @Candidates (MessageId)
+SELECT TOP (@BatchSize) messageid
+FROM hm_messages WITH (UPDLOCK, READPAST, ROWLOCK)
+WHERE messagetype IN (1, 3)
+  AND NOT
+  (
+      messagelocked = 1
+      AND messageleaseowner IS NOT NULL
+      AND messageleaseexpiresutc > SYSUTCDATETIME()
+  )
+ORDER BY messageid;
+
+DELETE recipients
+FROM hm_messagerecipients AS recipients
+INNER JOIN @Candidates AS candidates
+    ON candidates.MessageId = recipients.recipientmessageid;
+
+DELETE messages
+OUTPUT
+    deleted.messageid,
+    deleted.messagefilename
+INTO @Removed (MessageId, MessageFileName)
+FROM hm_messages AS messages
+INNER JOIN @Candidates AS candidates
+    ON candidates.MessageId = messages.messageid
+WHERE messages.messagetype IN (1, 3);
+
+COMMIT TRANSACTION;
+
+SELECT MessageFileName
+FROM @Removed
+ORDER BY MessageId;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly MessageFilePathResolver? _pathResolver;
 
@@ -90,6 +139,30 @@ SELECT @MessageFileName;
 
         TryDeleteQueueFile(messageFileName);
         return true;
+    }
+
+    public async ValueTask<int> ClearBatchAsync(
+        int batchSize,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(ClearBatchSql, connection);
+        command.Parameters.Add("@BatchSize", SqlDbType.Int).Value = batchSize;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var messageFileNames = new List<string>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            messageFileNames.Add(reader.GetString(0));
+        }
+
+        foreach (var messageFileName in messageFileNames)
+        {
+            TryDeleteQueueFile(messageFileName);
+        }
+
+        return messageFileNames.Count;
     }
 
     private void TryDeleteQueueFile(string messageFileName)

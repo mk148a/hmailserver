@@ -9,4 +9,8 @@ public interface IDeliveryQueueAdministrationStore
     ValueTask<bool> RemoveAsync(
         long messageId,
         CancellationToken cancellationToken);
+
+    ValueTask<int> ClearBatchAsync(
+        int batchSize,
+        CancellationToken cancellationToken);
 }

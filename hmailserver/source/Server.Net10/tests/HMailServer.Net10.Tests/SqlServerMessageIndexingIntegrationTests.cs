@@ -1,5 +1,6 @@
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
+using HMailServer.Delivery;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
@@ -212,7 +213,15 @@ public sealed class SqlServerMessageIndexingIntegrationTests
         try
         {
             Directory.CreateDirectory(dataDirectory);
-            foreach (var fileName in new[] { "active.eml", "delivered.eml", "ready.eml", "expired.eml" })
+            foreach (var fileName in new[]
+                     {
+                         "active.eml",
+                         "delivered.eml",
+                         "ready.eml",
+                         "expired.eml",
+                         "clear-a.eml",
+                         "clear-b.eml"
+                     })
             {
                 await File.WriteAllTextAsync(
                     Path.Combine(dataDirectory, fileName),
@@ -220,11 +229,18 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             }
 
             await CreateDeliveryQueueAdministrationSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var administrationStore = new SqlServerDeliveryQueueAdministrationStore(
+                new SqlServerConnectionFactory(testConnectionString),
+                new MessageFilePathResolver(
+                    new MessageFileSearchDocumentSourceOptions(dataDirectory)));
+            var clearObserver = new IntegrationDeliveryQueueClearObserver();
             DeliveryQueueAdministrationRuntimeHost.Configure(
-                new SqlServerDeliveryQueueAdministrationStore(
-                    new SqlServerConnectionFactory(testConnectionString),
-                    new MessageFilePathResolver(
-                        new MessageFileSearchDocumentSourceOptions(dataDirectory))));
+                administrationStore,
+                clearCoordinator: new DeliveryQueueClearCoordinator(
+                    new DeliveryQueueClearOptions(BatchSize: 1),
+                    administrationStore,
+                    clearObserver,
+                    CancellationToken.None));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -239,6 +255,11 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             queue.Remove(10);
             queue.Remove(20);
             queue.Remove(999);
+            queue.Clear();
+
+            Assert.AreEqual(
+                2,
+                await clearObserver.Completion.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false));
 
             await using var connection = new SqlConnection(testConnectionString);
             await connection.OpenAsync().ConfigureAwait(false);
@@ -293,6 +314,8 @@ ORDER BY messageid;
             Assert.IsTrue(File.Exists(Path.Combine(dataDirectory, "delivered.eml")));
             Assert.IsFalse(File.Exists(Path.Combine(dataDirectory, "ready.eml")));
             Assert.IsFalse(File.Exists(Path.Combine(dataDirectory, "expired.eml")));
+            Assert.IsFalse(File.Exists(Path.Combine(dataDirectory, "clear-a.eml")));
+            Assert.IsFalse(File.Exists(Path.Combine(dataDirectory, "clear-b.eml")));
         }
         finally
         {
@@ -1022,7 +1045,9 @@ VALUES
     (10, N'active.eml', 3, '2099-01-01T00:00:00', 7, 1, N'worker-a', '2099-01-01T00:00:00'),
     (20, N'delivered.eml', 2, '2099-01-01T00:00:00', 9, 0, NULL, NULL),
     (30, N'ready.eml', 1, '1901-01-01T00:00:00', 0, 0, NULL, NULL),
-    (40, N'expired.eml', 1, '1901-01-01T00:00:00', 1, 1, N'worker-expired', '2000-01-01T00:00:00');
+    (40, N'expired.eml', 1, '1901-01-01T00:00:00', 1, 1, N'worker-expired', '2000-01-01T00:00:00'),
+    (50, N'clear-a.eml', 1, '1901-01-01T00:00:00', 0, 0, NULL, NULL),
+    (60, N'clear-b.eml', 3, '1901-01-01T00:00:00', 2, 0, NULL, NULL);
 
 INSERT INTO dbo.hm_messagerecipients
     (recipientid, recipientmessageid)
@@ -1030,7 +1055,9 @@ VALUES
     (1, 10),
     (2, 20),
     (3, 30),
-    (4, 40);
+    (4, 40),
+    (5, 50),
+    (6, 60);
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -1706,5 +1733,17 @@ VALUES
                     WelcomeSmtp: string.Empty,
                     WelcomePop3: string.Empty,
                     WelcomeImap: string.Empty));
+    }
+
+    private sealed class IntegrationDeliveryQueueClearObserver : IDeliveryQueueClearObserver
+    {
+        public TaskCompletionSource<int> Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Completed(int removedMessages) =>
+            Completion.TrySetResult(removedMessages);
+
+        public void Failed(Exception exception) =>
+            Completion.TrySetException(exception);
     }
 }

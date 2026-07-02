@@ -746,6 +746,7 @@ builder.Services.AddSingleton<IRemoteSmtpClient, SmtpRemoteDeliveryClient>();
 builder.Services.AddSingleton(RemoteDeliveryOptions.Default(smtpSessionOptions.ServerName));
 builder.Services.AddSingleton(DeliveryQueueProcessorOptions.Default(leaseOwner));
 builder.Services.AddSingleton(DeliveryQueueWorkerOptions.Default);
+builder.Services.AddSingleton(DeliveryQueueClearOptions.Default);
 builder.Services.AddSingleton<DeliveryQueueWakeSignal>();
 builder.Services.AddSingleton<IDeliveryQueueWakeSignal>(static serviceProvider =>
     serviceProvider.GetRequiredService<DeliveryQueueWakeSignal>());
@@ -781,6 +782,15 @@ builder.Services.AddSingleton<IDeliveryTargetDispatcher>(static serviceProvider 
 builder.Services.AddSingleton<DeliveryQueueProcessor>();
 builder.Services.AddSingleton<IDeliveryQueueBatchProcessor>(static serviceProvider =>
     serviceProvider.GetRequiredService<DeliveryQueueProcessor>());
+builder.Services.AddSingleton<IDeliveryQueueClearObserver, DeliveryQueueClearLogObserver>();
+builder.Services.AddSingleton<DeliveryQueueClearCoordinator>(static serviceProvider =>
+    new DeliveryQueueClearCoordinator(
+        serviceProvider.GetRequiredService<DeliveryQueueClearOptions>(),
+        serviceProvider.GetRequiredService<IDeliveryQueueAdministrationStore>(),
+        serviceProvider.GetRequiredService<IDeliveryQueueClearObserver>(),
+        serviceProvider.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping));
+builder.Services.AddSingleton<IDeliveryQueueClearCoordinator>(static serviceProvider =>
+    serviceProvider.GetRequiredService<DeliveryQueueClearCoordinator>());
 builder.Services.AddSingleton(static serviceProvider =>
     new ExternalFetchProcessor(
         serviceProvider.GetRequiredService<IExternalFetchAccountStore>(),
@@ -896,7 +906,8 @@ StatusAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IServerStatusAdministrationStore>());
 DeliveryQueueAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDeliveryQueueAdministrationStore>(),
-    host.Services.GetRequiredService<IDeliveryQueueWakeSignal>());
+    host.Services.GetRequiredService<IDeliveryQueueWakeSignal>(),
+    host.Services.GetRequiredService<IDeliveryQueueClearCoordinator>());
 SettingsAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<ISettingsAdministrationStore>(),
     new SettingsRuntimeConfiguration(
