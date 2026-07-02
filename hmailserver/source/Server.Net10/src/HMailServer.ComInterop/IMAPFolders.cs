@@ -182,6 +182,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
 public sealed class IMAPFolder : IInterfaceIMAPFolder
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly ImapFolderAdministrationSnapshot? _folder;
@@ -207,7 +208,21 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
     public int ParentID => Snapshot.ParentId;
 
-    public IInterfaceIMAPFolderPermissions Permissions => Unavailable<IInterfaceIMAPFolderPermissions>();
+    public IInterfaceIMAPFolderPermissions Permissions
+    {
+        get
+        {
+            var snapshot = Snapshot;
+            if (snapshot.AccountId != 0)
+            {
+                throw new COMException(
+                    "It is only possible to modify permissions for public folders.",
+                    ELegacyComError);
+            }
+
+            return ImapFolderAdministrationRuntimeHost.CreateAuthorizedPermissionsAdapter(snapshot.Id);
+        }
+    }
 
     public int CurrentUID => Snapshot.CurrentUid;
 
@@ -268,6 +283,22 @@ public static class ImapFolderAdministrationRuntimeHost
             .GetResult();
 
         return IMAPFolders.CreateAuthorized(folders);
+    }
+
+    internal static IMAPFolderPermissions CreateAuthorizedPermissionsAdapter(int folderId)
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer IMAP folder administration runtime has not been initialized.",
+                CoENotInitialized);
+
+        var permissions = store
+            .GetFolderPermissionsAsync(folderId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return IMAPFolderPermissions.CreateAuthorized(permissions);
     }
 }
 

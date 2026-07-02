@@ -716,10 +716,29 @@ ORDER BY messageid;
             Assert.AreEqual(unchecked((int)0x8002000B), nestedFolder.ErrorCode);
             var pendingMessages = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Messages);
             Assert.AreEqual(unchecked((int)0x80004001), pendingMessages.ErrorCode);
+            var privateFolderPermissions = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Permissions);
+            Assert.AreEqual(unchecked((int)0x800403E9), privateFolderPermissions.ErrorCode);
             var publicFolders = application.Settings.PublicFolders;
             Assert.AreEqual(1, publicFolders.Count);
             Assert.AreEqual(50, publicFolders[0].ID);
             Assert.AreEqual("Public", publicFolders[0].Name);
+            var publicPermissions = publicFolders[0].Permissions;
+            Assert.AreEqual(2, publicPermissions.Count);
+            Assert.AreEqual(500, publicPermissions[0].ID);
+            Assert.AreEqual(50, publicPermissions[0].ShareFolderID);
+            Assert.AreEqual(ComAclPermissionType.Anyone, publicPermissions[0].PermissionType);
+            Assert.AreEqual(0, publicPermissions[0].PermissionGroupID);
+            Assert.AreEqual(0, publicPermissions[0].PermissionAccountID);
+            Assert.AreEqual(3, publicPermissions[0].Value);
+            Assert.IsTrue(publicPermissions[0].get_Permission(ComAclPermission.Lookup));
+            Assert.IsTrue(publicPermissions[0].get_Permission(ComAclPermission.Read));
+            Assert.IsFalse(publicPermissions[0].get_Permission(ComAclPermission.WriteSeen));
+            Assert.AreEqual(501, publicPermissions.get_ItemByDBID(501).ID);
+            Assert.AreEqual(501, publicPermissions.get_ItemByName("ACLPermission-501").ID);
+            var outsidePermission = Assert.ThrowsExactly<COMException>(() => _ = publicPermissions.get_ItemByDBID(900));
+            Assert.AreEqual(unchecked((int)0x8002000B), outsidePermission.ErrorCode);
+            var pendingPermissionSave = Assert.ThrowsExactly<COMException>(publicPermissions[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingPermissionSave.ErrorCode);
             var routes = application.Settings.Routes;
             Assert.AreEqual(2, routes.Count);
             Assert.AreEqual("alpha.route.test", routes[0].DomainName);
@@ -1590,6 +1609,16 @@ CREATE TABLE dbo.hm_imapfolders
     foldercurrentuid bigint NOT NULL
 );
 
+CREATE TABLE dbo.hm_acl
+(
+    aclid bigint NOT NULL PRIMARY KEY,
+    aclsharefolderid bigint NOT NULL,
+    aclpermissiontype tinyint NOT NULL,
+    aclpermissiongroupid bigint NOT NULL,
+    aclpermissionaccountid bigint NOT NULL,
+    aclvalue bigint NOT NULL
+);
+
 CREATE TABLE dbo.hm_routes
 (
     routeid int NOT NULL PRIMARY KEY,
@@ -1771,6 +1800,13 @@ VALUES
     (200, 10, 100, N'Child', 1, CONVERT(datetime, '2026-06-27T01:03:03', 126), 3),
     (300, 10, -1, N'TE&AOUA5AD2-ST', 0, CONVERT(datetime, '2026-06-26T04:05:06', 126), 7),
     (400, 20, -1, N'User Inbox', 1, CONVERT(datetime, '2026-06-27T01:02:03', 126), 1);
+
+INSERT INTO dbo.hm_acl
+    (aclid, aclsharefolderid, aclpermissiontype, aclpermissiongroupid, aclpermissionaccountid, aclvalue)
+VALUES
+    (500, 50, 2, 0, 0, 3),
+    (501, 50, 0, 0, 10, 1025),
+    (900, 100, 0, 0, 10, 3);
 
 INSERT INTO dbo.hm_routes
     (routeid, routedomainname, routedescription, routetargetsmthost, routetargetsmtport,

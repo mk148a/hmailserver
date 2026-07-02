@@ -1,0 +1,201 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
+
+namespace HMailServer.Net10.Tests;
+
+[TestClass]
+public sealed class IMAPFolderPermissionsComContractTests
+{
+    private const int DispEBadIndex = unchecked((int)0x8002000B);
+    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ENotImplemented = unchecked((int)0x80004001);
+
+    [TestMethod]
+    public void Interfaces_PreserveLegacyIidsDispatchIdsMarshalingAndCompleteVtableOrder()
+    {
+        AssertContract(
+            typeof(IInterfaceIMAPFolderPermission),
+            "A951C988-0D2C-42CA-A9D3-FE7A78F1AB25",
+            new[]
+            {
+                "get_ID", "get_ShareFolderID", "get_PermissionType", "set_PermissionType",
+                "get_PermissionGroupID", "set_PermissionGroupID", "get_PermissionAccountID",
+                "set_PermissionAccountID", "get_Value", "set_Value", "get_Permission",
+                "set_Permission", "Save", "Delete", "get_Account", "get_Group"
+            });
+        Assert.AreEqual(
+            8,
+            typeof(IInterfaceIMAPFolderPermission).GetMethod("get_Permission")
+                ?.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(
+            UnmanagedType.VariantBool,
+            typeof(IInterfaceIMAPFolderPermission).GetMethod("get_Permission")
+                ?.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(
+            UnmanagedType.VariantBool,
+            typeof(IInterfaceIMAPFolderPermission).GetMethod("set_Permission")
+                ?.GetParameters()[1].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(
+            12,
+            typeof(IInterfaceIMAPFolderPermission).GetProperty(nameof(IInterfaceIMAPFolderPermission.Group))
+                ?.GetCustomAttribute<DispIdAttribute>()?.Value);
+
+        AssertContract(
+            typeof(IInterfaceIMAPFolderPermissions),
+            "CBE3FE9E-3642-4BA1-9BE0-6E766C0DE961",
+            new[]
+            {
+                "get_Item", "get_Count", "Delete", "Refresh", "Add", "get_ItemByDBID",
+                "DeleteByDBID", "get_ItemByName"
+            });
+        Assert.AreEqual(
+            7,
+            typeof(IInterfaceIMAPFolderPermissions).GetMethod("get_ItemByName")
+                ?.GetCustomAttribute<DispIdAttribute>()?.Value);
+    }
+
+    [TestMethod]
+    public void Enums_PreserveLegacyGuidsAndValues()
+    {
+        Assert.AreEqual(new Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD10"), typeof(ComAclPermission).GUID);
+        CollectionAssert.AreEqual(
+            new[] { 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024 },
+            Enum.GetValues<ComAclPermission>().Select(static value => (int)value).ToArray());
+
+        Assert.AreEqual(new Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD11"), typeof(ComAclPermissionType).GUID);
+        CollectionAssert.AreEqual(
+            new[] { 0, 1, 2 },
+            Enum.GetValues<ComAclPermissionType>().Select(static value => (int)value).ToArray());
+    }
+
+    [TestMethod]
+    public void ComClasses_PreserveLegacyIdentitiesAndDefaultInterfaces()
+    {
+        AssertComClass<IMAPFolderPermissions>(
+            "A6B391A4-72C8-44AA-9480-9FB3BD593B46",
+            "hMailServer.IMAPFolderPermissions.1",
+            typeof(IInterfaceIMAPFolderPermissions));
+        AssertComClass<IMAPFolderPermission>(
+            "D5800098-1033-4D83-9E06-94F6E1B557F9",
+            "hMailServer.IMAPFolderPermission.1",
+            typeof(IInterfaceIMAPFolderPermission));
+    }
+
+    [TestMethod]
+    public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
+    {
+        var permissionsError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolderPermissions().Count);
+        var permissionError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolderPermission().ID);
+
+        Assert.AreEqual(EAccessDenied, permissionsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, permissionError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ExposesReadOnlyAclPermissionSnapshots()
+    {
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            new[]
+            {
+                new ImapFolderPermissionAdministrationSnapshot(
+                    10,
+                    50,
+                    (int)ComAclPermissionType.User,
+                    0,
+                    100,
+                    (int)(ComAclPermission.Lookup | ComAclPermission.Read | ComAclPermission.Administer)),
+                new ImapFolderPermissionAdministrationSnapshot(
+                    20,
+                    50,
+                    (int)ComAclPermissionType.Anyone,
+                    0,
+                    0,
+                    (int)ComAclPermission.Lookup)
+            });
+
+        Assert.AreEqual(2, permissions.Count);
+        AssertPermission(
+            permissions[0],
+            10,
+            50,
+            ComAclPermissionType.User,
+            0,
+            100,
+            (int)(ComAclPermission.Lookup | ComAclPermission.Read | ComAclPermission.Administer));
+        Assert.AreEqual(20, permissions.get_ItemByDBID(20).ID);
+        Assert.AreEqual(10, permissions.get_ItemByName("aclpermission-10").ID);
+        Assert.IsTrue(permissions[0].get_Permission(ComAclPermission.Lookup));
+        Assert.IsTrue(permissions[0].get_Permission(ComAclPermission.Read));
+        Assert.IsFalse(permissions[0].get_Permission(ComAclPermission.WriteSeen));
+
+        var badIndex = Assert.ThrowsExactly<COMException>(() => _ = permissions[2]);
+        var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = permissions.get_ItemByDBID(30));
+        var badName = Assert.ThrowsExactly<COMException>(() => _ = permissions.get_ItemByName("missing"));
+        Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, badName.ErrorCode);
+
+        foreach (var mutation in new Action[]
+                 {
+                     () => permissions.Delete(0),
+                     permissions.Refresh,
+                     () => _ = permissions.Add(),
+                     () => permissions.DeleteByDBID(10),
+                     () => permissions[0].PermissionType = ComAclPermissionType.Group,
+                     () => permissions[0].PermissionGroupID = 1,
+                     () => permissions[0].PermissionAccountID = 1,
+                     () => permissions[0].Value = 1,
+                     () => permissions[0].set_Permission(ComAclPermission.Read, false),
+                     permissions[0].Save,
+                     permissions[0].Delete,
+                     () => _ = permissions[0].Account,
+                     () => _ = permissions[0].Group
+                 })
+        {
+            var error = Assert.ThrowsExactly<COMException>(mutation);
+            Assert.AreEqual(ENotImplemented, error.ErrorCode);
+        }
+    }
+
+    private static void AssertPermission(
+        IInterfaceIMAPFolderPermission permission,
+        int id,
+        int shareFolderId,
+        ComAclPermissionType permissionType,
+        int groupId,
+        int accountId,
+        int value)
+    {
+        Assert.AreEqual(id, permission.ID);
+        Assert.AreEqual(shareFolderId, permission.ShareFolderID);
+        Assert.AreEqual(permissionType, permission.PermissionType);
+        Assert.AreEqual(groupId, permission.PermissionGroupID);
+        Assert.AreEqual(accountId, permission.PermissionAccountID);
+        Assert.AreEqual(value, permission.Value);
+    }
+
+    private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
+    {
+        Assert.AreEqual(new Guid(interfaceId), contract.GUID);
+        Assert.AreEqual(ComInterfaceType.InterfaceIsDual, contract.GetCustomAttribute<InterfaceTypeAttribute>()?.Value);
+        Assert.AreEqual(
+            TypeLibTypeFlags.FDual | TypeLibTypeFlags.FNonExtensible | TypeLibTypeFlags.FDispatchable,
+            contract.GetCustomAttribute<TypeLibTypeAttribute>()?.Value);
+        CollectionAssert.AreEqual(
+            methodNames,
+            contract.GetMethods().OrderBy(static method => method.MetadataToken).Select(static method => method.Name).ToArray());
+    }
+
+    private static void AssertComClass<T>(string classId, string progId, Type defaultInterface)
+    {
+        var type = typeof(T);
+
+        Assert.AreEqual(new Guid(classId), type.GUID);
+        Assert.AreEqual(progId, type.GetCustomAttribute<ProgIdAttribute>()?.Value);
+        Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
+        Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
+        Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+}

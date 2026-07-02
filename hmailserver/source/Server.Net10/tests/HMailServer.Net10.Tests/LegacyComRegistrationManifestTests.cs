@@ -234,6 +234,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "IMAPFolderPermissions",
+            "{A6B391A4-72C8-44AA-9480-9FB3BD593B46}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "IMAPFolderPermission",
+            "{D5800098-1033-4D83-9E06-94F6E1B557F9}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Routes",
             "{7D174A9D-D44C-4627-BE78-E5DDC513C31F}",
             executablePath);
@@ -484,6 +494,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.IMAPFolders",
                 @"hMailServer.IMAPFolder.1",
                 @"hMailServer.IMAPFolder",
+                @"hMailServer.IMAPFolderPermissions.1",
+                @"hMailServer.IMAPFolderPermissions",
+                @"hMailServer.IMAPFolderPermission.1",
+                @"hMailServer.IMAPFolderPermission",
                 @"hMailServer.Routes.1",
                 @"hMailServer.Routes",
                 @"hMailServer.Route.1",
@@ -581,6 +595,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{35548CC2-14AE-4795-8A19-C78FDE208504}",
                 @"CLSID\{A0AAF31A-570A-4B78-BDAB-4C33E34BE85F}",
                 @"CLSID\{9FCA085E-E475-4DEE-9D45-5519818DD6E0}",
+                @"CLSID\{A6B391A4-72C8-44AA-9480-9FB3BD593B46}",
+                @"CLSID\{D5800098-1033-4D83-9E06-94F6E1B557F9}",
                 @"CLSID\{7D174A9D-D44C-4627-BE78-E5DDC513C31F}",
                 @"CLSID\{3FF9BB08-7924-4418-BADA-7D959467D51B}",
                 @"CLSID\{2E66E5DC-DA9F-4490-A46F-E2D24C6CD151}",

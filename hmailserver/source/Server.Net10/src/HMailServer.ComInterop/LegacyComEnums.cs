@@ -95,6 +95,32 @@ public enum ComRuleActionType
 }
 
 [ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD10")]
+public enum ComAclPermission
+{
+    Lookup = 1,
+    Read = 2,
+    WriteSeen = 4,
+    WriteOthers = 8,
+    Insert = 16,
+    Post = 32,
+    Create = 64,
+    DeleteMailbox = 128,
+    WriteDeleted = 256,
+    Expunge = 512,
+    Administer = 1024
+}
+
+[ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD11")]
+public enum ComAclPermissionType
+{
+    User = 0,
+    Group = 1,
+    Anyone = 2
+}
+
+[ComVisible(true)]
 [Guid("87FDF5A8-567E-4BDD-B5E0-4742D4801A92")]
 public enum ComMaintenanceOperation
 {

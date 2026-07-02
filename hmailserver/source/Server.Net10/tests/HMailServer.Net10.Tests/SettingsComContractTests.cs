@@ -719,5 +719,11 @@ public sealed class SettingsComContractTests
                 folders.Where(folder => folder.AccountId == accountId && folder.ParentId == -1)
                     .OrderBy(folder => folder.Id)
                     .ToArray());
+
+        public ValueTask<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> GetFolderPermissionsAsync(
+            int folderId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>(
+                Array.Empty<ImapFolderPermissionAdministrationSnapshot>());
     }
 }

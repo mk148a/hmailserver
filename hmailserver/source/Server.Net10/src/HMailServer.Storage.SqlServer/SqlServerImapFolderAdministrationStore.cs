@@ -22,6 +22,19 @@ WHERE folderaccountid = @AccountID
 ORDER BY folderid ASC;
 """;
 
+    public const string GetFolderPermissionsSql = """
+SELECT
+    aclid,
+    aclsharefolderid,
+    aclpermissiontype,
+    aclpermissiongroupid,
+    aclpermissionaccountid,
+    aclvalue
+FROM hm_acl
+WHERE aclsharefolderid = @FolderID
+ORDER BY aclid ASC;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerImapFolderAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -56,5 +69,32 @@ ORDER BY folderid ASC;
         }
 
         return folders;
+    }
+
+    public async ValueTask<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> GetFolderPermissionsAsync(
+        int folderId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(GetFolderPermissionsSql, connection);
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+
+        var permissions = new List<ImapFolderPermissionAdministrationSnapshot>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            permissions.Add(
+                new ImapFolderPermissionAdministrationSnapshot(
+                    Id: Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture),
+                    ShareFolderId: Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture),
+                    PermissionType: Convert.ToInt32(reader.GetValue(2), CultureInfo.InvariantCulture),
+                    PermissionGroupId: Convert.ToInt32(reader.GetValue(3), CultureInfo.InvariantCulture),
+                    PermissionAccountId: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture),
+                    Value: Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture)));
+        }
+
+        return permissions;
     }
 }

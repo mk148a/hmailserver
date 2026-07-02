@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class ImapFoldersComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -121,7 +122,7 @@ public sealed class ImapFoldersComContractTests
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMessages.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSubFolders.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingPermissions.ErrorCode);
+        Assert.AreEqual(ELegacyComError, pendingPermissions.ErrorCode);
     }
 
     [TestMethod]
@@ -141,6 +142,47 @@ public sealed class ImapFoldersComContractTests
 
         Assert.AreEqual(1, folders.Count);
         Assert.AreEqual("Inbox", folders[0].Name);
+    }
+
+    [TestMethod]
+    public void PublicFolderPermissions_UsesConfiguredRuntimeForSelectedFolder()
+    {
+        ImapFolderAdministrationRuntimeHost.Configure(
+            new FixedImapFolderAdministrationStore(
+                new[]
+                {
+                    new ImapFolderAdministrationSnapshot(50, 0, -1, "Public", true, 5, "2026-06-27 00:02:03")
+                },
+                new[]
+                {
+                    new ImapFolderPermissionAdministrationSnapshot(
+                        500,
+                        50,
+                        (int)ComAclPermissionType.Anyone,
+                        0,
+                        0,
+                        (int)(ComAclPermission.Lookup | ComAclPermission.Read)),
+                    new ImapFolderPermissionAdministrationSnapshot(
+                        600,
+                        60,
+                        (int)ComAclPermissionType.User,
+                        0,
+                        100,
+                        (int)ComAclPermission.Lookup)
+                }));
+        var folders = IMAPFolders.CreateAuthorized(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(50, 0, -1, "Public", true, 5, "2026-06-27 00:02:03")
+            });
+
+        var permissions = folders[0].Permissions;
+
+        Assert.AreEqual(1, permissions.Count);
+        Assert.AreEqual(500, permissions[0].ID);
+        Assert.AreEqual(50, permissions[0].ShareFolderID);
+        Assert.AreEqual(ComAclPermissionType.Anyone, permissions[0].PermissionType);
+        Assert.IsTrue(permissions[0].get_Permission(ComAclPermission.Read));
     }
 
     private static void AssertFolder(
@@ -184,7 +226,8 @@ public sealed class ImapFoldersComContractTests
     }
 
     private sealed class FixedImapFolderAdministrationStore(
-        IReadOnlyList<ImapFolderAdministrationSnapshot> folders) : IImapFolderAdministrationStore
+        IReadOnlyList<ImapFolderAdministrationSnapshot> folders,
+        IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>? permissions = null) : IImapFolderAdministrationStore
     {
         public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetRootFoldersAsync(
             int accountId,
@@ -192,6 +235,15 @@ public sealed class ImapFoldersComContractTests
             ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
                 folders.Where(folder => folder.AccountId == accountId && folder.ParentId == -1)
                     .OrderBy(folder => folder.Id)
+                    .ToArray());
+
+        public ValueTask<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> GetFolderPermissionsAsync(
+            int folderId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>(
+                (permissions ?? Array.Empty<ImapFolderPermissionAdministrationSnapshot>())
+                    .Where(permission => permission.ShareFolderId == folderId)
+                    .OrderBy(permission => permission.Id)
                     .ToArray());
     }
 }

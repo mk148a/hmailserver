@@ -24,4 +24,25 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
         Assert.IsFalse(sql.Contains("hm_messages", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_acl", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void GetFolderPermissionsSql_ReadsOnlyLegacyAclRowsForSelectedFolder()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.GetFolderPermissionsSql;
+
+        StringAssert.Contains(sql, "aclid");
+        StringAssert.Contains(sql, "aclsharefolderid");
+        StringAssert.Contains(sql, "aclpermissiontype");
+        StringAssert.Contains(sql, "aclpermissiongroupid");
+        StringAssert.Contains(sql, "aclpermissionaccountid");
+        StringAssert.Contains(sql, "aclvalue");
+        StringAssert.Contains(sql, "FROM hm_acl");
+        StringAssert.Contains(sql, "aclsharefolderid = @FolderID");
+        StringAssert.Contains(sql, "ORDER BY aclid ASC");
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_messages", StringComparison.OrdinalIgnoreCase));
+    }
 }

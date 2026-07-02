@@ -144,6 +144,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(IMAPFolder).GUID,
                 static () => new IMAPFolder()),
             new ComLocalServerRegistration(
+                typeof(IMAPFolderPermissions).GUID,
+                static () => new IMAPFolderPermissions()),
+            new ComLocalServerRegistration(
+                typeof(IMAPFolderPermission).GUID,
+                static () => new IMAPFolderPermission()),
+            new ComLocalServerRegistration(
                 typeof(Routes).GUID,
                 static () => new Routes()),
             new ComLocalServerRegistration(
