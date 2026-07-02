@@ -97,6 +97,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                     ScriptingDirectory: @"C:\hMailServer\Events\"));
             BlockedAttachmentAdministrationRuntimeHost.Configure(
                 new SqlServerBlockedAttachmentAdministrationStore(connectionFactory));
+            DnsBlackListAdministrationRuntimeHost.Configure(
+                new SqlServerDnsBlackListAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -206,6 +208,18 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(8, antiSpam.DKIMVerificationFailureScore);
             Assert.IsTrue(antiSpam.BypassGreylistingOnSPFSuccess);
             Assert.IsFalse(antiSpam.BypassGreylistingOnMailFromMX);
+            var dnsBlackLists = antiSpam.DNSBlackLists;
+            Assert.AreEqual(2, dnsBlackLists.Count);
+            Assert.AreEqual(10, dnsBlackLists[0].ID);
+            Assert.IsTrue(dnsBlackLists[0].Active);
+            Assert.AreEqual("zen.spamhaus.org", dnsBlackLists[0].DNSHost);
+            Assert.AreEqual("Rejected by Spamhaus.", dnsBlackLists[0].RejectMessage);
+            Assert.AreEqual("127.0.0.2-8|127.0.0.10-11", dnsBlackLists[0].ExpectedResult);
+            Assert.AreEqual(4, dnsBlackLists[0].Score);
+            Assert.IsFalse(dnsBlackLists.get_ItemByDBID(20).Active);
+            Assert.AreEqual(20, dnsBlackLists.get_ItemByDNSHost("BL.SPAMCOP.NET").ID);
+            var pendingDnsBlackListSave = Assert.ThrowsExactly<COMException>(dnsBlackLists[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingDnsBlackListSave.ErrorCode);
             var pendingSpamAssassinTest = Assert.ThrowsExactly<COMException>(
                 () => antiSpam.TestSpamAssassinConnection("127.0.0.1", 783, out _));
             Assert.AreEqual(unchecked((int)0x80004001), pendingSpamAssassinTest.ErrorCode);
@@ -245,6 +259,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             SettingsAdministrationRuntimeHost.Configure(new FixedSettingsAdministrationStore());
             BlockedAttachmentAdministrationRuntimeHost.Configure(
                 new FixedBlockedAttachmentAdministrationStore(Array.Empty<BlockedAttachmentAdministrationSnapshot>()));
+            DnsBlackListAdministrationRuntimeHost.Configure(
+                new FixedDnsBlackListAdministrationStore(Array.Empty<DnsBlackListAdministrationSnapshot>()));
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
         }
@@ -1001,6 +1017,16 @@ CREATE TABLE dbo.hm_blocked_attachments
     badescription nvarchar(255) NOT NULL
 );
 
+CREATE TABLE dbo.hm_dnsbl
+(
+    sblid int NOT NULL PRIMARY KEY,
+    sblactive int NOT NULL,
+    sbldnshost nvarchar(255) NOT NULL,
+    sblresult nvarchar(255) NOT NULL,
+    sblrejectmessage nvarchar(255) NOT NULL,
+    sblscore int NOT NULL
+);
+
 INSERT INTO dbo.hm_settings (settingname, settingstring, settinginteger)
 VALUES
     (N'hostname', N'mail.example.test', 0),
@@ -1113,6 +1139,11 @@ INSERT INTO dbo.hm_blocked_attachments (baid, bawildcard, badescription)
 VALUES
     (20, N'*.exe', N'Executable file'),
     (10, N'*.bat', N'Batch file');
+
+INSERT INTO dbo.hm_dnsbl (sblid, sblactive, sbldnshost, sblresult, sblrejectmessage, sblscore)
+VALUES
+    (20, 0, N'bl.spamcop.net', N'127.0.0.2', N'Rejected by SpamCop.', 3),
+    (10, 1, N'zen.spamhaus.org', N'127.0.0.2-8|127.0.0.10-11', N'Rejected by Spamhaus.', 4);
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -1854,6 +1885,15 @@ VALUES
         public ValueTask<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>> GetBlockedAttachmentsAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(attachments);
+    }
+
+    private sealed class FixedDnsBlackListAdministrationStore(
+        IReadOnlyList<DnsBlackListAdministrationSnapshot> blackLists)
+        : IDnsBlackListAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DnsBlackListAdministrationSnapshot>> GetDnsBlackListsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(blackLists);
     }
 
     private sealed class IntegrationDeliveryQueueClearObserver : IDeliveryQueueClearObserver

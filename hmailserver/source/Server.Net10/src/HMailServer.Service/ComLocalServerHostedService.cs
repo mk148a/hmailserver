@@ -45,6 +45,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(BlockedAttachment).GUID,
                 static () => new BlockedAttachment()),
             new ComLocalServerRegistration(
+                typeof(DNSBlackLists).GUID,
+                static () => new DNSBlackLists()),
+            new ComLocalServerRegistration(
+                typeof(DNSBlackList).GUID,
+                static () => new DNSBlackList()),
+            new ComLocalServerRegistration(
                 typeof(Logging).GUID,
                 static () => new Logging()),
             new ComLocalServerRegistration(

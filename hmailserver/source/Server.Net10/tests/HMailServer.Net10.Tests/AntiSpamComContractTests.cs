@@ -210,14 +210,13 @@ public sealed class AntiSpamComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedAntiSpam_KeepsCollectionsAndOperationsPending()
+    public void AuthorizedAntiSpam_KeepsRemainingCollectionsAndOperationsPending()
     {
         IInterfaceAntiSpam antiSpam = AntiSpam.CreateAuthorized(new AntiSpamAdministrationSnapshot());
 
         AssertPending(() => _ = antiSpam.SURBLServers);
         AssertPending(() => _ = antiSpam.GreyListingWhiteAddresses);
         AssertPending(() => _ = antiSpam.WhiteListAddresses);
-        AssertPending(() => _ = antiSpam.DNSBlackLists);
         AssertPending(() => antiSpam.ClearGreyListingTriplets());
         AssertPending(() => _ = antiSpam.DKIMVerify(@"C:\mail\message.eml"));
 

@@ -123,6 +123,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "DNSBlackLists",
+            "{39ECFFB4-B9EE-46C2-A84B-32D679FB3C82}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "DNSBlackList",
+            "{E5907F7D-F13E-4D8A-A7DE-A29717C75A8F}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Logging",
             "{E3E22438-871F-49CF-A47E-4D3A144BD002}",
             executablePath,

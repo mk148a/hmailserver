@@ -23,9 +23,6 @@ public interface IInterfaceRouteAddresses;
 [ComVisible(true), Guid("AE45B7CD-C050-4B14-A983-30D53059D24F"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceCache;
 
-[ComVisible(true), Guid("6B87D71F-93B7-4163-AA89-DA999A5A7239"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceDNSBlackLists;
-
 [ComVisible(true), Guid("D6B91C3A-90C1-4943-B818-EE66119E4702"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceSURBLServers;
 

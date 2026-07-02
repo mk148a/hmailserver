@@ -243,7 +243,14 @@ public sealed class AntiSpam : IInterfaceAntiSpam
 
     public int UseMXChecksScore { get => Snapshot.UseMxChecksScore; set => Unavailable(); }
 
-    public IInterfaceDNSBlackLists DNSBlackLists => Unavailable<IInterfaceDNSBlackLists>();
+    public IInterfaceDNSBlackLists DNSBlackLists
+    {
+        get
+        {
+            _ = Snapshot;
+            return DnsBlackListAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
 
     public int TarpitDelay { get { _ = Snapshot; return 0; } set => Unavailable(); }
 

@@ -69,6 +69,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "DNSBlackLists",
+            "{39ECFFB4-B9EE-46C2-A84B-32D679FB3C82}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "DNSBlackList",
+            "{E5907F7D-F13E-4D8A-A7DE-A29717C75A8F}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Logging",
             "{E3E22438-871F-49CF-A47E-4D3A144BD002}",
             executablePath);
@@ -343,6 +353,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.BlockedAttachments",
                 @"hMailServer.BlockedAttachment.1",
                 @"hMailServer.BlockedAttachment",
+                @"hMailServer.DNSBlackLists.1",
+                @"hMailServer.DNSBlackLists",
+                @"hMailServer.DNSBlackList.1",
+                @"hMailServer.DNSBlackList",
                 @"hMailServer.Logging.1",
                 @"hMailServer.Logging",
                 @"hMailServer.Scripting.1",
@@ -443,6 +457,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{A0B91A99-BCE8-4939-94EC-0881E25A1E5B}",
                 @"CLSID\{1E93E771-45C1-4CAD-9BF6-5D79723C9CBE}",
                 @"CLSID\{773BCF69-C1C2-48CD-A8F8-E89A1F74E4B3}",
+                @"CLSID\{39ECFFB4-B9EE-46C2-A84B-32D679FB3C82}",
+                @"CLSID\{E5907F7D-F13E-4D8A-A7DE-A29717C75A8F}",
                 @"CLSID\{E3E22438-871F-49CF-A47E-4D3A144BD002}",
                 @"CLSID\{68A73A47-5B56-43A3-BC11-CFC436F3BA9E}",
                 @"CLSID\{E0213ECF-BAEC-4E20-9813-0F75A97D0B16}",
