@@ -214,7 +214,6 @@ public sealed class AntiSpamComContractTests
     {
         IInterfaceAntiSpam antiSpam = AntiSpam.CreateAuthorized(new AntiSpamAdministrationSnapshot());
 
-        AssertPending(() => _ = antiSpam.WhiteListAddresses);
         AssertPending(() => antiSpam.ClearGreyListingTriplets());
         AssertPending(() => _ = antiSpam.DKIMVerify(@"C:\mail\message.eml"));
 

@@ -833,6 +833,7 @@ builder.Services.AddSingleton<IBlockedAttachmentAdministrationStore, SqlServerBl
 builder.Services.AddSingleton<IDnsBlackListAdministrationStore, SqlServerDnsBlackListAdministrationStore>();
 builder.Services.AddSingleton<ISurblServerAdministrationStore, SqlServerSurblServerAdministrationStore>();
 builder.Services.AddSingleton<IGreyListingWhiteAddressAdministrationStore, SqlServerGreyListingWhiteAddressAdministrationStore>();
+builder.Services.AddSingleton<IWhiteListAddressAdministrationStore, SqlServerWhiteListAddressAdministrationStore>();
 builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
 builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdministrationStore>();
 builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAccountAdministrationStore>();
@@ -931,6 +932,8 @@ SurblServerAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<ISurblServerAdministrationStore>());
 GreyListingWhiteAddressAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IGreyListingWhiteAddressAdministrationStore>());
+WhiteListAddressAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IWhiteListAddressAdministrationStore>());
 DomainAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAdministrationStore>());
 AccountAdministrationRuntimeHost.Configure(

@@ -1,0 +1,245 @@
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using HMailServer.Core.Abstractions;
+
+namespace HMailServer.ComInterop;
+
+[ComVisible(true)]
+[Guid("8492EE2E-7332-4253-B93E-D8B011B47D78")]
+[InterfaceType(ComInterfaceType.InterfaceIsDual)]
+[TypeLibType(TypeLibTypeFlags.FDual | TypeLibTypeFlags.FNonExtensible | TypeLibTypeFlags.FDispatchable)]
+public interface IInterfaceWhiteListAddresses
+{
+    [DispId(0)]
+    IInterfaceWhiteListAddress this[int index] { get; }
+
+    [DispId(1)]
+    int Count { get; }
+
+    [DispId(2)]
+    void DeleteByDBID(int databaseId);
+
+    [DispId(3)]
+    IInterfaceWhiteListAddress Add();
+
+    [DispId(5)]
+    [SpecialName]
+    IInterfaceWhiteListAddress get_ItemByDBID(int databaseId);
+
+    [DispId(6)]
+    void Refresh();
+
+    [DispId(7)]
+    void Clear();
+}
+
+[ComVisible(true)]
+[Guid("D67457A7-3500-481F-900F-C9741C89D6AB")]
+[InterfaceType(ComInterfaceType.InterfaceIsDual)]
+[TypeLibType(TypeLibTypeFlags.FDual | TypeLibTypeFlags.FNonExtensible | TypeLibTypeFlags.FDispatchable)]
+public interface IInterfaceWhiteListAddress
+{
+    [DispId(1)]
+    int ID { get; }
+
+    [DispId(2)]
+    string LowerIPAddress
+    {
+        [return: MarshalAs(UnmanagedType.BStr)] get;
+        [param: MarshalAs(UnmanagedType.BStr)] set;
+    }
+
+    [DispId(3)]
+    string UpperIPAddress
+    {
+        [return: MarshalAs(UnmanagedType.BStr)] get;
+        [param: MarshalAs(UnmanagedType.BStr)] set;
+    }
+
+    [DispId(4)]
+    string EmailAddress
+    {
+        [return: MarshalAs(UnmanagedType.BStr)] get;
+        [param: MarshalAs(UnmanagedType.BStr)] set;
+    }
+
+    [DispId(5)]
+    string Description
+    {
+        [return: MarshalAs(UnmanagedType.BStr)] get;
+        [param: MarshalAs(UnmanagedType.BStr)] set;
+    }
+
+    [DispId(6)]
+    void Save();
+
+    [DispId(7)]
+    void Delete();
+}
+
+[ComVisible(true)]
+[Guid("FACFAF38-7BEE-48B4-A47E-D623ACCAE9AB")]
+[ProgId("hMailServer.WhiteListAddresses.1")]
+[ClassInterface(ClassInterfaceType.None)]
+[ComDefaultInterface(typeof(IInterfaceWhiteListAddresses))]
+public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
+{
+    private const int DispEBadIndex = unchecked((int)0x8002000B);
+    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ENotImplemented = unchecked((int)0x80004001);
+
+    private readonly IReadOnlyList<WhiteListAddressAdministrationSnapshot>? _addresses;
+
+    public WhiteListAddresses()
+    {
+    }
+
+    private WhiteListAddresses(IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses)
+    {
+        _addresses = addresses.ToArray();
+    }
+
+    public int Count => GetAddresses().Count;
+
+    public IInterfaceWhiteListAddress this[int index]
+    {
+        get
+        {
+            var addresses = GetAddresses();
+            if (index < 0 || index >= addresses.Count)
+            {
+                throw new COMException("Whitelist address index was outside the collection.", DispEBadIndex);
+            }
+
+            return WhiteListAddress.CreateAuthorized(addresses[index]);
+        }
+    }
+
+    public void DeleteByDBID(int databaseId) => Unavailable();
+
+    public IInterfaceWhiteListAddress Add() => Unavailable<IInterfaceWhiteListAddress>();
+
+    public IInterfaceWhiteListAddress get_ItemByDBID(int databaseId)
+    {
+        var match = GetAddresses().FirstOrDefault(
+            address => unchecked((int)address.Id) == databaseId);
+
+        return match is null
+            ? throw new COMException("No whitelist address with the specified database identifier exists.", DispEBadIndex)
+            : WhiteListAddress.CreateAuthorized(match);
+    }
+
+    public void Refresh() => Unavailable();
+
+    public void Clear() => Unavailable();
+
+    internal static WhiteListAddresses CreateAuthorized(
+        IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        return new WhiteListAddresses(addresses);
+    }
+
+    private IReadOnlyList<WhiteListAddressAdministrationSnapshot> GetAddresses()
+    {
+        return _addresses
+            ?? throw new COMException(
+                "WhiteListAddresses access requires an authenticated server administrator.",
+                EAccessDenied);
+    }
+
+    private void Unavailable()
+    {
+        _ = GetAddresses();
+        throw new COMException(
+            "This WhiteListAddresses member is not implemented by the .NET 10 rewrite yet.",
+            ENotImplemented);
+    }
+
+    private T Unavailable<T>()
+    {
+        Unavailable();
+        return default!;
+    }
+}
+
+[ComVisible(true)]
+[Guid("0B18E4F3-4423-403E-B275-1D95CBD353CE")]
+[ProgId("hMailServer.WhiteListAddress.1")]
+[ClassInterface(ClassInterfaceType.None)]
+[ComDefaultInterface(typeof(IInterfaceWhiteListAddress))]
+public sealed class WhiteListAddress : IInterfaceWhiteListAddress
+{
+    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ENotImplemented = unchecked((int)0x80004001);
+
+    private readonly WhiteListAddressAdministrationSnapshot? _address;
+
+    public WhiteListAddress()
+    {
+    }
+
+    private WhiteListAddress(WhiteListAddressAdministrationSnapshot address)
+    {
+        _address = address;
+    }
+
+    public int ID => unchecked((int)Snapshot.Id);
+
+    public string LowerIPAddress { get => Snapshot.LowerIpAddress; set => Unavailable(); }
+
+    public string UpperIPAddress { get => Snapshot.UpperIpAddress; set => Unavailable(); }
+
+    public string EmailAddress { get => Snapshot.EmailAddress; set => Unavailable(); }
+
+    public string Description { get => Snapshot.Description; set => Unavailable(); }
+
+    public void Save() => Unavailable();
+
+    public void Delete() => Unavailable();
+
+    internal static WhiteListAddress CreateAuthorized(WhiteListAddressAdministrationSnapshot address) => new(address);
+
+    private WhiteListAddressAdministrationSnapshot Snapshot =>
+        _address ?? throw new COMException(
+            "WhiteListAddress access requires an authenticated server administrator.",
+            EAccessDenied);
+
+    private void Unavailable()
+    {
+        _ = Snapshot;
+        throw new COMException(
+            "This WhiteListAddress member is not implemented by the .NET 10 rewrite yet.",
+            ENotImplemented);
+    }
+}
+
+[ComVisible(false)]
+public static class WhiteListAddressAdministrationRuntimeHost
+{
+    private const int CoENotInitialized = unchecked((int)0x800401F0);
+
+    private static IWhiteListAddressAdministrationStore? _store;
+
+    public static void Configure(IWhiteListAddressAdministrationStore store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        Volatile.Write(ref _store, store);
+    }
+
+    internal static WhiteListAddresses CreateAuthorizedAdapter()
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer whitelist address administration runtime has not been initialized.",
+                CoENotInitialized);
+
+        var addresses = store
+            .GetWhiteListAddressesAsync(CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return WhiteListAddresses.CreateAuthorized(addresses);
+    }
+}

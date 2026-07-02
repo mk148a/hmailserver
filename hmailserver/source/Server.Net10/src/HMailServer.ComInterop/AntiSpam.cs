@@ -241,7 +241,14 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
     }
 
-    public IInterfaceWhiteListAddresses WhiteListAddresses => Unavailable<IInterfaceWhiteListAddresses>();
+    public IInterfaceWhiteListAddresses WhiteListAddresses
+    {
+        get
+        {
+            _ = Snapshot;
+            return WhiteListAddressAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
 
     public int CheckHostInHeloScore { get => Snapshot.CheckHostInHeloScore; set => Unavailable(); }
 

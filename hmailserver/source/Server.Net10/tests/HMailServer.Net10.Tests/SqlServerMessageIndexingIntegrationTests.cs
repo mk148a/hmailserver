@@ -103,6 +103,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 new SqlServerSurblServerAdministrationStore(connectionFactory));
             GreyListingWhiteAddressAdministrationRuntimeHost.Configure(
                 new SqlServerGreyListingWhiteAddressAdministrationStore(connectionFactory));
+            WhiteListAddressAdministrationRuntimeHost.Configure(
+                new SqlServerWhiteListAddressAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -245,6 +247,16 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             var pendingGreyListingWhiteAddressSave = Assert.ThrowsExactly<COMException>(
                 greyListingWhiteAddresses[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingGreyListingWhiteAddressSave.ErrorCode);
+            var whiteListAddresses = antiSpam.WhiteListAddresses;
+            Assert.AreEqual(2, whiteListAddresses.Count);
+            Assert.AreEqual(10, whiteListAddresses[0].ID);
+            Assert.AreEqual("192.0.2.1", whiteListAddresses[0].LowerIPAddress);
+            Assert.AreEqual("192.0.2.255", whiteListAddresses[0].UpperIPAddress);
+            Assert.AreEqual("*@example.test", whiteListAddresses[0].EmailAddress);
+            Assert.AreEqual("Test network", whiteListAddresses[0].Description);
+            Assert.AreEqual(20, whiteListAddresses.get_ItemByDBID(20).ID);
+            var pendingWhiteListAddressSave = Assert.ThrowsExactly<COMException>(whiteListAddresses[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingWhiteListAddressSave.ErrorCode);
             var pendingSpamAssassinTest = Assert.ThrowsExactly<COMException>(
                 () => antiSpam.TestSpamAssassinConnection("127.0.0.1", 783, out _));
             Assert.AreEqual(unchecked((int)0x80004001), pendingSpamAssassinTest.ErrorCode);
@@ -291,6 +303,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             GreyListingWhiteAddressAdministrationRuntimeHost.Configure(
                 new FixedGreyListingWhiteAddressAdministrationStore(
                     Array.Empty<GreyListingWhiteAddressAdministrationSnapshot>()));
+            WhiteListAddressAdministrationRuntimeHost.Configure(
+                new FixedWhiteListAddressAdministrationStore(Array.Empty<WhiteListAddressAdministrationSnapshot>()));
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
         }
@@ -1073,6 +1087,17 @@ CREATE TABLE dbo.hm_greylisting_whiteaddresses
     whiteipdescription nvarchar(255) NOT NULL
 );
 
+CREATE TABLE dbo.hm_whitelist
+(
+    whiteid bigint NOT NULL PRIMARY KEY,
+    whiteloweripaddress1 bigint NOT NULL,
+    whiteloweripaddress2 bigint NULL,
+    whiteupperipaddress1 bigint NOT NULL,
+    whiteupperipaddress2 bigint NULL,
+    whiteemailaddress nvarchar(255) NOT NULL,
+    whitedescription nvarchar(255) NOT NULL
+);
+
 INSERT INTO dbo.hm_settings (settingname, settingstring, settinginteger)
 VALUES
     (N'hostname', N'mail.example.test', 0),
@@ -1200,6 +1225,13 @@ INSERT INTO dbo.hm_greylisting_whiteaddresses (whiteid, whiteipaddress, whiteipd
 VALUES
     (20, N'203.0.113.5', N'Single address'),
     (10, N'192.0.2.%', N'Test network');
+
+INSERT INTO dbo.hm_whitelist
+    (whiteid, whiteloweripaddress1, whiteloweripaddress2,
+     whiteupperipaddress1, whiteupperipaddress2, whiteemailaddress, whitedescription)
+VALUES
+    (20, 3405803781, NULL, 3405803781, NULL, N'sender@example.test', N'Single address'),
+    (10, 3221225985, NULL, 3221226239, NULL, N'*@example.test', N'Test network');
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -1966,6 +1998,15 @@ VALUES
         : IGreyListingWhiteAddressAdministrationStore
     {
         public ValueTask<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>> GetWhiteAddressesAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(addresses);
+    }
+
+    private sealed class FixedWhiteListAddressAdministrationStore(
+        IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses)
+        : IWhiteListAddressAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<WhiteListAddressAdministrationSnapshot>> GetWhiteListAddressesAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(addresses);
     }

@@ -63,6 +63,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(GreyListingWhiteAddress).GUID,
                 static () => new GreyListingWhiteAddress()),
             new ComLocalServerRegistration(
+                typeof(WhiteListAddresses).GUID,
+                static () => new WhiteListAddresses()),
+            new ComLocalServerRegistration(
+                typeof(WhiteListAddress).GUID,
+                static () => new WhiteListAddress()),
+            new ComLocalServerRegistration(
                 typeof(Logging).GUID,
                 static () => new Logging()),
             new ComLocalServerRegistration(

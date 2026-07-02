@@ -1,0 +1,248 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
+
+namespace HMailServer.Net10.Tests;
+
+[TestClass]
+public sealed class WhiteListAddressesComContractTests
+{
+    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ENotImplemented = unchecked((int)0x80004001);
+    private const int DispEBadIndex = unchecked((int)0x8002000B);
+
+    [TestMethod]
+    public void Interfaces_PreserveLegacyIidsDispatchIdsAndCompleteVtableOrder()
+    {
+        AssertContract(
+            typeof(IInterfaceWhiteListAddresses),
+            "8492EE2E-7332-4253-B93E-D8B011B47D78",
+            new[]
+            {
+                "get_Item",
+                "get_Count",
+                "DeleteByDBID",
+                "Add",
+                "get_ItemByDBID",
+                "Refresh",
+                "Clear"
+            });
+        Assert.AreEqual(0, GetProperty(typeof(IInterfaceWhiteListAddresses), "Item").GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(5, GetMethod(typeof(IInterfaceWhiteListAddresses), "get_ItemByDBID").GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(7, GetMethod(typeof(IInterfaceWhiteListAddresses), nameof(IInterfaceWhiteListAddresses.Clear)).GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.IsNull(typeof(IInterfaceWhiteListAddresses).GetMethod("get_ItemByName"));
+
+        AssertContract(
+            typeof(IInterfaceWhiteListAddress),
+            "D67457A7-3500-481F-900F-C9741C89D6AB",
+            new[]
+            {
+                "get_ID",
+                "get_LowerIPAddress",
+                "set_LowerIPAddress",
+                "get_UpperIPAddress",
+                "set_UpperIPAddress",
+                "get_EmailAddress",
+                "set_EmailAddress",
+                "get_Description",
+                "set_Description",
+                "Save",
+                "Delete"
+            });
+        AssertBstrProperty(typeof(IInterfaceWhiteListAddress), nameof(IInterfaceWhiteListAddress.LowerIPAddress), 2);
+        AssertBstrProperty(typeof(IInterfaceWhiteListAddress), nameof(IInterfaceWhiteListAddress.UpperIPAddress), 3);
+        AssertBstrProperty(typeof(IInterfaceWhiteListAddress), nameof(IInterfaceWhiteListAddress.EmailAddress), 4);
+        AssertBstrProperty(typeof(IInterfaceWhiteListAddress), nameof(IInterfaceWhiteListAddress.Description), 5);
+    }
+
+    [TestMethod]
+    public void ComClasses_PreserveLegacyIdentitiesAndDefaultInterfaces()
+    {
+        AssertComClass<WhiteListAddresses>(
+            "FACFAF38-7BEE-48B4-A47E-D623ACCAE9AB",
+            "hMailServer.WhiteListAddresses.1",
+            typeof(IInterfaceWhiteListAddresses));
+        AssertComClass<WhiteListAddress>(
+            "0B18E4F3-4423-403E-B275-1D95CBD353CE",
+            "hMailServer.WhiteListAddress.1",
+            typeof(IInterfaceWhiteListAddress));
+    }
+
+    [TestMethod]
+    public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
+    {
+        var collectionError = Assert.ThrowsExactly<COMException>(() => _ = new WhiteListAddresses().Count);
+        var itemError = Assert.ThrowsExactly<COMException>(() => _ = new WhiteListAddress().LowerIPAddress);
+        var antiSpamError = Assert.ThrowsExactly<COMException>(() => _ = new AntiSpam().WhiteListAddresses);
+
+        Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, itemError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, antiSpamError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ExposesReadOnlySnapshotsAndLegacyLookupResults()
+    {
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "*@example.test", "Test network"),
+                Snapshot(20, "203.0.113.5", "203.0.113.5", "sender@example.test", "Single address")
+            });
+
+        Assert.AreEqual(2, addresses.Count);
+        AssertAddress(addresses[0], 10, "192.0.2.1", "192.0.2.255", "*@example.test", "Test network");
+        AssertAddress(
+            addresses.get_ItemByDBID(20),
+            20,
+            "203.0.113.5",
+            "203.0.113.5",
+            "sender@example.test",
+            "Single address");
+
+        var badIndex = Assert.ThrowsExactly<COMException>(() => _ = addresses[2]);
+        var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(30));
+        Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
+
+        AssertPending(() => addresses.Add());
+        AssertPending(() => addresses.DeleteByDBID(10));
+        AssertPending(addresses.Refresh);
+        AssertPending(addresses.Clear);
+        AssertPending(() => addresses[0].LowerIPAddress = "198.51.100.1");
+        AssertPending(() => addresses[0].UpperIPAddress = "198.51.100.255");
+        AssertPending(() => addresses[0].EmailAddress = "changed@example.test");
+        AssertPending(() => addresses[0].Description = "Changed");
+        AssertPending(addresses[0].Save);
+        AssertPending(addresses[0].Delete);
+    }
+
+    [TestMethod]
+    public void Item_PreservesLegacyBigintIdProjection()
+    {
+        var address = WhiteListAddress.CreateAuthorized(
+            Snapshot(0x1_0000_0005, "192.0.2.1", "192.0.2.1", string.Empty, string.Empty));
+
+        Assert.AreEqual(5, address.ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedAntiSpam_UsesConfiguredWhiteListAddressRuntime()
+    {
+        WhiteListAddressAdministrationRuntimeHost.Configure(
+            new FixedWhiteListAddressAdministrationStore(
+                new[]
+                {
+                    Snapshot(20, "203.0.113.5", "203.0.113.5", "sender@example.test", "Single address"),
+                    Snapshot(10, "192.0.2.1", "192.0.2.255", "*@example.test", "Test network")
+                }));
+        var antiSpam = AntiSpam.CreateAuthorized(new AntiSpamAdministrationSnapshot());
+
+        var addresses = antiSpam.WhiteListAddresses;
+
+        Assert.AreEqual(2, addresses.Count);
+        Assert.AreEqual(10, addresses[0].ID);
+        Assert.AreEqual("Single address", addresses.get_ItemByDBID(20).Description);
+    }
+
+    private static WhiteListAddressAdministrationSnapshot Snapshot(
+        long id,
+        string lowerIpAddress,
+        string upperIpAddress,
+        string emailAddress,
+        string description) =>
+        new(id, lowerIpAddress, upperIpAddress, emailAddress, description);
+
+    private static void AssertAddress(
+        IInterfaceWhiteListAddress address,
+        int id,
+        string lowerIpAddress,
+        string upperIpAddress,
+        string emailAddress,
+        string description)
+    {
+        Assert.AreEqual(id, address.ID);
+        Assert.AreEqual(lowerIpAddress, address.LowerIPAddress);
+        Assert.AreEqual(upperIpAddress, address.UpperIPAddress);
+        Assert.AreEqual(emailAddress, address.EmailAddress);
+        Assert.AreEqual(description, address.Description);
+    }
+
+    private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
+    {
+        Assert.AreEqual(new Guid(interfaceId), contract.GUID);
+        Assert.AreEqual(ComInterfaceType.InterfaceIsDual, contract.GetCustomAttribute<InterfaceTypeAttribute>()?.Value);
+        Assert.AreEqual(
+            TypeLibTypeFlags.FDual | TypeLibTypeFlags.FNonExtensible | TypeLibTypeFlags.FDispatchable,
+            contract.GetCustomAttribute<TypeLibTypeAttribute>()?.Value);
+        CollectionAssert.AreEqual(
+            methodNames,
+            contract.GetMethods().OrderBy(static method => method.MetadataToken).Select(static method => method.Name).ToArray());
+    }
+
+    private static void AssertComClass<T>(string classId, string progId, Type defaultInterface)
+    {
+        var type = typeof(T);
+
+        Assert.AreEqual(new Guid(classId), type.GUID);
+        Assert.AreEqual(progId, type.GetCustomAttribute<ProgIdAttribute>()?.Value);
+        Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
+        Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
+        Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    private static void AssertBstrProperty(Type contract, string name, int dispatchId)
+    {
+        var property = GetProperty(contract, name);
+
+        Assert.AreEqual(dispatchId, property.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(UnmanagedType.BStr, property.GetMethod?.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(UnmanagedType.BStr, property.SetMethod?.GetParameters()[0].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+    }
+
+    private static PropertyInfo GetProperty(Type contract, string name) =>
+        contract.GetProperty(name) ?? throw new AssertFailedException($"Missing property {name}.");
+
+    private static MethodInfo GetMethod(Type contract, string name) =>
+        contract.GetMethod(name) ?? throw new AssertFailedException($"Missing method {name}.");
+
+    private static void AssertPending(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+        Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private sealed class FixedWhiteListAddressAdministrationStore(
+        IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses)
+        : IWhiteListAddressAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<WhiteListAddressAdministrationSnapshot>> GetWhiteListAddressesAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>(
+                addresses.OrderBy(static address => System.Net.IPAddress.Parse(address.LowerIpAddress).GetAddressBytes(),
+                    ByteArrayComparer.Instance).ToArray());
+    }
+
+    private sealed class ByteArrayComparer : IComparer<byte[]>
+    {
+        public static ByteArrayComparer Instance { get; } = new();
+
+        public int Compare(byte[]? left, byte[]? right)
+        {
+            ArgumentNullException.ThrowIfNull(left);
+            ArgumentNullException.ThrowIfNull(right);
+
+            for (var index = 0; index < Math.Min(left.Length, right.Length); index++)
+            {
+                var comparison = left[index].CompareTo(right[index]);
+                if (comparison != 0)
+                {
+                    return comparison;
+                }
+            }
+
+            return left.Length.CompareTo(right.Length);
+        }
+    }
+}
