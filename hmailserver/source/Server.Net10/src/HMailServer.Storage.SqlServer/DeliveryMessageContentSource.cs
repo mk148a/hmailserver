@@ -71,6 +71,42 @@ public sealed class DeliveryMessageContentSource : IDeliveryMessageContentStore
         }
     }
 
+    public ValueTask<bool> TryDeleteAsync(
+        DeliveryQueuedMessage message,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var path = _pathResolver.Resolve(
+            message.FileName,
+            accountId: 0,
+            folderId: 0,
+            accountAddress: null);
+        if (path is null)
+        {
+            return ValueTask.FromResult(false);
+        }
+
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+
+            return ValueTask.FromResult(true);
+        }
+        catch (IOException)
+        {
+            return ValueTask.FromResult(false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return ValueTask.FromResult(false);
+        }
+    }
+
     private static void TryDelete(string path)
     {
         try

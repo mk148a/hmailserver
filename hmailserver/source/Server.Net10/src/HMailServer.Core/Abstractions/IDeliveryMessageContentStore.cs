@@ -6,4 +6,8 @@ public interface IDeliveryMessageContentStore : IDeliveryMessageContentSource
         DeliveryQueuedMessage message,
         byte[] messageData,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> TryDeleteAsync(
+        DeliveryQueuedMessage message,
+        CancellationToken cancellationToken);
 }

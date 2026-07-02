@@ -28,6 +28,7 @@ public sealed class DeliveryQueueProcessorTests
             DeliveryTargetDispatchResult.Success());
         var recipientStore = new FakeRecipientStore();
         var statusObserver = new FakeStatusObserver();
+        var contentStore = new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n");
         var processor = new DeliveryQueueProcessor(
             leaseStore,
             messageStore,
@@ -35,6 +36,7 @@ public sealed class DeliveryQueueProcessorTests
             dispatcher,
             recipientStore,
             new FakeBounceStore(),
+            messageContentStore: contentStore,
             statusObserver: statusObserver);
 
         var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
@@ -44,6 +46,7 @@ public sealed class DeliveryQueueProcessorTests
         CollectionAssert.AreEqual(new long[] { 1, 2 }, recipientStore.DeletedRecipientIds);
         Assert.AreEqual(10, leaseStore.CompletedMessageId);
         Assert.IsNull(leaseStore.DeferredMessageId);
+        Assert.AreEqual(10, contentStore.DeletedMessages.Single().Identity.MessageId);
         CollectionAssert.AreEqual(
             new[]
             {
@@ -71,6 +74,7 @@ public sealed class DeliveryQueueProcessorTests
         var dispatcher = new FakeTargetDispatcher(
             DeliveryTargetDispatchResult.TransientFailure("Remote temporary failure.", TimeSpan.FromSeconds(30)));
         var statusObserver = new FakeStatusObserver();
+        var contentStore = new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n");
         var processor = new DeliveryQueueProcessor(
             leaseStore,
             messageStore,
@@ -78,6 +82,7 @@ public sealed class DeliveryQueueProcessorTests
             dispatcher,
             new FakeRecipientStore(),
             new FakeBounceStore(),
+            messageContentStore: contentStore,
             statusObserver: statusObserver);
 
         var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
@@ -87,6 +92,7 @@ public sealed class DeliveryQueueProcessorTests
         Assert.AreEqual(TimeSpan.FromSeconds(30), leaseStore.DeferredRetryDelay);
         Assert.IsTrue(leaseStore.DeferredIncrementRetryCount);
         Assert.IsNull(leaseStore.CompletedMessageId);
+        Assert.IsEmpty(contentStore.DeletedMessages);
         CollectionAssert.AreEqual(
             new[]
             {
@@ -227,6 +233,7 @@ public sealed class DeliveryQueueProcessorTests
         var dispatcher = new FakeTargetDispatcher();
         var eventExecutor = new FakeDeliveryEventScriptExecutor(
             DeliveryEventScriptExecutionResult.Drop());
+        var contentStore = new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n");
         var processor = new DeliveryQueueProcessor(
             leaseStore,
             new FakeMessageStore(message),
@@ -238,7 +245,7 @@ public sealed class DeliveryQueueProcessorTests
             new FakeRecipientStore(),
             new FakeBounceStore(),
             eventExecutor,
-            new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n"));
+            contentStore);
 
         var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
 
@@ -246,7 +253,125 @@ public sealed class DeliveryQueueProcessorTests
         Assert.AreEqual(15, leaseStore.CompletedMessageId);
         Assert.IsNull(leaseStore.DeferredMessageId);
         Assert.AreEqual(0, dispatcher.Dispatched.Count);
+        Assert.AreEqual(15, contentStore.DeletedMessages.Single().Identity.MessageId);
         CollectionAssert.AreEqual(new[] { "OnDeliveryStart" }, eventExecutor.EventNames);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_DropsContentWhenOnDeliverMessageRequestsDrop()
+    {
+        var identity = new MessageIdentity(20, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var dispatcher = new FakeTargetDispatcher();
+        var eventExecutor = new FakeDeliveryEventScriptExecutor(
+            DeliveryEventScriptExecutionResult.Continue("Subject: Delivery\r\n\r\nBody\r\n"u8.ToArray()),
+            DeliveryEventScriptExecutionResult.Drop());
+        var contentStore = new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n");
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            new FakeTargetResolver(
+                new DeliveryTargetBatch(
+                    new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                    message.Recipients)),
+            dispatcher,
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            eventExecutor,
+            contentStore);
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        Assert.AreEqual(20, leaseStore.CompletedMessageId);
+        Assert.AreEqual(20, contentStore.DeletedMessages.Single().Identity.MessageId);
+        Assert.AreEqual(0, dispatcher.Dispatched.Count);
+        CollectionAssert.AreEqual(
+            new[] { "OnDeliveryStart", "OnDeliverMessage" },
+            eventExecutor.EventNames);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_DeletesContentWhenNoDeliveryTargetsRemain()
+    {
+        var identity = new MessageIdentity(21, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var contentStore = new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n");
+        var statusObserver = new FakeStatusObserver();
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            new FakeTargetResolver(),
+            new FakeTargetDispatcher(),
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            messageContentStore: contentStore,
+            statusObserver: statusObserver);
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        Assert.AreEqual(21, leaseStore.CompletedMessageId);
+        Assert.AreEqual(21, contentStore.DeletedMessages.Single().Identity.MessageId);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                DeliveryQueueStatusEventKind.MessageLeased,
+                DeliveryQueueStatusEventKind.NoDeliveryTargets,
+                DeliveryQueueStatusEventKind.MessageCompleted
+            },
+            statusObserver.Kinds);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_DoesNotDeleteContentWhenCompletionLosesLease()
+    {
+        var identity = new MessageIdentity(22, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity) { CompleteResult = false };
+        var contentStore = new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n");
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            new FakeTargetResolver(),
+            new FakeTargetDispatcher(),
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            messageContentStore: contentStore);
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        Assert.AreEqual(22, leaseStore.CompletedMessageId);
+        Assert.IsEmpty(contentStore.DeletedMessages);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_IgnoresContentDeleteFailureAfterCompletion()
+    {
+        var identity = new MessageIdentity(23, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var contentStore = new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n")
+        {
+            DeleteException = new IOException("file is busy")
+        };
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            new FakeTargetResolver(),
+            new FakeTargetDispatcher(),
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            messageContentStore: contentStore);
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        Assert.AreEqual(23, leaseStore.CompletedMessageId);
+        Assert.IsNull(leaseStore.DeferredMessageId);
     }
 
     [TestMethod]
@@ -294,6 +419,7 @@ public sealed class DeliveryQueueProcessorTests
         var leaseStore = new FakeLeaseStore(identity);
         var dispatcher = new FakeTargetDispatcher();
         var statusObserver = new FakeStatusObserver();
+        var contentStore = new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n");
         var processor = new DeliveryQueueProcessor(
             leaseStore,
             new FakeMessageStore(message),
@@ -306,7 +432,7 @@ public sealed class DeliveryQueueProcessorTests
             new FakeBounceStore(),
             new FakeDeliveryEventScriptExecutor(
                 DeliveryEventScriptExecutionResult.Failure("Script failed.")),
-            new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n"),
+            contentStore,
             statusObserver);
 
         var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
@@ -316,6 +442,7 @@ public sealed class DeliveryQueueProcessorTests
         Assert.AreEqual(TimeSpan.FromMinutes(2), leaseStore.DeferredRetryDelay);
         Assert.IsTrue(leaseStore.DeferredIncrementRetryCount);
         Assert.IsNull(leaseStore.CompletedMessageId);
+        Assert.IsEmpty(contentStore.DeletedMessages);
         Assert.AreEqual(0, dispatcher.Dispatched.Count);
         CollectionAssert.AreEqual(
             new[]
@@ -376,6 +503,7 @@ public sealed class DeliveryQueueProcessorTests
         var resolver = new FakeTargetResolver();
         var dispatcher = new FakeTargetDispatcher();
         var statusObserver = new FakeStatusObserver();
+        var contentStore = new FakeMessageContentStore("Subject: Delivery\r\n\r\nBody\r\n");
         var processor = new DeliveryQueueProcessor(
             leaseStore,
             messageStore,
@@ -383,6 +511,7 @@ public sealed class DeliveryQueueProcessorTests
             dispatcher,
             new FakeRecipientStore(),
             new FakeBounceStore(),
+            messageContentStore: contentStore,
             statusObserver: statusObserver);
 
         var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
@@ -390,6 +519,7 @@ public sealed class DeliveryQueueProcessorTests
         Assert.AreEqual(1, processed);
         Assert.AreEqual(12, leaseStore.ReleasedMessageId);
         Assert.AreEqual(0, dispatcher.Dispatched.Count);
+        Assert.IsEmpty(contentStore.DeletedMessages);
         CollectionAssert.AreEqual(
             new[]
             {
@@ -443,6 +573,8 @@ public sealed class DeliveryQueueProcessorTests
 
         public long? ReleasedMessageId { get; private set; }
 
+        public bool CompleteResult { get; set; } = true;
+
         public async IAsyncEnumerable<MessageIdentity> LeaseReadyMessagesAsync(
             string leaseOwner,
             int batchSize,
@@ -463,7 +595,7 @@ public sealed class DeliveryQueueProcessorTests
             CancellationToken cancellationToken)
         {
             CompletedMessageId = messageId;
-            return ValueTask.FromResult(true);
+            return ValueTask.FromResult(CompleteResult);
         }
 
         public ValueTask<bool> DeferAsync(
@@ -657,6 +789,10 @@ public sealed class DeliveryQueueProcessorTests
 
         public string Text => Encoding.ASCII.GetString(Bytes);
 
+        public List<DeliveryQueuedMessage> DeletedMessages { get; } = [];
+
+        public Exception? DeleteException { get; init; }
+
         public ValueTask<byte[]?> TryLoadAsync(
             DeliveryQueuedMessage message,
             CancellationToken cancellationToken) =>
@@ -668,6 +804,19 @@ public sealed class DeliveryQueueProcessorTests
             CancellationToken cancellationToken)
         {
             Bytes = messageData;
+            return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<bool> TryDeleteAsync(
+            DeliveryQueuedMessage message,
+            CancellationToken cancellationToken)
+        {
+            if (DeleteException is not null)
+            {
+                return ValueTask.FromException<bool>(DeleteException);
+            }
+
+            DeletedMessages.Add(message);
             return ValueTask.FromResult(true);
         }
     }
