@@ -101,15 +101,20 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
 
     private readonly bool _authorized;
     private readonly IDeliveryQueueAdministrationStore? _store;
+    private readonly IDeliveryQueueWakeSignal? _wakeSignal;
 
     public DeliveryQueue()
     {
     }
 
-    private DeliveryQueue(bool authorized, IDeliveryQueueAdministrationStore? store = null)
+    private DeliveryQueue(
+        bool authorized,
+        IDeliveryQueueAdministrationStore? store = null,
+        IDeliveryQueueWakeSignal? wakeSignal = null)
     {
         _authorized = authorized;
         _store = store;
+        _wakeSignal = wakeSignal;
     }
 
     public void Clear() => Unavailable();
@@ -129,12 +134,23 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
             .GetResult();
     }
 
-    public void StartDelivery() => Unavailable();
+    public void StartDelivery()
+    {
+        EnsureAuthorized();
+        if (_wakeSignal is null)
+        {
+            throw NotImplemented();
+        }
+
+        _wakeSignal.Signal();
+    }
 
     public void Remove(long messageId) => Unavailable();
 
-    internal static DeliveryQueue CreateAuthorized(IDeliveryQueueAdministrationStore? store = null) =>
-        new(authorized: true, store);
+    internal static DeliveryQueue CreateAuthorized(
+        IDeliveryQueueAdministrationStore? store = null,
+        IDeliveryQueueWakeSignal? wakeSignal = null) =>
+        new(authorized: true, store, wakeSignal);
 
     private void Unavailable()
     {
@@ -162,15 +178,25 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
 public static class DeliveryQueueAdministrationRuntimeHost
 {
     private static IDeliveryQueueAdministrationStore? _store;
+    private static IDeliveryQueueWakeSignal? _wakeSignal;
 
-    public static void Configure(IDeliveryQueueAdministrationStore store)
+    public static void Configure(
+        IDeliveryQueueAdministrationStore store,
+        IDeliveryQueueWakeSignal? wakeSignal = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         Volatile.Write(ref _store, store);
+        Volatile.Write(ref _wakeSignal, wakeSignal);
     }
 
     internal static DeliveryQueue CreateAuthorizedAdapter() =>
-        DeliveryQueue.CreateAuthorized(Volatile.Read(ref _store));
+        DeliveryQueue.CreateAuthorized(
+            Volatile.Read(ref _store),
+            Volatile.Read(ref _wakeSignal));
 
-    internal static void ResetForTests() => Volatile.Write(ref _store, null);
+    internal static void ResetForTests()
+    {
+        Volatile.Write(ref _store, null);
+        Volatile.Write(ref _wakeSignal, null);
+    }
 }

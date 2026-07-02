@@ -741,6 +741,10 @@ builder.Services.AddSingleton<IRemoteSmtpTransportFactory, TcpRemoteSmtpTranspor
 builder.Services.AddSingleton<IRemoteSmtpClient, SmtpRemoteDeliveryClient>();
 builder.Services.AddSingleton(RemoteDeliveryOptions.Default(smtpSessionOptions.ServerName));
 builder.Services.AddSingleton(DeliveryQueueProcessorOptions.Default(leaseOwner));
+builder.Services.AddSingleton(DeliveryQueueWorkerOptions.Default);
+builder.Services.AddSingleton<DeliveryQueueWakeSignal>();
+builder.Services.AddSingleton<IDeliveryQueueWakeSignal>(static serviceProvider =>
+    serviceProvider.GetRequiredService<DeliveryQueueWakeSignal>());
 builder.Services.AddSingleton(deliveryStatusMaintenanceOptions);
 builder.Services.AddSingleton<SqlServerDeliveryQueueStatusMaintenanceStore>();
 if (deliveryStatusSqlEnabled)
@@ -771,6 +775,8 @@ builder.Services.AddSingleton<IDeliveryTargetDispatcher>(static serviceProvider 
         serviceProvider.GetRequiredService<LocalDeliveryTargetDispatcher>(),
         serviceProvider.GetRequiredService<DomainConcurrencyDeliveryTargetDispatcher>()));
 builder.Services.AddSingleton<DeliveryQueueProcessor>();
+builder.Services.AddSingleton<IDeliveryQueueBatchProcessor>(static serviceProvider =>
+    serviceProvider.GetRequiredService<DeliveryQueueProcessor>());
 builder.Services.AddSingleton(static serviceProvider =>
     new ExternalFetchProcessor(
         serviceProvider.GetRequiredService<IExternalFetchAccountStore>(),
@@ -862,6 +868,7 @@ builder.Services.AddSingleton<MessageSearchBackfillProcessor>();
 builder.Services.AddHostedService<ComLocalServerHostedService>();
 builder.Services.AddHostedService<ServerBootstrapper>();
 builder.Services.AddHostedService<MessageSearchBackfillHostedService>();
+builder.Services.AddHostedService<DeliveryQueueProcessorHostedService>();
 builder.Services.AddHostedService<DeliveryQueueStatusMaintenanceHostedService>();
 if (externalFetchEnabled)
 {
@@ -884,7 +891,8 @@ DatabaseAdministrationRuntimeHost.Configure(
 StatusAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IServerStatusAdministrationStore>());
 DeliveryQueueAdministrationRuntimeHost.Configure(
-    host.Services.GetRequiredService<IDeliveryQueueAdministrationStore>());
+    host.Services.GetRequiredService<IDeliveryQueueAdministrationStore>(),
+    host.Services.GetRequiredService<IDeliveryQueueWakeSignal>());
 SettingsAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<ISettingsAdministrationStore>(),
     new SettingsRuntimeConfiguration(

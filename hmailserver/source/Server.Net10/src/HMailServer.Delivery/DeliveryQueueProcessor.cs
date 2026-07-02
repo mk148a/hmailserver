@@ -2,7 +2,7 @@ using HMailServer.Core.Abstractions;
 
 namespace HMailServer.Delivery;
 
-public sealed class DeliveryQueueProcessor
+public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
 {
     private const int DeliveringMessageState = 1;
 

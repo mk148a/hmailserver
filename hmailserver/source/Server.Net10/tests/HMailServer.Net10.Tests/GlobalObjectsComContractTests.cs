@@ -66,12 +66,16 @@ public sealed class GlobalObjectsComContractTests
         var languageError = Assert.ThrowsExactly<COMException>(() => _ = new GlobalObjects().Languages);
         var clearError = Assert.ThrowsExactly<COMException>(new DeliveryQueue().Clear);
         var resetError = Assert.ThrowsExactly<COMException>(() => new DeliveryQueue().ResetDeliveryTime(long.MaxValue));
+        var startError = Assert.ThrowsExactly<COMException>(new DeliveryQueue().StartDelivery);
+        var removeError = Assert.ThrowsExactly<COMException>(() => new DeliveryQueue().Remove(long.MaxValue));
         var applicationError = Assert.ThrowsExactly<COMException>(() => _ = new Application().GlobalObjects);
 
         Assert.AreEqual(EAccessDenied, globalError.ErrorCode);
         Assert.AreEqual(EAccessDenied, languageError.ErrorCode);
         Assert.AreEqual(EAccessDenied, clearError.ErrorCode);
         Assert.AreEqual(EAccessDenied, resetError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, startError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, removeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, applicationError.ErrorCode);
     }
 
@@ -104,17 +108,19 @@ public sealed class GlobalObjectsComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedQueue_ResetDeliveryTimeUsesRuntimeStoreAndPreservesOtherPendingMethods()
+    public void AuthorizedQueue_UsesRuntimeStoreAndWakeSignalAndPreservesPendingMethods()
     {
         var store = new RecordingDeliveryQueueAdministrationStore();
-        DeliveryQueueAdministrationRuntimeHost.Configure(store);
+        var wakeSignal = new RecordingDeliveryQueueWakeSignal();
+        DeliveryQueueAdministrationRuntimeHost.Configure(store, wakeSignal);
         var queue = GlobalObjects.CreateAuthorized().DeliveryQueue;
 
         queue.ResetDeliveryTime(long.MaxValue);
+        queue.StartDelivery();
 
         Assert.AreEqual(long.MaxValue, store.MessageId);
+        Assert.AreEqual(1, wakeSignal.SignalCount);
         AssertPending(queue.Clear);
-        AssertPending(queue.StartDelivery);
         AssertPending(() => queue.Remove(long.MaxValue));
     }
 
@@ -161,5 +167,17 @@ public sealed class GlobalObjectsComContractTests
             MessageId = messageId;
             return ValueTask.FromResult(true);
         }
+    }
+
+    private sealed class RecordingDeliveryQueueWakeSignal : IDeliveryQueueWakeSignal
+    {
+        public int SignalCount { get; private set; }
+
+        public void Signal() => SignalCount++;
+
+        public ValueTask<bool> WaitAsync(
+            TimeSpan timeout,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }
