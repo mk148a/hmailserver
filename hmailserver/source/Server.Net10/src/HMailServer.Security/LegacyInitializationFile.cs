@@ -54,6 +54,17 @@ public static class LegacyInitializationFile
         return configuration["Settings:UseLanguage"] ?? "English";
     }
 
+    public static IReadOnlyList<string> LoadValidGuiLanguages(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var configuration = new ConfigurationBuilder()
+            .AddIniFile(Path.GetFullPath(path), optional: true, reloadOnChange: false)
+            .Build();
+
+        return SplitLegacyString(configuration["GUILanguages:ValidLanguages"] ?? string.Empty, ",");
+    }
+
     public static bool LoadRewriteEnvelopeFromWhenForwarding(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -78,6 +89,42 @@ public static class LegacyInitializationFile
             var text when string.Equals(text, "MSSQLCE", StringComparison.OrdinalIgnoreCase) => 4,
             _ => 0
         };
+    }
+
+    private static IReadOnlyList<string> SplitLegacyString(string value, string separator)
+    {
+        if (value.Length == 0)
+        {
+            return [];
+        }
+
+        var result = new List<string>();
+        var beginning = 0;
+        var end = value.IndexOf(separator, StringComparison.Ordinal);
+
+        if (end == -1)
+        {
+            result.Add(value);
+            return result;
+        }
+
+        while (end >= 0)
+        {
+            result.Add(value[beginning..end]);
+            beginning = end + separator.Length;
+            end = value.IndexOf(separator, beginning, StringComparison.Ordinal);
+        }
+
+        if (beginning > 0)
+        {
+            var remainder = value[beginning..];
+            if (remainder.Length > 0)
+            {
+                result.Add(remainder);
+            }
+        }
+
+        return result;
     }
 }
 

@@ -70,9 +70,7 @@ public sealed class GlobalObjects : IInterfaceGlobalObjects
         get
         {
             EnsureAuthorized();
-            throw new COMException(
-                "This GlobalObjects member is not implemented by the .NET 10 rewrite yet.",
-                ENotImplemented);
+            return LanguageAdministrationRuntimeHost.CreateAuthorizedAdapter();
         }
     }
 

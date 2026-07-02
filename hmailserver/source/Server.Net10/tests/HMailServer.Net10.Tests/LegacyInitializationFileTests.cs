@@ -75,6 +75,29 @@ public sealed class LegacyInitializationFileTests
     }
 
     [TestMethod]
+    public void LoadValidGuiLanguages_ReadsLegacyGuiLanguageList()
+    {
+        var configuredPath = CreateTemporaryInitializationFile(
+            "[GUILanguages]\nValidLanguages=english,swedish,turkish\n");
+        var missingKeyPath = CreateTemporaryInitializationFile("[Settings]\nUseLanguage=English\n");
+        var missingPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ini");
+
+        try
+        {
+            CollectionAssert.AreEqual(
+                new[] { "english", "swedish", "turkish" },
+                LegacyInitializationFile.LoadValidGuiLanguages(configuredPath).ToArray());
+            Assert.AreEqual(0, LegacyInitializationFile.LoadValidGuiLanguages(missingKeyPath).Count);
+            Assert.AreEqual(0, LegacyInitializationFile.LoadValidGuiLanguages(missingPath).Count);
+        }
+        finally
+        {
+            File.Delete(configuredPath);
+            File.Delete(missingKeyPath);
+        }
+    }
+
+    [TestMethod]
     public void LoadRewriteEnvelopeFromWhenForwarding_EnablesOnlyLegacyIntegerOne()
     {
         var enabledPath = CreateTemporaryInitializationFile(

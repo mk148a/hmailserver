@@ -84,6 +84,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "Language",
+            "{1C70E18B-C63D-458C-B080-64E4F94C4E83}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "Languages",
+            "{BE1070A2-9265-495E-B134-27FAA93916CE}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Directories",
             "{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
             executablePath);
@@ -319,6 +329,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.GlobalObjects",
                 @"hMailServer.DeliveryQueue.1",
                 @"hMailServer.DeliveryQueue",
+                @"hMailServer.Language.1",
+                @"hMailServer.Language",
+                @"hMailServer.Languages.1",
+                @"hMailServer.Languages",
                 @"hMailServer.Directories.1",
                 @"hMailServer.Directories",
                 @"hMailServer.Domains.1",
@@ -404,6 +418,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{B088FED1-A784-4CDB-ADDF-E7332CB7F72F}",
                 @"CLSID\{D8CC854E-F6F6-402C-ADF7-73F4569B9F8B}",
                 @"CLSID\{27473BB7-4272-4693-ACA6-FD9D4C9C3FC5}",
+                @"CLSID\{1C70E18B-C63D-458C-B080-64E4F94C4E83}",
+                @"CLSID\{BE1070A2-9265-495E-B134-27FAA93916CE}",
                 @"CLSID\{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
                 @"CLSID\{82AFD03C-58A4-4F04-8277-6B2812780E45}",
                 @"CLSID\{C535E4AF-9DB3-41FC-B434-FFCDAE0EFBD5}",

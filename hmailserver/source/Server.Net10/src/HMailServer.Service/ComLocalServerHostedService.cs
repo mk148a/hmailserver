@@ -54,6 +54,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(DeliveryQueue).GUID,
                 static () => new DeliveryQueue()),
             new ComLocalServerRegistration(
+                typeof(Language).GUID,
+                static () => new Language()),
+            new ComLocalServerRegistration(
+                typeof(Languages).GUID,
+                static () => new Languages()),
+            new ComLocalServerRegistration(
                 typeof(Directories).GUID,
                 static () => new Directories()),
             new ComLocalServerRegistration(

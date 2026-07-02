@@ -842,6 +842,8 @@ builder.Services.AddSingleton<ISslCertificateAdministrationStore, SqlServerSslCe
 builder.Services.AddSingleton<IServerMessageAdministrationStore, SqlServerServerMessageAdministrationStore>();
 builder.Services.AddSingleton<IDirectoryAdministrationStore>(
     new LegacyDirectoryAdministrationStore(initializationFile));
+builder.Services.AddSingleton<ILanguageAdministrationStore>(
+    new LegacyLanguageAdministrationStore(AppContext.BaseDirectory, initializationFile));
 builder.Services.AddSingleton<IGroupAdministrationStore, SqlServerGroupAdministrationStore>();
 builder.Services.AddSingleton<IGroupMemberAdministrationStore, SqlServerGroupMemberAdministrationStore>();
 builder.Services.AddSingleton<IAliasAdministrationStore, SqlServerAliasAdministrationStore>();
@@ -908,6 +910,8 @@ DeliveryQueueAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDeliveryQueueAdministrationStore>(),
     host.Services.GetRequiredService<IDeliveryQueueWakeSignal>(),
     host.Services.GetRequiredService<IDeliveryQueueClearCoordinator>());
+LanguageAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<ILanguageAdministrationStore>());
 SettingsAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<ISettingsAdministrationStore>(),
     new SettingsRuntimeConfiguration(

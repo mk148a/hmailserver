@@ -144,6 +144,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "Language",
+            "{1C70E18B-C63D-458C-B080-64E4F94C4E83}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "Languages",
+            "{BE1070A2-9265-495E-B134-27FAA93916CE}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Directories",
             "{1969A4DF-B1B0-4A71-8196-5FD392CA3D8A}",
             executablePath,
