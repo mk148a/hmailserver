@@ -145,7 +145,20 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
         _wakeSignal.Signal();
     }
 
-    public void Remove(long messageId) => Unavailable();
+    public void Remove(long messageId)
+    {
+        EnsureAuthorized();
+        if (_store is null)
+        {
+            throw NotImplemented();
+        }
+
+        _ = _store
+            .RemoveAsync(messageId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+    }
 
     internal static DeliveryQueue CreateAuthorized(
         IDeliveryQueueAdministrationStore? store = null,

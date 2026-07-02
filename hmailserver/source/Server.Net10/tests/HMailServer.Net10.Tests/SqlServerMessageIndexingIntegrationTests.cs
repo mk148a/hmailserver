@@ -193,7 +193,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
-    public async Task AuthenticatedComPath_ResetsOnlyEligibleDeliveryQueueTimeAgainstIsolatedDatabase()
+    public async Task AuthenticatedComPath_ResetsAndRemovesOnlyEligibleDeliveryQueueRowsAgainstIsolatedDatabase()
     {
         var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
         if (string.IsNullOrWhiteSpace(serverConnectionString))
@@ -204,14 +204,27 @@ public sealed class SqlServerMessageIndexingIntegrationTests
         var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
         var masterConnectionString = WithDatabase(serverConnectionString, "master");
         var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "hmailserver-net10-queue-admin-" + Guid.NewGuid().ToString("N"));
         await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
 
         try
         {
+            Directory.CreateDirectory(dataDirectory);
+            foreach (var fileName in new[] { "active.eml", "delivered.eml", "ready.eml", "expired.eml" })
+            {
+                await File.WriteAllTextAsync(
+                    Path.Combine(dataDirectory, fileName),
+                    "Subject: Queue administration\r\n\r\nBody\r\n").ConfigureAwait(false);
+            }
+
             await CreateDeliveryQueueAdministrationSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
             DeliveryQueueAdministrationRuntimeHost.Configure(
                 new SqlServerDeliveryQueueAdministrationStore(
-                    new SqlServerConnectionFactory(testConnectionString)));
+                    new SqlServerConnectionFactory(testConnectionString),
+                    new MessageFilePathResolver(
+                        new MessageFileSearchDocumentSourceOptions(dataDirectory))));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -221,6 +234,11 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             queue.ResetDeliveryTime(10);
             queue.ResetDeliveryTime(20);
             queue.ResetDeliveryTime(999);
+            queue.Remove(30);
+            queue.Remove(40);
+            queue.Remove(10);
+            queue.Remove(20);
+            queue.Remove(999);
 
             await using var connection = new SqlConnection(testConnectionString);
             await connection.OpenAsync().ConfigureAwait(false);
@@ -260,12 +278,31 @@ ORDER BY messageid;
             Assert.IsTrue(reader.IsDBNull(5));
             Assert.IsTrue(reader.IsDBNull(6));
             Assert.IsFalse(await reader.ReadAsync().ConfigureAwait(false));
+            await reader.DisposeAsync().ConfigureAwait(false);
+
+            await using var recipientCommand = new SqlCommand(
+                "SELECT COUNT(*) FROM hm_messagerecipients;",
+                connection);
+            Assert.AreEqual(
+                2,
+                Convert.ToInt32(
+                    await recipientCommand.ExecuteScalarAsync().ConfigureAwait(false),
+                    System.Globalization.CultureInfo.InvariantCulture));
+
+            Assert.IsTrue(File.Exists(Path.Combine(dataDirectory, "active.eml")));
+            Assert.IsTrue(File.Exists(Path.Combine(dataDirectory, "delivered.eml")));
+            Assert.IsFalse(File.Exists(Path.Combine(dataDirectory, "ready.eml")));
+            Assert.IsFalse(File.Exists(Path.Combine(dataDirectory, "expired.eml")));
         }
         finally
         {
             DeliveryQueueAdministrationRuntimeHost.ResetForTests();
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(dataDirectory))
+            {
+                Directory.Delete(dataDirectory, recursive: true);
+            }
         }
     }
 
@@ -955,6 +992,7 @@ VALUES
 CREATE TABLE dbo.hm_messages
 (
     messageid bigint NOT NULL PRIMARY KEY,
+    messagefilename nvarchar(255) NOT NULL,
     messagetype int NOT NULL,
     messagenexttrytime datetime2 NOT NULL,
     messagecurnooftries int NOT NULL,
@@ -963,9 +1001,16 @@ CREATE TABLE dbo.hm_messages
     messageleaseexpiresutc datetime2 NULL
 );
 
+CREATE TABLE dbo.hm_messagerecipients
+(
+    recipientid bigint NOT NULL PRIMARY KEY,
+    recipientmessageid bigint NOT NULL
+);
+
 INSERT INTO dbo.hm_messages
 (
     messageid,
+    messagefilename,
     messagetype,
     messagenexttrytime,
     messagecurnooftries,
@@ -974,8 +1019,18 @@ INSERT INTO dbo.hm_messages
     messageleaseexpiresutc
 )
 VALUES
-    (10, 3, '2099-01-01T00:00:00', 7, 1, N'worker-a', '2099-01-01T00:00:00'),
-    (20, 2, '2099-01-01T00:00:00', 9, 0, NULL, NULL);
+    (10, N'active.eml', 3, '2099-01-01T00:00:00', 7, 1, N'worker-a', '2099-01-01T00:00:00'),
+    (20, N'delivered.eml', 2, '2099-01-01T00:00:00', 9, 0, NULL, NULL),
+    (30, N'ready.eml', 1, '1901-01-01T00:00:00', 0, 0, NULL, NULL),
+    (40, N'expired.eml', 1, '1901-01-01T00:00:00', 1, 1, N'worker-expired', '2000-01-01T00:00:00');
+
+INSERT INTO dbo.hm_messagerecipients
+    (recipientid, recipientmessageid)
+VALUES
+    (1, 10),
+    (2, 20),
+    (3, 30),
+    (4, 40);
 """;
 
         await using var connection = new SqlConnection(connectionString);

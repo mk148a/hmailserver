@@ -5,4 +5,8 @@ public interface IDeliveryQueueAdministrationStore
     ValueTask<bool> ResetDeliveryTimeAsync(
         long messageId,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> RemoveAsync(
+        long messageId,
+        CancellationToken cancellationToken);
 }

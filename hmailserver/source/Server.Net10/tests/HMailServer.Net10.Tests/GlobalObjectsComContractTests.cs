@@ -117,11 +117,12 @@ public sealed class GlobalObjectsComContractTests
 
         queue.ResetDeliveryTime(long.MaxValue);
         queue.StartDelivery();
+        queue.Remove(long.MinValue);
 
         Assert.AreEqual(long.MaxValue, store.MessageId);
+        Assert.AreEqual(long.MinValue, store.RemovedMessageId);
         Assert.AreEqual(1, wakeSignal.SignalCount);
         AssertPending(queue.Clear);
-        AssertPending(() => queue.Remove(long.MaxValue));
     }
 
     private static void AssertDualContract(Type contract, string iid)
@@ -161,10 +162,21 @@ public sealed class GlobalObjectsComContractTests
     {
         public long? MessageId { get; private set; }
 
+        public long? RemovedMessageId { get; private set; }
+
         public ValueTask<bool> ResetDeliveryTimeAsync(long messageId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             MessageId = messageId;
+            return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<bool> RemoveAsync(
+            long messageId,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RemovedMessageId = messageId;
             return ValueTask.FromResult(true);
         }
     }

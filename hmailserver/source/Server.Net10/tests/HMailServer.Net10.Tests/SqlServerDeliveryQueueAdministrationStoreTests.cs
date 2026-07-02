@@ -22,4 +22,29 @@ public sealed class SqlServerDeliveryQueueAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void RemoveSql_DeletesOnlyUnlockedOrExpiredQueueRowsAndRecipients()
+    {
+        var sql = SqlServerDeliveryQueueAdministrationStore.RemoveSql;
+
+        StringAssert.Contains(sql, "SET XACT_ABORT ON");
+        StringAssert.Contains(sql, "BEGIN TRANSACTION");
+        StringAssert.Contains(sql, "WITH (UPDLOCK, READPAST, ROWLOCK)");
+        StringAssert.Contains(sql, "messageid = @MessageId");
+        StringAssert.Contains(sql, "messagetype IN (1, 3)");
+        StringAssert.Contains(sql, "messagelocked = 1");
+        StringAssert.Contains(sql, "messageleaseowner IS NOT NULL");
+        StringAssert.Contains(sql, "messageleaseexpiresutc > SYSUTCDATETIME()");
+        StringAssert.Contains(sql, "DELETE FROM hm_messagerecipients");
+        StringAssert.Contains(sql, "recipientmessageid = @MessageId");
+        StringAssert.Contains(sql, "DELETE FROM hm_messages");
+        StringAssert.Contains(sql, "SELECT @MessageFileName");
+        StringAssert.Contains(sql, "COMMIT TRANSACTION");
+        Assert.IsTrue(
+            sql.IndexOf("DELETE FROM hm_messagerecipients", StringComparison.OrdinalIgnoreCase) <
+            sql.IndexOf("DELETE FROM hm_messages", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE hm_messages", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+    }
 }
