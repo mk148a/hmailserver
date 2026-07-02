@@ -103,4 +103,9 @@ public sealed record SettingsAdministrationSnapshot(
     bool AntiSpamDkimVerificationEnabled = false,
     int AntiSpamDkimVerificationFailureScore = 0,
     bool AntiSpamBypassGreylistingOnSpfSuccess = false,
-    bool AntiSpamBypassGreylistingOnMailFromMx = false);
+    bool AntiSpamBypassGreylistingOnMailFromMx = false,
+    bool CacheEnabled = false,
+    int DomainCacheTtl = 0,
+    int AccountCacheTtl = 0,
+    int AliasCacheTtl = 0,
+    int DistributionListCacheTtl = 0);

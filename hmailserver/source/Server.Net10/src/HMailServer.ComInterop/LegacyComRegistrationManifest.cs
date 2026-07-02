@@ -95,6 +95,13 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "Cache",
+            "{B16F527C-116F-4F6B-B669-9A00326E255B}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "AntiVirus",
             "{82D6DBF9-DDDB-4C4A-A52A-92B6ED16D8EA}",
             executablePath,

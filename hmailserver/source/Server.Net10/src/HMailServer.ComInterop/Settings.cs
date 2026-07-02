@@ -1378,6 +1378,23 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceCache Cache
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.Cache
+                : HMailServer.ComInterop.Cache.CreateAuthorized(
+                    new CacheAdministrationSnapshot(
+                        _administrationSnapshot.CacheEnabled,
+                        _administrationSnapshot.DomainCacheTtl,
+                        _administrationSnapshot.AccountCacheTtl,
+                        _administrationSnapshot.AliasCacheTtl,
+                        _administrationSnapshot.DistributionListCacheTtl));
+        }
+    }
+
     public override string PublicFolderDiskName
     {
         get
@@ -1443,7 +1460,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual string UserInterfaceLanguage { get => Unavailable<string>(); set => Unavailable(); }
     public virtual IInterfaceScripting Scripting => Unavailable<IInterfaceScripting>();
     public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
-    public IInterfaceCache Cache => Unavailable<IInterfaceCache>();
+    public virtual IInterfaceCache Cache => Unavailable<IInterfaceCache>();
     public virtual int RuleLoopLimit { get => Unavailable<int>(); set => Unavailable(); }
     public virtual IInterfaceBackupSettings Backup => Unavailable<IInterfaceBackupSettings>();
     public virtual string DefaultDomain { get => Unavailable<string>(); set => Unavailable(); }

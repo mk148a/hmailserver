@@ -49,6 +49,11 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "Cache",
+            "{B16F527C-116F-4F6B-B669-9A00326E255B}",
+            executablePath);
+        AssertClass(
+            manifest,
             "AntiVirus",
             "{82D6DBF9-DDDB-4C4A-A52A-92B6ED16D8EA}",
             executablePath);
@@ -405,6 +410,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.Status",
                 @"hMailServer.Settings.1",
                 @"hMailServer.Settings",
+                @"hMailServer.Cache.1",
+                @"hMailServer.Cache",
                 @"hMailServer.AntiVirus.1",
                 @"hMailServer.AntiVirus",
                 @"hMailServer.AntiSpam.1",
@@ -537,6 +544,7 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{88A65C5B-916D-4A79-948A-B0DEE0454804}",
                 @"CLSID\{ADD8B04F-F7A0-4C73-8B0B-E53B3077F052}",
                 @"CLSID\{FDF084A7-82DE-4EBE-8455-E506ACE01D63}",
+                @"CLSID\{B16F527C-116F-4F6B-B669-9A00326E255B}",
                 @"CLSID\{82D6DBF9-DDDB-4C4A-A52A-92B6ED16D8EA}",
                 @"CLSID\{A0B91A99-BCE8-4939-94EC-0881E25A1E5B}",
                 @"CLSID\{1E93E771-45C1-4CAD-9BF6-5D79723C9CBE}",

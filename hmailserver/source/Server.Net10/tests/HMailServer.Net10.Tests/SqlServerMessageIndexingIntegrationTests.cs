@@ -139,6 +139,16 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
             Assert.AreEqual("master-user", settings.IMAPMasterUser);
             Assert.AreEqual(15, settings.MaxAsynchronousThreads);
+            var cache = settings.Cache;
+            Assert.IsTrue(cache.Enabled);
+            Assert.AreEqual(61, cache.DomainCacheTTL);
+            Assert.AreEqual(62, cache.AccountCacheTTL);
+            Assert.AreEqual(63, cache.AliasCacheTTL);
+            Assert.AreEqual(64, cache.DistributionListCacheTTL);
+            var pendingCacheRuntime = Assert.ThrowsExactly<COMException>(() => _ = cache.DomainHitRate);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingCacheRuntime.ErrorCode);
+            var pendingCacheClear = Assert.ThrowsExactly<COMException>(cache.Clear);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingCacheClear.ErrorCode);
             var logging = settings.Logging;
             Assert.IsTrue(logging.Enabled);
             Assert.IsTrue(logging.LogSMTP);
@@ -1265,6 +1275,11 @@ VALUES
     (N'ASDKIMVerificationFailureScore', N'', 8),
     (N'BypassGreylistingOnSPFSuccess', N'', 1),
     (N'BypassGreylistingOnMailFromMX', N'', 0),
+    (N'usecache', N'', 1),
+    (N'domaincachettl', N'', 61),
+    (N'accountcachettl', N'', 62),
+    (N'aliascachettl', N'', 63),
+    (N'distributionlistcachettl', N'', 64),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 
 INSERT INTO dbo.hm_blocked_attachments (baid, bawildcard, badescription)

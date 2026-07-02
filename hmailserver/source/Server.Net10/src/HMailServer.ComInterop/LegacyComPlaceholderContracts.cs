@@ -10,6 +10,3 @@ public interface IInterfaceMessages;
 
 [ComVisible(true), Guid("CBE3FE9E-3642-4BA1-9BE0-6E766C0DE961"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceIMAPFolderPermissions;
-
-[ComVisible(true), Guid("AE45B7CD-C050-4B14-A983-30D53059D24F"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceCache;

@@ -118,6 +118,11 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'ASDKIMVerificationFailureScore'");
         StringAssert.Contains(sql, "settingname = N'BypassGreylistingOnSPFSuccess'");
         StringAssert.Contains(sql, "settingname = N'BypassGreylistingOnMailFromMX'");
+        StringAssert.Contains(sql, "settingname = N'usecache'");
+        StringAssert.Contains(sql, "settingname = N'domaincachettl'");
+        StringAssert.Contains(sql, "settingname = N'accountcachettl'");
+        StringAssert.Contains(sql, "settingname = N'aliascachettl'");
+        StringAssert.Contains(sql, "settingname = N'distributionlistcachettl'");
     }
 
     [TestMethod]

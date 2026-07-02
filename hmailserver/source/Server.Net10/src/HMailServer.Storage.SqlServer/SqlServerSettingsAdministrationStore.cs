@@ -110,7 +110,12 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'ASDKIMVerificationEnabled' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'ASDKIMVerificationFailureScore' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'BypassGreylistingOnSPFSuccess' THEN settinginteger END), 0),
-    COALESCE(MAX(CASE WHEN settingname = N'BypassGreylistingOnMailFromMX' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'BypassGreylistingOnMailFromMX' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'usecache' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'domaincachettl' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'accountcachettl' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'aliascachettl' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'distributionlistcachettl' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -216,7 +221,12 @@ WHERE settingname IN
     N'ASDKIMVerificationEnabled',
     N'ASDKIMVerificationFailureScore',
     N'BypassGreylistingOnSPFSuccess',
-    N'BypassGreylistingOnMailFromMX'
+    N'BypassGreylistingOnMailFromMX',
+    N'usecache',
+    N'domaincachettl',
+    N'accountcachettl',
+    N'aliascachettl',
+    N'distributionlistcachettl'
 );
 """;
 
@@ -345,6 +355,11 @@ WHERE settingname IN
             AntiSpamDkimVerificationEnabled: reader.GetInt32(99) != 0,
             AntiSpamDkimVerificationFailureScore: reader.GetInt32(100),
             AntiSpamBypassGreylistingOnSpfSuccess: reader.GetInt32(101) != 0,
-            AntiSpamBypassGreylistingOnMailFromMx: reader.GetInt32(102) != 0);
+            AntiSpamBypassGreylistingOnMailFromMx: reader.GetInt32(102) != 0,
+            CacheEnabled: reader.GetInt32(103) != 0,
+            DomainCacheTtl: reader.GetInt32(104),
+            AccountCacheTtl: reader.GetInt32(105),
+            AliasCacheTtl: reader.GetInt32(106),
+            DistributionListCacheTtl: reader.GetInt32(107));
     }
 }
