@@ -81,6 +81,27 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "DiagnosticResults",
+            "{3AC49BB3-3F3C-4D82-AC0F-28464C408EA9}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "DiagnosticResult",
+            "{430C3328-6348-4A86-8E12-74B5B5EFF48D}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "Diagnostics",
+            "{EB576B35-8F97-47AB-A0D1-80A3D514610B}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Status",
             "{ADD8B04F-F7A0-4C73-8B0B-E53B3077F052}",
             executablePath,

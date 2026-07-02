@@ -39,6 +39,21 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "DiagnosticResults",
+            "{3AC49BB3-3F3C-4D82-AC0F-28464C408EA9}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "DiagnosticResult",
+            "{430C3328-6348-4A86-8E12-74B5B5EFF48D}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "Diagnostics",
+            "{EB576B35-8F97-47AB-A0D1-80A3D514610B}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Status",
             "{ADD8B04F-F7A0-4C73-8B0B-E53B3077F052}",
             executablePath);
@@ -416,6 +431,12 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.Utilities",
                 @"hMailServer.Links.1",
                 @"hMailServer.Links",
+                @"hMailServer.DiagnosticResults.1",
+                @"hMailServer.DiagnosticResults",
+                @"hMailServer.DiagnosticResult.1",
+                @"hMailServer.DiagnosticResult",
+                @"hMailServer.Diagnostics.1",
+                @"hMailServer.Diagnostics",
                 @"hMailServer.Status.1",
                 @"hMailServer.Status",
                 @"hMailServer.Settings.1",
@@ -556,6 +577,9 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{2F5BEF2E-C713-4826-88AE-A5FD9921907B}",
                 @"CLSID\{E116DCB7-7FEC-4540-BEA1-FA1B19D05B5F}",
                 @"CLSID\{88A65C5B-916D-4A79-948A-B0DEE0454804}",
+                @"CLSID\{3AC49BB3-3F3C-4D82-AC0F-28464C408EA9}",
+                @"CLSID\{430C3328-6348-4A86-8E12-74B5B5EFF48D}",
+                @"CLSID\{EB576B35-8F97-47AB-A0D1-80A3D514610B}",
                 @"CLSID\{ADD8B04F-F7A0-4C73-8B0B-E53B3077F052}",
                 @"CLSID\{FDF084A7-82DE-4EBE-8455-E506ACE01D63}",
                 @"CLSID\{B16F527C-116F-4F6B-B669-9A00326E255B}",

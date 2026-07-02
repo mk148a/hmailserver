@@ -124,7 +124,14 @@ public sealed class Application : IInterfaceApplication
         }
     }
 
-    public IInterfaceDiagnostics Diagnostics => NotImplemented<IInterfaceDiagnostics>();
+    public IInterfaceDiagnostics Diagnostics
+    {
+        get
+        {
+            EnsureServerAdministrator();
+            return DiagnosticsRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
 
     public string VersionArchitecture => ApplicationRuntimeHost.Snapshot.VersionArchitecture;
 
