@@ -31,6 +31,62 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_EnqueuesPrimaryMessageThroughDeliveryWakeBoundary()
+    {
+        var durableWriter = new RecordingSmtpQueueWriter();
+        var wakeSignal = new RecordingDeliveryQueueWakeSignal();
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            queueWriter: new SignalingSmtpQueueWriter(durableWriter, wakeSignal));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Primary\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsTrue(result.Accepted);
+        Assert.AreEqual(1, durableWriter.Requests.Count);
+        Assert.AreEqual("sender@example.test", durableWriter.Requests.Single().MailFrom);
+        Assert.AreEqual(1, wakeSignal.SignalCount);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_EnqueuesGeneratedAndPrimaryMessagesThroughDeliveryWakeBoundary()
+    {
+        var generatedMessage = new SmtpRuleGeneratedMessage(
+            "generated@example.test",
+            [
+                new SmtpResolvedRecipient(
+                    "generated-recipient@example.test",
+                    "generated-recipient@example.test",
+                    LocalAccountId: 0,
+                    IsLocal: false)
+            ],
+            "Subject: Generated\r\n\r\nBody\r\n"u8.ToArray());
+        var durableWriter = new RecordingSmtpQueueWriter();
+        var wakeSignal = new RecordingDeliveryQueueWakeSignal();
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            ruleProcessor: new FakeRuleProcessor(request =>
+                SmtpRuleProcessingResult.Continue(
+                    request.MessageData,
+                    moveToImapFolder: null,
+                    generatedMessages: [generatedMessage])),
+            queueWriter: new SignalingSmtpQueueWriter(durableWriter, wakeSignal));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Primary\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsTrue(result.Accepted);
+        CollectionAssert.AreEqual(
+            new[] { "generated@example.test", "sender@example.test" },
+            durableWriter.Requests.Select(static request => request.MailFrom).ToArray());
+        Assert.AreEqual(2, wakeSignal.SignalCount);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_ReturnsSuccessWithoutQueueWriteWhenRuleProcessorDropsMessage()
     {
         var receiver = new SqlServerSmtpMessageReceiver(
@@ -857,6 +913,32 @@ public sealed class SqlServerSmtpMessageReceiverTests
         using var input = new MemoryStream(messageData, writable: false);
         var message = MimeMessage.Load(input);
         return message.Attachments.Single();
+    }
+
+    private sealed class RecordingSmtpQueueWriter : ISmtpQueueWriter
+    {
+        public List<SmtpQueueWriteRequest> Requests { get; } = [];
+
+        public ValueTask EnqueueAsync(
+            SmtpQueueWriteRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingDeliveryQueueWakeSignal : IDeliveryQueueWakeSignal
+    {
+        public int SignalCount { get; private set; }
+
+        public void Signal() => SignalCount++;
+
+        public ValueTask<bool> WaitAsync(
+            TimeSpan timeout,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeRuleProcessor : ISmtpRuleProcessor

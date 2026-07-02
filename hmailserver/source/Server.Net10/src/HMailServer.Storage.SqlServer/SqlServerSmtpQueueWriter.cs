@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerSmtpQueueWriter
+public sealed class SqlServerSmtpQueueWriter : ISmtpQueueWriter
 {
     public const string InsertQueuedMessageSql = """
 INSERT INTO hm_messages

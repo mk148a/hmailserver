@@ -10,7 +10,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
 
     public const string UnlockQueuedMessageSql = SqlServerSmtpQueueWriter.UnlockQueuedMessageSql;
 
-    private readonly SqlServerSmtpQueueWriter _queueWriter;
+    private readonly ISmtpQueueWriter _queueWriter;
     private readonly ISmtpRuleProcessor? _ruleProcessor;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
     private readonly IMessageAntivirusScanner? _antivirusScanner;
@@ -33,7 +33,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         MessageFilePathResolver pathResolver,
         ISmtpRuleProcessor? ruleProcessor = null,
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
-        SqlServerSmtpQueueWriter? queueWriter = null,
+        ISmtpQueueWriter? queueWriter = null,
         IMessageAntivirusScanner? antivirusScanner = null,
         IMessageSpamScanner? spamScanner = null,
         IMessageSpamPolicy? spamPolicy = null,

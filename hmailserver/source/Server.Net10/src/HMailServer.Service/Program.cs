@@ -719,6 +719,10 @@ builder.Services.AddSingleton<SqlServerSmtpQueueWriter>();
 builder.Services.AddSingleton<SqlServerSmtpRuleProcessor>();
 builder.Services.AddSingleton<ISmtpRuleProcessor>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerSmtpRuleProcessor>());
 builder.Services.AddSingleton<ISmtpAccountRuleProcessor>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerSmtpRuleProcessor>());
+builder.Services.AddSingleton<ISmtpQueueWriter>(static serviceProvider =>
+    new SignalingSmtpQueueWriter(
+        serviceProvider.GetRequiredService<SqlServerSmtpQueueWriter>(),
+        serviceProvider.GetRequiredService<IDeliveryQueueWakeSignal>()));
 builder.Services.AddSingleton<ISmtpMessageReceiver, SqlServerSmtpMessageReceiver>();
 builder.Services.AddSingleton<ISmtpRecipientValidator, SqlServerSmtpRecipientValidator>();
 builder.Services.AddSingleton<IDeliveryQueueLeaseStore, SqlServerDeliveryQueueLeaseStore>();
