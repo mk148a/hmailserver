@@ -17,9 +17,6 @@ public interface IInterfaceMessages;
 [ComVisible(true), Guid("CBE3FE9E-3642-4BA1-9BE0-6E766C0DE961"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceIMAPFolderPermissions;
 
-[ComVisible(true), Guid("952EE84F-C1D4-4869-8B86-76A3BA8F39FA"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceAntiVirus;
-
 [ComVisible(true), Guid("315BF27F-F832-4FBE-83FE-1C5A5011FAC7"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceRouteAddresses;
 
@@ -28,3 +25,9 @@ public interface IInterfaceCache;
 
 [ComVisible(true), Guid("998A7E66-21FA-47CC-9DB4-81822F2D05C9"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceAntiSpam;
+
+[ComVisible(true), Guid("BF5CBCFF-CD54-4FAB-AE60-ADFA9C961C1A"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceBlockedAttachment;
+
+[ComVisible(true), Guid("8979F461-AD9D-49E8-8068-BBAB43FBA31A"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+public interface IInterfaceBlockedAttachments;

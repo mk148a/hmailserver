@@ -40,6 +40,14 @@ public enum ComLogOutputFormat
 }
 
 [ComVisible(true)]
+[Guid("FD97B388-4C39-11D9-8361-94B829D736A2")]
+public enum ComAntivirusAction
+{
+    DeleteEmail = 0,
+    DeleteAttachments = 1
+}
+
+[ComVisible(true)]
 [Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD03")]
 public enum ComRuleMatchType
 {

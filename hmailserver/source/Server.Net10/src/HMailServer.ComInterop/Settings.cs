@@ -1147,6 +1147,32 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceAntiVirus AntiVirus
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.AntiVirus
+                : HMailServer.ComInterop.AntiVirus.CreateAuthorized(
+                    new AntiVirusAdministrationSnapshot(
+                        _administrationSnapshot.AntiVirusClamWinEnabled,
+                        _administrationSnapshot.AntiVirusClamWinExecutable,
+                        _administrationSnapshot.AntiVirusClamWinDatabase,
+                        _administrationSnapshot.AntiVirusAction,
+                        _administrationSnapshot.AntiVirusNotifyReceiver,
+                        _administrationSnapshot.AntiVirusNotifySender,
+                        _administrationSnapshot.AntiVirusCustomScannerEnabled,
+                        _administrationSnapshot.AntiVirusCustomScannerExecutable,
+                        _administrationSnapshot.AntiVirusCustomScannerReturnValue,
+                        _administrationSnapshot.AntiVirusMaximumMessageSize,
+                        _administrationSnapshot.AntiVirusEnableAttachmentBlocking,
+                        _administrationSnapshot.AntiVirusClamAvEnabled,
+                        _administrationSnapshot.AntiVirusClamAvHost,
+                        _administrationSnapshot.AntiVirusClamAvPort));
+        }
+    }
+
     public override bool VerifyRemoteSslCertificate
     {
         get
@@ -1367,7 +1393,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual bool ServicePOP3 { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool ServiceIMAP { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual int MaxDeliveryThreads { get => Unavailable<int>(); set => Unavailable(); }
-    public IInterfaceAntiVirus AntiVirus => Unavailable<IInterfaceAntiVirus>();
+    public virtual IInterfaceAntiVirus AntiVirus => Unavailable<IInterfaceAntiVirus>();
     public virtual IInterfaceRoutes Routes => Unavailable<IInterfaceRoutes>();
     public virtual string HostName { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool SMTPRelayerRequiresAuthentication { get => Unavailable<bool>(); set => Unavailable(); }

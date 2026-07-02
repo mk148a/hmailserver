@@ -68,7 +68,21 @@ SELECT
     COALESCE(MAX(CASE WHEN settingname = N'usescriptserver' THEN settinginteger END), 0),
     COALESCE(MAX(CASE WHEN settingname = N'scriptlanguage' THEN settingstring END), N''),
     COALESCE(MAX(CASE WHEN settingname = N'backupdestination' THEN settingstring END), N''),
-    COALESCE(MAX(CASE WHEN settingname = N'backupoptions' THEN settinginteger END), 0)
+    COALESCE(MAX(CASE WHEN settingname = N'backupoptions' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'avclamwinenable' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'avclamwinexec' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'avclamwindb' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'avaction' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'avnotifyreceiver' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'avnotifysender' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'usecustomvirusscanner' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'customvirusscannerexecutable' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'customviursscannerreturnvalue' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'avmaxmsgsize' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'enableattachmentblocking' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'ClamAVEnabled' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'ClamAVHost' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'ClamAVPort' THEN settinginteger END), 0)
 FROM hm_settings
 WHERE settingname IN
 (
@@ -132,7 +146,21 @@ WHERE settingname IN
     N'usescriptserver',
     N'scriptlanguage',
     N'backupdestination',
-    N'backupoptions'
+    N'backupoptions',
+    N'avclamwinenable',
+    N'avclamwinexec',
+    N'avclamwindb',
+    N'avaction',
+    N'avnotifyreceiver',
+    N'avnotifysender',
+    N'usecustomvirusscanner',
+    N'customvirusscannerexecutable',
+    N'customviursscannerreturnvalue',
+    N'avmaxmsgsize',
+    N'enableattachmentblocking',
+    N'ClamAVEnabled',
+    N'ClamAVHost',
+    N'ClamAVPort'
 );
 """;
 
@@ -219,6 +247,20 @@ WHERE settingname IN
             UseScriptServer: reader.GetInt32(57) != 0,
             ScriptLanguage: reader.GetString(58),
             BackupDestination: reader.GetString(59),
-            BackupOptions: reader.GetInt32(60));
+            BackupOptions: reader.GetInt32(60),
+            AntiVirusClamWinEnabled: reader.GetInt32(61) != 0,
+            AntiVirusClamWinExecutable: reader.GetString(62),
+            AntiVirusClamWinDatabase: reader.GetString(63),
+            AntiVirusAction: reader.GetInt32(64),
+            AntiVirusNotifyReceiver: reader.GetInt32(65) != 0,
+            AntiVirusNotifySender: reader.GetInt32(66) != 0,
+            AntiVirusCustomScannerEnabled: reader.GetInt32(67) != 0,
+            AntiVirusCustomScannerExecutable: reader.GetString(68),
+            AntiVirusCustomScannerReturnValue: reader.GetInt32(69),
+            AntiVirusMaximumMessageSize: reader.GetInt32(70),
+            AntiVirusEnableAttachmentBlocking: reader.GetInt32(71) != 0,
+            AntiVirusClamAvEnabled: reader.GetInt32(72) != 0,
+            AntiVirusClamAvHost: reader.GetString(73),
+            AntiVirusClamAvPort: reader.GetInt32(74));
     }
 }

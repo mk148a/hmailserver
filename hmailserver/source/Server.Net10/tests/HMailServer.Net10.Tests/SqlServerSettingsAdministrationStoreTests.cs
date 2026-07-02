@@ -76,6 +76,20 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'scriptlanguage'");
         StringAssert.Contains(sql, "settingname = N'backupdestination'");
         StringAssert.Contains(sql, "settingname = N'backupoptions'");
+        StringAssert.Contains(sql, "settingname = N'avclamwinenable'");
+        StringAssert.Contains(sql, "settingname = N'avclamwinexec'");
+        StringAssert.Contains(sql, "settingname = N'avclamwindb'");
+        StringAssert.Contains(sql, "settingname = N'avaction'");
+        StringAssert.Contains(sql, "settingname = N'avnotifyreceiver'");
+        StringAssert.Contains(sql, "settingname = N'avnotifysender'");
+        StringAssert.Contains(sql, "settingname = N'usecustomvirusscanner'");
+        StringAssert.Contains(sql, "settingname = N'customvirusscannerexecutable'");
+        StringAssert.Contains(sql, "settingname = N'customviursscannerreturnvalue'");
+        StringAssert.Contains(sql, "settingname = N'avmaxmsgsize'");
+        StringAssert.Contains(sql, "settingname = N'enableattachmentblocking'");
+        StringAssert.Contains(sql, "settingname = N'ClamAVEnabled'");
+        StringAssert.Contains(sql, "settingname = N'ClamAVHost'");
+        StringAssert.Contains(sql, "settingname = N'ClamAVPort'");
     }
 
     [TestMethod]
@@ -91,6 +105,10 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         Assert.IsFalse(sql.Contains("password", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("smtprelayerpassword", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hmailserver_backup.log", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_blocked_attachments", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("VirusScannerTester", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("TestClam", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("process", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("xp_", StringComparison.OrdinalIgnoreCase));
     }
 }
