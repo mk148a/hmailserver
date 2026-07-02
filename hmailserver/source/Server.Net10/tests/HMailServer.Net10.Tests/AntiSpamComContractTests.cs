@@ -214,7 +214,6 @@ public sealed class AntiSpamComContractTests
     {
         IInterfaceAntiSpam antiSpam = AntiSpam.CreateAuthorized(new AntiSpamAdministrationSnapshot());
 
-        AssertPending(() => _ = antiSpam.SURBLServers);
         AssertPending(() => _ = antiSpam.GreyListingWhiteAddresses);
         AssertPending(() => _ = antiSpam.WhiteListAddresses);
         AssertPending(() => antiSpam.ClearGreyListingTriplets());

@@ -213,7 +213,14 @@ public sealed class AntiSpam : IInterfaceAntiSpam
 
     public int GreyListingFinalDelete { get => Snapshot.GreyListingFinalDelete; set => Unavailable(); }
 
-    public IInterfaceSURBLServers SURBLServers => Unavailable<IInterfaceSURBLServers>();
+    public IInterfaceSURBLServers SURBLServers
+    {
+        get
+        {
+            _ = Snapshot;
+            return SurblServerAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
 
     public bool CheckHostInHelo { get => Snapshot.CheckHostInHelo; set => Unavailable(); }
 

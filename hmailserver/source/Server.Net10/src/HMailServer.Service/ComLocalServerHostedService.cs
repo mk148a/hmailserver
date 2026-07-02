@@ -51,6 +51,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(DNSBlackList).GUID,
                 static () => new DNSBlackList()),
             new ComLocalServerRegistration(
+                typeof(SURBLServers).GUID,
+                static () => new SURBLServers()),
+            new ComLocalServerRegistration(
+                typeof(SURBLServer).GUID,
+                static () => new SURBLServer()),
+            new ComLocalServerRegistration(
                 typeof(Logging).GUID,
                 static () => new Logging()),
             new ComLocalServerRegistration(

@@ -1,0 +1,224 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
+
+namespace HMailServer.Net10.Tests;
+
+[TestClass]
+public sealed class SurblServersComContractTests
+{
+    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ENotImplemented = unchecked((int)0x80004001);
+    private const int DispEBadIndex = unchecked((int)0x8002000B);
+
+    [TestMethod]
+    public void Interfaces_PreserveLegacyIidsDispatchIdsAndCompleteVtableOrder()
+    {
+        AssertContract(
+            typeof(IInterfaceSURBLServers),
+            "D6B91C3A-90C1-4943-B818-EE66119E4702",
+            new[]
+            {
+                "get_Item",
+                "get_Count",
+                "DeleteByDBID",
+                "Add",
+                "get_ItemByDBID",
+                "Refresh",
+                "get_ItemByDNSHost"
+            });
+        Assert.AreEqual(0, GetProperty(typeof(IInterfaceSURBLServers), "Item").GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(5, GetMethod(typeof(IInterfaceSURBLServers), "get_ItemByDBID").GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(7, GetMethod(typeof(IInterfaceSURBLServers), "get_ItemByDNSHost").GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(
+            UnmanagedType.BStr,
+            GetMethod(typeof(IInterfaceSURBLServers), "get_ItemByDNSHost")
+                .GetParameters()[0]
+                .GetCustomAttribute<MarshalAsAttribute>()?.Value);
+
+        AssertContract(
+            typeof(IInterfaceSURBLServer),
+            "A4866EDD-F0B8-49C7-A477-57D469F7D7D4",
+            new[]
+            {
+                "get_Active",
+                "set_Active",
+                "get_ID",
+                "get_DNSHost",
+                "set_DNSHost",
+                "get_RejectMessage",
+                "set_RejectMessage",
+                "Save",
+                "get_Score",
+                "set_Score",
+                "Delete"
+            });
+        AssertVariantBoolProperty(typeof(IInterfaceSURBLServer), nameof(IInterfaceSURBLServer.Active), 1);
+        AssertBstrProperty(typeof(IInterfaceSURBLServer), nameof(IInterfaceSURBLServer.DNSHost), 3);
+        AssertBstrProperty(typeof(IInterfaceSURBLServer), nameof(IInterfaceSURBLServer.RejectMessage), 4);
+        Assert.AreEqual(7, GetProperty(typeof(IInterfaceSURBLServer), nameof(IInterfaceSURBLServer.Score)).GetCustomAttribute<DispIdAttribute>()?.Value);
+    }
+
+    [TestMethod]
+    public void ComClasses_PreserveLegacyIdentitiesAndDefaultInterfaces()
+    {
+        AssertComClass<SURBLServers>(
+            "FCD94E5F-F05F-400B-8345-AFC7FDD6626E",
+            "hMailServer.SURBLServers.1",
+            typeof(IInterfaceSURBLServers));
+        AssertComClass<SURBLServer>(
+            "D875AEC4-7AA0-4C93-9F8F-141324C80D17",
+            "hMailServer.SURBLServer.1",
+            typeof(IInterfaceSURBLServer));
+    }
+
+    [TestMethod]
+    public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
+    {
+        var collectionError = Assert.ThrowsExactly<COMException>(() => _ = new SURBLServers().Count);
+        var itemError = Assert.ThrowsExactly<COMException>(() => _ = new SURBLServer().DNSHost);
+        var antiSpamError = Assert.ThrowsExactly<COMException>(() => _ = new AntiSpam().SURBLServers);
+
+        Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, itemError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, antiSpamError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ExposesReadOnlySnapshotsAndLegacyLookupResults()
+    {
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, true, "multi.surbl.org", "Rejected by SURBL.", 4),
+                Snapshot(20, false, "example.surbl.test", "Rejected by test SURBL.", 2)
+            });
+
+        Assert.AreEqual(2, servers.Count);
+        AssertServer(servers[0], 10, true, "multi.surbl.org", "Rejected by SURBL.", 4);
+        AssertServer(servers.get_ItemByDBID(20), 20, false, "example.surbl.test", "Rejected by test SURBL.", 2);
+        Assert.AreEqual(10, servers.get_ItemByDNSHost("MULTI.SURBL.ORG").ID);
+        Assert.IsNull(servers.get_ItemByDNSHost("missing.example.test"));
+
+        var badIndex = Assert.ThrowsExactly<COMException>(() => _ = servers[2]);
+        var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = servers.get_ItemByDBID(30));
+        Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
+
+        AssertPending(() => servers.Add());
+        AssertPending(() => servers.DeleteByDBID(10));
+        AssertPending(servers.Refresh);
+        AssertPending(() => servers[0].Active = false);
+        AssertPending(() => servers[0].DNSHost = "changed.example.test");
+        AssertPending(() => servers[0].RejectMessage = "Changed");
+        AssertPending(() => servers[0].Score = 9);
+        AssertPending(servers[0].Save);
+        AssertPending(servers[0].Delete);
+    }
+
+    [TestMethod]
+    public void AuthorizedAntiSpam_UsesConfiguredSurblServerRuntime()
+    {
+        SurblServerAdministrationRuntimeHost.Configure(
+            new FixedSurblServerAdministrationStore(
+                new[]
+                {
+                    Snapshot(20, false, "example.surbl.test", "Rejected by test SURBL.", 2),
+                    Snapshot(10, true, "multi.surbl.org", "Rejected by SURBL.", 4)
+                }));
+        var antiSpam = AntiSpam.CreateAuthorized(new AntiSpamAdministrationSnapshot());
+
+        var servers = antiSpam.SURBLServers;
+
+        Assert.AreEqual(2, servers.Count);
+        Assert.AreEqual(10, servers[0].ID);
+        Assert.AreEqual("Rejected by test SURBL.", servers.get_ItemByDBID(20).RejectMessage);
+    }
+
+    private static SurblServerAdministrationSnapshot Snapshot(
+        int id,
+        bool active,
+        string dnsHost,
+        string rejectMessage,
+        int score) =>
+        new(id, active, dnsHost, rejectMessage, score);
+
+    private static void AssertServer(
+        IInterfaceSURBLServer server,
+        int id,
+        bool active,
+        string dnsHost,
+        string rejectMessage,
+        int score)
+    {
+        Assert.AreEqual(id, server.ID);
+        Assert.AreEqual(active, server.Active);
+        Assert.AreEqual(dnsHost, server.DNSHost);
+        Assert.AreEqual(rejectMessage, server.RejectMessage);
+        Assert.AreEqual(score, server.Score);
+    }
+
+    private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
+    {
+        Assert.AreEqual(new Guid(interfaceId), contract.GUID);
+        Assert.AreEqual(ComInterfaceType.InterfaceIsDual, contract.GetCustomAttribute<InterfaceTypeAttribute>()?.Value);
+        Assert.AreEqual(
+            TypeLibTypeFlags.FDual | TypeLibTypeFlags.FNonExtensible | TypeLibTypeFlags.FDispatchable,
+            contract.GetCustomAttribute<TypeLibTypeAttribute>()?.Value);
+        CollectionAssert.AreEqual(
+            methodNames,
+            contract.GetMethods().OrderBy(static method => method.MetadataToken).Select(static method => method.Name).ToArray());
+    }
+
+    private static void AssertComClass<T>(string classId, string progId, Type defaultInterface)
+    {
+        var type = typeof(T);
+
+        Assert.AreEqual(new Guid(classId), type.GUID);
+        Assert.AreEqual(progId, type.GetCustomAttribute<ProgIdAttribute>()?.Value);
+        Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
+        Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
+        Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    private static void AssertVariantBoolProperty(Type contract, string name, int dispatchId)
+    {
+        var property = GetProperty(contract, name);
+
+        Assert.AreEqual(dispatchId, property.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(UnmanagedType.VariantBool, property.GetMethod?.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(UnmanagedType.VariantBool, property.SetMethod?.GetParameters()[0].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+    }
+
+    private static void AssertBstrProperty(Type contract, string name, int dispatchId)
+    {
+        var property = GetProperty(contract, name);
+
+        Assert.AreEqual(dispatchId, property.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(UnmanagedType.BStr, property.GetMethod?.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+        Assert.AreEqual(UnmanagedType.BStr, property.SetMethod?.GetParameters()[0].GetCustomAttribute<MarshalAsAttribute>()?.Value);
+    }
+
+    private static PropertyInfo GetProperty(Type contract, string name) =>
+        contract.GetProperty(name) ?? throw new AssertFailedException($"Missing property {name}.");
+
+    private static MethodInfo GetMethod(Type contract, string name) =>
+        contract.GetMethod(name) ?? throw new AssertFailedException($"Missing method {name}.");
+
+    private static void AssertPending(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+        Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private sealed class FixedSurblServerAdministrationStore(
+        IReadOnlyList<SurblServerAdministrationSnapshot> servers)
+        : ISurblServerAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<SurblServerAdministrationSnapshot>> GetSurblServersAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<SurblServerAdministrationSnapshot>>(
+                servers.OrderBy(static server => server.Id).ToArray());
+    }
+}

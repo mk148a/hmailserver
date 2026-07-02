@@ -99,6 +99,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 new SqlServerBlockedAttachmentAdministrationStore(connectionFactory));
             DnsBlackListAdministrationRuntimeHost.Configure(
                 new SqlServerDnsBlackListAdministrationStore(connectionFactory));
+            SurblServerAdministrationRuntimeHost.Configure(
+                new SqlServerSurblServerAdministrationStore(connectionFactory));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
@@ -220,6 +222,17 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(20, dnsBlackLists.get_ItemByDNSHost("BL.SPAMCOP.NET").ID);
             var pendingDnsBlackListSave = Assert.ThrowsExactly<COMException>(dnsBlackLists[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingDnsBlackListSave.ErrorCode);
+            var surblServers = antiSpam.SURBLServers;
+            Assert.AreEqual(2, surblServers.Count);
+            Assert.AreEqual(10, surblServers[0].ID);
+            Assert.IsTrue(surblServers[0].Active);
+            Assert.AreEqual("multi.surbl.org", surblServers[0].DNSHost);
+            Assert.AreEqual("Rejected by SURBL.", surblServers[0].RejectMessage);
+            Assert.AreEqual(4, surblServers[0].Score);
+            Assert.IsFalse(surblServers.get_ItemByDBID(20).Active);
+            Assert.AreEqual(20, surblServers.get_ItemByDNSHost("EXAMPLE.SURBL.TEST").ID);
+            var pendingSurblServerSave = Assert.ThrowsExactly<COMException>(surblServers[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingSurblServerSave.ErrorCode);
             var pendingSpamAssassinTest = Assert.ThrowsExactly<COMException>(
                 () => antiSpam.TestSpamAssassinConnection("127.0.0.1", 783, out _));
             Assert.AreEqual(unchecked((int)0x80004001), pendingSpamAssassinTest.ErrorCode);
@@ -261,6 +274,8 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 new FixedBlockedAttachmentAdministrationStore(Array.Empty<BlockedAttachmentAdministrationSnapshot>()));
             DnsBlackListAdministrationRuntimeHost.Configure(
                 new FixedDnsBlackListAdministrationStore(Array.Empty<DnsBlackListAdministrationSnapshot>()));
+            SurblServerAdministrationRuntimeHost.Configure(
+                new FixedSurblServerAdministrationStore(Array.Empty<SurblServerAdministrationSnapshot>()));
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
         }
@@ -1027,6 +1042,15 @@ CREATE TABLE dbo.hm_dnsbl
     sblscore int NOT NULL
 );
 
+CREATE TABLE dbo.hm_surblservers
+(
+    surblid int NOT NULL PRIMARY KEY,
+    surblactive tinyint NOT NULL,
+    surblhost nvarchar(255) NOT NULL,
+    surblrejectmessage nvarchar(255) NOT NULL,
+    surblscore int NOT NULL
+);
+
 INSERT INTO dbo.hm_settings (settingname, settingstring, settinginteger)
 VALUES
     (N'hostname', N'mail.example.test', 0),
@@ -1144,6 +1168,11 @@ INSERT INTO dbo.hm_dnsbl (sblid, sblactive, sbldnshost, sblresult, sblrejectmess
 VALUES
     (20, 0, N'bl.spamcop.net', N'127.0.0.2', N'Rejected by SpamCop.', 3),
     (10, 1, N'zen.spamhaus.org', N'127.0.0.2-8|127.0.0.10-11', N'Rejected by Spamhaus.', 4);
+
+INSERT INTO dbo.hm_surblservers (surblid, surblactive, surblhost, surblrejectmessage, surblscore)
+VALUES
+    (20, 0, N'example.surbl.test', N'Rejected by test SURBL.', 2),
+    (10, 1, N'multi.surbl.org', N'Rejected by SURBL.', 4);
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -1894,6 +1923,15 @@ VALUES
         public ValueTask<IReadOnlyList<DnsBlackListAdministrationSnapshot>> GetDnsBlackListsAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(blackLists);
+    }
+
+    private sealed class FixedSurblServerAdministrationStore(
+        IReadOnlyList<SurblServerAdministrationSnapshot> servers)
+        : ISurblServerAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<SurblServerAdministrationSnapshot>> GetSurblServersAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(servers);
     }
 
     private sealed class IntegrationDeliveryQueueClearObserver : IDeliveryQueueClearObserver

@@ -137,6 +137,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "SURBLServers",
+            "{FCD94E5F-F05F-400B-8345-AFC7FDD6626E}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "SURBLServer",
+            "{D875AEC4-7AA0-4C93-9F8F-141324C80D17}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Logging",
             "{E3E22438-871F-49CF-A47E-4D3A144BD002}",
             executablePath,
