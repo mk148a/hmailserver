@@ -1,0 +1,48 @@
+using System.Data;
+using HMailServer.Core.Abstractions;
+using Microsoft.Data.SqlClient;
+
+namespace HMailServer.Storage.SqlServer;
+
+public sealed class SqlServerGreyListingWhiteAddressAdministrationStore
+    : IGreyListingWhiteAddressAdministrationStore
+{
+    public const string GetWhiteAddressesSql = """
+SELECT
+    whiteid,
+    whiteipaddress,
+    whiteipdescription
+FROM hm_greylisting_whiteaddresses
+ORDER BY whiteipaddress ASC;
+""";
+
+    private readonly SqlServerConnectionFactory _connectionFactory;
+
+    public SqlServerGreyListingWhiteAddressAdministrationStore(SqlServerConnectionFactory connectionFactory)
+    {
+        ArgumentNullException.ThrowIfNull(connectionFactory);
+        _connectionFactory = connectionFactory;
+    }
+
+    public async ValueTask<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>> GetWhiteAddressesAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(GetWhiteAddressesSql, connection);
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+
+        var addresses = new List<GreyListingWhiteAddressAdministrationSnapshot>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            addresses.Add(
+                new GreyListingWhiteAddressAdministrationSnapshot(
+                    Id: reader.GetInt64(0),
+                    StoredIpAddress: reader.GetString(1),
+                    Description: reader.GetString(2)));
+        }
+
+        return addresses;
+    }
+}

@@ -232,7 +232,14 @@ public sealed class AntiSpam : IInterfaceAntiSpam
 
     public string PrependSubjectText { get => Snapshot.PrependSubjectText; set => Unavailable(); }
 
-    public IInterfaceGreyListingWhiteAddresses GreyListingWhiteAddresses => Unavailable<IInterfaceGreyListingWhiteAddresses>();
+    public IInterfaceGreyListingWhiteAddresses GreyListingWhiteAddresses
+    {
+        get
+        {
+            _ = Snapshot;
+            return GreyListingWhiteAddressAdministrationRuntimeHost.CreateAuthorizedAdapter();
+        }
+    }
 
     public IInterfaceWhiteListAddresses WhiteListAddresses => Unavailable<IInterfaceWhiteListAddresses>();
 

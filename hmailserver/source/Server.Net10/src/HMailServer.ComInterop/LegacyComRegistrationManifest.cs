@@ -151,6 +151,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "GreyListingWhiteAddresses",
+            "{F8BB11B8-5DD1-438E-AF29-6E088AA0BD06}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "GreyListingWhiteAddress",
+            "{771EDD01-0E62-4071-AE72-88E439EC0880}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "Logging",
             "{E3E22438-871F-49CF-A47E-4D3A144BD002}",
             executablePath,

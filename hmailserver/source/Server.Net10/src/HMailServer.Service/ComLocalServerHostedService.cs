@@ -57,6 +57,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(SURBLServer).GUID,
                 static () => new SURBLServer()),
             new ComLocalServerRegistration(
+                typeof(GreyListingWhiteAddresses).GUID,
+                static () => new GreyListingWhiteAddresses()),
+            new ComLocalServerRegistration(
+                typeof(GreyListingWhiteAddress).GUID,
+                static () => new GreyListingWhiteAddress()),
+            new ComLocalServerRegistration(
                 typeof(Logging).GUID,
                 static () => new Logging()),
             new ComLocalServerRegistration(

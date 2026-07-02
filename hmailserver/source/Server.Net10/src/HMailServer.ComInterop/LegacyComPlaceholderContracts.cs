@@ -23,8 +23,5 @@ public interface IInterfaceRouteAddresses;
 [ComVisible(true), Guid("AE45B7CD-C050-4B14-A983-30D53059D24F"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceCache;
 
-[ComVisible(true), Guid("D8D54486-4CC5-4240-A4BF-DD68D9C3E85B"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
-public interface IInterfaceGreyListingWhiteAddresses;
-
 [ComVisible(true), Guid("8492EE2E-7332-4253-B93E-D8B011B47D78"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
 public interface IInterfaceWhiteListAddresses;

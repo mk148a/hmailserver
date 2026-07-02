@@ -89,6 +89,16 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "GreyListingWhiteAddresses",
+            "{F8BB11B8-5DD1-438E-AF29-6E088AA0BD06}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "GreyListingWhiteAddress",
+            "{771EDD01-0E62-4071-AE72-88E439EC0880}",
+            executablePath);
+        AssertClass(
+            manifest,
             "Logging",
             "{E3E22438-871F-49CF-A47E-4D3A144BD002}",
             executablePath);
@@ -371,6 +381,10 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.SURBLServers",
                 @"hMailServer.SURBLServer.1",
                 @"hMailServer.SURBLServer",
+                @"hMailServer.GreyListingWhiteAddresses.1",
+                @"hMailServer.GreyListingWhiteAddresses",
+                @"hMailServer.GreyListingWhiteAddress.1",
+                @"hMailServer.GreyListingWhiteAddress",
                 @"hMailServer.Logging.1",
                 @"hMailServer.Logging",
                 @"hMailServer.Scripting.1",
@@ -475,6 +489,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{E5907F7D-F13E-4D8A-A7DE-A29717C75A8F}",
                 @"CLSID\{FCD94E5F-F05F-400B-8345-AFC7FDD6626E}",
                 @"CLSID\{D875AEC4-7AA0-4C93-9F8F-141324C80D17}",
+                @"CLSID\{F8BB11B8-5DD1-438E-AF29-6E088AA0BD06}",
+                @"CLSID\{771EDD01-0E62-4071-AE72-88E439EC0880}",
                 @"CLSID\{E3E22438-871F-49CF-A47E-4D3A144BD002}",
                 @"CLSID\{68A73A47-5B56-43A3-BC11-CFC436F3BA9E}",
                 @"CLSID\{E0213ECF-BAEC-4E20-9813-0F75A97D0B16}",
