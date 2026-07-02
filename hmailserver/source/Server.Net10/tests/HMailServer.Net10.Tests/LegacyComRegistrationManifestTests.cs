@@ -54,6 +54,11 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "AntiSpam",
+            "{A0B91A99-BCE8-4939-94EC-0881E25A1E5B}",
+            executablePath);
+        AssertClass(
+            manifest,
             "BlockedAttachments",
             "{1E93E771-45C1-4CAD-9BF6-5D79723C9CBE}",
             executablePath);
@@ -332,6 +337,8 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.Settings",
                 @"hMailServer.AntiVirus.1",
                 @"hMailServer.AntiVirus",
+                @"hMailServer.AntiSpam.1",
+                @"hMailServer.AntiSpam",
                 @"hMailServer.BlockedAttachments.1",
                 @"hMailServer.BlockedAttachments",
                 @"hMailServer.BlockedAttachment.1",
@@ -433,6 +440,7 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{ADD8B04F-F7A0-4C73-8B0B-E53B3077F052}",
                 @"CLSID\{FDF084A7-82DE-4EBE-8455-E506ACE01D63}",
                 @"CLSID\{82D6DBF9-DDDB-4C4A-A52A-92B6ED16D8EA}",
+                @"CLSID\{A0B91A99-BCE8-4939-94EC-0881E25A1E5B}",
                 @"CLSID\{1E93E771-45C1-4CAD-9BF6-5D79723C9CBE}",
                 @"CLSID\{773BCF69-C1C2-48CD-A8F8-E89A1F74E4B3}",
                 @"CLSID\{E3E22438-871F-49CF-A47E-4D3A144BD002}",

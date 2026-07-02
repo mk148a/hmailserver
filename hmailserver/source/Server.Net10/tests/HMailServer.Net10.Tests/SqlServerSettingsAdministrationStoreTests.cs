@@ -90,6 +90,34 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         StringAssert.Contains(sql, "settingname = N'ClamAVEnabled'");
         StringAssert.Contains(sql, "settingname = N'ClamAVHost'");
         StringAssert.Contains(sql, "settingname = N'ClamAVPort'");
+        StringAssert.Contains(sql, "settingname = N'usegreylisting'");
+        StringAssert.Contains(sql, "settingname = N'greylistinginitialdelay'");
+        StringAssert.Contains(sql, "settingname = N'greylistinginitialdelete'");
+        StringAssert.Contains(sql, "settingname = N'greylistingfinaldelete'");
+        StringAssert.Contains(sql, "settingname = N'ascheckhostinhelo'");
+        StringAssert.Contains(sql, "settingname = N'ascheckhostinheloscore'");
+        StringAssert.Contains(sql, "settingname = N'ascheckptr'");
+        StringAssert.Contains(sql, "settingname = N'ascheckptrscore'");
+        StringAssert.Contains(sql, "settingname = N'antispamaddheaderspam'");
+        StringAssert.Contains(sql, "settingname = N'antispamaddheaderreason'");
+        StringAssert.Contains(sql, "settingname = N'antispamprependsubject'");
+        StringAssert.Contains(sql, "settingname = N'antispamprependsubjecttext'");
+        StringAssert.Contains(sql, "settingname = N'spammarkthreshold'");
+        StringAssert.Contains(sql, "settingname = N'spamdeletethreshold'");
+        StringAssert.Contains(sql, "settingname = N'usespf'");
+        StringAssert.Contains(sql, "settingname = N'usespfscore'");
+        StringAssert.Contains(sql, "settingname = N'usemxchecks'");
+        StringAssert.Contains(sql, "settingname = N'usemxchecksscore'");
+        StringAssert.Contains(sql, "settingname = N'spamassassinenabled'");
+        StringAssert.Contains(sql, "settingname = N'spamassassinscore'");
+        StringAssert.Contains(sql, "settingname = N'spamassassinmergescore'");
+        StringAssert.Contains(sql, "settingname = N'spamassassinhost'");
+        StringAssert.Contains(sql, "settingname = N'spamassassinport'");
+        StringAssert.Contains(sql, "settingname = N'antispammaxsize'");
+        StringAssert.Contains(sql, "settingname = N'ASDKIMVerificationEnabled'");
+        StringAssert.Contains(sql, "settingname = N'ASDKIMVerificationFailureScore'");
+        StringAssert.Contains(sql, "settingname = N'BypassGreylistingOnSPFSuccess'");
+        StringAssert.Contains(sql, "settingname = N'BypassGreylistingOnMailFromMX'");
     }
 
     [TestMethod]
@@ -106,8 +134,15 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         Assert.IsFalse(sql.Contains("smtprelayerpassword", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hmailserver_backup.log", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_blocked_attachments", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_dnsbl", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_surblservers", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_greylisting_triplets", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_greylisting_whiteaddresses", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_whitelist", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("VirusScannerTester", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("TestClam", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("TestSpamAssassin", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DKIMVerify", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("process", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("xp_", StringComparison.OrdinalIgnoreCase));
     }

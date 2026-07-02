@@ -129,6 +129,16 @@ public enum ComDkimAlgorithm
 }
 
 [ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD12")]
+public enum ComDkimResult
+{
+    Neutral = 0,
+    Pass = 1,
+    TempFail = 2,
+    PermFail = 3
+}
+
+[ComVisible(true)]
 [Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD06")]
 public enum ComDistributionListMode
 {

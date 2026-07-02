@@ -177,6 +177,38 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual("*.exe", blockedAttachments.get_ItemByDBID(20).Wildcard);
             var pendingBlockedAttachmentSave = Assert.ThrowsExactly<COMException>(blockedAttachments[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingBlockedAttachmentSave.ErrorCode);
+            var antiSpam = settings.AntiSpam;
+            Assert.IsTrue(antiSpam.GreyListingEnabled);
+            Assert.AreEqual(30, antiSpam.GreyListingInitialDelay);
+            Assert.AreEqual(48, antiSpam.GreyListingInitialDelete);
+            Assert.AreEqual(864, antiSpam.GreyListingFinalDelete);
+            Assert.IsTrue(antiSpam.CheckHostInHelo);
+            Assert.AreEqual(2, antiSpam.CheckHostInHeloScore);
+            Assert.IsTrue(antiSpam.CheckPTR);
+            Assert.AreEqual(4, antiSpam.CheckPTRScore);
+            Assert.IsTrue(antiSpam.AddHeaderSpam);
+            Assert.IsFalse(antiSpam.AddHeaderReason);
+            Assert.IsTrue(antiSpam.PrependSubject);
+            Assert.AreEqual("[SPAM]", antiSpam.PrependSubjectText);
+            Assert.AreEqual(5, antiSpam.SpamMarkThreshold);
+            Assert.AreEqual(20, antiSpam.SpamDeleteThreshold);
+            Assert.IsTrue(antiSpam.UseSPF);
+            Assert.AreEqual(3, antiSpam.UseSPFScore);
+            Assert.IsTrue(antiSpam.UseMXChecks);
+            Assert.AreEqual(6, antiSpam.UseMXChecksScore);
+            Assert.IsTrue(antiSpam.SpamAssassinEnabled);
+            Assert.AreEqual(7, antiSpam.SpamAssassinScore);
+            Assert.IsFalse(antiSpam.SpamAssassinMergeScore);
+            Assert.AreEqual("spamd.example.test", antiSpam.SpamAssassinHost);
+            Assert.AreEqual(783, antiSpam.SpamAssassinPort);
+            Assert.AreEqual(1024, antiSpam.MaximumMessageSize);
+            Assert.IsTrue(antiSpam.DKIMVerificationEnabled);
+            Assert.AreEqual(8, antiSpam.DKIMVerificationFailureScore);
+            Assert.IsTrue(antiSpam.BypassGreylistingOnSPFSuccess);
+            Assert.IsFalse(antiSpam.BypassGreylistingOnMailFromMX);
+            var pendingSpamAssassinTest = Assert.ThrowsExactly<COMException>(
+                () => antiSpam.TestSpamAssassinConnection("127.0.0.1", 783, out _));
+            Assert.AreEqual(unchecked((int)0x80004001), pendingSpamAssassinTest.ErrorCode);
             Assert.AreEqual(20480, settings.MaxMessageSize);
             Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
             Assert.IsTrue(settings.DisconnectInvalidClients);
@@ -1047,6 +1079,34 @@ VALUES
     (N'ClamAVEnabled', N'', 1),
     (N'ClamAVHost', N'127.0.0.1', 0),
     (N'ClamAVPort', N'', 3310),
+    (N'usegreylisting', N'', 1),
+    (N'greylistinginitialdelay', N'', 30),
+    (N'greylistinginitialdelete', N'', 48),
+    (N'greylistingfinaldelete', N'', 864),
+    (N'ascheckhostinhelo', N'', 1),
+    (N'ascheckhostinheloscore', N'', 2),
+    (N'ascheckptr', N'', 1),
+    (N'ascheckptrscore', N'', 4),
+    (N'antispamaddheaderspam', N'', 1),
+    (N'antispamaddheaderreason', N'', 0),
+    (N'antispamprependsubject', N'', 1),
+    (N'antispamprependsubjecttext', N'[SPAM]', 0),
+    (N'spammarkthreshold', N'', 5),
+    (N'spamdeletethreshold', N'', 20),
+    (N'usespf', N'', 1),
+    (N'usespfscore', N'', 3),
+    (N'usemxchecks', N'', 1),
+    (N'usemxchecksscore', N'', 6),
+    (N'spamassassinenabled', N'', 1),
+    (N'spamassassinscore', N'', 7),
+    (N'spamassassinmergescore', N'', 0),
+    (N'spamassassinhost', N'spamd.example.test', 0),
+    (N'spamassassinport', N'', 783),
+    (N'antispammaxsize', N'', 1024),
+    (N'ASDKIMVerificationEnabled', N'', 1),
+    (N'ASDKIMVerificationFailureScore', N'', 8),
+    (N'BypassGreylistingOnSPFSuccess', N'', 1),
+    (N'BypassGreylistingOnMailFromMX', N'', 0),
     (N'smtprelayerpassword', N'must-not-be-read', 0);
 
 INSERT INTO dbo.hm_blocked_attachments (baid, bawildcard, badescription)

@@ -102,6 +102,13 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "AntiSpam",
+            "{A0B91A99-BCE8-4939-94EC-0881E25A1E5B}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "BlockedAttachments",
             "{1E93E771-45C1-4CAD-9BF6-5D79723C9CBE}",
             executablePath,

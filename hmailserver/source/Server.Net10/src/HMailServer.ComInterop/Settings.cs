@@ -1173,6 +1173,46 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override IInterfaceAntiSpam AntiSpam
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.AntiSpam
+                : HMailServer.ComInterop.AntiSpam.CreateAuthorized(
+                    new AntiSpamAdministrationSnapshot(
+                        _administrationSnapshot.AntiSpamGreyListingEnabled,
+                        _administrationSnapshot.AntiSpamGreyListingInitialDelay,
+                        _administrationSnapshot.AntiSpamGreyListingInitialDelete,
+                        _administrationSnapshot.AntiSpamGreyListingFinalDelete,
+                        _administrationSnapshot.AntiSpamCheckHostInHelo,
+                        _administrationSnapshot.AntiSpamCheckHostInHeloScore,
+                        _administrationSnapshot.AntiSpamCheckPtr,
+                        _administrationSnapshot.AntiSpamCheckPtrScore,
+                        _administrationSnapshot.AntiSpamAddHeaderSpam,
+                        _administrationSnapshot.AntiSpamAddHeaderReason,
+                        _administrationSnapshot.AntiSpamPrependSubject,
+                        _administrationSnapshot.AntiSpamPrependSubjectText,
+                        _administrationSnapshot.AntiSpamSpamMarkThreshold,
+                        _administrationSnapshot.AntiSpamSpamDeleteThreshold,
+                        _administrationSnapshot.AntiSpamUseSpf,
+                        _administrationSnapshot.AntiSpamUseSpfScore,
+                        _administrationSnapshot.AntiSpamUseMxChecks,
+                        _administrationSnapshot.AntiSpamUseMxChecksScore,
+                        _administrationSnapshot.AntiSpamSpamAssassinEnabled,
+                        _administrationSnapshot.AntiSpamSpamAssassinScore,
+                        _administrationSnapshot.AntiSpamSpamAssassinMergeScore,
+                        _administrationSnapshot.AntiSpamSpamAssassinHost,
+                        _administrationSnapshot.AntiSpamSpamAssassinPort,
+                        _administrationSnapshot.AntiSpamMaximumMessageSize,
+                        _administrationSnapshot.AntiSpamDkimVerificationEnabled,
+                        _administrationSnapshot.AntiSpamDkimVerificationFailureScore,
+                        _administrationSnapshot.AntiSpamBypassGreylistingOnSpfSuccess,
+                        _administrationSnapshot.AntiSpamBypassGreylistingOnMailFromMx));
+        }
+    }
+
     public override bool VerifyRemoteSslCertificate
     {
         get
@@ -1416,7 +1456,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual int TCPIPThreads { get => Unavailable<int>(); set => Unavailable(); }
     public virtual bool AllowIncorrectLineEndings { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual int MaxSMTPRecipientsInBatch { get => Unavailable<int>(); set => Unavailable(); }
-    public IInterfaceAntiSpam AntiSpam => Unavailable<IInterfaceAntiSpam>();
+    public virtual IInterfaceAntiSpam AntiSpam => Unavailable<IInterfaceAntiSpam>();
     public virtual bool DisconnectInvalidClients { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual int MaxNumberOfInvalidCommands { get => Unavailable<int>(); set => Unavailable(); }
     public virtual IInterfaceServerMessages ServerMessages => Unavailable<IInterfaceServerMessages>();
