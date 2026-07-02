@@ -333,6 +333,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "RouteAddresses",
+            "{2E66E5DC-DA9F-4490-A46F-E2D24C6CD151}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "RouteAddress",
+            "{4CC5C4F5-7303-4C69-96D3-EC73ECF6F255}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "IncomingRelays",
             "{3E75EE53-EAA6-40A5-B2CE-9CB8D7EE9278}",
             executablePath,

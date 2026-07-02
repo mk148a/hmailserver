@@ -840,6 +840,7 @@ builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAc
 builder.Services.AddSingleton<IRuleAdministrationStore, SqlServerRuleAdministrationStore>();
 builder.Services.AddSingleton<IImapFolderAdministrationStore, SqlServerImapFolderAdministrationStore>();
 builder.Services.AddSingleton<IRouteAdministrationStore, SqlServerRouteAdministrationStore>();
+builder.Services.AddSingleton<IRouteAddressAdministrationStore, SqlServerRouteAddressAdministrationStore>();
 builder.Services.AddSingleton<IIncomingRelayAdministrationStore, SqlServerIncomingRelayAdministrationStore>();
 builder.Services.AddSingleton<ISecurityRangeAdministrationStore, SqlServerSecurityRangeAdministrationStore>();
 builder.Services.AddSingleton<ITcpIpPortAdministrationStore, SqlServerTcpIpPortAdministrationStore>();
@@ -946,6 +947,8 @@ ImapFolderAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IImapFolderAdministrationStore>());
 RouteAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IRouteAdministrationStore>());
+RouteAddressAdministrationRuntimeHost.Configure(
+    host.Services.GetRequiredService<IRouteAddressAdministrationStore>());
 IncomingRelayAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IIncomingRelayAdministrationStore>());
 SecurityRangeAdministrationRuntimeHost.Configure(

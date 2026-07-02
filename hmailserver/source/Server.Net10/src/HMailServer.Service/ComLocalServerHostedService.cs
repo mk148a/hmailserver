@@ -135,6 +135,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Route).GUID,
                 static () => new Route()),
             new ComLocalServerRegistration(
+                typeof(RouteAddresses).GUID,
+                static () => new RouteAddresses()),
+            new ComLocalServerRegistration(
+                typeof(RouteAddress).GUID,
+                static () => new RouteAddress()),
+            new ComLocalServerRegistration(
                 typeof(IncomingRelays).GUID,
                 static () => new IncomingRelays()),
             new ComLocalServerRegistration(

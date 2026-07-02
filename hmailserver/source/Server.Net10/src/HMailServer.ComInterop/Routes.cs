@@ -269,7 +269,8 @@ public sealed class Route : IInterfaceRoute
 
     public bool AllAddresses { get => Snapshot.AllAddresses; set => Unavailable(); }
 
-    public IInterfaceRouteAddresses Addresses => Unavailable<IInterfaceRouteAddresses>();
+    public IInterfaceRouteAddresses Addresses =>
+        RouteAddressAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
     public bool RelayerRequiresAuth { get => Snapshot.RelayerRequiresAuth; set => Unavailable(); }
 

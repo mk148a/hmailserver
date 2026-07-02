@@ -559,6 +559,8 @@ ORDER BY messageid;
             RuleAdministrationRuntimeHost.Configure(new SqlServerRuleAdministrationStore(connectionFactory));
             ImapFolderAdministrationRuntimeHost.Configure(new SqlServerImapFolderAdministrationStore(connectionFactory));
             RouteAdministrationRuntimeHost.Configure(new SqlServerRouteAdministrationStore(connectionFactory));
+            RouteAddressAdministrationRuntimeHost.Configure(
+                new SqlServerRouteAddressAdministrationStore(connectionFactory));
             IncomingRelayAdministrationRuntimeHost.Configure(
                 new SqlServerIncomingRelayAdministrationStore(connectionFactory));
             SecurityRangeAdministrationRuntimeHost.Configure(
@@ -677,8 +679,19 @@ ORDER BY messageid;
             Assert.AreEqual(ComConnectionSecurity.Tls, routes[0].ConnectionSecurity);
             Assert.AreEqual("Beta route", routes.get_ItemByName("BETA.ROUTE.TEST").Description);
             Assert.AreEqual(600, routes.get_ItemByDBID(600).ID);
-            var pendingRouteAddresses = Assert.ThrowsExactly<COMException>(() => _ = routes[0].Addresses);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingRouteAddresses.ErrorCode);
+            var alphaRouteAddresses = routes[0].Addresses;
+            Assert.AreEqual(2, alphaRouteAddresses.Count);
+            Assert.AreEqual("alpha-user@example.test", alphaRouteAddresses.get_ItemByDBID(1500).Address);
+            Assert.AreEqual(500, alphaRouteAddresses.get_ItemByDBID(1501).RouteID);
+            var outsideRouteAddress = Assert.ThrowsExactly<COMException>(
+                () => _ = alphaRouteAddresses.get_ItemByDBID(1600));
+            Assert.AreEqual(unchecked((int)0x8002000B), outsideRouteAddress.ErrorCode);
+            var betaRouteAddresses = routes.get_ItemByDBID(600).Addresses;
+            Assert.AreEqual(1, betaRouteAddresses.Count);
+            Assert.AreEqual("beta-user@example.test", betaRouteAddresses.get_ItemByDBID(1600).Address);
+            var pendingRouteAddressSave = Assert.ThrowsExactly<COMException>(
+                alphaRouteAddresses.get_ItemByDBID(1500).Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingRouteAddressSave.ErrorCode);
             var incomingRelays = application.Settings.IncomingRelays;
             Assert.AreEqual(2, incomingRelays.Count);
             Assert.AreEqual("Alpha relay", incomingRelays[0].Name);
@@ -1501,6 +1514,13 @@ CREATE TABLE dbo.hm_routes
     routetreatsenderaslocaldomain tinyint NOT NULL
 );
 
+CREATE TABLE dbo.hm_routeaddresses
+(
+    routeaddressid int NOT NULL PRIMARY KEY,
+    routeaddressrouteid int NOT NULL,
+    routeaddressaddress nvarchar(255) NOT NULL
+);
+
 CREATE TABLE dbo.hm_incoming_relays
 (
     relayid int NOT NULL PRIMARY KEY,
@@ -1644,6 +1664,13 @@ VALUES
      3, 10, 0, 0, N'', N'not-exposed', 0, 3, 1),
     (500, N'alpha.route.test', N'Alpha route', N'smtp.alpha.route.test', 2525,
      4, 15, 1, 1, N'relay-user', N'not-exposed', 1, 1, 0);
+
+INSERT INTO dbo.hm_routeaddresses
+    (routeaddressid, routeaddressrouteid, routeaddressaddress)
+VALUES
+    (1500, 500, N'alpha-user@example.test'),
+    (1501, 500, N'*@alpha.route.test'),
+    (1600, 600, N'beta-user@example.test');
 
 INSERT INTO dbo.hm_incoming_relays
     (relayid, relayname, relaylowerip1, relaylowerip2, relayupperip1, relayupperip2)

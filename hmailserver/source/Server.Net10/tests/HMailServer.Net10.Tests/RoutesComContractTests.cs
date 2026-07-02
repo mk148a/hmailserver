@@ -104,7 +104,6 @@ public sealed class RoutesComContractTests
         var pendingDelete = Assert.ThrowsExactly<COMException>(() => routes.DeleteByDBID(10));
         var pendingRefresh = Assert.ThrowsExactly<COMException>(routes.Refresh);
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => routes[0].DomainName = "changed.example");
-        var pendingAddresses = Assert.ThrowsExactly<COMException>(() => _ = routes[0].Addresses);
         var pendingPassword = Assert.ThrowsExactly<COMException>(() => routes[0].SetRelayerAuthPassword("secret"));
         var pendingSave = Assert.ThrowsExactly<COMException>(routes[0].Save);
         var pendingRouteDelete = Assert.ThrowsExactly<COMException>(routes[0].Delete);
@@ -116,7 +115,6 @@ public sealed class RoutesComContractTests
         Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingAddresses.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingPassword.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSave.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingRouteDelete.ErrorCode);
