@@ -199,7 +199,8 @@ public sealed class Rule : IInterfaceRule
 
     public bool UseAND { get => Snapshot.UseAnd; set => Unavailable(); }
 
-    public IInterfaceRuleCriterias Criterias => Unavailable<IInterfaceRuleCriterias>();
+    public IInterfaceRuleCriterias Criterias =>
+        RuleCriteriaAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
     public IInterfaceRuleActions Actions => Unavailable<IInterfaceRuleActions>();
 

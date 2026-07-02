@@ -48,6 +48,21 @@ public enum ComAntivirusAction
 }
 
 [ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD02")]
+public enum ComRulePredefinedField
+{
+    Unknown = 0,
+    From = 1,
+    To = 2,
+    Cc = 3,
+    Subject = 4,
+    Body = 5,
+    MessageSize = 6,
+    RecipientList = 7,
+    DeliveryAttempts = 8
+}
+
+[ComVisible(true)]
 [Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD03")]
 public enum ComRuleMatchType
 {

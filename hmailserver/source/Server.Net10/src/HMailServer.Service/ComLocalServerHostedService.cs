@@ -123,6 +123,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Rule).GUID,
                 static () => new Rule()),
             new ComLocalServerRegistration(
+                typeof(RuleCriterias).GUID,
+                static () => new RuleCriterias()),
+            new ComLocalServerRegistration(
+                typeof(RuleCriteria).GUID,
+                static () => new RuleCriteria()),
+            new ComLocalServerRegistration(
                 typeof(IMAPFolders).GUID,
                 static () => new IMAPFolders()),
             new ComLocalServerRegistration(

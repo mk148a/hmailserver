@@ -557,6 +557,8 @@ ORDER BY messageid;
             AccountAdministrationRuntimeHost.Configure(new SqlServerAccountAdministrationStore(connectionFactory));
             FetchAccountAdministrationRuntimeHost.Configure(new SqlServerFetchAccountAdministrationStore(connectionFactory));
             RuleAdministrationRuntimeHost.Configure(new SqlServerRuleAdministrationStore(connectionFactory));
+            RuleCriteriaAdministrationRuntimeHost.Configure(
+                new SqlServerRuleCriteriaAdministrationStore(connectionFactory));
             ImapFolderAdministrationRuntimeHost.Configure(new SqlServerImapFolderAdministrationStore(connectionFactory));
             RouteAdministrationRuntimeHost.Configure(new SqlServerRouteAdministrationStore(connectionFactory));
             RouteAddressAdministrationRuntimeHost.Configure(
@@ -634,8 +636,21 @@ ORDER BY messageid;
             Assert.IsTrue(rules[0].UseAND);
             Assert.AreEqual("Second rule", rules.get_ItemByDBID(300).Name);
             Assert.IsFalse(rules.get_ItemByDBID(300).Active);
-            var pendingCriterias = Assert.ThrowsExactly<COMException>(() => _ = rules[0].Criterias);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingCriterias.ErrorCode);
+            var firstRuleCriteria = rules[0].Criterias;
+            Assert.AreEqual(2, firstRuleCriteria.Count);
+            Assert.AreEqual(2000, firstRuleCriteria[0].ID);
+            Assert.AreEqual(200, firstRuleCriteria[0].RuleID);
+            Assert.IsTrue(firstRuleCriteria[0].UsePredefined);
+            Assert.AreEqual(ComRulePredefinedField.Subject, firstRuleCriteria[0].PredefinedField);
+            Assert.AreEqual(ComRuleMatchType.Contains, firstRuleCriteria[0].MatchType);
+            Assert.AreEqual("invoice", firstRuleCriteria[0].MatchValue);
+            Assert.AreEqual(string.Empty, firstRuleCriteria[0].HeaderField);
+            Assert.AreEqual("X-Priority", firstRuleCriteria.get_ItemByDBID(2001).HeaderField);
+            var outsideRuleCriterion = Assert.ThrowsExactly<COMException>(
+                () => _ = firstRuleCriteria.get_ItemByDBID(3000));
+            Assert.AreEqual(unchecked((int)0x8002000B), outsideRuleCriterion.ErrorCode);
+            var pendingRuleCriterionSave = Assert.ThrowsExactly<COMException>(firstRuleCriteria[0].Save);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingRuleCriterionSave.ErrorCode);
             var globalRules = application.Rules;
             Assert.AreEqual(2, globalRules.Count);
             Assert.AreEqual("Global first", globalRules[0].Name);
@@ -644,6 +659,10 @@ ORDER BY messageid;
             Assert.IsTrue(globalRules[0].UseAND);
             Assert.AreEqual("Global second", globalRules.get_ItemByDBID(150).Name);
             Assert.IsFalse(globalRules.get_ItemByDBID(150).Active);
+            var globalRuleCriteria = globalRules[0].Criterias;
+            Assert.AreEqual(1, globalRuleCriteria.Count);
+            Assert.AreEqual(1000, globalRuleCriteria[0].ID);
+            Assert.AreEqual(100, globalRuleCriteria[0].RuleID);
             var folders = accounts[0].IMAPFolders;
             Assert.AreEqual(2, folders.Count);
             Assert.AreEqual(100, folders[0].ID);
@@ -1485,6 +1504,17 @@ CREATE TABLE dbo.hm_rules
     rulesortorder int NOT NULL
 );
 
+CREATE TABLE dbo.hm_rule_criterias
+(
+    criteriaid int NOT NULL PRIMARY KEY,
+    criteriaruleid int NOT NULL,
+    criteriausepredefined tinyint NOT NULL,
+    criteriapredefinedfield tinyint NOT NULL,
+    criteriaheadername nvarchar(255) NOT NULL,
+    criteriamatchtype tinyint NOT NULL,
+    criteriamatchvalue nvarchar(255) NOT NULL
+);
+
 CREATE TABLE dbo.hm_imapfolders
 (
     folderid int NOT NULL PRIMARY KEY,
@@ -1643,6 +1673,16 @@ VALUES
     (300, 10, N'Second rule', 0, 0, 2),
     (200, 10, N'First rule', 1, 1, 1),
     (400, 20, N'User rule', 1, 1, 1);
+
+INSERT INTO dbo.hm_rule_criterias
+    (criteriaid, criteriaruleid, criteriausepredefined, criteriapredefinedfield,
+     criteriaheadername, criteriamatchtype, criteriamatchvalue)
+VALUES
+    (1000, 100, 1, 1, N'', 1, N'sender@example.test'),
+    (2000, 200, 1, 4, N'', 2, N'invoice'),
+    (2001, 200, 0, 0, N'X-Priority', 1, N'high'),
+    (3000, 300, 1, 2, N'', 1, N'user@example.test'),
+    (4000, 400, 1, 3, N'', 2, N'support@example.test');
 
 INSERT INTO dbo.hm_imapfolders
     (folderid, folderaccountid, folderparentid, foldername, folderissubscribed,
