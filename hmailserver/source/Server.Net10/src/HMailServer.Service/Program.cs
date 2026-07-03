@@ -599,6 +599,7 @@ builder.Services.AddSingleton(idleOptions);
 builder.Services.AddSingleton(smtpRuleOptions);
 builder.Services.AddSingleton(scriptingOptions);
 builder.Services.AddSingleton<IScriptSyntaxChecker, WindowsScriptSyntaxChecker>();
+builder.Services.AddSingleton<IScriptRuntimeReloader, WindowsScriptRuntimeReloader>();
 builder.Services.AddSingleton(spamAssassinOptions);
 builder.Services.AddSingleton(spamPolicyOptions);
 builder.Services.AddSingleton(spfPolicyOptions);
@@ -930,7 +931,8 @@ SettingsAdministrationRuntimeHost.Configure(
         RewriteEnvelopeFromWhenForwarding: rewriteEnvelopeFromWhenForwarding,
         LoggingDirectory: directoryAdministrationSnapshot.LogDirectory,
         ScriptingDirectory: directoryAdministrationSnapshot.EventDirectory,
-        ScriptSyntaxChecker: host.Services.GetRequiredService<IScriptSyntaxChecker>()));
+        ScriptSyntaxChecker: host.Services.GetRequiredService<IScriptSyntaxChecker>(),
+        ScriptRuntimeReloader: host.Services.GetRequiredService<IScriptRuntimeReloader>()));
 BlockedAttachmentAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IBlockedAttachmentAdministrationStore>());
 DnsBlackListAdministrationRuntimeHost.Configure(

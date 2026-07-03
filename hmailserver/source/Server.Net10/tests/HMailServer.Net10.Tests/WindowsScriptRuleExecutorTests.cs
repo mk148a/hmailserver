@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using HMailServer.Core.Abstractions;
 using HMailServer.Scripting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MimeKit;
 
@@ -11,6 +12,50 @@ namespace HMailServer.Net10.Tests;
 [TestClass]
 public sealed class WindowsScriptRuleExecutorTests
 {
+    [TestMethod]
+    public void Reload_SubsequentInvocationObservesUpdatedConfiguredScriptFile()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        try
+        {
+            var scriptFile = Path.Combine(eventDirectory, "EventHandlers.vbs");
+            WriteVersionScript(scriptFile, "one");
+            var options = new WindowsScriptRuleExecutorOptions
+            {
+                Enabled = true,
+                Language = "VBScript",
+                EventDirectory = eventDirectory,
+                Timeout = TimeSpan.FromSeconds(5),
+                CScriptPath = cscript
+            };
+            var executor = new WindowsScriptRuleExecutor(options);
+            var checker = new WindowsScriptSyntaxChecker(options);
+            var reloader = new WindowsScriptRuntimeReloader(
+                checker,
+                NullLogger<WindowsScriptRuntimeReloader>.Instance);
+
+            var first = executor.Execute(
+                CreateRequest("Rule_Dynamic", "Subject: First\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+            Assert.IsNotNull(first.MessageData);
+            StringAssert.Contains(Encoding.ASCII.GetString(first.MessageData), "X-Script-Version: one\r\n");
+
+            WriteVersionScript(scriptFile, "two");
+            reloader.Reload("VBScript", scriptFile);
+
+            var second = executor.Execute(
+                CreateRequest("Rule_Dynamic", "Subject: Second\r\n\r\nBody\r\n"u8.ToArray()),
+                CancellationToken.None);
+            Assert.IsNotNull(second.MessageData);
+            StringAssert.Contains(Encoding.ASCII.GetString(second.MessageData), "X-Script-Version: two\r\n");
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
     [TestMethod]
     public void Execute_RunsVbScriptFunctionAndReturnsMutatedMessage()
     {
@@ -3115,6 +3160,15 @@ function OnClientValidatePassword(oAccount, password) {
                 Timeout = TimeSpan.FromSeconds(5),
                 CScriptPath = cscriptPath
             });
+
+    private static void WriteVersionScript(string scriptFile, string version) =>
+        File.WriteAllText(
+            scriptFile,
+            $"Sub Rule_Dynamic(obMessage)\r\n" +
+            $"   obMessage.HeaderValue(\"X-Script-Version\") = \"{version}\"\r\n" +
+            "   obMessage.Save\r\n" +
+            "End Sub\r\n",
+            Encoding.ASCII);
 
     private static void AssertLegacyEventLogLines(string eventLogPath, params string[] expectedMessages)
     {

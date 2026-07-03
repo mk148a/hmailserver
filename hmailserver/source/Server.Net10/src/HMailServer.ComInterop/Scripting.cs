@@ -48,20 +48,37 @@ public sealed class Scripting : ScriptingComAdapter
 
     private readonly ScriptingAdministrationSnapshot? _snapshot;
     private readonly IScriptSyntaxChecker? _syntaxChecker;
+    private readonly IScriptRuntimeReloader? _runtimeReloader;
 
     public Scripting()
     {
     }
 
-    private Scripting(ScriptingAdministrationSnapshot snapshot, IScriptSyntaxChecker? syntaxChecker)
+    private Scripting(
+        ScriptingAdministrationSnapshot snapshot,
+        IScriptSyntaxChecker? syntaxChecker,
+        IScriptRuntimeReloader? runtimeReloader)
     {
         _snapshot = snapshot;
         _syntaxChecker = syntaxChecker;
+        _runtimeReloader = runtimeReloader;
     }
 
     public override bool Enabled { get => Snapshot.Enabled; set => base.Enabled = value; }
 
     public override string Language { get => Snapshot.Language; set => base.Language = value; }
+
+    public override void Reload()
+    {
+        var snapshot = Snapshot;
+        if (_runtimeReloader is null)
+        {
+            base.Reload();
+            return;
+        }
+
+        _runtimeReloader.Reload(snapshot.Language, CurrentScriptFile);
+    }
 
     public override string CheckSyntax()
     {
@@ -90,10 +107,11 @@ public sealed class Scripting : ScriptingComAdapter
 
     internal static Scripting CreateAuthorized(
         ScriptingAdministrationSnapshot snapshot,
-        IScriptSyntaxChecker? syntaxChecker = null)
+        IScriptSyntaxChecker? syntaxChecker = null,
+        IScriptRuntimeReloader? runtimeReloader = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Scripting(snapshot, syntaxChecker);
+        return new Scripting(snapshot, syntaxChecker, runtimeReloader);
     }
 
     private ScriptingAdministrationSnapshot Snapshot =>
@@ -107,7 +125,7 @@ public abstract class ScriptingComAdapter : IInterfaceScripting
 {
     public virtual bool Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string Language { get => Unavailable<string>(); set => Unavailable(); }
-    public void Reload() => Unavailable();
+    public virtual void Reload() => Unavailable();
     public virtual string CheckSyntax() => Unavailable<string>();
     public virtual string Directory => Unavailable<string>();
     public virtual string CurrentScriptFile => Unavailable<string>();

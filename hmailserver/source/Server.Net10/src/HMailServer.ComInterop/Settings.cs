@@ -1130,7 +1130,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         _administrationSnapshot.UseScriptServer,
                         _administrationSnapshot.ScriptLanguage,
                         _runtimeConfiguration.ScriptingDirectory),
-                    _runtimeConfiguration.ScriptSyntaxChecker);
+                    _runtimeConfiguration.ScriptSyntaxChecker,
+                    _runtimeConfiguration.ScriptRuntimeReloader);
         }
     }
 
@@ -1531,7 +1532,8 @@ public sealed record SettingsRuntimeConfiguration(
     TimeProvider? LoggingTimeProvider = null,
     string ScriptingDirectory = "",
     ILoggingLiveLogRuntime? LoggingLiveLogRuntime = null,
-    IScriptSyntaxChecker? ScriptSyntaxChecker = null);
+    IScriptSyntaxChecker? ScriptSyntaxChecker = null,
+    IScriptRuntimeReloader? ScriptRuntimeReloader = null);
 
 [ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost
