@@ -73,30 +73,48 @@ public sealed class ScriptingComContractTests
     {
         var scriptingError = Assert.ThrowsExactly<COMException>(() => _ = new ScriptingComClass().Enabled);
         var currentScriptFileError = Assert.ThrowsExactly<COMException>(() => _ = new ScriptingComClass().CurrentScriptFile);
+        var checkSyntaxError = Assert.ThrowsExactly<COMException>(() => _ = new ScriptingComClass().CheckSyntax());
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Scripting);
 
         Assert.AreEqual(EAccessDenied, scriptingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, currentScriptFileError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, checkSyntaxError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
     [TestMethod]
     public void AuthorizedScripting_ExposesReadOnlySnapshotAndKeepsOperationsPending()
     {
+        var syntaxChecker = new RecordingScriptSyntaxChecker("syntax result");
         IInterfaceScripting scripting = ScriptingComClass.CreateAuthorized(
             new ScriptingAdministrationSnapshot(
                 Enabled: true,
                 Language: "JScript",
-                Directory: @"C:\hMailServer\Events\"));
+                Directory: @"C:\hMailServer\Events\"),
+            syntaxChecker);
 
         Assert.IsTrue(scripting.Enabled);
         Assert.AreEqual("JScript", scripting.Language);
         Assert.AreEqual(@"C:\hMailServer\Events\", scripting.Directory);
         Assert.AreEqual(@"C:\hMailServer\Events\\EventHandlers.js", scripting.CurrentScriptFile);
+        Assert.AreEqual("syntax result", scripting.CheckSyntax());
+        Assert.AreEqual("JScript", syntaxChecker.Language);
+        Assert.AreEqual(@"C:\hMailServer\Events\\EventHandlers.js", syntaxChecker.ScriptFile);
 
         AssertPending(() => scripting.Enabled = false);
         AssertPending(() => scripting.Language = "VBScript");
         AssertPending(scripting.Reload);
+    }
+
+    [TestMethod]
+    public void AuthorizedScripting_WithoutConfiguredSyntaxRuntimeKeepsCheckSyntaxPending()
+    {
+        IInterfaceScripting scripting = ScriptingComClass.CreateAuthorized(
+            new ScriptingAdministrationSnapshot(
+                Enabled: true,
+                Language: "VBScript",
+                Directory: @"C:\hMailServer\Events\"));
+
         AssertPending(() => _ = scripting.CheckSyntax());
     }
 
@@ -131,6 +149,7 @@ public sealed class ScriptingComContractTests
     [TestMethod]
     public void AuthorizedSettings_ExposesConfiguredScriptingSnapshot()
     {
+        var syntaxChecker = new RecordingScriptSyntaxChecker(string.Empty);
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
                 HostName: string.Empty,
@@ -140,7 +159,8 @@ public sealed class ScriptingComContractTests
                 UseScriptServer: true,
                 ScriptLanguage: "VBScript"),
             new SettingsRuntimeConfiguration(
-                ScriptingDirectory: @"E:\hMailServer\Events\"));
+                ScriptingDirectory: @"E:\hMailServer\Events\",
+                ScriptSyntaxChecker: syntaxChecker));
 
         var scripting = settings.Scripting;
 
@@ -148,6 +168,9 @@ public sealed class ScriptingComContractTests
         Assert.AreEqual("VBScript", scripting.Language);
         Assert.AreEqual(@"E:\hMailServer\Events\", scripting.Directory);
         Assert.AreEqual(@"E:\hMailServer\Events\\EventHandlers.vbs", scripting.CurrentScriptFile);
+        Assert.AreEqual(string.Empty, scripting.CheckSyntax());
+        Assert.AreEqual("VBScript", syntaxChecker.Language);
+        Assert.AreEqual(@"E:\hMailServer\Events\\EventHandlers.vbs", syntaxChecker.ScriptFile);
     }
 
     private static void AssertBstrProperty(Type contract, string name, int dispatchId, bool canWrite)
@@ -169,5 +192,26 @@ public sealed class ScriptingComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private sealed class RecordingScriptSyntaxChecker : IScriptSyntaxChecker
+    {
+        private readonly string _result;
+
+        public RecordingScriptSyntaxChecker(string result)
+        {
+            _result = result;
+        }
+
+        public string? Language { get; private set; }
+
+        public string? ScriptFile { get; private set; }
+
+        public string CheckSyntax(string language, string scriptFile)
+        {
+            Language = language;
+            ScriptFile = scriptFile;
+            return _result;
+        }
     }
 }

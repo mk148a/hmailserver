@@ -47,19 +47,29 @@ public sealed class Scripting : ScriptingComAdapter
     private const int EAccessDenied = unchecked((int)0x80070005);
 
     private readonly ScriptingAdministrationSnapshot? _snapshot;
+    private readonly IScriptSyntaxChecker? _syntaxChecker;
 
     public Scripting()
     {
     }
 
-    private Scripting(ScriptingAdministrationSnapshot snapshot)
+    private Scripting(ScriptingAdministrationSnapshot snapshot, IScriptSyntaxChecker? syntaxChecker)
     {
         _snapshot = snapshot;
+        _syntaxChecker = syntaxChecker;
     }
 
     public override bool Enabled { get => Snapshot.Enabled; set => base.Enabled = value; }
 
     public override string Language { get => Snapshot.Language; set => base.Language = value; }
+
+    public override string CheckSyntax()
+    {
+        var snapshot = Snapshot;
+        return _syntaxChecker is null
+            ? base.CheckSyntax()
+            : _syntaxChecker.CheckSyntax(snapshot.Language, CurrentScriptFile);
+    }
 
     public override string Directory => Snapshot.Directory;
 
@@ -78,10 +88,12 @@ public sealed class Scripting : ScriptingComAdapter
         }
     }
 
-    internal static Scripting CreateAuthorized(ScriptingAdministrationSnapshot snapshot)
+    internal static Scripting CreateAuthorized(
+        ScriptingAdministrationSnapshot snapshot,
+        IScriptSyntaxChecker? syntaxChecker = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Scripting(snapshot);
+        return new Scripting(snapshot, syntaxChecker);
     }
 
     private ScriptingAdministrationSnapshot Snapshot =>
@@ -96,7 +108,7 @@ public abstract class ScriptingComAdapter : IInterfaceScripting
     public virtual bool Enabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string Language { get => Unavailable<string>(); set => Unavailable(); }
     public void Reload() => Unavailable();
-    public string CheckSyntax() => Unavailable<string>();
+    public virtual string CheckSyntax() => Unavailable<string>();
     public virtual string Directory => Unavailable<string>();
     public virtual string CurrentScriptFile => Unavailable<string>();
 
