@@ -186,6 +186,9 @@ public sealed class LoggingComContractTests
         var currentLogError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().CurrentDefaultLog);
         var maskPasswordsError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().MaskPasswordsInLog);
         var maskPasswordsSetError = Assert.ThrowsExactly<COMException>(() => new Logging().MaskPasswordsInLog = true);
+        var enableLiveLoggingError = Assert.ThrowsExactly<COMException>(() => new Logging().EnableLiveLogging(true));
+        var liveLogError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().LiveLog);
+        var liveLoggingEnabledError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().LiveLoggingEnabled);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Logging);
 
         Assert.AreEqual(EAccessDenied, loggingError.ErrorCode);
@@ -193,6 +196,9 @@ public sealed class LoggingComContractTests
         Assert.AreEqual(EAccessDenied, currentLogError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maskPasswordsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maskPasswordsSetError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, enableLiveLoggingError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, liveLogError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, liveLoggingEnabledError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -232,11 +238,44 @@ public sealed class LoggingComContractTests
         AssertPending(() => logging.LogFormat = ComLogOutputFormat.Default);
         AssertPending(() => logging.LogDebug = false);
         AssertPending(() => logging.LogIMAP = false);
-        AssertPending(() => logging.EnableLiveLogging(true));
-        AssertPending(() => _ = logging.LiveLog);
         AssertPending(() => logging.AWStatsEnabled = false);
         AssertPending(() => logging.KeepFilesOpen = false);
-        AssertPending(() => _ = logging.LiveLoggingEnabled);
+    }
+
+    [TestMethod]
+    public void AuthorizedLogging_PreservesLegacyLiveLogEnableClearAndReadSemantics()
+    {
+        var runtime = new ProcessLocalLoggingLiveLogRuntime();
+        IInterfaceLogging logging = Logging.CreateAuthorized(
+            new LoggingAdministrationSnapshot(
+                LoggingMask: 0,
+                Device: 0,
+                LogFormat: 0,
+                AwStatsEnabled: false,
+                Directory: string.Empty),
+            liveLogRuntime: runtime);
+
+        runtime.Append("ignored");
+        Assert.IsFalse(logging.LiveLoggingEnabled);
+        Assert.AreEqual(string.Empty, logging.LiveLog);
+
+        logging.EnableLiveLogging(true);
+        Assert.IsTrue(logging.LiveLoggingEnabled);
+        runtime.Append("first\r\n");
+        runtime.Append("second\r\n");
+        Assert.AreEqual("first\r\nsecond\r\n", logging.LiveLog);
+        Assert.AreEqual(string.Empty, logging.LiveLog);
+        Assert.IsTrue(logging.LiveLoggingEnabled);
+
+        runtime.Append("cleared by re-enable");
+        logging.EnableLiveLogging(true);
+        Assert.AreEqual(string.Empty, logging.LiveLog);
+        Assert.IsTrue(logging.LiveLoggingEnabled);
+
+        runtime.Append("cleared by disable");
+        logging.EnableLiveLogging(false);
+        Assert.IsFalse(logging.LiveLoggingEnabled);
+        Assert.AreEqual(string.Empty, logging.LiveLog);
     }
 
     [TestMethod]
@@ -271,6 +310,7 @@ public sealed class LoggingComContractTests
     [TestMethod]
     public void AuthorizedSettings_ExposesConfiguredLoggingSnapshot()
     {
+        var liveLogRuntime = new ProcessLocalLoggingLiveLogRuntime();
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
                 HostName: string.Empty,
@@ -286,7 +326,8 @@ public sealed class LoggingComContractTests
                 LoggingTimeProvider: new AdjustableTimeProvider(
                     DateTimeOffset.Parse(
                         "2026-07-03T12:00:00Z",
-                        System.Globalization.CultureInfo.InvariantCulture))));
+                        System.Globalization.CultureInfo.InvariantCulture)),
+                LoggingLiveLogRuntime: liveLogRuntime));
 
         var logging = settings.Logging;
 
@@ -303,6 +344,10 @@ public sealed class LoggingComContractTests
         Assert.AreEqual(@"E:\hMailServer\Logs\\hmailserver_2026-07-03.log", logging.CurrentDefaultLog);
         Assert.IsFalse(logging.AWStatsEnabled);
         Assert.IsFalse(logging.KeepFilesOpen);
+        logging.EnableLiveLogging(true);
+        liveLogRuntime.Append("settings live log\r\n");
+        Assert.AreEqual("settings live log\r\n", logging.LiveLog);
+        Assert.IsTrue(logging.LiveLoggingEnabled);
     }
 
     private static void AssertMember(

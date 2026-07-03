@@ -130,15 +130,20 @@ public sealed class Logging : LoggingComAdapter
 
     private readonly LoggingAdministrationSnapshot? _snapshot;
     private readonly TimeProvider _timeProvider = TimeProvider.System;
+    private readonly ILoggingLiveLogRuntime _liveLogRuntime = LoggingLiveLogRuntimeHost.Current;
 
     public Logging()
     {
     }
 
-    private Logging(LoggingAdministrationSnapshot snapshot, TimeProvider? timeProvider)
+    private Logging(
+        LoggingAdministrationSnapshot snapshot,
+        TimeProvider? timeProvider,
+        ILoggingLiveLogRuntime? liveLogRuntime)
     {
         _snapshot = snapshot;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _liveLogRuntime = liveLogRuntime ?? LoggingLiveLogRuntimeHost.Current;
     }
 
     public override bool Enabled { get => HasFlag(EnabledFlag); set => base.Enabled = value; }
@@ -174,7 +179,22 @@ public sealed class Logging : LoggingComAdapter
 
     public override bool LogIMAP { get => HasFlag(ImapFlag); set => base.LogIMAP = value; }
 
+    public override void EnableLiveLogging(bool newVal)
+    {
+        _ = Snapshot;
+        _liveLogRuntime.Enable(newVal);
+    }
+
     public override string Directory => Snapshot.Directory;
+
+    public override string LiveLog
+    {
+        get
+        {
+            _ = Snapshot;
+            return _liveLogRuntime.ReadAndClear();
+        }
+    }
 
     public override bool AWStatsEnabled { get => Snapshot.AwStatsEnabled; set => base.AWStatsEnabled = value; }
 
@@ -200,12 +220,22 @@ public sealed class Logging : LoggingComAdapter
 
     public override bool KeepFilesOpen { get => HasFlag(KeepFilesOpenFlag); set => base.KeepFilesOpen = value; }
 
+    public override bool LiveLoggingEnabled
+    {
+        get
+        {
+            _ = Snapshot;
+            return _liveLogRuntime.Enabled;
+        }
+    }
+
     internal static Logging CreateAuthorized(
         LoggingAdministrationSnapshot snapshot,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ILoggingLiveLogRuntime? liveLogRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Logging(snapshot, timeProvider);
+        return new Logging(snapshot, timeProvider, liveLogRuntime);
     }
 
     private LoggingAdministrationSnapshot Snapshot =>
@@ -233,9 +263,9 @@ public abstract class LoggingComAdapter : IInterfaceLogging
     public virtual ComLogOutputFormat LogFormat { get => Unavailable<ComLogOutputFormat>(); set => Unavailable(); }
     public virtual bool LogDebug { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool LogIMAP { get => Unavailable<bool>(); set => Unavailable(); }
-    public void EnableLiveLogging(bool newVal) => Unavailable();
+    public virtual void EnableLiveLogging(bool newVal) => Unavailable();
     public virtual string Directory => Unavailable<string>();
-    public string LiveLog => Unavailable<string>();
+    public virtual string LiveLog => Unavailable<string>();
     public virtual bool AWStatsEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual bool MaskPasswordsInLog { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string CurrentEventLog => Unavailable<string>();
@@ -243,7 +273,7 @@ public abstract class LoggingComAdapter : IInterfaceLogging
     public virtual string CurrentAwstatsLog => Unavailable<string>();
     public virtual string CurrentDefaultLog => Unavailable<string>();
     public virtual bool KeepFilesOpen { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool LiveLoggingEnabled => Unavailable<bool>();
+    public virtual bool LiveLoggingEnabled => Unavailable<bool>();
 
     private T Unavailable<T>() => LoggingComAuthorization.Unavailable<T>(this);
 

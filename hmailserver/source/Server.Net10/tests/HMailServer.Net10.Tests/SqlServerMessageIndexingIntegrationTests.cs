@@ -164,6 +164,19 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsFalse(logging.MaskPasswordsInLog);
             logging.MaskPasswordsInLog = true;
             Assert.IsFalse(logging.MaskPasswordsInLog);
+            try
+            {
+                logging.EnableLiveLogging(true);
+                Assert.IsTrue(logging.LiveLoggingEnabled);
+                LoggingLiveLogRuntimeHost.Append("integration live log\r\n");
+                Assert.AreEqual("integration live log\r\n", logging.LiveLog);
+                Assert.AreEqual(string.Empty, logging.LiveLog);
+                Assert.IsTrue(logging.LiveLoggingEnabled);
+            }
+            finally
+            {
+                logging.EnableLiveLogging(false);
+            }
             var scripting = settings.Scripting;
             Assert.IsTrue(scripting.Enabled);
             Assert.AreEqual("JScript", scripting.Language);
