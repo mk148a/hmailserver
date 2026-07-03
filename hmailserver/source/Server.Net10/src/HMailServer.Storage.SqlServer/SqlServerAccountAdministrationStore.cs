@@ -44,6 +44,42 @@ WHERE accountdomainid = @DomainID
 ORDER BY accountaddress ASC;
 """;
 
+    public const string GetAccountByIdSql = """
+SELECT
+    accountid,
+    accountdomainid,
+    accountaddress,
+    accountactive,
+    accountadminlevel,
+    accountisad,
+    accountaddomain,
+    accountadusername,
+    accountmaxsize,
+    (
+        SELECT COALESCE(SUM(CAST(messagesize AS bigint)), 0)
+        FROM hm_messages
+        WHERE messageaccountid = hm_accounts.accountid
+    ) AS accountsizebytes,
+    accountlastlogontime,
+    accountpersonfirstname,
+    accountpersonlastname,
+    accountvacationmessageon,
+    accountvacationmessage,
+    accountvacationsubject,
+    accountvacationexpires,
+    CONVERT(varchar(10), accountvacationexpiredate, 23) AS accountvacationexpiredate,
+    accountvacationabortspamflagged,
+    accountforwardenabled,
+    accountforwardaddress,
+    accountforwardkeeporiginal,
+    accountforwardabortspamflagged,
+    accountenablesignature,
+    CONVERT(nvarchar(max), accountsignatureplaintext) AS accountsignatureplaintext,
+    CONVERT(nvarchar(max), accountsignaturehtml) AS accountsignaturehtml
+FROM hm_accounts
+WHERE accountid = @AccountID;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerAccountAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -59,6 +95,25 @@ ORDER BY accountaddress ASC;
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(GetAccountsSql, connection);
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
+
+        return await ReadAccountsAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
+        int accountId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(GetAccountByIdSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+
+        return (await ReadAccountsAsync(command, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
+    }
+
+    private static async ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> ReadAccountsAsync(
+        SqlCommand command,
+        CancellationToken cancellationToken)
+    {
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
             cancellationToken).ConfigureAwait(false);

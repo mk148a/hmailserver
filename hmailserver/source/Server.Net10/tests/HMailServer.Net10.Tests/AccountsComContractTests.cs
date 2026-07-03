@@ -223,5 +223,10 @@ public sealed class AccountsComContractTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
                 accounts.Where(account => account.DomainId == domainId).ToArray());
+
+        public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(accounts.FirstOrDefault(account => account.Id == accountId));
     }
 }

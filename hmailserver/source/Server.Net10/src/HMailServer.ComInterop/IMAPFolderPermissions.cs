@@ -225,9 +225,11 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
 
     public int Value { get => Snapshot.Value; set => Unavailable(); }
 
-    public IInterfaceAccount Account => Unavailable<IInterfaceAccount>();
+    public IInterfaceAccount Account =>
+        AccountAdministrationRuntimeHost.CreateAuthorizedAccountByIdAdapter(Snapshot.PermissionAccountId);
 
-    public IInterfaceGroup Group => Unavailable<IInterfaceGroup>();
+    public IInterfaceGroup Group =>
+        GroupAdministrationRuntimeHost.CreateAuthorizedGroupByIdAdapter(Snapshot.PermissionGroupId);
 
     public bool get_Permission(ComAclPermission permission) => (Snapshot.Value & (int)permission) != 0;
 

@@ -96,6 +96,19 @@ public sealed class IMAPFolderPermissionsComContractTests
     [TestMethod]
     public void AuthorizedCollection_ExposesReadOnlyAclPermissionSnapshots()
     {
+        AccountAdministrationRuntimeHost.Configure(
+            new FixedAccountAdministrationStore(
+                new[]
+                {
+                    new AccountAdministrationSnapshot(100, 50, "acl-user@example.test", true, 0)
+                }));
+        GroupAdministrationRuntimeHost.Configure(
+            new FixedGroupAdministrationStore(
+                new[]
+                {
+                    new GroupAdministrationSnapshot(200, "ACL Group")
+                }));
+
         IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
             new[]
             {
@@ -112,10 +125,17 @@ public sealed class IMAPFolderPermissionsComContractTests
                     (int)ComAclPermissionType.Anyone,
                     0,
                     0,
+                    (int)ComAclPermission.Lookup),
+                new ImapFolderPermissionAdministrationSnapshot(
+                    30,
+                    50,
+                    (int)ComAclPermissionType.Group,
+                    200,
+                    0,
                     (int)ComAclPermission.Lookup)
             });
 
-        Assert.AreEqual(2, permissions.Count);
+        Assert.AreEqual(3, permissions.Count);
         AssertPermission(
             permissions[0],
             10,
@@ -129,9 +149,18 @@ public sealed class IMAPFolderPermissionsComContractTests
         Assert.IsTrue(permissions[0].get_Permission(ComAclPermission.Lookup));
         Assert.IsTrue(permissions[0].get_Permission(ComAclPermission.Read));
         Assert.IsFalse(permissions[0].get_Permission(ComAclPermission.WriteSeen));
+        Assert.AreEqual(100, permissions[0].Account.ID);
+        Assert.AreEqual("acl-user@example.test", permissions[0].Account.Address);
+        Assert.AreEqual(200, permissions.get_ItemByDBID(30).Group.ID);
+        Assert.AreEqual("ACL Group", permissions.get_ItemByDBID(30).Group.Name);
 
-        var badIndex = Assert.ThrowsExactly<COMException>(() => _ = permissions[2]);
-        var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = permissions.get_ItemByDBID(30));
+        var anyoneAccount = Assert.ThrowsExactly<COMException>(() => _ = permissions[1].Account);
+        var anyoneGroup = Assert.ThrowsExactly<COMException>(() => _ = permissions[1].Group);
+        Assert.AreEqual(DispEBadIndex, anyoneAccount.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, anyoneGroup.ErrorCode);
+
+        var badIndex = Assert.ThrowsExactly<COMException>(() => _ = permissions[3]);
+        var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = permissions.get_ItemByDBID(40));
         var badName = Assert.ThrowsExactly<COMException>(() => _ = permissions.get_ItemByName("missing"));
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
@@ -150,8 +179,8 @@ public sealed class IMAPFolderPermissionsComContractTests
                      () => permissions[0].set_Permission(ComAclPermission.Read, false),
                      permissions[0].Save,
                      permissions[0].Delete,
-                     () => _ = permissions[0].Account,
-                     () => _ = permissions[0].Group
+                     () => permissions[0].Account.Address = "changed@example.test",
+                     () => permissions.get_ItemByDBID(30).Group.Name = "Changed"
                  })
         {
             var error = Assert.ThrowsExactly<COMException>(mutation);
@@ -174,6 +203,30 @@ public sealed class IMAPFolderPermissionsComContractTests
         Assert.AreEqual(groupId, permission.PermissionGroupID);
         Assert.AreEqual(accountId, permission.PermissionAccountID);
         Assert.AreEqual(value, permission.Value);
+    }
+
+    private sealed class FixedAccountAdministrationStore(IReadOnlyList<AccountAdministrationSnapshot> accounts)
+        : IAccountAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
+                accounts.Where(account => account.DomainId == domainId).ToArray());
+
+        public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(accounts.FirstOrDefault(account => account.Id == accountId));
+    }
+
+    private sealed class FixedGroupAdministrationStore(IReadOnlyList<GroupAdministrationSnapshot> groups)
+        : IGroupAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<GroupAdministrationSnapshot>>(
+                groups.OrderBy(group => group.Name, StringComparer.OrdinalIgnoreCase).ToArray());
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)

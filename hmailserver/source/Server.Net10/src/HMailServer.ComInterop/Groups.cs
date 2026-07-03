@@ -210,6 +210,7 @@ public sealed class Group : IInterfaceGroup
 public static class GroupAdministrationRuntimeHost
 {
     private const int CoENotInitialized = unchecked((int)0x800401F0);
+    private const int DispEBadIndex = unchecked((int)0x8002000B);
 
     private static IGroupAdministrationStore? _store;
 
@@ -233,5 +234,24 @@ public static class GroupAdministrationRuntimeHost
             .GetResult();
 
         return Groups.CreateAuthorized(groups);
+    }
+
+    internal static Group CreateAuthorizedGroupByIdAdapter(int groupId)
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer group administration runtime has not been initialized.",
+                CoENotInitialized);
+
+        var groups = store
+            .GetGroupsAsync(CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+        var group = groups.FirstOrDefault(item => item.Id == groupId);
+
+        return group is null
+            ? throw new COMException("No group with the specified database identifier exists.", DispEBadIndex)
+            : Group.CreateAuthorized(group);
     }
 }

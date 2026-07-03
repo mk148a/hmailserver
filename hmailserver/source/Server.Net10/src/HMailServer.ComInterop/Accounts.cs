@@ -131,6 +131,7 @@ public sealed class Accounts : IInterfaceAccounts
 public static class AccountAdministrationRuntimeHost
 {
     private const int CoENotInitialized = unchecked((int)0x800401F0);
+    private const int DispEBadIndex = unchecked((int)0x8002000B);
 
     private static IAccountAdministrationStore? _store;
 
@@ -154,5 +155,23 @@ public static class AccountAdministrationRuntimeHost
             .GetResult();
 
         return Accounts.CreateAuthorized(accounts);
+    }
+
+    internal static Account CreateAuthorizedAccountByIdAdapter(int accountId)
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer account administration runtime has not been initialized.",
+                CoENotInitialized);
+
+        var account = store
+            .GetAccountByIdAsync(accountId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return account is null
+            ? throw new COMException("No account with the specified database identifier exists.", DispEBadIndex)
+            : Account.CreateAuthorized(account);
     }
 }

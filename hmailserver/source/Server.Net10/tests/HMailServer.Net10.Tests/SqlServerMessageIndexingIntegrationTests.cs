@@ -754,7 +754,7 @@ ORDER BY messageid;
             Assert.AreEqual(50, publicFolders[0].ID);
             Assert.AreEqual("Public", publicFolders[0].Name);
             var publicPermissions = publicFolders[0].Permissions;
-            Assert.AreEqual(2, publicPermissions.Count);
+            Assert.AreEqual(3, publicPermissions.Count);
             Assert.AreEqual(500, publicPermissions[0].ID);
             Assert.AreEqual(50, publicPermissions[0].ShareFolderID);
             Assert.AreEqual(ComAclPermissionType.Anyone, publicPermissions[0].PermissionType);
@@ -766,6 +766,12 @@ ORDER BY messageid;
             Assert.IsFalse(publicPermissions[0].get_Permission(ComAclPermission.WriteSeen));
             Assert.AreEqual(501, publicPermissions.get_ItemByDBID(501).ID);
             Assert.AreEqual(501, publicPermissions.get_ItemByName("ACLPermission-501").ID);
+            Assert.AreEqual(10, publicPermissions.get_ItemByDBID(501).Account.ID);
+            Assert.AreEqual("admin@example.test", publicPermissions.get_ItemByDBID(501).Account.Address);
+            Assert.AreEqual(1100, publicPermissions.get_ItemByDBID(502).Group.ID);
+            Assert.AreEqual("Administrators", publicPermissions.get_ItemByDBID(502).Group.Name);
+            var anyoneAccount = Assert.ThrowsExactly<COMException>(() => _ = publicPermissions[0].Account);
+            Assert.AreEqual(unchecked((int)0x8002000B), anyoneAccount.ErrorCode);
             var outsidePermission = Assert.ThrowsExactly<COMException>(() => _ = publicPermissions.get_ItemByDBID(900));
             Assert.AreEqual(unchecked((int)0x8002000B), outsidePermission.ErrorCode);
             var pendingPermissionSave = Assert.ThrowsExactly<COMException>(publicPermissions[0].Save);
@@ -1853,6 +1859,7 @@ INSERT INTO dbo.hm_acl
 VALUES
     (500, 50, 2, 0, 0, 3),
     (501, 50, 0, 0, 10, 1025),
+    (502, 50, 1, 1100, 0, 1),
     (900, 100, 0, 0, 10, 3);
 
 INSERT INTO dbo.hm_routes
