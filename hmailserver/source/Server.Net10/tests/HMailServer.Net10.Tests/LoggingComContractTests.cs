@@ -184,11 +184,15 @@ public sealed class LoggingComContractTests
         var loggingError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().Enabled);
         var directoryError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().Directory);
         var currentLogError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().CurrentDefaultLog);
+        var maskPasswordsError = Assert.ThrowsExactly<COMException>(() => _ = new Logging().MaskPasswordsInLog);
+        var maskPasswordsSetError = Assert.ThrowsExactly<COMException>(() => new Logging().MaskPasswordsInLog = true);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Logging);
 
         Assert.AreEqual(EAccessDenied, loggingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, directoryError.ErrorCode);
         Assert.AreEqual(EAccessDenied, currentLogError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maskPasswordsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maskPasswordsSetError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -215,6 +219,9 @@ public sealed class LoggingComContractTests
         Assert.AreEqual(@"C:\hMailServer\Logs\", logging.Directory);
         Assert.IsTrue(logging.AWStatsEnabled);
         Assert.IsTrue(logging.KeepFilesOpen);
+        Assert.IsFalse(logging.MaskPasswordsInLog);
+        logging.MaskPasswordsInLog = true;
+        Assert.IsFalse(logging.MaskPasswordsInLog);
 
         AssertPending(() => logging.Enabled = false);
         AssertPending(() => logging.LogSMTP = false);
@@ -228,8 +235,6 @@ public sealed class LoggingComContractTests
         AssertPending(() => logging.EnableLiveLogging(true));
         AssertPending(() => _ = logging.LiveLog);
         AssertPending(() => logging.AWStatsEnabled = false);
-        AssertPending(() => _ = logging.MaskPasswordsInLog);
-        AssertPending(() => logging.MaskPasswordsInLog = false);
         AssertPending(() => logging.KeepFilesOpen = false);
         AssertPending(() => _ = logging.LiveLoggingEnabled);
     }

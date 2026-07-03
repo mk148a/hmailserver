@@ -178,6 +178,16 @@ public sealed class Logging : LoggingComAdapter
 
     public override bool AWStatsEnabled { get => Snapshot.AwStatsEnabled; set => base.AWStatsEnabled = value; }
 
+    public override bool MaskPasswordsInLog
+    {
+        get
+        {
+            _ = Snapshot;
+            return false;
+        }
+        set => _ = Snapshot;
+    }
+
     public override string CurrentEventLog => BuildCurrentLogPath("hmailserver_events.log");
 
     public override string CurrentErrorLog =>
@@ -227,7 +237,7 @@ public abstract class LoggingComAdapter : IInterfaceLogging
     public virtual string Directory => Unavailable<string>();
     public string LiveLog => Unavailable<string>();
     public virtual bool AWStatsEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public bool MaskPasswordsInLog { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool MaskPasswordsInLog { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string CurrentEventLog => Unavailable<string>();
     public virtual string CurrentErrorLog => Unavailable<string>();
     public virtual string CurrentAwstatsLog => Unavailable<string>();

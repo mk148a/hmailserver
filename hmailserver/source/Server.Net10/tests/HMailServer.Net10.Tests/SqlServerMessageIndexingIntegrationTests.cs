@@ -161,6 +161,9 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.IsTrue(logging.LogIMAP);
             Assert.IsTrue(logging.AWStatsEnabled);
             Assert.IsTrue(logging.KeepFilesOpen);
+            Assert.IsFalse(logging.MaskPasswordsInLog);
+            logging.MaskPasswordsInLog = true;
+            Assert.IsFalse(logging.MaskPasswordsInLog);
             var scripting = settings.Scripting;
             Assert.IsTrue(scripting.Enabled);
             Assert.AreEqual("JScript", scripting.Language);
