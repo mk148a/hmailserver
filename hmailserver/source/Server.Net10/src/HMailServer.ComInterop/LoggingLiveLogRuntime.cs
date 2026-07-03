@@ -82,5 +82,5 @@ public static class LoggingLiveLogRuntimeHost
 
     public static void Append(string message) => Runtime.Append(message);
 
-    internal static ILoggingLiveLogRuntime Current => Runtime;
+    public static ILoggingLiveLogRuntime Current => Runtime;
 }

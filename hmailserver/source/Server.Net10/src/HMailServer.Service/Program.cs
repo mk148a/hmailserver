@@ -38,6 +38,7 @@ var applicationVersion = builder.Configuration["Application:Version"]
     ?? "1.0.0-B0";
 builder.Services.AddSingleton<IServerAdministratorAuthenticationProvider>(
     new LegacyServerAdministratorAuthenticationProvider(administratorPasswordHash));
+builder.Services.AddSingleton<ILoggerProvider, LoggingLiveLogLoggerProvider>();
 
 var connectionString = builder.Configuration["ConnectionStrings:hMailServer"]
     ?? builder.Configuration["HMAILSERVER_SQLSERVER_CONNECTION"]
