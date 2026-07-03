@@ -63,14 +63,23 @@ public sealed class GroupMembersComContractTests
     {
         var membersError = Assert.ThrowsExactly<COMException>(() => _ = new GroupMembers().Count);
         var memberError = Assert.ThrowsExactly<COMException>(() => _ = new GroupMember().GroupID);
+        var memberAccountError = Assert.ThrowsExactly<COMException>(() => _ = new GroupMember().Account);
 
         Assert.AreEqual(EAccessDenied, membersError.ErrorCode);
         Assert.AreEqual(EAccessDenied, memberError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, memberAccountError.ErrorCode);
     }
 
     [TestMethod]
     public void AuthorizedCollection_ExposesReadOnlySnapshotsAndLegacyLookupErrors()
     {
+        AccountAdministrationRuntimeHost.Configure(
+            new FixedAccountAdministrationStore(
+                new[]
+                {
+                    new AccountAdministrationSnapshot(1000, 10, "member@example.test", true, 0)
+                }));
+
         IInterfaceGroupMembers members = GroupMembers.CreateAuthorized(
             new[]
             {
@@ -81,26 +90,31 @@ public sealed class GroupMembersComContractTests
         Assert.AreEqual(2, members.Count);
         AssertMember(members[0], 100, 10, 1000);
         AssertMember(members.get_ItemByDBID(200), 200, 10, 2000);
+        Assert.AreEqual(1000, members[0].Account.ID);
+        Assert.AreEqual("member@example.test", members[0].Account.Address);
 
         var badIndex = Assert.ThrowsExactly<COMException>(() => _ = members[2]);
         var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = members.get_ItemByDBID(300));
+        var badAccount = Assert.ThrowsExactly<COMException>(() => _ = members.get_ItemByDBID(200).Account);
         var pendingDelete = Assert.ThrowsExactly<COMException>(() => members.DeleteByDBID(100));
         var pendingAdd = Assert.ThrowsExactly<COMException>(() => members.Add());
         var pendingRefresh = Assert.ThrowsExactly<COMException>(members.Refresh);
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => members[0].AccountID = 3000);
         var pendingSave = Assert.ThrowsExactly<COMException>(members[0].Save);
         var pendingMemberDelete = Assert.ThrowsExactly<COMException>(members[0].Delete);
-        var pendingAccount = Assert.ThrowsExactly<COMException>(() => _ = members[0].Account);
+        var pendingAccountMutation =
+            Assert.ThrowsExactly<COMException>(() => members[0].Account.Address = "changed@example.test");
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, badAccount.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingAdd.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSave.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMemberDelete.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingAccount.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingAccountMutation.ErrorCode);
     }
 
     [TestMethod]
@@ -161,6 +175,21 @@ public sealed class GroupMembersComContractTests
         Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
         Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    private sealed class FixedAccountAdministrationStore(IReadOnlyList<AccountAdministrationSnapshot> accounts)
+        : IAccountAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
+                accounts.Where(account => account.DomainId == domainId).ToArray());
+
+        public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(accounts.FirstOrDefault(account => account.Id == accountId));
     }
 
     private sealed class FixedGroupMemberAdministrationStore(

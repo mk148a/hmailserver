@@ -876,8 +876,13 @@ ORDER BY messageid;
             Assert.AreEqual(1100, groupMembers[0].GroupID);
             Assert.AreEqual(10, groupMembers[0].AccountID);
             Assert.AreEqual(20, groupMembers.get_ItemByDBID(1400).AccountID);
-            var pendingGroupMemberAccount = Assert.ThrowsExactly<COMException>(() => _ = groupMembers[0].Account);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingGroupMemberAccount.ErrorCode);
+            Assert.AreEqual(10, groupMembers[0].Account.ID);
+            Assert.AreEqual("admin@example.test", groupMembers[0].Account.Address);
+            Assert.AreEqual(20, groupMembers.get_ItemByDBID(1400).Account.ID);
+            Assert.AreEqual("user@example.test", groupMembers.get_ItemByDBID(1400).Account.Address);
+            var pendingGroupMemberAccountMutation =
+                Assert.ThrowsExactly<COMException>(() => groupMembers[0].Account.Address = "changed@example.test");
+            Assert.AreEqual(unchecked((int)0x80004001), pendingGroupMemberAccountMutation.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
         }

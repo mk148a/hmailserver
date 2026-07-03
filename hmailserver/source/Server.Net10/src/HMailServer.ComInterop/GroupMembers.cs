@@ -168,7 +168,8 @@ public sealed class GroupMember : IInterfaceGroupMember
 
     public int AccountID { get => Snapshot.AccountId; set => Unavailable(); }
 
-    public IInterfaceAccount Account => Unavailable<IInterfaceAccount>();
+    public IInterfaceAccount Account =>
+        AccountAdministrationRuntimeHost.CreateAuthorizedAccountByIdAdapter(Snapshot.AccountId);
 
     internal static GroupMember CreateAuthorized(GroupMemberAdministrationSnapshot member) => new(member);
 
