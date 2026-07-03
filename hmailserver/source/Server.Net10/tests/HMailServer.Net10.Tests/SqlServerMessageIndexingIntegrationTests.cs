@@ -35,11 +35,16 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             var store = new SqlServerMessageIndexingAdministrationStore(
                 new SqlServerConnectionFactory(testConnectionString));
             MessageIndexingRuntimeHost.Configure(new StoreBackedMessageIndexingRuntime(store));
+            DatabaseAdministrationRuntimeHost.Configure(
+                new FixedDatabaseAdministrationStore(),
+                new SqlServerMessageFileNameLookup(new SqlServerConnectionFactory(testConnectionString)));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
 
             Assert.IsNull(application.Authenticate("Administrator", "wrong"));
             Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+            Assert.AreEqual("one.eml", application.Database.UtilGetFileNameByMessageID(1));
+            Assert.AreEqual(string.Empty, application.Database.UtilGetFileNameByMessageID(999));
             var indexing = application.Settings.MessageIndexing;
             var extended = (IInterfaceMessageIndexing2)indexing;
 
@@ -1152,7 +1157,8 @@ ORDER BY messageid;
 CREATE TABLE dbo.hm_messages
 (
     messageid bigint NOT NULL PRIMARY KEY,
-    messagetype int NOT NULL
+    messagetype int NOT NULL,
+    messagefilename nvarchar(255) NOT NULL
 );
 
 CREATE TABLE dbo.hm_settings
@@ -1179,8 +1185,8 @@ CREATE TABLE dbo.hm_message_search_queue
     lasterror nvarchar(1024) NULL
 );
 
-INSERT INTO dbo.hm_messages (messageid, messagetype)
-VALUES (1, 2), (2, 2), (3, 3);
+INSERT INTO dbo.hm_messages (messageid, messagetype, messagefilename)
+VALUES (1, 2, N'one.eml'), (2, 2, N'two.eml'), (3, 3, N'queued.eml');
 
 INSERT INTO dbo.hm_message_search_documents (messageid)
 VALUES (1);
@@ -2220,6 +2226,20 @@ VALUES
                     WelcomeSmtp: string.Empty,
                     WelcomePop3: string.Empty,
                     WelcomeImap: string.Empty));
+    }
+
+    private sealed class FixedDatabaseAdministrationStore : IDatabaseAdministrationStore
+    {
+        public ValueTask<DatabaseAdministrationSnapshot> GetDatabaseAsync(CancellationToken cancellationToken) =>
+            ValueTask.FromResult(
+                new DatabaseAdministrationSnapshot(
+                    RequiredVersion: 5708,
+                    CurrentVersion: 5708,
+                    DatabaseType: (int)ComDatabaseType.MSSQL,
+                    DatabaseExists: true,
+                    IsConnected: true,
+                    ServerName: string.Empty,
+                    DatabaseName: string.Empty));
     }
 
     private sealed class FixedBlockedAttachmentAdministrationStore(

@@ -93,6 +93,7 @@ public sealed class Database : IInterfaceDatabase
 
     private readonly DatabaseAdministrationSnapshot? _snapshot;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly IMessageFileNameLookup? _messageFileNameLookup;
 
     public Database()
     {
@@ -100,10 +101,12 @@ public sealed class Database : IInterfaceDatabase
 
     private Database(
         DatabaseAdministrationSnapshot snapshot,
-        Func<bool> isServerAdministrator)
+        Func<bool> isServerAdministrator,
+        IMessageFileNameLookup? messageFileNameLookup)
     {
         _snapshot = snapshot;
         _isServerAdministrator = isServerAdministrator;
+        _messageFileNameLookup = messageFileNameLookup;
     }
 
     public int RequiredVersion => Snapshot.RequiredVersion;
@@ -145,16 +148,30 @@ public sealed class Database : IInterfaceDatabase
 
     internal static Database CreateForApplication(
         DatabaseAdministrationSnapshot snapshot,
-        Func<bool> isServerAdministrator)
+        Func<bool> isServerAdministrator,
+        IMessageFileNameLookup? messageFileNameLookup = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(isServerAdministrator);
-        return new Database(snapshot, isServerAdministrator);
+        return new Database(snapshot, isServerAdministrator, messageFileNameLookup);
     }
 
     public void ExecuteSQL(string sqlStatement) => Unavailable();
 
-    public string UtilGetFileNameByMessageID(long messageId) => Unavailable<string>();
+    public string UtilGetFileNameByMessageID(long messageId)
+    {
+        EnsureServerAdministrator();
+        if (_messageFileNameLookup is null)
+        {
+            return Unavailable<string>();
+        }
+
+        return _messageFileNameLookup
+            .GetFileNameByMessageIdAsync(messageId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+    }
 
     public void CreateInternalDatabase() => Unavailable();
 
@@ -232,11 +249,15 @@ public static class DatabaseAdministrationRuntimeHost
     private const int CoENotInitialized = unchecked((int)0x800401F0);
 
     private static IDatabaseAdministrationStore? _store;
+    private static IMessageFileNameLookup? _messageFileNameLookup;
 
-    public static void Configure(IDatabaseAdministrationStore store)
+    public static void Configure(
+        IDatabaseAdministrationStore store,
+        IMessageFileNameLookup? messageFileNameLookup = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         Volatile.Write(ref _store, store);
+        Volatile.Write(ref _messageFileNameLookup, messageFileNameLookup);
     }
 
     internal static Database CreateApplicationAdapter(Func<bool> isServerAdministrator)
@@ -254,6 +275,9 @@ public static class DatabaseAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return Database.CreateForApplication(snapshot, isServerAdministrator);
+        return Database.CreateForApplication(
+            snapshot,
+            isServerAdministrator,
+            Volatile.Read(ref _messageFileNameLookup));
     }
 }

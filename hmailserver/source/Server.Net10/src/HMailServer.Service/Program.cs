@@ -823,6 +823,7 @@ builder.Services.AddSingleton<IDatabaseAdministrationStore>(
     serviceProvider => new SqlServerDatabaseAdministrationStore(
         serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
         databaseConfiguration));
+builder.Services.AddSingleton<IMessageFileNameLookup, SqlServerMessageFileNameLookup>();
 builder.Services.AddSingleton<ServerStatusRuntimeState>();
 builder.Services.AddSingleton<IApplicationRuntimeStore>(
     serviceProvider => new ServerApplicationRuntimeStore(
@@ -915,7 +916,8 @@ ApplicationRuntimeHost.Configure(
 MessageIndexingRuntimeHost.Configure(
     host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());
 DatabaseAdministrationRuntimeHost.Configure(
-    host.Services.GetRequiredService<IDatabaseAdministrationStore>());
+    host.Services.GetRequiredService<IDatabaseAdministrationStore>(),
+    host.Services.GetRequiredService<IMessageFileNameLookup>());
 StatusAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IServerStatusAdministrationStore>());
 DeliveryQueueAdministrationRuntimeHost.Configure(

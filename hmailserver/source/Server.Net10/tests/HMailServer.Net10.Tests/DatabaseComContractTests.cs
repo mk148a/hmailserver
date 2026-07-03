@@ -87,13 +87,16 @@ public sealed class DatabaseComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var databaseError = Assert.ThrowsExactly<COMException>(() => _ = new Database().RequiredVersion);
+        var fileNameError = Assert.ThrowsExactly<COMException>(() => new Database().UtilGetFileNameByMessageID(1));
 
         Assert.AreEqual(EAccessDenied, databaseError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, fileNameError.ErrorCode);
     }
 
     [TestMethod]
     public void ApplicationDatabase_PreservesLegacyPerMemberAuthenticationAndUsesConfiguredRuntime()
     {
+        const long largeMessageId = 0x1_0000_0001;
         DatabaseAdministrationRuntimeHost.Configure(
             new FixedDatabaseAdministrationStore(
                 new DatabaseAdministrationSnapshot(
@@ -103,7 +106,12 @@ public sealed class DatabaseComContractTests
                     DatabaseExists: true,
                     IsConnected: true,
                     ServerName: @".\SQLExpress",
-                    DatabaseName: "hmailserver")));
+                    DatabaseName: "hmailserver")),
+            new FixedMessageFileNameLookup(
+                new Dictionary<long, string>
+                {
+                    [largeMessageId] = @"{A1}\message.eml"
+                }));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var database = application.Database;
@@ -116,17 +124,20 @@ public sealed class DatabaseComContractTests
 
         var typeDenied = Assert.ThrowsExactly<COMException>(() => _ = database.DatabaseType);
         var operationDenied = Assert.ThrowsExactly<COMException>(() => database.ExecuteSQL("select 1"));
+        var fileNameDenied = Assert.ThrowsExactly<COMException>(() => database.UtilGetFileNameByMessageID(largeMessageId));
         Assert.AreEqual(EAccessDenied, typeDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, operationDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, fileNameDenied.ErrorCode);
 
         Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
 
         Assert.AreEqual(ComDatabaseType.MSSQL, database.DatabaseType);
         Assert.AreEqual(@".\SQLExpress", database.ServerName);
         Assert.AreEqual("hmailserver", database.DatabaseName);
+        Assert.AreEqual(@"{A1}\message.eml", database.UtilGetFileNameByMessageID(largeMessageId));
+        Assert.AreEqual(string.Empty, database.UtilGetFileNameByMessageID(999));
         AssertOperationPending(() => database.ExecuteSQL("select 1"));
         AssertOperationPending(() => database.ExecuteSQLWithReturn("select 1"));
-        AssertOperationPending(() => database.UtilGetFileNameByMessageID(1));
         AssertOperationPending(database.BeginTransaction);
         AssertOperationPending(database.CommitTransaction);
         AssertOperationPending(database.RollbackTransaction);
@@ -196,5 +207,17 @@ public sealed class DatabaseComContractTests
     {
         public ValueTask<DatabaseAdministrationSnapshot> GetDatabaseAsync(CancellationToken cancellationToken) =>
             ValueTask.FromResult(snapshot);
+    }
+
+    private sealed class FixedMessageFileNameLookup(IReadOnlyDictionary<long, string> fileNames)
+        : IMessageFileNameLookup
+    {
+        public ValueTask<string> GetFileNameByMessageIdAsync(
+            long messageId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(
+                fileNames.TryGetValue(messageId, out var fileName)
+                    ? fileName
+                    : string.Empty);
     }
 }
