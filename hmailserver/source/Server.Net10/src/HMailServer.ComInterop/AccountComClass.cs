@@ -88,7 +88,17 @@ public sealed class Account : IInterfaceAccount
 
     public string ADUsername { get => _administrationSnapshot?.ActiveDirectoryUsername ?? Read(_activeDirectoryUsername); set => Write(() => _activeDirectoryUsername = value); }
 
-    public IInterfaceMessages Messages => NotImplemented<IInterfaceMessages>();
+    public IInterfaceMessages Messages
+    {
+        get
+        {
+            EnsureAttached();
+
+            return _administrationSnapshot is { } account
+                ? MessageAdministrationRuntimeHost.CreateAuthorizedAccountAdapter(account.Id)
+                : NotImplemented<IInterfaceMessages>();
+        }
+    }
 
     public int MaxSize { get => _administrationSnapshot?.MaxSize ?? Read(_maxSize); set => Write(() => _maxSize = value); }
 

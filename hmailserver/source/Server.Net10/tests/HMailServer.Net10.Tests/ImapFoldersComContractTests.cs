@@ -83,6 +83,7 @@ public sealed class ImapFoldersComContractTests
     [TestMethod]
     public void AuthorizedCollection_ExposesReadOnlyRootSnapshotsAndLegacyLookupErrors()
     {
+        MessageAdministrationRuntimeHost.Configure(new EmptyMessageAdministrationStore());
         IInterfaceIMAPFolders folders = IMAPFolders.CreateAuthorized(
             new[]
             {
@@ -110,7 +111,7 @@ public sealed class ImapFoldersComContractTests
         var pendingAdd = Assert.ThrowsExactly<COMException>(() => folders.Add("New"));
         var pendingDelete = Assert.ThrowsExactly<COMException>(() => folders.DeleteByDBID(10));
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => folders[0].Name = "changed");
-        var pendingMessages = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Messages);
+        var messages = folders[0].Messages;
         var pendingSubFolders = Assert.ThrowsExactly<COMException>(() => _ = folders[0].SubFolders);
         var pendingPermissions = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Permissions);
 
@@ -120,7 +121,7 @@ public sealed class ImapFoldersComContractTests
         Assert.AreEqual(ENotImplemented, pendingAdd.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingMessages.ErrorCode);
+        Assert.AreEqual(0, messages.Count);
         Assert.AreEqual(ENotImplemented, pendingSubFolders.ErrorCode);
         Assert.AreEqual(ELegacyComError, pendingPermissions.ErrorCode);
     }
@@ -245,5 +246,18 @@ public sealed class ImapFoldersComContractTests
                     .Where(permission => permission.ShareFolderId == folderId)
                     .OrderBy(permission => permission.Id)
                     .ToArray());
+    }
+
+    private sealed class EmptyMessageAdministrationStore : IMessageAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetAccountMessagesAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(Array.Empty<MessageAdministrationSnapshot>());
+
+        public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesAsync(
+            int folderId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(Array.Empty<MessageAdministrationSnapshot>());
     }
 }

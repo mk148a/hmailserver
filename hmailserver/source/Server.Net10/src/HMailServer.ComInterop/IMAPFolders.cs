@@ -202,7 +202,7 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
     public bool Subscribed { get => Snapshot.Subscribed; set => Unavailable(); }
 
-    public IInterfaceMessages Messages => Unavailable<IInterfaceMessages>();
+    public IInterfaceMessages Messages => MessageAdministrationRuntimeHost.CreateAuthorizedFolderAdapter(Snapshot.Id);
 
     public IInterfaceIMAPFolders SubFolders => Unavailable<IInterfaceIMAPFolders>();
 

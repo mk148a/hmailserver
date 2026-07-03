@@ -305,6 +305,20 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "Messages",
+            "{C04047AD-45A4-48EA-907E-2C270C95409C}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "Message",
+            "{61B2C7D7-3814-441F-9574-EE2CC9829447}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "FetchAccount",
             "{6F5E2977-2F51-40B0-847B-DD44C9ACC5A5}",
             executablePath,

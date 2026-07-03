@@ -171,6 +171,20 @@ public enum ComDomainSignatureMethod
 }
 
 [ComVisible(true)]
+[Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD09")]
+public enum ComMessageFlag
+{
+    Seen = 1,
+    Deleted = 2,
+    Flagged = 4,
+    Answered = 8,
+    Draft = 16,
+    Recent = 32,
+    VirusScan = 64,
+    Spam = 128
+}
+
+[ComVisible(true)]
 [Guid("90745436-4C3F-11D9-AD17-A0BCEA20CD13")]
 public enum ComDkimCanonicalizationMethod
 {

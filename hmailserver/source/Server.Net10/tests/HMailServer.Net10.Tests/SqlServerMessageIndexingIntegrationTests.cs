@@ -565,6 +565,7 @@ ORDER BY messageid;
             var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
             DomainAdministrationRuntimeHost.Configure(new SqlServerDomainAdministrationStore(connectionFactory));
             AccountAdministrationRuntimeHost.Configure(new SqlServerAccountAdministrationStore(connectionFactory));
+            MessageAdministrationRuntimeHost.Configure(new SqlServerMessageAdministrationStore(connectionFactory));
             FetchAccountAdministrationRuntimeHost.Configure(new SqlServerFetchAccountAdministrationStore(connectionFactory));
             RuleAdministrationRuntimeHost.Configure(new SqlServerRuleAdministrationStore(connectionFactory));
             RuleCriteriaAdministrationRuntimeHost.Configure(
@@ -634,6 +635,21 @@ ORDER BY messageid;
             Assert.AreEqual("2026-07-01 02:03:04", fetchAccounts[0].NextDownloadTime);
             var pendingSensitiveRead = Assert.ThrowsExactly<COMException>(() => _ = fetchAccounts[0].Password);
             Assert.AreEqual(unchecked((int)0x80004001), pendingSensitiveRead.ErrorCode);
+            var adminMessages = accounts[0].Messages;
+            Assert.AreEqual(1, adminMessages.Count);
+            Assert.AreEqual(3000L, adminMessages[0].ID);
+            Assert.AreEqual("admin-inbox.eml", adminMessages[0].Filename);
+            Assert.AreEqual("sender@example.test", adminMessages[0].FromAddress);
+            Assert.AreEqual(2, adminMessages[0].State);
+            Assert.AreEqual(2560, adminMessages[0].Size);
+            Assert.AreEqual(3, adminMessages[0].DeliveryAttempt);
+            Assert.AreEqual(41, adminMessages[0].UID);
+            Assert.AreEqual(new DateTime(2026, 7, 1, 1, 2, 3), adminMessages[0].InternalDate);
+            Assert.IsTrue(adminMessages[0].get_Flag(ComMessageFlag.Seen));
+            Assert.IsTrue(adminMessages[0].get_Flag(ComMessageFlag.Recent));
+            Assert.IsFalse(adminMessages[0].get_Flag(ComMessageFlag.Deleted));
+            var pendingMessageBody = Assert.ThrowsExactly<COMException>(() => _ = adminMessages[0].Body);
+            Assert.AreEqual(unchecked((int)0x80004001), pendingMessageBody.ErrorCode);
             Assert.AreEqual(0.125f, accounts.get_ItemByDBID(20).Size, 0.0001f);
             Assert.AreEqual(0, accounts.get_ItemByDBID(20).QuotaUsed);
             Assert.AreEqual(new DateTime(2026, 2, 3, 4, 5, 6), accounts.get_ItemByDBID(20).LastLogonTime);
@@ -714,8 +730,14 @@ ORDER BY messageid;
             Assert.AreEqual("TEåäöST", folders.get_ItemByDBID(300).Name);
             var nestedFolder = Assert.ThrowsExactly<COMException>(() => _ = folders.get_ItemByDBID(200));
             Assert.AreEqual(unchecked((int)0x8002000B), nestedFolder.ErrorCode);
-            var pendingMessages = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Messages);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingMessages.ErrorCode);
+            var folderMessages = folders[0].Messages;
+            Assert.AreEqual(1, folderMessages.Count);
+            Assert.AreEqual(3000L, folderMessages[0].ID);
+            Assert.AreEqual(3000L, folderMessages.get_ItemByDBID(3000).ID);
+            var outsideFolderMessage = Assert.ThrowsExactly<COMException>(() => _ = folderMessages.get_ItemByDBID(3001));
+            Assert.AreEqual(unchecked((int)0x8002000B), outsideFolderMessage.ErrorCode);
+            var pendingMessagesDelete = Assert.ThrowsExactly<COMException>(() => folderMessages.DeleteByDBID(3000));
+            Assert.AreEqual(unchecked((int)0x80004001), pendingMessagesDelete.ErrorCode);
             var privateFolderPermissions = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Permissions);
             Assert.AreEqual(unchecked((int)0x800403E9), privateFolderPermissions.ErrorCode);
             var publicFolders = application.Settings.PublicFolders;
@@ -1433,7 +1455,17 @@ CREATE TABLE dbo.hm_messages
 (
     messageid bigint NOT NULL PRIMARY KEY,
     messageaccountid int NOT NULL,
-    messagesize bigint NOT NULL
+    messagefolderid int NOT NULL,
+    messagefilename nvarchar(255) NOT NULL,
+    messagetype tinyint NOT NULL,
+    messagefrom nvarchar(255) NOT NULL,
+    messagesize bigint NOT NULL,
+    messagecurnooftries int NOT NULL,
+    messagenexttrytime datetime NOT NULL,
+    messageflags tinyint NOT NULL,
+    messagecreatetime datetime NOT NULL,
+    messagelocked tinyint NOT NULL,
+    messageuid bigint NOT NULL
 );
 
 INSERT INTO dbo.hm_domains
@@ -1739,11 +1771,17 @@ VALUES
      0, N'', N'', 0, CONVERT(datetime, '2026-01-01T00:00:00', 126), 0,
      0, N'', 0, 0, 0, N'', N'', CONVERT(datetime, '2026-04-05T06:07:08', 126));
 
-INSERT INTO dbo.hm_messages (messageid, messageaccountid, messagesize)
+INSERT INTO dbo.hm_messages
+    (messageid, messageaccountid, messagefolderid, messagefilename, messagetype,
+     messagefrom, messagesize, messagecurnooftries, messagenexttrytime, messageflags,
+     messagecreatetime, messagelocked, messageuid)
 VALUES
-    (3000, 10, 2621440),
-    (3001, 20, 131072),
-    (3002, 30, 1048576);
+    (3000, 10, 100, N'admin-inbox.eml', 2, N'sender@example.test', 2621440, 2,
+     CONVERT(datetime, '1901-01-01T00:00:00', 126), 33, CONVERT(datetime, '2026-07-01T01:02:03', 126), 0, 41),
+    (3001, 20, 400, N'user-inbox.eml', 2, N'user-sender@example.test', 131072, 0,
+     CONVERT(datetime, '1901-01-01T00:00:00', 126), 2, CONVERT(datetime, '2026-07-02T01:02:03', 126), 0, 42),
+    (3002, 30, 500, N'outside-inbox.eml', 2, N'outside-sender@example.test', 1048576, 0,
+     CONVERT(datetime, '1901-01-01T00:00:00', 126), 0, CONVERT(datetime, '2026-07-03T01:02:03', 126), 0, 43);
 
 INSERT INTO dbo.hm_fetchaccounts
     (faid, faactive, faaccountid, faaccountname, faserveraddress, faserverport,
