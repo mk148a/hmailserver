@@ -209,6 +209,36 @@ public sealed class LegacyComRegistrationManifestTests
             executablePath);
         AssertClass(
             manifest,
+            "Attachments",
+            "{63FF738A-982B-41E6-87C7-BA4AA9622B30}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "Attachment",
+            "{B65A156A-54D1-4803-80CE-273F44AE935F}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "Recipients",
+            "{B5B9C42D-64F1-443F-AA0D-FABB2DD9317B}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "Recipient",
+            "{45B82F51-8445-4F3A-BC9E-137FC04BFE2A}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "MessageHeaders",
+            "{AE360CD2-BB40-4B39-83A6-84516C865365}",
+            executablePath);
+        AssertClass(
+            manifest,
+            "MessageHeader",
+            "{983EE030-380D-4E39-850D-AA543F3C1CB9}",
+            executablePath);
+        AssertClass(
+            manifest,
             "FetchAccount",
             "{6F5E2977-2F51-40B0-847B-DD44C9ACC5A5}",
             executablePath);
@@ -509,6 +539,18 @@ public sealed class LegacyComRegistrationManifestTests
                 @"hMailServer.Messages",
                 @"hMailServer.Message.1",
                 @"hMailServer.Message",
+                @"hMailServer.Attachments.1",
+                @"hMailServer.Attachments",
+                @"hMailServer.Attachment.1",
+                @"hMailServer.Attachment",
+                @"hMailServer.Recipients.1",
+                @"hMailServer.Recipients",
+                @"hMailServer.Recipient.1",
+                @"hMailServer.Recipient",
+                @"hMailServer.MessageHeaders.1",
+                @"hMailServer.MessageHeaders",
+                @"hMailServer.MessageHeader.1",
+                @"hMailServer.MessageHeader",
                 @"hMailServer.FetchAccount.1",
                 @"hMailServer.FetchAccount",
                 @"hMailServer.FetchAccounts.1",
@@ -625,6 +667,12 @@ public sealed class LegacyComRegistrationManifestTests
                 @"CLSID\{369BE902-9F27-4722-A29F-3059E4D7021D}",
                 @"CLSID\{C04047AD-45A4-48EA-907E-2C270C95409C}",
                 @"CLSID\{61B2C7D7-3814-441F-9574-EE2CC9829447}",
+                @"CLSID\{63FF738A-982B-41E6-87C7-BA4AA9622B30}",
+                @"CLSID\{B65A156A-54D1-4803-80CE-273F44AE935F}",
+                @"CLSID\{B5B9C42D-64F1-443F-AA0D-FABB2DD9317B}",
+                @"CLSID\{45B82F51-8445-4F3A-BC9E-137FC04BFE2A}",
+                @"CLSID\{AE360CD2-BB40-4B39-83A6-84516C865365}",
+                @"CLSID\{983EE030-380D-4E39-850D-AA543F3C1CB9}",
                 @"CLSID\{6F5E2977-2F51-40B0-847B-DD44C9ACC5A5}",
                 @"CLSID\{F17C3A00-A7A0-4519-AEDD-DCC3B8DE6A3D}",
                 @"CLSID\{624F494B-347A-4285-9506-C54154D50B2A}",

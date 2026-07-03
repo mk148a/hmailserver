@@ -49,6 +49,31 @@ public sealed class MessagesComContractTests
             UnmanagedType.Struct,
             typeof(IInterfaceMessage).GetProperty(nameof(IInterfaceMessage.InternalDate))
                 ?.GetMethod?.ReturnParameter.GetCustomAttribute<MarshalAsAttribute>()?.Value);
+
+        AssertContract(
+            typeof(IInterfaceAttachment),
+            "0CD0DDFF-2D30-41BE-9845-D37EADB1A007",
+            new[] { "get_Filename", "get_Size", "SaveAs", "Delete" });
+        AssertContract(
+            typeof(IInterfaceAttachments),
+            "BED37911-1180-4840-A831-196C6771EF54",
+            new[] { "get_Item", "get_Count", "Clear", "Add" });
+        AssertContract(
+            typeof(IInterfaceRecipients),
+            "9B47C955-4462-48E3-91FE-C5E1CFEC80E0",
+            new[] { "get_Item", "get_Count" });
+        AssertContract(
+            typeof(IInterfaceRecipient),
+            "65D57DF8-68A1-4358-BB98-C3B33595B699",
+            new[] { "get_Address", "get_IsLocalUser", "get_OriginalAddress" });
+        AssertContract(
+            typeof(IInterfaceMessageHeader),
+            "FF69E250-CBFD-4AB6-9440-39599478365D",
+            new[] { "get_Name", "set_Name", "get_Value", "set_Value", "Delete" });
+        AssertContract(
+            typeof(IInterfaceMessageHeaders),
+            "1ADE0B5E-536C-4707-8385-32A7F6F92500",
+            new[] { "get_Item", "get_Count", "get_ItemByName" });
     }
 
     [TestMethod]
@@ -62,6 +87,30 @@ public sealed class MessagesComContractTests
             "61B2C7D7-3814-441F-9574-EE2CC9829447",
             "hMailServer.Message.1",
             typeof(IInterfaceMessage));
+        AssertComClass<Attachments>(
+            "63FF738A-982B-41E6-87C7-BA4AA9622B30",
+            "hMailServer.Attachments.1",
+            typeof(IInterfaceAttachments));
+        AssertComClass<Attachment>(
+            "B65A156A-54D1-4803-80CE-273F44AE935F",
+            "hMailServer.Attachment.1",
+            typeof(IInterfaceAttachment));
+        AssertComClass<Recipients>(
+            "B5B9C42D-64F1-443F-AA0D-FABB2DD9317B",
+            "hMailServer.Recipients.1",
+            typeof(IInterfaceRecipients));
+        AssertComClass<Recipient>(
+            "45B82F51-8445-4F3A-BC9E-137FC04BFE2A",
+            "hMailServer.Recipient.1",
+            typeof(IInterfaceRecipient));
+        AssertComClass<MessageHeaders>(
+            "AE360CD2-BB40-4B39-83A6-84516C865365",
+            "hMailServer.MessageHeaders.1",
+            typeof(IInterfaceMessageHeaders));
+        AssertComClass<MessageHeader>(
+            "983EE030-380D-4E39-850D-AA543F3C1CB9",
+            "hMailServer.MessageHeader.1",
+            typeof(IInterfaceMessageHeader));
     }
 
     [TestMethod]
@@ -88,11 +137,23 @@ public sealed class MessagesComContractTests
     {
         var messagesError = Assert.ThrowsExactly<COMException>(() => _ = new Messages().Count);
         var messageError = Assert.ThrowsExactly<COMException>(() => _ = new Message().ID);
+        var attachmentsError = Assert.ThrowsExactly<COMException>(() => _ = new Attachments().Count);
+        var attachmentError = Assert.ThrowsExactly<COMException>(() => _ = new Attachment().Filename);
+        var recipientsError = Assert.ThrowsExactly<COMException>(() => _ = new Recipients().Count);
+        var recipientError = Assert.ThrowsExactly<COMException>(() => _ = new Recipient().Address);
+        var headersError = Assert.ThrowsExactly<COMException>(() => _ = new MessageHeaders().Count);
+        var headerError = Assert.ThrowsExactly<COMException>(() => _ = new MessageHeader().Name);
         var accountError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Messages);
         var folderError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolder().Messages);
 
         Assert.AreEqual(EAccessDenied, messagesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, messageError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, attachmentsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, attachmentError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, recipientsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, recipientError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, headersError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, headerError.ErrorCode);
         Assert.AreEqual(EAccessDenied, accountError.ErrorCode);
         Assert.AreEqual(EAccessDenied, folderError.ErrorCode);
     }
@@ -179,6 +240,95 @@ public sealed class MessagesComContractTests
         {
             Assert.AreEqual(ENotImplemented, error.ErrorCode);
         }
+    }
+
+    [TestMethod]
+    public void AuthorizedMessage_ExposesReadOnlyMimeContentThroughConfiguredContentSource()
+    {
+        var contentSource = new FixedMessageContentSource(
+            new Dictionary<long, byte[]>
+            {
+                [1000] = """
+From: Sender <sender@example.test>
+To: Ada <ada@example.test>
+Cc: Support <support@example.test>
+Subject: Hello world
+Date: Wed, 01 Jul 2026 01:02:03 +0000
+X-Test: one
+Content-Type: multipart/mixed; boundary="outer"
+
+--outer
+Content-Type: text/plain; charset=utf-8
+
+Plain body
+--outer
+Content-Type: text/html; charset=utf-8
+
+<p>HTML body</p>
+--outer
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename="report.txt"
+Content-Transfer-Encoding: base64
+
+SGVsbG8=
+--outer--
+"""u8.ToArray(),
+                [2000] = """
+Subject: Charset
+Content-Type: text/plain; charset=iso-8859-1
+
+Body
+"""u8.ToArray()
+            });
+        IInterfaceMessage message = Message.CreateAuthorized(
+            Snapshot(1000, 100, 50, "0001.eml", 2, "sender@example.test", 4097, 3, 33, Date(2026, 7, 1), 77),
+            contentSource);
+
+        Assert.AreEqual("Hello world", message.Subject);
+        Assert.AreEqual("Sender <sender@example.test>", message.From);
+        Assert.AreEqual("Wed, 01 Jul 2026 01:02:03 +0000", message.Date);
+        Assert.AreEqual("Ada <ada@example.test>", message.To);
+        Assert.AreEqual("Support <support@example.test>", message.CC);
+        StringAssert.Contains(message.Body, "Plain body");
+        StringAssert.Contains(message.HTMLBody, "HTML body");
+        Assert.AreEqual("one", message.get_HeaderValue("x-test"));
+        Assert.IsTrue(message.HasBodyType("text/plain"));
+        Assert.IsTrue(message.HasBodyType("text/html"));
+        Assert.IsTrue(message.HasBodyType("application/octet-stream"));
+        Assert.IsFalse(message.HasBodyType("image/png"));
+
+        var headers = message.Headers;
+        Assert.IsTrue(headers.Count >= 6);
+        Assert.AreEqual("Subject", headers.get_ItemByName("subject").Name);
+        Assert.AreEqual("Hello world", headers.get_ItemByName("subject").Value);
+        var pendingHeaderValue = Assert.ThrowsExactly<COMException>(() => headers.get_ItemByName("subject").Value = "changed");
+        var pendingHeaderDelete = Assert.ThrowsExactly<COMException>(headers.get_ItemByName("subject").Delete);
+        Assert.AreEqual(ENotImplemented, pendingHeaderValue.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingHeaderDelete.ErrorCode);
+
+        var recipients = message.Recipients;
+        Assert.AreEqual(2, recipients.Count);
+        Assert.AreEqual("ada@example.test", recipients[0].Address);
+        Assert.AreEqual("support@example.test", recipients[1].OriginalAddress);
+        Assert.IsFalse(recipients[0].IsLocalUser);
+
+        var attachments = message.Attachments;
+        Assert.AreEqual(1, attachments.Count);
+        Assert.AreEqual("report.txt", attachments[0].Filename);
+        Assert.AreEqual(5, attachments[0].Size);
+        var pendingAttachmentSave = Assert.ThrowsExactly<COMException>(() => attachments[0].SaveAs("out.txt"));
+        var pendingAttachmentDelete = Assert.ThrowsExactly<COMException>(attachments[0].Delete);
+        var pendingAttachmentClear = Assert.ThrowsExactly<COMException>(attachments.Clear);
+        var pendingAttachmentAdd = Assert.ThrowsExactly<COMException>(() => attachments.Add("new.txt"));
+        Assert.AreEqual(ENotImplemented, pendingAttachmentSave.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingAttachmentDelete.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingAttachmentClear.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingAttachmentAdd.ErrorCode);
+
+        IInterfaceMessage simple = Message.CreateAuthorized(
+            Snapshot(2000, 100, 50, "0002.eml", 2, "sender@example.test", 1024, 0, 0, Date(2026, 7, 2), 78),
+            contentSource);
+        Assert.AreEqual("iso-8859-1", simple.Charset);
     }
 
     [TestMethod]
@@ -295,5 +445,14 @@ public sealed class MessagesComContractTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(
                 messages.Where(message => message.FolderId == folderId).OrderBy(message => message.Uid).ToArray());
+    }
+
+    private sealed class FixedMessageContentSource(IReadOnlyDictionary<long, byte[]> contentById)
+        : IMessageAdministrationContentSource
+    {
+        public ValueTask<byte[]?> TryLoadMessageAsync(
+            MessageAdministrationSnapshot message,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(contentById.GetValueOrDefault(message.Id));
     }
 }

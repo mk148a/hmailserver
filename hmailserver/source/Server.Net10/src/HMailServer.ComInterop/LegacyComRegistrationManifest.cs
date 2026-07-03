@@ -319,6 +319,48 @@ public sealed class LegacyComRegistrationManifest
             values,
             uninstallRoots);
         AddClass(
+            "Attachments",
+            "{63FF738A-982B-41E6-87C7-BA4AA9622B30}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "Attachment",
+            "{B65A156A-54D1-4803-80CE-273F44AE935F}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "Recipients",
+            "{B5B9C42D-64F1-443F-AA0D-FABB2DD9317B}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "Recipient",
+            "{45B82F51-8445-4F3A-BC9E-137FC04BFE2A}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "MessageHeaders",
+            "{AE360CD2-BB40-4B39-83A6-84516C865365}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
+            "MessageHeader",
+            "{983EE030-380D-4E39-850D-AA543F3C1CB9}",
+            executablePath,
+            keys,
+            values,
+            uninstallRoots);
+        AddClass(
             "FetchAccount",
             "{6F5E2977-2F51-40B0-847B-DD44C9ACC5A5}",
             executablePath,

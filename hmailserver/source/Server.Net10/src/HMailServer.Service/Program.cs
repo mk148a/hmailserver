@@ -837,6 +837,7 @@ builder.Services.AddSingleton<IWhiteListAddressAdministrationStore, SqlServerWhi
 builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
 builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdministrationStore>();
 builder.Services.AddSingleton<IMessageAdministrationStore, SqlServerMessageAdministrationStore>();
+builder.Services.AddSingleton<IMessageAdministrationContentSource, SqlServerMessageAdministrationContentSource>();
 builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAccountAdministrationStore>();
 builder.Services.AddSingleton<IRuleAdministrationStore, SqlServerRuleAdministrationStore>();
 builder.Services.AddSingleton<IRuleCriteriaAdministrationStore, SqlServerRuleCriteriaAdministrationStore>();
@@ -943,7 +944,8 @@ DomainAdministrationRuntimeHost.Configure(
 AccountAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IAccountAdministrationStore>());
 MessageAdministrationRuntimeHost.Configure(
-    host.Services.GetRequiredService<IMessageAdministrationStore>());
+    host.Services.GetRequiredService<IMessageAdministrationStore>(),
+    host.Services.GetRequiredService<IMessageAdministrationContentSource>());
 FetchAccountAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IFetchAccountAdministrationStore>());
 RuleAdministrationRuntimeHost.Configure(

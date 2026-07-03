@@ -129,6 +129,24 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 typeof(Message).GUID,
                 static () => new Message()),
             new ComLocalServerRegistration(
+                typeof(Attachments).GUID,
+                static () => new Attachments()),
+            new ComLocalServerRegistration(
+                typeof(Attachment).GUID,
+                static () => new Attachment()),
+            new ComLocalServerRegistration(
+                typeof(Recipients).GUID,
+                static () => new Recipients()),
+            new ComLocalServerRegistration(
+                typeof(Recipient).GUID,
+                static () => new Recipient()),
+            new ComLocalServerRegistration(
+                typeof(MessageHeaders).GUID,
+                static () => new MessageHeaders()),
+            new ComLocalServerRegistration(
+                typeof(MessageHeader).GUID,
+                static () => new MessageHeader()),
+            new ComLocalServerRegistration(
                 typeof(FetchAccount).GUID,
                 static () => new FetchAccount()),
             new ComLocalServerRegistration(

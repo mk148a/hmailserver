@@ -31,6 +31,24 @@ public sealed class SqlServerMessageAdministrationStoreTests
         AssertNoOutOfScopeMessageAccess(sql);
     }
 
+    [TestMethod]
+    public void GetAccountAddressSql_ReadsOnlyAccountAddressForMessageContentPathResolution()
+    {
+        var sql = SqlServerMessageAdministrationContentSource.GetAccountAddressSql;
+
+        StringAssert.Contains(sql, "SELECT accountaddress");
+        StringAssert.Contains(sql, "FROM hm_accounts");
+        StringAssert.Contains(sql, "WHERE accountid = @AccountID");
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_messages", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("messagefilename", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("filecontent", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("smtp", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static void AssertMessageProjection(string sql)
     {
         var projectedColumns = new[]
