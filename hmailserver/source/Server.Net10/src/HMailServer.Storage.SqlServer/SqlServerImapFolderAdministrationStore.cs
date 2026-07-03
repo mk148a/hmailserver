@@ -22,6 +22,21 @@ WHERE folderaccountid = @AccountID
 ORDER BY folderid ASC;
 """;
 
+    public const string GetChildFoldersSql = """
+SELECT
+    folderid,
+    folderaccountid,
+    folderparentid,
+    foldername,
+    folderissubscribed,
+    foldercurrentuid,
+    CONVERT(varchar(19), foldercreationtime, 120) AS foldercreationtime
+FROM hm_imapfolders
+WHERE folderaccountid = @AccountID
+  AND folderparentid = @ParentFolderID
+ORDER BY folderid ASC;
+""";
+
     public const string GetFolderPermissionsSql = """
 SELECT
     aclid,
@@ -50,25 +65,21 @@ ORDER BY aclid ASC;
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(GetRootFoldersSql, connection);
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
-        await using var reader = await command.ExecuteReaderAsync(
-            CommandBehavior.SequentialAccess,
-            cancellationToken).ConfigureAwait(false);
 
-        var folders = new List<ImapFolderAdministrationSnapshot>();
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            folders.Add(
-                new ImapFolderAdministrationSnapshot(
-                    Id: reader.GetInt32(0),
-                    AccountId: reader.GetInt32(1),
-                    ParentId: reader.GetInt32(2),
-                    Name: reader.GetString(3),
-                    Subscribed: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture) == 1,
-                    CurrentUid: unchecked((int)(uint)reader.GetInt64(5)),
-                    CreationTime: reader.GetString(6)));
-        }
+        return await ReadFoldersAsync(command, cancellationToken).ConfigureAwait(false);
+    }
 
-        return folders;
+    public async ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetChildFoldersAsync(
+        int parentFolderId,
+        int accountId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(GetChildFoldersSql, connection);
+        command.Parameters.Add("@ParentFolderID", SqlDbType.Int).Value = parentFolderId;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+
+        return await ReadFoldersAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> GetFolderPermissionsAsync(
@@ -96,5 +107,30 @@ ORDER BY aclid ASC;
         }
 
         return permissions;
+    }
+
+    private static async ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> ReadFoldersAsync(
+        SqlCommand command,
+        CancellationToken cancellationToken)
+    {
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+
+        var folders = new List<ImapFolderAdministrationSnapshot>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            folders.Add(
+                new ImapFolderAdministrationSnapshot(
+                    Id: reader.GetInt32(0),
+                    AccountId: reader.GetInt32(1),
+                    ParentId: reader.GetInt32(2),
+                    Name: reader.GetString(3),
+                    Subscribed: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture) == 1,
+                    CurrentUid: unchecked((int)(uint)reader.GetInt64(5)),
+                    CreationTime: reader.GetString(6)));
+        }
+
+        return folders;
     }
 }

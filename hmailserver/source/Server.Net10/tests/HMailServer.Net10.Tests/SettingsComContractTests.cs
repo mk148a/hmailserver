@@ -720,6 +720,15 @@ public sealed class SettingsComContractTests
                     .OrderBy(folder => folder.Id)
                     .ToArray());
 
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetChildFoldersAsync(
+            int parentFolderId,
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                folders.Where(folder => folder.AccountId == accountId && folder.ParentId == parentFolderId)
+                    .OrderBy(folder => folder.Id)
+                    .ToArray());
+
         public ValueTask<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> GetFolderPermissionsAsync(
             int folderId,
             CancellationToken cancellationToken) =>

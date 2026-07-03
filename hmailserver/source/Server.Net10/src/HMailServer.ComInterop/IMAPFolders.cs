@@ -204,7 +204,8 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
     public IInterfaceMessages Messages => MessageAdministrationRuntimeHost.CreateAuthorizedFolderAdapter(Snapshot.Id);
 
-    public IInterfaceIMAPFolders SubFolders => Unavailable<IInterfaceIMAPFolders>();
+    public IInterfaceIMAPFolders SubFolders =>
+        ImapFolderAdministrationRuntimeHost.CreateAuthorizedChildAdapter(Snapshot.Id, Snapshot.AccountId);
 
     public int ParentID => Snapshot.ParentId;
 
@@ -278,6 +279,22 @@ public static class ImapFolderAdministrationRuntimeHost
 
         var folders = store
             .GetRootFoldersAsync(accountId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return IMAPFolders.CreateAuthorized(folders);
+    }
+
+    internal static IMAPFolders CreateAuthorizedChildAdapter(int parentFolderId, int accountId)
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer IMAP folder administration runtime has not been initialized.",
+                CoENotInitialized);
+
+        var folders = store
+            .GetChildFoldersAsync(parentFolderId, accountId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();

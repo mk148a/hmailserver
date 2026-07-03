@@ -112,7 +112,6 @@ public sealed class ImapFoldersComContractTests
         var pendingDelete = Assert.ThrowsExactly<COMException>(() => folders.DeleteByDBID(10));
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => folders[0].Name = "changed");
         var messages = folders[0].Messages;
-        var pendingSubFolders = Assert.ThrowsExactly<COMException>(() => _ = folders[0].SubFolders);
         var pendingPermissions = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Permissions);
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
@@ -122,8 +121,40 @@ public sealed class ImapFoldersComContractTests
         Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
         Assert.AreEqual(0, messages.Count);
-        Assert.AreEqual(ENotImplemented, pendingSubFolders.ErrorCode);
         Assert.AreEqual(ELegacyComError, pendingPermissions.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedFolderSubFolders_UsesConfiguredRuntimeForSelectedParentAndAccount()
+    {
+        ImapFolderAdministrationRuntimeHost.Configure(
+            new FixedImapFolderAdministrationStore(
+                new[]
+                {
+                    new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-06-27 01:02:03"),
+                    new ImapFolderAdministrationSnapshot(11, 100, 10, "Child", true, 8, "2026-06-27 02:03:04"),
+                    new ImapFolderAdministrationSnapshot(12, 100, 10, "Later", false, 9, "2026-06-27 03:04:05"),
+                    new ImapFolderAdministrationSnapshot(20, 100, -1, "Archive", true, 2, "2026-06-27 04:05:06"),
+                    new ImapFolderAdministrationSnapshot(30, 200, 10, "OtherAccount", true, 1, "2026-06-27 05:06:07")
+                }));
+        IInterfaceIMAPFolders folders = IMAPFolders.CreateAuthorized(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-06-27 01:02:03")
+            });
+
+        var subFolders = folders[0].SubFolders;
+
+        Assert.AreEqual(2, subFolders.Count);
+        AssertFolder(subFolders[0], 11, 10, "Child", true, 8, "2026-06-27 02:03:04");
+        AssertFolder(subFolders.get_ItemByDBID(12), 12, 10, "Later", false, 9, "2026-06-27 03:04:05");
+        var outsideAccount = Assert.ThrowsExactly<COMException>(() => _ = subFolders.get_ItemByDBID(30));
+        var pendingAdd = Assert.ThrowsExactly<COMException>(() => subFolders.Add("New child"));
+        var pendingDelete = Assert.ThrowsExactly<COMException>(() => subFolders.DeleteByDBID(11));
+
+        Assert.AreEqual(DispEBadIndex, outsideAccount.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingAdd.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
     }
 
     [TestMethod]
@@ -235,6 +266,15 @@ public sealed class ImapFoldersComContractTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
                 folders.Where(folder => folder.AccountId == accountId && folder.ParentId == -1)
+                    .OrderBy(folder => folder.Id)
+                    .ToArray());
+
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetChildFoldersAsync(
+            int parentFolderId,
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                folders.Where(folder => folder.AccountId == accountId && folder.ParentId == parentFolderId)
                     .OrderBy(folder => folder.Id)
                     .ToArray());
 

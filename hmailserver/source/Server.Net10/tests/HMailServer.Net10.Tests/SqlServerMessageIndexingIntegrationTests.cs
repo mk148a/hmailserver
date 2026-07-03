@@ -730,6 +730,15 @@ ORDER BY messageid;
             Assert.AreEqual("TEåäöST", folders.get_ItemByDBID(300).Name);
             var nestedFolder = Assert.ThrowsExactly<COMException>(() => _ = folders.get_ItemByDBID(200));
             Assert.AreEqual(unchecked((int)0x8002000B), nestedFolder.ErrorCode);
+            var subFolders = folders[0].SubFolders;
+            Assert.AreEqual(1, subFolders.Count);
+            Assert.AreEqual(200, subFolders[0].ID);
+            Assert.AreEqual(100, subFolders[0].ParentID);
+            Assert.AreEqual("Child", subFolders[0].Name);
+            Assert.AreEqual(3, subFolders[0].CurrentUID);
+            var rootFolderFromChildCollection = Assert.ThrowsExactly<COMException>(
+                () => _ = subFolders.get_ItemByDBID(300));
+            Assert.AreEqual(unchecked((int)0x8002000B), rootFolderFromChildCollection.ErrorCode);
             var folderMessages = folders[0].Messages;
             Assert.AreEqual(1, folderMessages.Count);
             Assert.AreEqual(3000L, folderMessages[0].ID);
