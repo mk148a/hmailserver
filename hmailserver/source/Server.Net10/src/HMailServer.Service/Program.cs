@@ -607,6 +607,9 @@ builder.Services.AddSingleton(spfPolicyOptions);
 builder.Services.AddSingleton(spfEvaluatorOptions);
 builder.Services.AddSingleton(dkimPolicyOptions);
 builder.Services.AddSingleton(dmarcPolicyOptions);
+builder.Services.AddSingleton<IDkimTxtResolver, SystemDkimTxtResolver>();
+builder.Services.AddSingleton<IDkimVerificationRuntime>(static serviceProvider =>
+    new FileDkimVerificationRuntime(serviceProvider.GetRequiredService<IDkimTxtResolver>()));
 builder.Services.AddSingleton(attachmentPolicyOptions);
 builder.Services.AddSingleton(dnsBlockListOptions);
 builder.Services.AddSingleton(reverseDnsOptions);
@@ -649,7 +652,6 @@ if (spfPolicyEnabled)
 }
 if (dkimPolicyEnabled)
 {
-    builder.Services.AddSingleton<IDkimTxtResolver, SystemDkimTxtResolver>();
     builder.Services.AddSingleton<ISmtpDkimPolicy, SmtpDkimPolicy>();
 }
 if (dmarcPolicyEnabled)
@@ -935,7 +937,8 @@ SettingsAdministrationRuntimeHost.Configure(
         LoggingDirectory: directoryAdministrationSnapshot.LogDirectory,
         ScriptingDirectory: directoryAdministrationSnapshot.EventDirectory,
         ScriptSyntaxChecker: host.Services.GetRequiredService<IScriptSyntaxChecker>(),
-        ScriptRuntimeReloader: host.Services.GetRequiredService<IScriptRuntimeReloader>()));
+        ScriptRuntimeReloader: host.Services.GetRequiredService<IScriptRuntimeReloader>(),
+        DkimVerificationRuntime: host.Services.GetRequiredService<IDkimVerificationRuntime>()));
 BlockedAttachmentAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IBlockedAttachmentAdministrationStore>());
 DnsBlackListAdministrationRuntimeHost.Configure(

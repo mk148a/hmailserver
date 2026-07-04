@@ -98,17 +98,20 @@ public sealed class AntiSpamComContractTests
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = antiSpam.GreyListingEnabled);
         var collectionError = Assert.ThrowsExactly<COMException>(() => _ = antiSpam.DNSBlackLists);
         var methodError = Assert.ThrowsExactly<COMException>(() => antiSpam.ClearGreyListingTriplets());
+        var dkimError = Assert.ThrowsExactly<COMException>(() => antiSpam.DKIMVerify(@"C:\mail\message.eml"));
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().AntiSpam);
 
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, methodError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, dkimError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
     [TestMethod]
     public void AuthorizedSettings_ExposesReadOnlyAntiSpamSnapshot()
     {
+        var dkimRuntime = new FakeDkimVerificationRuntime(DkimVerificationResult.Pass);
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
                 HostName: string.Empty,
@@ -142,7 +145,8 @@ public sealed class AntiSpamComContractTests
                 AntiSpamDkimVerificationEnabled: true,
                 AntiSpamDkimVerificationFailureScore: 8,
                 AntiSpamBypassGreylistingOnSpfSuccess: true,
-                AntiSpamBypassGreylistingOnMailFromMx: false));
+                AntiSpamBypassGreylistingOnMailFromMx: false),
+            new SettingsRuntimeConfiguration(DkimVerificationRuntime: dkimRuntime));
 
         var antiSpam = settings.AntiSpam;
 
@@ -174,6 +178,8 @@ public sealed class AntiSpamComContractTests
         Assert.AreEqual(1024, antiSpam.MaximumMessageSize);
         Assert.IsTrue(antiSpam.DKIMVerificationEnabled);
         Assert.AreEqual(8, antiSpam.DKIMVerificationFailureScore);
+        Assert.AreEqual(ComDkimResult.Pass, antiSpam.DKIMVerify(@"C:\mail\message.eml"));
+        Assert.AreEqual(@"C:\mail\message.eml", dkimRuntime.File);
         Assert.IsTrue(antiSpam.BypassGreylistingOnSPFSuccess);
         Assert.IsFalse(antiSpam.BypassGreylistingOnMailFromMX);
 
@@ -220,6 +226,27 @@ public sealed class AntiSpamComContractTests
         var resultText = "not-empty";
         AssertPending(() => antiSpam.TestSpamAssassinConnection("127.0.0.1", 783, out resultText));
         Assert.AreEqual(string.Empty, resultText);
+    }
+
+    [TestMethod]
+    [DataRow(DkimVerificationResult.Neutral, ComDkimResult.Neutral)]
+    [DataRow(DkimVerificationResult.Pass, ComDkimResult.Pass)]
+    [DataRow(DkimVerificationResult.TempFail, ComDkimResult.TempFail)]
+    [DataRow(DkimVerificationResult.PermFail, ComDkimResult.PermFail)]
+    public void AuthorizedAntiSpam_DkimVerifyMapsRuntimeResult(
+        DkimVerificationResult runtimeResult,
+        ComDkimResult expected)
+    {
+        var runtime = new FakeDkimVerificationRuntime(runtimeResult);
+        IInterfaceAntiSpam antiSpam = AntiSpam.CreateAuthorized(
+            new AntiSpamAdministrationSnapshot(),
+            runtime);
+
+        var actual = antiSpam.DKIMVerify(@"C:\mail\message.eml");
+
+        Assert.AreEqual(expected, actual);
+        Assert.AreEqual(@"C:\mail\message.eml", runtime.File);
+        Assert.AreEqual(1, runtime.CallCount);
     }
 
     private static string[] ExpectedMethodNames()
@@ -334,5 +361,20 @@ public sealed class AntiSpamComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private sealed class FakeDkimVerificationRuntime(DkimVerificationResult result)
+        : IDkimVerificationRuntime
+    {
+        public int CallCount { get; private set; }
+
+        public string File { get; private set; } = string.Empty;
+
+        public DkimVerificationResult Verify(string file)
+        {
+            CallCount++;
+            File = file;
+            return result;
+        }
     }
 }

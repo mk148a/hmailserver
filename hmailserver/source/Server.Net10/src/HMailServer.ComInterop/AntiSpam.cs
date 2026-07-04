@@ -195,14 +195,18 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private readonly AntiSpamAdministrationSnapshot? _snapshot;
+    private readonly IDkimVerificationRuntime? _dkimVerificationRuntime;
 
     public AntiSpam()
     {
     }
 
-    private AntiSpam(AntiSpamAdministrationSnapshot snapshot)
+    private AntiSpam(
+        AntiSpamAdministrationSnapshot snapshot,
+        IDkimVerificationRuntime? dkimVerificationRuntime)
     {
         _snapshot = snapshot;
+        _dkimVerificationRuntime = dkimVerificationRuntime;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -291,7 +295,23 @@ public sealed class AntiSpam : IInterfaceAntiSpam
 
     public int MaximumMessageSize { get => Snapshot.MaximumMessageSize; set => Unavailable(); }
 
-    public ComDkimResult DKIMVerify(string file) => Unavailable<ComDkimResult>();
+    public ComDkimResult DKIMVerify(string file)
+    {
+        _ = Snapshot;
+        if (_dkimVerificationRuntime is null)
+        {
+            return Unavailable<ComDkimResult>();
+        }
+
+        return _dkimVerificationRuntime.Verify(file) switch
+        {
+            DkimVerificationResult.Neutral => ComDkimResult.Neutral,
+            DkimVerificationResult.Pass => ComDkimResult.Pass,
+            DkimVerificationResult.TempFail => ComDkimResult.TempFail,
+            DkimVerificationResult.PermFail => ComDkimResult.PermFail,
+            _ => ComDkimResult.TempFail
+        };
+    }
 
     public bool DKIMVerificationEnabled { get => Snapshot.DkimVerificationEnabled; set => Unavailable(); }
 
@@ -311,10 +331,12 @@ public sealed class AntiSpam : IInterfaceAntiSpam
 
     public int CheckPTRScore { get => Snapshot.CheckPtrScore; set => Unavailable(); }
 
-    internal static AntiSpam CreateAuthorized(AntiSpamAdministrationSnapshot snapshot)
+    internal static AntiSpam CreateAuthorized(
+        AntiSpamAdministrationSnapshot snapshot,
+        IDkimVerificationRuntime? dkimVerificationRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new AntiSpam(snapshot);
+        return new AntiSpam(snapshot, dkimVerificationRuntime);
     }
 
     private AntiSpamAdministrationSnapshot Snapshot =>
@@ -326,7 +348,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     {
         _ = Snapshot;
         throw new COMException(
-            "AntiSpam mutation, collection, DKIM verification, greylisting cleanup, and SpamAssassin test methods are not implemented in the .NET 10 rewrite yet.",
+            "AntiSpam mutation, collection, unavailable DKIM verification, greylisting cleanup, and SpamAssassin test methods are not implemented in the .NET 10 rewrite yet.",
             ENotImplemented);
     }
 
