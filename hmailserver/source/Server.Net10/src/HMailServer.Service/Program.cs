@@ -835,6 +835,7 @@ builder.Services.AddSingleton<IApplicationRuntimeStore>(
         initializationFile));
 builder.Services.AddSingleton<IServerStatusAdministrationStore, SqlServerServerStatusAdministrationStore>();
 builder.Services.AddSingleton<ISettingsAdministrationStore, SqlServerSettingsAdministrationStore>();
+builder.Services.AddSingleton<ILogonFailureAdministrationStore, SqlServerLogonFailureAdministrationStore>();
 builder.Services.AddSingleton<IBlockedAttachmentAdministrationStore, SqlServerBlockedAttachmentAdministrationStore>();
 builder.Services.AddSingleton<IDnsBlackListAdministrationStore, SqlServerDnsBlackListAdministrationStore>();
 builder.Services.AddSingleton<ISurblServerAdministrationStore, SqlServerSurblServerAdministrationStore>();
@@ -941,7 +942,9 @@ SettingsAdministrationRuntimeHost.Configure(
         ScriptRuntimeReloader: host.Services.GetRequiredService<IScriptRuntimeReloader>(),
         DkimVerificationRuntime: host.Services.GetRequiredService<IDkimVerificationRuntime>(),
         GreyListingTripletAdministrationStore:
-            host.Services.GetRequiredService<IGreyListingTripletAdministrationStore>()));
+            host.Services.GetRequiredService<IGreyListingTripletAdministrationStore>(),
+        LogonFailureAdministrationStore:
+            host.Services.GetRequiredService<ILogonFailureAdministrationStore>()));
 BlockedAttachmentAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IBlockedAttachmentAdministrationStore>());
 DnsBlackListAdministrationRuntimeHost.Configure(

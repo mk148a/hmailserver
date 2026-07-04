@@ -1302,6 +1302,22 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         set => base.AutoBanMinutes = value;
     }
 
+    public override void ClearLogonFailureList()
+    {
+        EnsureAuthorized();
+        if (_runtimeConfiguration.LogonFailureAdministrationStore is null)
+        {
+            base.ClearLogonFailureList();
+            return;
+        }
+
+        _runtimeConfiguration.LogonFailureAdministrationStore
+            .ClearLegacyListAsync(CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+    }
+
     public override IInterfaceIMAPFolders PublicFolders
     {
         get
@@ -1498,7 +1514,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual int MaxInvalidLogonAttempts { get => Unavailable<int>(); set => Unavailable(); }
     public virtual int MaxInvalidLogonAttemptsWithin { get => Unavailable<int>(); set => Unavailable(); }
     public virtual int AutoBanMinutes { get => Unavailable<int>(); set => Unavailable(); }
-    public void ClearLogonFailureList() => Unavailable();
+    public virtual void ClearLogonFailureList() => Unavailable();
     public virtual string IMAPHierarchyDelimiter { get => Unavailable<string>(); set => Unavailable(); }
     public virtual int MaxAsynchronousThreads { get => Unavailable<int>(); set => Unavailable(); }
     public virtual IInterfaceMessageIndexing MessageIndexing => Unavailable<IInterfaceMessageIndexing>();
@@ -1537,7 +1553,8 @@ public sealed record SettingsRuntimeConfiguration(
     IScriptSyntaxChecker? ScriptSyntaxChecker = null,
     IScriptRuntimeReloader? ScriptRuntimeReloader = null,
     IDkimVerificationRuntime? DkimVerificationRuntime = null,
-    IGreyListingTripletAdministrationStore? GreyListingTripletAdministrationStore = null);
+    IGreyListingTripletAdministrationStore? GreyListingTripletAdministrationStore = null,
+    ILogonFailureAdministrationStore? LogonFailureAdministrationStore = null);
 
 [ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost

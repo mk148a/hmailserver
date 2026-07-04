@@ -101,7 +101,9 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                     LoggingDirectory: @"C:\hMailServer\Logs",
                     ScriptingDirectory: @"C:\hMailServer\Events\",
                     GreyListingTripletAdministrationStore:
-                        new SqlServerGreyListingTripletAdministrationStore(connectionFactory)));
+                        new SqlServerGreyListingTripletAdministrationStore(connectionFactory),
+                    LogonFailureAdministrationStore:
+                        new SqlServerLogonFailureAdministrationStore(connectionFactory)));
             BlockedAttachmentAdministrationRuntimeHost.Configure(
                 new SqlServerBlockedAttachmentAdministrationStore(connectionFactory));
             DnsBlackListAdministrationRuntimeHost.Configure(
@@ -330,6 +332,13 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(3, settings.MaxInvalidLogonAttempts);
             Assert.AreEqual(30, settings.MaxInvalidLogonAttemptsWithin);
             Assert.AreEqual(60, settings.AutoBanMinutes);
+            Assert.AreEqual(
+                3L,
+                await GetLogonFailureCountAsync(testConnectionString).ConfigureAwait(false));
+            settings.ClearLogonFailureList();
+            Assert.AreEqual(
+                1L,
+                await GetLogonFailureCountAsync(testConnectionString).ConfigureAwait(false));
         }
         finally
         {
@@ -1255,6 +1264,12 @@ CREATE TABLE dbo.hm_greylisting_triplets
     glid bigint NOT NULL PRIMARY KEY
 );
 
+CREATE TABLE dbo.hm_logon_failures
+(
+    id bigint NOT NULL PRIMARY KEY,
+    failuretime datetime NOT NULL
+);
+
 CREATE TABLE dbo.hm_whitelist
 (
     whiteid bigint NOT NULL PRIMARY KEY,
@@ -1402,6 +1417,12 @@ VALUES
 INSERT INTO dbo.hm_greylisting_triplets (glid)
 VALUES (10), (20);
 
+INSERT INTO dbo.hm_logon_failures (id, failuretime)
+VALUES
+    (10, DATEADD(minute, -5, GETDATE())),
+    (20, GETDATE()),
+    (30, DATEADD(minute, 5, GETDATE()));
+
 INSERT INTO dbo.hm_whitelist
     (whiteid, whiteloweripaddress1, whiteloweripaddress2,
      whiteupperipaddress1, whiteupperipaddress2, whiteemailaddress, whitedescription)
@@ -1422,6 +1443,18 @@ VALUES
         await connection.OpenAsync().ConfigureAwait(false);
         await using var command = new SqlCommand(
             "SELECT COUNT_BIG(*) FROM dbo.hm_greylisting_triplets;",
+            connection);
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync().ConfigureAwait(false),
+            System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<long> GetLogonFailureCountAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT COUNT_BIG(*) FROM dbo.hm_logon_failures;",
             connection);
         return Convert.ToInt64(
             await command.ExecuteScalarAsync().ConfigureAwait(false),

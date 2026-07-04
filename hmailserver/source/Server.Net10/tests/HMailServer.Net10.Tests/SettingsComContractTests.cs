@@ -195,6 +195,7 @@ public sealed class SettingsComContractTests
         var sslScalarError = Assert.ThrowsExactly<COMException>(() => _ = settings.VerifyRemoteSslCertificate);
         var networkPreferenceError = Assert.ThrowsExactly<COMException>(() => _ = settings.IPv6PreferredEnabled);
         var autoBanError = Assert.ThrowsExactly<COMException>(() => _ = settings.AutoBanOnLogonFailure);
+        var clearLogonFailuresError = Assert.ThrowsExactly<COMException>(settings.ClearLogonFailureList);
         var relayerError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayer);
         var relayerUseSslError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayerUseSSL);
         var smtpConnectionSecurityError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPConnectionSecurity);
@@ -218,6 +219,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, sslScalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, networkPreferenceError.ErrorCode);
         Assert.AreEqual(EAccessDenied, autoBanError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, clearLogonFailuresError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerUseSslError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpConnectionSecurityError.ErrorCode);
@@ -239,12 +241,15 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(42, settings.MessageIndexing.TotalMessageCount);
         Assert.AreEqual(0, settings.CrashSimulationMode);
         var unimplemented = Assert.ThrowsExactly<COMException>(() => _ = settings.MaxSMTPConnections);
+        var unimplementedClear = Assert.ThrowsExactly<COMException>(settings.ClearLogonFailureList);
         Assert.AreEqual(ENotImplemented, unimplemented.ErrorCode);
+        Assert.AreEqual(ENotImplemented, unimplementedClear.ErrorCode);
     }
 
     [TestMethod]
     public void AuthorizedSettings_ExposesReadOnlyBoundedAdministrationScalars()
     {
+        var logonFailureStore = new FakeLogonFailureAdministrationStore();
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
                 HostName: "mail.example.test",
@@ -303,7 +308,8 @@ public sealed class SettingsComContractTests
             new SettingsRuntimeConfiguration(
                 UserInterfaceLanguage: "Swedish",
                 RewriteEnvelopeFromWhenForwarding: true,
-                CrashSimulationMode: 3));
+                CrashSimulationMode: 3,
+                LogonFailureAdministrationStore: logonFailureStore));
 
         Assert.AreEqual("mail.example.test", settings.HostName);
         Assert.AreEqual("SMTP ready", settings.WelcomeSMTP);
@@ -366,6 +372,9 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(3, settings.MaxInvalidLogonAttempts);
         Assert.AreEqual(30, settings.MaxInvalidLogonAttemptsWithin);
         Assert.AreEqual(60, settings.AutoBanMinutes);
+        settings.ClearLogonFailureList();
+        Assert.AreEqual(1, logonFailureStore.CallCount);
+        Assert.IsFalse(logonFailureStore.CancellationToken.CanBeCanceled);
         Assert.IsFalse(settings.SMTPRelayerUseSSL);
 
         Assert.AreEqual(
@@ -707,6 +716,20 @@ public sealed class SettingsComContractTests
         public void Clear() { }
         public void Index() { }
         public void Rebuild() { }
+    }
+
+    private sealed class FakeLogonFailureAdministrationStore : ILogonFailureAdministrationStore
+    {
+        public int CallCount { get; private set; }
+
+        public CancellationToken CancellationToken { get; private set; }
+
+        public ValueTask ClearLegacyListAsync(CancellationToken cancellationToken)
+        {
+            CallCount++;
+            CancellationToken = cancellationToken;
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class FixedImapFolderAdministrationStore(
