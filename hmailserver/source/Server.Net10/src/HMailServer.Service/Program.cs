@@ -839,6 +839,7 @@ builder.Services.AddSingleton<IBlockedAttachmentAdministrationStore, SqlServerBl
 builder.Services.AddSingleton<IDnsBlackListAdministrationStore, SqlServerDnsBlackListAdministrationStore>();
 builder.Services.AddSingleton<ISurblServerAdministrationStore, SqlServerSurblServerAdministrationStore>();
 builder.Services.AddSingleton<IGreyListingWhiteAddressAdministrationStore, SqlServerGreyListingWhiteAddressAdministrationStore>();
+builder.Services.AddSingleton<IGreyListingTripletAdministrationStore, SqlServerGreyListingTripletAdministrationStore>();
 builder.Services.AddSingleton<IWhiteListAddressAdministrationStore, SqlServerWhiteListAddressAdministrationStore>();
 builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
 builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdministrationStore>();
@@ -938,7 +939,9 @@ SettingsAdministrationRuntimeHost.Configure(
         ScriptingDirectory: directoryAdministrationSnapshot.EventDirectory,
         ScriptSyntaxChecker: host.Services.GetRequiredService<IScriptSyntaxChecker>(),
         ScriptRuntimeReloader: host.Services.GetRequiredService<IScriptRuntimeReloader>(),
-        DkimVerificationRuntime: host.Services.GetRequiredService<IDkimVerificationRuntime>()));
+        DkimVerificationRuntime: host.Services.GetRequiredService<IDkimVerificationRuntime>(),
+        GreyListingTripletAdministrationStore:
+            host.Services.GetRequiredService<IGreyListingTripletAdministrationStore>()));
 BlockedAttachmentAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IBlockedAttachmentAdministrationStore>());
 DnsBlackListAdministrationRuntimeHost.Configure(

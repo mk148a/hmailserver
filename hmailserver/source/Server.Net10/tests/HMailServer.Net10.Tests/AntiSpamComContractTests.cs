@@ -112,6 +112,7 @@ public sealed class AntiSpamComContractTests
     public void AuthorizedSettings_ExposesReadOnlyAntiSpamSnapshot()
     {
         var dkimRuntime = new FakeDkimVerificationRuntime(DkimVerificationResult.Pass);
+        var greyListingTripletStore = new FakeGreyListingTripletAdministrationStore();
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
                 HostName: string.Empty,
@@ -146,7 +147,9 @@ public sealed class AntiSpamComContractTests
                 AntiSpamDkimVerificationFailureScore: 8,
                 AntiSpamBypassGreylistingOnSpfSuccess: true,
                 AntiSpamBypassGreylistingOnMailFromMx: false),
-            new SettingsRuntimeConfiguration(DkimVerificationRuntime: dkimRuntime));
+            new SettingsRuntimeConfiguration(
+                DkimVerificationRuntime: dkimRuntime,
+                GreyListingTripletAdministrationStore: greyListingTripletStore));
 
         var antiSpam = settings.AntiSpam;
 
@@ -182,6 +185,9 @@ public sealed class AntiSpamComContractTests
         Assert.AreEqual(@"C:\mail\message.eml", dkimRuntime.File);
         Assert.IsTrue(antiSpam.BypassGreylistingOnSPFSuccess);
         Assert.IsFalse(antiSpam.BypassGreylistingOnMailFromMX);
+        antiSpam.ClearGreyListingTriplets();
+        Assert.AreEqual(1, greyListingTripletStore.CallCount);
+        Assert.IsFalse(greyListingTripletStore.CancellationToken.CanBeCanceled);
 
         AssertPending(() => antiSpam.GreyListingEnabled = false);
         AssertPending(() => antiSpam.GreyListingInitialDelay = 10);
@@ -375,6 +381,21 @@ public sealed class AntiSpamComContractTests
             CallCount++;
             File = file;
             return result;
+        }
+    }
+
+    private sealed class FakeGreyListingTripletAdministrationStore
+        : IGreyListingTripletAdministrationStore
+    {
+        public int CallCount { get; private set; }
+
+        public CancellationToken CancellationToken { get; private set; }
+
+        public ValueTask ClearAllAsync(CancellationToken cancellationToken)
+        {
+            CallCount++;
+            CancellationToken = cancellationToken;
+            return ValueTask.CompletedTask;
         }
     }
 }

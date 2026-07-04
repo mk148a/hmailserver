@@ -1213,7 +1213,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         _administrationSnapshot.AntiSpamDkimVerificationFailureScore,
                         _administrationSnapshot.AntiSpamBypassGreylistingOnSpfSuccess,
                         _administrationSnapshot.AntiSpamBypassGreylistingOnMailFromMx),
-                    _runtimeConfiguration.DkimVerificationRuntime);
+                    _runtimeConfiguration.DkimVerificationRuntime,
+                    _runtimeConfiguration.GreyListingTripletAdministrationStore);
         }
     }
 
@@ -1535,7 +1536,8 @@ public sealed record SettingsRuntimeConfiguration(
     ILoggingLiveLogRuntime? LoggingLiveLogRuntime = null,
     IScriptSyntaxChecker? ScriptSyntaxChecker = null,
     IScriptRuntimeReloader? ScriptRuntimeReloader = null,
-    IDkimVerificationRuntime? DkimVerificationRuntime = null);
+    IDkimVerificationRuntime? DkimVerificationRuntime = null,
+    IGreyListingTripletAdministrationStore? GreyListingTripletAdministrationStore = null);
 
 [ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost

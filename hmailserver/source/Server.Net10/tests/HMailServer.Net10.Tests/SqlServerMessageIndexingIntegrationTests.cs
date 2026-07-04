@@ -99,7 +99,9 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 new SqlServerSettingsAdministrationStore(connectionFactory),
                 new SettingsRuntimeConfiguration(
                     LoggingDirectory: @"C:\hMailServer\Logs",
-                    ScriptingDirectory: @"C:\hMailServer\Events\"));
+                    ScriptingDirectory: @"C:\hMailServer\Events\",
+                    GreyListingTripletAdministrationStore:
+                        new SqlServerGreyListingTripletAdministrationStore(connectionFactory)));
             BlockedAttachmentAdministrationRuntimeHost.Configure(
                 new SqlServerBlockedAttachmentAdministrationStore(connectionFactory));
             DnsBlackListAdministrationRuntimeHost.Configure(
@@ -245,6 +247,13 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(8, antiSpam.DKIMVerificationFailureScore);
             Assert.IsTrue(antiSpam.BypassGreylistingOnSPFSuccess);
             Assert.IsFalse(antiSpam.BypassGreylistingOnMailFromMX);
+            Assert.AreEqual(
+                2L,
+                await GetGreyListingTripletCountAsync(testConnectionString).ConfigureAwait(false));
+            antiSpam.ClearGreyListingTriplets();
+            Assert.AreEqual(
+                0L,
+                await GetGreyListingTripletCountAsync(testConnectionString).ConfigureAwait(false));
             var dnsBlackLists = antiSpam.DNSBlackLists;
             Assert.AreEqual(2, dnsBlackLists.Count);
             Assert.AreEqual(10, dnsBlackLists[0].ID);
@@ -1241,6 +1250,11 @@ CREATE TABLE dbo.hm_greylisting_whiteaddresses
     whiteipdescription nvarchar(255) NOT NULL
 );
 
+CREATE TABLE dbo.hm_greylisting_triplets
+(
+    glid bigint NOT NULL PRIMARY KEY
+);
+
 CREATE TABLE dbo.hm_whitelist
 (
     whiteid bigint NOT NULL PRIMARY KEY,
@@ -1385,6 +1399,9 @@ VALUES
     (20, N'203.0.113.5', N'Single address'),
     (10, N'192.0.2.%', N'Test network');
 
+INSERT INTO dbo.hm_greylisting_triplets (glid)
+VALUES (10), (20);
+
 INSERT INTO dbo.hm_whitelist
     (whiteid, whiteloweripaddress1, whiteloweripaddress2,
      whiteupperipaddress1, whiteupperipaddress2, whiteemailaddress, whitedescription)
@@ -1397,6 +1414,18 @@ VALUES
         await connection.OpenAsync().ConfigureAwait(false);
         await using var command = new SqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<long> GetGreyListingTripletCountAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT COUNT_BIG(*) FROM dbo.hm_greylisting_triplets;",
+            connection);
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync().ConfigureAwait(false),
+            System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static async Task CreateDeliveryQueueAdministrationSchemaAndSeedAsync(string connectionString)

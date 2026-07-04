@@ -196,6 +196,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private const int ENotImplemented = unchecked((int)0x80004001);
     private readonly AntiSpamAdministrationSnapshot? _snapshot;
     private readonly IDkimVerificationRuntime? _dkimVerificationRuntime;
+    private readonly IGreyListingTripletAdministrationStore? _greyListingTripletStore;
 
     public AntiSpam()
     {
@@ -203,10 +204,12 @@ public sealed class AntiSpam : IInterfaceAntiSpam
 
     private AntiSpam(
         AntiSpamAdministrationSnapshot snapshot,
-        IDkimVerificationRuntime? dkimVerificationRuntime)
+        IDkimVerificationRuntime? dkimVerificationRuntime,
+        IGreyListingTripletAdministrationStore? greyListingTripletStore)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
+        _greyListingTripletStore = greyListingTripletStore;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -291,7 +294,21 @@ public sealed class AntiSpam : IInterfaceAntiSpam
 
     public int SpamAssassinPort { get => Snapshot.SpamAssassinPort; set => Unavailable(); }
 
-    public void ClearGreyListingTriplets() => Unavailable();
+    public void ClearGreyListingTriplets()
+    {
+        _ = Snapshot;
+        if (_greyListingTripletStore is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _greyListingTripletStore
+            .ClearAllAsync(CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+    }
 
     public int MaximumMessageSize { get => Snapshot.MaximumMessageSize; set => Unavailable(); }
 
@@ -333,10 +350,11 @@ public sealed class AntiSpam : IInterfaceAntiSpam
 
     internal static AntiSpam CreateAuthorized(
         AntiSpamAdministrationSnapshot snapshot,
-        IDkimVerificationRuntime? dkimVerificationRuntime = null)
+        IDkimVerificationRuntime? dkimVerificationRuntime = null,
+        IGreyListingTripletAdministrationStore? greyListingTripletStore = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new AntiSpam(snapshot, dkimVerificationRuntime);
+        return new AntiSpam(snapshot, dkimVerificationRuntime, greyListingTripletStore);
     }
 
     private AntiSpamAdministrationSnapshot Snapshot =>
