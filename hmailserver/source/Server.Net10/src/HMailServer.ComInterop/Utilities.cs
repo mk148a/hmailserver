@@ -140,6 +140,7 @@ public sealed class Utilities : IInterfaceUtilities
 
     private readonly Func<bool>? _isServerAdministrator;
     private readonly ILegacyBlowfishCipher? _blowfishCipher;
+    private readonly ILocalHostRuntime? _localHostRuntime;
 
     public Utilities()
     {
@@ -147,25 +148,30 @@ public sealed class Utilities : IInterfaceUtilities
 
     private Utilities(
         Func<bool>? isServerAdministrator,
-        ILegacyBlowfishCipher? blowfishCipher)
+        ILegacyBlowfishCipher? blowfishCipher,
+        ILocalHostRuntime? localHostRuntime)
     {
         _isServerAdministrator = isServerAdministrator;
         _blowfishCipher = blowfishCipher;
+        _localHostRuntime = localHostRuntime;
     }
 
     internal static Utilities CreateForApplication(
         Func<bool> isServerAdministrator,
-        ILegacyBlowfishCipher? blowfishCipher)
+        ILegacyBlowfishCipher? blowfishCipher,
+        ILocalHostRuntime? localHostRuntime)
     {
         ArgumentNullException.ThrowIfNull(isServerAdministrator);
-        return new Utilities(isServerAdministrator, blowfishCipher);
+        return new Utilities(isServerAdministrator, blowfishCipher, localHostRuntime);
     }
 
     [ComVisible(false)]
-    public static Utilities CreateForRuntime(ILegacyBlowfishCipher blowfishCipher)
+    public static Utilities CreateForRuntime(
+        ILegacyBlowfishCipher blowfishCipher,
+        ILocalHostRuntime? localHostRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(blowfishCipher);
-        return new Utilities(isServerAdministrator: null, blowfishCipher);
+        return new Utilities(isServerAdministrator: null, blowfishCipher, localHostRuntime);
     }
 
     public string GetMailServer(string emailAddress) => Unavailable<string>();
@@ -224,7 +230,8 @@ public sealed class Utilities : IInterfaceUtilities
 
     public void RunTestSuite(string testPassword) => UnavailableForAdministrator();
 
-    public bool IsLocalHost(string hostname) => Unavailable<bool>();
+    public bool IsLocalHost(string hostname) =>
+        _localHostRuntime?.IsLocalHost(hostname ?? string.Empty) ?? Unavailable<bool>();
 
     public bool ImportMessageFromFileToIMAPFolder(
         string filename,

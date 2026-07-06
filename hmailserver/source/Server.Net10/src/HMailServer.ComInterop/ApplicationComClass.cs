@@ -17,6 +17,7 @@ public sealed class Application : IInterfaceApplication
     private readonly IServerAdministratorAuthenticationProvider? _authenticationProvider;
     private readonly IBackupArchiveMetadataReader? _backupArchiveMetadataReader;
     private readonly ILegacyBlowfishCipher? _legacyBlowfishCipher;
+    private readonly ILocalHostRuntime? _localHostRuntime;
     private bool _isServerAdministrator;
 
     public Application()
@@ -26,19 +27,25 @@ public sealed class Application : IInterfaceApplication
     internal Application(
         IServerAdministratorAuthenticationProvider authenticationProvider,
         IBackupArchiveMetadataReader? backupArchiveMetadataReader = null,
-        ILegacyBlowfishCipher? legacyBlowfishCipher = null)
+        ILegacyBlowfishCipher? legacyBlowfishCipher = null,
+        ILocalHostRuntime? localHostRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
         _backupArchiveMetadataReader = backupArchiveMetadataReader;
         _legacyBlowfishCipher = legacyBlowfishCipher;
+        _localHostRuntime = localHostRuntime;
     }
 
     [ComVisible(false)]
     public static Application CreateForRuntime(
         IServerAdministratorAuthenticationProvider authenticationProvider,
-        ILegacyBlowfishCipher? legacyBlowfishCipher = null) =>
-        new(authenticationProvider, legacyBlowfishCipher: legacyBlowfishCipher);
+        ILegacyBlowfishCipher? legacyBlowfishCipher = null,
+        ILocalHostRuntime? localHostRuntime = null) =>
+        new(
+            authenticationProvider,
+            legacyBlowfishCipher: legacyBlowfishCipher,
+            localHostRuntime: localHostRuntime);
 
     public IInterfaceSettings Settings
     {
@@ -73,7 +80,8 @@ public sealed class Application : IInterfaceApplication
     public IInterfaceUtilities Utilities =>
         HMailServer.ComInterop.Utilities.CreateForApplication(
             () => _isServerAdministrator,
-            _legacyBlowfishCipher);
+            _legacyBlowfishCipher,
+            _localHostRuntime);
 
     public IInterfaceStatus Status
     {

@@ -71,6 +71,13 @@ public sealed class UtilitiesComContractTests
             methods
                 .Select(static method => method.GetCustomAttribute<DispIdAttribute>()?.Value ?? -1)
                 .ToArray());
+        Assert.AreEqual(
+            UnmanagedType.VariantBool,
+            methods
+                .Single(static method => method.Name == nameof(IInterfaceUtilities.IsLocalHost))
+                .ReturnParameter
+                .GetCustomAttribute<MarshalAsAttribute>()
+                ?.Value);
     }
 
     [TestMethod]
@@ -108,9 +115,11 @@ public sealed class UtilitiesComContractTests
     public void ApplicationUtilities_SharesAuthenticationAndKeepsSideEffectsPending()
     {
         var cipher = new RecordingLegacyBlowfishCipher();
+        var localHostRuntime = new RecordingLocalHostRuntime("local.example.test");
         var application = new Application(
             new RecordingAdministratorAuthenticationProvider("secret"),
-            legacyBlowfishCipher: cipher);
+            legacyBlowfishCipher: cipher,
+            localHostRuntime: localHostRuntime);
         var utilities = application.Utilities;
 
         Assert.AreEqual("dc647eb65e6711e155375218212b3964", utilities.MD5("Password"));
@@ -119,6 +128,11 @@ public sealed class UtilitiesComContractTests
         CollectionAssert.AreEqual(
             new[] { "encrypt:secret", "decrypt:ciphertext" },
             cipher.Calls);
+        Assert.IsTrue(utilities.IsLocalHost("local.example.test"));
+        Assert.IsFalse(utilities.IsLocalHost("remote.example.test"));
+        CollectionAssert.AreEqual(
+            new[] { "local.example.test", "remote.example.test" },
+            localHostRuntime.Calls);
         var denied = Assert.ThrowsExactly<COMException>(() => utilities.MakeDependent("MSSQLSERVER"));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
 
@@ -137,10 +151,11 @@ public sealed class UtilitiesComContractTests
     }
 
     [TestMethod]
-    public void RuntimeUtilities_ExposeLegacyBlowfishWithoutAuthentication()
+    public void RuntimeUtilities_ExposeLegacyBlowfishAndLocalHostWithoutAuthentication()
     {
+        var localHostRuntime = new RecordingLocalHostRuntime("127.0.0.1");
         IInterfaceUtilities utilities =
-            Utilities.CreateForRuntime(new LegacyBlowfishCipherRuntime());
+            Utilities.CreateForRuntime(new LegacyBlowfishCipherRuntime(), localHostRuntime);
 
         Assert.AreEqual("a62b3c438efae3db", utilities.BlowfishEncrypt("secret"));
         Assert.AreEqual("e79ca726380cc3b1", utilities.BlowfishEncrypt("Hejsan"));
@@ -148,6 +163,8 @@ public sealed class UtilitiesComContractTests
         Assert.AreEqual(string.Empty, utilities.BlowfishEncrypt(string.Empty));
         Assert.AreEqual(string.Empty, utilities.BlowfishDecrypt(string.Empty));
         Assert.AreEqual("secret", utilities.BlowfishDecrypt("a62b3c438efae3db"));
+        Assert.IsTrue(utilities.IsLocalHost("127.0.0.1"));
+        Assert.IsFalse(utilities.IsLocalHost("192.0.2.1"));
 
         var latin1 = "p\u00E4ssw\u00F6rd";
         Assert.AreEqual(latin1, utilities.BlowfishDecrypt(utilities.BlowfishEncrypt(latin1)));
@@ -234,6 +251,17 @@ public sealed class UtilitiesComContractTests
             Calls.Add($"decrypt:{input}");
             output = $"plain:{input}";
             return true;
+        }
+    }
+
+    private sealed class RecordingLocalHostRuntime(string localHost) : ILocalHostRuntime
+    {
+        public List<string> Calls { get; } = [];
+
+        public bool IsLocalHost(string hostName)
+        {
+            Calls.Add(hostName);
+            return string.Equals(hostName, localHost, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

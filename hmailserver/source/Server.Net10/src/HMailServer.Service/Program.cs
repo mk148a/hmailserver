@@ -611,6 +611,9 @@ builder.Services.AddSingleton<IDkimTxtResolver, SystemDkimTxtResolver>();
 builder.Services.AddSingleton<IDkimVerificationRuntime>(static serviceProvider =>
     new FileDkimVerificationRuntime(serviceProvider.GetRequiredService<IDkimTxtResolver>()));
 builder.Services.AddSingleton<ILegacyBlowfishCipher, LegacyBlowfishCipherRuntime>();
+builder.Services.AddSingleton<IDnsAddressResolver, SystemDnsAddressResolver>();
+builder.Services.AddSingleton<ILocalIpAddressProvider, SystemLocalIpAddressProvider>();
+builder.Services.AddSingleton<ILocalHostRuntime, SystemLocalHostRuntime>();
 builder.Services.AddSingleton(attachmentPolicyOptions);
 builder.Services.AddSingleton(dnsBlockListOptions);
 builder.Services.AddSingleton(reverseDnsOptions);
@@ -668,10 +671,6 @@ if (dmarcPolicyEnabled)
 if (attachmentPolicyEnabled)
 {
     builder.Services.AddSingleton<IMessageAttachmentPolicy, MimeMessageAttachmentPolicy>();
-}
-if (dnsBlockListEnabled || reverseDnsEnabled || urlBlockListEnabled)
-{
-    builder.Services.AddSingleton<IDnsAddressResolver, SystemDnsAddressResolver>();
 }
 if (dnsBlockListEnabled)
 {
