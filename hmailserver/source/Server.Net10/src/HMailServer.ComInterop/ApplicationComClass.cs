@@ -19,6 +19,7 @@ public sealed class Application : IInterfaceApplication
     private readonly ILegacyBlowfishCipher? _legacyBlowfishCipher;
     private readonly ILocalHostRuntime? _localHostRuntime;
     private readonly IMailServerResolver? _mailServerResolver;
+    private readonly IMessageIdResolver? _messageIdResolver;
     private bool _isServerAdministrator;
 
     public Application()
@@ -30,7 +31,8 @@ public sealed class Application : IInterfaceApplication
         IBackupArchiveMetadataReader? backupArchiveMetadataReader = null,
         ILegacyBlowfishCipher? legacyBlowfishCipher = null,
         ILocalHostRuntime? localHostRuntime = null,
-        IMailServerResolver? mailServerResolver = null)
+        IMailServerResolver? mailServerResolver = null,
+        IMessageIdResolver? messageIdResolver = null)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
@@ -38,6 +40,7 @@ public sealed class Application : IInterfaceApplication
         _legacyBlowfishCipher = legacyBlowfishCipher;
         _localHostRuntime = localHostRuntime;
         _mailServerResolver = mailServerResolver;
+        _messageIdResolver = messageIdResolver;
     }
 
     [ComVisible(false)]
@@ -45,12 +48,14 @@ public sealed class Application : IInterfaceApplication
         IServerAdministratorAuthenticationProvider authenticationProvider,
         ILegacyBlowfishCipher? legacyBlowfishCipher = null,
         ILocalHostRuntime? localHostRuntime = null,
-        IMailServerResolver? mailServerResolver = null) =>
+        IMailServerResolver? mailServerResolver = null,
+        IMessageIdResolver? messageIdResolver = null) =>
         new(
             authenticationProvider,
             legacyBlowfishCipher: legacyBlowfishCipher,
             localHostRuntime: localHostRuntime,
-            mailServerResolver: mailServerResolver);
+            mailServerResolver: mailServerResolver,
+            messageIdResolver: messageIdResolver);
 
     public IInterfaceSettings Settings
     {
@@ -87,7 +92,8 @@ public sealed class Application : IInterfaceApplication
             () => _isServerAdministrator,
             _legacyBlowfishCipher,
             _localHostRuntime,
-            _mailServerResolver);
+            _mailServerResolver,
+            _messageIdResolver);
 
     public IInterfaceStatus Status
     {

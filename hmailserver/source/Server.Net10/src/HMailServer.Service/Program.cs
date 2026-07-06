@@ -832,6 +832,10 @@ builder.Services.AddSingleton<IDatabaseAdministrationStore>(
         serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
         databaseConfiguration));
 builder.Services.AddSingleton<IMessageFileNameLookup, SqlServerMessageFileNameLookup>();
+builder.Services.AddSingleton<IMessageIdResolver>(serviceProvider =>
+    new StoreBackedMessageIdResolver(
+        serviceProvider.GetRequiredService<IMessageFileNameLookup>(),
+        dataDirectory));
 builder.Services.AddSingleton<ServerStatusRuntimeState>();
 builder.Services.AddSingleton<IApplicationRuntimeStore>(
     serviceProvider => new ServerApplicationRuntimeStore(

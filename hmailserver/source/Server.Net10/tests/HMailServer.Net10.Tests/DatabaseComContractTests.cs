@@ -219,5 +219,10 @@ public sealed class DatabaseComContractTests
                 fileNames.TryGetValue(messageId, out var fileName)
                     ? fileName
                     : string.Empty);
+
+        public ValueTask<long?> GetMessageIdByFileNameAsync(
+            string fileName,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<long?>(null);
     }
 }

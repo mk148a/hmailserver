@@ -35,16 +35,29 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             var store = new SqlServerMessageIndexingAdministrationStore(
                 new SqlServerConnectionFactory(testConnectionString));
             MessageIndexingRuntimeHost.Configure(new StoreBackedMessageIndexingRuntime(store));
+            var messageFileNameLookup = new SqlServerMessageFileNameLookup(
+                new SqlServerConnectionFactory(testConnectionString));
             DatabaseAdministrationRuntimeHost.Configure(
                 new FixedDatabaseAdministrationStore(),
-                new SqlServerMessageFileNameLookup(new SqlServerConnectionFactory(testConnectionString)));
+                messageFileNameLookup);
             var application = Application.CreateForRuntime(
-                new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
+                new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"),
+                messageIdResolver: new StoreBackedMessageIdResolver(
+                    messageFileNameLookup,
+                    @"C:\hMailServer\Data"));
 
             Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+            var retrieveDenied = Assert.ThrowsExactly<COMException>(
+                () => application.Utilities.RetrieveMessageID("one.eml"));
+            Assert.AreEqual(unchecked((int)0x80070005), retrieveDenied.ErrorCode);
             Assert.IsNotNull(application.Authenticate("administrator", "secret"));
             Assert.AreEqual("one.eml", application.Database.UtilGetFileNameByMessageID(1));
             Assert.AreEqual(string.Empty, application.Database.UtilGetFileNameByMessageID(999));
+            Assert.AreEqual(1, application.Utilities.RetrieveMessageID("one.eml"));
+            Assert.AreEqual(
+                1,
+                application.Utilities.RetrieveMessageID(@"C:\hMailServer\Data\one.eml"));
+            Assert.AreEqual(0, application.Utilities.RetrieveMessageID("missing.eml"));
             var indexing = application.Settings.MessageIndexing;
             var extended = (IInterfaceMessageIndexing2)indexing;
 

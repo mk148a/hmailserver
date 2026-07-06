@@ -21,4 +21,21 @@ public sealed class SqlServerMessageFileNameLookupTests
         Assert.IsFalse(sql.Contains("hm_messagerecipients", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("filecontent", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void ReverseLookupSql_ReadsOnlyMessageIdForExactStoredFilename()
+    {
+        var sql = SqlServerMessageFileNameLookup.GetMessageIdByFileNameSql;
+
+        StringAssert.Contains(sql, "SELECT messageid");
+        StringAssert.Contains(sql, "FROM hm_messages");
+        StringAssert.Contains(sql, "WHERE messagefilename = @FileName");
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_messagerecipients", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("filecontent", StringComparison.OrdinalIgnoreCase));
+    }
 }

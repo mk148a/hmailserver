@@ -85,6 +85,11 @@ public sealed class UtilitiesComContractTests
                 .ReturnParameter
                 .GetCustomAttribute<MarshalAsAttribute>()
                 ?.Value);
+        Assert.AreEqual(
+            typeof(long),
+            methods
+                .Single(static method => method.Name == nameof(IInterfaceUtilities.RetrieveMessageID))
+                .ReturnType);
     }
 
     [TestMethod]
@@ -115,7 +120,10 @@ public sealed class UtilitiesComContractTests
         AssertOperationPending(() => _ = utilities.IsLocalHost("localhost"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => utilities.MakeDependent("MSSQLSERVER"));
+        var messageIdDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.RetrieveMessageID("message.eml"));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -124,11 +132,17 @@ public sealed class UtilitiesComContractTests
         var cipher = new RecordingLegacyBlowfishCipher();
         var localHostRuntime = new RecordingLocalHostRuntime("local.example.test");
         var mailServerResolver = new RecordingMailServerResolver();
+        var messageIdResolver = new RecordingMessageIdResolver(
+            new Dictionary<string, long>(StringComparer.Ordinal)
+            {
+                ["message.eml"] = 0x1_0000_0001
+            });
         var application = new Application(
             new RecordingAdministratorAuthenticationProvider("secret"),
             legacyBlowfishCipher: cipher,
             localHostRuntime: localHostRuntime,
-            mailServerResolver: mailServerResolver);
+            mailServerResolver: mailServerResolver,
+            messageIdResolver: messageIdResolver);
         var utilities = application.Utilities;
 
         Assert.AreEqual("dc647eb65e6711e155375218212b3964", utilities.MD5("Password"));
@@ -149,9 +163,18 @@ public sealed class UtilitiesComContractTests
             new[] { "user@example.test" },
             mailServerResolver.Calls);
         var denied = Assert.ThrowsExactly<COMException>(() => utilities.MakeDependent("MSSQLSERVER"));
+        var messageIdDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.RetrieveMessageID("message.eml"));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
 
         Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        Assert.AreEqual(0x1_0000_0001, utilities.RetrieveMessageID("message.eml"));
+        Assert.AreEqual(0, utilities.RetrieveMessageID("missing.eml"));
+        CollectionAssert.AreEqual(
+            new[] { "message.eml", "missing.eml" },
+            messageIdResolver.Calls);
 
         AssertOperationPending(() => utilities.MakeDependent("MSSQLSERVER"));
         AssertOperationPending(() => _ = utilities.ImportMessageFromFile("message.eml", 1));
@@ -160,7 +183,6 @@ public sealed class UtilitiesComContractTests
         AssertOperationPending(() => utilities.RunTestSuite("I know what I am doing."));
         AssertOperationPending(
             () => _ = utilities.ImportMessageFromFileToIMAPFolder("message.eml", 1, "Inbox"));
-        AssertOperationPending(() => _ = utilities.RetrieveMessageID("message.eml"));
         AssertOperationPending(
             () => utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid));
     }
@@ -170,11 +192,14 @@ public sealed class UtilitiesComContractTests
     {
         var localHostRuntime = new RecordingLocalHostRuntime("127.0.0.1");
         var mailServerResolver = new RecordingMailServerResolver();
+        var messageIdResolver = new RecordingMessageIdResolver(
+            new Dictionary<string, long> { ["message.eml"] = 1 });
         IInterfaceUtilities utilities =
             Utilities.CreateForRuntime(
                 new LegacyBlowfishCipherRuntime(),
                 localHostRuntime,
-                mailServerResolver);
+                mailServerResolver,
+                messageIdResolver);
 
         Assert.AreEqual("a62b3c438efae3db", utilities.BlowfishEncrypt("secret"));
         Assert.AreEqual("e79ca726380cc3b1", utilities.BlowfishEncrypt("Hejsan"));
@@ -193,6 +218,9 @@ public sealed class UtilitiesComContractTests
 
         var invalid = Assert.ThrowsExactly<COMException>(() => utilities.BlowfishDecrypt("not-hex"));
         Assert.AreEqual(EInvalidArgument, invalid.ErrorCode);
+        var messageIdDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.RetrieveMessageID("message.eml"));
+        Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -295,6 +323,23 @@ public sealed class UtilitiesComContractTests
         {
             Calls.Add(emailAddress);
             return $"resolved:{emailAddress}";
+        }
+    }
+
+    private sealed class RecordingMessageIdResolver(IReadOnlyDictionary<string, long> messageIds)
+        : IMessageIdResolver
+    {
+        public List<string> Calls { get; } = [];
+
+        public ValueTask<long> RetrieveMessageIdAsync(
+            string fileName,
+            CancellationToken cancellationToken)
+        {
+            Calls.Add(fileName);
+            return ValueTask.FromResult(
+                messageIds.TryGetValue(fileName, out var messageId)
+                    ? messageId
+                    : 0);
         }
     }
 }

@@ -142,6 +142,7 @@ public sealed class Utilities : IInterfaceUtilities
     private readonly ILegacyBlowfishCipher? _blowfishCipher;
     private readonly ILocalHostRuntime? _localHostRuntime;
     private readonly IMailServerResolver? _mailServerResolver;
+    private readonly IMessageIdResolver? _messageIdResolver;
 
     public Utilities()
     {
@@ -151,40 +152,46 @@ public sealed class Utilities : IInterfaceUtilities
         Func<bool>? isServerAdministrator,
         ILegacyBlowfishCipher? blowfishCipher,
         ILocalHostRuntime? localHostRuntime,
-        IMailServerResolver? mailServerResolver)
+        IMailServerResolver? mailServerResolver,
+        IMessageIdResolver? messageIdResolver)
     {
         _isServerAdministrator = isServerAdministrator;
         _blowfishCipher = blowfishCipher;
         _localHostRuntime = localHostRuntime;
         _mailServerResolver = mailServerResolver;
+        _messageIdResolver = messageIdResolver;
     }
 
     internal static Utilities CreateForApplication(
         Func<bool> isServerAdministrator,
         ILegacyBlowfishCipher? blowfishCipher,
         ILocalHostRuntime? localHostRuntime,
-        IMailServerResolver? mailServerResolver)
+        IMailServerResolver? mailServerResolver,
+        IMessageIdResolver? messageIdResolver = null)
     {
         ArgumentNullException.ThrowIfNull(isServerAdministrator);
         return new Utilities(
             isServerAdministrator,
             blowfishCipher,
             localHostRuntime,
-            mailServerResolver);
+            mailServerResolver,
+            messageIdResolver);
     }
 
     [ComVisible(false)]
     public static Utilities CreateForRuntime(
         ILegacyBlowfishCipher blowfishCipher,
         ILocalHostRuntime? localHostRuntime = null,
-        IMailServerResolver? mailServerResolver = null)
+        IMailServerResolver? mailServerResolver = null,
+        IMessageIdResolver? messageIdResolver = null)
     {
         ArgumentNullException.ThrowIfNull(blowfishCipher);
         return new Utilities(
             isServerAdministrator: null,
             blowfishCipher,
             localHostRuntime,
-            mailServerResolver);
+            mailServerResolver,
+            messageIdResolver);
     }
 
     public string GetMailServer(string emailAddress) =>
@@ -310,7 +317,21 @@ public sealed class Utilities : IInterfaceUtilities
         };
     }
 
-    public long RetrieveMessageID(string filename) => UnavailableForAdministrator<long>();
+    public long RetrieveMessageID(string filename)
+    {
+        EnsureServerAdministrator();
+        var resolver = _messageIdResolver;
+        if (resolver is null)
+        {
+            return Unavailable<long>();
+        }
+
+        return resolver
+            .RetrieveMessageIdAsync(filename ?? string.Empty, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+    }
 
     public bool IsValidIPAddress(string ipAddress)
     {
