@@ -16,6 +16,7 @@ public sealed class Application : IInterfaceApplication
 
     private readonly IServerAdministratorAuthenticationProvider? _authenticationProvider;
     private readonly IBackupArchiveMetadataReader? _backupArchiveMetadataReader;
+    private readonly ILegacyBlowfishCipher? _legacyBlowfishCipher;
     private bool _isServerAdministrator;
 
     public Application()
@@ -24,16 +25,20 @@ public sealed class Application : IInterfaceApplication
 
     internal Application(
         IServerAdministratorAuthenticationProvider authenticationProvider,
-        IBackupArchiveMetadataReader? backupArchiveMetadataReader = null)
+        IBackupArchiveMetadataReader? backupArchiveMetadataReader = null,
+        ILegacyBlowfishCipher? legacyBlowfishCipher = null)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
         _backupArchiveMetadataReader = backupArchiveMetadataReader;
+        _legacyBlowfishCipher = legacyBlowfishCipher;
     }
 
     [ComVisible(false)]
-    public static Application CreateForRuntime(IServerAdministratorAuthenticationProvider authenticationProvider) =>
-        new(authenticationProvider);
+    public static Application CreateForRuntime(
+        IServerAdministratorAuthenticationProvider authenticationProvider,
+        ILegacyBlowfishCipher? legacyBlowfishCipher = null) =>
+        new(authenticationProvider, legacyBlowfishCipher: legacyBlowfishCipher);
 
     public IInterfaceSettings Settings
     {
@@ -66,7 +71,9 @@ public sealed class Application : IInterfaceApplication
         DatabaseAdministrationRuntimeHost.CreateApplicationAdapter(() => _isServerAdministrator);
 
     public IInterfaceUtilities Utilities =>
-        HMailServer.ComInterop.Utilities.CreateForApplication(() => _isServerAdministrator);
+        HMailServer.ComInterop.Utilities.CreateForApplication(
+            () => _isServerAdministrator,
+            _legacyBlowfishCipher);
 
     public IInterfaceStatus Status
     {

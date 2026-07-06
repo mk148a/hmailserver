@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using HMailServer.Core.Abstractions;
 
 namespace HMailServer.ComInterop;
 
@@ -109,6 +110,7 @@ public interface IInterfaceUtilities
 public sealed class Utilities : IInterfaceUtilities
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EInvalidArgument = unchecked((int)0x80070057);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int LegacySha256SaltLength = 6;
     private const int MaximumEmailAddressLength = 254;
@@ -137,19 +139,34 @@ public sealed class Utilities : IInterfaceUtilities
         };
 
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly ILegacyBlowfishCipher? _blowfishCipher;
 
     public Utilities()
     {
     }
 
-    private Utilities(Func<bool> isServerAdministrator)
+    private Utilities(
+        Func<bool>? isServerAdministrator,
+        ILegacyBlowfishCipher? blowfishCipher)
     {
-        ArgumentNullException.ThrowIfNull(isServerAdministrator);
         _isServerAdministrator = isServerAdministrator;
+        _blowfishCipher = blowfishCipher;
     }
 
-    internal static Utilities CreateForApplication(Func<bool> isServerAdministrator) =>
-        new(isServerAdministrator);
+    internal static Utilities CreateForApplication(
+        Func<bool> isServerAdministrator,
+        ILegacyBlowfishCipher? blowfishCipher)
+    {
+        ArgumentNullException.ThrowIfNull(isServerAdministrator);
+        return new Utilities(isServerAdministrator, blowfishCipher);
+    }
+
+    [ComVisible(false)]
+    public static Utilities CreateForRuntime(ILegacyBlowfishCipher blowfishCipher)
+    {
+        ArgumentNullException.ThrowIfNull(blowfishCipher);
+        return new Utilities(isServerAdministrator: null, blowfishCipher);
+    }
 
     public string GetMailServer(string emailAddress) => Unavailable<string>();
 
@@ -169,9 +186,26 @@ public sealed class Utilities : IInterfaceUtilities
     public string MD5(string input) =>
         ComputeHashHex(HashAlgorithmName.MD5, input ?? string.Empty);
 
-    public string BlowfishEncrypt(string input) => Unavailable<string>();
+    public string BlowfishEncrypt(string input) =>
+        BlowfishCipher?.Encrypt(input ?? string.Empty) ?? Unavailable<string>();
 
-    public string BlowfishDecrypt(string input) => Unavailable<string>();
+    public string BlowfishDecrypt(string input)
+    {
+        var cipher = BlowfishCipher;
+        if (cipher is null)
+        {
+            return Unavailable<string>();
+        }
+
+        if (!cipher.TryDecrypt(input ?? string.Empty, out var output))
+        {
+            throw new COMException(
+                "The Blowfish ciphertext is not a valid legacy hMailServer value.",
+                EInvalidArgument);
+        }
+
+        return output;
+    }
 
     public void MakeDependent(string otherService) => UnavailableForAdministrator();
 
@@ -373,6 +407,8 @@ public sealed class Utilities : IInterfaceUtilities
                 EAccessDenied);
         }
     }
+
+    private ILegacyBlowfishCipher? BlowfishCipher => _blowfishCipher;
 
     private static T Unavailable<T>()
     {

@@ -10,6 +10,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class UtilitiesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EInvalidArgument = unchecked((int)0x80070057);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     [TestMethod]
@@ -106,10 +107,18 @@ public sealed class UtilitiesComContractTests
     [TestMethod]
     public void ApplicationUtilities_SharesAuthenticationAndKeepsSideEffectsPending()
     {
-        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        var cipher = new RecordingLegacyBlowfishCipher();
+        var application = new Application(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            legacyBlowfishCipher: cipher);
         var utilities = application.Utilities;
 
         Assert.AreEqual("dc647eb65e6711e155375218212b3964", utilities.MD5("Password"));
+        Assert.AreEqual("encrypted:secret", utilities.BlowfishEncrypt("secret"));
+        Assert.AreEqual("plain:ciphertext", utilities.BlowfishDecrypt("ciphertext"));
+        CollectionAssert.AreEqual(
+            new[] { "encrypt:secret", "decrypt:ciphertext" },
+            cipher.Calls);
         var denied = Assert.ThrowsExactly<COMException>(() => utilities.MakeDependent("MSSQLSERVER"));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
 
@@ -125,6 +134,26 @@ public sealed class UtilitiesComContractTests
         AssertOperationPending(() => _ = utilities.RetrieveMessageID("message.eml"));
         AssertOperationPending(
             () => utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid));
+    }
+
+    [TestMethod]
+    public void RuntimeUtilities_ExposeLegacyBlowfishWithoutAuthentication()
+    {
+        IInterfaceUtilities utilities =
+            Utilities.CreateForRuntime(new LegacyBlowfishCipherRuntime());
+
+        Assert.AreEqual("a62b3c438efae3db", utilities.BlowfishEncrypt("secret"));
+        Assert.AreEqual("e79ca726380cc3b1", utilities.BlowfishEncrypt("Hejsan"));
+        Assert.AreEqual("53017df649201454294938b861b56ab2", utilities.BlowfishEncrypt("Secret123"));
+        Assert.AreEqual(string.Empty, utilities.BlowfishEncrypt(string.Empty));
+        Assert.AreEqual(string.Empty, utilities.BlowfishDecrypt(string.Empty));
+        Assert.AreEqual("secret", utilities.BlowfishDecrypt("a62b3c438efae3db"));
+
+        var latin1 = "p\u00E4ssw\u00F6rd";
+        Assert.AreEqual(latin1, utilities.BlowfishDecrypt(utilities.BlowfishEncrypt(latin1)));
+
+        var invalid = Assert.ThrowsExactly<COMException>(() => utilities.BlowfishDecrypt("not-hex"));
+        Assert.AreEqual(EInvalidArgument, invalid.ErrorCode);
     }
 
     [TestMethod]
@@ -188,5 +217,23 @@ public sealed class UtilitiesComContractTests
         public bool Authenticate(string username, string attemptedPassword) =>
             username.Equals("Administrator", StringComparison.OrdinalIgnoreCase)
             && attemptedPassword == password;
+    }
+
+    private sealed class RecordingLegacyBlowfishCipher : ILegacyBlowfishCipher
+    {
+        public List<string> Calls { get; } = [];
+
+        public string Encrypt(string input)
+        {
+            Calls.Add($"encrypt:{input}");
+            return $"encrypted:{input}";
+        }
+
+        public bool TryDecrypt(string input, out string output)
+        {
+            Calls.Add($"decrypt:{input}");
+            output = $"plain:{input}";
+            return true;
+        }
     }
 }

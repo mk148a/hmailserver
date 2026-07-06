@@ -610,6 +610,7 @@ builder.Services.AddSingleton(dmarcPolicyOptions);
 builder.Services.AddSingleton<IDkimTxtResolver, SystemDkimTxtResolver>();
 builder.Services.AddSingleton<IDkimVerificationRuntime>(static serviceProvider =>
     new FileDkimVerificationRuntime(serviceProvider.GetRequiredService<IDkimTxtResolver>()));
+builder.Services.AddSingleton<ILegacyBlowfishCipher, LegacyBlowfishCipherRuntime>();
 builder.Services.AddSingleton(attachmentPolicyOptions);
 builder.Services.AddSingleton(dnsBlockListOptions);
 builder.Services.AddSingleton(reverseDnsOptions);
