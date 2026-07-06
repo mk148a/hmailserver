@@ -20,6 +20,7 @@ public sealed class Application : IInterfaceApplication
     private readonly ILocalHostRuntime? _localHostRuntime;
     private readonly IMailServerResolver? _mailServerResolver;
     private readonly IMessageIdResolver? _messageIdResolver;
+    private readonly IImapFolderUidMaintenanceStore? _imapFolderUidMaintenanceStore;
     private bool _isServerAdministrator;
 
     public Application()
@@ -32,7 +33,8 @@ public sealed class Application : IInterfaceApplication
         ILegacyBlowfishCipher? legacyBlowfishCipher = null,
         ILocalHostRuntime? localHostRuntime = null,
         IMailServerResolver? mailServerResolver = null,
-        IMessageIdResolver? messageIdResolver = null)
+        IMessageIdResolver? messageIdResolver = null,
+        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
@@ -41,6 +43,7 @@ public sealed class Application : IInterfaceApplication
         _localHostRuntime = localHostRuntime;
         _mailServerResolver = mailServerResolver;
         _messageIdResolver = messageIdResolver;
+        _imapFolderUidMaintenanceStore = imapFolderUidMaintenanceStore;
     }
 
     [ComVisible(false)]
@@ -49,13 +52,15 @@ public sealed class Application : IInterfaceApplication
         ILegacyBlowfishCipher? legacyBlowfishCipher = null,
         ILocalHostRuntime? localHostRuntime = null,
         IMailServerResolver? mailServerResolver = null,
-        IMessageIdResolver? messageIdResolver = null) =>
+        IMessageIdResolver? messageIdResolver = null,
+        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null) =>
         new(
             authenticationProvider,
             legacyBlowfishCipher: legacyBlowfishCipher,
             localHostRuntime: localHostRuntime,
             mailServerResolver: mailServerResolver,
-            messageIdResolver: messageIdResolver);
+            messageIdResolver: messageIdResolver,
+            imapFolderUidMaintenanceStore: imapFolderUidMaintenanceStore);
 
     public IInterfaceSettings Settings
     {
@@ -93,7 +98,8 @@ public sealed class Application : IInterfaceApplication
             _legacyBlowfishCipher,
             _localHostRuntime,
             _mailServerResolver,
-            _messageIdResolver);
+            _messageIdResolver,
+            _imapFolderUidMaintenanceStore);
 
     public IInterfaceStatus Status
     {

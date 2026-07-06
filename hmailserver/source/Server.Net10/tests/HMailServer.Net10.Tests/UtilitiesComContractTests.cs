@@ -10,6 +10,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class UtilitiesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int EInvalidArgument = unchecked((int)0x80070057);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
@@ -122,8 +123,11 @@ public sealed class UtilitiesComContractTests
         var denied = Assert.ThrowsExactly<COMException>(() => utilities.MakeDependent("MSSQLSERVER"));
         var messageIdDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.RetrieveMessageID("message.eml"));
+        var maintenanceDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -137,12 +141,14 @@ public sealed class UtilitiesComContractTests
             {
                 ["message.eml"] = 0x1_0000_0001
             });
+        var maintenanceStore = new RecordingImapFolderUidMaintenanceStore();
         var application = new Application(
             new RecordingAdministratorAuthenticationProvider("secret"),
             legacyBlowfishCipher: cipher,
             localHostRuntime: localHostRuntime,
             mailServerResolver: mailServerResolver,
-            messageIdResolver: messageIdResolver);
+            messageIdResolver: messageIdResolver,
+            imapFolderUidMaintenanceStore: maintenanceStore);
         var utilities = application.Utilities;
 
         Assert.AreEqual("dc647eb65e6711e155375218212b3964", utilities.MD5("Password"));
@@ -165,8 +171,11 @@ public sealed class UtilitiesComContractTests
         var denied = Assert.ThrowsExactly<COMException>(() => utilities.MakeDependent("MSSQLSERVER"));
         var messageIdDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.RetrieveMessageID("message.eml"));
+        var maintenanceDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
 
         Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
 
@@ -175,6 +184,9 @@ public sealed class UtilitiesComContractTests
         CollectionAssert.AreEqual(
             new[] { "message.eml", "missing.eml" },
             messageIdResolver.Calls);
+        utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid);
+        Assert.AreEqual(1, maintenanceStore.CallCount);
+        Assert.IsFalse(maintenanceStore.CancellationToken.CanBeCanceled);
 
         AssertOperationPending(() => utilities.MakeDependent("MSSQLSERVER"));
         AssertOperationPending(() => _ = utilities.ImportMessageFromFile("message.eml", 1));
@@ -183,8 +195,45 @@ public sealed class UtilitiesComContractTests
         AssertOperationPending(() => utilities.RunTestSuite("I know what I am doing."));
         AssertOperationPending(
             () => _ = utilities.ImportMessageFromFileToIMAPFolder("message.eml", 1, "Inbox"));
-        AssertOperationPending(
+    }
+
+    [TestMethod]
+    public void ApplicationUtilities_MapsUnknownAndFailedMaintenanceOperationsToLegacyFailure()
+    {
+        var failedStore = new RecordingImapFolderUidMaintenanceStore { Result = false };
+        var application = new Application(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            imapFolderUidMaintenanceStore: failedStore);
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var utilities = application.Utilities;
+
+        var unknown = Assert.ThrowsExactly<COMException>(
+            () => utilities.PerformMaintenance((ComMaintenanceOperation)999));
+        var failed = Assert.ThrowsExactly<COMException>(
             () => utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid));
+
+        Assert.AreEqual(EFail, unknown.ErrorCode);
+        Assert.AreEqual(EFail, failed.ErrorCode);
+        Assert.AreEqual(1, failedStore.CallCount);
+    }
+
+    [TestMethod]
+    public void ApplicationUtilities_MapsMaintenanceStoreExceptionToLegacyFailure()
+    {
+        var throwingStore = new RecordingImapFolderUidMaintenanceStore
+        {
+            Exception = new InvalidOperationException("database unavailable")
+        };
+        var application = new Application(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            imapFolderUidMaintenanceStore: throwingStore);
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => application.Utilities.PerformMaintenance(
+                ComMaintenanceOperation.UpdateImapFolderUid));
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
     }
 
     [TestMethod]
@@ -194,12 +243,14 @@ public sealed class UtilitiesComContractTests
         var mailServerResolver = new RecordingMailServerResolver();
         var messageIdResolver = new RecordingMessageIdResolver(
             new Dictionary<string, long> { ["message.eml"] = 1 });
+        var maintenanceStore = new RecordingImapFolderUidMaintenanceStore();
         IInterfaceUtilities utilities =
             Utilities.CreateForRuntime(
                 new LegacyBlowfishCipherRuntime(),
                 localHostRuntime,
                 mailServerResolver,
-                messageIdResolver);
+                messageIdResolver,
+                maintenanceStore);
 
         Assert.AreEqual("a62b3c438efae3db", utilities.BlowfishEncrypt("secret"));
         Assert.AreEqual("e79ca726380cc3b1", utilities.BlowfishEncrypt("Hejsan"));
@@ -220,7 +271,10 @@ public sealed class UtilitiesComContractTests
         Assert.AreEqual(EInvalidArgument, invalid.ErrorCode);
         var messageIdDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.RetrieveMessageID("message.eml"));
+        var maintenanceDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid));
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -340,6 +394,28 @@ public sealed class UtilitiesComContractTests
                 messageIds.TryGetValue(fileName, out var messageId)
                     ? messageId
                     : 0);
+        }
+    }
+
+    private sealed class RecordingImapFolderUidMaintenanceStore
+        : IImapFolderUidMaintenanceStore
+    {
+        public bool Result { get; init; } = true;
+        public Exception? Exception { get; init; }
+        public int CallCount { get; private set; }
+        public CancellationToken CancellationToken { get; private set; }
+
+        public ValueTask<bool> RecalculateCurrentUidsAsync(
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            CancellationToken = cancellationToken;
+            if (Exception is not null)
+            {
+                throw Exception;
+            }
+
+            return ValueTask.FromResult(Result);
         }
     }
 }

@@ -110,6 +110,7 @@ public interface IInterfaceUtilities
 public sealed class Utilities : IInterfaceUtilities
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int EInvalidArgument = unchecked((int)0x80070057);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int LegacySha256SaltLength = 6;
@@ -143,6 +144,7 @@ public sealed class Utilities : IInterfaceUtilities
     private readonly ILocalHostRuntime? _localHostRuntime;
     private readonly IMailServerResolver? _mailServerResolver;
     private readonly IMessageIdResolver? _messageIdResolver;
+    private readonly IImapFolderUidMaintenanceStore? _imapFolderUidMaintenanceStore;
 
     public Utilities()
     {
@@ -153,13 +155,15 @@ public sealed class Utilities : IInterfaceUtilities
         ILegacyBlowfishCipher? blowfishCipher,
         ILocalHostRuntime? localHostRuntime,
         IMailServerResolver? mailServerResolver,
-        IMessageIdResolver? messageIdResolver)
+        IMessageIdResolver? messageIdResolver,
+        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore)
     {
         _isServerAdministrator = isServerAdministrator;
         _blowfishCipher = blowfishCipher;
         _localHostRuntime = localHostRuntime;
         _mailServerResolver = mailServerResolver;
         _messageIdResolver = messageIdResolver;
+        _imapFolderUidMaintenanceStore = imapFolderUidMaintenanceStore;
     }
 
     internal static Utilities CreateForApplication(
@@ -167,7 +171,8 @@ public sealed class Utilities : IInterfaceUtilities
         ILegacyBlowfishCipher? blowfishCipher,
         ILocalHostRuntime? localHostRuntime,
         IMailServerResolver? mailServerResolver,
-        IMessageIdResolver? messageIdResolver = null)
+        IMessageIdResolver? messageIdResolver = null,
+        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null)
     {
         ArgumentNullException.ThrowIfNull(isServerAdministrator);
         return new Utilities(
@@ -175,7 +180,8 @@ public sealed class Utilities : IInterfaceUtilities
             blowfishCipher,
             localHostRuntime,
             mailServerResolver,
-            messageIdResolver);
+            messageIdResolver,
+            imapFolderUidMaintenanceStore);
     }
 
     [ComVisible(false)]
@@ -183,7 +189,8 @@ public sealed class Utilities : IInterfaceUtilities
         ILegacyBlowfishCipher blowfishCipher,
         ILocalHostRuntime? localHostRuntime = null,
         IMailServerResolver? mailServerResolver = null,
-        IMessageIdResolver? messageIdResolver = null)
+        IMessageIdResolver? messageIdResolver = null,
+        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null)
     {
         ArgumentNullException.ThrowIfNull(blowfishCipher);
         return new Utilities(
@@ -191,7 +198,8 @@ public sealed class Utilities : IInterfaceUtilities
             blowfishCipher,
             localHostRuntime,
             mailServerResolver,
-            messageIdResolver);
+            messageIdResolver,
+            imapFolderUidMaintenanceStore);
     }
 
     public string GetMailServer(string emailAddress) =>
@@ -355,8 +363,44 @@ public sealed class Utilities : IInterfaceUtilities
                     && byte.TryParse(octet, NumberStyles.None, CultureInfo.InvariantCulture, out _));
     }
 
-    public void PerformMaintenance(ComMaintenanceOperation operation) =>
-        UnavailableForAdministrator();
+    public void PerformMaintenance(ComMaintenanceOperation operation)
+    {
+        EnsureServerAdministrator();
+        if (operation != ComMaintenanceOperation.UpdateImapFolderUid)
+        {
+            throw new COMException("Unknown maintenance operation.", EFail);
+        }
+
+        var store = _imapFolderUidMaintenanceStore;
+        if (store is null)
+        {
+            _ = Unavailable<object>();
+            return;
+        }
+
+        bool result;
+        try
+        {
+            result = store
+                .RecalculateCurrentUidsAsync(CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "The maintenance operation failed. Please see hMailServer log for details.",
+                EFail);
+        }
+
+        if (!result)
+        {
+            throw new COMException(
+                "The maintenance operation failed. Please see hMailServer log for details.",
+                EFail);
+        }
+    }
 
     private static string ComputeHashHex(HashAlgorithmName algorithmName, string value)
     {

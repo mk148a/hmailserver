@@ -32,11 +32,10 @@ public sealed class SqlServerMessageIndexingIntegrationTests
         try
         {
             await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
-            var store = new SqlServerMessageIndexingAdministrationStore(
-                new SqlServerConnectionFactory(testConnectionString));
+            var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
+            var store = new SqlServerMessageIndexingAdministrationStore(connectionFactory);
             MessageIndexingRuntimeHost.Configure(new StoreBackedMessageIndexingRuntime(store));
-            var messageFileNameLookup = new SqlServerMessageFileNameLookup(
-                new SqlServerConnectionFactory(testConnectionString));
+            var messageFileNameLookup = new SqlServerMessageFileNameLookup(connectionFactory);
             DatabaseAdministrationRuntimeHost.Configure(
                 new FixedDatabaseAdministrationStore(),
                 messageFileNameLookup);
@@ -44,12 +43,18 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"),
                 messageIdResolver: new StoreBackedMessageIdResolver(
                     messageFileNameLookup,
-                    @"C:\hMailServer\Data"));
+                    @"C:\hMailServer\Data"),
+                imapFolderUidMaintenanceStore:
+                    new SqlServerImapFolderUidMaintenanceStore(connectionFactory));
 
             Assert.IsNull(application.Authenticate("Administrator", "wrong"));
             var retrieveDenied = Assert.ThrowsExactly<COMException>(
                 () => application.Utilities.RetrieveMessageID("one.eml"));
+            var maintenanceDenied = Assert.ThrowsExactly<COMException>(
+                () => application.Utilities.PerformMaintenance(
+                    ComMaintenanceOperation.UpdateImapFolderUid));
             Assert.AreEqual(unchecked((int)0x80070005), retrieveDenied.ErrorCode);
+            Assert.AreEqual(unchecked((int)0x80070005), maintenanceDenied.ErrorCode);
             Assert.IsNotNull(application.Authenticate("administrator", "secret"));
             Assert.AreEqual("one.eml", application.Database.UtilGetFileNameByMessageID(1));
             Assert.AreEqual(string.Empty, application.Database.UtilGetFileNameByMessageID(999));
@@ -58,6 +63,9 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 1,
                 application.Utilities.RetrieveMessageID(@"C:\hMailServer\Data\one.eml"));
             Assert.AreEqual(0, application.Utilities.RetrieveMessageID("missing.eml"));
+            application.Utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid);
+            Assert.AreEqual(8, await GetFolderCurrentUidAsync(testConnectionString, 10));
+            Assert.AreEqual(20, await GetFolderCurrentUidAsync(testConnectionString, 11));
             var indexing = application.Settings.MessageIndexing;
             var extended = (IInterfaceMessageIndexing2)indexing;
 
@@ -1189,7 +1197,15 @@ CREATE TABLE dbo.hm_messages
 (
     messageid bigint NOT NULL PRIMARY KEY,
     messagetype int NOT NULL,
-    messagefilename nvarchar(255) NOT NULL
+    messagefilename nvarchar(255) NOT NULL,
+    messagefolderid bigint NOT NULL,
+    messageuid bigint NOT NULL
+);
+
+CREATE TABLE dbo.hm_imapfolders
+(
+    folderid bigint NOT NULL PRIMARY KEY,
+    foldercurrentuid bigint NOT NULL
 );
 
 CREATE TABLE dbo.hm_settings
@@ -1216,8 +1232,15 @@ CREATE TABLE dbo.hm_message_search_queue
     lasterror nvarchar(1024) NULL
 );
 
-INSERT INTO dbo.hm_messages (messageid, messagetype, messagefilename)
-VALUES (1, 2, N'one.eml'), (2, 2, N'two.eml'), (3, 3, N'queued.eml');
+INSERT INTO dbo.hm_messages
+    (messageid, messagetype, messagefilename, messagefolderid, messageuid)
+VALUES
+    (1, 2, N'one.eml', 10, 5),
+    (2, 2, N'two.eml', 10, 8),
+    (3, 3, N'queued.eml', 11, 9);
+
+INSERT INTO dbo.hm_imapfolders (folderid, foldercurrentuid)
+VALUES (10, 3), (11, 20);
 
 INSERT INTO dbo.hm_message_search_documents (messageid)
 VALUES (1);
@@ -1448,6 +1471,21 @@ VALUES
         await connection.OpenAsync().ConfigureAwait(false);
         await using var command = new SqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<long> GetFolderCurrentUidAsync(
+        string connectionString,
+        long folderId)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT foldercurrentuid FROM dbo.hm_imapfolders WHERE folderid = @FolderId;",
+            connection);
+        command.Parameters.Add("@FolderId", System.Data.SqlDbType.BigInt).Value = folderId;
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync().ConfigureAwait(false),
+            System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static async Task<long> GetGreyListingTripletCountAsync(string connectionString)
