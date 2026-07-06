@@ -10,6 +10,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class SystemSpfDnsResolverTests
 {
     private const ushort TypeA = 1;
+    private const ushort TypeCname = 5;
     private const ushort TypePtr = 12;
     private const ushort TypeMx = 15;
     private const ushort TypeTxt = 16;
@@ -62,6 +63,46 @@ public sealed class SystemSpfDnsResolverTests
         Assert.AreEqual("mx10.example.test", response.Records[0].Exchange);
         Assert.AreEqual(10, response.Records[0].Preference);
         Assert.AreEqual("mx20.example.test", response.Records[1].Exchange);
+    }
+
+    [TestMethod]
+    public async Task QueryMailServerDnsAsync_PreservesNullMxAndParsesCname()
+    {
+        var resolver = CreateResolver(
+            query =>
+            {
+                var id = ReadTransactionId(query);
+                var question = ReadQuestionName(query, out var type);
+                return type switch
+                {
+                    TypeMx => BuildResponse(
+                        id,
+                        question,
+                        type,
+                        new ResourceRecord(TypeMx, BuildMx(0, "."))),
+                    TypeCname => BuildResponse(
+                        id,
+                        question,
+                        type,
+                        new ResourceRecord(TypeCname, EncodeName("canonical.example.test"))),
+                    _ => BuildResponse(id, question, type)
+                };
+            });
+
+        var mxResponse = await resolver.QueryMailServerMxAsync(
+            "example.test",
+            CancellationToken.None);
+        var cnameResponse = await resolver.QueryMailServerCnameAsync(
+            "example.test",
+            CancellationToken.None);
+
+        Assert.AreEqual(MailServerDnsStatus.Success, mxResponse.Status);
+        Assert.AreEqual(".", mxResponse.Records[0].Exchange);
+        Assert.AreEqual(0, mxResponse.Records[0].Preference);
+        Assert.AreEqual(MailServerDnsStatus.Success, cnameResponse.Status);
+        CollectionAssert.AreEqual(
+            new[] { "canonical.example.test" },
+            cnameResponse.Records.ToArray());
     }
 
     [TestMethod]
@@ -229,7 +270,15 @@ public sealed class SystemSpfDnsResolverTests
     {
         var buffer = new List<byte>();
         WriteUInt16(buffer, preference);
-        buffer.AddRange(EncodeName(exchange));
+        if (exchange == ".")
+        {
+            buffer.Add(0);
+        }
+        else
+        {
+            buffer.AddRange(EncodeName(exchange));
+        }
+
         return buffer.ToArray();
     }
 

@@ -8,11 +8,12 @@ using System.Text;
 
 namespace HMailServer.Security;
 
-public sealed class SystemSpfDnsResolver : ISpfDnsResolver
+public sealed class SystemSpfDnsResolver : ISpfDnsResolver, IMailServerDnsResolver
 {
     private const int DnsPort = 53;
     private const ushort QueryFlags = 0x0100;
     private const ushort TypeA = 1;
+    private const ushort TypeCname = 5;
     private const ushort TypePtr = 12;
     private const ushort TypeMx = 15;
     private const ushort TypeTxt = 16;
@@ -87,6 +88,45 @@ public sealed class SystemSpfDnsResolver : ISpfDnsResolver
                     .ThenBy(static record => record.Exchange, StringComparer.OrdinalIgnoreCase)
                     .ToArray())
             : response;
+    }
+
+    public async ValueTask<MailServerDnsResponse<MailServerMxHost>> QueryMailServerMxAsync(
+        string domain,
+        CancellationToken cancellationToken)
+    {
+        var response = await QueryAsync(
+                domain,
+                TypeMx,
+                ReadMailServerMxRecord,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return ToMailServerDnsResponse(response);
+    }
+
+    public async ValueTask<MailServerDnsResponse<string>> QueryMailServerCnameAsync(
+        string domain,
+        CancellationToken cancellationToken)
+    {
+        var response = await QueryAsync(
+                domain,
+                TypeCname,
+                ReadNameRecord,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return ToMailServerDnsResponse(response);
+    }
+
+    public async ValueTask<MailServerDnsResponse<IPAddress>> QueryMailServerAddressesAsync(
+        string domain,
+        AddressFamily addressFamily,
+        CancellationToken cancellationToken)
+    {
+        var response = await QueryAddressesAsync(
+                domain,
+                addressFamily,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return ToMailServerDnsResponse(response);
     }
 
     public ValueTask<SpfDnsResponse<string>> QueryPtrAsync(
@@ -324,6 +364,43 @@ public sealed class SystemSpfDnsResolver : ISpfDnsResolver
         return new SpfMxHost(NormalizeRecordName(exchange), preference);
     }
 
+    private static MailServerMxHost? ReadMailServerMxRecord(
+        byte[] message,
+        int offset,
+        int length)
+    {
+        if (length < 3)
+        {
+            return null;
+        }
+
+        var end = offset + length;
+        var preference = BinaryPrimitives.ReadUInt16BigEndian(message.AsSpan(offset, 2));
+        offset += 2;
+        if (!TryReadName(message, ref offset, out var exchange) || offset > end)
+        {
+            return null;
+        }
+
+        var normalizedExchange = NormalizeRecordName(exchange);
+        if (normalizedExchange.Length == 0)
+        {
+            return preference == 0
+                ? new MailServerMxHost(".", preference)
+                : null;
+        }
+
+        return new MailServerMxHost(normalizedExchange, preference);
+    }
+
+    private static string? ReadNameRecord(byte[] message, int offset, int length)
+    {
+        var end = offset + length;
+        return TryReadName(message, ref offset, out var name) && offset <= end && name.Length > 0
+            ? NormalizeRecordName(name)
+            : null;
+    }
+
     private static string? ReadPtrRecord(byte[] message, int offset, int length)
     {
         var end = offset + length;
@@ -331,6 +408,16 @@ public sealed class SystemSpfDnsResolver : ISpfDnsResolver
             ? NormalizeRecordName(name)
             : null;
     }
+
+    private static MailServerDnsResponse<T> ToMailServerDnsResponse<T>(
+        SpfDnsResponse<T> response) =>
+        response.Status switch
+        {
+            SpfDnsStatus.Success => MailServerDnsResponse<T>.Success(response.Records.ToArray()),
+            SpfDnsStatus.NameError => MailServerDnsResponse<T>.NameError(),
+            SpfDnsStatus.TemporaryError => MailServerDnsResponse<T>.TemporaryError(),
+            _ => MailServerDnsResponse<T>.NoData()
+        };
 
     private static void WriteName(List<byte> buffer, string domainName)
     {

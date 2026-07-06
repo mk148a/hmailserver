@@ -78,6 +78,13 @@ public sealed class UtilitiesComContractTests
                 .ReturnParameter
                 .GetCustomAttribute<MarshalAsAttribute>()
                 ?.Value);
+        Assert.AreEqual(
+            UnmanagedType.BStr,
+            methods
+                .Single(static method => method.Name == nameof(IInterfaceUtilities.GetMailServer))
+                .ReturnParameter
+                .GetCustomAttribute<MarshalAsAttribute>()
+                ?.Value);
     }
 
     [TestMethod]
@@ -116,10 +123,12 @@ public sealed class UtilitiesComContractTests
     {
         var cipher = new RecordingLegacyBlowfishCipher();
         var localHostRuntime = new RecordingLocalHostRuntime("local.example.test");
+        var mailServerResolver = new RecordingMailServerResolver();
         var application = new Application(
             new RecordingAdministratorAuthenticationProvider("secret"),
             legacyBlowfishCipher: cipher,
-            localHostRuntime: localHostRuntime);
+            localHostRuntime: localHostRuntime,
+            mailServerResolver: mailServerResolver);
         var utilities = application.Utilities;
 
         Assert.AreEqual("dc647eb65e6711e155375218212b3964", utilities.MD5("Password"));
@@ -133,6 +142,12 @@ public sealed class UtilitiesComContractTests
         CollectionAssert.AreEqual(
             new[] { "local.example.test", "remote.example.test" },
             localHostRuntime.Calls);
+        Assert.AreEqual(
+            "resolved:user@example.test",
+            utilities.GetMailServer("user@example.test"));
+        CollectionAssert.AreEqual(
+            new[] { "user@example.test" },
+            mailServerResolver.Calls);
         var denied = Assert.ThrowsExactly<COMException>(() => utilities.MakeDependent("MSSQLSERVER"));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
 
@@ -154,8 +169,12 @@ public sealed class UtilitiesComContractTests
     public void RuntimeUtilities_ExposeLegacyBlowfishAndLocalHostWithoutAuthentication()
     {
         var localHostRuntime = new RecordingLocalHostRuntime("127.0.0.1");
+        var mailServerResolver = new RecordingMailServerResolver();
         IInterfaceUtilities utilities =
-            Utilities.CreateForRuntime(new LegacyBlowfishCipherRuntime(), localHostRuntime);
+            Utilities.CreateForRuntime(
+                new LegacyBlowfishCipherRuntime(),
+                localHostRuntime,
+                mailServerResolver);
 
         Assert.AreEqual("a62b3c438efae3db", utilities.BlowfishEncrypt("secret"));
         Assert.AreEqual("e79ca726380cc3b1", utilities.BlowfishEncrypt("Hejsan"));
@@ -165,6 +184,9 @@ public sealed class UtilitiesComContractTests
         Assert.AreEqual("secret", utilities.BlowfishDecrypt("a62b3c438efae3db"));
         Assert.IsTrue(utilities.IsLocalHost("127.0.0.1"));
         Assert.IsFalse(utilities.IsLocalHost("192.0.2.1"));
+        Assert.AreEqual(
+            "resolved:user@example.test",
+            utilities.GetMailServer("user@example.test"));
 
         var latin1 = "p\u00E4ssw\u00F6rd";
         Assert.AreEqual(latin1, utilities.BlowfishDecrypt(utilities.BlowfishEncrypt(latin1)));
@@ -262,6 +284,17 @@ public sealed class UtilitiesComContractTests
         {
             Calls.Add(hostName);
             return string.Equals(hostName, localHost, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private sealed class RecordingMailServerResolver : IMailServerResolver
+    {
+        public List<string> Calls { get; } = [];
+
+        public string GetMailServer(string emailAddress)
+        {
+            Calls.Add(emailAddress);
+            return $"resolved:{emailAddress}";
         }
     }
 }

@@ -18,6 +18,7 @@ public sealed class Application : IInterfaceApplication
     private readonly IBackupArchiveMetadataReader? _backupArchiveMetadataReader;
     private readonly ILegacyBlowfishCipher? _legacyBlowfishCipher;
     private readonly ILocalHostRuntime? _localHostRuntime;
+    private readonly IMailServerResolver? _mailServerResolver;
     private bool _isServerAdministrator;
 
     public Application()
@@ -28,24 +29,28 @@ public sealed class Application : IInterfaceApplication
         IServerAdministratorAuthenticationProvider authenticationProvider,
         IBackupArchiveMetadataReader? backupArchiveMetadataReader = null,
         ILegacyBlowfishCipher? legacyBlowfishCipher = null,
-        ILocalHostRuntime? localHostRuntime = null)
+        ILocalHostRuntime? localHostRuntime = null,
+        IMailServerResolver? mailServerResolver = null)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
         _backupArchiveMetadataReader = backupArchiveMetadataReader;
         _legacyBlowfishCipher = legacyBlowfishCipher;
         _localHostRuntime = localHostRuntime;
+        _mailServerResolver = mailServerResolver;
     }
 
     [ComVisible(false)]
     public static Application CreateForRuntime(
         IServerAdministratorAuthenticationProvider authenticationProvider,
         ILegacyBlowfishCipher? legacyBlowfishCipher = null,
-        ILocalHostRuntime? localHostRuntime = null) =>
+        ILocalHostRuntime? localHostRuntime = null,
+        IMailServerResolver? mailServerResolver = null) =>
         new(
             authenticationProvider,
             legacyBlowfishCipher: legacyBlowfishCipher,
-            localHostRuntime: localHostRuntime);
+            localHostRuntime: localHostRuntime,
+            mailServerResolver: mailServerResolver);
 
     public IInterfaceSettings Settings
     {
@@ -81,7 +86,8 @@ public sealed class Application : IInterfaceApplication
         HMailServer.ComInterop.Utilities.CreateForApplication(
             () => _isServerAdministrator,
             _legacyBlowfishCipher,
-            _localHostRuntime);
+            _localHostRuntime,
+            _mailServerResolver);
 
     public IInterfaceStatus Status
     {

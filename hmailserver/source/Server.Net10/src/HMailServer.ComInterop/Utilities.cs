@@ -141,6 +141,7 @@ public sealed class Utilities : IInterfaceUtilities
     private readonly Func<bool>? _isServerAdministrator;
     private readonly ILegacyBlowfishCipher? _blowfishCipher;
     private readonly ILocalHostRuntime? _localHostRuntime;
+    private readonly IMailServerResolver? _mailServerResolver;
 
     public Utilities()
     {
@@ -149,32 +150,45 @@ public sealed class Utilities : IInterfaceUtilities
     private Utilities(
         Func<bool>? isServerAdministrator,
         ILegacyBlowfishCipher? blowfishCipher,
-        ILocalHostRuntime? localHostRuntime)
+        ILocalHostRuntime? localHostRuntime,
+        IMailServerResolver? mailServerResolver)
     {
         _isServerAdministrator = isServerAdministrator;
         _blowfishCipher = blowfishCipher;
         _localHostRuntime = localHostRuntime;
+        _mailServerResolver = mailServerResolver;
     }
 
     internal static Utilities CreateForApplication(
         Func<bool> isServerAdministrator,
         ILegacyBlowfishCipher? blowfishCipher,
-        ILocalHostRuntime? localHostRuntime)
+        ILocalHostRuntime? localHostRuntime,
+        IMailServerResolver? mailServerResolver)
     {
         ArgumentNullException.ThrowIfNull(isServerAdministrator);
-        return new Utilities(isServerAdministrator, blowfishCipher, localHostRuntime);
+        return new Utilities(
+            isServerAdministrator,
+            blowfishCipher,
+            localHostRuntime,
+            mailServerResolver);
     }
 
     [ComVisible(false)]
     public static Utilities CreateForRuntime(
         ILegacyBlowfishCipher blowfishCipher,
-        ILocalHostRuntime? localHostRuntime = null)
+        ILocalHostRuntime? localHostRuntime = null,
+        IMailServerResolver? mailServerResolver = null)
     {
         ArgumentNullException.ThrowIfNull(blowfishCipher);
-        return new Utilities(isServerAdministrator: null, blowfishCipher, localHostRuntime);
+        return new Utilities(
+            isServerAdministrator: null,
+            blowfishCipher,
+            localHostRuntime,
+            mailServerResolver);
     }
 
-    public string GetMailServer(string emailAddress) => Unavailable<string>();
+    public string GetMailServer(string emailAddress) =>
+        _mailServerResolver?.GetMailServer(emailAddress ?? string.Empty) ?? Unavailable<string>();
 
     public bool IsValidEmailAddress(string emailAddress)
     {

@@ -12,11 +12,13 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
     public ComLocalServerHostedService(
         IServerAdministratorAuthenticationProvider authenticationProvider,
         ILegacyBlowfishCipher legacyBlowfishCipher,
-        ILocalHostRuntime localHostRuntime)
+        ILocalHostRuntime localHostRuntime,
+        IMailServerResolver mailServerResolver)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         ArgumentNullException.ThrowIfNull(legacyBlowfishCipher);
         ArgumentNullException.ThrowIfNull(localHostRuntime);
+        ArgumentNullException.ThrowIfNull(mailServerResolver);
 
         _host = new ComLocalServerHost(
             new ComLocalServerRegistration(
@@ -24,13 +26,17 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 () => Application.CreateForRuntime(
                     authenticationProvider,
                     legacyBlowfishCipher,
-                    localHostRuntime)),
+                    localHostRuntime,
+                    mailServerResolver)),
             new ComLocalServerRegistration(
                 typeof(Database).GUID,
                 static () => new Database()),
             new ComLocalServerRegistration(
                 typeof(Utilities).GUID,
-                () => Utilities.CreateForRuntime(legacyBlowfishCipher, localHostRuntime)),
+                () => Utilities.CreateForRuntime(
+                    legacyBlowfishCipher,
+                    localHostRuntime,
+                    mailServerResolver)),
             new ComLocalServerRegistration(
                 typeof(Links).GUID,
                 static () => new Links()),

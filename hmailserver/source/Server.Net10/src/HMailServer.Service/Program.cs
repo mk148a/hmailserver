@@ -614,6 +614,10 @@ builder.Services.AddSingleton<ILegacyBlowfishCipher, LegacyBlowfishCipherRuntime
 builder.Services.AddSingleton<IDnsAddressResolver, SystemDnsAddressResolver>();
 builder.Services.AddSingleton<ILocalIpAddressProvider, SystemLocalIpAddressProvider>();
 builder.Services.AddSingleton<ILocalHostRuntime, SystemLocalHostRuntime>();
+builder.Services.AddSingleton<SystemSpfDnsResolver>();
+builder.Services.AddSingleton<IMailServerDnsResolver>(static serviceProvider =>
+    serviceProvider.GetRequiredService<SystemSpfDnsResolver>());
+builder.Services.AddSingleton<IMailServerResolver, SystemMailServerResolver>();
 builder.Services.AddSingleton(attachmentPolicyOptions);
 builder.Services.AddSingleton(dnsBlockListOptions);
 builder.Services.AddSingleton(reverseDnsOptions);
@@ -647,7 +651,8 @@ if (spamPolicyEnabled)
 }
 if (spfPolicyEnabled || dmarcPolicyEnabled)
 {
-    builder.Services.AddSingleton<ISpfDnsResolver, SystemSpfDnsResolver>();
+    builder.Services.AddSingleton<ISpfDnsResolver>(static serviceProvider =>
+        serviceProvider.GetRequiredService<SystemSpfDnsResolver>());
 }
 if (spfPolicyEnabled)
 {
