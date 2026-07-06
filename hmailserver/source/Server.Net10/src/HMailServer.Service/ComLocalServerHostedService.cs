@@ -15,7 +15,8 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
         ILocalHostRuntime localHostRuntime,
         IMailServerResolver mailServerResolver,
         IMessageIdResolver messageIdResolver,
-        IImapFolderUidMaintenanceStore imapFolderUidMaintenanceStore)
+        IImapFolderUidMaintenanceStore imapFolderUidMaintenanceStore,
+        IServiceDependencyRuntime serviceDependencyRuntime)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         ArgumentNullException.ThrowIfNull(legacyBlowfishCipher);
@@ -23,6 +24,7 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
         ArgumentNullException.ThrowIfNull(mailServerResolver);
         ArgumentNullException.ThrowIfNull(messageIdResolver);
         ArgumentNullException.ThrowIfNull(imapFolderUidMaintenanceStore);
+        ArgumentNullException.ThrowIfNull(serviceDependencyRuntime);
 
         _host = new ComLocalServerHost(
             new ComLocalServerRegistration(
@@ -33,7 +35,8 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                     localHostRuntime,
                     mailServerResolver,
                     messageIdResolver,
-                    imapFolderUidMaintenanceStore)),
+                    imapFolderUidMaintenanceStore,
+                    serviceDependencyRuntime)),
             new ComLocalServerRegistration(
                 typeof(Database).GUID,
                 static () => new Database()),
@@ -44,7 +47,8 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                     localHostRuntime,
                     mailServerResolver,
                     messageIdResolver,
-                    imapFolderUidMaintenanceStore)),
+                    imapFolderUidMaintenanceStore,
+                    serviceDependencyRuntime)),
             new ComLocalServerRegistration(
                 typeof(Links).GUID,
                 static () => new Links()),

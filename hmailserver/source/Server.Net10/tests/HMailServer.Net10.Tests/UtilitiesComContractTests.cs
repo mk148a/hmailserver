@@ -142,13 +142,15 @@ public sealed class UtilitiesComContractTests
                 ["message.eml"] = 0x1_0000_0001
             });
         var maintenanceStore = new RecordingImapFolderUidMaintenanceStore();
+        var serviceDependencyRuntime = new RecordingServiceDependencyRuntime();
         var application = new Application(
             new RecordingAdministratorAuthenticationProvider("secret"),
             legacyBlowfishCipher: cipher,
             localHostRuntime: localHostRuntime,
             mailServerResolver: mailServerResolver,
             messageIdResolver: messageIdResolver,
-            imapFolderUidMaintenanceStore: maintenanceStore);
+            imapFolderUidMaintenanceStore: maintenanceStore,
+            serviceDependencyRuntime: serviceDependencyRuntime);
         var utilities = application.Utilities;
 
         Assert.AreEqual("dc647eb65e6711e155375218212b3964", utilities.MD5("Password"));
@@ -187,8 +189,11 @@ public sealed class UtilitiesComContractTests
         utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid);
         Assert.AreEqual(1, maintenanceStore.CallCount);
         Assert.IsFalse(maintenanceStore.CancellationToken.CanBeCanceled);
+        utilities.MakeDependent("MSSQLSERVER");
+        CollectionAssert.AreEqual(
+            new[] { "MSSQLSERVER" },
+            serviceDependencyRuntime.Calls);
 
-        AssertOperationPending(() => utilities.MakeDependent("MSSQLSERVER"));
         AssertOperationPending(() => _ = utilities.ImportMessageFromFile("message.eml", 1));
         AssertOperationPending(
             () => _ = utilities.EmailAllAccounts("*@example.test", "admin@example.test", "Admin", "Subject", "Body"));
@@ -237,6 +242,24 @@ public sealed class UtilitiesComContractTests
     }
 
     [TestMethod]
+    public void ApplicationUtilities_MapsServiceDependencyExceptionToLegacyFailure()
+    {
+        var runtime = new RecordingServiceDependencyRuntime
+        {
+            Exception = new InvalidOperationException("service control unavailable")
+        };
+        var application = new Application(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            serviceDependencyRuntime: runtime);
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => application.Utilities.MakeDependent("MSSQLSERVER"));
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
+    }
+
+    [TestMethod]
     public void RuntimeUtilities_ExposeLegacyBlowfishAndLocalHostWithoutAuthentication()
     {
         var localHostRuntime = new RecordingLocalHostRuntime("127.0.0.1");
@@ -244,13 +267,15 @@ public sealed class UtilitiesComContractTests
         var messageIdResolver = new RecordingMessageIdResolver(
             new Dictionary<string, long> { ["message.eml"] = 1 });
         var maintenanceStore = new RecordingImapFolderUidMaintenanceStore();
+        var serviceDependencyRuntime = new RecordingServiceDependencyRuntime();
         IInterfaceUtilities utilities =
             Utilities.CreateForRuntime(
                 new LegacyBlowfishCipherRuntime(),
                 localHostRuntime,
                 mailServerResolver,
                 messageIdResolver,
-                maintenanceStore);
+                maintenanceStore,
+                serviceDependencyRuntime);
 
         Assert.AreEqual("a62b3c438efae3db", utilities.BlowfishEncrypt("secret"));
         Assert.AreEqual("e79ca726380cc3b1", utilities.BlowfishEncrypt("Hejsan"));
@@ -273,8 +298,11 @@ public sealed class UtilitiesComContractTests
             () => utilities.RetrieveMessageID("message.eml"));
         var maintenanceDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid));
+        var dependencyDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.MakeDependent("MSSQLSERVER"));
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, dependencyDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -416,6 +444,21 @@ public sealed class UtilitiesComContractTests
             }
 
             return ValueTask.FromResult(Result);
+        }
+    }
+
+    private sealed class RecordingServiceDependencyRuntime : IServiceDependencyRuntime
+    {
+        public Exception? Exception { get; init; }
+        public List<string> Calls { get; } = [];
+
+        public void MakeDependent(string otherService)
+        {
+            Calls.Add(otherService);
+            if (Exception is not null)
+            {
+                throw Exception;
+            }
         }
     }
 }

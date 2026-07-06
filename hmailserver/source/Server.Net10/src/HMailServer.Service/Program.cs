@@ -837,6 +837,7 @@ builder.Services.AddSingleton<IMessageIdResolver>(serviceProvider =>
         serviceProvider.GetRequiredService<IMessageFileNameLookup>(),
         dataDirectory));
 builder.Services.AddSingleton<IImapFolderUidMaintenanceStore, SqlServerImapFolderUidMaintenanceStore>();
+builder.Services.AddSingleton<IServiceDependencyRuntime, WindowsServiceDependencyRuntime>();
 builder.Services.AddSingleton<ServerStatusRuntimeState>();
 builder.Services.AddSingleton<IApplicationRuntimeStore>(
     serviceProvider => new ServerApplicationRuntimeStore(

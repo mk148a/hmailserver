@@ -145,6 +145,7 @@ public sealed class Utilities : IInterfaceUtilities
     private readonly IMailServerResolver? _mailServerResolver;
     private readonly IMessageIdResolver? _messageIdResolver;
     private readonly IImapFolderUidMaintenanceStore? _imapFolderUidMaintenanceStore;
+    private readonly IServiceDependencyRuntime? _serviceDependencyRuntime;
 
     public Utilities()
     {
@@ -156,7 +157,8 @@ public sealed class Utilities : IInterfaceUtilities
         ILocalHostRuntime? localHostRuntime,
         IMailServerResolver? mailServerResolver,
         IMessageIdResolver? messageIdResolver,
-        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore)
+        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore,
+        IServiceDependencyRuntime? serviceDependencyRuntime)
     {
         _isServerAdministrator = isServerAdministrator;
         _blowfishCipher = blowfishCipher;
@@ -164,6 +166,7 @@ public sealed class Utilities : IInterfaceUtilities
         _mailServerResolver = mailServerResolver;
         _messageIdResolver = messageIdResolver;
         _imapFolderUidMaintenanceStore = imapFolderUidMaintenanceStore;
+        _serviceDependencyRuntime = serviceDependencyRuntime;
     }
 
     internal static Utilities CreateForApplication(
@@ -172,7 +175,8 @@ public sealed class Utilities : IInterfaceUtilities
         ILocalHostRuntime? localHostRuntime,
         IMailServerResolver? mailServerResolver,
         IMessageIdResolver? messageIdResolver = null,
-        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null)
+        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
+        IServiceDependencyRuntime? serviceDependencyRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(isServerAdministrator);
         return new Utilities(
@@ -181,7 +185,8 @@ public sealed class Utilities : IInterfaceUtilities
             localHostRuntime,
             mailServerResolver,
             messageIdResolver,
-            imapFolderUidMaintenanceStore);
+            imapFolderUidMaintenanceStore,
+            serviceDependencyRuntime);
     }
 
     [ComVisible(false)]
@@ -190,7 +195,8 @@ public sealed class Utilities : IInterfaceUtilities
         ILocalHostRuntime? localHostRuntime = null,
         IMailServerResolver? mailServerResolver = null,
         IMessageIdResolver? messageIdResolver = null,
-        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null)
+        IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
+        IServiceDependencyRuntime? serviceDependencyRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(blowfishCipher);
         return new Utilities(
@@ -199,7 +205,8 @@ public sealed class Utilities : IInterfaceUtilities
             localHostRuntime,
             mailServerResolver,
             messageIdResolver,
-            imapFolderUidMaintenanceStore);
+            imapFolderUidMaintenanceStore,
+            serviceDependencyRuntime);
     }
 
     public string GetMailServer(string emailAddress) =>
@@ -242,7 +249,27 @@ public sealed class Utilities : IInterfaceUtilities
         return output;
     }
 
-    public void MakeDependent(string otherService) => UnavailableForAdministrator();
+    public void MakeDependent(string otherService)
+    {
+        EnsureServerAdministrator();
+        var runtime = _serviceDependencyRuntime;
+        if (runtime is null)
+        {
+            _ = Unavailable<object>();
+            return;
+        }
+
+        try
+        {
+            runtime.MakeDependent(otherService ?? string.Empty);
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "The service dependency could not be updated.",
+                EFail);
+        }
+    }
 
     public bool ImportMessageFromFile(string filename, int accountId) =>
         UnavailableForAdministrator<bool>();
