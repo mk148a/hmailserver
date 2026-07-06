@@ -4,6 +4,7 @@ using HMailServer.Delivery;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
+using MimeKit;
 using System.Runtime.InteropServices;
 
 namespace HMailServer.Net10.Tests;
@@ -94,6 +95,115 @@ public sealed class SqlServerMessageIndexingIntegrationTests
         {
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task AuthenticatedComPath_QueuesLegacyEmailAllAccountsMessage()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-mass-mail-{Guid.NewGuid():N}");
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        Directory.CreateDirectory(dataDirectory);
+
+        try
+        {
+            await CreateEmailAllAccountsSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
+            var wakeSignal = new RecordingWakeSignal();
+            var queueWriter = new SignalingSmtpQueueWriter(
+                new SqlServerSmtpQueueWriter(
+                    connectionFactory,
+                    new MessageFilePathResolver(
+                        new MessageFileSearchDocumentSourceOptions(dataDirectory))),
+                wakeSignal);
+            var runtime = new StoreBackedEmailAllAccountsRuntime(
+                new SqlServerEmailAllAccountsRecipientStore(connectionFactory),
+                queueWriter,
+                new FixedTimeProvider(
+                    new DateTimeOffset(2026, 7, 6, 12, 34, 56, TimeSpan.Zero)));
+            var application = Application.CreateForRuntime(
+                new LegacyServerAdministratorAuthenticationProvider(
+                    "5ebe2294ecd0e0f08eab7690d2a6ee69"),
+                emailAllAccountsRuntime: runtime);
+
+            var denied = Assert.ThrowsExactly<COMException>(
+                () => application.Utilities.EmailAllAccounts(
+                    "*@active.test",
+                    "admin@active.test",
+                    "Administrator",
+                    "Maintenance",
+                    "Planned work"));
+            Assert.AreEqual(unchecked((int)0x80070005), denied.ErrorCode);
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+
+            Assert.IsTrue(
+                application.Utilities.EmailAllAccounts(
+                    "*@active.test",
+                    "admin@active.test",
+                    "Administrator",
+                    "Maintenance",
+                    "Planned work"));
+
+            var snapshot = await GetMassMailSnapshotAsync(testConnectionString).ConfigureAwait(false);
+            Assert.AreEqual(1, snapshot.MessageCount);
+            Assert.AreEqual(1, snapshot.MessageType);
+            Assert.AreEqual(0, snapshot.MessageLocked);
+            Assert.AreEqual(string.Empty, snapshot.MessageFrom);
+            CollectionAssert.AreEqual(
+                new[] { "alias@active.test", "alice@active.test" },
+                snapshot.Recipients.Select(static recipient => recipient.Address).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { 4, 1 },
+                snapshot.Recipients.Select(static recipient => recipient.AccountId).ToArray());
+            Assert.IsTrue(snapshot.Recipients.All(static recipient => recipient.OriginalAddress.Length == 0));
+            Assert.AreEqual(1, wakeSignal.SignalCount);
+
+            var messagePath = Path.Combine(dataDirectory, snapshot.MessageFileName);
+            Assert.IsTrue(File.Exists(messagePath));
+            await using (var stream = File.OpenRead(messagePath))
+            {
+                var message = await MimeMessage.LoadAsync(stream).ConfigureAwait(false);
+                Assert.AreEqual("Maintenance", message.Subject);
+                Assert.AreEqual("Planned work\r\n", message.TextBody);
+                Assert.AreEqual("Administrator", message.From.Mailboxes.Single().Name);
+                Assert.AreEqual("admin@active.test", message.From.Mailboxes.Single().Address);
+            }
+
+            Assert.IsTrue(
+                application.Utilities.EmailAllAccounts(
+                    "nobody@*",
+                    "admin@active.test",
+                    "Administrator",
+                    "No recipients",
+                    "Still queued"));
+            Assert.AreEqual(
+                2,
+                await GetQueuedMessageCountAsync(testConnectionString).ConfigureAwait(false));
+            Assert.AreEqual(
+                2,
+                await GetQueuedRecipientCountAsync(testConnectionString).ConfigureAwait(false));
+            Assert.AreEqual(2, wakeSignal.SignalCount);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(dataDirectory))
+            {
+                Directory.Delete(dataDirectory, recursive: true);
+            }
         }
     }
 
@@ -1252,6 +1362,146 @@ VALUES (1);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 
+    private static async Task CreateEmailAllAccountsSchemaAndSeedAsync(string connectionString)
+    {
+        const string sql = """
+CREATE TABLE dbo.hm_domains
+(
+    domainid int NOT NULL PRIMARY KEY,
+    domainname nvarchar(255) NOT NULL,
+    domainactive tinyint NOT NULL
+);
+
+CREATE TABLE dbo.hm_accounts
+(
+    accountid int NOT NULL PRIMARY KEY,
+    accountdomainid int NOT NULL,
+    accountaddress nvarchar(255) NOT NULL,
+    accountactive tinyint NOT NULL
+);
+
+CREATE TABLE dbo.hm_messages
+(
+    messageid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+    messageaccountid int NOT NULL,
+    messagefolderid bigint NOT NULL,
+    messagefilename nvarchar(255) NOT NULL,
+    messagetype int NOT NULL,
+    messagefrom nvarchar(255) NOT NULL,
+    messagesize bigint NOT NULL,
+    messagecurnooftries int NOT NULL,
+    messagenexttrytime datetime NOT NULL,
+    messageflags tinyint NOT NULL,
+    messagecreatetime datetime NOT NULL,
+    messagelocked tinyint NOT NULL,
+    messageuid bigint NOT NULL,
+    messageruleforcedrouteid int NULL,
+    messagerulebindaddress nvarchar(64) NULL
+);
+
+CREATE TABLE dbo.hm_messagerecipients
+(
+    recipientmessageid bigint NOT NULL,
+    recipientaddress nvarchar(255) NOT NULL,
+    recipientlocalaccountid int NOT NULL,
+    recipientoriginaladdress nvarchar(255) NOT NULL
+);
+
+INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
+VALUES
+    (10, N'active.test', 1),
+    (20, N'disabled.test', 0);
+
+INSERT INTO dbo.hm_accounts (accountid, accountdomainid, accountaddress, accountactive)
+VALUES
+    (1, 10, N'alice@active.test', 1),
+    (2, 10, N'bob@active.test', 0),
+    (3, 20, N'carol@disabled.test', 1),
+    (4, 20, N'alias@active.test', 1),
+    (5, 10, N'missing@missing.test', 1);
+""";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<MassMailSnapshot> GetMassMailSnapshotAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var messageCommand = new SqlCommand(
+            """
+SELECT TOP (1)
+    messageid,
+    messagefilename,
+    messagefrom,
+    messagetype,
+    messagelocked
+FROM dbo.hm_messages
+ORDER BY messageid ASC;
+""",
+            connection);
+        await using var messageReader = await messageCommand.ExecuteReaderAsync().ConfigureAwait(false);
+        Assert.IsTrue(await messageReader.ReadAsync().ConfigureAwait(false));
+        var messageId = messageReader.GetInt64(0);
+        var messageFileName = messageReader.GetString(1);
+        var messageFrom = messageReader.GetString(2);
+        var messageType = messageReader.GetInt32(3);
+        var messageLocked = Convert.ToInt32(
+            messageReader.GetValue(4),
+            System.Globalization.CultureInfo.InvariantCulture);
+        await messageReader.DisposeAsync().ConfigureAwait(false);
+
+        await using var recipientCommand = new SqlCommand(
+            """
+SELECT
+    recipientaddress,
+    recipientlocalaccountid,
+    recipientoriginaladdress
+FROM dbo.hm_messagerecipients
+WHERE recipientmessageid = @MessageId
+ORDER BY recipientaddress ASC;
+""",
+            connection);
+        recipientCommand.Parameters.Add("@MessageId", System.Data.SqlDbType.BigInt).Value = messageId;
+        await using var recipientReader = await recipientCommand.ExecuteReaderAsync().ConfigureAwait(false);
+        var recipients = new List<MassMailRecipient>();
+        while (await recipientReader.ReadAsync().ConfigureAwait(false))
+        {
+            recipients.Add(
+                new MassMailRecipient(
+                    recipientReader.GetString(0),
+                    recipientReader.GetInt32(1),
+                    recipientReader.GetString(2)));
+        }
+
+        return new MassMailSnapshot(
+            await GetQueuedMessageCountAsync(connectionString).ConfigureAwait(false),
+            messageFileName,
+            messageFrom,
+            messageType,
+            messageLocked,
+            recipients);
+    }
+
+    private static async Task<long> GetQueuedMessageCountAsync(string connectionString) =>
+        await GetCountAsync(connectionString, "dbo.hm_messages").ConfigureAwait(false);
+
+    private static async Task<long> GetQueuedRecipientCountAsync(string connectionString) =>
+        await GetCountAsync(connectionString, "dbo.hm_messagerecipients").ConfigureAwait(false);
+
+    private static async Task<long> GetCountAsync(string connectionString, string tableName)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand($"SELECT COUNT_BIG(*) FROM {tableName};", connection);
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync().ConfigureAwait(false),
+            System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     private static async Task CreateSettingsSchemaAndSeedAsync(string connectionString)
     {
         const string sql = """
@@ -2328,6 +2578,37 @@ VALUES
             $"ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{databaseName}];",
             connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private sealed record MassMailSnapshot(
+        long MessageCount,
+        string MessageFileName,
+        string MessageFrom,
+        int MessageType,
+        int MessageLocked,
+        IReadOnlyList<MassMailRecipient> Recipients);
+
+    private sealed record MassMailRecipient(
+        string Address,
+        int AccountId,
+        string OriginalAddress);
+
+    private sealed class RecordingWakeSignal : IDeliveryQueueWakeSignal
+    {
+        public int SignalCount { get; private set; }
+
+        public void Signal() => SignalCount++;
+
+        public ValueTask<bool> WaitAsync(
+            TimeSpan timeout,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
     }
 
     private sealed class FixedSettingsAdministrationStore : ISettingsAdministrationStore

@@ -125,9 +125,13 @@ public sealed class UtilitiesComContractTests
             () => utilities.RetrieveMessageID("message.eml"));
         var maintenanceDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid));
+        var massMailDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.EmailAllAccounts(
+                "*", "admin@example.test", "Admin", "Subject", "Body"));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, massMailDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -143,6 +147,7 @@ public sealed class UtilitiesComContractTests
             });
         var maintenanceStore = new RecordingImapFolderUidMaintenanceStore();
         var serviceDependencyRuntime = new RecordingServiceDependencyRuntime();
+        var emailAllAccountsRuntime = new RecordingEmailAllAccountsRuntime();
         var application = new Application(
             new RecordingAdministratorAuthenticationProvider("secret"),
             legacyBlowfishCipher: cipher,
@@ -150,7 +155,8 @@ public sealed class UtilitiesComContractTests
             mailServerResolver: mailServerResolver,
             messageIdResolver: messageIdResolver,
             imapFolderUidMaintenanceStore: maintenanceStore,
-            serviceDependencyRuntime: serviceDependencyRuntime);
+            serviceDependencyRuntime: serviceDependencyRuntime,
+            emailAllAccountsRuntime: emailAllAccountsRuntime);
         var utilities = application.Utilities;
 
         Assert.AreEqual("dc647eb65e6711e155375218212b3964", utilities.MD5("Password"));
@@ -175,9 +181,13 @@ public sealed class UtilitiesComContractTests
             () => utilities.RetrieveMessageID("message.eml"));
         var maintenanceDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid));
+        var massMailDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.EmailAllAccounts(
+                "*", "admin@example.test", "Admin", "Subject", "Body"));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, massMailDenied.ErrorCode);
 
         Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
 
@@ -193,10 +203,23 @@ public sealed class UtilitiesComContractTests
         CollectionAssert.AreEqual(
             new[] { "MSSQLSERVER" },
             serviceDependencyRuntime.Calls);
+        Assert.IsTrue(
+            utilities.EmailAllAccounts(
+                "*@example.test",
+                "admin@example.test",
+                "Admin",
+                "Subject",
+                "Body"));
+        Assert.AreEqual(
+            new EmailAllAccountsCall(
+                "*@example.test",
+                "admin@example.test",
+                "Admin",
+                "Subject",
+                "Body"),
+            emailAllAccountsRuntime.Calls.Single());
 
         AssertOperationPending(() => _ = utilities.ImportMessageFromFile("message.eml", 1));
-        AssertOperationPending(
-            () => _ = utilities.EmailAllAccounts("*@example.test", "admin@example.test", "Admin", "Subject", "Body"));
         AssertOperationPending(() => utilities.RunTestSuite("I know what I am doing."));
         AssertOperationPending(
             () => _ = utilities.ImportMessageFromFileToIMAPFolder("message.eml", 1, "Inbox"));
@@ -260,6 +283,20 @@ public sealed class UtilitiesComContractTests
     }
 
     [TestMethod]
+    public void ApplicationUtilities_ReturnsContainedMassMailRuntimeFailure()
+    {
+        var runtime = new RecordingEmailAllAccountsRuntime { Result = false };
+        var application = new Application(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            emailAllAccountsRuntime: runtime);
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        Assert.IsFalse(
+            application.Utilities.EmailAllAccounts(
+                "*", "admin@example.test", "Admin", "Subject", "Body"));
+    }
+
+    [TestMethod]
     public void RuntimeUtilities_ExposeLegacyBlowfishAndLocalHostWithoutAuthentication()
     {
         var localHostRuntime = new RecordingLocalHostRuntime("127.0.0.1");
@@ -268,6 +305,7 @@ public sealed class UtilitiesComContractTests
             new Dictionary<string, long> { ["message.eml"] = 1 });
         var maintenanceStore = new RecordingImapFolderUidMaintenanceStore();
         var serviceDependencyRuntime = new RecordingServiceDependencyRuntime();
+        var emailAllAccountsRuntime = new RecordingEmailAllAccountsRuntime();
         IInterfaceUtilities utilities =
             Utilities.CreateForRuntime(
                 new LegacyBlowfishCipherRuntime(),
@@ -275,7 +313,8 @@ public sealed class UtilitiesComContractTests
                 mailServerResolver,
                 messageIdResolver,
                 maintenanceStore,
-                serviceDependencyRuntime);
+                serviceDependencyRuntime,
+                emailAllAccountsRuntime);
 
         Assert.AreEqual("a62b3c438efae3db", utilities.BlowfishEncrypt("secret"));
         Assert.AreEqual("e79ca726380cc3b1", utilities.BlowfishEncrypt("Hejsan"));
@@ -300,9 +339,13 @@ public sealed class UtilitiesComContractTests
             () => utilities.PerformMaintenance(ComMaintenanceOperation.UpdateImapFolderUid));
         var dependencyDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.MakeDependent("MSSQLSERVER"));
+        var massMailDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.EmailAllAccounts(
+                "*", "admin@example.test", "Admin", "Subject", "Body"));
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, dependencyDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, massMailDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -461,4 +504,35 @@ public sealed class UtilitiesComContractTests
             }
         }
     }
+
+    private sealed class RecordingEmailAllAccountsRuntime : IEmailAllAccountsRuntime
+    {
+        public bool Result { get; init; } = true;
+        public List<EmailAllAccountsCall> Calls { get; } = [];
+
+        public ValueTask<bool> EmailAllAccountsAsync(
+            string recipientWildcard,
+            string fromAddress,
+            string fromName,
+            string subject,
+            string body,
+            CancellationToken cancellationToken)
+        {
+            Calls.Add(
+                new EmailAllAccountsCall(
+                    recipientWildcard,
+                    fromAddress,
+                    fromName,
+                    subject,
+                    body));
+            return ValueTask.FromResult(Result);
+        }
+    }
+
+    private sealed record EmailAllAccountsCall(
+        string RecipientWildcard,
+        string FromAddress,
+        string FromName,
+        string Subject,
+        string Body);
 }

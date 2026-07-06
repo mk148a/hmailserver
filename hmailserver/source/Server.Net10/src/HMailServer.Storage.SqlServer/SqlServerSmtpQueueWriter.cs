@@ -85,7 +85,7 @@ WHERE
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Recipients.Count == 0)
+        if (request.Recipients.Count == 0 && !request.AllowEmptyRecipients)
         {
             throw new InvalidOperationException("Queued SMTP message must contain at least one recipient.");
         }

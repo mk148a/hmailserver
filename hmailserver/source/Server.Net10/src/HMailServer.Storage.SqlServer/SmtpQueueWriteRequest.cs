@@ -9,7 +9,8 @@ public sealed record SmtpQueueWriteRequest(
     DateTimeOffset ReceivedUtc,
     int RuleForcedRouteId = 0,
     string? RuleBindAddress = null,
-    byte MessageFlags = 32)
+    byte MessageFlags = 32,
+    bool AllowEmptyRecipients = false)
 {
     public const byte RecentFlag = 32;
 

@@ -22,6 +22,7 @@ public sealed class Application : IInterfaceApplication
     private readonly IMessageIdResolver? _messageIdResolver;
     private readonly IImapFolderUidMaintenanceStore? _imapFolderUidMaintenanceStore;
     private readonly IServiceDependencyRuntime? _serviceDependencyRuntime;
+    private readonly IEmailAllAccountsRuntime? _emailAllAccountsRuntime;
     private bool _isServerAdministrator;
 
     public Application()
@@ -36,7 +37,8 @@ public sealed class Application : IInterfaceApplication
         IMailServerResolver? mailServerResolver = null,
         IMessageIdResolver? messageIdResolver = null,
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
-        IServiceDependencyRuntime? serviceDependencyRuntime = null)
+        IServiceDependencyRuntime? serviceDependencyRuntime = null,
+        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
@@ -47,6 +49,7 @@ public sealed class Application : IInterfaceApplication
         _messageIdResolver = messageIdResolver;
         _imapFolderUidMaintenanceStore = imapFolderUidMaintenanceStore;
         _serviceDependencyRuntime = serviceDependencyRuntime;
+        _emailAllAccountsRuntime = emailAllAccountsRuntime;
     }
 
     [ComVisible(false)]
@@ -57,7 +60,8 @@ public sealed class Application : IInterfaceApplication
         IMailServerResolver? mailServerResolver = null,
         IMessageIdResolver? messageIdResolver = null,
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
-        IServiceDependencyRuntime? serviceDependencyRuntime = null) =>
+        IServiceDependencyRuntime? serviceDependencyRuntime = null,
+        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null) =>
         new(
             authenticationProvider,
             legacyBlowfishCipher: legacyBlowfishCipher,
@@ -65,7 +69,8 @@ public sealed class Application : IInterfaceApplication
             mailServerResolver: mailServerResolver,
             messageIdResolver: messageIdResolver,
             imapFolderUidMaintenanceStore: imapFolderUidMaintenanceStore,
-            serviceDependencyRuntime: serviceDependencyRuntime);
+            serviceDependencyRuntime: serviceDependencyRuntime,
+            emailAllAccountsRuntime: emailAllAccountsRuntime);
 
     public IInterfaceSettings Settings
     {
@@ -105,7 +110,8 @@ public sealed class Application : IInterfaceApplication
             _mailServerResolver,
             _messageIdResolver,
             _imapFolderUidMaintenanceStore,
-            _serviceDependencyRuntime);
+            _serviceDependencyRuntime,
+            _emailAllAccountsRuntime);
 
     public IInterfaceStatus Status
     {

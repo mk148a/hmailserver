@@ -838,6 +838,8 @@ builder.Services.AddSingleton<IMessageIdResolver>(serviceProvider =>
         dataDirectory));
 builder.Services.AddSingleton<IImapFolderUidMaintenanceStore, SqlServerImapFolderUidMaintenanceStore>();
 builder.Services.AddSingleton<IServiceDependencyRuntime, WindowsServiceDependencyRuntime>();
+builder.Services.AddSingleton<IEmailAllAccountsRecipientStore, SqlServerEmailAllAccountsRecipientStore>();
+builder.Services.AddSingleton<IEmailAllAccountsRuntime, StoreBackedEmailAllAccountsRuntime>();
 builder.Services.AddSingleton<ServerStatusRuntimeState>();
 builder.Services.AddSingleton<IApplicationRuntimeStore>(
     serviceProvider => new ServerApplicationRuntimeStore(

@@ -146,6 +146,7 @@ public sealed class Utilities : IInterfaceUtilities
     private readonly IMessageIdResolver? _messageIdResolver;
     private readonly IImapFolderUidMaintenanceStore? _imapFolderUidMaintenanceStore;
     private readonly IServiceDependencyRuntime? _serviceDependencyRuntime;
+    private readonly IEmailAllAccountsRuntime? _emailAllAccountsRuntime;
 
     public Utilities()
     {
@@ -158,7 +159,8 @@ public sealed class Utilities : IInterfaceUtilities
         IMailServerResolver? mailServerResolver,
         IMessageIdResolver? messageIdResolver,
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore,
-        IServiceDependencyRuntime? serviceDependencyRuntime)
+        IServiceDependencyRuntime? serviceDependencyRuntime,
+        IEmailAllAccountsRuntime? emailAllAccountsRuntime)
     {
         _isServerAdministrator = isServerAdministrator;
         _blowfishCipher = blowfishCipher;
@@ -167,6 +169,7 @@ public sealed class Utilities : IInterfaceUtilities
         _messageIdResolver = messageIdResolver;
         _imapFolderUidMaintenanceStore = imapFolderUidMaintenanceStore;
         _serviceDependencyRuntime = serviceDependencyRuntime;
+        _emailAllAccountsRuntime = emailAllAccountsRuntime;
     }
 
     internal static Utilities CreateForApplication(
@@ -176,7 +179,8 @@ public sealed class Utilities : IInterfaceUtilities
         IMailServerResolver? mailServerResolver,
         IMessageIdResolver? messageIdResolver = null,
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
-        IServiceDependencyRuntime? serviceDependencyRuntime = null)
+        IServiceDependencyRuntime? serviceDependencyRuntime = null,
+        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(isServerAdministrator);
         return new Utilities(
@@ -186,7 +190,8 @@ public sealed class Utilities : IInterfaceUtilities
             mailServerResolver,
             messageIdResolver,
             imapFolderUidMaintenanceStore,
-            serviceDependencyRuntime);
+            serviceDependencyRuntime,
+            emailAllAccountsRuntime);
     }
 
     [ComVisible(false)]
@@ -196,7 +201,8 @@ public sealed class Utilities : IInterfaceUtilities
         IMailServerResolver? mailServerResolver = null,
         IMessageIdResolver? messageIdResolver = null,
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
-        IServiceDependencyRuntime? serviceDependencyRuntime = null)
+        IServiceDependencyRuntime? serviceDependencyRuntime = null,
+        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(blowfishCipher);
         return new Utilities(
@@ -206,7 +212,8 @@ public sealed class Utilities : IInterfaceUtilities
             mailServerResolver,
             messageIdResolver,
             imapFolderUidMaintenanceStore,
-            serviceDependencyRuntime);
+            serviceDependencyRuntime,
+            emailAllAccountsRuntime);
     }
 
     public string GetMailServer(string emailAddress) =>
@@ -279,8 +286,34 @@ public sealed class Utilities : IInterfaceUtilities
         string fromAddress,
         string fromName,
         string subject,
-        string body) =>
-        UnavailableForAdministrator<bool>();
+        string body)
+    {
+        EnsureServerAdministrator();
+        var runtime = _emailAllAccountsRuntime;
+        if (runtime is null)
+        {
+            return Unavailable<bool>();
+        }
+
+        try
+        {
+            return runtime
+                .EmailAllAccountsAsync(
+                    recipientWildcard ?? string.Empty,
+                    fromAddress ?? string.Empty,
+                    fromName ?? string.Empty,
+                    subject ?? string.Empty,
+                    body ?? string.Empty,
+                    CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException("The mass email operation failed.", EFail);
+        }
+    }
 
     public string GenerateGUID() => Guid.NewGuid().ToString("B");
 
