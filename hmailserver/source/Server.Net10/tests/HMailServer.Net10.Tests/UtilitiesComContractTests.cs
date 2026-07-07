@@ -80,6 +80,13 @@ public sealed class UtilitiesComContractTests
                 .GetCustomAttribute<MarshalAsAttribute>()
                 ?.Value);
         Assert.AreEqual(
+            UnmanagedType.VariantBool,
+            methods
+                .Single(static method => method.Name == nameof(IInterfaceUtilities.ImportMessageFromFile))
+                .ReturnParameter
+                .GetCustomAttribute<MarshalAsAttribute>()
+                ?.Value);
+        Assert.AreEqual(
             UnmanagedType.BStr,
             methods
                 .Single(static method => method.Name == nameof(IInterfaceUtilities.GetMailServer))
@@ -128,10 +135,13 @@ public sealed class UtilitiesComContractTests
         var massMailDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.EmailAllAccounts(
                 "*", "admin@example.test", "Admin", "Subject", "Body"));
+        var importDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.ImportMessageFromFile("message.eml", 1));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, massMailDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, importDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -148,6 +158,7 @@ public sealed class UtilitiesComContractTests
         var maintenanceStore = new RecordingImapFolderUidMaintenanceStore();
         var serviceDependencyRuntime = new RecordingServiceDependencyRuntime();
         var emailAllAccountsRuntime = new RecordingEmailAllAccountsRuntime();
+        var importMessageFromFileRuntime = new RecordingImportMessageFromFileRuntime();
         var application = new Application(
             new RecordingAdministratorAuthenticationProvider("secret"),
             legacyBlowfishCipher: cipher,
@@ -156,7 +167,8 @@ public sealed class UtilitiesComContractTests
             messageIdResolver: messageIdResolver,
             imapFolderUidMaintenanceStore: maintenanceStore,
             serviceDependencyRuntime: serviceDependencyRuntime,
-            emailAllAccountsRuntime: emailAllAccountsRuntime);
+            emailAllAccountsRuntime: emailAllAccountsRuntime,
+            importMessageFromFileRuntime: importMessageFromFileRuntime);
         var utilities = application.Utilities;
 
         Assert.AreEqual("dc647eb65e6711e155375218212b3964", utilities.MD5("Password"));
@@ -184,10 +196,13 @@ public sealed class UtilitiesComContractTests
         var massMailDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.EmailAllAccounts(
                 "*", "admin@example.test", "Admin", "Subject", "Body"));
+        var importDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.ImportMessageFromFile("message.eml", 7));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, massMailDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, importDenied.ErrorCode);
 
         Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
 
@@ -218,8 +233,11 @@ public sealed class UtilitiesComContractTests
                 "Subject",
                 "Body"),
             emailAllAccountsRuntime.Calls.Single());
+        Assert.IsTrue(utilities.ImportMessageFromFile("message.eml", 7));
+        Assert.AreEqual(
+            new ImportMessageFromFileCall("message.eml", 7),
+            importMessageFromFileRuntime.Calls.Single());
 
-        AssertOperationPending(() => _ = utilities.ImportMessageFromFile("message.eml", 1));
         AssertOperationPending(() => utilities.RunTestSuite("I know what I am doing."));
         AssertOperationPending(
             () => _ = utilities.ImportMessageFromFileToIMAPFolder("message.eml", 1, "Inbox"));
@@ -297,6 +315,21 @@ public sealed class UtilitiesComContractTests
     }
 
     [TestMethod]
+    public void ApplicationUtilities_ReturnsContainedImportRuntimeFailure()
+    {
+        var runtime = new RecordingImportMessageFromFileRuntime { Result = false };
+        var application = new Application(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            importMessageFromFileRuntime: runtime);
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        Assert.IsFalse(application.Utilities.ImportMessageFromFile("message.eml", 1));
+        Assert.AreEqual(
+            new ImportMessageFromFileCall("message.eml", 1),
+            runtime.Calls.Single());
+    }
+
+    [TestMethod]
     public void RuntimeUtilities_ExposeLegacyBlowfishAndLocalHostWithoutAuthentication()
     {
         var localHostRuntime = new RecordingLocalHostRuntime("127.0.0.1");
@@ -306,6 +339,7 @@ public sealed class UtilitiesComContractTests
         var maintenanceStore = new RecordingImapFolderUidMaintenanceStore();
         var serviceDependencyRuntime = new RecordingServiceDependencyRuntime();
         var emailAllAccountsRuntime = new RecordingEmailAllAccountsRuntime();
+        var importMessageFromFileRuntime = new RecordingImportMessageFromFileRuntime();
         IInterfaceUtilities utilities =
             Utilities.CreateForRuntime(
                 new LegacyBlowfishCipherRuntime(),
@@ -314,7 +348,8 @@ public sealed class UtilitiesComContractTests
                 messageIdResolver,
                 maintenanceStore,
                 serviceDependencyRuntime,
-                emailAllAccountsRuntime);
+                emailAllAccountsRuntime,
+                importMessageFromFileRuntime);
 
         Assert.AreEqual("a62b3c438efae3db", utilities.BlowfishEncrypt("secret"));
         Assert.AreEqual("e79ca726380cc3b1", utilities.BlowfishEncrypt("Hejsan"));
@@ -342,10 +377,13 @@ public sealed class UtilitiesComContractTests
         var massMailDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.EmailAllAccounts(
                 "*", "admin@example.test", "Admin", "Subject", "Body"));
+        var importDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.ImportMessageFromFile("message.eml", 1));
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, dependencyDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, massMailDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, importDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -529,10 +567,27 @@ public sealed class UtilitiesComContractTests
         }
     }
 
+    private sealed class RecordingImportMessageFromFileRuntime : IImportMessageFromFileRuntime
+    {
+        public bool Result { get; init; } = true;
+        public List<ImportMessageFromFileCall> Calls { get; } = [];
+
+        public ValueTask<bool> ImportMessageFromFileAsync(
+            string fileName,
+            int accountId,
+            CancellationToken cancellationToken)
+        {
+            Calls.Add(new ImportMessageFromFileCall(fileName, accountId));
+            return ValueTask.FromResult(Result);
+        }
+    }
+
     private sealed record EmailAllAccountsCall(
         string RecipientWildcard,
         string FromAddress,
         string FromName,
         string Subject,
         string Body);
+
+    private sealed record ImportMessageFromFileCall(string FileName, int AccountId);
 }

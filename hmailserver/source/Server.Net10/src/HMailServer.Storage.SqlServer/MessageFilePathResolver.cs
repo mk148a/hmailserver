@@ -74,6 +74,11 @@ public sealed class MessageFilePathResolver
     private static string GetGuidBucket(string messageFileName)
     {
         var fileName = Path.GetFileName(messageFileName);
+        if (fileName.Length >= 3 && fileName[0] == '{')
+        {
+            return fileName.Substring(1, 2);
+        }
+
         return fileName.Length >= 2 ? fileName[..2] : fileName;
     }
 }

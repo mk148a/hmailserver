@@ -840,6 +840,13 @@ builder.Services.AddSingleton<IImapFolderUidMaintenanceStore, SqlServerImapFolde
 builder.Services.AddSingleton<IServiceDependencyRuntime, WindowsServiceDependencyRuntime>();
 builder.Services.AddSingleton<IEmailAllAccountsRecipientStore, SqlServerEmailAllAccountsRecipientStore>();
 builder.Services.AddSingleton<IEmailAllAccountsRuntime, StoreBackedEmailAllAccountsRuntime>();
+builder.Services.AddSingleton<IImportMessageFromFileStore, SqlServerImportMessageFromFileStore>();
+builder.Services.AddSingleton<IImportMessageFromFileRuntime>(serviceProvider =>
+    new StoreBackedImportMessageFromFileRuntime(
+        serviceProvider.GetRequiredService<IImportMessageFromFileStore>(),
+        serviceProvider.GetRequiredService<ISmtpRecipientValidator>(),
+        serviceProvider.GetRequiredService<IDeliveryQueueWakeSignal>(),
+        dataDirectory));
 builder.Services.AddSingleton<ServerStatusRuntimeState>();
 builder.Services.AddSingleton<IApplicationRuntimeStore>(
     serviceProvider => new ServerApplicationRuntimeStore(

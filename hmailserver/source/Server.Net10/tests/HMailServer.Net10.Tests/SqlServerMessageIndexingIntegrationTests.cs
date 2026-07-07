@@ -209,6 +209,152 @@ public sealed class SqlServerMessageIndexingIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task AuthenticatedComPath_ImportsAccountAndQueueMessageFiles()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-import-{Guid.NewGuid():N}");
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        Directory.CreateDirectory(dataDirectory);
+
+        try
+        {
+            await CreateImportMessageSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var accountDirectory = Path.Combine(dataDirectory, "example.test", "user");
+            Directory.CreateDirectory(accountDirectory);
+            var accountSource = Path.Combine(accountDirectory, "loose.eml");
+            await File.WriteAllTextAsync(
+                accountSource,
+                "From: sender@example.test\r\nTo: user@example.test\r\n" +
+                "Date: Thu, 02 Jul 2026 03:04:05 +0000\r\nSubject: Account\r\n\r\nBody\r\n").ConfigureAwait(false);
+            var queueSource = Path.Combine(dataDirectory, "queue.eml");
+            await File.WriteAllTextAsync(
+                queueSource,
+                "Received: from mx.example; Wed, 01 Jul 2026 03:04:05 +0200\r\n" +
+                "From: sender@outside.test\r\nTo: user@example.test, remote@outside.test\r\n" +
+                "Subject: Queue\r\n\r\nBody\r\n").ConfigureAwait(false);
+
+            var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
+            var wakeSignal = new RecordingWakeSignal();
+            var runtime = new StoreBackedImportMessageFromFileRuntime(
+                new SqlServerImportMessageFromFileStore(connectionFactory),
+                new SqlServerSmtpRecipientValidator(connectionFactory),
+                wakeSignal,
+                dataDirectory,
+                new FixedTimeProvider(new DateTimeOffset(2026, 7, 7, 10, 11, 12, TimeSpan.Zero)));
+            var application = Application.CreateForRuntime(
+                new LegacyServerAdministratorAuthenticationProvider(
+                    "5ebe2294ecd0e0f08eab7690d2a6ee69"),
+                importMessageFromFileRuntime: runtime);
+
+            var denied = Assert.ThrowsExactly<COMException>(
+                () => application.Utilities.ImportMessageFromFile(accountSource, 1));
+            Assert.AreEqual(unchecked((int)0x80070005), denied.ErrorCode);
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+            Assert.IsTrue(application.Utilities.ImportMessageFromFile(accountSource, 1));
+            Assert.IsTrue(application.Utilities.ImportMessageFromFile(queueSource, 0));
+
+            await using var connection = new SqlConnection(testConnectionString);
+            await connection.OpenAsync().ConfigureAwait(false);
+            await using var messageCommand = new SqlCommand(
+                """
+SELECT
+    messageid,
+    messageaccountid,
+    messagefolderid,
+    messagefilename,
+    messagetype,
+    messagefrom,
+    messagesize,
+    messageflags,
+    messagecreatetime,
+    messagelocked,
+    messageuid
+FROM dbo.hm_messages
+ORDER BY messageid ASC;
+""",
+                connection);
+            await using var reader = await messageCommand.ExecuteReaderAsync().ConfigureAwait(false);
+            Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
+            var deliveredMessageId = reader.GetInt64(0);
+            Assert.AreEqual(1, reader.GetInt32(1));
+            Assert.AreEqual(100L, reader.GetInt64(2));
+            var deliveredFileName = reader.GetString(3);
+            Assert.AreEqual(2, reader.GetInt32(4));
+            Assert.AreEqual("sender@example.test", reader.GetString(5));
+            Assert.AreEqual(new FileInfo(Path.Combine(
+                accountDirectory,
+                deliveredFileName.Substring(1, 2),
+                deliveredFileName)).Length, reader.GetInt64(6));
+            Assert.AreEqual(32, Convert.ToInt32(reader.GetValue(7), System.Globalization.CultureInfo.InvariantCulture));
+            Assert.AreEqual(new DateTime(2026, 7, 2, 3, 4, 5), reader.GetDateTime(8));
+            Assert.AreEqual(0, Convert.ToInt32(reader.GetValue(9), System.Globalization.CultureInfo.InvariantCulture));
+            Assert.AreEqual(8L, reader.GetInt64(10));
+            Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
+            var queueMessageId = reader.GetInt64(0);
+            Assert.AreEqual(0, reader.GetInt32(1));
+            Assert.AreEqual(0L, reader.GetInt64(2));
+            Assert.AreEqual("queue.eml", reader.GetString(3));
+            Assert.AreEqual(1, reader.GetInt32(4));
+            Assert.AreEqual("sender@outside.test", reader.GetString(5));
+            Assert.AreEqual(new DateTime(2026, 7, 1, 1, 4, 5), reader.GetDateTime(8));
+            Assert.AreEqual(0, Convert.ToInt32(reader.GetValue(9), System.Globalization.CultureInfo.InvariantCulture));
+            Assert.AreEqual(0L, reader.GetInt64(10));
+            Assert.IsFalse(await reader.ReadAsync().ConfigureAwait(false));
+            await reader.DisposeAsync().ConfigureAwait(false);
+
+            await using var recipientCommand = new SqlCommand(
+                """
+SELECT recipientaddress, recipientlocalaccountid, recipientoriginaladdress
+FROM dbo.hm_messagerecipients
+WHERE recipientmessageid = @MessageId;
+""",
+                connection);
+            recipientCommand.Parameters.Add("@MessageId", System.Data.SqlDbType.BigInt).Value = queueMessageId;
+            await using var recipientReader = await recipientCommand.ExecuteReaderAsync().ConfigureAwait(false);
+            Assert.IsTrue(await recipientReader.ReadAsync().ConfigureAwait(false));
+            Assert.AreEqual("user@example.test", recipientReader.GetString(0));
+            Assert.AreEqual(1, recipientReader.GetInt32(1));
+            Assert.AreEqual("user@example.test", recipientReader.GetString(2));
+            Assert.IsFalse(await recipientReader.ReadAsync().ConfigureAwait(false));
+            await recipientReader.DisposeAsync().ConfigureAwait(false);
+
+            Assert.AreEqual(8L, await ExecuteScalarInt64Async(
+                connection,
+                "SELECT foldercurrentuid FROM dbo.hm_imapfolders WHERE folderid = 100;").ConfigureAwait(false));
+            Assert.AreEqual(1L, await ExecuteScalarInt64Async(
+                connection,
+                $"SELECT COUNT_BIG(*) FROM dbo.hm_message_search_queue WHERE messageid = {deliveredMessageId};").ConfigureAwait(false));
+            Assert.AreEqual(1, wakeSignal.SignalCount);
+            Assert.IsFalse(File.Exists(accountSource));
+            Assert.IsTrue(File.Exists(Path.Combine(
+                accountDirectory,
+                deliveredFileName.Substring(1, 2),
+                deliveredFileName)));
+            Assert.IsTrue(File.Exists(queueSource));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(dataDirectory))
+            {
+                Directory.Delete(dataDirectory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task AuthenticatedComPath_ReadsBoundedSettingsScalarsFromIsolatedDatabase()
     {
         var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -1425,6 +1571,153 @@ VALUES
         await connection.OpenAsync().ConfigureAwait(false);
         await using var command = new SqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task CreateImportMessageSchemaAndSeedAsync(string connectionString)
+    {
+        const string sql = """
+CREATE TABLE dbo.hm_domains
+(
+    domainid int NOT NULL PRIMARY KEY,
+    domainname nvarchar(255) NOT NULL,
+    domainactive tinyint NOT NULL,
+    domainpostmaster nvarchar(255) NOT NULL,
+    domainuseplusaddressing tinyint NOT NULL,
+    domainplusaddressingchar nvarchar(10) NOT NULL
+);
+
+CREATE TABLE dbo.hm_domain_aliases
+(
+    daid int NOT NULL PRIMARY KEY,
+    dadomainid int NOT NULL,
+    daalias nvarchar(255) NOT NULL
+);
+
+CREATE TABLE dbo.hm_accounts
+(
+    accountid int NOT NULL PRIMARY KEY,
+    accountaddress nvarchar(255) NOT NULL,
+    accountactive tinyint NOT NULL
+);
+
+CREATE TABLE dbo.hm_aliases
+(
+    aliasid int NOT NULL PRIMARY KEY,
+    aliasname nvarchar(255) NOT NULL,
+    aliasvalue nvarchar(255) NOT NULL,
+    aliasactive tinyint NOT NULL
+);
+
+CREATE TABLE dbo.hm_distributionlists
+(
+    distributionlistid int NOT NULL PRIMARY KEY,
+    distributionlistaddress nvarchar(255) NOT NULL,
+    distributionlistenabled tinyint NOT NULL,
+    distributionlistrequireauth tinyint NOT NULL,
+    distributionlistmode int NOT NULL,
+    distributionlistrequireaddress nvarchar(255) NOT NULL
+);
+
+CREATE TABLE dbo.hm_distributionlistsrecipients
+(
+    distributionlistrecipientid int NOT NULL PRIMARY KEY,
+    distributionlistrecipientlistid int NOT NULL,
+    distributionlistrecipientaddress nvarchar(255) NOT NULL
+);
+
+CREATE TABLE dbo.hm_routes
+(
+    routeid int NOT NULL PRIMARY KEY,
+    routedomainname nvarchar(255) NOT NULL,
+    routealladdresses tinyint NOT NULL,
+    routetreatsecurityaslocal tinyint NOT NULL,
+    routetargetsmthost nvarchar(255) NOT NULL,
+    routetargetsmtport int NOT NULL,
+    routeconnectionsecurity int NOT NULL,
+    routeuseauthentication tinyint NOT NULL,
+    routeauthenticationusername nvarchar(255) NOT NULL,
+    routeauthenticationpassword nvarchar(255) NOT NULL
+);
+
+CREATE TABLE dbo.hm_routeaddresses
+(
+    routeaddressid int NOT NULL PRIMARY KEY,
+    routeaddressrouteid int NOT NULL,
+    routeaddressaddress nvarchar(255) NOT NULL
+);
+
+CREATE TABLE dbo.hm_imapfolders
+(
+    folderid bigint NOT NULL PRIMARY KEY,
+    folderaccountid int NOT NULL,
+    folderparentid bigint NOT NULL,
+    foldername nvarchar(255) NOT NULL,
+    foldercurrentuid bigint NOT NULL
+);
+
+CREATE TABLE dbo.hm_messages
+(
+    messageid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+    messageaccountid int NOT NULL,
+    messagefolderid bigint NOT NULL,
+    messagefilename nvarchar(255) NOT NULL,
+    messagetype int NOT NULL,
+    messagefrom nvarchar(255) NOT NULL,
+    messagesize bigint NOT NULL,
+    messagecurnooftries int NOT NULL,
+    messagenexttrytime datetime NOT NULL,
+    messageflags tinyint NOT NULL,
+    messagecreatetime datetime NOT NULL,
+    messagelocked tinyint NOT NULL,
+    messageuid bigint NOT NULL
+);
+
+CREATE TABLE dbo.hm_messagerecipients
+(
+    recipientmessageid bigint NOT NULL,
+    recipientaddress nvarchar(255) NOT NULL,
+    recipientlocalaccountid int NOT NULL,
+    recipientoriginaladdress nvarchar(255) NOT NULL
+);
+
+CREATE TABLE dbo.hm_message_search_queue
+(
+    messageid bigint NOT NULL,
+    queuedutc datetime2 NOT NULL,
+    attempts int NOT NULL,
+    lastattemptutc datetime2 NULL,
+    nextattemptutc datetime2 NULL,
+    searchleaseowner nvarchar(255) NULL,
+    searchleaseexpiresutc datetime2 NULL,
+    lasterror nvarchar(max) NULL
+);
+
+INSERT INTO dbo.hm_domains
+    (domainid, domainname, domainactive, domainpostmaster, domainuseplusaddressing, domainplusaddressingchar)
+VALUES (10, N'example.test', 1, N'', 0, N'+');
+
+INSERT INTO dbo.hm_accounts (accountid, accountaddress, accountactive)
+VALUES (1, N'user@example.test', 1);
+
+INSERT INTO dbo.hm_imapfolders
+    (folderid, folderaccountid, folderparentid, foldername, foldercurrentuid)
+VALUES (100, 1, -1, N'INBOX', 7);
+""";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<long> ExecuteScalarInt64Async(
+        SqlConnection connection,
+        string sql)
+    {
+        await using var command = new SqlCommand(sql, connection);
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync().ConfigureAwait(false),
+            System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static async Task<MassMailSnapshot> GetMassMailSnapshotAsync(string connectionString)

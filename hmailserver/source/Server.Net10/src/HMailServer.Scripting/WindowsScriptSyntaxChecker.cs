@@ -44,38 +44,56 @@ public sealed class WindowsScriptSyntaxChecker : IScriptSyntaxChecker
             return string.Empty;
         }
 
-        using var process = new Process
-        {
-            StartInfo = CreateStartInfo(language, scriptFile)
-        };
+        var temporaryDirectory = Path.Combine(Path.GetTempPath(), "hmailserver-syntax-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temporaryDirectory);
 
-        process.Start();
-        var standardOutput = process.StandardOutput.ReadToEndAsync();
-        var standardError = process.StandardError.ReadToEndAsync();
+        var temporaryScriptFile = Path.Combine(
+            temporaryDirectory,
+            "EventHandlers" + Path.GetExtension(scriptFile));
 
-        if (!process.WaitForExit(_options.Timeout))
+        File.Copy(scriptFile, temporaryScriptFile, overwrite: false);
+
+        try
         {
-            TryKill(process);
+            using var process = new Process
+            {
+                StartInfo = CreateStartInfo(language, temporaryScriptFile)
+            };
+
+            process.Start();
+            var standardOutput = process.StandardOutput.ReadToEndAsync();
+            var standardError = process.StandardError.ReadToEndAsync();
+
+            if (!process.WaitForExit(_options.Timeout))
+            {
+                TryKill(process);
+                process.WaitForExit();
+                return $"File: {scriptFile}\r\nScript syntax check timed out.";
+            }
+
             process.WaitForExit();
-            return $"File: {scriptFile}\r\nScript syntax check timed out.";
-        }
+            var output = standardOutput.GetAwaiter().GetResult();
+            var error = standardError.GetAwaiter().GetResult();
+            if (process.ExitCode == 0)
+            {
+                return string.Empty;
+            }
 
-        process.WaitForExit();
-        var output = standardOutput.GetAwaiter().GetResult();
-        var error = standardError.GetAwaiter().GetResult();
-        if (process.ExitCode == 0)
+            var details = string.Concat(error, output)
+                .Replace(temporaryScriptFile, scriptFile, StringComparison.OrdinalIgnoreCase)
+                .Trim();
+            if (details.Length == 0)
+            {
+                details = "Windows Script Host failed with exit code " +
+                    process.ExitCode.ToString(CultureInfo.InvariantCulture) + ".";
+            }
+
+            return $"File: {scriptFile}\r\n{details}";
+        }
+        finally
         {
-            return string.Empty;
+            TryDeleteDirectory(temporaryDirectory);
         }
-
-        var details = string.Concat(error, output).Trim();
-        if (details.Length == 0)
-        {
-            details = "Windows Script Host failed with exit code " +
-                process.ExitCode.ToString(CultureInfo.InvariantCulture) + ".";
-        }
-
-        return $"File: {scriptFile}\r\n{details}";
     }
 
     private ProcessStartInfo CreateStartInfo(string language, string scriptFile)
@@ -108,6 +126,23 @@ public sealed class WindowsScriptSyntaxChecker : IScriptSyntaxChecker
         {
         }
         catch (System.ComponentModel.Win32Exception)
+        {
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
         {
         }
     }

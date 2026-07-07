@@ -147,6 +147,7 @@ public sealed class Utilities : IInterfaceUtilities
     private readonly IImapFolderUidMaintenanceStore? _imapFolderUidMaintenanceStore;
     private readonly IServiceDependencyRuntime? _serviceDependencyRuntime;
     private readonly IEmailAllAccountsRuntime? _emailAllAccountsRuntime;
+    private readonly IImportMessageFromFileRuntime? _importMessageFromFileRuntime;
 
     public Utilities()
     {
@@ -160,7 +161,8 @@ public sealed class Utilities : IInterfaceUtilities
         IMessageIdResolver? messageIdResolver,
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore,
         IServiceDependencyRuntime? serviceDependencyRuntime,
-        IEmailAllAccountsRuntime? emailAllAccountsRuntime)
+        IEmailAllAccountsRuntime? emailAllAccountsRuntime,
+        IImportMessageFromFileRuntime? importMessageFromFileRuntime)
     {
         _isServerAdministrator = isServerAdministrator;
         _blowfishCipher = blowfishCipher;
@@ -170,6 +172,7 @@ public sealed class Utilities : IInterfaceUtilities
         _imapFolderUidMaintenanceStore = imapFolderUidMaintenanceStore;
         _serviceDependencyRuntime = serviceDependencyRuntime;
         _emailAllAccountsRuntime = emailAllAccountsRuntime;
+        _importMessageFromFileRuntime = importMessageFromFileRuntime;
     }
 
     internal static Utilities CreateForApplication(
@@ -180,7 +183,8 @@ public sealed class Utilities : IInterfaceUtilities
         IMessageIdResolver? messageIdResolver = null,
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
         IServiceDependencyRuntime? serviceDependencyRuntime = null,
-        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null)
+        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null,
+        IImportMessageFromFileRuntime? importMessageFromFileRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(isServerAdministrator);
         return new Utilities(
@@ -191,7 +195,8 @@ public sealed class Utilities : IInterfaceUtilities
             messageIdResolver,
             imapFolderUidMaintenanceStore,
             serviceDependencyRuntime,
-            emailAllAccountsRuntime);
+            emailAllAccountsRuntime,
+            importMessageFromFileRuntime);
     }
 
     [ComVisible(false)]
@@ -202,7 +207,8 @@ public sealed class Utilities : IInterfaceUtilities
         IMessageIdResolver? messageIdResolver = null,
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
         IServiceDependencyRuntime? serviceDependencyRuntime = null,
-        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null)
+        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null,
+        IImportMessageFromFileRuntime? importMessageFromFileRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(blowfishCipher);
         return new Utilities(
@@ -213,7 +219,8 @@ public sealed class Utilities : IInterfaceUtilities
             messageIdResolver,
             imapFolderUidMaintenanceStore,
             serviceDependencyRuntime,
-            emailAllAccountsRuntime);
+            emailAllAccountsRuntime,
+            importMessageFromFileRuntime);
     }
 
     public string GetMailServer(string emailAddress) =>
@@ -278,8 +285,31 @@ public sealed class Utilities : IInterfaceUtilities
         }
     }
 
-    public bool ImportMessageFromFile(string filename, int accountId) =>
-        UnavailableForAdministrator<bool>();
+    public bool ImportMessageFromFile(string filename, int accountId)
+    {
+        EnsureServerAdministrator();
+        var runtime = _importMessageFromFileRuntime;
+        if (runtime is null)
+        {
+            return Unavailable<bool>();
+        }
+
+        try
+        {
+            return runtime
+                .ImportMessageFromFileAsync(
+                    filename ?? string.Empty,
+                    accountId,
+                    CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException("The message file import failed.", EFail);
+        }
+    }
 
     public bool EmailAllAccounts(
         string recipientWildcard,

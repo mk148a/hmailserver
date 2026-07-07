@@ -17,7 +17,8 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
         IMessageIdResolver messageIdResolver,
         IImapFolderUidMaintenanceStore imapFolderUidMaintenanceStore,
         IServiceDependencyRuntime serviceDependencyRuntime,
-        IEmailAllAccountsRuntime emailAllAccountsRuntime)
+        IEmailAllAccountsRuntime emailAllAccountsRuntime,
+        IImportMessageFromFileRuntime importMessageFromFileRuntime)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         ArgumentNullException.ThrowIfNull(legacyBlowfishCipher);
@@ -27,6 +28,7 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
         ArgumentNullException.ThrowIfNull(imapFolderUidMaintenanceStore);
         ArgumentNullException.ThrowIfNull(serviceDependencyRuntime);
         ArgumentNullException.ThrowIfNull(emailAllAccountsRuntime);
+        ArgumentNullException.ThrowIfNull(importMessageFromFileRuntime);
 
         _host = new ComLocalServerHost(
             new ComLocalServerRegistration(
@@ -39,7 +41,8 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                     messageIdResolver,
                     imapFolderUidMaintenanceStore,
                     serviceDependencyRuntime,
-                    emailAllAccountsRuntime)),
+                    emailAllAccountsRuntime,
+                    importMessageFromFileRuntime)),
             new ComLocalServerRegistration(
                 typeof(Database).GUID,
                 static () => new Database()),
@@ -52,7 +55,8 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                     messageIdResolver,
                     imapFolderUidMaintenanceStore,
                     serviceDependencyRuntime,
-                    emailAllAccountsRuntime)),
+                    emailAllAccountsRuntime,
+                    importMessageFromFileRuntime)),
             new ComLocalServerRegistration(
                 typeof(Links).GUID,
                 static () => new Links()),

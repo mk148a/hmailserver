@@ -22,7 +22,7 @@ public sealed class WindowsScriptSyntaxCheckerTests
         }
         finally
         {
-            Directory.Delete(directory, recursive: true);
+            TryDeleteDirectory(directory);
         }
     }
 
@@ -43,7 +43,7 @@ public sealed class WindowsScriptSyntaxCheckerTests
         }
         finally
         {
-            Directory.Delete(directory, recursive: true);
+            TryDeleteDirectory(directory);
         }
     }
 
@@ -64,7 +64,7 @@ public sealed class WindowsScriptSyntaxCheckerTests
         }
         finally
         {
-            Directory.Delete(directory, recursive: true);
+            TryDeleteDirectory(directory);
         }
     }
 
@@ -84,7 +84,7 @@ public sealed class WindowsScriptSyntaxCheckerTests
         }
         finally
         {
-            Directory.Delete(directory, recursive: true);
+            TryDeleteDirectory(directory);
         }
     }
 
@@ -116,5 +116,29 @@ public sealed class WindowsScriptSyntaxCheckerTests
         }
 
         return path;
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    Directory.Delete(path, recursive: true);
+                }
+
+                return;
+            }
+            catch (IOException) when (attempt < 9)
+            {
+                Thread.Sleep(50);
+            }
+            catch (UnauthorizedAccessException) when (attempt < 9)
+            {
+                Thread.Sleep(50);
+            }
+        }
     }
 }

@@ -23,6 +23,7 @@ public sealed class Application : IInterfaceApplication
     private readonly IImapFolderUidMaintenanceStore? _imapFolderUidMaintenanceStore;
     private readonly IServiceDependencyRuntime? _serviceDependencyRuntime;
     private readonly IEmailAllAccountsRuntime? _emailAllAccountsRuntime;
+    private readonly IImportMessageFromFileRuntime? _importMessageFromFileRuntime;
     private bool _isServerAdministrator;
 
     public Application()
@@ -38,7 +39,8 @@ public sealed class Application : IInterfaceApplication
         IMessageIdResolver? messageIdResolver = null,
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
         IServiceDependencyRuntime? serviceDependencyRuntime = null,
-        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null)
+        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null,
+        IImportMessageFromFileRuntime? importMessageFromFileRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
@@ -50,6 +52,7 @@ public sealed class Application : IInterfaceApplication
         _imapFolderUidMaintenanceStore = imapFolderUidMaintenanceStore;
         _serviceDependencyRuntime = serviceDependencyRuntime;
         _emailAllAccountsRuntime = emailAllAccountsRuntime;
+        _importMessageFromFileRuntime = importMessageFromFileRuntime;
     }
 
     [ComVisible(false)]
@@ -61,7 +64,8 @@ public sealed class Application : IInterfaceApplication
         IMessageIdResolver? messageIdResolver = null,
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
         IServiceDependencyRuntime? serviceDependencyRuntime = null,
-        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null) =>
+        IEmailAllAccountsRuntime? emailAllAccountsRuntime = null,
+        IImportMessageFromFileRuntime? importMessageFromFileRuntime = null) =>
         new(
             authenticationProvider,
             legacyBlowfishCipher: legacyBlowfishCipher,
@@ -70,7 +74,8 @@ public sealed class Application : IInterfaceApplication
             messageIdResolver: messageIdResolver,
             imapFolderUidMaintenanceStore: imapFolderUidMaintenanceStore,
             serviceDependencyRuntime: serviceDependencyRuntime,
-            emailAllAccountsRuntime: emailAllAccountsRuntime);
+            emailAllAccountsRuntime: emailAllAccountsRuntime,
+            importMessageFromFileRuntime: importMessageFromFileRuntime);
 
     public IInterfaceSettings Settings
     {
@@ -111,7 +116,8 @@ public sealed class Application : IInterfaceApplication
             _messageIdResolver,
             _imapFolderUidMaintenanceStore,
             _serviceDependencyRuntime,
-            _emailAllAccountsRuntime);
+            _emailAllAccountsRuntime,
+            _importMessageFromFileRuntime);
 
     public IInterfaceStatus Status
     {

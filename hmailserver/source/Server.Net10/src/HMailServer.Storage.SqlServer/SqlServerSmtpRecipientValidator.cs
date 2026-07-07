@@ -233,6 +233,11 @@ ORDER BY distributionlistrecipientid ASC;
                         cancellationToken).ConfigureAwait(false);
                     if (!memberResult.Accepted)
                     {
+                        if (request.BypassDistributionListAuthorization)
+                        {
+                            continue;
+                        }
+
                         return memberResult;
                     }
                 }
@@ -348,6 +353,11 @@ ORDER BY distributionlistrecipientid ASC;
         DomainInfo distributionListDomain,
         CancellationToken cancellationToken)
     {
+        if (request.BypassDistributionListAuthorization)
+        {
+            return SmtpRecipientValidationResult.Accept();
+        }
+
         if (distributionList.RequireAuth && !request.SenderAuthenticated)
         {
             return SmtpRecipientValidationResult.Reject("550 SMTP authentication required.");
