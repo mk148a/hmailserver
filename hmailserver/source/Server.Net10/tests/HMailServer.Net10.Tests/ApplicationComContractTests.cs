@@ -324,14 +324,14 @@ public sealed class ApplicationComContractTests
     [TestMethod]
     public void Application_RulesPreserveAdministratorBoundaryAndUseConfiguredGlobalRuntime()
     {
-        RuleAdministrationRuntimeHost.Configure(
-            new FixedRuleAdministrationStore(
-                new[]
-                {
-                    new RuleAdministrationSnapshot(10, 0, "Global first", true, true, 1),
-                    new RuleAdministrationSnapshot(20, 100, "Account rule", true, true, 1),
-                    new RuleAdministrationSnapshot(30, 0, "Global second", false, false, 2)
-                }));
+        var store = new MutableRuleAdministrationStore(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 0, "Global first", true, true, 1),
+                new RuleAdministrationSnapshot(20, 100, "Account rule", true, true, 1),
+                new RuleAdministrationSnapshot(30, 0, "Global second", false, false, 2)
+            });
+        RuleAdministrationRuntimeHost.Configure(store);
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Rules);
@@ -344,7 +344,18 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual("Global first", rules[0].Name);
         Assert.AreEqual(0, rules[0].AccountID);
         Assert.AreEqual("Global second", rules.get_ItemByDBID(30).Name);
-        Assert.AreEqual(ENotImplemented, Assert.ThrowsExactly<COMException>(rules.Refresh).ErrorCode);
+
+        store.Rules =
+        [
+            new RuleAdministrationSnapshot(40, 0, "Global refreshed", false, false, 1),
+            new RuleAdministrationSnapshot(50, 100, "Still account rule", true, true, 1)
+        ];
+        rules.Refresh();
+
+        Assert.AreEqual(1, rules.Count);
+        Assert.AreEqual("Global refreshed", rules[0].Name);
+        Assert.AreEqual(0, rules[0].AccountID);
+        Assert.AreEqual(2, store.ReadCount);
     }
 
     [TestMethod]
@@ -424,14 +435,21 @@ public sealed class ApplicationComContractTests
             ValueTask.FromResult(snapshot);
     }
 
-    private sealed class FixedRuleAdministrationStore(IReadOnlyList<RuleAdministrationSnapshot> rules)
+    private sealed class MutableRuleAdministrationStore(IReadOnlyList<RuleAdministrationSnapshot> rules)
         : IRuleAdministrationStore
     {
+        public IReadOnlyList<RuleAdministrationSnapshot> Rules { get; set; } = rules;
+
+        public int ReadCount { get; private set; }
+
         public ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetRulesAsync(
             int accountId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
-                rules.Where(rule => rule.AccountId == accountId).OrderBy(rule => rule.SortOrder).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
+                Rules.Where(rule => rule.AccountId == accountId).OrderBy(rule => rule.SortOrder).ToArray());
+        }
     }
 
     private sealed class FixedApplicationRuntimeStore(ApplicationRuntimeSnapshot snapshot)

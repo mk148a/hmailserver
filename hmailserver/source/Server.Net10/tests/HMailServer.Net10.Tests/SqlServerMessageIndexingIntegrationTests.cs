@@ -1196,6 +1196,26 @@ ORDER BY messageid;
             Assert.AreEqual(1, globalRuleActions.Count);
             Assert.AreEqual(10000, globalRuleActions[0].ID);
             Assert.AreEqual(ComRuleActionType.SetHeaderValue, globalRuleActions[0].Type);
+
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var update = new SqlCommand(
+                    "UPDATE dbo.hm_rules SET rulename = N'Global refreshed', ruleactive = 0 WHERE ruleid = 100;",
+                    connection);
+                Assert.AreEqual(1, await update.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            globalRules.Refresh();
+
+            Assert.AreEqual(2, globalRules.Count);
+            Assert.AreEqual("Global refreshed", globalRules.get_ItemByDBID(100).Name);
+            Assert.IsFalse(globalRules.get_ItemByDBID(100).Active);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => globalRules.get_ItemByDBID(200)).ErrorCode);
+
             var folders = accounts[0].IMAPFolders;
             Assert.AreEqual(2, folders.Count);
             Assert.AreEqual(100, folders[0].ID);

@@ -291,9 +291,6 @@ public static class RuleAdministrationRuntimeHost
                 .GetAwaiter()
                 .GetResult();
 
-        var rules = LoadRules();
-        return accountId == 0
-            ? Rules.CreateAuthorized(rules)
-            : Rules.CreateAuthorized(rules, LoadRules);
+        return Rules.CreateAuthorized(LoadRules(), LoadRules);
     }
 }
