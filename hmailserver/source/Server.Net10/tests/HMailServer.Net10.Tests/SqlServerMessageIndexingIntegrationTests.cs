@@ -1361,6 +1361,26 @@ ORDER BY messageid;
             var pendingGroupMemberAccountMutation =
                 Assert.ThrowsExactly<COMException>(() => groupMembers[0].Account.Address = "changed@example.test");
             Assert.AreEqual(unchecked((int)0x80004001), pendingGroupMemberAccountMutation.ErrorCode);
+
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var update = new SqlCommand(
+                    "UPDATE dbo.hm_rules SET rulename = N'Renamed rule', ruleactive = 0 WHERE ruleid = 200;",
+                    connection);
+                Assert.AreEqual(1, await update.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            rules.Refresh();
+
+            Assert.AreEqual(2, rules.Count);
+            Assert.AreEqual("Renamed rule", rules.get_ItemByDBID(200).Name);
+            Assert.IsFalse(rules.get_ItemByDBID(200).Active);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => rules.get_ItemByDBID(100)).ErrorCode);
+
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
 

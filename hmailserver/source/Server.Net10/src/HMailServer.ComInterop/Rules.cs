@@ -93,25 +93,32 @@ public sealed class Rules : IInterfaceRules
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<RuleAdministrationSnapshot>? _rules;
+    private RuleAdministrationSnapshot[]? _rules;
+    private readonly Func<IReadOnlyList<RuleAdministrationSnapshot>>? _reload;
 
     public Rules()
     {
     }
 
-    private Rules(IReadOnlyList<RuleAdministrationSnapshot> rules)
+    private Rules(
+        IReadOnlyList<RuleAdministrationSnapshot> rules,
+        Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload)
     {
         _rules = rules.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetRules().Count;
 
-    internal static Rules CreateAuthorized(IReadOnlyList<RuleAdministrationSnapshot> rules)
+    internal static Rules CreateAuthorized(
+        IReadOnlyList<RuleAdministrationSnapshot> rules,
+        Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(rules);
-        return new Rules(rules);
+        return new Rules(rules, reload);
     }
 
     public IInterfaceRule this[int index]
@@ -141,11 +148,32 @@ public sealed class Rules : IInterfaceRules
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetRules();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var rules = _reload();
+            ArgumentNullException.ThrowIfNull(rules);
+            Volatile.Write(ref _rules, rules.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of rules from the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<RuleAdministrationSnapshot> GetRules()
     {
-        return _rules
+        return Volatile.Read(ref _rules)
             ?? throw new COMException(
                 "Rules access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -257,12 +285,15 @@ public static class RuleAdministrationRuntimeHost
                 "The hMailServer rule administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var rules = store
-            .GetRulesAsync(accountId, CancellationToken.None)
-            .AsTask()
-            .GetAwaiter()
-            .GetResult();
+        IReadOnlyList<RuleAdministrationSnapshot> LoadRules() => store
+                .GetRulesAsync(accountId, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
 
-        return Rules.CreateAuthorized(rules);
+        var rules = LoadRules();
+        return accountId == 0
+            ? Rules.CreateAuthorized(rules)
+            : Rules.CreateAuthorized(rules, LoadRules);
     }
 }

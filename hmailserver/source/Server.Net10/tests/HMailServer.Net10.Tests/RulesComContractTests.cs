@@ -61,10 +61,44 @@ public sealed class RulesComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var rulesError = Assert.ThrowsExactly<COMException>(() => _ = new Rules().Count);
+        var refreshError = Assert.ThrowsExactly<COMException>(new Rules().Refresh);
         var ruleError = Assert.ThrowsExactly<COMException>(() => _ = new Rule().Name);
 
         Assert.AreEqual(EAccessDenied, rulesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, refreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, ruleError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var refreshed = new[]
+        {
+            new RuleAdministrationSnapshot(20, 100, "Second rule", false, false, 2),
+            new RuleAdministrationSnapshot(30, 100, "Third rule", true, false, 3)
+        };
+        var failRefresh = false;
+        IInterfaceRules rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1) },
+            () => failRefresh
+                ? throw new InvalidOperationException("store failed")
+                : refreshed);
+
+        rules.Refresh();
+
+        Assert.AreEqual(2, rules.Count);
+        Assert.AreEqual("Second rule", rules[0].Name);
+        Assert.AreEqual("Third rule", rules.get_ItemByDBID(30).Name);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => rules.get_ItemByDBID(10)).ErrorCode);
+
+        failRefresh = true;
+        var failure = Assert.ThrowsExactly<COMException>(rules.Refresh);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failure.ErrorCode);
+        Assert.AreEqual(2, rules.Count);
+        Assert.AreEqual("Second rule", rules[0].Name);
     }
 
     [TestMethod]
@@ -97,19 +131,30 @@ public sealed class RulesComContractTests
     [TestMethod]
     public void AccountRules_UsesConfiguredRuntimeForSelectedAccount()
     {
-        RuleAdministrationRuntimeHost.Configure(
-            new FixedRuleAdministrationStore(
-                new[]
-                {
-                    new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1),
-                    new RuleAdministrationSnapshot(20, 200, "Outside rule", true, true, 1)
-                }));
+        var store = new MutableRuleAdministrationStore(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 200, "Outside rule", true, true, 1)
+            });
+        RuleAdministrationRuntimeHost.Configure(store);
         var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
 
         var rules = account.Rules;
 
         Assert.AreEqual(1, rules.Count);
         Assert.AreEqual("First rule", rules[0].Name);
+
+        store.Rules =
+        [
+            new RuleAdministrationSnapshot(30, 100, "Updated rule", false, false, 1),
+            new RuleAdministrationSnapshot(40, 200, "Still outside rule", true, true, 1)
+        ];
+        rules.Refresh();
+
+        Assert.AreEqual(1, rules.Count);
+        Assert.AreEqual("Updated rule", rules[0].Name);
+        Assert.AreEqual(2, store.ReadCount);
     }
 
     private static void AssertRule(
@@ -150,13 +195,20 @@ public sealed class RulesComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedRuleAdministrationStore(IReadOnlyList<RuleAdministrationSnapshot> rules)
+    private sealed class MutableRuleAdministrationStore(IReadOnlyList<RuleAdministrationSnapshot> rules)
         : IRuleAdministrationStore
     {
+        public IReadOnlyList<RuleAdministrationSnapshot> Rules { get; set; } = rules;
+
+        public int ReadCount { get; private set; }
+
         public ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetRulesAsync(
             int accountId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
-                rules.Where(rule => rule.AccountId == accountId).OrderBy(rule => rule.SortOrder).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
+                Rules.Where(rule => rule.AccountId == accountId).OrderBy(rule => rule.SortOrder).ToArray());
+        }
     }
 }

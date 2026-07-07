@@ -344,6 +344,7 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual("Global first", rules[0].Name);
         Assert.AreEqual(0, rules[0].AccountID);
         Assert.AreEqual("Global second", rules.get_ItemByDBID(30).Name);
+        Assert.AreEqual(ENotImplemented, Assert.ThrowsExactly<COMException>(rules.Refresh).ErrorCode);
     }
 
     [TestMethod]
