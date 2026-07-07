@@ -16,5 +16,9 @@ public sealed class SqlServerDomainAliasAdministrationStoreTests
         StringAssert.Contains(sql, "FROM hm_domain_aliases");
         StringAssert.Contains(sql, "WHERE dadomainid = @DomainID");
         StringAssert.Contains(sql, "ORDER BY daid ASC");
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
 }

@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class DomainAliasesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -61,9 +62,11 @@ public sealed class DomainAliasesComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var aliasesError = Assert.ThrowsExactly<COMException>(() => _ = new DomainAliases().Count);
+        var aliasesRefreshError = Assert.ThrowsExactly<COMException>(new DomainAliases().Refresh);
         var aliasError = Assert.ThrowsExactly<COMException>(() => _ = new DomainAlias().AliasName);
 
         Assert.AreEqual(EAccessDenied, aliasesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, aliasesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, aliasError.ErrorCode);
     }
 
@@ -95,21 +98,88 @@ public sealed class DomainAliasesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceDomainAliases aliases = DomainAliases.CreateAuthorized(
+            new[]
+            {
+                new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test")
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    new DomainAliasAdministrationSnapshot(20, 100, "alias-two.test"),
+                    new DomainAliasAdministrationSnapshot(30, 100, "alias-three.test")
+                };
+            });
+
+        Assert.AreEqual(1, aliases.Count);
+        Assert.AreEqual("alias-one.test", aliases[0].AliasName);
+
+        aliases.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, aliases.Count);
+        AssertDomainAlias(aliases[0], 20, 100, "alias-two.test");
+        AssertDomainAlias(aliases.get_ItemByDBID(30), 30, 100, "alias-three.test");
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = aliases.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(aliases.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, aliases.Count);
+        Assert.AreEqual("alias-two.test", aliases.get_ItemByDBID(20).AliasName);
+    }
+
+    [TestMethod]
     public void DomainAliases_UsesConfiguredRuntimeForSelectedDomain()
     {
-        DomainAliasAdministrationRuntimeHost.Configure(
-            new FixedDomainAliasAdministrationStore(
-                new[]
-                {
-                    new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test"),
-                    new DomainAliasAdministrationSnapshot(20, 200, "outside.test")
-                }));
+        var store = new MutableDomainAliasAdministrationStore(
+            new[]
+            {
+                new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test"),
+                new DomainAliasAdministrationSnapshot(20, 200, "outside.test")
+            });
+        DomainAliasAdministrationRuntimeHost.Configure(store);
         var domain = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true));
 
         var aliases = domain.DomainAliases;
 
         Assert.AreEqual(1, aliases.Count);
         Assert.AreEqual("alias-one.test", aliases[0].AliasName);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                new DomainAliasAdministrationSnapshot(30, 100, "alias-refreshed.test"),
+                new DomainAliasAdministrationSnapshot(40, 200, "outside-refreshed.test")
+            });
+
+        aliases.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(1, aliases.Count);
+        AssertDomainAlias(aliases[0], 30, 100, "alias-refreshed.test");
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = aliases.get_ItemByDBID(10)).ErrorCode);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = aliases.get_ItemByDBID(40)).ErrorCode);
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
@@ -146,13 +216,25 @@ public sealed class DomainAliasesComContractTests
         Assert.AreEqual(aliasName, alias.AliasName);
     }
 
-    private sealed class FixedDomainAliasAdministrationStore(IReadOnlyList<DomainAliasAdministrationSnapshot> aliases)
+    private sealed class MutableDomainAliasAdministrationStore(IReadOnlyList<DomainAliasAdministrationSnapshot> aliases)
         : IDomainAliasAdministrationStore
     {
+        private IReadOnlyList<DomainAliasAdministrationSnapshot> _aliases = aliases;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<DomainAliasAdministrationSnapshot> aliases)
+        {
+            _aliases = aliases;
+        }
+
         public ValueTask<IReadOnlyList<DomainAliasAdministrationSnapshot>> GetDomainAliasesAsync(
             int domainId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<DomainAliasAdministrationSnapshot>>(
-                aliases.Where(alias => alias.DomainId == domainId).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<DomainAliasAdministrationSnapshot>>(
+                _aliases.Where(alias => alias.DomainId == domainId).ToArray());
+        }
     }
 }

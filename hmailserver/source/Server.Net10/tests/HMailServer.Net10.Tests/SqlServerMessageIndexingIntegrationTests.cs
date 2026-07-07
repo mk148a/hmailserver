@@ -1753,6 +1753,25 @@ ORDER BY messageid;
             Assert.AreEqual("alias-one.test", aliases[0].AliasName);
             Assert.AreEqual(10, aliases[0].DomainID);
             Assert.AreEqual("alias-two.test", aliases.get_ItemByDBID(20).AliasName);
+
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var update = new SqlCommand(
+                    "UPDATE dbo.hm_domain_aliases SET daalias = N'alias-refreshed.test' WHERE daid = 10;",
+                    connection);
+                Assert.AreEqual(1, await update.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            aliases.Refresh();
+
+            Assert.AreEqual(2, aliases.Count);
+            Assert.AreEqual("alias-refreshed.test", aliases.get_ItemByDBID(10).AliasName);
+            Assert.AreEqual("alias-two.test", aliases.get_ItemByDBID(20).AliasName);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => aliases.get_ItemByDBID(30)).ErrorCode);
         }
         finally
         {

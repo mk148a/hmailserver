@@ -71,25 +71,32 @@ public sealed class DomainAliases : IInterfaceDomainAliases
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<DomainAliasAdministrationSnapshot>? _aliases;
+    private DomainAliasAdministrationSnapshot[]? _aliases;
+    private readonly Func<IReadOnlyList<DomainAliasAdministrationSnapshot>>? _reload;
 
     public DomainAliases()
     {
     }
 
-    private DomainAliases(IReadOnlyList<DomainAliasAdministrationSnapshot> aliases)
+    private DomainAliases(
+        IReadOnlyList<DomainAliasAdministrationSnapshot> aliases,
+        Func<IReadOnlyList<DomainAliasAdministrationSnapshot>>? reload)
     {
         _aliases = aliases.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetAliases().Count;
 
-    internal static DomainAliases CreateAuthorized(IReadOnlyList<DomainAliasAdministrationSnapshot> aliases)
+    internal static DomainAliases CreateAuthorized(
+        IReadOnlyList<DomainAliasAdministrationSnapshot> aliases,
+        Func<IReadOnlyList<DomainAliasAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(aliases);
-        return new DomainAliases(aliases);
+        return new DomainAliases(aliases, reload);
     }
 
     public IInterfaceDomainAlias this[int index]
@@ -115,7 +122,28 @@ public sealed class DomainAliases : IInterfaceDomainAliases
             : DomainAlias.CreateAuthorized(match);
     }
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetAliases();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var aliases = _reload();
+            ArgumentNullException.ThrowIfNull(aliases);
+            Volatile.Write(ref _aliases, aliases.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of domain aliases from the database.",
+                EFail);
+        }
+    }
 
     public void Delete(int index) => Unavailable();
 
@@ -125,7 +153,7 @@ public sealed class DomainAliases : IInterfaceDomainAliases
 
     private IReadOnlyList<DomainAliasAdministrationSnapshot> GetAliases()
     {
-        return _aliases
+        return Volatile.Read(ref _aliases)
             ?? throw new COMException(
                 "DomainAliases access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -223,12 +251,12 @@ public static class DomainAliasAdministrationRuntimeHost
                 "The hMailServer domain-alias administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var aliases = store
+        IReadOnlyList<DomainAliasAdministrationSnapshot> LoadAliases() => store
             .GetDomainAliasesAsync(domainId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return DomainAliases.CreateAuthorized(aliases);
+        return DomainAliases.CreateAuthorized(LoadAliases(), LoadAliases);
     }
 }
