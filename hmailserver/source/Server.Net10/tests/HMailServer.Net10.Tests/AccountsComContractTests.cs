@@ -50,6 +50,7 @@ public sealed class AccountsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var accountsError = Assert.ThrowsExactly<COMException>(() => _ = new Accounts().Count);
+        var refreshError = Assert.ThrowsExactly<COMException>(new Accounts().Refresh);
         var accountError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Address);
         var adDomainError = Assert.ThrowsExactly<COMException>(() => _ = new Account().ADDomain);
         var isAdError = Assert.ThrowsExactly<COMException>(() => _ = new Account().IsAD);
@@ -59,6 +60,7 @@ public sealed class AccountsComContractTests
         var lastLogonError = Assert.ThrowsExactly<COMException>(() => _ = new Account().LastLogonTime);
 
         Assert.AreEqual(EAccessDenied, accountsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, refreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, accountError.ErrorCode);
         Assert.AreEqual(EAccessDenied, adDomainError.ErrorCode);
         Assert.AreEqual(EAccessDenied, isAdError.ErrorCode);
@@ -66,6 +68,38 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(EAccessDenied, sizeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, quotaUsedError.ErrorCode);
         Assert.AreEqual(EAccessDenied, lastLogonError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var refreshed = new[]
+        {
+            new AccountAdministrationSnapshot(20, 100, "beta@example.test", false, 0),
+            new AccountAdministrationSnapshot(30, 100, "gamma@example.test", true, 1)
+        };
+        var failRefresh = false;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[] { new AccountAdministrationSnapshot(10, 100, "alpha@example.test", true, 2) },
+            () => failRefresh
+                ? throw new InvalidOperationException("store failed")
+                : refreshed);
+
+        accounts.Refresh();
+
+        Assert.AreEqual(2, accounts.Count);
+        Assert.AreEqual("beta@example.test", accounts[0].Address);
+        Assert.AreEqual("gamma@example.test", accounts.get_ItemByDBID(30).Address);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => accounts.get_ItemByDBID(10)).ErrorCode);
+
+        failRefresh = true;
+        var failure = Assert.ThrowsExactly<COMException>(accounts.Refresh);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failure.ErrorCode);
+        Assert.AreEqual(2, accounts.Count);
+        Assert.AreEqual("beta@example.test", accounts[0].Address);
     }
 
     [TestMethod]
@@ -151,18 +185,30 @@ public sealed class AccountsComContractTests
     [TestMethod]
     public void DomainAccounts_UsesConfiguredRuntimeForSelectedDomain()
     {
-        AccountAdministrationRuntimeHost.Configure(
-            new FixedAccountAdministrationStore(
-                new[]
-                {
-                    new AccountAdministrationSnapshot(10, 100, "admin@example.test", true, 2)
-                }));
+        var store = new MutableAccountAdministrationStore(
+            new[]
+            {
+                new AccountAdministrationSnapshot(10, 100, "admin@example.test", true, 2),
+                new AccountAdministrationSnapshot(20, 200, "outside@other.test", true, 0)
+            });
+        AccountAdministrationRuntimeHost.Configure(store);
         var domain = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true));
 
         var accounts = domain.Accounts;
 
         Assert.AreEqual(1, accounts.Count);
         Assert.AreEqual("admin@example.test", accounts[0].Address);
+
+        store.Accounts =
+        [
+            new AccountAdministrationSnapshot(30, 100, "user@example.test", false, 0),
+            new AccountAdministrationSnapshot(40, 200, "still-outside@other.test", true, 0)
+        ];
+        accounts.Refresh();
+
+        Assert.AreEqual(1, accounts.Count);
+        Assert.AreEqual("user@example.test", accounts[0].Address);
+        Assert.AreEqual(2, store.ReadCount);
     }
 
     private static void AssertAccount(
@@ -215,18 +261,25 @@ public sealed class AccountsComContractTests
         Assert.AreEqual("<p>Regards,<br>Ada</p>", account.SignatureHTML);
     }
 
-    private sealed class FixedAccountAdministrationStore(IReadOnlyList<AccountAdministrationSnapshot> accounts)
+    private sealed class MutableAccountAdministrationStore(IReadOnlyList<AccountAdministrationSnapshot> accounts)
         : IAccountAdministrationStore
     {
+        public IReadOnlyList<AccountAdministrationSnapshot> Accounts { get; set; } = accounts;
+
+        public int ReadCount { get; private set; }
+
         public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
             int domainId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
-                accounts.Where(account => account.DomainId == domainId).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
+                Accounts.Where(account => account.DomainId == domainId).ToArray());
+        }
 
         public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
             int accountId,
             CancellationToken cancellationToken) =>
-            ValueTask.FromResult(accounts.FirstOrDefault(account => account.Id == accountId));
+            ValueTask.FromResult(Accounts.FirstOrDefault(account => account.Id == accountId));
     }
 }

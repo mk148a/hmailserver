@@ -46,25 +46,32 @@ public sealed class Accounts : IInterfaceAccounts
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<AccountAdministrationSnapshot>? _accounts;
+    private AccountAdministrationSnapshot[]? _accounts;
+    private readonly Func<IReadOnlyList<AccountAdministrationSnapshot>>? _reload;
 
     public Accounts()
     {
     }
 
-    private Accounts(IReadOnlyList<AccountAdministrationSnapshot> accounts)
+    private Accounts(
+        IReadOnlyList<AccountAdministrationSnapshot> accounts,
+        Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload)
     {
         _accounts = accounts.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetAccounts().Count;
 
-    internal static Accounts CreateAuthorized(IReadOnlyList<AccountAdministrationSnapshot> accounts)
+    internal static Accounts CreateAuthorized(
+        IReadOnlyList<AccountAdministrationSnapshot> accounts,
+        Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
-        return new Accounts(accounts);
+        return new Accounts(accounts, reload);
     }
 
     public IInterfaceAccount this[int index]
@@ -85,7 +92,28 @@ public sealed class Accounts : IInterfaceAccounts
 
     public void Delete(int index) => Unavailable();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetAccounts();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var accounts = _reload();
+            ArgumentNullException.ThrowIfNull(accounts);
+            Volatile.Write(ref _accounts, accounts.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of accounts from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceAccount get_ItemByDBID(int databaseId)
     {
@@ -110,7 +138,7 @@ public sealed class Accounts : IInterfaceAccounts
 
     private IReadOnlyList<AccountAdministrationSnapshot> GetAccounts()
     {
-        return _accounts
+        return Volatile.Read(ref _accounts)
             ?? throw new COMException("Accounts access requires an authenticated server administrator.", EAccessDenied);
     }
 
@@ -148,13 +176,13 @@ public static class AccountAdministrationRuntimeHost
                 "The hMailServer account administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var accounts = store
-            .GetAccountsAsync(domainId, CancellationToken.None)
-            .AsTask()
-            .GetAwaiter()
-            .GetResult();
+        IReadOnlyList<AccountAdministrationSnapshot> LoadAccounts() => store
+                .GetAccountsAsync(domainId, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
 
-        return Accounts.CreateAuthorized(accounts);
+        return Accounts.CreateAuthorized(LoadAccounts(), LoadAccounts);
     }
 
     internal static Account CreateAuthorizedAccountByIdAdapter(int accountId)

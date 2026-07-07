@@ -1363,6 +1363,25 @@ ORDER BY messageid;
             Assert.AreEqual(unchecked((int)0x80004001), pendingGroupMemberAccountMutation.ErrorCode);
             Assert.AreEqual("user@example.test", accounts.get_ItemByAddress("USER@EXAMPLE.TEST").Address);
             Assert.IsFalse(accounts.get_ItemByDBID(20).Active);
+
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var update = new SqlCommand(
+                    "UPDATE dbo.hm_accounts SET accountaddress = N'renamed@example.test', accountactive = 0 WHERE accountid = 10;",
+                    connection);
+                Assert.AreEqual(1, await update.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            accounts.Refresh();
+
+            Assert.AreEqual(2, accounts.Count);
+            Assert.AreEqual("renamed@example.test", accounts.get_ItemByDBID(10).Address);
+            Assert.IsFalse(accounts.get_ItemByDBID(10).Active);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => accounts.get_ItemByAddress("admin@example.test")).ErrorCode);
         }
         finally
         {
