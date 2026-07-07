@@ -236,6 +236,11 @@ public sealed class SqlServerMessageIndexingIntegrationTests
                 accountSource,
                 "From: sender@example.test\r\nTo: user@example.test\r\n" +
                 "Date: Thu, 02 Jul 2026 03:04:05 +0000\r\nSubject: Account\r\n\r\nBody\r\n").ConfigureAwait(false);
+            var archiveSource = Path.Combine(accountDirectory, "archive.eml");
+            await File.WriteAllTextAsync(
+                archiveSource,
+                "From: archive@example.test\r\nTo: user@example.test\r\n" +
+                "Date: Fri, 03 Jul 2026 04:05:06 +0000\r\nSubject: Archive\r\n\r\nBody\r\n").ConfigureAwait(false);
             var queueSource = Path.Combine(dataDirectory, "queue.eml");
             await File.WriteAllTextAsync(
                 queueSource,
@@ -261,6 +266,7 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             Assert.AreEqual(unchecked((int)0x80070005), denied.ErrorCode);
             Assert.IsNotNull(application.Authenticate("administrator", "secret"));
             Assert.IsTrue(application.Utilities.ImportMessageFromFile(accountSource, 1));
+            Assert.IsTrue(application.Utilities.ImportMessageFromFileToIMAPFolder(archiveSource, 1, "Inbox.Archive"));
             Assert.IsTrue(application.Utilities.ImportMessageFromFile(queueSource, 0));
 
             await using var connection = new SqlConnection(testConnectionString);
@@ -300,6 +306,21 @@ ORDER BY messageid ASC;
             Assert.AreEqual(0, Convert.ToInt32(reader.GetValue(9), System.Globalization.CultureInfo.InvariantCulture));
             Assert.AreEqual(8L, reader.GetInt64(10));
             Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
+            var archivedMessageId = reader.GetInt64(0);
+            Assert.AreEqual(1, reader.GetInt32(1));
+            Assert.AreEqual(101L, reader.GetInt64(2));
+            var archivedFileName = reader.GetString(3);
+            Assert.AreEqual(2, reader.GetInt32(4));
+            Assert.AreEqual("archive@example.test", reader.GetString(5));
+            Assert.AreEqual(new FileInfo(Path.Combine(
+                accountDirectory,
+                archivedFileName.Substring(1, 2),
+                archivedFileName)).Length, reader.GetInt64(6));
+            Assert.AreEqual(32, Convert.ToInt32(reader.GetValue(7), System.Globalization.CultureInfo.InvariantCulture));
+            Assert.AreEqual(new DateTime(2026, 7, 3, 4, 5, 6), reader.GetDateTime(8));
+            Assert.AreEqual(0, Convert.ToInt32(reader.GetValue(9), System.Globalization.CultureInfo.InvariantCulture));
+            Assert.AreEqual(3L, reader.GetInt64(10));
+            Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
             var queueMessageId = reader.GetInt64(0);
             Assert.AreEqual(0, reader.GetInt32(1));
             Assert.AreEqual(0L, reader.GetInt64(2));
@@ -331,15 +352,26 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual(8L, await ExecuteScalarInt64Async(
                 connection,
                 "SELECT foldercurrentuid FROM dbo.hm_imapfolders WHERE folderid = 100;").ConfigureAwait(false));
+            Assert.AreEqual(3L, await ExecuteScalarInt64Async(
+                connection,
+                "SELECT foldercurrentuid FROM dbo.hm_imapfolders WHERE folderid = 101;").ConfigureAwait(false));
             Assert.AreEqual(1L, await ExecuteScalarInt64Async(
                 connection,
                 $"SELECT COUNT_BIG(*) FROM dbo.hm_message_search_queue WHERE messageid = {deliveredMessageId};").ConfigureAwait(false));
+            Assert.AreEqual(1L, await ExecuteScalarInt64Async(
+                connection,
+                $"SELECT COUNT_BIG(*) FROM dbo.hm_message_search_queue WHERE messageid = {archivedMessageId};").ConfigureAwait(false));
             Assert.AreEqual(1, wakeSignal.SignalCount);
             Assert.IsFalse(File.Exists(accountSource));
             Assert.IsTrue(File.Exists(Path.Combine(
                 accountDirectory,
                 deliveredFileName.Substring(1, 2),
                 deliveredFileName)));
+            Assert.IsFalse(File.Exists(archiveSource));
+            Assert.IsTrue(File.Exists(Path.Combine(
+                accountDirectory,
+                archivedFileName.Substring(1, 2),
+                archivedFileName)));
             Assert.IsTrue(File.Exists(queueSource));
         }
         finally
@@ -1701,7 +1733,9 @@ VALUES (1, N'user@example.test', 1);
 
 INSERT INTO dbo.hm_imapfolders
     (folderid, folderaccountid, folderparentid, foldername, foldercurrentuid)
-VALUES (100, 1, -1, N'INBOX', 7);
+VALUES
+    (100, 1, -1, N'INBOX', 7),
+    (101, 1, 100, N'Archive', 2);
 """;
 
         await using var connection = new SqlConnection(connectionString);

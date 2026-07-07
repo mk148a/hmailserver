@@ -52,6 +52,7 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
         Assert.AreEqual(10, imported.Recipients[0].LocalAccountId);
         Assert.IsTrue(imported.Recipients[0].IsLocal);
         Assert.IsFalse(imported.Recipients[0].IsRouteRecipient);
+        Assert.AreEqual(0, store.FolderLookups.Count);
         Assert.AreEqual(1, wakeSignal.SignalCount);
         CollectionAssert.AreEqual(
             new[] { "local@example.test", "remote@remote.test", "alias@example.test" },
@@ -74,7 +75,13 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
 
             Body
             """);
-        var store = new RecordingStore();
+        var store = new RecordingStore
+        {
+            FolderIds =
+            {
+                ["42|Inbox"] = 100
+            }
+        };
         var runtime = CreateRuntime(
             directory.Path,
             store,
@@ -88,8 +95,11 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
 
         Assert.IsTrue(result);
         Assert.AreEqual(1, store.DeliveredImports.Count);
+        Assert.AreEqual(1, store.FolderLookups.Count);
+        CollectionAssert.AreEqual(new[] { "Inbox" }, store.FolderLookups[0].FolderPath);
         var imported = store.DeliveredImports[0];
         Assert.AreEqual(42, imported.AccountId);
+        Assert.AreEqual(100L, imported.FolderId);
         Assert.AreEqual("sender@example.test", imported.FromAddress);
         Assert.AreEqual(new DateTimeOffset(2026, 7, 2, 3, 4, 5, TimeSpan.Zero), imported.CreatedUtc);
         StringAssert.Matches(imported.FileName, new System.Text.RegularExpressions.Regex(
@@ -151,6 +161,87 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
     }
 
     [TestMethod]
+    public async Task ImportMessageToImapFolder_UsesNamedFolderPathAndDateMacros()
+    {
+        using var directory = new TemporaryDirectory();
+        var sourcePath = directory.Write(
+            Path.Combine("example.test", "user", "loose.eml"),
+            """
+            From: Sender <sender@example.test>
+            To: user@example.test
+            Date: Thu, 02 Jul 2026 03:04:05 +0000
+            Subject: Imported
+
+            Body
+            """);
+        var store = new RecordingStore
+        {
+            FolderIds =
+            {
+                ["42|Inbox|2026"] = 222
+            }
+        };
+        var runtime = CreateRuntime(
+            directory.Path,
+            store,
+            new RecordingRecipientValidator(),
+            new RecordingWakeSignal());
+
+        var result = await runtime.ImportMessageFromFileToImapFolderAsync(
+            sourcePath,
+            accountId: 42,
+            imapFolder: ".Inbox.%YEAR%",
+            CancellationToken.None);
+
+        Assert.IsTrue(result);
+        Assert.AreEqual(1, store.FolderLookups.Count);
+        CollectionAssert.AreEqual(new[] { "Inbox", "2026" }, store.FolderLookups[0].FolderPath);
+        Assert.AreEqual(222L, store.DeliveredImports.Single().FolderId);
+    }
+
+    [TestMethod]
+    public async Task ImportMessageToImapFolder_ReturnsFalseForMissingOrPublicFolderAndQueuesWhenAccountIsZero()
+    {
+        using var directory = new TemporaryDirectory();
+        var accountSource = directory.Write(
+            Path.Combine("example.test", "user", "named.eml"),
+            ValidMessage("local@example.test"));
+        var publicSource = directory.Write(
+            Path.Combine("example.test", "user", "public.eml"),
+            ValidMessage("local@example.test"));
+        var queueSource = directory.Write(
+            "queue.eml",
+            ValidMessage("local@example.test"));
+        var store = new RecordingStore();
+        var wakeSignal = new RecordingWakeSignal();
+        var runtime = CreateRuntime(
+            directory.Path,
+            store,
+            new RecordingRecipientValidator(),
+            wakeSignal);
+
+        Assert.IsFalse(await runtime.ImportMessageFromFileToImapFolderAsync(
+            accountSource,
+            accountId: 42,
+            imapFolder: "Inbox.Archive",
+            CancellationToken.None));
+        Assert.IsFalse(await runtime.ImportMessageFromFileToImapFolderAsync(
+            publicSource,
+            accountId: 42,
+            imapFolder: "#Public.Archive",
+            CancellationToken.None));
+        Assert.IsTrue(await runtime.ImportMessageFromFileToImapFolderAsync(
+            queueSource,
+            accountId: 0,
+            imapFolder: "Inbox.Archive",
+            CancellationToken.None));
+        Assert.AreEqual(1, store.QueueImports.Count);
+        Assert.AreEqual(1, wakeSignal.SignalCount);
+        Assert.AreEqual(1, store.FolderLookups.Count);
+        CollectionAssert.AreEqual(new[] { "Inbox", "Archive" }, store.FolderLookups[0].FolderPath);
+    }
+
+    [TestMethod]
     public async Task ImportMessage_ReturnsFalseForOutsidePathMissingLocalRecipientsOrStoreFailure()
     {
         using var directory = new TemporaryDirectory();
@@ -202,6 +293,8 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
         public ImportedMessageReference? ExistingReference { get; init; }
         public Exception? Exception { get; init; }
         public List<(string? PartialFileName, string FullFileName)> FindCalls { get; } = [];
+        public List<(int AccountId, string[] FolderPath)> FolderLookups { get; } = [];
+        public Dictionary<string, long> FolderIds { get; } = new(StringComparer.OrdinalIgnoreCase);
         public List<(long MessageId, string FileName)> UpdateCalls { get; } = [];
         public List<ImportedDeliveredMessage> DeliveredImports { get; } = [];
         public List<ImportedQueuedMessage> QueueImports { get; } = [];
@@ -222,6 +315,22 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
         {
             UpdateCalls.Add((messageId, partialFileName));
             return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<long?> FindAccountFolderAsync(
+            int accountId,
+            IReadOnlyList<string> folderPath,
+            CancellationToken cancellationToken)
+        {
+            var segments = folderPath.ToArray();
+            FolderLookups.Add((accountId, segments));
+            return ValueTask.FromResult(
+                FolderIds.TryGetValue(
+                    accountId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" +
+                    string.Join("|", segments),
+                    out var folderId)
+                    ? (long?)folderId
+                    : null);
         }
 
         public ValueTask ImportDeliveredMessageAsync(

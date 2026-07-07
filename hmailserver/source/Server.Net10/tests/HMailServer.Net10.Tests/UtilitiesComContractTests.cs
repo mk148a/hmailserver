@@ -137,11 +137,14 @@ public sealed class UtilitiesComContractTests
                 "*", "admin@example.test", "Admin", "Subject", "Body"));
         var importDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.ImportMessageFromFile("message.eml", 1));
+        var importFolderDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.ImportMessageFromFileToIMAPFolder("message.eml", 1, "Inbox"));
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, massMailDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, importDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, importFolderDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -237,10 +240,12 @@ public sealed class UtilitiesComContractTests
         Assert.AreEqual(
             new ImportMessageFromFileCall("message.eml", 7),
             importMessageFromFileRuntime.Calls.Single());
+        Assert.IsTrue(utilities.ImportMessageFromFileToIMAPFolder("message.eml", 7, "Inbox.Archive"));
+        Assert.AreEqual(
+            new ImportMessageToImapFolderCall("message.eml", 7, "Inbox.Archive"),
+            importMessageFromFileRuntime.FolderCalls.Single());
 
         AssertOperationPending(() => utilities.RunTestSuite("I know what I am doing."));
-        AssertOperationPending(
-            () => _ = utilities.ImportMessageFromFileToIMAPFolder("message.eml", 1, "Inbox"));
     }
 
     [TestMethod]
@@ -330,6 +335,21 @@ public sealed class UtilitiesComContractTests
     }
 
     [TestMethod]
+    public void ApplicationUtilities_ReturnsContainedImportToImapFolderRuntimeFailure()
+    {
+        var runtime = new RecordingImportMessageFromFileRuntime { Result = false };
+        var application = new Application(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            importMessageFromFileRuntime: runtime);
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        Assert.IsFalse(application.Utilities.ImportMessageFromFileToIMAPFolder("message.eml", 1, "Inbox.Archive"));
+        Assert.AreEqual(
+            new ImportMessageToImapFolderCall("message.eml", 1, "Inbox.Archive"),
+            runtime.FolderCalls.Single());
+    }
+
+    [TestMethod]
     public void RuntimeUtilities_ExposeLegacyBlowfishAndLocalHostWithoutAuthentication()
     {
         var localHostRuntime = new RecordingLocalHostRuntime("127.0.0.1");
@@ -379,11 +399,14 @@ public sealed class UtilitiesComContractTests
                 "*", "admin@example.test", "Admin", "Subject", "Body"));
         var importDenied = Assert.ThrowsExactly<COMException>(
             () => utilities.ImportMessageFromFile("message.eml", 1));
+        var importFolderDenied = Assert.ThrowsExactly<COMException>(
+            () => utilities.ImportMessageFromFileToIMAPFolder("message.eml", 1, "Inbox"));
         Assert.AreEqual(EAccessDenied, messageIdDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, maintenanceDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, dependencyDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, massMailDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, importDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, importFolderDenied.ErrorCode);
     }
 
     [TestMethod]
@@ -571,6 +594,7 @@ public sealed class UtilitiesComContractTests
     {
         public bool Result { get; init; } = true;
         public List<ImportMessageFromFileCall> Calls { get; } = [];
+        public List<ImportMessageToImapFolderCall> FolderCalls { get; } = [];
 
         public ValueTask<bool> ImportMessageFromFileAsync(
             string fileName,
@@ -578,6 +602,16 @@ public sealed class UtilitiesComContractTests
             CancellationToken cancellationToken)
         {
             Calls.Add(new ImportMessageFromFileCall(fileName, accountId));
+            return ValueTask.FromResult(Result);
+        }
+
+        public ValueTask<bool> ImportMessageFromFileToImapFolderAsync(
+            string fileName,
+            int accountId,
+            string imapFolder,
+            CancellationToken cancellationToken)
+        {
+            FolderCalls.Add(new ImportMessageToImapFolderCall(fileName, accountId, imapFolder));
             return ValueTask.FromResult(Result);
         }
     }
@@ -590,4 +624,9 @@ public sealed class UtilitiesComContractTests
         string Body);
 
     private sealed record ImportMessageFromFileCall(string FileName, int AccountId);
+
+    private sealed record ImportMessageToImapFolderCall(
+        string FileName,
+        int AccountId,
+        string ImapFolder);
 }

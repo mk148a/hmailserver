@@ -12,6 +12,11 @@ public interface IImportMessageFromFileStore
         string partialFileName,
         CancellationToken cancellationToken);
 
+    ValueTask<long?> FindAccountFolderAsync(
+        int accountId,
+        IReadOnlyList<string> folderPath,
+        CancellationToken cancellationToken);
+
     ValueTask ImportDeliveredMessageAsync(
         ImportedDeliveredMessage message,
         CancellationToken cancellationToken);
@@ -27,6 +32,7 @@ public sealed record ImportedMessageReference(
 
 public sealed record ImportedDeliveredMessage(
     int AccountId,
+    long FolderId,
     string FileName,
     string FromAddress,
     long Size,

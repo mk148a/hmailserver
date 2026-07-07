@@ -355,8 +355,32 @@ public sealed class Utilities : IInterfaceUtilities
     public bool ImportMessageFromFileToIMAPFolder(
         string filename,
         int accountId,
-        string imapFolder) =>
-        UnavailableForAdministrator<bool>();
+        string imapFolder)
+    {
+        EnsureServerAdministrator();
+        var runtime = _importMessageFromFileRuntime;
+        if (runtime is null)
+        {
+            return Unavailable<bool>();
+        }
+
+        try
+        {
+            return runtime
+                .ImportMessageFromFileToImapFolderAsync(
+                    filename ?? string.Empty,
+                    accountId,
+                    imapFolder ?? string.Empty,
+                    CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException("The message file import failed.", EFail);
+        }
+    }
 
     public bool IsStrongPassword(string username, string password)
     {

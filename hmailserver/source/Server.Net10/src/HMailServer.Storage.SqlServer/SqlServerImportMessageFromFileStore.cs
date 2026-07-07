@@ -19,14 +19,22 @@ SET messagefilename = @FileName
 WHERE messageid = @MessageId;
 """;
 
-    public const string AllocateInboxUidSql = """
-UPDATE hm_imapfolders WITH (UPDLOCK, ROWLOCK)
-SET foldercurrentuid = foldercurrentuid + 1
-OUTPUT INSERTED.folderid, INSERTED.foldercurrentuid
+    public const string FindFolderSql = """
+SELECT TOP (1) folderid
+FROM hm_imapfolders
 WHERE
     folderaccountid = @AccountId
-    AND folderparentid = -1
-    AND LOWER(foldername) = 'inbox';
+    AND folderparentid = @ParentFolderId
+    AND LOWER(foldername) = LOWER(@FolderName);
+""";
+
+    public const string AllocateFolderUidSql = """
+UPDATE hm_imapfolders WITH (UPDLOCK, ROWLOCK)
+SET foldercurrentuid = foldercurrentuid + 1
+OUTPUT INSERTED.foldercurrentuid
+WHERE
+    folderaccountid = @AccountId
+    AND folderid = @FolderId;
 """;
 
     public const string InsertDeliveredMessageSql = """
@@ -199,6 +207,43 @@ WHERE
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
+    public async ValueTask<long?> FindAccountFolderAsync(
+        int accountId,
+        IReadOnlyList<string> folderPath,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(accountId);
+        ArgumentNullException.ThrowIfNull(folderPath);
+        if (folderPath.Count == 0)
+        {
+            return null;
+        }
+
+        await using var connection = await _connectionFactory
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        long? folderId = null;
+        var parentFolderId = -1L;
+        foreach (var segment in folderPath)
+        {
+            folderId = await FindFolderIdAsync(
+                connection,
+                accountId,
+                parentFolderId,
+                segment,
+                cancellationToken).ConfigureAwait(false);
+            if (!folderId.HasValue)
+            {
+                return null;
+            }
+
+            parentFolderId = folderId.Value;
+        }
+
+        return folderId;
+    }
+
     public async ValueTask ImportDeliveredMessageAsync(
         ImportedDeliveredMessage message,
         CancellationToken cancellationToken)
@@ -214,16 +259,17 @@ WHERE
             .ConfigureAwait(false);
         try
         {
-            var allocation = await AllocateInboxUidAsync(
+            var uid = await AllocateFolderUidAsync(
                 connection,
                 transaction,
                 message.AccountId,
+                message.FolderId,
                 cancellationToken).ConfigureAwait(false);
             var messageId = await InsertDeliveredMessageAsync(
                 connection,
                 transaction,
                 message,
-                allocation,
+                uid,
                 cancellationToken).ConfigureAwait(false);
             await QueueForIndexingAsync(
                 connection,
@@ -299,40 +345,57 @@ WHERE
             : Convert.ToInt64(result, CultureInfo.InvariantCulture);
     }
 
-    private static async ValueTask<InboxAllocation> AllocateInboxUidAsync(
+    private static async ValueTask<long?> FindFolderIdAsync(
+        SqlConnection connection,
+        int accountId,
+        long parentFolderId,
+        string folderName,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(FindFolderSql, connection);
+        command.Parameters.Add("@AccountId", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@ParentFolderId", SqlDbType.BigInt).Value = parentFolderId;
+        command.Parameters.Add("@FolderName", SqlDbType.NVarChar, 255).Value = folderName;
+        var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return result is null or DBNull
+            ? null
+            : Convert.ToInt64(result, CultureInfo.InvariantCulture);
+    }
+
+    private static async ValueTask<long> AllocateFolderUidAsync(
         SqlConnection connection,
         SqlTransaction transaction,
         int accountId,
+        long folderId,
         CancellationToken cancellationToken)
     {
-        await using var command = new SqlCommand(AllocateInboxUidSql, connection, transaction);
+        await using var command = new SqlCommand(AllocateFolderUidSql, connection, transaction);
         command.Parameters.Add("@AccountId", SqlDbType.Int).Value = accountId;
-        await using var reader = await command
-            .ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken)
-            .ConfigureAwait(false);
-        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        command.Parameters.Add("@FolderId", SqlDbType.BigInt).Value = folderId;
+        var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        if (result is null or DBNull)
         {
-            throw new InvalidOperationException("The destination account Inbox could not be found.");
+            throw new InvalidOperationException("The destination IMAP folder could not be found.");
         }
 
-        return new InboxAllocation(reader.GetInt64(0), reader.GetInt64(1));
+        return Convert.ToInt64(result, CultureInfo.InvariantCulture);
     }
 
     private static async ValueTask<long> InsertDeliveredMessageAsync(
         SqlConnection connection,
         SqlTransaction transaction,
         ImportedDeliveredMessage message,
-        InboxAllocation allocation,
+        long uid,
         CancellationToken cancellationToken)
     {
         await using var command = new SqlCommand(InsertDeliveredMessageSql, connection, transaction);
         command.Parameters.Add("@AccountId", SqlDbType.Int).Value = message.AccountId;
-        command.Parameters.Add("@FolderId", SqlDbType.BigInt).Value = allocation.FolderId;
+        command.Parameters.Add("@FolderId", SqlDbType.BigInt).Value = message.FolderId;
         command.Parameters.Add("@FileName", SqlDbType.NVarChar, 255).Value = message.FileName;
         command.Parameters.Add("@MessageFrom", SqlDbType.NVarChar, 255).Value = message.FromAddress;
         command.Parameters.Add("@MessageSize", SqlDbType.BigInt).Value = message.Size;
         command.Parameters.Add("@MessageCreateTime", SqlDbType.DateTime).Value = message.CreatedUtc.UtcDateTime;
-        command.Parameters.Add("@MessageUid", SqlDbType.BigInt).Value = allocation.Uid;
+        command.Parameters.Add("@MessageUid", SqlDbType.BigInt).Value = uid;
         var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt64(result, CultureInfo.InvariantCulture);
     }
@@ -394,6 +457,4 @@ WHERE
             throw new InvalidOperationException("The imported queue message could not be unlocked.");
         }
     }
-
-    private sealed record InboxAllocation(long FolderId, long Uid);
 }

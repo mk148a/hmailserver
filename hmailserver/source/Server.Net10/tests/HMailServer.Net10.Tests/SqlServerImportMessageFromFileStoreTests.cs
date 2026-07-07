@@ -24,14 +24,22 @@ public sealed class SqlServerImportMessageFromFileStoreTests
     }
 
     [TestMethod]
-    public void DeliveredSql_AllocatesInboxUidAndInsertsLegacyDeliveredShape()
+    public void DeliveredSql_ResolvesFolderAndAllocatesUidWithoutNewFolderMutation()
     {
-        var allocation = SqlServerImportMessageFromFileStore.AllocateInboxUidSql;
+        var findFolder = SqlServerImportMessageFromFileStore.FindFolderSql;
+        StringAssert.Contains(findFolder, "SELECT TOP (1) folderid");
+        StringAssert.Contains(findFolder, "FROM hm_imapfolders");
+        StringAssert.Contains(findFolder, "folderaccountid = @AccountId");
+        StringAssert.Contains(findFolder, "folderparentid = @ParentFolderId");
+        StringAssert.Contains(findFolder, "LOWER(foldername) = LOWER(@FolderName)");
+        AssertNoMutation(findFolder);
+
+        var allocation = SqlServerImportMessageFromFileStore.AllocateFolderUidSql;
         StringAssert.Contains(allocation, "UPDATE hm_imapfolders WITH (UPDLOCK, ROWLOCK)");
         StringAssert.Contains(allocation, "foldercurrentuid = foldercurrentuid + 1");
         StringAssert.Contains(allocation, "folderaccountid = @AccountId");
-        StringAssert.Contains(allocation, "folderparentid = -1");
-        StringAssert.Contains(allocation, "LOWER(foldername) = 'inbox'");
+        StringAssert.Contains(allocation, "folderid = @FolderId");
+        Assert.IsFalse(allocation.Contains("INSERT INTO hm_imapfolders", StringComparison.OrdinalIgnoreCase));
 
         var insert = SqlServerImportMessageFromFileStore.InsertDeliveredMessageSql;
         StringAssert.Contains(insert, "INSERT INTO hm_messages");

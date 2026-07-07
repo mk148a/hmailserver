@@ -846,7 +846,8 @@ builder.Services.AddSingleton<IImportMessageFromFileRuntime>(serviceProvider =>
         serviceProvider.GetRequiredService<IImportMessageFromFileStore>(),
         serviceProvider.GetRequiredService<ISmtpRecipientValidator>(),
         serviceProvider.GetRequiredService<IDeliveryQueueWakeSignal>(),
-        dataDirectory));
+        dataDirectory,
+        mailboxOptions: mailboxOptions));
 builder.Services.AddSingleton<ServerStatusRuntimeState>();
 builder.Services.AddSingleton<IApplicationRuntimeStore>(
     serviceProvider => new ServerApplicationRuntimeStore(
