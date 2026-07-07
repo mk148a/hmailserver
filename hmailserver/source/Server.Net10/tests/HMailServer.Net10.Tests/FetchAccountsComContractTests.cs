@@ -86,10 +86,44 @@ public sealed class FetchAccountsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var accountsError = Assert.ThrowsExactly<COMException>(() => _ = new FetchAccounts().Count);
+        var refreshError = Assert.ThrowsExactly<COMException>(new FetchAccounts().Refresh);
         var accountError = Assert.ThrowsExactly<COMException>(() => _ = new FetchAccount().Name);
 
         Assert.AreEqual(EAccessDenied, accountsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, refreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, accountError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var refreshed = new[]
+        {
+            CreateSnapshot(20, 100, "Backup POP3"),
+            CreateSnapshot(30, 100, "Archive POP3")
+        };
+        var failRefresh = false;
+        IInterfaceFetchAccounts accounts = FetchAccounts.CreateAuthorized(
+            new[] { CreateSnapshot(10, 100, "External POP3") },
+            () => failRefresh
+                ? throw new InvalidOperationException("store failed")
+                : refreshed);
+
+        accounts.Refresh();
+
+        Assert.AreEqual(2, accounts.Count);
+        Assert.AreEqual("Backup POP3", accounts[0].Name);
+        Assert.AreEqual("Archive POP3", accounts.get_ItemByDBID(30).Name);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => accounts.get_ItemByDBID(10)).ErrorCode);
+
+        failRefresh = true;
+        var failure = Assert.ThrowsExactly<COMException>(accounts.Refresh);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failure.ErrorCode);
+        Assert.AreEqual(2, accounts.Count);
+        Assert.AreEqual("Backup POP3", accounts[0].Name);
     }
 
     [TestMethod]
@@ -191,19 +225,30 @@ public sealed class FetchAccountsComContractTests
     [TestMethod]
     public void AccountFetchAccounts_UsesConfiguredRuntimeForSelectedAccount()
     {
-        FetchAccountAdministrationRuntimeHost.Configure(
-            new FixedFetchAccountAdministrationStore(
-                new[]
-                {
-                    CreateSnapshot(10, 100, "External POP3"),
-                    CreateSnapshot(20, 200, "Outside POP3")
-                }));
+        var store = new MutableFetchAccountAdministrationStore(
+            new[]
+            {
+                CreateSnapshot(10, 100, "External POP3"),
+                CreateSnapshot(20, 200, "Outside POP3")
+            });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
         var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
 
         var fetchAccounts = account.FetchAccounts;
 
         Assert.AreEqual(1, fetchAccounts.Count);
         Assert.AreEqual("External POP3", fetchAccounts[0].Name);
+
+        store.Accounts =
+        [
+            CreateSnapshot(30, 100, "Updated POP3"),
+            CreateSnapshot(40, 200, "Still Outside POP3")
+        ];
+        fetchAccounts.Refresh();
+
+        Assert.AreEqual(1, fetchAccounts.Count);
+        Assert.AreEqual("Updated POP3", fetchAccounts[0].Name);
+        Assert.AreEqual(2, store.ReadCount);
     }
 
     private static FetchAccountAdministrationSnapshot CreateSnapshot(
@@ -285,14 +330,21 @@ public sealed class FetchAccountsComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedFetchAccountAdministrationStore(
+    private sealed class MutableFetchAccountAdministrationStore(
         IReadOnlyList<FetchAccountAdministrationSnapshot> accounts)
         : IFetchAccountAdministrationStore
     {
+        public IReadOnlyList<FetchAccountAdministrationSnapshot> Accounts { get; set; } = accounts;
+
+        public int ReadCount { get; private set; }
+
         public ValueTask<IReadOnlyList<FetchAccountAdministrationSnapshot>> GetFetchAccountsAsync(
             int accountId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<FetchAccountAdministrationSnapshot>>(
-                accounts.Where(account => account.AccountId == accountId).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<FetchAccountAdministrationSnapshot>>(
+                Accounts.Where(account => account.AccountId == accountId).ToArray());
+        }
     }
 }

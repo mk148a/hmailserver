@@ -174,25 +174,32 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<FetchAccountAdministrationSnapshot>? _accounts;
+    private FetchAccountAdministrationSnapshot[]? _accounts;
+    private readonly Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? _reload;
 
     public FetchAccounts()
     {
     }
 
-    private FetchAccounts(IReadOnlyList<FetchAccountAdministrationSnapshot> accounts)
+    private FetchAccounts(
+        IReadOnlyList<FetchAccountAdministrationSnapshot> accounts,
+        Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? reload)
     {
         _accounts = accounts.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetAccounts().Count;
 
-    internal static FetchAccounts CreateAuthorized(IReadOnlyList<FetchAccountAdministrationSnapshot> accounts)
+    internal static FetchAccounts CreateAuthorized(
+        IReadOnlyList<FetchAccountAdministrationSnapshot> accounts,
+        Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
-        return new FetchAccounts(accounts);
+        return new FetchAccounts(accounts, reload);
     }
 
     public IInterfaceFetchAccount get_ItemByDBID(int databaseId)
@@ -218,7 +225,28 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         }
     }
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetAccounts();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var accounts = _reload();
+            ArgumentNullException.ThrowIfNull(accounts);
+            Volatile.Write(ref _accounts, accounts.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of fetch accounts from the database.",
+                EFail);
+        }
+    }
 
     public void Delete(int index) => Unavailable();
 
@@ -228,7 +256,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
 
     private IReadOnlyList<FetchAccountAdministrationSnapshot> GetAccounts()
     {
-        return _accounts
+        return Volatile.Read(ref _accounts)
             ?? throw new COMException(
                 "FetchAccounts access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -368,12 +396,12 @@ public static class FetchAccountAdministrationRuntimeHost
                 "The hMailServer fetch-account administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var accounts = store
-            .GetFetchAccountsAsync(accountId, CancellationToken.None)
-            .AsTask()
-            .GetAwaiter()
-            .GetResult();
+        IReadOnlyList<FetchAccountAdministrationSnapshot> LoadFetchAccounts() => store
+                .GetFetchAccountsAsync(accountId, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
 
-        return FetchAccounts.CreateAuthorized(accounts);
+        return FetchAccounts.CreateAuthorized(LoadFetchAccounts(), LoadFetchAccounts);
     }
 }

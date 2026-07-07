@@ -1467,6 +1467,25 @@ ORDER BY messageid;
             Assert.AreEqual("To,CC", userFetchAccounts[0].MIMERecipientHeaders);
             Assert.AreEqual("2026-07-02 02:03:04", userFetchAccounts[0].NextDownloadTime);
             Assert.IsFalse(userFetchAccounts[0].IsLocked);
+
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var update = new SqlCommand(
+                    "UPDATE dbo.hm_fetchaccounts SET faaccountname = N'Renamed POP3', faactive = 0 WHERE faid = 1000;",
+                    connection);
+                Assert.AreEqual(1, await update.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            adminFetchAccounts.Refresh();
+
+            Assert.AreEqual(1, adminFetchAccounts.Count);
+            Assert.AreEqual("Renamed POP3", adminFetchAccounts.get_ItemByDBID(1000).Name);
+            Assert.IsFalse(adminFetchAccounts.get_ItemByDBID(1000).Enabled);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => adminFetchAccounts.get_ItemByDBID(2000)).ErrorCode);
         }
         finally
         {
