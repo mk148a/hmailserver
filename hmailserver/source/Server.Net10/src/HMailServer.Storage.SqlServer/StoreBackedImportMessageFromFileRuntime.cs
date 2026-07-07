@@ -11,12 +11,14 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
     private const string InboxFolderName = "Inbox";
 
     private readonly IImportMessageFromFileStore _store;
+    private readonly IImapAclStore? _aclStore;
     private readonly ISmtpRecipientValidator _recipientValidator;
     private readonly IDeliveryQueueWakeSignal _wakeSignal;
     private readonly TimeProvider _timeProvider;
     private readonly string _dataDirectory;
     private readonly string _hierarchyDelimiter;
     private readonly string _publicFolderName;
+    private readonly bool _useAcl;
 
     public StoreBackedImportMessageFromFileRuntime(
         IImportMessageFromFileStore store,
@@ -24,19 +26,22 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
         IDeliveryQueueWakeSignal wakeSignal,
         string dataDirectory,
         TimeProvider? timeProvider = null,
-        SqlServerImapMailboxStoreOptions? mailboxOptions = null)
+        SqlServerImapMailboxStoreOptions? mailboxOptions = null,
+        IImapAclStore? aclStore = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(recipientValidator);
         ArgumentNullException.ThrowIfNull(wakeSignal);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         _store = store;
+        _aclStore = aclStore;
         _recipientValidator = recipientValidator;
         _wakeSignal = wakeSignal;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _dataDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(dataDirectory));
         _hierarchyDelimiter = mailboxOptions?.HierarchyDelimiter ?? ".";
         _publicFolderName = mailboxOptions?.PublicFolderName ?? PublicFolderDiskName;
+        _useAcl = mailboxOptions?.UseAcl ?? true;
     }
 
     public async ValueTask<bool> ImportMessageFromFileAsync(
@@ -130,11 +135,11 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
             var createdUtc = ResolveInternalDate(message);
             if (accountId > 0)
             {
-                var folderId = await ResolveAccountFolderIdAsync(
+                var destination = await ResolveAccountFolderAsync(
                     accountId,
                     imapFolder,
                     cancellationToken).ConfigureAwait(false);
-                if (!folderId.HasValue)
+                if (destination is null)
                 {
                     return false;
                 }
@@ -142,7 +147,8 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
                 await _store.ImportDeliveredMessageAsync(
                     new ImportedDeliveredMessage(
                         accountId,
-                        folderId.Value,
+                        destination.FolderAccountId,
+                        destination.FolderId,
                         partialFileName,
                         fromAddress,
                         rawMessage.LongLength,
@@ -234,7 +240,7 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
             : _timeProvider.GetUtcNow();
     }
 
-    private async ValueTask<long?> ResolveAccountFolderIdAsync(
+    private async ValueTask<ImportedFolderDestination?> ResolveAccountFolderAsync(
         int accountId,
         string? imapFolder,
         CancellationToken cancellationToken)
@@ -245,18 +251,42 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
             return null;
         }
 
-        if (folderPath.IsPublicFolder)
+        var encodedSegments = folderPath.Segments
+            .Select(EncodeMailboxSegment)
+            .ToArray();
+        var folderAccountId = folderPath.IsPublicFolder ? 0 : accountId;
+        var folder = await _store.ResolveFolderAsync(
+            folderAccountId,
+            encodedSegments,
+            createMissing: !string.IsNullOrEmpty(imapFolder),
+            cancellationToken).ConfigureAwait(false);
+        if (folder is null)
         {
             return null;
         }
 
-        var encodedSegments = folderPath.Segments
-            .Select(EncodeMailboxSegment)
-            .ToArray();
-        return await _store.FindAccountFolderAsync(
-            accountId,
-            encodedSegments,
-            cancellationToken).ConfigureAwait(false);
+        if (folderPath.IsPublicFolder && folder.Existed && _useAcl)
+        {
+            if (_aclStore is null)
+            {
+                return null;
+            }
+
+            var mailboxName = string.Join(
+                _hierarchyDelimiter,
+                new[] { _publicFolderName }.Concat(encodedSegments));
+            var rights = await _aclStore.GetMyRightsAsync(
+                accountId,
+                mailboxName,
+                cancellationToken).ConfigureAwait(false);
+            if (rights.Status != ImapAclCommandStatus.Success ||
+                !rights.Rights.Contains('i'))
+            {
+                return null;
+            }
+        }
+
+        return new ImportedFolderDestination(folderAccountId, folder.FolderId);
     }
 
     private SqlServerImapMailboxPath? ResolveFolderPath(string? imapFolder)
@@ -461,4 +491,8 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
 
     private static readonly Encoding BigEndianUnicode =
         new UnicodeEncoding(bigEndian: true, byteOrderMark: false, throwOnInvalidBytes: true);
+
+    private sealed record ImportedFolderDestination(
+        int FolderAccountId,
+        long FolderId);
 }

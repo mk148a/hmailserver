@@ -387,6 +387,117 @@ WHERE recipientmessageid = @MessageId;
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task AuthenticatedComPath_CreatesPrivateAndPublicImportFoldersWithLegacyAclSemantics()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-import-folders-{Guid.NewGuid():N}");
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        Directory.CreateDirectory(dataDirectory);
+
+        try
+        {
+            await CreateImportMessageSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var accountDirectory = Path.Combine(dataDirectory, "example.test", "user");
+            Directory.CreateDirectory(accountDirectory);
+            var privateSource = await WriteImportMessageAsync(
+                accountDirectory,
+                "private.eml",
+                "private@example.test").ConfigureAwait(false);
+            var existingPublicSource = await WriteImportMessageAsync(
+                accountDirectory,
+                "existing-public.eml",
+                "existing-public@example.test").ConfigureAwait(false);
+            var newPublicSource = await WriteImportMessageAsync(
+                accountDirectory,
+                "new-public.eml",
+                "new-public@example.test").ConfigureAwait(false);
+            var deniedPublicSource = await WriteImportMessageAsync(
+                accountDirectory,
+                "denied-public.eml",
+                "denied-public@example.test").ConfigureAwait(false);
+
+            var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
+            var mailboxOptions = new SqlServerImapMailboxStoreOptions
+            {
+                HierarchyDelimiter = ".",
+                PublicFolderName = "#Public",
+                UseAcl = true
+            };
+            var runtime = new StoreBackedImportMessageFromFileRuntime(
+                new SqlServerImportMessageFromFileStore(connectionFactory),
+                new SqlServerSmtpRecipientValidator(connectionFactory),
+                new RecordingWakeSignal(),
+                dataDirectory,
+                new FixedTimeProvider(new DateTimeOffset(2026, 7, 7, 10, 11, 12, TimeSpan.Zero)),
+                mailboxOptions,
+                new SqlServerImapMailboxStore(connectionFactory, mailboxOptions));
+            var application = Application.CreateForRuntime(
+                new LegacyServerAdministratorAuthenticationProvider(
+                    "5ebe2294ecd0e0f08eab7690d2a6ee69"),
+                importMessageFromFileRuntime: runtime);
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+
+            Assert.IsTrue(application.Utilities.ImportMessageFromFileToIMAPFolder(
+                privateSource,
+                1,
+                "Inbox.Created.Archive"));
+            Assert.IsTrue(application.Utilities.ImportMessageFromFileToIMAPFolder(
+                existingPublicSource,
+                1,
+                "#Public.Existing"));
+            Assert.IsTrue(application.Utilities.ImportMessageFromFileToIMAPFolder(
+                newPublicSource,
+                1,
+                "#Public.New.Child"));
+            Assert.IsFalse(application.Utilities.ImportMessageFromFileToIMAPFolder(
+                deniedPublicSource,
+                1,
+                "#Public.Denied"));
+
+            await using var connection = new SqlConnection(testConnectionString);
+            await connection.OpenAsync().ConfigureAwait(false);
+            Assert.AreEqual(1L, await ExecuteScalarInt64Async(
+                connection,
+                "SELECT COUNT_BIG(*) FROM dbo.hm_imapfolders AS archive INNER JOIN dbo.hm_imapfolders AS created ON created.folderid = archive.folderparentid INNER JOIN dbo.hm_imapfolders AS inbox ON inbox.folderid = created.folderparentid WHERE archive.folderaccountid = 1 AND archive.foldername = N'Archive' AND archive.folderissubscribed = 1 AND created.foldername = N'Created' AND created.folderissubscribed = 1 AND inbox.foldername = N'INBOX';").ConfigureAwait(false));
+            Assert.AreEqual(2L, await ExecuteScalarInt64Async(
+                connection,
+                "SELECT COUNT_BIG(*) FROM dbo.hm_imapfolders WHERE folderaccountid = 0 AND foldername IN (N'New', N'Child') AND folderissubscribed = 1;").ConfigureAwait(false));
+            Assert.AreEqual(3L, await ExecuteScalarInt64Async(
+                connection,
+                "SELECT COUNT_BIG(*) FROM dbo.hm_messages WHERE messageaccountid = 1 AND messagetype = 2;").ConfigureAwait(false));
+            Assert.AreEqual(1L, await ExecuteScalarInt64Async(
+                connection,
+                "SELECT foldercurrentuid FROM dbo.hm_imapfolders WHERE folderid = 200;").ConfigureAwait(false));
+            Assert.AreEqual(0L, await ExecuteScalarInt64Async(
+                connection,
+                "SELECT COUNT_BIG(*) FROM dbo.hm_messages WHERE messagefrom = N'denied-public@example.test';").ConfigureAwait(false));
+            Assert.AreEqual(2L, await ExecuteScalarInt64Async(
+                connection,
+                "SELECT COUNT_BIG(*) FROM dbo.hm_messages AS m INNER JOIN dbo.hm_imapfolders AS f ON f.folderid = m.messagefolderid WHERE m.messageaccountid = 1 AND f.folderaccountid = 0;").ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(dataDirectory))
+            {
+                Directory.Delete(dataDirectory, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task AuthenticatedComPath_ReadsBoundedSettingsScalarsFromIsolatedDatabase()
     {
         var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -1680,11 +1791,24 @@ CREATE TABLE dbo.hm_routeaddresses
 
 CREATE TABLE dbo.hm_imapfolders
 (
-    folderid bigint NOT NULL PRIMARY KEY,
+    folderid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
     folderaccountid int NOT NULL,
     folderparentid bigint NOT NULL,
     foldername nvarchar(255) NOT NULL,
-    foldercurrentuid bigint NOT NULL
+    folderissubscribed tinyint NOT NULL,
+    foldercreationtime datetime NOT NULL,
+    foldercurrentuid bigint NOT NULL,
+    CONSTRAINT uq_import_imapfolder UNIQUE (folderaccountid, folderparentid, foldername)
+);
+
+CREATE TABLE dbo.hm_acl
+(
+    aclid bigint NOT NULL PRIMARY KEY,
+    aclsharefolderid bigint NOT NULL,
+    aclpermissiontype tinyint NOT NULL,
+    aclpermissiongroupid bigint NOT NULL,
+    aclpermissionaccountid bigint NOT NULL,
+    aclvalue bigint NOT NULL
 );
 
 CREATE TABLE dbo.hm_messages
@@ -1731,17 +1855,44 @@ VALUES (10, N'example.test', 1, N'', 0, N'+');
 INSERT INTO dbo.hm_accounts (accountid, accountaddress, accountactive)
 VALUES (1, N'user@example.test', 1);
 
+SET IDENTITY_INSERT dbo.hm_imapfolders ON;
+
 INSERT INTO dbo.hm_imapfolders
-    (folderid, folderaccountid, folderparentid, foldername, foldercurrentuid)
+    (folderid, folderaccountid, folderparentid, foldername, folderissubscribed,
+     foldercreationtime, foldercurrentuid)
 VALUES
-    (100, 1, -1, N'INBOX', 7),
-    (101, 1, 100, N'Archive', 2);
+    (100, 1, -1, N'INBOX', 1, CONVERT(datetime, '2026-07-01T00:00:00', 126), 7),
+    (101, 1, 100, N'Archive', 1, CONVERT(datetime, '2026-07-01T00:00:00', 126), 2),
+    (200, 0, -1, N'Existing', 1, CONVERT(datetime, '2026-07-01T00:00:00', 126), 0),
+    (201, 0, -1, N'Denied', 1, CONVERT(datetime, '2026-07-01T00:00:00', 126), 0);
+
+SET IDENTITY_INSERT dbo.hm_imapfolders OFF;
+
+INSERT INTO dbo.hm_acl
+    (aclid, aclsharefolderid, aclpermissiontype, aclpermissiongroupid,
+     aclpermissionaccountid, aclvalue)
+VALUES
+    (1, 200, 0, 0, 1, 16),
+    (2, 201, 0, 0, 1, 2);
 """;
 
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
         await using var command = new SqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<string> WriteImportMessageAsync(
+        string accountDirectory,
+        string fileName,
+        string fromAddress)
+    {
+        var path = Path.Combine(accountDirectory, fileName);
+        await File.WriteAllTextAsync(
+            path,
+            $"From: {fromAddress}\r\nTo: user@example.test\r\n" +
+            "Date: Fri, 03 Jul 2026 04:05:06 +0000\r\nSubject: Folder import\r\n\r\nBody\r\n").ConfigureAwait(false);
+        return path;
     }
 
     private static async Task<long> ExecuteScalarInt64Async(

@@ -24,20 +24,33 @@ public sealed class SqlServerImportMessageFromFileStoreTests
     }
 
     [TestMethod]
-    public void DeliveredSql_ResolvesFolderAndAllocatesUidWithoutNewFolderMutation()
+    public void DeliveredSql_ResolvesOrCreatesSubscribedFolderAndAllocatesUidForFolderOwner()
     {
         var findFolder = SqlServerImportMessageFromFileStore.FindFolderSql;
         StringAssert.Contains(findFolder, "SELECT TOP (1) folderid");
         StringAssert.Contains(findFolder, "FROM hm_imapfolders");
-        StringAssert.Contains(findFolder, "folderaccountid = @AccountId");
+        StringAssert.Contains(findFolder, "WITH (UPDLOCK, HOLDLOCK)");
+        StringAssert.Contains(findFolder, "folderaccountid = @FolderAccountId");
         StringAssert.Contains(findFolder, "folderparentid = @ParentFolderId");
         StringAssert.Contains(findFolder, "LOWER(foldername) = LOWER(@FolderName)");
         AssertNoMutation(findFolder);
 
+        var insertFolder = SqlServerImportMessageFromFileStore.InsertFolderSql;
+        StringAssert.Contains(insertFolder, "INSERT INTO hm_imapfolders");
+        StringAssert.Contains(insertFolder, "OUTPUT INSERTED.folderid");
+        StringAssert.Contains(insertFolder, "@FolderAccountId");
+        StringAssert.Contains(insertFolder, "@ParentFolderId");
+        StringAssert.Contains(insertFolder, "@FolderName");
+        StringAssert.Contains(insertFolder, "    1,");
+        StringAssert.Contains(insertFolder, "    GETDATE(),");
+        StringAssert.Contains(insertFolder, "    0");
+        Assert.IsFalse(insertFolder.Contains("hm_acl", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(insertFolder.Contains("hm_messages", StringComparison.OrdinalIgnoreCase));
+
         var allocation = SqlServerImportMessageFromFileStore.AllocateFolderUidSql;
         StringAssert.Contains(allocation, "UPDATE hm_imapfolders WITH (UPDLOCK, ROWLOCK)");
         StringAssert.Contains(allocation, "foldercurrentuid = foldercurrentuid + 1");
-        StringAssert.Contains(allocation, "folderaccountid = @AccountId");
+        StringAssert.Contains(allocation, "folderaccountid = @FolderAccountId");
         StringAssert.Contains(allocation, "folderid = @FolderId");
         Assert.IsFalse(allocation.Contains("INSERT INTO hm_imapfolders", StringComparison.OrdinalIgnoreCase));
 

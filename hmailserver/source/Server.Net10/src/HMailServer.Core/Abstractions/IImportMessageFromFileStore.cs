@@ -12,9 +12,10 @@ public interface IImportMessageFromFileStore
         string partialFileName,
         CancellationToken cancellationToken);
 
-    ValueTask<long?> FindAccountFolderAsync(
-        int accountId,
+    ValueTask<ImportedFolderReference?> ResolveFolderAsync(
+        int folderAccountId,
         IReadOnlyList<string> folderPath,
+        bool createMissing,
         CancellationToken cancellationToken);
 
     ValueTask ImportDeliveredMessageAsync(
@@ -30,8 +31,13 @@ public sealed record ImportedMessageReference(
     long MessageId,
     bool IsPartialFileName);
 
+public sealed record ImportedFolderReference(
+    long FolderId,
+    bool Existed);
+
 public sealed record ImportedDeliveredMessage(
     int AccountId,
+    int FolderAccountId,
     long FolderId,
     string FileName,
     string FromAddress,

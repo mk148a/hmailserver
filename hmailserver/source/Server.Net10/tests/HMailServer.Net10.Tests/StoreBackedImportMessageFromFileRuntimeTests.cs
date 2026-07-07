@@ -97,8 +97,10 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
         Assert.AreEqual(1, store.DeliveredImports.Count);
         Assert.AreEqual(1, store.FolderLookups.Count);
         CollectionAssert.AreEqual(new[] { "Inbox" }, store.FolderLookups[0].FolderPath);
+        Assert.IsFalse(store.FolderLookups[0].CreateMissing);
         var imported = store.DeliveredImports[0];
         Assert.AreEqual(42, imported.AccountId);
+        Assert.AreEqual(42, imported.FolderAccountId);
         Assert.AreEqual(100L, imported.FolderId);
         Assert.AreEqual("sender@example.test", imported.FromAddress);
         Assert.AreEqual(new DateTimeOffset(2026, 7, 2, 3, 4, 5, TimeSpan.Zero), imported.CreatedUtc);
@@ -114,6 +116,29 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
         Assert.IsFalse(File.Exists(sourcePath));
         Assert.IsTrue(File.Exists(movedPath));
         Assert.AreEqual(new FileInfo(movedPath).Length, imported.Size);
+    }
+
+    [TestMethod]
+    public async Task ImportAccountMessage_ReturnsFalseInsteadOfCreatingMissingInbox()
+    {
+        using var directory = new TemporaryDirectory();
+        var sourcePath = directory.Write(
+            Path.Combine("example.test", "user", "missing-inbox.eml"),
+            ValidMessage("local@example.test"));
+        var store = new RecordingStore();
+        var runtime = CreateRuntime(
+            directory.Path,
+            store,
+            new RecordingRecipientValidator(),
+            new RecordingWakeSignal());
+
+        Assert.IsFalse(await runtime.ImportMessageFromFileAsync(
+            sourcePath,
+            accountId: 42,
+            CancellationToken.None));
+        Assert.AreEqual(1, store.FolderLookups.Count);
+        Assert.IsFalse(store.FolderLookups[0].CreateMissing);
+        Assert.AreEqual(0, store.DeliveredImports.Count);
     }
 
     [TestMethod]
@@ -196,22 +221,91 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
         Assert.IsTrue(result);
         Assert.AreEqual(1, store.FolderLookups.Count);
         CollectionAssert.AreEqual(new[] { "Inbox", "2026" }, store.FolderLookups[0].FolderPath);
+        Assert.IsTrue(store.FolderLookups[0].CreateMissing);
         Assert.AreEqual(222L, store.DeliveredImports.Single().FolderId);
     }
 
     [TestMethod]
-    public async Task ImportMessageToImapFolder_ReturnsFalseForMissingOrPublicFolderAndQueuesWhenAccountIsZero()
+    public async Task ImportMessageToImapFolder_CreatesMissingPrivateAndPublicFoldersAndChecksExistingPublicInsertAcl()
     {
         using var directory = new TemporaryDirectory();
-        var accountSource = directory.Write(
+        var privateSource = directory.Write(
             Path.Combine("example.test", "user", "named.eml"),
             ValidMessage("local@example.test"));
-        var publicSource = directory.Write(
-            Path.Combine("example.test", "user", "public.eml"),
+        var newPublicSource = directory.Write(
+            Path.Combine("example.test", "user", "new-public.eml"),
             ValidMessage("local@example.test"));
-        var queueSource = directory.Write(
-            "queue.eml",
+        var existingPublicSource = directory.Write(
+            Path.Combine("example.test", "user", "existing-public.eml"),
             ValidMessage("local@example.test"));
+        var deniedPublicSource = directory.Write(
+            Path.Combine("example.test", "user", "denied-public.eml"),
+            ValidMessage("local@example.test"));
+        var store = new RecordingStore
+        {
+            FolderIds =
+            {
+                ["0|Existing"] = 300,
+                ["0|Denied"] = 301
+            }
+        };
+        var aclStore = new RecordingAclStore
+        {
+            RightsByMailbox =
+            {
+                ["#Public.Existing"] = "li",
+                ["#Public.Denied"] = "lr"
+            }
+        };
+        var runtime = CreateRuntime(
+            directory.Path,
+            store,
+            new RecordingRecipientValidator(),
+            new RecordingWakeSignal(),
+            aclStore: aclStore);
+
+        Assert.IsTrue(await runtime.ImportMessageFromFileToImapFolderAsync(
+            privateSource,
+            accountId: 42,
+            imapFolder: "Inbox.Archive",
+            CancellationToken.None));
+        Assert.IsTrue(await runtime.ImportMessageFromFileToImapFolderAsync(
+            newPublicSource,
+            accountId: 42,
+            imapFolder: "#Public.New",
+            CancellationToken.None));
+        Assert.IsTrue(await runtime.ImportMessageFromFileToImapFolderAsync(
+            existingPublicSource,
+            accountId: 42,
+            imapFolder: "#Public.Existing",
+            CancellationToken.None));
+        Assert.IsFalse(await runtime.ImportMessageFromFileToImapFolderAsync(
+            deniedPublicSource,
+            accountId: 42,
+            imapFolder: "#Public.Denied",
+            CancellationToken.None));
+
+        Assert.AreEqual(4, store.FolderLookups.Count);
+        CollectionAssert.AreEqual(new[] { "Inbox", "Archive" }, store.FolderLookups[0].FolderPath);
+        Assert.AreEqual(42, store.FolderLookups[0].AccountId);
+        Assert.IsTrue(store.FolderLookups[0].CreateMissing);
+        CollectionAssert.AreEqual(new[] { "New" }, store.FolderLookups[1].FolderPath);
+        Assert.AreEqual(0, store.FolderLookups[1].AccountId);
+        Assert.AreEqual(3, store.DeliveredImports.Count);
+        Assert.AreEqual(42, store.DeliveredImports[0].FolderAccountId);
+        Assert.AreEqual(0, store.DeliveredImports[1].FolderAccountId);
+        Assert.AreEqual(0, store.DeliveredImports[2].FolderAccountId);
+        Assert.AreEqual(42, store.DeliveredImports[2].AccountId);
+        CollectionAssert.AreEqual(
+            new[] { "#Public.Existing", "#Public.Denied" },
+            aclStore.MailboxNames.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ImportMessageToImapFolder_IgnoresFolderForQueueImport()
+    {
+        using var directory = new TemporaryDirectory();
+        var sourcePath = directory.Write("queue.eml", ValidMessage("local@example.test"));
         var store = new RecordingStore();
         var wakeSignal = new RecordingWakeSignal();
         var runtime = CreateRuntime(
@@ -220,25 +314,14 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
             new RecordingRecipientValidator(),
             wakeSignal);
 
-        Assert.IsFalse(await runtime.ImportMessageFromFileToImapFolderAsync(
-            accountSource,
-            accountId: 42,
-            imapFolder: "Inbox.Archive",
-            CancellationToken.None));
-        Assert.IsFalse(await runtime.ImportMessageFromFileToImapFolderAsync(
-            publicSource,
-            accountId: 42,
-            imapFolder: "#Public.Archive",
-            CancellationToken.None));
         Assert.IsTrue(await runtime.ImportMessageFromFileToImapFolderAsync(
-            queueSource,
+            sourcePath,
             accountId: 0,
-            imapFolder: "Inbox.Archive",
+            imapFolder: "#Public.Ignored",
             CancellationToken.None));
+        Assert.AreEqual(0, store.FolderLookups.Count);
         Assert.AreEqual(1, store.QueueImports.Count);
         Assert.AreEqual(1, wakeSignal.SignalCount);
-        Assert.AreEqual(1, store.FolderLookups.Count);
-        CollectionAssert.AreEqual(new[] { "Inbox", "Archive" }, store.FolderLookups[0].FolderPath);
     }
 
     [TestMethod]
@@ -282,8 +365,17 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
         string dataDirectory,
         RecordingStore store,
         RecordingRecipientValidator validator,
-        RecordingWakeSignal wakeSignal) =>
-        new(store, validator, wakeSignal, dataDirectory, new FixedTimeProvider(FixedNow));
+        RecordingWakeSignal wakeSignal,
+        SqlServerImapMailboxStoreOptions? mailboxOptions = null,
+        IImapAclStore? aclStore = null) =>
+        new(
+            store,
+            validator,
+            wakeSignal,
+            dataDirectory,
+            new FixedTimeProvider(FixedNow),
+            mailboxOptions,
+            aclStore);
 
     private static string ValidMessage(string recipient) =>
         $"From: sender@example.test\r\nTo: {recipient}\r\nSubject: Test\r\n\r\nBody\r\n";
@@ -293,7 +385,7 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
         public ImportedMessageReference? ExistingReference { get; init; }
         public Exception? Exception { get; init; }
         public List<(string? PartialFileName, string FullFileName)> FindCalls { get; } = [];
-        public List<(int AccountId, string[] FolderPath)> FolderLookups { get; } = [];
+        public List<(int AccountId, string[] FolderPath, bool CreateMissing)> FolderLookups { get; } = [];
         public Dictionary<string, long> FolderIds { get; } = new(StringComparer.OrdinalIgnoreCase);
         public List<(long MessageId, string FileName)> UpdateCalls { get; } = [];
         public List<ImportedDeliveredMessage> DeliveredImports { get; } = [];
@@ -317,20 +409,31 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
             return ValueTask.FromResult(true);
         }
 
-        public ValueTask<long?> FindAccountFolderAsync(
+        public ValueTask<ImportedFolderReference?> ResolveFolderAsync(
             int accountId,
             IReadOnlyList<string> folderPath,
+            bool createMissing,
             CancellationToken cancellationToken)
         {
             var segments = folderPath.ToArray();
-            FolderLookups.Add((accountId, segments));
-            return ValueTask.FromResult(
-                FolderIds.TryGetValue(
-                    accountId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" +
-                    string.Join("|", segments),
-                    out var folderId)
-                    ? (long?)folderId
-                    : null);
+            FolderLookups.Add((accountId, segments, createMissing));
+            var key = accountId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" +
+                string.Join("|", segments);
+            if (FolderIds.TryGetValue(key, out var folderId))
+            {
+                return ValueTask.FromResult<ImportedFolderReference?>(
+                    new ImportedFolderReference(folderId, Existed: true));
+            }
+
+            if (!createMissing)
+            {
+                return ValueTask.FromResult<ImportedFolderReference?>(null);
+            }
+
+            folderId = 1000 + FolderIds.Count;
+            FolderIds[key] = folderId;
+            return ValueTask.FromResult<ImportedFolderReference?>(
+                new ImportedFolderReference(folderId, Existed: false));
         }
 
         public ValueTask ImportDeliveredMessageAsync(
@@ -358,6 +461,43 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
                 throw Exception;
             }
         }
+    }
+
+    private sealed class RecordingAclStore : IImapAclStore
+    {
+        public Dictionary<string, string> RightsByMailbox { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public List<string> MailboxNames { get; } = [];
+
+        public ValueTask<ImapAclRightsResult> GetMyRightsAsync(
+            int requesterAccountId,
+            string mailboxName,
+            CancellationToken cancellationToken)
+        {
+            MailboxNames.Add(mailboxName);
+            return ValueTask.FromResult(RightsByMailbox.TryGetValue(mailboxName, out var rights)
+                ? new ImapAclRightsResult(ImapAclCommandStatus.Success, mailboxName, rights)
+                : ImapAclRightsResult.Failure(ImapAclCommandStatus.PermissionDenied));
+        }
+
+        public ValueTask<ImapAclListResult> GetAclAsync(
+            int requesterAccountId,
+            string mailboxName,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask<ImapAclMutationResult> SetAclAsync(
+            int requesterAccountId,
+            string mailboxName,
+            string identifier,
+            ImapAclRightsChange rightsChange,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask<ImapAclMutationResult> DeleteAclAsync(
+            int requesterAccountId,
+            string mailboxName,
+            string identifier,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class RecordingRecipientValidator : ISmtpRecipientValidator
