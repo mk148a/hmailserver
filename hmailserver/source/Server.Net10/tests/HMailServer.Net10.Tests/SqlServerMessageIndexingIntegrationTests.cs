@@ -995,6 +995,25 @@ ORDER BY messageid;
             Assert.AreEqual(ComDkimCanonicalizationMethod.Relaxed, domains.get_ItemByDBID(20).DKIMBodyCanonicalizationMethod);
             Assert.AreEqual(ComDkimAlgorithm.SHA256, domains.get_ItemByDBID(20).DKIMSigningAlgorithm);
             Assert.IsFalse(domains.get_ItemByDBID(20).DKIMSignAliasesEnabled);
+
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var update = new SqlCommand(
+                    "UPDATE dbo.hm_domains SET domainname = N'zeta.example', domainactive = 0 WHERE domainid = 10;",
+                    connection);
+                Assert.AreEqual(1, await update.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            domains.Refresh();
+
+            Assert.AreEqual("20\tbeta.example\t0\r\n10\tzeta.example\t0\r\n", domains.Names);
+            Assert.AreEqual("zeta.example", domains.get_ItemByDBID(10).Name);
+            Assert.IsFalse(domains.get_ItemByDBID(10).Active);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => domains.get_ItemByName("alpha.example")).ErrorCode);
         }
         finally
         {

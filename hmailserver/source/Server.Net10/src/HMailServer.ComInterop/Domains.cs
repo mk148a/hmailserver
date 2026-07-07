@@ -303,17 +303,22 @@ public sealed class Domains : IInterfaceDomains
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<DomainAdministrationSnapshot>? _domains;
+    private DomainAdministrationSnapshot[]? _domains;
+    private readonly Func<IReadOnlyList<DomainAdministrationSnapshot>>? _reload;
 
     public Domains()
     {
     }
 
-    private Domains(IReadOnlyList<DomainAdministrationSnapshot> domains)
+    private Domains(
+        IReadOnlyList<DomainAdministrationSnapshot> domains,
+        Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload)
     {
         _domains = domains.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetDomains().Count;
@@ -321,10 +326,12 @@ public sealed class Domains : IInterfaceDomains
     public string Names => string.Concat(
         GetDomains().Select(static domain => $"{domain.Id}\t{domain.Name}\t{(domain.Active ? 1 : 0)}\r\n"));
 
-    internal static Domains CreateAuthorized(IReadOnlyList<DomainAdministrationSnapshot> domains)
+    internal static Domains CreateAuthorized(
+        IReadOnlyList<DomainAdministrationSnapshot> domains,
+        Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(domains);
-        return new Domains(domains);
+        return new Domains(domains, reload);
     }
 
     public IInterfaceDomain this[int index]
@@ -341,7 +348,28 @@ public sealed class Domains : IInterfaceDomains
         }
     }
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetDomains();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var domains = _reload();
+            ArgumentNullException.ThrowIfNull(domains);
+            Volatile.Write(ref _domains, domains.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of domains from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceDomain Add() => Unavailable<IInterfaceDomain>();
 
@@ -368,7 +396,7 @@ public sealed class Domains : IInterfaceDomains
 
     private IReadOnlyList<DomainAdministrationSnapshot> GetDomains()
     {
-        return _domains
+        return Volatile.Read(ref _domains)
             ?? throw new COMException("Domains access requires an authenticated server administrator.", EAccessDenied);
     }
 
@@ -724,12 +752,12 @@ public static class DomainAdministrationRuntimeHost
                 "The hMailServer domain administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var domains = store
-            .GetDomainsAsync(CancellationToken.None)
-            .AsTask()
-            .GetAwaiter()
-            .GetResult();
+        IReadOnlyList<DomainAdministrationSnapshot> LoadDomains() => store
+                .GetDomainsAsync(CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
 
-        return Domains.CreateAuthorized(domains);
+        return Domains.CreateAuthorized(LoadDomains(), LoadDomains);
     }
 }

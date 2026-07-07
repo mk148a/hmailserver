@@ -293,12 +293,12 @@ public sealed class ApplicationComContractTests
     [TestMethod]
     public void Application_DomainsPreserveAdministratorBoundaryAndUseConfiguredRuntime()
     {
-        DomainAdministrationRuntimeHost.Configure(
-            new FixedDomainAdministrationStore(
-                new[]
-                {
-                    new DomainAdministrationSnapshot(10, "alpha.example", true)
-                }));
+        var store = new MutableDomainAdministrationStore(
+            new[]
+            {
+                new DomainAdministrationSnapshot(10, "alpha.example", true)
+            });
+        DomainAdministrationRuntimeHost.Configure(store);
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Domains);
@@ -309,6 +309,16 @@ public sealed class ApplicationComContractTests
 
         Assert.AreEqual(1, domains.Count);
         Assert.AreEqual("alpha.example", domains[0].Name);
+
+        store.Domains =
+        [
+            new DomainAdministrationSnapshot(20, "beta.example", false)
+        ];
+        domains.Refresh();
+
+        Assert.AreEqual(1, domains.Count);
+        Assert.AreEqual("beta.example", domains[0].Name);
+        Assert.AreEqual(2, store.ReadCount);
     }
 
     [TestMethod]
@@ -389,6 +399,21 @@ public sealed class ApplicationComContractTests
         public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(domains);
+    }
+
+    private sealed class MutableDomainAdministrationStore(
+        IReadOnlyList<DomainAdministrationSnapshot> domains) : IDomainAdministrationStore
+    {
+        public IReadOnlyList<DomainAdministrationSnapshot> Domains { get; set; } = domains;
+
+        public int ReadCount { get; private set; }
+
+        public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult(Domains);
+        }
     }
 
     private sealed class FixedSettingsAdministrationStore(SettingsAdministrationSnapshot snapshot)

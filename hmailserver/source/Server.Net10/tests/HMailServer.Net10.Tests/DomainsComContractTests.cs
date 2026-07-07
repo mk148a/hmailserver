@@ -106,6 +106,7 @@ public sealed class DomainsComContractTests
     {
         var domainsError = Assert.ThrowsExactly<COMException>(() => _ = new Domains().Count);
         var namesError = Assert.ThrowsExactly<COMException>(() => _ = new Domains().Names);
+        var refreshError = Assert.ThrowsExactly<COMException>(new Domains().Refresh);
         var domainError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().Name);
         var adDomainError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().ADDomainName);
         var sizeError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().Size);
@@ -116,6 +117,7 @@ public sealed class DomainsComContractTests
 
         Assert.AreEqual(EAccessDenied, domainsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, namesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, refreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, domainError.ErrorCode);
         Assert.AreEqual(EAccessDenied, adDomainError.ErrorCode);
         Assert.AreEqual(EAccessDenied, sizeError.ErrorCode);
@@ -123,6 +125,38 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(EAccessDenied, greylistingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, signatureError.ErrorCode);
         Assert.AreEqual(EAccessDenied, dkimError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var refreshed = new[]
+        {
+            new DomainAdministrationSnapshot(20, "beta.example", false),
+            new DomainAdministrationSnapshot(30, "gamma.example", true)
+        };
+        var failRefresh = false;
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            () => failRefresh
+                ? throw new InvalidOperationException("store failed")
+                : refreshed);
+
+        domains.Refresh();
+
+        Assert.AreEqual(2, domains.Count);
+        Assert.AreEqual("20\tbeta.example\t0\r\n30\tgamma.example\t1\r\n", domains.Names);
+        Assert.AreEqual("gamma.example", domains.get_ItemByDBID(30).Name);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => domains.get_ItemByDBID(10)).ErrorCode);
+
+        failRefresh = true;
+        var failure = Assert.ThrowsExactly<COMException>(domains.Refresh);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failure.ErrorCode);
+        Assert.AreEqual(2, domains.Count);
+        Assert.AreEqual("beta.example", domains[0].Name);
     }
 
     [TestMethod]
