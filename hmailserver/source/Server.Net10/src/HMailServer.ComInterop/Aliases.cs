@@ -95,25 +95,32 @@ public sealed class Aliases : IInterfaceAliases
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<AliasAdministrationSnapshot>? _aliases;
+    private AliasAdministrationSnapshot[]? _aliases;
+    private readonly Func<IReadOnlyList<AliasAdministrationSnapshot>>? _reload;
 
     public Aliases()
     {
     }
 
-    private Aliases(IReadOnlyList<AliasAdministrationSnapshot> aliases)
+    private Aliases(
+        IReadOnlyList<AliasAdministrationSnapshot> aliases,
+        Func<IReadOnlyList<AliasAdministrationSnapshot>>? reload)
     {
         _aliases = aliases.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetAliases().Count;
 
-    internal static Aliases CreateAuthorized(IReadOnlyList<AliasAdministrationSnapshot> aliases)
+    internal static Aliases CreateAuthorized(
+        IReadOnlyList<AliasAdministrationSnapshot> aliases,
+        Func<IReadOnlyList<AliasAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(aliases);
-        return new Aliases(aliases);
+        return new Aliases(aliases, reload);
     }
 
     public IInterfaceAlias this[int index]
@@ -132,7 +139,28 @@ public sealed class Aliases : IInterfaceAliases
 
     public void Delete(int index) => Unavailable();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetAliases();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var aliases = _reload();
+            ArgumentNullException.ThrowIfNull(aliases);
+            Volatile.Write(ref _aliases, aliases.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of aliases from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceAlias Add() => Unavailable<IInterfaceAlias>();
 
@@ -159,7 +187,7 @@ public sealed class Aliases : IInterfaceAliases
 
     private IReadOnlyList<AliasAdministrationSnapshot> GetAliases()
     {
-        return _aliases
+        return Volatile.Read(ref _aliases)
             ?? throw new COMException("Aliases access requires an authenticated server administrator.", EAccessDenied);
     }
 
@@ -259,12 +287,12 @@ public static class AliasAdministrationRuntimeHost
                 "The hMailServer alias administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var aliases = store
+        IReadOnlyList<AliasAdministrationSnapshot> LoadAliases() => store
             .GetAliasesAsync(domainId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return Aliases.CreateAuthorized(aliases);
+        return Aliases.CreateAuthorized(LoadAliases(), LoadAliases);
     }
 }

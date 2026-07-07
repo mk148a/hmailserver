@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class AliasesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -55,9 +56,11 @@ public sealed class AliasesComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var aliasesError = Assert.ThrowsExactly<COMException>(() => _ = new Aliases().Count);
+        var aliasesRefreshError = Assert.ThrowsExactly<COMException>(new Aliases().Refresh);
         var aliasError = Assert.ThrowsExactly<COMException>(() => _ = new Alias().Name);
 
         Assert.AreEqual(EAccessDenied, aliasesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, aliasesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, aliasError.ErrorCode);
     }
 
@@ -88,20 +91,94 @@ public sealed class AliasesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceAliases aliases = Aliases.CreateAuthorized(
+            new[]
+            {
+                new AliasAdministrationSnapshot(10, 100, "abuse@example.test", "admin@example.test", true)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    new AliasAdministrationSnapshot(20, 100, "billing@example.test", "billing-target@example.test", true),
+                    new AliasAdministrationSnapshot(30, 100, "sales@example.test", "sales-target@example.test", false)
+                };
+            });
+
+        Assert.AreEqual(1, aliases.Count);
+        Assert.AreEqual("abuse@example.test", aliases[0].Name);
+
+        aliases.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, aliases.Count);
+        AssertAlias(aliases[0], 20, 100, "billing@example.test", "billing-target@example.test", true);
+        AssertAlias(
+            aliases.get_ItemByName("SALES@EXAMPLE.TEST"),
+            30,
+            100,
+            "sales@example.test",
+            "sales-target@example.test",
+            false);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = aliases.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(aliases.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, aliases.Count);
+        Assert.AreEqual("billing-target@example.test", aliases.get_ItemByDBID(20).Value);
+    }
+
+    [TestMethod]
     public void DomainAliases_UsesConfiguredRuntimeForSelectedDomain()
     {
-        AliasAdministrationRuntimeHost.Configure(
-            new FixedAliasAdministrationStore(
-                new[]
-                {
-                    new AliasAdministrationSnapshot(10, 100, "abuse@example.test", "admin@example.test", true)
-                }));
+        var store = new MutableAliasAdministrationStore(
+            new[]
+            {
+                new AliasAdministrationSnapshot(10, 100, "abuse@example.test", "admin@example.test", true),
+                new AliasAdministrationSnapshot(20, 200, "outside@example.test", "outside-target@example.test", true)
+            });
+        AliasAdministrationRuntimeHost.Configure(store);
         var domain = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true));
 
         var aliases = domain.Aliases;
 
         Assert.AreEqual(1, aliases.Count);
         Assert.AreEqual("abuse@example.test", aliases[0].Name);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                new AliasAdministrationSnapshot(30, 100, "billing@example.test", "billing@example.net", false),
+                new AliasAdministrationSnapshot(40, 200, "outside@example.test", "outside-target@example.test", true)
+            });
+
+        aliases.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(1, aliases.Count);
+        AssertAlias(aliases[0], 30, 100, "billing@example.test", "billing@example.net", false);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = aliases.get_ItemByDBID(10)).ErrorCode);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = aliases.get_ItemByDBID(40)).ErrorCode);
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
@@ -142,13 +219,25 @@ public sealed class AliasesComContractTests
         Assert.AreEqual(active, alias.Active);
     }
 
-    private sealed class FixedAliasAdministrationStore(IReadOnlyList<AliasAdministrationSnapshot> aliases)
+    private sealed class MutableAliasAdministrationStore(IReadOnlyList<AliasAdministrationSnapshot> aliases)
         : IAliasAdministrationStore
     {
+        private IReadOnlyList<AliasAdministrationSnapshot> _aliases = aliases;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<AliasAdministrationSnapshot> aliases)
+        {
+            _aliases = aliases;
+        }
+
         public ValueTask<IReadOnlyList<AliasAdministrationSnapshot>> GetAliasesAsync(
             int domainId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<AliasAdministrationSnapshot>>(
-                aliases.Where(alias => alias.DomainId == domainId).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<AliasAdministrationSnapshot>>(
+                _aliases.Where(alias => alias.DomainId == domainId).ToArray());
+        }
     }
 }

@@ -1630,6 +1630,36 @@ ORDER BY messageid;
             Assert.AreEqual(10, aliases[0].DomainID);
             Assert.AreEqual("sales@example.test", aliases.get_ItemByName("SALES@EXAMPLE.TEST").Name);
             Assert.IsFalse(aliases.get_ItemByDBID(20).Active);
+
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var update = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_aliases
+                    SET aliasname = N'billing@example.test',
+                        aliasvalue = N'billing-target@example.test',
+                        aliasactive = 0
+                    WHERE aliasid = 10;
+                    """,
+                    connection);
+                Assert.AreEqual(1, await update.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            aliases.Refresh();
+
+            Assert.AreEqual(2, aliases.Count);
+            Assert.AreEqual("billing@example.test", aliases[0].Name);
+            Assert.AreEqual("billing-target@example.test", aliases.get_ItemByDBID(10).Value);
+            Assert.IsFalse(aliases.get_ItemByDBID(10).Active);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => aliases.get_ItemByName("abuse@example.test")).ErrorCode);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => aliases.get_ItemByDBID(30)).ErrorCode);
         }
         finally
         {
