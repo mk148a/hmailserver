@@ -1157,6 +1157,34 @@ ORDER BY messageid;
             Assert.AreEqual(unchecked((int)0x8002000B), outsideRuleCriterion.ErrorCode);
             var pendingRuleCriterionSave = Assert.ThrowsExactly<COMException>(firstRuleCriteria[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRuleCriterionSave.ErrorCode);
+
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var update = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_rule_criterias
+                    SET criteriamatchvalue = N'refreshed invoice',
+                        criteriamatchtype = 3,
+                        criteriaheadername = N'X-Refresh',
+                        criteriausepredefined = 0
+                    WHERE criteriaid = 2000;
+                    """,
+                    connection);
+                Assert.AreEqual(1, await update.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            firstRuleCriteria.Refresh();
+
+            Assert.AreEqual(2, firstRuleCriteria.Count);
+            Assert.AreEqual("refreshed invoice", firstRuleCriteria.get_ItemByDBID(2000).MatchValue);
+            Assert.AreEqual(ComRuleMatchType.LessThan, firstRuleCriteria.get_ItemByDBID(2000).MatchType);
+            Assert.AreEqual("X-Refresh", firstRuleCriteria.get_ItemByDBID(2000).HeaderField);
+            Assert.IsFalse(firstRuleCriteria.get_ItemByDBID(2000).UsePredefined);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => firstRuleCriteria.get_ItemByDBID(3000)).ErrorCode);
             var firstRuleActions = rules[0].Actions;
             Assert.AreEqual(2, firstRuleActions.Count);
             Assert.AreEqual(20000, firstRuleActions[0].ID);

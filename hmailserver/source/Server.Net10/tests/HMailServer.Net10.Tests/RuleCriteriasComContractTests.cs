@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class RuleCriteriasComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -90,9 +91,11 @@ public sealed class RuleCriteriasComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var criteriaError = Assert.ThrowsExactly<COMException>(() => _ = new RuleCriterias().Count);
+        var criteriaRefreshError = Assert.ThrowsExactly<COMException>(new RuleCriterias().Refresh);
         var criterionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleCriteria().MatchValue);
 
         Assert.AreEqual(EAccessDenied, criteriaError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, criteriaRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionError.ErrorCode);
     }
 
@@ -156,16 +159,71 @@ public sealed class RuleCriteriasComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceRuleCriterias criteria = RuleCriterias.CreateAuthorized(
+            new[]
+            {
+                Snapshot(100, 10, "initial", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    Snapshot(200, 10, "updated", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Test"),
+                    Snapshot(300, 10, "second", true, ComRulePredefinedField.From, ComRuleMatchType.NotEquals, string.Empty)
+                };
+            });
+
+        Assert.AreEqual(1, criteria.Count);
+        Assert.AreEqual("initial", criteria[0].MatchValue);
+
+        criteria.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, criteria.Count);
+        AssertCriterion(
+            criteria[0],
+            200,
+            10,
+            "updated",
+            false,
+            ComRulePredefinedField.Unknown,
+            ComRuleMatchType.Equals,
+            "X-Test");
+        Assert.AreEqual("second", criteria.get_ItemByDBID(300).MatchValue);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = criteria.get_ItemByDBID(100)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(criteria.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, criteria.Count);
+        Assert.AreEqual("updated", criteria.get_ItemByDBID(200).MatchValue);
+        Assert.AreEqual(2, reloads);
+    }
+
+    [TestMethod]
     public void AuthorizedRule_UsesConfiguredRuleScopedRuntime()
     {
-        RuleCriteriaAdministrationRuntimeHost.Configure(
-            new FixedRuleCriteriaAdministrationStore(
-                new[]
-                {
-                    Snapshot(300, 20, "outside", true, ComRulePredefinedField.To, ComRuleMatchType.Equals, string.Empty),
-                    Snapshot(200, 10, "second", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty),
-                    Snapshot(100, 10, "first", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Test")
-                }));
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(300, 20, "outside", true, ComRulePredefinedField.To, ComRuleMatchType.Equals, string.Empty),
+                Snapshot(200, 10, "second", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty),
+                Snapshot(100, 10, "first", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Test")
+            });
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
         var rules = Rules.CreateAuthorized(
             new[]
             {
@@ -180,6 +238,34 @@ public sealed class RuleCriteriasComContractTests
         Assert.AreEqual("first", criteria[0].MatchValue);
         var outsideRule = Assert.ThrowsExactly<COMException>(() => _ = criteria.get_ItemByDBID(300));
         Assert.AreEqual(DispEBadIndex, outsideRule.ErrorCode);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(400, 10, "refreshed", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Refresh"),
+                Snapshot(500, 20, "outside refreshed", true, ComRulePredefinedField.To, ComRuleMatchType.Equals, string.Empty)
+            });
+
+        criteria.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(1, criteria.Count);
+        AssertCriterion(
+            criteria[0],
+            400,
+            10,
+            "refreshed",
+            false,
+            ComRulePredefinedField.Unknown,
+            ComRuleMatchType.Equals,
+            "X-Refresh");
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = criteria.get_ItemByDBID(100)).ErrorCode);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = criteria.get_ItemByDBID(500)).ErrorCode);
     }
 
     private static RuleCriteriaAdministrationSnapshot Snapshot(
@@ -245,16 +331,28 @@ public sealed class RuleCriteriasComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedRuleCriteriaAdministrationStore(
+    private sealed class MutableRuleCriteriaAdministrationStore(
         IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria)
         : IRuleCriteriaAdministrationStore
     {
+        private IReadOnlyList<RuleCriteriaAdministrationSnapshot> _criteria = criteria;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria)
+        {
+            _criteria = criteria;
+        }
+
         public ValueTask<IReadOnlyList<RuleCriteriaAdministrationSnapshot>> GetRuleCriteriaAsync(
             int ruleId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>(
-                criteria.Where(criterion => criterion.RuleId == ruleId)
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>(
+                _criteria.Where(criterion => criterion.RuleId == ruleId)
                     .OrderBy(static criterion => criterion.Id)
                     .ToArray());
+        }
     }
 }

@@ -88,17 +88,22 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<RuleCriteriaAdministrationSnapshot>? _criteria;
+    private RuleCriteriaAdministrationSnapshot[]? _criteria;
+    private readonly Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? _reload;
 
     public RuleCriterias()
     {
     }
 
-    private RuleCriterias(IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria)
+    private RuleCriterias(
+        IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria,
+        Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? reload)
     {
         _criteria = criteria.ToArray();
+        _reload = reload;
     }
 
     public IInterfaceRuleCriteria this[int index]
@@ -132,19 +137,42 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetCriteria();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var criteria = _reload();
+            ArgumentNullException.ThrowIfNull(criteria);
+            Volatile.Write(ref _criteria, criteria.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of rule criterias from the database.",
+                EFail);
+        }
+    }
 
     public void Delete(int databaseId) => Unavailable();
 
-    internal static RuleCriterias CreateAuthorized(IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria)
+    internal static RuleCriterias CreateAuthorized(
+        IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria,
+        Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(criteria);
-        return new RuleCriterias(criteria);
+        return new RuleCriterias(criteria, reload);
     }
 
     private IReadOnlyList<RuleCriteriaAdministrationSnapshot> GetCriteria()
     {
-        return _criteria
+        return Volatile.Read(ref _criteria)
             ?? throw new COMException(
                 "RuleCriterias access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -250,12 +278,12 @@ public static class RuleCriteriaAdministrationRuntimeHost
                 "The hMailServer rule criteria administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var criteria = store
+        IReadOnlyList<RuleCriteriaAdministrationSnapshot> LoadCriteria() => store
             .GetRuleCriteriaAsync(ruleId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return RuleCriterias.CreateAuthorized(criteria);
+        return RuleCriterias.CreateAuthorized(LoadCriteria(), LoadCriteria);
     }
 }
