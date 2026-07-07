@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class RuleActionsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -100,9 +101,11 @@ public sealed class RuleActionsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var actionsError = Assert.ThrowsExactly<COMException>(() => _ = new RuleActions().Count);
+        var actionsRefreshError = Assert.ThrowsExactly<COMException>(new RuleActions().Refresh);
         var actionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleAction().Type);
 
         Assert.AreEqual(EAccessDenied, actionsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionsRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionError.ErrorCode);
     }
 
@@ -155,16 +158,60 @@ public sealed class RuleActionsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceRuleActions actions = RuleActions.CreateAuthorized(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    Snapshot(200, 10, ComRuleActionType.SetHeaderValue, 1),
+                    Snapshot(300, 10, ComRuleActionType.SendUsingRoute, 2)
+                };
+            });
+
+        Assert.AreEqual(1, actions.Count);
+        Assert.AreEqual(ComRuleActionType.Reply, actions[0].Type);
+
+        actions.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, actions.Count);
+        AssertAction(actions[0], 200, 10, ComRuleActionType.SetHeaderValue);
+        Assert.AreEqual(ComRuleActionType.SendUsingRoute, actions.get_ItemByDBID(300).Type);
+        AssertError(DispEBadIndex, () => _ = actions.get_ItemByDBID(100));
+
+        failReload = true;
+        AssertError(EFail, actions.Refresh);
+
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, actions.Count);
+        Assert.AreEqual(ComRuleActionType.SetHeaderValue, actions.get_ItemByDBID(200).Type);
+    }
+
+    [TestMethod]
     public void AuthorizedRule_UsesConfiguredRuleScopedRuntimeAndLegacyOrdering()
     {
-        RuleActionAdministrationRuntimeHost.Configure(
-            new FixedRuleActionAdministrationStore(
-                new[]
-                {
-                    Snapshot(300, 20, ComRuleActionType.DeleteEmail, 1),
-                    Snapshot(200, 10, ComRuleActionType.ForwardEmail, 2),
-                    Snapshot(100, 10, ComRuleActionType.Reply, 1)
-                }));
+        var store = new MutableRuleActionAdministrationStore(
+            new[]
+            {
+                Snapshot(300, 20, ComRuleActionType.DeleteEmail, 1),
+                Snapshot(200, 10, ComRuleActionType.ForwardEmail, 2),
+                Snapshot(100, 10, ComRuleActionType.Reply, 1)
+            });
+        RuleActionAdministrationRuntimeHost.Configure(store);
         var rules = Rules.CreateAuthorized(
             new[]
             {
@@ -178,6 +225,25 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(100, actions[0].ID);
         Assert.AreEqual(ComRuleActionType.Reply, actions[0].Type);
         AssertError(DispEBadIndex, () => _ = actions.get_ItemByDBID(300));
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(500, 20, ComRuleActionType.DeleteEmail, 1),
+                Snapshot(400, 10, ComRuleActionType.BindToAddress, 2),
+                Snapshot(450, 10, ComRuleActionType.StopRuleProcessing, 1)
+            });
+
+        actions.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, actions.Count);
+        Assert.AreEqual(450, actions[0].ID);
+        Assert.AreEqual(ComRuleActionType.StopRuleProcessing, actions[0].Type);
+        Assert.AreEqual(ComRuleActionType.BindToAddress, actions.get_ItemByDBID(400).Type);
+        AssertError(DispEBadIndex, () => _ = actions.get_ItemByDBID(100));
+        AssertError(DispEBadIndex, () => _ = actions.get_ItemByDBID(500));
     }
 
     private static RuleActionAdministrationSnapshot Snapshot(
@@ -266,16 +332,28 @@ public sealed class RuleActionsComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedRuleActionAdministrationStore(
+    private sealed class MutableRuleActionAdministrationStore(
         IReadOnlyList<RuleActionAdministrationSnapshot> actions)
         : IRuleActionAdministrationStore
     {
+        private IReadOnlyList<RuleActionAdministrationSnapshot> _actions = actions;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<RuleActionAdministrationSnapshot> actions)
+        {
+            _actions = actions;
+        }
+
         public ValueTask<IReadOnlyList<RuleActionAdministrationSnapshot>> GetRuleActionsAsync(
             int ruleId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<RuleActionAdministrationSnapshot>>(
-                actions.Where(action => action.RuleId == ruleId)
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<RuleActionAdministrationSnapshot>>(
+                _actions.Where(action => action.RuleId == ruleId)
                     .OrderBy(static action => action.SortOrder)
                     .ToArray());
+        }
     }
 }

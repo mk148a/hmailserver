@@ -1208,6 +1208,40 @@ ORDER BY messageid;
             Assert.AreEqual(unchecked((int)0x8002000B), outsideRuleAction.ErrorCode);
             var pendingRuleActionSave = Assert.ThrowsExactly<COMException>(firstRuleActions[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRuleActionSave.ErrorCode);
+
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var update = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_rule_actions
+                    SET actiontype = 7,
+                        actionsubject = N'Refreshed subject',
+                        actionbody = N'Refreshed body',
+                        actionheader = N'X-Refreshed',
+                        actionvalue = N'updated',
+                        actionrouteid = 501,
+                        actionabortspamflagged = 0
+                    WHERE actionid = 20000;
+                    """,
+                    connection);
+                Assert.AreEqual(1, await update.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            firstRuleActions.Refresh();
+
+            Assert.AreEqual(2, firstRuleActions.Count);
+            Assert.AreEqual(ComRuleActionType.SetHeaderValue, firstRuleActions.get_ItemByDBID(20000).Type);
+            Assert.AreEqual("Refreshed subject", firstRuleActions.get_ItemByDBID(20000).Subject);
+            Assert.AreEqual("Refreshed body", firstRuleActions.get_ItemByDBID(20000).Body);
+            Assert.AreEqual("X-Refreshed", firstRuleActions.get_ItemByDBID(20000).HeaderName);
+            Assert.AreEqual("updated", firstRuleActions.get_ItemByDBID(20000).Value);
+            Assert.AreEqual(501, firstRuleActions.get_ItemByDBID(20000).RouteID);
+            Assert.IsFalse(firstRuleActions.get_ItemByDBID(20000).AbortSpamFlagged);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => firstRuleActions.get_ItemByDBID(30000)).ErrorCode);
             var globalRules = application.Rules;
             Assert.AreEqual(2, globalRules.Count);
             Assert.AreEqual("Global first", globalRules[0].Name);

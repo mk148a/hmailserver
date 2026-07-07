@@ -110,17 +110,22 @@ public sealed class RuleActions : IInterfaceRuleActions
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<RuleActionAdministrationSnapshot>? _actions;
+    private RuleActionAdministrationSnapshot[]? _actions;
+    private readonly Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? _reload;
 
     public RuleActions()
     {
     }
 
-    private RuleActions(IReadOnlyList<RuleActionAdministrationSnapshot> actions)
+    private RuleActions(
+        IReadOnlyList<RuleActionAdministrationSnapshot> actions,
+        Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload)
     {
         _actions = actions.ToArray();
+        _reload = reload;
     }
 
     public IInterfaceRuleAction this[int index]
@@ -154,19 +159,42 @@ public sealed class RuleActions : IInterfaceRuleActions
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetActions();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var actions = _reload();
+            ArgumentNullException.ThrowIfNull(actions);
+            Volatile.Write(ref _actions, actions.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of rule actions from the database.",
+                EFail);
+        }
+    }
 
     public void Delete(int databaseId) => Unavailable();
 
-    internal static RuleActions CreateAuthorized(IReadOnlyList<RuleActionAdministrationSnapshot> actions)
+    internal static RuleActions CreateAuthorized(
+        IReadOnlyList<RuleActionAdministrationSnapshot> actions,
+        Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(actions);
-        return new RuleActions(actions);
+        return new RuleActions(actions, reload);
     }
 
     private IReadOnlyList<RuleActionAdministrationSnapshot> GetActions()
     {
-        return _actions
+        return Volatile.Read(ref _actions)
             ?? throw new COMException(
                 "RuleActions access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -284,12 +312,12 @@ public static class RuleActionAdministrationRuntimeHost
                 "The hMailServer rule action administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var actions = store
+        IReadOnlyList<RuleActionAdministrationSnapshot> LoadActions() => store
             .GetRuleActionsAsync(ruleId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return RuleActions.CreateAuthorized(actions);
+        return RuleActions.CreateAuthorized(LoadActions(), LoadActions);
     }
 }
