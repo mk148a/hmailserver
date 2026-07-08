@@ -842,6 +842,40 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual(20, whiteListAddresses.get_ItemByDBID(20).ID);
             var pendingWhiteListAddressSave = Assert.ThrowsExactly<COMException>(whiteListAddresses[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingWhiteListAddressSave.ErrorCode);
+
+            await using (var whiteListAddressRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await whiteListAddressRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateWhiteListAddress = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_whitelist
+                    SET whiteid = 30,
+                        whiteloweripaddress1 = 3325256705,
+                        whiteloweripaddress2 = NULL,
+                        whiteupperipaddress1 = 3325256959,
+                        whiteupperipaddress2 = NULL,
+                        whiteemailaddress = N'refreshed@example.test',
+                        whitedescription = N'Refreshed network'
+                    WHERE whiteid = 10;
+                    """,
+                    whiteListAddressRefreshConnection);
+                Assert.AreEqual(1, await updateWhiteListAddress.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            whiteListAddresses.Refresh();
+
+            Assert.AreEqual(2, whiteListAddresses.Count);
+            Assert.AreEqual(30, whiteListAddresses[0].ID);
+            Assert.AreEqual("198.51.100.1", whiteListAddresses[0].LowerIPAddress);
+            Assert.AreEqual("198.51.100.255", whiteListAddresses[0].UpperIPAddress);
+            Assert.AreEqual("refreshed@example.test", whiteListAddresses[0].EmailAddress);
+            Assert.AreEqual("Refreshed network", whiteListAddresses[0].Description);
+            Assert.AreEqual(20, whiteListAddresses.get_ItemByDBID(20).ID);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => whiteListAddresses.get_ItemByDBID(10)).ErrorCode);
+
             var pendingSpamAssassinTest = Assert.ThrowsExactly<COMException>(
                 () => antiSpam.TestSpamAssassinConnection("127.0.0.1", 783, out _));
             Assert.AreEqual(unchecked((int)0x80004001), pendingSpamAssassinTest.ErrorCode);

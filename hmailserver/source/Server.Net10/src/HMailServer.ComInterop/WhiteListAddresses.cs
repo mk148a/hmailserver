@@ -86,17 +86,22 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<WhiteListAddressAdministrationSnapshot>? _addresses;
+    private WhiteListAddressAdministrationSnapshot[]? _addresses;
+    private readonly Func<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>? _reload;
 
     public WhiteListAddresses()
     {
     }
 
-    private WhiteListAddresses(IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses)
+    private WhiteListAddresses(
+        IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses,
+        Func<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>? reload)
     {
         _addresses = addresses.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetAddresses().Count;
@@ -129,20 +134,42 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
             : WhiteListAddress.CreateAuthorized(match);
     }
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetAddresses();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var addresses = _reload();
+            ArgumentNullException.ThrowIfNull(addresses);
+            Volatile.Write(ref _addresses, addresses.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of whitelist addresses from the database.",
+                EFail);
+        }
+    }
 
     public void Clear() => Unavailable();
 
     internal static WhiteListAddresses CreateAuthorized(
-        IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses)
+        IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses,
+        Func<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new WhiteListAddresses(addresses);
+        return new WhiteListAddresses(addresses, reload);
     }
 
     private IReadOnlyList<WhiteListAddressAdministrationSnapshot> GetAddresses()
     {
-        return _addresses
+        return Volatile.Read(ref _addresses)
             ?? throw new COMException(
                 "WhiteListAddresses access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -234,12 +261,12 @@ public static class WhiteListAddressAdministrationRuntimeHost
                 "The hMailServer whitelist address administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var addresses = store
+        IReadOnlyList<WhiteListAddressAdministrationSnapshot> LoadAddresses() => store
             .GetWhiteListAddressesAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return WhiteListAddresses.CreateAuthorized(addresses);
+        return WhiteListAddresses.CreateAuthorized(LoadAddresses(), LoadAddresses);
     }
 }

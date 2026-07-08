@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class WhiteListAddressesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -73,10 +74,12 @@ public sealed class WhiteListAddressesComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var collectionError = Assert.ThrowsExactly<COMException>(() => _ = new WhiteListAddresses().Count);
+        var collectionRefreshError = Assert.ThrowsExactly<COMException>(new WhiteListAddresses().Refresh);
         var itemError = Assert.ThrowsExactly<COMException>(() => _ = new WhiteListAddress().LowerIPAddress);
         var antiSpamError = Assert.ThrowsExactly<COMException>(() => _ = new AntiSpam().WhiteListAddresses);
 
         Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, itemError.ErrorCode);
         Assert.AreEqual(EAccessDenied, antiSpamError.ErrorCode);
     }
@@ -108,7 +111,6 @@ public sealed class WhiteListAddressesComContractTests
 
         AssertPending(() => addresses.Add());
         AssertPending(() => addresses.DeleteByDBID(10));
-        AssertPending(addresses.Refresh);
         AssertPending(addresses.Clear);
         AssertPending(() => addresses[0].LowerIPAddress = "198.51.100.1");
         AssertPending(() => addresses[0].UpperIPAddress = "198.51.100.255");
@@ -116,6 +118,59 @@ public sealed class WhiteListAddressesComContractTests
         AssertPending(() => addresses[0].Description = "Changed");
         AssertPending(addresses[0].Save);
         AssertPending(addresses[0].Delete);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "*@example.test", "Test network")
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    Snapshot(30, "198.51.100.1", "198.51.100.255", "refreshed@example.test", "Refreshed network"),
+                    Snapshot(20, "203.0.113.5", "203.0.113.5", "sender@example.test", "Single address")
+                };
+            });
+
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual("192.0.2.1", addresses[0].LowerIPAddress);
+
+        addresses.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, addresses.Count);
+        AssertAddress(
+            addresses[0],
+            30,
+            "198.51.100.1",
+            "198.51.100.255",
+            "refreshed@example.test",
+            "Refreshed network");
+        Assert.AreEqual(20, addresses.get_ItemByDBID(20).ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(addresses.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, addresses.Count);
+        Assert.AreEqual("Refreshed network", addresses.get_ItemByDBID(30).Description);
     }
 
     [TestMethod]
@@ -130,13 +185,14 @@ public sealed class WhiteListAddressesComContractTests
     [TestMethod]
     public void AuthorizedAntiSpam_UsesConfiguredWhiteListAddressRuntime()
     {
+        var store = new MutableWhiteListAddressAdministrationStore(
+            new[]
+            {
+                Snapshot(20, "203.0.113.5", "203.0.113.5", "sender@example.test", "Single address"),
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "*@example.test", "Test network")
+            });
         WhiteListAddressAdministrationRuntimeHost.Configure(
-            new FixedWhiteListAddressAdministrationStore(
-                new[]
-                {
-                    Snapshot(20, "203.0.113.5", "203.0.113.5", "sender@example.test", "Single address"),
-                    Snapshot(10, "192.0.2.1", "192.0.2.255", "*@example.test", "Test network")
-                }));
+            store);
         var antiSpam = AntiSpam.CreateAuthorized(new AntiSpamAdministrationSnapshot());
 
         var addresses = antiSpam.WhiteListAddresses;
@@ -144,6 +200,29 @@ public sealed class WhiteListAddressesComContractTests
         Assert.AreEqual(2, addresses.Count);
         Assert.AreEqual(10, addresses[0].ID);
         Assert.AreEqual("Single address", addresses.get_ItemByDBID(20).Description);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(20, "203.0.113.5", "203.0.113.5", "sender@example.test", "Single address"),
+                Snapshot(30, "198.51.100.1", "198.51.100.255", "refreshed@example.test", "Refreshed network")
+            });
+
+        addresses.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, addresses.Count);
+        AssertAddress(
+            addresses[0],
+            30,
+            "198.51.100.1",
+            "198.51.100.255",
+            "refreshed@example.test",
+            "Refreshed network");
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static WhiteListAddressAdministrationSnapshot Snapshot(
@@ -213,15 +292,27 @@ public sealed class WhiteListAddressesComContractTests
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
     }
 
-    private sealed class FixedWhiteListAddressAdministrationStore(
+    private sealed class MutableWhiteListAddressAdministrationStore(
         IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses)
         : IWhiteListAddressAdministrationStore
     {
+        private IReadOnlyList<WhiteListAddressAdministrationSnapshot> _addresses = addresses;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses)
+        {
+            _addresses = addresses;
+        }
+
         public ValueTask<IReadOnlyList<WhiteListAddressAdministrationSnapshot>> GetWhiteListAddressesAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>(
-                addresses.OrderBy(static address => System.Net.IPAddress.Parse(address.LowerIpAddress).GetAddressBytes(),
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>(
+                _addresses.OrderBy(static address => System.Net.IPAddress.Parse(address.LowerIpAddress).GetAddressBytes(),
                     ByteArrayComparer.Instance).ToArray());
+        }
     }
 
     private sealed class ByteArrayComparer : IComparer<byte[]>
