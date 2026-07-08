@@ -1423,6 +1423,36 @@ ORDER BY messageid;
             Assert.AreEqual(800, incomingRelays.get_ItemByDBID(800).ID);
             var pendingRelaySave = Assert.ThrowsExactly<COMException>(incomingRelays[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRelaySave.ErrorCode);
+
+            await using (var incomingRelayRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await incomingRelayRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateRelay = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_incoming_relays
+                    SET relayname = N'Alpha refreshed relay',
+                        relaylowerip1 = 3232235777,
+                        relaylowerip2 = NULL,
+                        relayupperip1 = 3232236030,
+                        relayupperip2 = NULL
+                    WHERE relayid = 700;
+                    """,
+                    incomingRelayRefreshConnection);
+                Assert.AreEqual(1, await updateRelay.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            incomingRelays.Refresh();
+
+            Assert.AreEqual(2, incomingRelays.Count);
+            Assert.AreEqual("Alpha refreshed relay", incomingRelays[0].Name);
+            Assert.AreEqual("192.168.1.1", incomingRelays[0].LowerIP);
+            Assert.AreEqual("192.168.1.254", incomingRelays[0].UpperIP);
+            Assert.AreEqual(700, incomingRelays.get_ItemByName("ALPHA REFRESHED RELAY").ID);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => incomingRelays.get_ItemByName("Alpha relay")).ErrorCode);
+
             var securityRanges = application.Settings.SecurityRanges;
             Assert.AreEqual(3, securityRanges.Count);
             Assert.AreEqual("My computer", securityRanges[0].Name);

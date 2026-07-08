@@ -18,5 +18,9 @@ public sealed class SqlServerIncomingRelayAdministrationStoreTests
         StringAssert.Contains(sql, "relayupperip1");
         StringAssert.Contains(sql, "relayupperip2");
         StringAssert.Contains(sql, "ORDER BY relayname ASC");
+        Assert.IsFalse(sql.Contains(" JOIN ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
 }

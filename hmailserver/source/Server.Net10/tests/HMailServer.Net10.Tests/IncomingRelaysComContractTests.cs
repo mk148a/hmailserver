@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class IncomingRelaysComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -61,10 +62,12 @@ public sealed class IncomingRelaysComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var relaysError = Assert.ThrowsExactly<COMException>(() => _ = new IncomingRelays().Count);
+        var relaysRefreshError = Assert.ThrowsExactly<COMException>(new IncomingRelays().Refresh);
         var relayError = Assert.ThrowsExactly<COMException>(() => _ = new IncomingRelay().Name);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().IncomingRelays);
 
         Assert.AreEqual(EAccessDenied, relaysError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relaysRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -108,21 +111,86 @@ public sealed class IncomingRelaysComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedSettings_UsesConfiguredIncomingRelayRuntime()
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
-        IncomingRelayAdministrationRuntimeHost.Configure(
-            new FixedIncomingRelayAdministrationStore(
-                new[]
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceIncomingRelays relays = IncomingRelays.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1")
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
                 {
                     Snapshot(20, "Beta relay", "10.0.0.0", "10.0.0.255"),
-                    Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1")
-                }));
+                    Snapshot(30, "Gamma relay", "192.168.1.1", "192.168.1.254")
+                };
+            });
+
+        Assert.AreEqual(1, relays.Count);
+        Assert.AreEqual("Alpha relay", relays[0].Name);
+
+        relays.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, relays.Count);
+        AssertRelay(relays[0], 20, "Beta relay", "10.0.0.0", "10.0.0.255");
+        Assert.AreEqual(30, relays.get_ItemByName("GAMMA RELAY").ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(relays.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, relays.Count);
+        Assert.AreEqual("Beta relay", relays.get_ItemByDBID(20).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_UsesConfiguredIncomingRelayRuntime()
+    {
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[]
+            {
+                Snapshot(20, "Beta relay", "10.0.0.0", "10.0.0.255"),
+                Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1")
+            });
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
         IInterfaceSettings settings = Settings.CreateAuthorized();
 
         var relays = settings.IncomingRelays;
 
         Assert.AreEqual(2, relays.Count);
         Assert.AreEqual("Alpha relay", relays[0].Name);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(30, "Gamma relay", "192.168.1.1", "192.168.1.254"),
+                Snapshot(20, "Beta relay", "10.0.0.0", "10.0.0.255")
+            });
+
+        relays.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, relays.Count);
+        Assert.AreEqual("Beta relay", relays[0].Name);
+        Assert.AreEqual(30, relays.get_ItemByDBID(30).ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static IncomingRelayAdministrationSnapshot Snapshot(
@@ -168,12 +236,24 @@ public sealed class IncomingRelaysComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedIncomingRelayAdministrationStore(IReadOnlyList<IncomingRelayAdministrationSnapshot> relays)
+    private sealed class MutableIncomingRelayAdministrationStore(IReadOnlyList<IncomingRelayAdministrationSnapshot> relays)
         : IIncomingRelayAdministrationStore
     {
+        private IReadOnlyList<IncomingRelayAdministrationSnapshot> _relays = relays;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<IncomingRelayAdministrationSnapshot> relays)
+        {
+            _relays = relays;
+        }
+
         public ValueTask<IReadOnlyList<IncomingRelayAdministrationSnapshot>> GetIncomingRelaysAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<IncomingRelayAdministrationSnapshot>>(
-                relays.OrderBy(relay => relay.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<IncomingRelayAdministrationSnapshot>>(
+                _relays.OrderBy(relay => relay.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
     }
 }

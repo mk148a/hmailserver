@@ -71,25 +71,32 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<IncomingRelayAdministrationSnapshot>? _relays;
+    private IncomingRelayAdministrationSnapshot[]? _relays;
+    private readonly Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? _reload;
 
     public IncomingRelays()
     {
     }
 
-    private IncomingRelays(IReadOnlyList<IncomingRelayAdministrationSnapshot> relays)
+    private IncomingRelays(
+        IReadOnlyList<IncomingRelayAdministrationSnapshot> relays,
+        Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? reload)
     {
         _relays = relays.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetRelays().Count;
 
-    internal static IncomingRelays CreateAuthorized(IReadOnlyList<IncomingRelayAdministrationSnapshot> relays)
+    internal static IncomingRelays CreateAuthorized(
+        IReadOnlyList<IncomingRelayAdministrationSnapshot> relays,
+        Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(relays);
-        return new IncomingRelays(relays);
+        return new IncomingRelays(relays, reload);
     }
 
     public IInterfaceIncomingRelay this[int index]
@@ -129,13 +136,34 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetRelays();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var relays = _reload();
+            ArgumentNullException.ThrowIfNull(relays);
+            Volatile.Write(ref _relays, relays.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of incoming relays from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceIncomingRelay Add() => Unavailable<IInterfaceIncomingRelay>();
 
     private IReadOnlyList<IncomingRelayAdministrationSnapshot> GetRelays()
     {
-        return _relays
+        return Volatile.Read(ref _relays)
             ?? throw new COMException(
                 "IncomingRelays access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -227,12 +255,12 @@ public static class IncomingRelayAdministrationRuntimeHost
                 "The hMailServer incoming relay administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var relays = store
+        IReadOnlyList<IncomingRelayAdministrationSnapshot> LoadRelays() => store
             .GetIncomingRelaysAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return IncomingRelays.CreateAuthorized(relays);
+        return IncomingRelays.CreateAuthorized(LoadRelays(), LoadRelays);
     }
 }
