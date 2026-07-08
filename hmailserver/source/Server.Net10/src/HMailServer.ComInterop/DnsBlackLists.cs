@@ -90,17 +90,22 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<DnsBlackListAdministrationSnapshot>? _blackLists;
+    private DnsBlackListAdministrationSnapshot[]? _blackLists;
+    private readonly Func<IReadOnlyList<DnsBlackListAdministrationSnapshot>>? _reload;
 
     public DNSBlackLists()
     {
     }
 
-    private DNSBlackLists(IReadOnlyList<DnsBlackListAdministrationSnapshot> blackLists)
+    private DNSBlackLists(
+        IReadOnlyList<DnsBlackListAdministrationSnapshot> blackLists,
+        Func<IReadOnlyList<DnsBlackListAdministrationSnapshot>>? reload)
     {
         _blackLists = blackLists.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetBlackLists().Count;
@@ -132,7 +137,28 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
             : DNSBlackList.CreateAuthorized(match);
     }
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetBlackLists();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var blackLists = _reload();
+            ArgumentNullException.ThrowIfNull(blackLists);
+            Volatile.Write(ref _blackLists, blackLists.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of DNS blacklists from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceDNSBlackList get_ItemByDNSHost(string dnsHost)
     {
@@ -142,15 +168,17 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
         return match is null ? null! : DNSBlackList.CreateAuthorized(match);
     }
 
-    internal static DNSBlackLists CreateAuthorized(IReadOnlyList<DnsBlackListAdministrationSnapshot> blackLists)
+    internal static DNSBlackLists CreateAuthorized(
+        IReadOnlyList<DnsBlackListAdministrationSnapshot> blackLists,
+        Func<IReadOnlyList<DnsBlackListAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(blackLists);
-        return new DNSBlackLists(blackLists);
+        return new DNSBlackLists(blackLists, reload);
     }
 
     private IReadOnlyList<DnsBlackListAdministrationSnapshot> GetBlackLists()
     {
-        return _blackLists
+        return Volatile.Read(ref _blackLists)
             ?? throw new COMException(
                 "DNSBlackLists access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -244,12 +272,12 @@ public static class DnsBlackListAdministrationRuntimeHost
                 "The hMailServer DNS blacklist administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var blackLists = store
+        IReadOnlyList<DnsBlackListAdministrationSnapshot> LoadBlackLists() => store
             .GetDnsBlackListsAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return DNSBlackLists.CreateAuthorized(blackLists);
+        return DNSBlackLists.CreateAuthorized(LoadBlackLists(), LoadBlackLists);
     }
 }

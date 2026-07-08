@@ -716,6 +716,40 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual(20, dnsBlackLists.get_ItemByDNSHost("BL.SPAMCOP.NET").ID);
             var pendingDnsBlackListSave = Assert.ThrowsExactly<COMException>(dnsBlackLists[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingDnsBlackListSave.ErrorCode);
+
+            await using (var dnsBlackListRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await dnsBlackListRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateDnsBlackList = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_dnsbl
+                    SET sblid = 30,
+                        sblactive = 1,
+                        sbldnshost = N'dnsbl.example.test',
+                        sblresult = N'127.0.0.9',
+                        sblrejectmessage = N'Rejected by example DNSBL.',
+                        sblscore = 5
+                    WHERE sblid = 10;
+                    """,
+                    dnsBlackListRefreshConnection);
+                Assert.AreEqual(1, await updateDnsBlackList.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            dnsBlackLists.Refresh();
+
+            Assert.AreEqual(2, dnsBlackLists.Count);
+            Assert.AreEqual(20, dnsBlackLists[0].ID);
+            Assert.IsFalse(dnsBlackLists[0].Active);
+            Assert.AreEqual(30, dnsBlackLists.get_ItemByDNSHost("DNSBL.EXAMPLE.TEST").ID);
+            Assert.AreEqual("Rejected by example DNSBL.", dnsBlackLists.get_ItemByDBID(30).RejectMessage);
+            Assert.AreEqual("127.0.0.9", dnsBlackLists.get_ItemByDBID(30).ExpectedResult);
+            Assert.AreEqual(5, dnsBlackLists.get_ItemByDBID(30).Score);
+            Assert.IsNull(dnsBlackLists.get_ItemByDNSHost("zen.spamhaus.org"));
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => dnsBlackLists.get_ItemByDBID(10)).ErrorCode);
+
             var surblServers = antiSpam.SURBLServers;
             Assert.AreEqual(2, surblServers.Count);
             Assert.AreEqual(10, surblServers[0].ID);

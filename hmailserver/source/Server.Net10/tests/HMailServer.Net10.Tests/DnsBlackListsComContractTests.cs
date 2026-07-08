@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class DnsBlackListsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -80,10 +81,12 @@ public sealed class DnsBlackListsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var collectionError = Assert.ThrowsExactly<COMException>(() => _ = new DNSBlackLists().Count);
+        var collectionRefreshError = Assert.ThrowsExactly<COMException>(new DNSBlackLists().Refresh);
         var itemError = Assert.ThrowsExactly<COMException>(() => _ = new DNSBlackList().DNSHost);
         var antiSpamError = Assert.ThrowsExactly<COMException>(() => _ = new AntiSpam().DNSBlackLists);
 
         Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, itemError.ErrorCode);
         Assert.AreEqual(EAccessDenied, antiSpamError.ErrorCode);
     }
@@ -122,15 +125,64 @@ public sealed class DnsBlackListsComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedAntiSpam_UsesConfiguredDnsBlackListRuntime()
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
-        DnsBlackListAdministrationRuntimeHost.Configure(
-            new FixedDnsBlackListAdministrationStore(
-                new[]
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceDNSBlackLists blackLists = DNSBlackLists.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, true, "zen.spamhaus.org", "Rejected by Spamhaus.", "127.0.0.2-8", 4)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
                 {
                     Snapshot(20, false, "bl.spamcop.net", "Rejected by SpamCop.", "127.0.0.2", 3),
-                    Snapshot(10, true, "zen.spamhaus.org", "Rejected by Spamhaus.", "127.0.0.2-8", 4)
-                }));
+                    Snapshot(30, true, "dnsbl.example.test", "Rejected by example.", "127.0.0.9", 5)
+                };
+            });
+
+        Assert.AreEqual(1, blackLists.Count);
+        Assert.AreEqual("zen.spamhaus.org", blackLists[0].DNSHost);
+
+        blackLists.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, blackLists.Count);
+        AssertBlackList(blackLists[0], 20, false, "bl.spamcop.net", "Rejected by SpamCop.", "127.0.0.2", 3);
+        Assert.AreEqual(30, blackLists.get_ItemByDNSHost("DNSBL.EXAMPLE.TEST").ID);
+        Assert.IsNull(blackLists.get_ItemByDNSHost("zen.spamhaus.org"));
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = blackLists.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(blackLists.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, blackLists.Count);
+        Assert.AreEqual("Rejected by example.", blackLists.get_ItemByDBID(30).RejectMessage);
+    }
+
+    [TestMethod]
+    public void AuthorizedAntiSpam_UsesConfiguredDnsBlackListRuntime()
+    {
+        var store = new MutableDnsBlackListAdministrationStore(
+            new[]
+            {
+                Snapshot(20, false, "bl.spamcop.net", "Rejected by SpamCop.", "127.0.0.2", 3),
+                Snapshot(10, true, "zen.spamhaus.org", "Rejected by Spamhaus.", "127.0.0.2-8", 4)
+            });
+        DnsBlackListAdministrationRuntimeHost.Configure(
+            store);
         var antiSpam = AntiSpam.CreateAuthorized(new AntiSpamAdministrationSnapshot());
 
         var blackLists = antiSpam.DNSBlackLists;
@@ -138,6 +190,25 @@ public sealed class DnsBlackListsComContractTests
         Assert.AreEqual(2, blackLists.Count);
         Assert.AreEqual(10, blackLists[0].ID);
         Assert.AreEqual("Rejected by SpamCop.", blackLists.get_ItemByDBID(20).RejectMessage);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(20, false, "bl.spamcop.net", "Rejected by SpamCop.", "127.0.0.2", 3),
+                Snapshot(30, true, "dnsbl.example.test", "Rejected by example.", "127.0.0.9", 5)
+            });
+
+        blackLists.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, blackLists.Count);
+        Assert.AreEqual(20, blackLists[0].ID);
+        Assert.AreEqual(30, blackLists.get_ItemByDNSHost("dnsbl.example.test").ID);
+        Assert.IsNull(blackLists.get_ItemByDNSHost("zen.spamhaus.org"));
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = blackLists.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static DnsBlackListAdministrationSnapshot Snapshot(
@@ -219,13 +290,25 @@ public sealed class DnsBlackListsComContractTests
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
     }
 
-    private sealed class FixedDnsBlackListAdministrationStore(
+    private sealed class MutableDnsBlackListAdministrationStore(
         IReadOnlyList<DnsBlackListAdministrationSnapshot> blackLists)
         : IDnsBlackListAdministrationStore
     {
+        private IReadOnlyList<DnsBlackListAdministrationSnapshot> _blackLists = blackLists;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<DnsBlackListAdministrationSnapshot> blackLists)
+        {
+            _blackLists = blackLists;
+        }
+
         public ValueTask<IReadOnlyList<DnsBlackListAdministrationSnapshot>> GetDnsBlackListsAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<DnsBlackListAdministrationSnapshot>>(
-                blackLists.OrderBy(static blackList => blackList.Id).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<DnsBlackListAdministrationSnapshot>>(
+                _blackLists.OrderBy(static blackList => blackList.Id).ToArray());
+        }
     }
 }
