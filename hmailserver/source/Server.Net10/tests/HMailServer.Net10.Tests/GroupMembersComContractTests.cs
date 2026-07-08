@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class GroupMembersComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -62,10 +63,12 @@ public sealed class GroupMembersComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var membersError = Assert.ThrowsExactly<COMException>(() => _ = new GroupMembers().Count);
+        var membersRefreshError = Assert.ThrowsExactly<COMException>(new GroupMembers().Refresh);
         var memberError = Assert.ThrowsExactly<COMException>(() => _ = new GroupMember().GroupID);
         var memberAccountError = Assert.ThrowsExactly<COMException>(() => _ = new GroupMember().Account);
 
         Assert.AreEqual(EAccessDenied, membersError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, membersRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, memberError.ErrorCode);
         Assert.AreEqual(EAccessDenied, memberAccountError.ErrorCode);
     }
@@ -118,16 +121,72 @@ public sealed class GroupMembersComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceGroupMembers members = GroupMembers.CreateAuthorized(
+            new[]
+            {
+                Snapshot(100, 10, 1000)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    Snapshot(200, 10, 2000),
+                    Snapshot(300, 10, 3000)
+                };
+            });
+
+        Assert.AreEqual(1, members.Count);
+        Assert.AreEqual(1000, members[0].AccountID);
+
+        members.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, members.Count);
+        AssertMember(members[0], 200, 10, 2000);
+        Assert.AreEqual(3000, members.get_ItemByDBID(300).AccountID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = members.get_ItemByDBID(100)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(members.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, members.Count);
+        Assert.AreEqual(2000, members.get_ItemByDBID(200).AccountID);
+    }
+
+    [TestMethod]
     public void AuthorizedGroup_UsesConfiguredGroupMemberRuntime()
     {
-        GroupMemberAdministrationRuntimeHost.Configure(
-            new FixedGroupMemberAdministrationStore(
+        AccountAdministrationRuntimeHost.Configure(
+            new FixedAccountAdministrationStore(
                 new[]
                 {
-                    Snapshot(300, 20, 3000),
-                    Snapshot(200, 10, 2000),
-                    Snapshot(100, 10, 1000)
+                    new AccountAdministrationSnapshot(1000, 10, "member@example.test", true, 0),
+                    new AccountAdministrationSnapshot(2000, 10, "refreshed@example.test", true, 0),
+                    new AccountAdministrationSnapshot(3000, 10, "second@example.test", true, 0)
                 }));
+        var store = new MutableGroupMemberAdministrationStore(
+            new[]
+            {
+                Snapshot(300, 20, 3000),
+                Snapshot(200, 10, 2000),
+                Snapshot(100, 10, 1000)
+            });
+        GroupMemberAdministrationRuntimeHost.Configure(
+            store);
         var groups = Groups.CreateAuthorized(new[] { new GroupAdministrationSnapshot(10, "Administrators") });
 
         var members = groups[0].Members;
@@ -135,6 +194,26 @@ public sealed class GroupMembersComContractTests
         Assert.AreEqual(2, members.Count);
         Assert.AreEqual(100, members[0].ID);
         Assert.AreEqual(1000, members[0].AccountID);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(500, 20, 1000),
+                Snapshot(400, 10, 3000),
+                Snapshot(150, 10, 2000)
+            });
+
+        members.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, members.Count);
+        AssertMember(members[0], 150, 10, 2000);
+        Assert.AreEqual(3000, members.get_ItemByDBID(400).Account.ID);
+        Assert.AreEqual("second@example.test", members.get_ItemByDBID(400).Account.Address);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = members.get_ItemByDBID(100)).ErrorCode);
     }
 
     private static GroupMemberAdministrationSnapshot Snapshot(
@@ -192,16 +271,28 @@ public sealed class GroupMembersComContractTests
             ValueTask.FromResult(accounts.FirstOrDefault(account => account.Id == accountId));
     }
 
-    private sealed class FixedGroupMemberAdministrationStore(
+    private sealed class MutableGroupMemberAdministrationStore(
         IReadOnlyList<GroupMemberAdministrationSnapshot> members)
         : IGroupMemberAdministrationStore
     {
+        private IReadOnlyList<GroupMemberAdministrationSnapshot> _members = members;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<GroupMemberAdministrationSnapshot> members)
+        {
+            _members = members;
+        }
+
         public ValueTask<IReadOnlyList<GroupMemberAdministrationSnapshot>> GetGroupMembersAsync(
             int groupId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<GroupMemberAdministrationSnapshot>>(
-                members.Where(member => member.GroupId == groupId)
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<GroupMemberAdministrationSnapshot>>(
+                _members.Where(member => member.GroupId == groupId)
                     .OrderBy(static member => member.Id)
                     .ToArray());
+        }
     }
 }

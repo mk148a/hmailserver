@@ -1635,6 +1635,27 @@ ORDER BY messageid;
                 Assert.ThrowsExactly<COMException>(() => groupMembers[0].Account.Address = "changed@example.test");
             Assert.AreEqual(unchecked((int)0x80004001), pendingGroupMemberAccountMutation.ErrorCode);
 
+            await using (var groupMemberRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await groupMemberRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateGroupMember = new SqlCommand(
+                    "UPDATE dbo.hm_group_members SET memberid = 1450, memberaccountid = 20 WHERE memberid = 1300;",
+                    groupMemberRefreshConnection);
+                Assert.AreEqual(1, await updateGroupMember.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            groupMembers.Refresh();
+
+            Assert.AreEqual(2, groupMembers.Count);
+            Assert.AreEqual(1400, groupMembers[0].ID);
+            Assert.AreEqual(1450, groupMembers.get_ItemByDBID(1450).ID);
+            Assert.AreEqual(20, groupMembers.get_ItemByDBID(1450).Account.ID);
+            Assert.AreEqual("user@example.test", groupMembers.get_ItemByDBID(1450).Account.Address);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => groupMembers.get_ItemByDBID(1300)).ErrorCode);
+
             await using (var connection = new SqlConnection(testConnectionString))
             {
                 await connection.OpenAsync().ConfigureAwait(false);

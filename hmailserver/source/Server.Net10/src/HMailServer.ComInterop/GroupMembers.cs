@@ -64,25 +64,32 @@ public sealed class GroupMembers : IInterfaceGroupMembers
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<GroupMemberAdministrationSnapshot>? _members;
+    private GroupMemberAdministrationSnapshot[]? _members;
+    private readonly Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? _reload;
 
     public GroupMembers()
     {
     }
 
-    private GroupMembers(IReadOnlyList<GroupMemberAdministrationSnapshot> members)
+    private GroupMembers(
+        IReadOnlyList<GroupMemberAdministrationSnapshot> members,
+        Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? reload)
     {
         _members = members.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetMembers().Count;
 
-    internal static GroupMembers CreateAuthorized(IReadOnlyList<GroupMemberAdministrationSnapshot> members)
+    internal static GroupMembers CreateAuthorized(
+        IReadOnlyList<GroupMemberAdministrationSnapshot> members,
+        Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(members);
-        return new GroupMembers(members);
+        return new GroupMembers(members, reload);
     }
 
     public IInterfaceGroupMember this[int index]
@@ -114,11 +121,32 @@ public sealed class GroupMembers : IInterfaceGroupMembers
 
     public IInterfaceGroupMember Add() => Unavailable<IInterfaceGroupMember>();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetMembers();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var members = _reload();
+            ArgumentNullException.ThrowIfNull(members);
+            Volatile.Write(ref _members, members.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of group members from the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<GroupMemberAdministrationSnapshot> GetMembers()
     {
-        return _members
+        return Volatile.Read(ref _members)
             ?? throw new COMException(
                 "GroupMembers access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -219,12 +247,12 @@ public static class GroupMemberAdministrationRuntimeHost
                 "The hMailServer group member administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var members = store
+        IReadOnlyList<GroupMemberAdministrationSnapshot> LoadMembers() => store
             .GetGroupMembersAsync(groupId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return GroupMembers.CreateAuthorized(members);
+        return GroupMembers.CreateAuthorized(LoadMembers(), LoadMembers);
     }
 }

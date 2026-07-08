@@ -16,5 +16,9 @@ public sealed class SqlServerGroupMemberAdministrationStoreTests
         StringAssert.Contains(sql, "memberaccountid");
         StringAssert.Contains(sql, "WHERE membergroupid = @GroupId");
         StringAssert.Contains(sql, "ORDER BY memberid ASC");
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
 }
