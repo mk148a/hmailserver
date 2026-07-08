@@ -105,25 +105,32 @@ public sealed class DistributionLists : IInterfaceDistributionLists
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<DistributionListAdministrationSnapshot>? _lists;
+    private DistributionListAdministrationSnapshot[]? _lists;
+    private readonly Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? _reload;
 
     public DistributionLists()
     {
     }
 
-    private DistributionLists(IReadOnlyList<DistributionListAdministrationSnapshot> lists)
+    private DistributionLists(
+        IReadOnlyList<DistributionListAdministrationSnapshot> lists,
+        Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? reload)
     {
         _lists = lists.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetLists().Count;
 
-    internal static DistributionLists CreateAuthorized(IReadOnlyList<DistributionListAdministrationSnapshot> lists)
+    internal static DistributionLists CreateAuthorized(
+        IReadOnlyList<DistributionListAdministrationSnapshot> lists,
+        Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(lists);
-        return new DistributionLists(lists);
+        return new DistributionLists(lists, reload);
     }
 
     public IInterfaceDistributionList this[int index]
@@ -163,11 +170,32 @@ public sealed class DistributionLists : IInterfaceDistributionLists
             : DistributionList.CreateAuthorized(match);
     }
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetLists();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var lists = _reload();
+            ArgumentNullException.ThrowIfNull(lists);
+            Volatile.Write(ref _lists, lists.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of distribution lists from the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<DistributionListAdministrationSnapshot> GetLists()
     {
-        return _lists
+        return Volatile.Read(ref _lists)
             ?? throw new COMException(
                 "DistributionLists access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -294,12 +322,12 @@ public static class DistributionListAdministrationRuntimeHost
                 "The hMailServer distribution-list administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var lists = store
+        IReadOnlyList<DistributionListAdministrationSnapshot> LoadLists() => store
             .GetDistributionListsAsync(domainId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return DistributionLists.CreateAuthorized(lists);
+        return DistributionLists.CreateAuthorized(LoadLists(), LoadLists);
     }
 }

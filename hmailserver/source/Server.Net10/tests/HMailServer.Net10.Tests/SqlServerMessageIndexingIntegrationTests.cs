@@ -1713,6 +1713,40 @@ ORDER BY messageid;
             Assert.AreEqual(2, recipients.Count);
             Assert.AreEqual("alpha@example.test", recipients[0].RecipientAddress);
             Assert.AreEqual("zeta@example.test", recipients.get_ItemByDBID(200).RecipientAddress);
+
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var update = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_distributionlists
+                    SET distributionlistaddress = N'updates@example.test',
+                        distributionlistenabled = 1,
+                        distributionlistrequireauth = 0,
+                        distributionlistrequireaddress = N'',
+                        distributionlistmode = 2
+                    WHERE distributionlistid = 20;
+                    """,
+                    connection);
+                Assert.AreEqual(1, await update.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            lists.Refresh();
+
+            Assert.AreEqual(2, lists.Count);
+            Assert.AreEqual("updates@example.test", lists.get_ItemByDBID(20).Address);
+            Assert.IsTrue(lists.get_ItemByDBID(20).Active);
+            Assert.IsFalse(lists.get_ItemByDBID(20).RequireSMTPAuth);
+            Assert.AreEqual(string.Empty, lists.get_ItemByDBID(20).RequireSenderAddress);
+            Assert.AreEqual(ComDistributionListMode.Announcement, lists.get_ItemByDBID(20).Mode);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => lists.get_ItemByAddress("members@example.test")).ErrorCode);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => lists.get_ItemByDBID(30)).ErrorCode);
         }
         finally
         {

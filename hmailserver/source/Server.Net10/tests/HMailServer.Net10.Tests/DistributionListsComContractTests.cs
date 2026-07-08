@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class DistributionListsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -62,9 +63,11 @@ public sealed class DistributionListsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var listsError = Assert.ThrowsExactly<COMException>(() => _ = new DistributionLists().Count);
+        var listsRefreshError = Assert.ThrowsExactly<COMException>(new DistributionLists().Refresh);
         var listError = Assert.ThrowsExactly<COMException>(() => _ = new DistributionList().Address);
 
         Assert.AreEqual(EAccessDenied, listsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, listsRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, listError.ErrorCode);
     }
 
@@ -130,35 +133,151 @@ public sealed class DistributionListsComContractTests
     }
 
     [TestMethod]
-    public void DomainDistributionLists_UsesConfiguredRuntimeForSelectedDomain()
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
-        DistributionListAdministrationRuntimeHost.Configure(
-            new FixedDistributionListAdministrationStore(
-                new[]
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceDistributionLists lists = DistributionLists.CreateAuthorized(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    10,
+                    100,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
                 {
                     new DistributionListAdministrationSnapshot(
-                        10,
-                        100,
-                        "announce@example.test",
-                        true,
-                        false,
-                        string.Empty,
-                        (int)ComDistributionListMode.Public),
-                    new DistributionListAdministrationSnapshot(
                         20,
-                        200,
-                        "outside@example.test",
+                        100,
+                        "members@example.test",
+                        false,
+                        true,
+                        "owner@example.test",
+                        (int)ComDistributionListMode.Membership),
+                    new DistributionListAdministrationSnapshot(
+                        30,
+                        100,
+                        "readonly@example.test",
                         true,
                         false,
                         string.Empty,
-                        (int)ComDistributionListMode.Public)
-                }));
+                        (int)ComDistributionListMode.Announcement)
+                };
+            });
+
+        Assert.AreEqual(1, lists.Count);
+        Assert.AreEqual("announce@example.test", lists[0].Address);
+
+        lists.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, lists.Count);
+        AssertDistributionList(
+            lists[0],
+            20,
+            "members@example.test",
+            false,
+            true,
+            "owner@example.test",
+            ComDistributionListMode.Membership);
+        Assert.AreEqual(ComDistributionListMode.Announcement, lists.get_ItemByDBID(30).Mode);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = lists.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(lists.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, lists.Count);
+        Assert.AreEqual("members@example.test", lists.get_ItemByDBID(20).Address);
+    }
+
+    [TestMethod]
+    public void DomainDistributionLists_UsesConfiguredRuntimeForSelectedDomain()
+    {
+        var store = new MutableDistributionListAdministrationStore(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    10,
+                    100,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public),
+                new DistributionListAdministrationSnapshot(
+                    20,
+                    200,
+                    "outside@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            });
+        DistributionListAdministrationRuntimeHost.Configure(store);
         var domain = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true));
 
         var lists = domain.DistributionLists;
 
         Assert.AreEqual(1, lists.Count);
         Assert.AreEqual("announce@example.test", lists[0].Address);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    30,
+                    100,
+                    "members@example.test",
+                    false,
+                    true,
+                    "owner@example.test",
+                    (int)ComDistributionListMode.Membership),
+                new DistributionListAdministrationSnapshot(
+                    40,
+                    200,
+                    "outside-refreshed@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            });
+
+        lists.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(1, lists.Count);
+        AssertDistributionList(
+            lists[0],
+            30,
+            "members@example.test",
+            false,
+            true,
+            "owner@example.test",
+            ComDistributionListMode.Membership);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = lists.get_ItemByDBID(10)).ErrorCode);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = lists.get_ItemByDBID(40)).ErrorCode);
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
@@ -201,14 +320,26 @@ public sealed class DistributionListsComContractTests
         Assert.AreEqual(mode, list.Mode);
     }
 
-    private sealed class FixedDistributionListAdministrationStore(
+    private sealed class MutableDistributionListAdministrationStore(
         IReadOnlyList<DistributionListAdministrationSnapshot> lists)
         : IDistributionListAdministrationStore
     {
+        private IReadOnlyList<DistributionListAdministrationSnapshot> _lists = lists;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<DistributionListAdministrationSnapshot> lists)
+        {
+            _lists = lists;
+        }
+
         public ValueTask<IReadOnlyList<DistributionListAdministrationSnapshot>> GetDistributionListsAsync(
             int domainId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<DistributionListAdministrationSnapshot>>(
-                lists.Where(list => list.DomainId == domainId).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<DistributionListAdministrationSnapshot>>(
+                _lists.Where(list => list.DomainId == domainId).ToArray());
+        }
     }
 }

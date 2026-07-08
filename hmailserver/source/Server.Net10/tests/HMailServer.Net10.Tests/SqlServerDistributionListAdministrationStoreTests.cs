@@ -20,5 +20,9 @@ public sealed class SqlServerDistributionListAdministrationStoreTests
         StringAssert.Contains(sql, "FROM hm_distributionlists");
         StringAssert.Contains(sql, "WHERE distributionlistdomainid = @DomainID");
         StringAssert.Contains(sql, "ORDER BY distributionlistaddress ASC");
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
 }
