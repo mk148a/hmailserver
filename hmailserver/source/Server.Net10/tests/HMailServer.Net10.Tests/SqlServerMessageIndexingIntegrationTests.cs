@@ -1473,6 +1473,45 @@ ORDER BY messageid;
                 securityRanges.get_ItemByDBID(300).ExpiresTime);
             var pendingSecurityRangeSave = Assert.ThrowsExactly<COMException>(securityRanges[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingSecurityRangeSave.ErrorCode);
+
+            await using (var securityRangeRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await securityRangeRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateSecurityRange = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_securityranges
+                    SET rangename = N'My computer refreshed',
+                        rangepriorityid = 40,
+                        rangelowerip1 = 3232235777,
+                        rangelowerip2 = NULL,
+                        rangeupperip1 = 3232236030,
+                        rangeupperip2 = NULL,
+                        rangeoptions = 1,
+                        rangeexpires = 0,
+                        rangeexpirestime = CONVERT(datetime, '2001-01-01T00:00:00', 126)
+                    WHERE rangeid = 100;
+                    """,
+                    securityRangeRefreshConnection);
+                Assert.AreEqual(1, await updateSecurityRange.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            securityRanges.Refresh();
+
+            Assert.AreEqual(3, securityRanges.Count);
+            Assert.AreEqual("My computer refreshed", securityRanges[0].Name);
+            Assert.AreEqual("192.168.1.1", securityRanges[0].LowerIP);
+            Assert.AreEqual("192.168.1.254", securityRanges[0].UpperIP);
+            Assert.AreEqual(40, securityRanges[0].Priority);
+            Assert.IsTrue(securityRanges[0].AllowSMTPConnections);
+            Assert.IsFalse(securityRanges[0].AllowPOP3Connections);
+            Assert.IsFalse(securityRanges[0].AllowIMAPConnections);
+            Assert.IsFalse(securityRanges[0].RequireSSLTLSForAuth);
+            Assert.AreEqual(100, securityRanges.get_ItemByName("MY COMPUTER REFRESHED").ID);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => securityRanges.get_ItemByName("My computer")).ErrorCode);
+
             var serverMessages = application.Settings.ServerMessages;
             Assert.AreEqual(2, serverMessages.Count);
             Assert.AreEqual("MESSAGE_UNDELIVERABLE", serverMessages[0].Name);

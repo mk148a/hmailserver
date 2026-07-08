@@ -260,25 +260,32 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<SecurityRangeAdministrationSnapshot>? _ranges;
+    private SecurityRangeAdministrationSnapshot[]? _ranges;
+    private readonly Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? _reload;
 
     public SecurityRanges()
     {
     }
 
-    private SecurityRanges(IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges)
+    private SecurityRanges(
+        IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges,
+        Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? reload)
     {
         _ranges = ranges.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetRanges().Count;
 
-    internal static SecurityRanges CreateAuthorized(IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges)
+    internal static SecurityRanges CreateAuthorized(
+        IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges,
+        Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(ranges);
-        return new SecurityRanges(ranges);
+        return new SecurityRanges(ranges, reload);
     }
 
     public IInterfaceSecurityRange this[int index]
@@ -318,7 +325,28 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetRanges();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var ranges = _reload();
+            ArgumentNullException.ThrowIfNull(ranges);
+            Volatile.Write(ref _ranges, ranges.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of security ranges from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceSecurityRange Add() => Unavailable<IInterfaceSecurityRange>();
 
@@ -326,7 +354,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
 
     private IReadOnlyList<SecurityRangeAdministrationSnapshot> GetRanges()
     {
-        return _ranges
+        return Volatile.Read(ref _ranges)
             ?? throw new COMException(
                 "SecurityRanges access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -475,12 +503,12 @@ public static class SecurityRangeAdministrationRuntimeHost
                 "The hMailServer security range administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var ranges = store
+        IReadOnlyList<SecurityRangeAdministrationSnapshot> LoadRanges() => store
             .GetSecurityRangesAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return SecurityRanges.CreateAuthorized(ranges);
+        return SecurityRanges.CreateAuthorized(LoadRanges(), LoadRanges);
     }
 }

@@ -22,5 +22,9 @@ public sealed class SqlServerSecurityRangeAdministrationStoreTests
         StringAssert.Contains(sql, "rangeexpires");
         StringAssert.Contains(sql, "rangeexpirestime");
         StringAssert.Contains(sql, "ORDER BY rangeexpires ASC, rangepriorityid DESC, rangename ASC");
+        Assert.IsFalse(sql.Contains(" JOIN ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
 }

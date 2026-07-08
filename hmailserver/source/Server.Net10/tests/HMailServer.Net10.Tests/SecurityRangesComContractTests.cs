@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class SecurityRangesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -101,10 +102,12 @@ public sealed class SecurityRangesComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var rangesError = Assert.ThrowsExactly<COMException>(() => _ = new SecurityRanges().Count);
+        var rangesRefreshError = Assert.ThrowsExactly<COMException>(new SecurityRanges().Refresh);
         var rangeError = Assert.ThrowsExactly<COMException>(() => _ = new SecurityRange().Priority);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().SecurityRanges);
 
         Assert.AreEqual(EAccessDenied, rangesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, rangesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -168,15 +171,88 @@ public sealed class SecurityRangesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        var expiresTime = new DateTime(2026, 7, 1, 2, 3, 4);
+        var refreshedExpiresTime = new DateTime(2026, 8, 2, 3, 4, 5);
+        IInterfaceSecurityRanges ranges = SecurityRanges.CreateAuthorized(
+            new[]
+            {
+                Snapshot(
+                    id: 10,
+                    name: "Internet",
+                    lowerIp: "0.0.0.0",
+                    upperIp: "255.255.255.255",
+                    priority: 10,
+                    options: AllOptions,
+                    expires: true,
+                    expiresTime: expiresTime)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    Snapshot(
+                        id: 20,
+                        name: "My computer",
+                        lowerIp: "127.0.0.1",
+                        upperIp: "127.0.0.1",
+                        priority: 30,
+                        options: AllOptions,
+                        expires: true,
+                        expiresTime: refreshedExpiresTime),
+                    Snapshot(
+                        id: 30,
+                        name: "LAN",
+                        lowerIp: "192.168.1.1",
+                        upperIp: "192.168.1.254",
+                        priority: 20,
+                        options: AllOptions,
+                        expires: true,
+                        expiresTime: refreshedExpiresTime)
+                };
+            });
+
+        Assert.AreEqual(1, ranges.Count);
+        Assert.AreEqual("Internet", ranges[0].Name);
+
+        ranges.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, ranges.Count);
+        AssertRange(ranges[0], 20, "My computer", "127.0.0.1", "127.0.0.1", 30, refreshedExpiresTime);
+        Assert.AreEqual(30, ranges.get_ItemByName("LAN").ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = ranges.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(ranges.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, ranges.Count);
+        Assert.AreEqual("My computer", ranges.get_ItemByDBID(20).Name);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_UsesConfiguredSecurityRangeRuntime()
     {
-        SecurityRangeAdministrationRuntimeHost.Configure(
-            new FixedSecurityRangeAdministrationStore(
-                new[]
-                {
-                    Snapshot(20, "My computer", "127.0.0.1", "127.0.0.1", 30, AllowSmtp, false, new DateTime(2001, 1, 1)),
-                    Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1))
-                }));
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(20, "My computer", "127.0.0.1", "127.0.0.1", 30, AllowSmtp, false, new DateTime(2001, 1, 1)),
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
         IInterfaceSettings settings = Settings.CreateAuthorized();
 
         var ranges = settings.SecurityRanges;
@@ -184,6 +260,25 @@ public sealed class SecurityRangesComContractTests
         Assert.AreEqual(2, ranges.Count);
         Assert.AreEqual("My computer", ranges[0].Name);
         Assert.AreEqual(30, ranges[0].Priority);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(30, "LAN", "192.168.1.1", "192.168.1.254", 40, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1))
+            });
+
+        ranges.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, ranges.Count);
+        Assert.AreEqual("LAN", ranges[0].Name);
+        Assert.AreEqual(40, ranges[0].Priority);
+        Assert.AreEqual(30, ranges.get_ItemByDBID(30).ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = ranges.get_ItemByDBID(20)).ErrorCode);
     }
 
     private static int AllOptions =>
@@ -271,15 +366,27 @@ public sealed class SecurityRangesComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedSecurityRangeAdministrationStore(IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges)
+    private sealed class MutableSecurityRangeAdministrationStore(IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges)
         : ISecurityRangeAdministrationStore
     {
+        private IReadOnlyList<SecurityRangeAdministrationSnapshot> _ranges = ranges;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges)
+        {
+            _ranges = ranges;
+        }
+
         public ValueTask<IReadOnlyList<SecurityRangeAdministrationSnapshot>> GetSecurityRangesAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<SecurityRangeAdministrationSnapshot>>(
-                ranges.OrderBy(static range => range.Expires)
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<SecurityRangeAdministrationSnapshot>>(
+                _ranges.OrderBy(static range => range.Expires)
                     .ThenByDescending(static range => range.Priority)
                     .ThenBy(static range => range.Name, StringComparer.OrdinalIgnoreCase)
                     .ToArray());
+        }
     }
 }
