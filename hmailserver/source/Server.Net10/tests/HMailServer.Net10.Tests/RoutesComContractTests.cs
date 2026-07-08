@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class RoutesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -69,10 +70,12 @@ public sealed class RoutesComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var routesError = Assert.ThrowsExactly<COMException>(() => _ = new Routes().Count);
+        var routesRefreshError = Assert.ThrowsExactly<COMException>(new Routes().Refresh);
         var routeError = Assert.ThrowsExactly<COMException>(() => _ = new Route().DomainName);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Routes);
 
         Assert.AreEqual(EAccessDenied, routesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, routesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, routeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -121,21 +124,91 @@ public sealed class RoutesComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedSettings_UsesConfiguredRouteRuntime()
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
-        RouteAdministrationRuntimeHost.Configure(
-            new FixedRouteAdministrationStore(
-                new[]
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "alpha.example", ComConnectionSecurity.Tls)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
                 {
                     Snapshot(20, "beta.example", ComConnectionSecurity.StartTlsRequired),
-                    Snapshot(10, "alpha.example", ComConnectionSecurity.Tls)
-                }));
+                    Snapshot(30, "gamma.example", ComConnectionSecurity.Tls)
+                };
+            });
+
+        Assert.AreEqual(1, routes.Count);
+        Assert.AreEqual("alpha.example", routes[0].DomainName);
+
+        routes.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, routes.Count);
+        AssertRoute(
+            routes[0],
+            20,
+            "beta.example",
+            ComConnectionSecurity.StartTlsRequired,
+            useSsl: false);
+        Assert.AreEqual(30, routes.get_ItemByName("GAMMA.EXAMPLE").ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = routes.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(routes.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, routes.Count);
+        Assert.AreEqual("beta.example", routes.get_ItemByDBID(20).DomainName);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_UsesConfiguredRouteRuntime()
+    {
+        var store = new MutableRouteAdministrationStore(
+            new[]
+            {
+                Snapshot(20, "beta.example", ComConnectionSecurity.StartTlsRequired),
+                Snapshot(10, "alpha.example", ComConnectionSecurity.Tls)
+            });
+        RouteAdministrationRuntimeHost.Configure(store);
         IInterfaceSettings settings = Settings.CreateAuthorized();
 
         var routes = settings.Routes;
 
         Assert.AreEqual(2, routes.Count);
         Assert.AreEqual("alpha.example", routes[0].DomainName);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(30, "gamma.example", ComConnectionSecurity.Tls),
+                Snapshot(20, "beta.example", ComConnectionSecurity.StartTlsRequired)
+            });
+
+        routes.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, routes.Count);
+        Assert.AreEqual("beta.example", routes[0].DomainName);
+        Assert.AreEqual(30, routes.get_ItemByDBID(30).ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = routes.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static RouteAdministrationSnapshot Snapshot(
@@ -204,12 +277,24 @@ public sealed class RoutesComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedRouteAdministrationStore(IReadOnlyList<RouteAdministrationSnapshot> routes)
+    private sealed class MutableRouteAdministrationStore(IReadOnlyList<RouteAdministrationSnapshot> routes)
         : IRouteAdministrationStore
     {
+        private IReadOnlyList<RouteAdministrationSnapshot> _routes = routes;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<RouteAdministrationSnapshot> routes)
+        {
+            _routes = routes;
+        }
+
         public ValueTask<IReadOnlyList<RouteAdministrationSnapshot>> GetRoutesAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<RouteAdministrationSnapshot>>(
-                routes.OrderBy(route => route.DomainName, StringComparer.OrdinalIgnoreCase).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<RouteAdministrationSnapshot>>(
+                _routes.OrderBy(route => route.DomainName, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
     }
 }

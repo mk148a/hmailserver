@@ -149,25 +149,32 @@ public sealed class Routes : IInterfaceRoutes
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<RouteAdministrationSnapshot>? _routes;
+    private RouteAdministrationSnapshot[]? _routes;
+    private readonly Func<IReadOnlyList<RouteAdministrationSnapshot>>? _reload;
 
     public Routes()
     {
     }
 
-    private Routes(IReadOnlyList<RouteAdministrationSnapshot> routes)
+    private Routes(
+        IReadOnlyList<RouteAdministrationSnapshot> routes,
+        Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload)
     {
         _routes = routes.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetRoutes().Count;
 
-    internal static Routes CreateAuthorized(IReadOnlyList<RouteAdministrationSnapshot> routes)
+    internal static Routes CreateAuthorized(
+        IReadOnlyList<RouteAdministrationSnapshot> routes,
+        Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(routes);
-        return new Routes(routes);
+        return new Routes(routes, reload);
     }
 
     public IInterfaceRoute this[int index]
@@ -207,11 +214,32 @@ public sealed class Routes : IInterfaceRoutes
 
     public IInterfaceRoute Add() => Unavailable<IInterfaceRoute>();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetRoutes();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var routes = _reload();
+            ArgumentNullException.ThrowIfNull(routes);
+            Volatile.Write(ref _routes, routes.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of routes from the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<RouteAdministrationSnapshot> GetRoutes()
     {
-        return _routes
+        return Volatile.Read(ref _routes)
             ?? throw new COMException(
                 "Routes access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -350,12 +378,12 @@ public static class RouteAdministrationRuntimeHost
                 "The hMailServer route administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var routes = store
+        IReadOnlyList<RouteAdministrationSnapshot> LoadRoutes() => store
             .GetRoutesAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return Routes.CreateAuthorized(routes);
+        return Routes.CreateAuthorized(LoadRoutes(), LoadRoutes);
     }
 }

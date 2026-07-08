@@ -27,5 +27,9 @@ public sealed class SqlServerRouteAdministrationStoreTests
         StringAssert.Contains(sql, "ORDER BY routedomainname ASC");
         Assert.IsFalse(sql.Contains("routeauthenticationpassword", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_routeaddresses", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains(" JOIN ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
 }

@@ -1366,6 +1366,54 @@ ORDER BY messageid;
             var pendingRouteAddressSave = Assert.ThrowsExactly<COMException>(
                 alphaRouteAddresses.get_ItemByDBID(1500).Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRouteAddressSave.ErrorCode);
+
+            await using (var routeRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await routeRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateRoute = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_routes
+                    SET routedomainname = N'alpha-refreshed.route.test',
+                        routedescription = N'Alpha refreshed route',
+                        routetargetsmthost = N'smtp.alpha-refreshed.route.test',
+                        routetargetsmtport = 2526,
+                        routenooftries = 5,
+                        routeminutesbetweentry = 16,
+                        routealladdresses = 0,
+                        routeuseauthentication = 0,
+                        routeauthenticationusername = N'',
+                        routetreatsecurityaslocal = 0,
+                        routeconnectionsecurity = 3,
+                        routetreatsenderaslocaldomain = 1
+                    WHERE routeid = 500;
+                    """,
+                    routeRefreshConnection);
+                Assert.AreEqual(1, await updateRoute.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            routes.Refresh();
+
+            Assert.AreEqual(2, routes.Count);
+            Assert.AreEqual("alpha-refreshed.route.test", routes[0].DomainName);
+            Assert.AreEqual("Alpha refreshed route", routes[0].Description);
+            Assert.AreEqual("smtp.alpha-refreshed.route.test", routes[0].TargetSMTPHost);
+            Assert.AreEqual(2526, routes[0].TargetSMTPPort);
+            Assert.AreEqual(5, routes[0].NumberOfTries);
+            Assert.AreEqual(16, routes[0].MinutesBetweenTry);
+            Assert.IsFalse(routes[0].AllAddresses);
+            Assert.IsFalse(routes[0].RelayerRequiresAuth);
+            Assert.AreEqual(string.Empty, routes[0].RelayerAuthUsername);
+            Assert.IsFalse(routes[0].TreatSecurityAsLocalDomain);
+            Assert.IsFalse(routes[0].TreatRecipientAsLocalDomain);
+            Assert.IsTrue(routes[0].TreatSenderAsLocalDomain);
+            Assert.IsFalse(routes[0].UseSSL);
+            Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, routes[0].ConnectionSecurity);
+            Assert.AreEqual(500, routes.get_ItemByName("ALPHA-REFRESHED.ROUTE.TEST").ID);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => routes.get_ItemByName("alpha.route.test")).ErrorCode);
+
             var incomingRelays = application.Settings.IncomingRelays;
             Assert.AreEqual(2, incomingRelays.Count);
             Assert.AreEqual("Alpha relay", incomingRelays[0].Name);
