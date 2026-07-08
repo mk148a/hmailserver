@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class CacheComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     [TestMethod]
@@ -69,9 +70,11 @@ public sealed class CacheComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var cacheError = Assert.ThrowsExactly<COMException>(() => _ = new Cache().Enabled);
+        var cacheClearError = Assert.ThrowsExactly<COMException>(new Cache().Clear);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Cache);
 
         Assert.AreEqual(EAccessDenied, cacheError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, cacheClearError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -121,41 +124,95 @@ public sealed class CacheComContractTests
                      () => cache.DomainCacheMaxSizeKb = 1,
                      () => cache.AccountCacheMaxSizeKb = 1,
                      () => cache.AliasCacheMaxSizeKb = 1,
-                     () => cache.DistributionListCacheMaxSizeKb = 1,
-                     cache.Clear
+                     () => cache.DistributionListCacheMaxSizeKb = 1
                  })
         {
             AssertNotImplemented(mutation);
         }
+
+        cache.Clear();
+    }
+
+    [TestMethod]
+    public void AuthorizedCache_ClearUsesRuntimeBoundaryAndMapsContainedFailure()
+    {
+        var runtime = new RecordingCacheAdministrationRuntime();
+        IInterfaceCache cache = Cache.CreateAuthorized(
+            new CacheAdministrationSnapshot(
+                Enabled: true,
+                DomainCacheTtl: 60,
+                AccountCacheTtl: 90,
+                AliasCacheTtl: 120,
+                DistributionListCacheTtl: 180),
+            runtime);
+
+        cache.Clear();
+
+        Assert.AreEqual(1, runtime.ClearCount);
+
+        runtime.ThrowOnClear = true;
+        var error = Assert.ThrowsExactly<COMException>(cache.Clear);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(2, runtime.ClearCount);
     }
 
     [TestMethod]
     public void AuthorizedSettings_ExposesConfiguredCacheSnapshot()
     {
-        IInterfaceSettings settings = Settings.CreateAuthorized(
-            new SettingsAdministrationSnapshot(
-                HostName: string.Empty,
-                WelcomeSmtp: string.Empty,
-                WelcomePop3: string.Empty,
-                WelcomeImap: string.Empty,
-                CacheEnabled: true,
-                DomainCacheTtl: 61,
-                AccountCacheTtl: 62,
-                AliasCacheTtl: 63,
-                DistributionListCacheTtl: 64));
+        var runtime = new RecordingCacheAdministrationRuntime();
+        CacheAdministrationRuntimeHost.Configure(runtime);
+        try
+        {
+            IInterfaceSettings settings = Settings.CreateAuthorized(
+                new SettingsAdministrationSnapshot(
+                    HostName: string.Empty,
+                    WelcomeSmtp: string.Empty,
+                    WelcomePop3: string.Empty,
+                    WelcomeImap: string.Empty,
+                    CacheEnabled: true,
+                    DomainCacheTtl: 61,
+                    AccountCacheTtl: 62,
+                    AliasCacheTtl: 63,
+                    DistributionListCacheTtl: 64));
 
-        var cache = settings.Cache;
+            var cache = settings.Cache;
 
-        Assert.IsTrue(cache.Enabled);
-        Assert.AreEqual(61, cache.DomainCacheTTL);
-        Assert.AreEqual(62, cache.AccountCacheTTL);
-        Assert.AreEqual(63, cache.AliasCacheTTL);
-        Assert.AreEqual(64, cache.DistributionListCacheTTL);
+            Assert.IsTrue(cache.Enabled);
+            Assert.AreEqual(61, cache.DomainCacheTTL);
+            Assert.AreEqual(62, cache.AccountCacheTTL);
+            Assert.AreEqual(63, cache.AliasCacheTTL);
+            Assert.AreEqual(64, cache.DistributionListCacheTTL);
+
+            cache.Clear();
+
+            Assert.AreEqual(1, runtime.ClearCount);
+        }
+        finally
+        {
+            CacheAdministrationRuntimeHost.Configure(null);
+        }
     }
 
     private static void AssertNotImplemented(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private sealed class RecordingCacheAdministrationRuntime : ICacheAdministrationRuntime
+    {
+        public int ClearCount { get; private set; }
+
+        public bool ThrowOnClear { get; set; }
+
+        public void Clear()
+        {
+            ClearCount++;
+            if (ThrowOnClear)
+            {
+                throw new InvalidOperationException("Simulated cache clear failure.");
+            }
+        }
     }
 }

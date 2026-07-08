@@ -76,17 +76,22 @@ public interface IInterfaceCache
 public sealed class Cache : IInterfaceCache
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly CacheAdministrationSnapshot? _snapshot;
+    private readonly ICacheAdministrationRuntime? _runtime;
 
     public Cache()
     {
     }
 
-    private Cache(CacheAdministrationSnapshot snapshot)
+    private Cache(
+        CacheAdministrationSnapshot snapshot,
+        ICacheAdministrationRuntime? runtime)
     {
         _snapshot = snapshot;
+        _runtime = runtime;
     }
 
     public bool Enabled { get => Snapshot.Enabled; set => Unavailable(); }
@@ -123,12 +128,27 @@ public sealed class Cache : IInterfaceCache
 
     public int DistributionListCacheSizeKb => Unavailable<int>();
 
-    public void Clear() => Unavailable();
+    public void Clear()
+    {
+        _ = Snapshot;
+        try
+        {
+            _runtime?.Clear();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to clear the cache.",
+                EFail);
+        }
+    }
 
-    internal static Cache CreateAuthorized(CacheAdministrationSnapshot snapshot)
+    internal static Cache CreateAuthorized(
+        CacheAdministrationSnapshot snapshot,
+        ICacheAdministrationRuntime? runtime = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Cache(snapshot);
+        return new Cache(snapshot, runtime);
     }
 
     private CacheAdministrationSnapshot Snapshot =>
@@ -150,5 +170,28 @@ public sealed class Cache : IInterfaceCache
         throw new COMException(
             "This Cache member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
+    }
+}
+
+[ComVisible(false)]
+public interface ICacheAdministrationRuntime
+{
+    void Clear();
+}
+
+[ComVisible(false)]
+public static class CacheAdministrationRuntimeHost
+{
+    private static ICacheAdministrationRuntime? _runtime;
+
+    public static void Configure(ICacheAdministrationRuntime? runtime)
+    {
+        Volatile.Write(ref _runtime, runtime);
+    }
+
+    internal static Cache CreateAuthorizedAdapter(CacheAdministrationSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return Cache.CreateAuthorized(snapshot, Volatile.Read(ref _runtime));
     }
 }

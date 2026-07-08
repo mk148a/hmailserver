@@ -1406,7 +1406,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
             EnsureAuthorized();
             return _administrationSnapshot is null
                 ? base.Cache
-                : HMailServer.ComInterop.Cache.CreateAuthorized(
+                : CacheAdministrationRuntimeHost.CreateAuthorizedAdapter(
                     new CacheAdministrationSnapshot(
                         _administrationSnapshot.CacheEnabled,
                         _administrationSnapshot.DomainCacheTtl,
