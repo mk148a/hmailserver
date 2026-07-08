@@ -1520,6 +1520,32 @@ ORDER BY messageid;
             Assert.AreEqual(950, serverMessages.get_ItemByName("message_undeliverable").ID);
             var pendingServerMessageSave = Assert.ThrowsExactly<COMException>(serverMessages[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingServerMessageSave.ErrorCode);
+
+            await using (var serverMessageRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await serverMessageRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateServerMessage = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_servermessages
+                    SET smname = N'MESSAGE_UNDELIVERABLE_REFRESHED',
+                        smtext = N'Refreshed message text'
+                    WHERE smid = 950;
+                    """,
+                    serverMessageRefreshConnection);
+                Assert.AreEqual(1, await updateServerMessage.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            serverMessages.Refresh();
+
+            Assert.AreEqual(2, serverMessages.Count);
+            Assert.AreEqual("MESSAGE_UNDELIVERABLE_REFRESHED", serverMessages[0].Name);
+            Assert.AreEqual("Refreshed message text", serverMessages[0].Text);
+            Assert.AreEqual(950, serverMessages.get_ItemByName("message_undeliverable_refreshed").ID);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => serverMessages.get_ItemByName("message_undeliverable")).ErrorCode);
+
             var tcpIpPorts = application.Settings.TCPIPPorts;
             Assert.AreEqual(2, tcpIpPorts.Count);
             Assert.AreEqual(25, tcpIpPorts[0].PortNumber);

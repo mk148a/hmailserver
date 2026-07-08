@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class ServerMessagesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -54,10 +55,12 @@ public sealed class ServerMessagesComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var messagesError = Assert.ThrowsExactly<COMException>(() => _ = new ServerMessages().Count);
+        var messagesRefreshError = Assert.ThrowsExactly<COMException>(new ServerMessages().Refresh);
         var messageError = Assert.ThrowsExactly<COMException>(() => _ = new ServerMessage().Name);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().ServerMessages);
 
         Assert.AreEqual(EAccessDenied, messagesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, messagesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, messageError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -95,15 +98,63 @@ public sealed class ServerMessagesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceServerMessages messages = ServerMessages.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "MESSAGE_UNDELIVERABLE", "Message undeliverable")
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    Snapshot(30, "ACCOUNT_SIZE_LIMIT", "Account size limit"),
+                    Snapshot(20, "VIRUS_FOUND", "Virus found")
+                };
+            });
+
+        Assert.AreEqual(1, messages.Count);
+        Assert.AreEqual("MESSAGE_UNDELIVERABLE", messages[0].Name);
+
+        messages.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, messages.Count);
+        AssertMessage(messages[0], 30, "ACCOUNT_SIZE_LIMIT", "Account size limit");
+        Assert.AreEqual(20, messages.get_ItemByName("virus_found").ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = messages.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(messages.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, messages.Count);
+        Assert.AreEqual("Account size limit", messages.get_ItemByDBID(30).Text);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_UsesConfiguredServerMessageRuntime()
     {
+        var store = new MutableServerMessageAdministrationStore(
+            new[]
+            {
+                Snapshot(20, "VIRUS_FOUND", "Virus found"),
+                Snapshot(10, "MESSAGE_UNDELIVERABLE", "Message undeliverable")
+            });
         ServerMessageAdministrationRuntimeHost.Configure(
-            new FixedServerMessageAdministrationStore(
-                new[]
-                {
-                    Snapshot(20, "VIRUS_FOUND", "Virus found"),
-                    Snapshot(10, "MESSAGE_UNDELIVERABLE", "Message undeliverable")
-                }));
+            store);
         IInterfaceSettings settings = Settings.CreateAuthorized();
 
         var messages = settings.ServerMessages;
@@ -111,6 +162,24 @@ public sealed class ServerMessagesComContractTests
         Assert.AreEqual(2, messages.Count);
         Assert.AreEqual("MESSAGE_UNDELIVERABLE", messages[0].Name);
         Assert.AreEqual("Message undeliverable", messages[0].Text);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(30, "ACCOUNT_SIZE_LIMIT", "Account size limit"),
+                Snapshot(20, "VIRUS_FOUND", "Virus found")
+            });
+
+        messages.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, messages.Count);
+        AssertMessage(messages[0], 30, "ACCOUNT_SIZE_LIMIT", "Account size limit");
+        Assert.AreEqual(20, messages.get_ItemByDBID(20).ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = messages.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static ServerMessageAdministrationSnapshot Snapshot(int id, string name, string text) =>
@@ -150,13 +219,25 @@ public sealed class ServerMessagesComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedServerMessageAdministrationStore(
+    private sealed class MutableServerMessageAdministrationStore(
         IReadOnlyList<ServerMessageAdministrationSnapshot> messages)
         : IServerMessageAdministrationStore
     {
+        private IReadOnlyList<ServerMessageAdministrationSnapshot> _messages = messages;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<ServerMessageAdministrationSnapshot> messages)
+        {
+            _messages = messages;
+        }
+
         public ValueTask<IReadOnlyList<ServerMessageAdministrationSnapshot>> GetServerMessagesAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<ServerMessageAdministrationSnapshot>>(
-                messages.OrderBy(static message => message.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<ServerMessageAdministrationSnapshot>>(
+                _messages.OrderBy(static message => message.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
     }
 }

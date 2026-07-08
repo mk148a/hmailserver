@@ -56,26 +56,32 @@ public sealed class ServerMessages : IInterfaceServerMessages
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<ServerMessageAdministrationSnapshot>? _messages;
+    private ServerMessageAdministrationSnapshot[]? _messages;
+    private readonly Func<IReadOnlyList<ServerMessageAdministrationSnapshot>>? _reload;
 
     public ServerMessages()
     {
     }
 
-    private ServerMessages(IReadOnlyList<ServerMessageAdministrationSnapshot> messages)
+    private ServerMessages(
+        IReadOnlyList<ServerMessageAdministrationSnapshot> messages,
+        Func<IReadOnlyList<ServerMessageAdministrationSnapshot>>? reload)
     {
         _messages = messages.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetMessages().Count;
 
     internal static ServerMessages CreateAuthorized(
-        IReadOnlyList<ServerMessageAdministrationSnapshot> messages)
+        IReadOnlyList<ServerMessageAdministrationSnapshot> messages,
+        Func<IReadOnlyList<ServerMessageAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(messages);
-        return new ServerMessages(messages);
+        return new ServerMessages(messages, reload);
     }
 
     public IInterfaceServerMessage this[int index]
@@ -113,11 +119,32 @@ public sealed class ServerMessages : IInterfaceServerMessages
             : ServerMessage.CreateAuthorized(match);
     }
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetMessages();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var messages = _reload();
+            ArgumentNullException.ThrowIfNull(messages);
+            Volatile.Write(ref _messages, messages.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of server messages from the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<ServerMessageAdministrationSnapshot> GetMessages()
     {
-        return _messages
+        return Volatile.Read(ref _messages)
             ?? throw new COMException(
                 "ServerMessages access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -197,12 +224,12 @@ public static class ServerMessageAdministrationRuntimeHost
                 "The hMailServer server-message administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var messages = store
+        IReadOnlyList<ServerMessageAdministrationSnapshot> LoadMessages() => store
             .GetServerMessagesAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return ServerMessages.CreateAuthorized(messages);
+        return ServerMessages.CreateAuthorized(LoadMessages(), LoadMessages);
     }
 }
