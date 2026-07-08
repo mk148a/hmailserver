@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class SurblServersComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -77,10 +78,12 @@ public sealed class SurblServersComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var collectionError = Assert.ThrowsExactly<COMException>(() => _ = new SURBLServers().Count);
+        var collectionRefreshError = Assert.ThrowsExactly<COMException>(new SURBLServers().Refresh);
         var itemError = Assert.ThrowsExactly<COMException>(() => _ = new SURBLServer().DNSHost);
         var antiSpamError = Assert.ThrowsExactly<COMException>(() => _ = new AntiSpam().SURBLServers);
 
         Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, itemError.ErrorCode);
         Assert.AreEqual(EAccessDenied, antiSpamError.ErrorCode);
     }
@@ -118,15 +121,64 @@ public sealed class SurblServersComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedAntiSpam_UsesConfiguredSurblServerRuntime()
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
-        SurblServerAdministrationRuntimeHost.Configure(
-            new FixedSurblServerAdministrationStore(
-                new[]
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, true, "multi.surbl.org", "Rejected by SURBL.", 4)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
                 {
                     Snapshot(20, false, "example.surbl.test", "Rejected by test SURBL.", 2),
-                    Snapshot(10, true, "multi.surbl.org", "Rejected by SURBL.", 4)
-                }));
+                    Snapshot(30, true, "surbl.example.test", "Rejected by example SURBL.", 5)
+                };
+            });
+
+        Assert.AreEqual(1, servers.Count);
+        Assert.AreEqual("multi.surbl.org", servers[0].DNSHost);
+
+        servers.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, servers.Count);
+        AssertServer(servers[0], 20, false, "example.surbl.test", "Rejected by test SURBL.", 2);
+        Assert.AreEqual(30, servers.get_ItemByDNSHost("SURBL.EXAMPLE.TEST").ID);
+        Assert.IsNull(servers.get_ItemByDNSHost("multi.surbl.org"));
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = servers.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(servers.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, servers.Count);
+        Assert.AreEqual("Rejected by example SURBL.", servers.get_ItemByDBID(30).RejectMessage);
+    }
+
+    [TestMethod]
+    public void AuthorizedAntiSpam_UsesConfiguredSurblServerRuntime()
+    {
+        var store = new MutableSurblServerAdministrationStore(
+            new[]
+            {
+                Snapshot(20, false, "example.surbl.test", "Rejected by test SURBL.", 2),
+                Snapshot(10, true, "multi.surbl.org", "Rejected by SURBL.", 4)
+            });
+        SurblServerAdministrationRuntimeHost.Configure(
+            store);
         var antiSpam = AntiSpam.CreateAuthorized(new AntiSpamAdministrationSnapshot());
 
         var servers = antiSpam.SURBLServers;
@@ -134,6 +186,25 @@ public sealed class SurblServersComContractTests
         Assert.AreEqual(2, servers.Count);
         Assert.AreEqual(10, servers[0].ID);
         Assert.AreEqual("Rejected by test SURBL.", servers.get_ItemByDBID(20).RejectMessage);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(20, false, "example.surbl.test", "Rejected by test SURBL.", 2),
+                Snapshot(30, true, "surbl.example.test", "Rejected by example SURBL.", 5)
+            });
+
+        servers.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, servers.Count);
+        Assert.AreEqual(20, servers[0].ID);
+        Assert.AreEqual(30, servers.get_ItemByDNSHost("surbl.example.test").ID);
+        Assert.IsNull(servers.get_ItemByDNSHost("multi.surbl.org"));
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = servers.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static SurblServerAdministrationSnapshot Snapshot(
@@ -212,13 +283,25 @@ public sealed class SurblServersComContractTests
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
     }
 
-    private sealed class FixedSurblServerAdministrationStore(
+    private sealed class MutableSurblServerAdministrationStore(
         IReadOnlyList<SurblServerAdministrationSnapshot> servers)
         : ISurblServerAdministrationStore
     {
+        private IReadOnlyList<SurblServerAdministrationSnapshot> _servers = servers;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<SurblServerAdministrationSnapshot> servers)
+        {
+            _servers = servers;
+        }
+
         public ValueTask<IReadOnlyList<SurblServerAdministrationSnapshot>> GetSurblServersAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<SurblServerAdministrationSnapshot>>(
-                servers.OrderBy(static server => server.Id).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<SurblServerAdministrationSnapshot>>(
+                _servers.OrderBy(static server => server.Id).ToArray());
+        }
     }
 }

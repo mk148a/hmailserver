@@ -761,6 +761,38 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual(20, surblServers.get_ItemByDNSHost("EXAMPLE.SURBL.TEST").ID);
             var pendingSurblServerSave = Assert.ThrowsExactly<COMException>(surblServers[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingSurblServerSave.ErrorCode);
+
+            await using (var surblServerRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await surblServerRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateSurblServer = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_surblservers
+                    SET surblid = 30,
+                        surblactive = 1,
+                        surblhost = N'surbl.example.test',
+                        surblrejectmessage = N'Rejected by example SURBL.',
+                        surblscore = 5
+                    WHERE surblid = 10;
+                    """,
+                    surblServerRefreshConnection);
+                Assert.AreEqual(1, await updateSurblServer.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            surblServers.Refresh();
+
+            Assert.AreEqual(2, surblServers.Count);
+            Assert.AreEqual(20, surblServers[0].ID);
+            Assert.IsFalse(surblServers[0].Active);
+            Assert.AreEqual(30, surblServers.get_ItemByDNSHost("SURBL.EXAMPLE.TEST").ID);
+            Assert.AreEqual("Rejected by example SURBL.", surblServers.get_ItemByDBID(30).RejectMessage);
+            Assert.AreEqual(5, surblServers.get_ItemByDBID(30).Score);
+            Assert.IsNull(surblServers.get_ItemByDNSHost("multi.surbl.org"));
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => surblServers.get_ItemByDBID(10)).ErrorCode);
+
             var greyListingWhiteAddresses = antiSpam.GreyListingWhiteAddresses;
             Assert.AreEqual(2, greyListingWhiteAddresses.Count);
             Assert.AreEqual(10, greyListingWhiteAddresses[0].ID);

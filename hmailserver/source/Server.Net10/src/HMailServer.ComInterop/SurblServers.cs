@@ -83,17 +83,22 @@ public sealed class SURBLServers : IInterfaceSURBLServers
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<SurblServerAdministrationSnapshot>? _servers;
+    private SurblServerAdministrationSnapshot[]? _servers;
+    private readonly Func<IReadOnlyList<SurblServerAdministrationSnapshot>>? _reload;
 
     public SURBLServers()
     {
     }
 
-    private SURBLServers(IReadOnlyList<SurblServerAdministrationSnapshot> servers)
+    private SURBLServers(
+        IReadOnlyList<SurblServerAdministrationSnapshot> servers,
+        Func<IReadOnlyList<SurblServerAdministrationSnapshot>>? reload)
     {
         _servers = servers.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetServers().Count;
@@ -125,7 +130,28 @@ public sealed class SURBLServers : IInterfaceSURBLServers
             : SURBLServer.CreateAuthorized(match);
     }
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetServers();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var servers = _reload();
+            ArgumentNullException.ThrowIfNull(servers);
+            Volatile.Write(ref _servers, servers.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of SURBL servers from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceSURBLServer get_ItemByDNSHost(string dnsHost)
     {
@@ -135,15 +161,17 @@ public sealed class SURBLServers : IInterfaceSURBLServers
         return match is null ? null! : SURBLServer.CreateAuthorized(match);
     }
 
-    internal static SURBLServers CreateAuthorized(IReadOnlyList<SurblServerAdministrationSnapshot> servers)
+    internal static SURBLServers CreateAuthorized(
+        IReadOnlyList<SurblServerAdministrationSnapshot> servers,
+        Func<IReadOnlyList<SurblServerAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(servers);
-        return new SURBLServers(servers);
+        return new SURBLServers(servers, reload);
     }
 
     private IReadOnlyList<SurblServerAdministrationSnapshot> GetServers()
     {
-        return _servers
+        return Volatile.Read(ref _servers)
             ?? throw new COMException(
                 "SURBLServers access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -235,12 +263,12 @@ public static class SurblServerAdministrationRuntimeHost
                 "The hMailServer SURBL server administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var servers = store
+        IReadOnlyList<SurblServerAdministrationSnapshot> LoadServers() => store
             .GetSurblServersAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return SURBLServers.CreateAuthorized(servers);
+        return SURBLServers.CreateAuthorized(LoadServers(), LoadServers);
     }
 }
