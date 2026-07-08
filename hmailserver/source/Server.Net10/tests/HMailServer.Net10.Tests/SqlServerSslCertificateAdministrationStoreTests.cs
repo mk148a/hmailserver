@@ -16,5 +16,9 @@ public sealed class SqlServerSslCertificateAdministrationStoreTests
         StringAssert.Contains(sql, "sslcertificatefile");
         StringAssert.Contains(sql, "sslprivatekeyfile");
         StringAssert.Contains(sql, "ORDER BY sslcertificatename ASC");
+        Assert.IsFalse(sql.Contains(" JOIN ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
 }

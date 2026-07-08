@@ -81,26 +81,32 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<SslCertificateAdministrationSnapshot>? _certificates;
+    private SslCertificateAdministrationSnapshot[]? _certificates;
+    private readonly Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? _reload;
 
     public SSLCertificates()
     {
     }
 
-    private SSLCertificates(IReadOnlyList<SslCertificateAdministrationSnapshot> certificates)
+    private SSLCertificates(
+        IReadOnlyList<SslCertificateAdministrationSnapshot> certificates,
+        Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? reload)
     {
         _certificates = certificates.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetCertificates().Count;
 
     internal static SSLCertificates CreateAuthorized(
-        IReadOnlyList<SslCertificateAdministrationSnapshot> certificates)
+        IReadOnlyList<SslCertificateAdministrationSnapshot> certificates,
+        Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(certificates);
-        return new SSLCertificates(certificates);
+        return new SSLCertificates(certificates, reload);
     }
 
     public IInterfaceSSLCertificate this[int index]
@@ -132,13 +138,34 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
 
     public IInterfaceSSLCertificate Add() => Unavailable<IInterfaceSSLCertificate>();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetCertificates();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var certificates = _reload();
+            ArgumentNullException.ThrowIfNull(certificates);
+            Volatile.Write(ref _certificates, certificates.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of SSL certificates from the database.",
+                EFail);
+        }
+    }
 
     public void Clear() => Unavailable();
 
     private IReadOnlyList<SslCertificateAdministrationSnapshot> GetCertificates()
     {
-        return _certificates
+        return Volatile.Read(ref _certificates)
             ?? throw new COMException(
                 "SSLCertificates access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -230,12 +257,12 @@ public static class SslCertificateAdministrationRuntimeHost
                 "The hMailServer SSL certificate administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var certificates = store
+        IReadOnlyList<SslCertificateAdministrationSnapshot> LoadCertificates() => store
             .GetSslCertificatesAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return SSLCertificates.CreateAuthorized(certificates);
+        return SSLCertificates.CreateAuthorized(LoadCertificates(), LoadCertificates);
     }
 }

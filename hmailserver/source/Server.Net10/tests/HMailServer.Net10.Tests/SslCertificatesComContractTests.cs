@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class SslCertificatesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -63,10 +64,12 @@ public sealed class SslCertificatesComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var certificatesError = Assert.ThrowsExactly<COMException>(() => _ = new SSLCertificates().Count);
+        var certificatesRefreshError = Assert.ThrowsExactly<COMException>(new SSLCertificates().Refresh);
         var certificateError = Assert.ThrowsExactly<COMException>(() => _ = new SSLCertificate().Name);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().SSLCertificates);
 
         Assert.AreEqual(EAccessDenied, certificatesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, certificatesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificateError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -117,15 +120,67 @@ public sealed class SslCertificatesComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedSettings_UsesConfiguredSslCertificateRuntime()
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
-        SslCertificateAdministrationRuntimeHost.Configure(
-            new FixedSslCertificateAdministrationStore(
-                new[]
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceSSLCertificates certificates = SSLCertificates.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha certificate", @"C:\certs\alpha.crt", @"C:\certs\alpha.key")
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
                 {
                     Snapshot(20, "Beta certificate", @"C:\certs\beta.crt", @"C:\certs\beta.key"),
-                    Snapshot(10, "Alpha certificate", @"C:\certs\alpha.crt", @"C:\certs\alpha.key")
-                }));
+                    Snapshot(30, "Gamma certificate", @"C:\certs\gamma.crt", @"C:\certs\gamma.key")
+                };
+            });
+
+        Assert.AreEqual(1, certificates.Count);
+        Assert.AreEqual("Alpha certificate", certificates[0].Name);
+
+        certificates.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, certificates.Count);
+        AssertCertificate(
+            certificates[0],
+            20,
+            "Beta certificate",
+            @"C:\certs\beta.crt",
+            @"C:\certs\beta.key");
+        Assert.AreEqual("Gamma certificate", certificates.get_ItemByDBID(30).Name);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = certificates.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(certificates.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, certificates.Count);
+        Assert.AreEqual("Beta certificate", certificates.get_ItemByDBID(20).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_UsesConfiguredSslCertificateRuntime()
+    {
+        var store = new MutableSslCertificateAdministrationStore(
+            new[]
+            {
+                Snapshot(20, "Beta certificate", @"C:\certs\beta.crt", @"C:\certs\beta.key"),
+                Snapshot(10, "Alpha certificate", @"C:\certs\alpha.crt", @"C:\certs\alpha.key")
+            });
+        SslCertificateAdministrationRuntimeHost.Configure(store);
         IInterfaceSettings settings = Settings.CreateAuthorized();
 
         var certificates = settings.SSLCertificates;
@@ -133,6 +188,24 @@ public sealed class SslCertificatesComContractTests
         Assert.AreEqual(2, certificates.Count);
         Assert.AreEqual("Alpha certificate", certificates[0].Name);
         Assert.AreEqual(@"C:\certs\alpha.crt", certificates[0].CertificateFile);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(30, "Gamma certificate", @"C:\certs\gamma.crt", @"C:\certs\gamma.key"),
+                Snapshot(20, "Beta certificate", @"C:\certs\beta.crt", @"C:\certs\beta.key")
+            });
+
+        certificates.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, certificates.Count);
+        Assert.AreEqual("Beta certificate", certificates[0].Name);
+        Assert.AreEqual(30, certificates.get_ItemByDBID(30).ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = certificates.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static SslCertificateAdministrationSnapshot Snapshot(
@@ -178,13 +251,25 @@ public sealed class SslCertificatesComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedSslCertificateAdministrationStore(
+    private sealed class MutableSslCertificateAdministrationStore(
         IReadOnlyList<SslCertificateAdministrationSnapshot> certificates)
         : ISslCertificateAdministrationStore
     {
+        private IReadOnlyList<SslCertificateAdministrationSnapshot> _certificates = certificates;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<SslCertificateAdministrationSnapshot> certificates)
+        {
+            _certificates = certificates;
+        }
+
         public ValueTask<IReadOnlyList<SslCertificateAdministrationSnapshot>> GetSslCertificatesAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<SslCertificateAdministrationSnapshot>>(
-                certificates.OrderBy(static certificate => certificate.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<SslCertificateAdministrationSnapshot>>(
+                _certificates.OrderBy(static certificate => certificate.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
     }
 }

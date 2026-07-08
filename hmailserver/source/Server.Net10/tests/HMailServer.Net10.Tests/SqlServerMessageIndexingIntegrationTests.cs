@@ -1571,6 +1571,30 @@ ORDER BY messageid;
             Assert.AreEqual("Beta certificate", sslCertificates.get_ItemByDBID(1002).Name);
             var pendingSslCertificateSave = Assert.ThrowsExactly<COMException>(sslCertificates[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingSslCertificateSave.ErrorCode);
+
+            await using (var sslCertificateRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await sslCertificateRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateSslCertificate = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_sslcertificates
+                    SET sslcertificatename = N'Alpha refreshed certificate',
+                        sslcertificatefile = N'C:\certs\alpha-refreshed.crt',
+                        sslprivatekeyfile = N'C:\certs\alpha-refreshed.key'
+                    WHERE sslcertificateid = 1001;
+                    """,
+                    sslCertificateRefreshConnection);
+                Assert.AreEqual(1, await updateSslCertificate.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            sslCertificates.Refresh();
+
+            Assert.AreEqual(2, sslCertificates.Count);
+            Assert.AreEqual("Alpha refreshed certificate", sslCertificates[0].Name);
+            Assert.AreEqual(@"C:\certs\alpha-refreshed.crt", sslCertificates[0].CertificateFile);
+            Assert.AreEqual(@"C:\certs\alpha-refreshed.key", sslCertificates[0].PrivateKeyFile);
+            Assert.AreEqual("Alpha refreshed certificate", sslCertificates.get_ItemByDBID(1001).Name);
+
             var groups = application.Settings.Groups;
             Assert.AreEqual(2, groups.Count);
             Assert.AreEqual("Administrators", groups[0].Name);
