@@ -1601,6 +1601,26 @@ ORDER BY messageid;
             Assert.AreEqual(1100, groups[0].ID);
             Assert.AreEqual("Support", groups.get_ItemByDBID(1200).Name);
             Assert.AreEqual(1200, groups.get_ItemByName("SUPPORT").ID);
+
+            await using (var groupRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await groupRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateGroup = new SqlCommand(
+                    "UPDATE dbo.hm_groups SET groupname = N'Admins refreshed' WHERE groupid = 1100;",
+                    groupRefreshConnection);
+                Assert.AreEqual(1, await updateGroup.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            groups.Refresh();
+
+            Assert.AreEqual(2, groups.Count);
+            Assert.AreEqual("Admins refreshed", groups[0].Name);
+            Assert.AreEqual(1100, groups.get_ItemByName("ADMINS REFRESHED").ID);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => groups.get_ItemByName("Administrators")).ErrorCode);
+
             var groupMembers = groups[0].Members;
             Assert.AreEqual(2, groupMembers.Count);
             Assert.AreEqual(1300, groupMembers[0].ID);

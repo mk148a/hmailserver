@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class GroupsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -61,10 +62,12 @@ public sealed class GroupsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var groupsError = Assert.ThrowsExactly<COMException>(() => _ = new Groups().Count);
+        var groupsRefreshError = Assert.ThrowsExactly<COMException>(new Groups().Refresh);
         var groupError = Assert.ThrowsExactly<COMException>(() => _ = new Group().Name);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Groups);
 
         Assert.AreEqual(EAccessDenied, groupsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, groupsRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, groupError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -106,21 +109,86 @@ public sealed class GroupsComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedSettings_UsesConfiguredGroupRuntime()
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
-        GroupAdministrationRuntimeHost.Configure(
-            new FixedGroupAdministrationStore(
-                new[]
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceGroups groups = Groups.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Administrators")
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
                 {
                     Snapshot(20, "Support"),
-                    Snapshot(10, "Administrators")
-                }));
+                    Snapshot(30, "Operations")
+                };
+            });
+
+        Assert.AreEqual(1, groups.Count);
+        Assert.AreEqual("Administrators", groups[0].Name);
+
+        groups.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, groups.Count);
+        AssertGroup(groups[0], 20, "Support");
+        Assert.AreEqual(30, groups.get_ItemByName("OPERATIONS").ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = groups.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(groups.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, groups.Count);
+        Assert.AreEqual("Support", groups.get_ItemByDBID(20).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_UsesConfiguredGroupRuntime()
+    {
+        var store = new MutableGroupAdministrationStore(
+            new[]
+            {
+                Snapshot(20, "Support"),
+                Snapshot(10, "Administrators")
+            });
+        GroupAdministrationRuntimeHost.Configure(store);
         IInterfaceSettings settings = Settings.CreateAuthorized();
 
         var groups = settings.Groups;
 
         Assert.AreEqual(2, groups.Count);
         Assert.AreEqual("Administrators", groups[0].Name);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(30, "Operations"),
+                Snapshot(20, "Support")
+            });
+
+        groups.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, groups.Count);
+        Assert.AreEqual("Operations", groups[0].Name);
+        Assert.AreEqual(30, groups.get_ItemByDBID(30).ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = groups.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static GroupAdministrationSnapshot Snapshot(int id, string name) => new(id, name);
@@ -154,12 +222,24 @@ public sealed class GroupsComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedGroupAdministrationStore(IReadOnlyList<GroupAdministrationSnapshot> groups)
+    private sealed class MutableGroupAdministrationStore(IReadOnlyList<GroupAdministrationSnapshot> groups)
         : IGroupAdministrationStore
     {
+        private IReadOnlyList<GroupAdministrationSnapshot> _groups = groups;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<GroupAdministrationSnapshot> groups)
+        {
+            _groups = groups;
+        }
+
         public ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<GroupAdministrationSnapshot>>(
-                groups.OrderBy(static group => group.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<GroupAdministrationSnapshot>>(
+                _groups.OrderBy(static group => group.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
     }
 }

@@ -65,25 +65,32 @@ public sealed class Groups : IInterfaceGroups
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<GroupAdministrationSnapshot>? _groups;
+    private GroupAdministrationSnapshot[]? _groups;
+    private readonly Func<IReadOnlyList<GroupAdministrationSnapshot>>? _reload;
 
     public Groups()
     {
     }
 
-    private Groups(IReadOnlyList<GroupAdministrationSnapshot> groups)
+    private Groups(
+        IReadOnlyList<GroupAdministrationSnapshot> groups,
+        Func<IReadOnlyList<GroupAdministrationSnapshot>>? reload)
     {
         _groups = groups.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetGroups().Count;
 
-    internal static Groups CreateAuthorized(IReadOnlyList<GroupAdministrationSnapshot> groups)
+    internal static Groups CreateAuthorized(
+        IReadOnlyList<GroupAdministrationSnapshot> groups,
+        Func<IReadOnlyList<GroupAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(groups);
-        return new Groups(groups);
+        return new Groups(groups, reload);
     }
 
     public IInterfaceGroup this[int index]
@@ -123,11 +130,32 @@ public sealed class Groups : IInterfaceGroups
 
     public IInterfaceGroup Add() => Unavailable<IInterfaceGroup>();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetGroups();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var groups = _reload();
+            ArgumentNullException.ThrowIfNull(groups);
+            Volatile.Write(ref _groups, groups.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of groups from the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<GroupAdministrationSnapshot> GetGroups()
     {
-        return _groups
+        return Volatile.Read(ref _groups)
             ?? throw new COMException(
                 "Groups access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -227,13 +255,13 @@ public static class GroupAdministrationRuntimeHost
                 "The hMailServer group administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var groups = store
+        IReadOnlyList<GroupAdministrationSnapshot> LoadGroups() => store
             .GetGroupsAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return Groups.CreateAuthorized(groups);
+        return Groups.CreateAuthorized(LoadGroups(), LoadGroups);
     }
 
     internal static Group CreateAuthorizedGroupByIdAdapter(int groupId)
