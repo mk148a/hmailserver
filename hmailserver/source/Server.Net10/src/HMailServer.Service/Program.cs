@@ -608,6 +608,7 @@ builder.Services.AddSingleton(spfEvaluatorOptions);
 builder.Services.AddSingleton(dkimPolicyOptions);
 builder.Services.AddSingleton(dmarcPolicyOptions);
 builder.Services.AddSingleton<IDkimTxtResolver, SystemDkimTxtResolver>();
+builder.Services.AddSingleton<IClamAvScannerTestRuntime, ClamAvScannerTestRuntime>();
 builder.Services.AddSingleton<IDkimVerificationRuntime>(static serviceProvider =>
     new FileDkimVerificationRuntime(serviceProvider.GetRequiredService<IDkimTxtResolver>()));
 builder.Services.AddSingleton<ISpamAssassinConnectionTestRuntime, SpamAssassinConnectionTestRuntime>();
@@ -963,6 +964,7 @@ SettingsAdministrationRuntimeHost.Configure(
         ScriptingDirectory: directoryAdministrationSnapshot.EventDirectory,
         ScriptSyntaxChecker: host.Services.GetRequiredService<IScriptSyntaxChecker>(),
         ScriptRuntimeReloader: host.Services.GetRequiredService<IScriptRuntimeReloader>(),
+        ClamAvScannerTestRuntime: host.Services.GetRequiredService<IClamAvScannerTestRuntime>(),
         DkimVerificationRuntime: host.Services.GetRequiredService<IDkimVerificationRuntime>(),
         GreyListingTripletAdministrationStore:
             host.Services.GetRequiredService<IGreyListingTripletAdministrationStore>(),

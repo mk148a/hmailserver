@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class AntiVirusComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     [TestMethod]
@@ -112,16 +113,21 @@ public sealed class AntiVirusComContractTests
 
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = antivirus.ClamWinEnabled);
         var blockedAttachmentsError = Assert.ThrowsExactly<COMException>(() => _ = antivirus.BlockedAttachments);
+        var testClamAvError = Assert.ThrowsExactly<COMException>(
+            () => antivirus.TestClamAVScanner("127.0.0.1", 3310, out _));
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().AntiVirus);
 
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, blockedAttachmentsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, testClamAvError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
     [TestMethod]
     public void AuthorizedSettings_ExposesReadOnlyAntiVirusSnapshot()
     {
+        var clamAvRuntime = new FakeClamAvScannerTestRuntime(
+            new ClamAvScannerTestResult(true, "stream: Eicar-Test-Signature FOUND"));
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
                 HostName: string.Empty,
@@ -141,7 +147,9 @@ public sealed class AntiVirusComContractTests
                 AntiVirusEnableAttachmentBlocking: true,
                 AntiVirusClamAvEnabled: true,
                 AntiVirusClamAvHost: "127.0.0.1",
-                AntiVirusClamAvPort: 3310));
+                AntiVirusClamAvPort: 3310),
+            new SettingsRuntimeConfiguration(
+                ClamAvScannerTestRuntime: clamAvRuntime));
 
         var antivirus = settings.AntiVirus;
 
@@ -159,6 +167,10 @@ public sealed class AntiVirusComContractTests
         Assert.IsTrue(antivirus.ClamAVEnabled);
         Assert.AreEqual("127.0.0.1", antivirus.ClamAVHost);
         Assert.AreEqual(3310, antivirus.ClamAVPort);
+        Assert.IsTrue(antivirus.TestClamAVScanner("127.0.0.1", 3310, out var clamAvResultText));
+        Assert.AreEqual("stream: Eicar-Test-Signature FOUND", clamAvResultText);
+        Assert.AreEqual("127.0.0.1", clamAvRuntime.Hostname);
+        Assert.AreEqual(3310, clamAvRuntime.Port);
 
         AssertPending(() => antivirus.ClamWinEnabled = false);
         AssertPending(() => antivirus.ClamWinExecutable = @"D:\Other\clamscan.exe");
@@ -181,9 +193,68 @@ public sealed class AntiVirusComContractTests
         resultText = "not-empty";
         AssertPending(() => antivirus.TestClamWinScanner(@"C:\clamscan.exe", @"C:\db", out resultText));
         Assert.AreEqual(string.Empty, resultText);
-        resultText = "not-empty";
-        AssertPending(() => antivirus.TestClamAVScanner("127.0.0.1", 3310, out resultText));
+    }
+
+    [TestMethod]
+    public void AuthorizedAntiVirus_KeepsClamAvScannerTestPendingWithoutRuntime()
+    {
+        IInterfaceAntiVirus antivirus = AntiVirus.CreateAuthorized(
+            new AntiVirusAdministrationSnapshot(
+                ClamWinEnabled: false,
+                ClamWinExecutable: string.Empty,
+                ClamWinDatabase: string.Empty,
+                Action: 0,
+                NotifyReceiver: false,
+                NotifySender: false,
+                CustomScannerEnabled: false,
+                CustomScannerExecutable: string.Empty,
+                CustomScannerReturnValue: 0,
+                MaximumMessageSize: 0,
+                EnableAttachmentBlocking: false,
+                ClamAvEnabled: true,
+                ClamAvHost: "clamav.example.test",
+                ClamAvPort: 3310));
+
+        var resultText = "not-empty";
+        AssertPending(() => antivirus.TestClamAVScanner("clamav.example.test", 3310, out resultText));
         Assert.AreEqual(string.Empty, resultText);
+    }
+
+    [TestMethod]
+    public void AuthorizedAntiVirus_TestClamAvScannerMapsRuntimeResultAndFailure()
+    {
+        var runtime = new FakeClamAvScannerTestRuntime(
+            new ClamAvScannerTestResult(false, "Unable to connect."));
+        IInterfaceAntiVirus antivirus = AntiVirus.CreateAuthorized(
+            new AntiVirusAdministrationSnapshot(
+                ClamWinEnabled: false,
+                ClamWinExecutable: string.Empty,
+                ClamWinDatabase: string.Empty,
+                Action: 0,
+                NotifyReceiver: false,
+                NotifySender: false,
+                CustomScannerEnabled: false,
+                CustomScannerExecutable: string.Empty,
+                CustomScannerReturnValue: 0,
+                MaximumMessageSize: 0,
+                EnableAttachmentBlocking: false,
+                ClamAvEnabled: true,
+                ClamAvHost: "clamav.example.test",
+                ClamAvPort: 3310),
+            runtime);
+
+        var success = antivirus.TestClamAVScanner("clamav.example.test", 3310, out var resultText);
+
+        Assert.IsFalse(success);
+        Assert.AreEqual("Unable to connect.", resultText);
+        Assert.AreEqual("clamav.example.test", runtime.Hostname);
+        Assert.AreEqual(3310, runtime.Port);
+
+        runtime.ThrowOnTestConnection = true;
+        var error = Assert.ThrowsExactly<COMException>(
+            () => antivirus.TestClamAVScanner("clamav.example.test", 3310, out _));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
     }
 
     [TestMethod]
@@ -248,5 +319,30 @@ public sealed class AntiVirusComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private sealed class FakeClamAvScannerTestRuntime(
+        ClamAvScannerTestResult result)
+        : IClamAvScannerTestRuntime
+    {
+        public string Hostname { get; private set; } = string.Empty;
+
+        public int Port { get; private set; }
+
+        public bool ThrowOnTestConnection { get; set; }
+
+        public ClamAvScannerTestResult TestConnection(
+            string hostname,
+            int port)
+        {
+            Hostname = hostname;
+            Port = port;
+            if (ThrowOnTestConnection)
+            {
+                throw new InvalidOperationException("Simulated ClamAV test failure.");
+            }
+
+            return result;
+        }
     }
 }

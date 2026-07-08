@@ -49,20 +49,55 @@ public sealed class ClamAvInstreamClientTests
         Assert.AreEqual("Eicar-Test-Signature", result.VirusName);
     }
 
+    [TestMethod]
+    public async Task ScannerTestRuntime_ScansCleanAndEicarPayloads()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var daemon = await FakeClamAvDaemon.StartAsync(
+            [
+                "stream: OK\r\n",
+                "stream: Eicar-Test-Signature FOUND\r\n"
+            ],
+            timeout.Token);
+        await using (daemon.ConfigureAwait(false))
+        {
+            var runtime = new ClamAvScannerTestRuntime(
+                new ClamAvInstreamClientOptions
+                {
+                    Host = IPAddress.Loopback.ToString(),
+                    Port = daemon.Port,
+                    Timeout = TimeSpan.FromSeconds(5),
+                    ChunkSize = 1024
+                });
+
+            var result = runtime.TestConnection(IPAddress.Loopback.ToString(), daemon.Port);
+
+            Assert.IsTrue(result.Succeeded, result.ResultText);
+            Assert.AreEqual("stream: Eicar-Test-Signature FOUND", result.ResultText);
+            CollectionAssert.AreEqual(
+                new[] { "nINSTREAM", "nINSTREAM" },
+                daemon.Commands.ToArray());
+            Assert.AreEqual("Test", Encoding.ASCII.GetString(daemon.PayloadChunks[0]));
+            StringAssert.Contains(
+                Encoding.ASCII.GetString(daemon.PayloadChunks[1]),
+                "EICAR-STANDARD-ANTIVIRUS-TEST-FILE");
+        }
+    }
+
     private sealed class FakeClamAvDaemon : IAsyncDisposable
     {
         private readonly TcpListener _listener;
-        private readonly string _response;
+        private readonly IReadOnlyList<string> _responses;
         private readonly CancellationToken _cancellationToken;
         private readonly Task _serverTask;
 
         private FakeClamAvDaemon(
             TcpListener listener,
-            string response,
+            IReadOnlyList<string> responses,
             CancellationToken cancellationToken)
         {
             _listener = listener;
-            _response = response;
+            _responses = responses;
             _cancellationToken = cancellationToken;
             Port = ((IPEndPoint)listener.LocalEndpoint).Port;
             _serverTask = RunAsync();
@@ -72,15 +107,24 @@ public sealed class ClamAvInstreamClientTests
 
         public string Command { get; private set; } = string.Empty;
 
+        public List<string> Commands { get; } = [];
+
         public List<byte[]> PayloadChunks { get; } = [];
 
         public static ValueTask<FakeClamAvDaemon> StartAsync(
             string response,
             CancellationToken cancellationToken)
         {
+            return StartAsync([response], cancellationToken);
+        }
+
+        public static ValueTask<FakeClamAvDaemon> StartAsync(
+            IReadOnlyList<string> responses,
+            CancellationToken cancellationToken)
+        {
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
-            return ValueTask.FromResult(new FakeClamAvDaemon(listener, response, cancellationToken));
+            return ValueTask.FromResult(new FakeClamAvDaemon(listener, responses, cancellationToken));
         }
 
         public async ValueTask DisposeAsync()
@@ -93,25 +137,34 @@ public sealed class ClamAvInstreamClientTests
         {
             try
             {
-                using var client = await _listener.AcceptTcpClientAsync(_cancellationToken).ConfigureAwait(false);
-                await using var stream = client.GetStream();
-                Command = await ReadLineAsync(stream, _cancellationToken).ConfigureAwait(false);
-
-                while (true)
+                foreach (var response in _responses)
                 {
-                    var lengthPrefix = await ReadExactAsync(stream, 4, _cancellationToken).ConfigureAwait(false);
-                    var length = BinaryPrimitives.ReadInt32BigEndian(lengthPrefix);
-                    if (length == 0)
+                    using var client = await _listener.AcceptTcpClientAsync(_cancellationToken).ConfigureAwait(false);
+                    await using var stream = client.GetStream();
+                    var command = await ReadLineAsync(stream, _cancellationToken).ConfigureAwait(false);
+                    if (Command.Length == 0)
                     {
-                        break;
+                        Command = command;
                     }
 
-                    PayloadChunks.Add(await ReadExactAsync(stream, length, _cancellationToken).ConfigureAwait(false));
-                }
+                    Commands.Add(command);
 
-                var responseBytes = Encoding.ASCII.GetBytes(_response);
-                await stream.WriteAsync(responseBytes, _cancellationToken).ConfigureAwait(false);
-                await stream.FlushAsync(_cancellationToken).ConfigureAwait(false);
+                    while (true)
+                    {
+                        var lengthPrefix = await ReadExactAsync(stream, 4, _cancellationToken).ConfigureAwait(false);
+                        var length = BinaryPrimitives.ReadInt32BigEndian(lengthPrefix);
+                        if (length == 0)
+                        {
+                            break;
+                        }
+
+                        PayloadChunks.Add(await ReadExactAsync(stream, length, _cancellationToken).ConfigureAwait(false));
+                    }
+
+                    var responseBytes = Encoding.ASCII.GetBytes(response);
+                    await stream.WriteAsync(responseBytes, _cancellationToken).ConfigureAwait(false);
+                    await stream.FlushAsync(_cancellationToken).ConfigureAwait(false);
+                }
             }
             catch (OperationCanceledException)
             {

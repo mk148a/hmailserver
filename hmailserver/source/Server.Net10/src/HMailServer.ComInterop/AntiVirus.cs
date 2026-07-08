@@ -124,16 +124,21 @@ public interface IInterfaceAntiVirus
 public sealed class AntiVirus : IInterfaceAntiVirus
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private readonly AntiVirusAdministrationSnapshot? _snapshot;
+    private readonly IClamAvScannerTestRuntime? _clamAvScannerTestRuntime;
 
     public AntiVirus()
     {
     }
 
-    private AntiVirus(AntiVirusAdministrationSnapshot snapshot)
+    private AntiVirus(
+        AntiVirusAdministrationSnapshot snapshot,
+        IClamAvScannerTestRuntime? clamAvScannerTestRuntime)
     {
         _snapshot = snapshot;
+        _clamAvScannerTestRuntime = clamAvScannerTestRuntime;
     }
 
     public bool ClamWinEnabled { get => Snapshot.ClamWinEnabled; set => Unavailable(); }
@@ -194,13 +199,34 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     public bool TestClamAVScanner(string clamAVHostName, int clamAVPort, out string resultText)
     {
         resultText = string.Empty;
-        return Unavailable<bool>();
+        _ = Snapshot;
+        if (_clamAvScannerTestRuntime is null)
+        {
+            return Unavailable<bool>();
+        }
+
+        try
+        {
+            var result = _clamAvScannerTestRuntime.TestConnection(
+                clamAVHostName ?? string.Empty,
+                clamAVPort);
+            resultText = result.ResultText ?? string.Empty;
+            return result.Succeeded;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to test the ClamAV connection.",
+                EFail);
+        }
     }
 
-    internal static AntiVirus CreateAuthorized(AntiVirusAdministrationSnapshot snapshot)
+    internal static AntiVirus CreateAuthorized(
+        AntiVirusAdministrationSnapshot snapshot,
+        IClamAvScannerTestRuntime? clamAvScannerTestRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new AntiVirus(snapshot);
+        return new AntiVirus(snapshot, clamAvScannerTestRuntime);
     }
 
     private AntiVirusAdministrationSnapshot Snapshot =>
