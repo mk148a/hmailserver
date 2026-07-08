@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class GreyListingWhiteAddressesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -86,10 +87,12 @@ public sealed class GreyListingWhiteAddressesComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var collectionError = Assert.ThrowsExactly<COMException>(() => _ = new GreyListingWhiteAddresses().Count);
+        var collectionRefreshError = Assert.ThrowsExactly<COMException>(new GreyListingWhiteAddresses().Refresh);
         var itemError = Assert.ThrowsExactly<COMException>(() => _ = new GreyListingWhiteAddress().IPAddress);
         var antiSpamError = Assert.ThrowsExactly<COMException>(() => _ = new AntiSpam().GreyListingWhiteAddresses);
 
         Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, itemError.ErrorCode);
         Assert.AreEqual(EAccessDenied, antiSpamError.ErrorCode);
     }
@@ -126,6 +129,54 @@ public sealed class GreyListingWhiteAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.%", "Test network")
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    Snapshot(30, "198.51.100.%", "Refreshed network"),
+                    Snapshot(20, "203.0.113.5", "Single address")
+                };
+            });
+
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual("192.0.2.*", addresses[0].IPAddress);
+
+        addresses.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, addresses.Count);
+        AssertAddress(addresses[0], 30, "198.51.100.*", "Refreshed network");
+        Assert.AreEqual(20, addresses.get_ItemByDBID(20).ID);
+        Assert.AreEqual(30, addresses.get_ItemByName("198.51.100.%").ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(addresses.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, addresses.Count);
+        Assert.AreEqual("Refreshed network", addresses.get_ItemByDBID(30).Description);
+    }
+
+    [TestMethod]
     public void Item_PreservesLegacyLikePatternAndBigintIdProjections()
     {
         var address = GreyListingWhiteAddress.CreateAuthorized(
@@ -139,13 +190,14 @@ public sealed class GreyListingWhiteAddressesComContractTests
     [TestMethod]
     public void AuthorizedAntiSpam_UsesConfiguredGreyListingWhiteAddressRuntime()
     {
+        var store = new MutableGreyListingWhiteAddressAdministrationStore(
+            new[]
+            {
+                Snapshot(20, "203.0.113.5", "Single address"),
+                Snapshot(10, "192.0.2.%", "Test network")
+            });
         GreyListingWhiteAddressAdministrationRuntimeHost.Configure(
-            new FixedGreyListingWhiteAddressAdministrationStore(
-                new[]
-                {
-                    Snapshot(20, "203.0.113.5", "Single address"),
-                    Snapshot(10, "192.0.2.%", "Test network")
-                }));
+            store);
         var antiSpam = AntiSpam.CreateAuthorized(new AntiSpamAdministrationSnapshot());
 
         var addresses = antiSpam.GreyListingWhiteAddresses;
@@ -153,6 +205,24 @@ public sealed class GreyListingWhiteAddressesComContractTests
         Assert.AreEqual(2, addresses.Count);
         Assert.AreEqual(10, addresses[0].ID);
         Assert.AreEqual("Single address", addresses.get_ItemByDBID(20).Description);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(20, "203.0.113.5", "Single address"),
+                Snapshot(30, "198.51.100.%", "Refreshed network")
+            });
+
+        addresses.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, addresses.Count);
+        AssertAddress(addresses[0], 30, "198.51.100.*", "Refreshed network");
+        Assert.AreEqual(30, addresses.get_ItemByName("198.51.100.%").ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static GreyListingWhiteAddressAdministrationSnapshot Snapshot(
@@ -216,13 +286,25 @@ public sealed class GreyListingWhiteAddressesComContractTests
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
     }
 
-    private sealed class FixedGreyListingWhiteAddressAdministrationStore(
+    private sealed class MutableGreyListingWhiteAddressAdministrationStore(
         IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot> addresses)
         : IGreyListingWhiteAddressAdministrationStore
     {
+        private IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot> _addresses = addresses;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot> addresses)
+        {
+            _addresses = addresses;
+        }
+
         public ValueTask<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>> GetWhiteAddressesAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>(
-                addresses.OrderBy(static address => address.StoredIpAddress, StringComparer.OrdinalIgnoreCase).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>(
+                _addresses.OrderBy(static address => address.StoredIpAddress, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
     }
 }

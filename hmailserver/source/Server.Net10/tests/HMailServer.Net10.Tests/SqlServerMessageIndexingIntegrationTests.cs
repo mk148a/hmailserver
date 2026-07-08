@@ -803,6 +803,35 @@ WHERE recipientmessageid = @MessageId;
             var pendingGreyListingWhiteAddressSave = Assert.ThrowsExactly<COMException>(
                 greyListingWhiteAddresses[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingGreyListingWhiteAddressSave.ErrorCode);
+
+            await using (var greyListingWhiteAddressRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await greyListingWhiteAddressRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateGreyListingWhiteAddress = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_greylisting_whiteaddresses
+                    SET whiteid = 30,
+                        whiteipaddress = N'198.51.100.%',
+                        whiteipdescription = N'Refreshed network'
+                    WHERE whiteid = 10;
+                    """,
+                    greyListingWhiteAddressRefreshConnection);
+                Assert.AreEqual(1, await updateGreyListingWhiteAddress.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            greyListingWhiteAddresses.Refresh();
+
+            Assert.AreEqual(2, greyListingWhiteAddresses.Count);
+            Assert.AreEqual(30, greyListingWhiteAddresses[0].ID);
+            Assert.AreEqual("198.51.100.*", greyListingWhiteAddresses[0].IPAddress);
+            Assert.AreEqual("Refreshed network", greyListingWhiteAddresses[0].Description);
+            Assert.AreEqual(30, greyListingWhiteAddresses.get_ItemByName("198.51.100.%").ID);
+            Assert.AreEqual(20, greyListingWhiteAddresses.get_ItemByDBID(20).ID);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => greyListingWhiteAddresses.get_ItemByDBID(10)).ErrorCode);
+
             var whiteListAddresses = antiSpam.WhiteListAddresses;
             Assert.AreEqual(2, whiteListAddresses.Count);
             Assert.AreEqual(10, whiteListAddresses[0].ID);
