@@ -83,25 +83,32 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<TcpIpPortAdministrationSnapshot>? _ports;
+    private TcpIpPortAdministrationSnapshot[]? _ports;
+    private readonly Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? _reload;
 
     public TCPIPPorts()
     {
     }
 
-    private TCPIPPorts(IReadOnlyList<TcpIpPortAdministrationSnapshot> ports)
+    private TCPIPPorts(
+        IReadOnlyList<TcpIpPortAdministrationSnapshot> ports,
+        Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? reload)
     {
         _ports = ports.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetPorts().Count;
 
-    internal static TCPIPPorts CreateAuthorized(IReadOnlyList<TcpIpPortAdministrationSnapshot> ports)
+    internal static TCPIPPorts CreateAuthorized(
+        IReadOnlyList<TcpIpPortAdministrationSnapshot> ports,
+        Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(ports);
-        return new TCPIPPorts(ports);
+        return new TCPIPPorts(ports, reload);
     }
 
     public IInterfaceTCPIPPort this[int index]
@@ -131,13 +138,34 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
 
     public IInterfaceTCPIPPort Add() => Unavailable<IInterfaceTCPIPPort>();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetPorts();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var ports = _reload();
+            ArgumentNullException.ThrowIfNull(ports);
+            Volatile.Write(ref _ports, ports.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of TCP/IP ports from the database.",
+                EFail);
+        }
+    }
 
     public void SetDefault() => Unavailable();
 
     private IReadOnlyList<TcpIpPortAdministrationSnapshot> GetPorts()
     {
-        return _ports
+        return Volatile.Read(ref _ports)
             ?? throw new COMException(
                 "TCPIPPorts access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -239,12 +267,12 @@ public static class TcpIpPortAdministrationRuntimeHost
                 "The hMailServer TCP/IP port administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var ports = store
+        IReadOnlyList<TcpIpPortAdministrationSnapshot> LoadPorts() => store
             .GetTcpIpPortsAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return TCPIPPorts.CreateAuthorized(ports);
+        return TCPIPPorts.CreateAuthorized(LoadPorts(), LoadPorts);
     }
 }

@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class TcpIpPortsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -81,10 +82,12 @@ public sealed class TcpIpPortsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var portsError = Assert.ThrowsExactly<COMException>(() => _ = new TCPIPPorts().Count);
+        var portsRefreshError = Assert.ThrowsExactly<COMException>(new TCPIPPorts().Refresh);
         var portError = Assert.ThrowsExactly<COMException>(() => _ = new TCPIPPort().PortNumber);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().TCPIPPorts);
 
         Assert.AreEqual(EAccessDenied, portsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, portsRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, portError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -133,15 +136,70 @@ public sealed class TcpIpPortsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.Tls, 100)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    Snapshot(20, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.StartTlsRequired, 0),
+                    Snapshot(30, ComSessionType.Smtp, 2525, "0.0.0.0", ComConnectionSecurity.None, 0)
+                };
+            });
+
+        Assert.AreEqual(1, ports.Count);
+        Assert.AreEqual(25, ports[0].PortNumber);
+
+        ports.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, ports.Count);
+        AssertPort(
+            ports[0],
+            20,
+            ComSessionType.Imap,
+            143,
+            "127.0.0.1",
+            ComConnectionSecurity.StartTlsRequired,
+            false,
+            0);
+        Assert.AreEqual(2525, ports.get_ItemByDBID(30).PortNumber);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = ports.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(ports.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, ports.Count);
+        Assert.AreEqual(143, ports.get_ItemByDBID(20).PortNumber);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_UsesConfiguredTcpIpPortRuntime()
     {
-        TcpIpPortAdministrationRuntimeHost.Configure(
-            new FixedTcpIpPortAdministrationStore(
-                new[]
-                {
-                    Snapshot(20, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.None, 0),
-                    Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0)
-                }));
+        var store = new MutableTcpIpPortAdministrationStore(
+            new[]
+            {
+                Snapshot(20, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.None, 0),
+                Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0)
+            });
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
         IInterfaceSettings settings = Settings.CreateAuthorized();
 
         var ports = settings.TCPIPPorts;
@@ -149,6 +207,24 @@ public sealed class TcpIpPortsComContractTests
         Assert.AreEqual(2, ports.Count);
         Assert.AreEqual(25, ports[0].PortNumber);
         Assert.AreEqual(ComSessionType.Smtp, ports[0].Protocol);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(30, ComSessionType.Smtp, 2525, "0.0.0.0", ComConnectionSecurity.StartTlsRequired, 0),
+                Snapshot(20, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.None, 0)
+            });
+
+        ports.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, ports.Count);
+        Assert.AreEqual(2525, ports[0].PortNumber);
+        Assert.AreEqual(30, ports.get_ItemByDBID(30).ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = ports.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static TcpIpPortAdministrationSnapshot Snapshot(
@@ -202,14 +278,26 @@ public sealed class TcpIpPortsComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedTcpIpPortAdministrationStore(IReadOnlyList<TcpIpPortAdministrationSnapshot> ports)
+    private sealed class MutableTcpIpPortAdministrationStore(IReadOnlyList<TcpIpPortAdministrationSnapshot> ports)
         : ITcpIpPortAdministrationStore
     {
+        private IReadOnlyList<TcpIpPortAdministrationSnapshot> _ports = ports;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<TcpIpPortAdministrationSnapshot> ports)
+        {
+            _ports = ports;
+        }
+
         public ValueTask<IReadOnlyList<TcpIpPortAdministrationSnapshot>> GetTcpIpPortsAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<TcpIpPortAdministrationSnapshot>>(
-                ports.OrderBy(port => port.Address, StringComparer.OrdinalIgnoreCase)
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<TcpIpPortAdministrationSnapshot>>(
+                _ports.OrderBy(port => port.Address, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(port => port.PortNumber)
                     .ToArray());
+        }
     }
 }

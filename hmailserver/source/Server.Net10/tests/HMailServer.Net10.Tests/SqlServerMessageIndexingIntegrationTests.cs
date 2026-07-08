@@ -1533,6 +1533,36 @@ ORDER BY messageid;
             Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, tcpIpPorts.get_ItemByDBID(901).ConnectionSecurity);
             var pendingTcpIpPortSave = Assert.ThrowsExactly<COMException>(tcpIpPorts[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingTcpIpPortSave.ErrorCode);
+
+            await using (var tcpIpPortRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await tcpIpPortRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateTcpIpPort = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_tcpipports
+                    SET portprotocol = 1,
+                        portnumber = 2525,
+                        portaddress1 = 0,
+                        portaddress2 = NULL,
+                        portconnectionsecurity = 3,
+                        portsslcertificateid = 0
+                    WHERE portid = 900;
+                    """,
+                    tcpIpPortRefreshConnection);
+                Assert.AreEqual(1, await updateTcpIpPort.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            tcpIpPorts.Refresh();
+
+            Assert.AreEqual(2, tcpIpPorts.Count);
+            Assert.AreEqual(2525, tcpIpPorts[0].PortNumber);
+            Assert.AreEqual(ComSessionType.Smtp, tcpIpPorts[0].Protocol);
+            Assert.AreEqual("0.0.0.0", tcpIpPorts[0].Address);
+            Assert.IsFalse(tcpIpPorts[0].UseSSL);
+            Assert.AreEqual(0, tcpIpPorts[0].SSLCertificateID);
+            Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, tcpIpPorts[0].ConnectionSecurity);
+            Assert.AreEqual(2525, tcpIpPorts.get_ItemByDBID(900).PortNumber);
+
             var sslCertificates = application.Settings.SSLCertificates;
             Assert.AreEqual(2, sslCertificates.Count);
             Assert.AreEqual("Alpha certificate", sslCertificates[0].Name);
