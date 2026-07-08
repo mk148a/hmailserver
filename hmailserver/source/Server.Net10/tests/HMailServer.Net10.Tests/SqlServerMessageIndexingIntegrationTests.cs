@@ -640,6 +640,34 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual("*.exe", blockedAttachments.get_ItemByDBID(20).Wildcard);
             var pendingBlockedAttachmentSave = Assert.ThrowsExactly<COMException>(blockedAttachments[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingBlockedAttachmentSave.ErrorCode);
+
+            await using (var blockedAttachmentRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await blockedAttachmentRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updateBlockedAttachment = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_blocked_attachments
+                    SET baid = 30,
+                        bawildcard = N'*.cmd',
+                        badescription = N'Command file'
+                    WHERE baid = 10;
+                    """,
+                    blockedAttachmentRefreshConnection);
+                Assert.AreEqual(1, await updateBlockedAttachment.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            blockedAttachments.Refresh();
+
+            Assert.AreEqual(2, blockedAttachments.Count);
+            Assert.AreEqual("*.cmd", blockedAttachments[0].Wildcard);
+            Assert.AreEqual("Command file", blockedAttachments[0].Description);
+            Assert.AreEqual("*.exe", blockedAttachments.get_ItemByDBID(20).Wildcard);
+            Assert.AreEqual(30, blockedAttachments.get_ItemByDBID(30).ID);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => blockedAttachments.get_ItemByDBID(10)).ErrorCode);
+
             var antiSpam = settings.AntiSpam;
             Assert.IsTrue(antiSpam.GreyListingEnabled);
             Assert.AreEqual(30, antiSpam.GreyListingInitialDelay);

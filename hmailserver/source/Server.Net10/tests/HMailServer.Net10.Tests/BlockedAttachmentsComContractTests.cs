@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class BlockedAttachmentsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -73,10 +74,12 @@ public sealed class BlockedAttachmentsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var collectionError = Assert.ThrowsExactly<COMException>(() => _ = new BlockedAttachments().Count);
+        var collectionRefreshError = Assert.ThrowsExactly<COMException>(new BlockedAttachments().Refresh);
         var itemError = Assert.ThrowsExactly<COMException>(() => _ = new BlockedAttachment().Wildcard);
         var antiVirusError = Assert.ThrowsExactly<COMException>(() => _ = new AntiVirus().BlockedAttachments);
 
         Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, itemError.ErrorCode);
         Assert.AreEqual(EAccessDenied, antiVirusError.ErrorCode);
     }
@@ -117,15 +120,63 @@ public sealed class BlockedAttachmentsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "*.bat", "Batch file")
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    Snapshot(30, "*.cmd", "Command file"),
+                    Snapshot(20, "*.exe", "Executable file")
+                };
+            });
+
+        Assert.AreEqual(1, attachments.Count);
+        Assert.AreEqual("*.bat", attachments[0].Wildcard);
+
+        attachments.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, attachments.Count);
+        AssertAttachment(attachments[0], 30, "*.cmd", "Command file");
+        Assert.AreEqual("Executable file", attachments.get_ItemByDBID(20).Description);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = attachments.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(attachments.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, attachments.Count);
+        Assert.AreEqual("Command file", attachments.get_ItemByDBID(30).Description);
+    }
+
+    [TestMethod]
     public void AuthorizedAntiVirus_UsesConfiguredBlockedAttachmentRuntime()
     {
+        var store = new MutableBlockedAttachmentAdministrationStore(
+            new[]
+            {
+                Snapshot(20, "*.exe", "Executable file"),
+                Snapshot(10, "*.bat", "Batch file")
+            });
         BlockedAttachmentAdministrationRuntimeHost.Configure(
-            new FixedBlockedAttachmentAdministrationStore(
-                new[]
-                {
-                    Snapshot(20, "*.exe", "Executable file"),
-                    Snapshot(10, "*.bat", "Batch file")
-                }));
+            store);
         var antiVirus = AntiVirus.CreateAuthorized(
             new AntiVirusAdministrationSnapshot(
                 ClamWinEnabled: false,
@@ -148,6 +199,24 @@ public sealed class BlockedAttachmentsComContractTests
         Assert.AreEqual(2, attachments.Count);
         Assert.AreEqual("*.bat", attachments[0].Wildcard);
         Assert.AreEqual("Executable file", attachments.get_ItemByDBID(20).Description);
+        Assert.AreEqual(1, store.ReadCount);
+
+        store.Replace(
+            new[]
+            {
+                Snapshot(30, "*.cmd", "Command file"),
+                Snapshot(20, "*.exe", "Executable file")
+            });
+
+        attachments.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(2, attachments.Count);
+        AssertAttachment(attachments[0], 30, "*.cmd", "Command file");
+        Assert.AreEqual("Executable file", attachments.get_ItemByDBID(20).Description);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = attachments.get_ItemByDBID(10)).ErrorCode);
     }
 
     private static BlockedAttachmentAdministrationSnapshot Snapshot(
@@ -190,13 +259,25 @@ public sealed class BlockedAttachmentsComContractTests
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedBlockedAttachmentAdministrationStore(
+    private sealed class MutableBlockedAttachmentAdministrationStore(
         IReadOnlyList<BlockedAttachmentAdministrationSnapshot> attachments)
         : IBlockedAttachmentAdministrationStore
     {
+        private IReadOnlyList<BlockedAttachmentAdministrationSnapshot> _attachments = attachments;
+
+        public int ReadCount { get; private set; }
+
+        public void Replace(IReadOnlyList<BlockedAttachmentAdministrationSnapshot> attachments)
+        {
+            _attachments = attachments;
+        }
+
         public ValueTask<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>> GetBlockedAttachmentsAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>(
-                attachments.OrderBy(static attachment => attachment.Wildcard, StringComparer.OrdinalIgnoreCase).ToArray());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>(
+                _attachments.OrderBy(static attachment => attachment.Wildcard, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
     }
 }

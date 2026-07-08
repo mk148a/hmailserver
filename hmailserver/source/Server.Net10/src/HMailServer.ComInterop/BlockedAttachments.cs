@@ -69,17 +69,22 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<BlockedAttachmentAdministrationSnapshot>? _blockedAttachments;
+    private BlockedAttachmentAdministrationSnapshot[]? _blockedAttachments;
+    private readonly Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? _reload;
 
     public BlockedAttachments()
     {
     }
 
-    private BlockedAttachments(IReadOnlyList<BlockedAttachmentAdministrationSnapshot> blockedAttachments)
+    private BlockedAttachments(
+        IReadOnlyList<BlockedAttachmentAdministrationSnapshot> blockedAttachments,
+        Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? reload)
     {
         _blockedAttachments = blockedAttachments.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetBlockedAttachments().Count;
@@ -111,17 +116,40 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
             : BlockedAttachment.CreateAuthorized(match);
     }
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetBlockedAttachments();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
 
-    internal static BlockedAttachments CreateAuthorized(IReadOnlyList<BlockedAttachmentAdministrationSnapshot> blockedAttachments)
+        try
+        {
+            var blockedAttachments = _reload();
+            ArgumentNullException.ThrowIfNull(blockedAttachments);
+            Volatile.Write(ref _blockedAttachments, blockedAttachments.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of blocked attachments from the database.",
+                EFail);
+        }
+    }
+
+    internal static BlockedAttachments CreateAuthorized(
+        IReadOnlyList<BlockedAttachmentAdministrationSnapshot> blockedAttachments,
+        Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(blockedAttachments);
-        return new BlockedAttachments(blockedAttachments);
+        return new BlockedAttachments(blockedAttachments, reload);
     }
 
     private IReadOnlyList<BlockedAttachmentAdministrationSnapshot> GetBlockedAttachments()
     {
-        return _blockedAttachments
+        return Volatile.Read(ref _blockedAttachments)
             ?? throw new COMException(
                 "BlockedAttachments access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -210,12 +238,12 @@ public static class BlockedAttachmentAdministrationRuntimeHost
                 "The hMailServer blocked attachment administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var blockedAttachments = store
+        IReadOnlyList<BlockedAttachmentAdministrationSnapshot> LoadBlockedAttachments() => store
             .GetBlockedAttachmentsAsync(CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return BlockedAttachments.CreateAuthorized(blockedAttachments);
+        return BlockedAttachments.CreateAuthorized(LoadBlockedAttachments(), LoadBlockedAttachments);
     }
 }
