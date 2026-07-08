@@ -179,29 +179,30 @@ public sealed class ImapFoldersComContractTests
     [TestMethod]
     public void PublicFolderPermissions_UsesConfiguredRuntimeForSelectedFolder()
     {
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(50, 0, -1, "Public", true, 5, "2026-06-27 00:02:03")
+            },
+            new[]
+            {
+                new ImapFolderPermissionAdministrationSnapshot(
+                    500,
+                    50,
+                    (int)ComAclPermissionType.Anyone,
+                    0,
+                    0,
+                    (int)(ComAclPermission.Lookup | ComAclPermission.Read)),
+                new ImapFolderPermissionAdministrationSnapshot(
+                    600,
+                    60,
+                    (int)ComAclPermissionType.User,
+                    0,
+                    100,
+                    (int)ComAclPermission.Lookup)
+            });
         ImapFolderAdministrationRuntimeHost.Configure(
-            new FixedImapFolderAdministrationStore(
-                new[]
-                {
-                    new ImapFolderAdministrationSnapshot(50, 0, -1, "Public", true, 5, "2026-06-27 00:02:03")
-                },
-                new[]
-                {
-                    new ImapFolderPermissionAdministrationSnapshot(
-                        500,
-                        50,
-                        (int)ComAclPermissionType.Anyone,
-                        0,
-                        0,
-                        (int)(ComAclPermission.Lookup | ComAclPermission.Read)),
-                    new ImapFolderPermissionAdministrationSnapshot(
-                        600,
-                        60,
-                        (int)ComAclPermissionType.User,
-                        0,
-                        100,
-                        (int)ComAclPermission.Lookup)
-                }));
+            store);
         var folders = IMAPFolders.CreateAuthorized(
             new[]
             {
@@ -215,6 +216,36 @@ public sealed class ImapFoldersComContractTests
         Assert.AreEqual(50, permissions[0].ShareFolderID);
         Assert.AreEqual(ComAclPermissionType.Anyone, permissions[0].PermissionType);
         Assert.IsTrue(permissions[0].get_Permission(ComAclPermission.Read));
+        Assert.AreEqual(1, store.PermissionReadCount);
+
+        store.ReplacePermissions(
+            new[]
+            {
+                new ImapFolderPermissionAdministrationSnapshot(
+                    700,
+                    50,
+                    (int)ComAclPermissionType.Anyone,
+                    0,
+                    0,
+                    (int)ComAclPermission.Lookup),
+                new ImapFolderPermissionAdministrationSnapshot(
+                    800,
+                    60,
+                    (int)ComAclPermissionType.User,
+                    0,
+                    100,
+                    (int)ComAclPermission.Lookup)
+            });
+
+        permissions.Refresh();
+
+        Assert.AreEqual(2, store.PermissionReadCount);
+        Assert.AreEqual(1, permissions.Count);
+        Assert.AreEqual(700, permissions[0].ID);
+        Assert.AreEqual(50, permissions[0].ShareFolderID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = permissions.get_ItemByDBID(500)).ErrorCode);
     }
 
     private static void AssertFolder(
@@ -261,6 +292,16 @@ public sealed class ImapFoldersComContractTests
         IReadOnlyList<ImapFolderAdministrationSnapshot> folders,
         IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>? permissions = null) : IImapFolderAdministrationStore
     {
+        private IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> _permissions =
+            permissions ?? Array.Empty<ImapFolderPermissionAdministrationSnapshot>();
+
+        public int PermissionReadCount { get; private set; }
+
+        public void ReplacePermissions(IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions)
+        {
+            _permissions = permissions;
+        }
+
         public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetRootFoldersAsync(
             int accountId,
             CancellationToken cancellationToken) =>
@@ -280,12 +321,15 @@ public sealed class ImapFoldersComContractTests
 
         public ValueTask<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> GetFolderPermissionsAsync(
             int folderId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>(
-                (permissions ?? Array.Empty<ImapFolderPermissionAdministrationSnapshot>())
+            CancellationToken cancellationToken)
+        {
+            PermissionReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>(
+                _permissions
                     .Where(permission => permission.ShareFolderId == folderId)
                     .OrderBy(permission => permission.Id)
                     .ToArray());
+        }
     }
 
     private sealed class EmptyMessageAdministrationStore : IMessageAdministrationStore

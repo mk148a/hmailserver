@@ -1493,6 +1493,37 @@ ORDER BY messageid;
             Assert.AreEqual(unchecked((int)0x8002000B), outsidePermission.ErrorCode);
             var pendingPermissionSave = Assert.ThrowsExactly<COMException>(publicPermissions[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingPermissionSave.ErrorCode);
+
+            await using (var permissionRefreshConnection = new SqlConnection(testConnectionString))
+            {
+                await permissionRefreshConnection.OpenAsync().ConfigureAwait(false);
+                await using var updatePermission = new SqlCommand(
+                    """
+                    UPDATE dbo.hm_acl
+                    SET aclid = 503,
+                        aclpermissiontype = 1,
+                        aclpermissiongroupid = 1100,
+                        aclpermissionaccountid = 0,
+                        aclvalue = 33
+                    WHERE aclid = 500;
+                    """,
+                    permissionRefreshConnection);
+                Assert.AreEqual(1, await updatePermission.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            publicPermissions.Refresh();
+
+            Assert.AreEqual(3, publicPermissions.Count);
+            Assert.AreEqual(501, publicPermissions[0].ID);
+            Assert.AreEqual(503, publicPermissions.get_ItemByName("ACLPermission-503").ID);
+            Assert.AreEqual(ComAclPermissionType.Group, publicPermissions.get_ItemByDBID(503).PermissionType);
+            Assert.AreEqual(1100, publicPermissions.get_ItemByDBID(503).Group.ID);
+            Assert.AreEqual(33, publicPermissions.get_ItemByDBID(503).Value);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => publicPermissions.get_ItemByDBID(500)).ErrorCode);
+
             var routes = application.Settings.Routes;
             Assert.AreEqual(2, routes.Count);
             Assert.AreEqual("alpha.route.test", routes[0].DomainName);

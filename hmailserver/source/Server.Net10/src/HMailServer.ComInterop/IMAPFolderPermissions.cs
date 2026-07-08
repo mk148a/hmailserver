@@ -92,17 +92,22 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>? _permissions;
+    private ImapFolderPermissionAdministrationSnapshot[]? _permissions;
+    private readonly Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>? _reload;
 
     public IMAPFolderPermissions()
     {
     }
 
-    private IMAPFolderPermissions(IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions)
+    private IMAPFolderPermissions(
+        IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions,
+        Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>? reload)
     {
         _permissions = permissions.ToArray();
+        _reload = reload;
     }
 
     public int Count => GetPermissions().Count;
@@ -147,17 +152,39 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
 
     public void Delete(int index) => Unavailable();
 
-    public void Refresh() => Unavailable();
+    public void Refresh()
+    {
+        _ = GetPermissions();
+        if (_reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var permissions = _reload();
+            ArgumentNullException.ThrowIfNull(permissions);
+            Volatile.Write(ref _permissions, permissions.ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve a list of IMAP folder permissions from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceIMAPFolderPermission Add() => Unavailable<IInterfaceIMAPFolderPermission>();
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
     internal static IMAPFolderPermissions CreateAuthorized(
-        IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions)
+        IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions,
+        Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>? reload = null)
     {
         ArgumentNullException.ThrowIfNull(permissions);
-        return new IMAPFolderPermissions(permissions);
+        return new IMAPFolderPermissions(permissions, reload);
     }
 
     private static string LegacyName(ImapFolderPermissionAdministrationSnapshot permission) =>
@@ -165,7 +192,7 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
 
     private IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> GetPermissions()
     {
-        return _permissions
+        return Volatile.Read(ref _permissions)
             ?? throw new COMException(
                 "IMAPFolderPermissions access requires an authenticated server administrator.",
                 EAccessDenied);

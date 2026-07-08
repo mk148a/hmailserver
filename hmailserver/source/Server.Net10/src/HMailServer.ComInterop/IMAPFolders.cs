@@ -309,13 +309,13 @@ public static class ImapFolderAdministrationRuntimeHost
                 "The hMailServer IMAP folder administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var permissions = store
+        IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> LoadPermissions() => store
             .GetFolderPermissionsAsync(folderId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return IMAPFolderPermissions.CreateAuthorized(permissions);
+        return IMAPFolderPermissions.CreateAuthorized(LoadPermissions(), LoadPermissions);
     }
 }
 

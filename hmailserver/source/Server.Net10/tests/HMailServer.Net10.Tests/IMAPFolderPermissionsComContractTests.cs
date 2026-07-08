@@ -10,6 +10,7 @@ public sealed class IMAPFolderPermissionsComContractTests
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     [TestMethod]
@@ -87,9 +88,11 @@ public sealed class IMAPFolderPermissionsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var permissionsError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolderPermissions().Count);
+        var permissionsRefreshError = Assert.ThrowsExactly<COMException>(new IMAPFolderPermissions().Refresh);
         var permissionError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolderPermission().ID);
 
         Assert.AreEqual(EAccessDenied, permissionsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, permissionsRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, permissionError.ErrorCode);
     }
 
@@ -186,6 +189,92 @@ public sealed class IMAPFolderPermissionsComContractTests
             var error = Assert.ThrowsExactly<COMException>(mutation);
             Assert.AreEqual(ENotImplemented, error.ErrorCode);
         }
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
+    {
+        AccountAdministrationRuntimeHost.Configure(
+            new FixedAccountAdministrationStore(
+                new[]
+                {
+                    new AccountAdministrationSnapshot(100, 50, "acl-user@example.test", true, 0)
+                }));
+        GroupAdministrationRuntimeHost.Configure(
+            new FixedGroupAdministrationStore(
+                new[]
+                {
+                    new GroupAdministrationSnapshot(200, "ACL Group")
+                }));
+
+        var failReload = false;
+        var reloads = 0;
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            new[]
+            {
+                new ImapFolderPermissionAdministrationSnapshot(
+                    10,
+                    50,
+                    (int)ComAclPermissionType.User,
+                    0,
+                    100,
+                    (int)ComAclPermission.Lookup)
+            },
+            () =>
+            {
+                reloads++;
+                if (failReload)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return new[]
+                {
+                    new ImapFolderPermissionAdministrationSnapshot(
+                        20,
+                        50,
+                        (int)ComAclPermissionType.Anyone,
+                        0,
+                        0,
+                        (int)ComAclPermission.Lookup),
+                    new ImapFolderPermissionAdministrationSnapshot(
+                        30,
+                        50,
+                        (int)ComAclPermissionType.Group,
+                        200,
+                        0,
+                        (int)(ComAclPermission.Lookup | ComAclPermission.Read))
+                };
+            });
+
+        Assert.AreEqual(1, permissions.Count);
+        Assert.AreEqual(100, permissions[0].Account.ID);
+
+        permissions.Refresh();
+
+        Assert.AreEqual(1, reloads);
+        Assert.AreEqual(2, permissions.Count);
+        AssertPermission(
+            permissions[0],
+            20,
+            50,
+            ComAclPermissionType.Anyone,
+            0,
+            0,
+            (int)ComAclPermission.Lookup);
+        Assert.AreEqual(30, permissions.get_ItemByName("aclpermission-30").ID);
+        Assert.AreEqual(200, permissions.get_ItemByDBID(30).Group.ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = permissions.get_ItemByDBID(10)).ErrorCode);
+
+        failReload = true;
+        var refreshFailure = Assert.ThrowsExactly<COMException>(permissions.Refresh);
+
+        Assert.AreEqual(EFail, refreshFailure.ErrorCode);
+        Assert.AreEqual(2, reloads);
+        Assert.AreEqual(2, permissions.Count);
+        Assert.AreEqual("ACL Group", permissions.get_ItemByDBID(30).Group.Name);
     }
 
     private static void AssertPermission(
