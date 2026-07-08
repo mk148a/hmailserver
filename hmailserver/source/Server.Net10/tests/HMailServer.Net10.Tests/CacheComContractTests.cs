@@ -94,25 +94,7 @@ public sealed class CacheComContractTests
         Assert.AreEqual(90, cache.AccountCacheTTL);
         Assert.AreEqual(120, cache.AliasCacheTTL);
         Assert.AreEqual(180, cache.DistributionListCacheTTL);
-
-        foreach (var unavailableGetter in new Action[]
-                 {
-                     () => _ = cache.DomainHitRate,
-                     () => _ = cache.AccountHitRate,
-                     () => _ = cache.AliasHitRate,
-                     () => _ = cache.DistributionListHitRate,
-                     () => _ = cache.DomainCacheMaxSizeKb,
-                     () => _ = cache.DomainCacheSizeKb,
-                     () => _ = cache.AccountCacheMaxSizeKb,
-                     () => _ = cache.AccountCacheSizeKb,
-                     () => _ = cache.AliasCacheMaxSizeKb,
-                     () => _ = cache.AliasCacheSizeKb,
-                     () => _ = cache.DistributionListCacheMaxSizeKb,
-                     () => _ = cache.DistributionListCacheSizeKb
-                 })
-        {
-            AssertNotImplemented(unavailableGetter);
-        }
+        AssertDefaultStatistics(cache);
 
         foreach (var mutation in new Action[]
                  {
@@ -155,6 +137,28 @@ public sealed class CacheComContractTests
 
         Assert.AreEqual(EFail, error.ErrorCode);
         Assert.AreEqual(2, runtime.ClearCount);
+
+        runtime.ThrowOnClear = false;
+        runtime.Statistics = new CacheAdministrationStatistics(
+            DomainHitRate: 11,
+            AccountHitRate: 22,
+            AliasHitRate: 33,
+            DistributionListHitRate: 44,
+            DomainCacheMaxSizeKb: 100,
+            DomainCacheSizeKb: 10,
+            AccountCacheMaxSizeKb: 200,
+            AccountCacheSizeKb: 20,
+            AliasCacheMaxSizeKb: 300,
+            AliasCacheSizeKb: 30,
+            DistributionListCacheMaxSizeKb: 400,
+            DistributionListCacheSizeKb: 40);
+
+        AssertStatistics(cache, runtime.Statistics);
+
+        runtime.ThrowOnStatistics = true;
+        var statisticsError = Assert.ThrowsExactly<COMException>(() => _ = cache.DomainHitRate);
+
+        Assert.AreEqual(EFail, statisticsError.ErrorCode);
     }
 
     [TestMethod]
@@ -183,6 +187,7 @@ public sealed class CacheComContractTests
             Assert.AreEqual(62, cache.AccountCacheTTL);
             Assert.AreEqual(63, cache.AliasCacheTTL);
             Assert.AreEqual(64, cache.DistributionListCacheTTL);
+            AssertDefaultStatistics(cache);
 
             cache.Clear();
 
@@ -200,11 +205,38 @@ public sealed class CacheComContractTests
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
     }
 
+    private static void AssertDefaultStatistics(IInterfaceCache cache)
+    {
+        AssertStatistics(cache, CacheAdministrationStatistics.Empty);
+    }
+
+    private static void AssertStatistics(
+        IInterfaceCache cache,
+        CacheAdministrationStatistics statistics)
+    {
+        Assert.AreEqual(statistics.DomainHitRate, cache.DomainHitRate);
+        Assert.AreEqual(statistics.AccountHitRate, cache.AccountHitRate);
+        Assert.AreEqual(statistics.AliasHitRate, cache.AliasHitRate);
+        Assert.AreEqual(statistics.DistributionListHitRate, cache.DistributionListHitRate);
+        Assert.AreEqual(statistics.DomainCacheMaxSizeKb, cache.DomainCacheMaxSizeKb);
+        Assert.AreEqual(statistics.DomainCacheSizeKb, cache.DomainCacheSizeKb);
+        Assert.AreEqual(statistics.AccountCacheMaxSizeKb, cache.AccountCacheMaxSizeKb);
+        Assert.AreEqual(statistics.AccountCacheSizeKb, cache.AccountCacheSizeKb);
+        Assert.AreEqual(statistics.AliasCacheMaxSizeKb, cache.AliasCacheMaxSizeKb);
+        Assert.AreEqual(statistics.AliasCacheSizeKb, cache.AliasCacheSizeKb);
+        Assert.AreEqual(statistics.DistributionListCacheMaxSizeKb, cache.DistributionListCacheMaxSizeKb);
+        Assert.AreEqual(statistics.DistributionListCacheSizeKb, cache.DistributionListCacheSizeKb);
+    }
+
     private sealed class RecordingCacheAdministrationRuntime : ICacheAdministrationRuntime
     {
+        public CacheAdministrationStatistics Statistics { get; set; } = CacheAdministrationStatistics.Empty;
+
         public int ClearCount { get; private set; }
 
         public bool ThrowOnClear { get; set; }
+
+        public bool ThrowOnStatistics { get; set; }
 
         public void Clear()
         {
@@ -213,6 +245,16 @@ public sealed class CacheComContractTests
             {
                 throw new InvalidOperationException("Simulated cache clear failure.");
             }
+        }
+
+        public CacheAdministrationStatistics GetStatistics()
+        {
+            if (ThrowOnStatistics)
+            {
+                throw new InvalidOperationException("Simulated cache statistics failure.");
+            }
+
+            return Statistics;
         }
     }
 }

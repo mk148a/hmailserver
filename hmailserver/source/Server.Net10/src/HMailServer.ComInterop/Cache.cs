@@ -98,35 +98,35 @@ public sealed class Cache : IInterfaceCache
 
     public int DomainCacheTTL { get => Snapshot.DomainCacheTtl; set => Unavailable(); }
 
-    public int DomainHitRate => Unavailable<int>();
+    public int DomainHitRate => Statistics.DomainHitRate;
 
     public int AccountCacheTTL { get => Snapshot.AccountCacheTtl; set => Unavailable(); }
 
-    public int AccountHitRate => Unavailable<int>();
+    public int AccountHitRate => Statistics.AccountHitRate;
 
     public int AliasCacheTTL { get => Snapshot.AliasCacheTtl; set => Unavailable(); }
 
-    public int AliasHitRate => Unavailable<int>();
+    public int AliasHitRate => Statistics.AliasHitRate;
 
     public int DistributionListCacheTTL { get => Snapshot.DistributionListCacheTtl; set => Unavailable(); }
 
-    public int DistributionListHitRate => Unavailable<int>();
+    public int DistributionListHitRate => Statistics.DistributionListHitRate;
 
-    public int DomainCacheMaxSizeKb { get => Unavailable<int>(); set => Unavailable(); }
+    public int DomainCacheMaxSizeKb { get => Statistics.DomainCacheMaxSizeKb; set => Unavailable(); }
 
-    public int DomainCacheSizeKb => Unavailable<int>();
+    public int DomainCacheSizeKb => Statistics.DomainCacheSizeKb;
 
-    public int AccountCacheMaxSizeKb { get => Unavailable<int>(); set => Unavailable(); }
+    public int AccountCacheMaxSizeKb { get => Statistics.AccountCacheMaxSizeKb; set => Unavailable(); }
 
-    public int AccountCacheSizeKb => Unavailable<int>();
+    public int AccountCacheSizeKb => Statistics.AccountCacheSizeKb;
 
-    public int AliasCacheMaxSizeKb { get => Unavailable<int>(); set => Unavailable(); }
+    public int AliasCacheMaxSizeKb { get => Statistics.AliasCacheMaxSizeKb; set => Unavailable(); }
 
-    public int AliasCacheSizeKb => Unavailable<int>();
+    public int AliasCacheSizeKb => Statistics.AliasCacheSizeKb;
 
-    public int DistributionListCacheMaxSizeKb { get => Unavailable<int>(); set => Unavailable(); }
+    public int DistributionListCacheMaxSizeKb { get => Statistics.DistributionListCacheMaxSizeKb; set => Unavailable(); }
 
-    public int DistributionListCacheSizeKb => Unavailable<int>();
+    public int DistributionListCacheSizeKb => Statistics.DistributionListCacheSizeKb;
 
     public void Clear()
     {
@@ -156,6 +156,29 @@ public sealed class Cache : IInterfaceCache
             "Cache access requires an authenticated server administrator.",
             EAccessDenied);
 
+    private CacheAdministrationStatistics Statistics
+    {
+        get
+        {
+            _ = Snapshot;
+            if (_runtime is null)
+            {
+                return CacheAdministrationStatistics.Empty;
+            }
+
+            try
+            {
+                return _runtime.GetStatistics();
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to retrieve cache statistics.",
+                    EFail);
+            }
+        }
+    }
+
     private T Unavailable<T>()
     {
         _ = Snapshot;
@@ -177,6 +200,27 @@ public sealed class Cache : IInterfaceCache
 public interface ICacheAdministrationRuntime
 {
     void Clear();
+
+    CacheAdministrationStatistics GetStatistics();
+}
+
+[ComVisible(false)]
+public sealed record CacheAdministrationStatistics(
+    int DomainHitRate,
+    int AccountHitRate,
+    int AliasHitRate,
+    int DistributionListHitRate,
+    int DomainCacheMaxSizeKb,
+    int DomainCacheSizeKb,
+    int AccountCacheMaxSizeKb,
+    int AccountCacheSizeKb,
+    int AliasCacheMaxSizeKb,
+    int AliasCacheSizeKb,
+    int DistributionListCacheMaxSizeKb,
+    int DistributionListCacheSizeKb)
+{
+    public static CacheAdministrationStatistics Empty { get; } =
+        new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 [ComVisible(false)]
