@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class AntiSpamComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     [TestMethod]
@@ -113,6 +114,8 @@ public sealed class AntiSpamComContractTests
     {
         var dkimRuntime = new FakeDkimVerificationRuntime(DkimVerificationResult.Pass);
         var greyListingTripletStore = new FakeGreyListingTripletAdministrationStore();
+        var spamAssassinRuntime = new FakeSpamAssassinConnectionTestRuntime(
+            new SpamAssassinConnectionTestResult(true, "SpamAssassin test succeeded."));
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
                 HostName: string.Empty,
@@ -149,7 +152,8 @@ public sealed class AntiSpamComContractTests
                 AntiSpamBypassGreylistingOnMailFromMx: false),
             new SettingsRuntimeConfiguration(
                 DkimVerificationRuntime: dkimRuntime,
-                GreyListingTripletAdministrationStore: greyListingTripletStore));
+                GreyListingTripletAdministrationStore: greyListingTripletStore,
+                SpamAssassinConnectionTestRuntime: spamAssassinRuntime));
 
         var antiSpam = settings.AntiSpam;
 
@@ -178,6 +182,10 @@ public sealed class AntiSpamComContractTests
         Assert.IsFalse(antiSpam.SpamAssassinMergeScore);
         Assert.AreEqual("spamd.example.test", antiSpam.SpamAssassinHost);
         Assert.AreEqual(783, antiSpam.SpamAssassinPort);
+        Assert.IsTrue(antiSpam.TestSpamAssassinConnection("127.0.0.1", 783, out var spamAssassinResultText));
+        Assert.AreEqual("SpamAssassin test succeeded.", spamAssassinResultText);
+        Assert.AreEqual("127.0.0.1", spamAssassinRuntime.Hostname);
+        Assert.AreEqual(783, spamAssassinRuntime.Port);
         Assert.AreEqual(1024, antiSpam.MaximumMessageSize);
         Assert.IsTrue(antiSpam.DKIMVerificationEnabled);
         Assert.AreEqual(8, antiSpam.DKIMVerificationFailureScore);
@@ -253,6 +261,29 @@ public sealed class AntiSpamComContractTests
         Assert.AreEqual(expected, actual);
         Assert.AreEqual(@"C:\mail\message.eml", runtime.File);
         Assert.AreEqual(1, runtime.CallCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedAntiSpam_TestSpamAssassinConnectionMapsRuntimeResultAndFailure()
+    {
+        var runtime = new FakeSpamAssassinConnectionTestRuntime(
+            new SpamAssassinConnectionTestResult(false, "Unable to connect."));
+        IInterfaceAntiSpam antiSpam = AntiSpam.CreateAuthorized(
+            new AntiSpamAdministrationSnapshot(),
+            spamAssassinConnectionTestRuntime: runtime);
+
+        var success = antiSpam.TestSpamAssassinConnection("spamd.example.test", 1783, out var resultText);
+
+        Assert.IsFalse(success);
+        Assert.AreEqual("Unable to connect.", resultText);
+        Assert.AreEqual("spamd.example.test", runtime.Hostname);
+        Assert.AreEqual(1783, runtime.Port);
+
+        runtime.ThrowOnTestConnection = true;
+        var error = Assert.ThrowsExactly<COMException>(
+            () => antiSpam.TestSpamAssassinConnection("spamd.example.test", 1783, out _));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
     }
 
     private static string[] ExpectedMethodNames()
@@ -396,6 +427,31 @@ public sealed class AntiSpamComContractTests
             CallCount++;
             CancellationToken = cancellationToken;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class FakeSpamAssassinConnectionTestRuntime(
+        SpamAssassinConnectionTestResult result)
+        : ISpamAssassinConnectionTestRuntime
+    {
+        public string Hostname { get; private set; } = string.Empty;
+
+        public int Port { get; private set; }
+
+        public bool ThrowOnTestConnection { get; set; }
+
+        public SpamAssassinConnectionTestResult TestConnection(
+            string hostname,
+            int port)
+        {
+            Hostname = hostname;
+            Port = port;
+            if (ThrowOnTestConnection)
+            {
+                throw new InvalidOperationException("Simulated SpamAssassin test failure.");
+            }
+
+            return result;
         }
     }
 }

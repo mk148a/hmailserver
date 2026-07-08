@@ -111,6 +111,41 @@ public sealed class SpamAssassinClientTests
         }
     }
 
+    [TestMethod]
+    public async Task ConnectionTestRuntime_SendsLegacyGtubeMessageAndReturnsProcessedMessage()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var processedMessage =
+            "X-Spam-Status: Yes, score=999.0 required=5.0 tests=GTUBE\r\n" +
+            "Subject: SpamAssassin test\r\n" +
+            "\r\n" +
+            "GTUBE detected\r\n";
+        var daemon = await FakeSpamAssassinDaemon.StartAsync(
+            CreateResponse(processedMessage),
+            timeout.Token);
+        await using (daemon.ConfigureAwait(false))
+        {
+            var runtime = new SpamAssassinConnectionTestRuntime(
+                new SpamAssassinClientOptions
+                {
+                    Host = IPAddress.Loopback.ToString(),
+                    Port = daemon.Port,
+                    Timeout = TimeSpan.FromSeconds(5),
+                    MaxResponseBytes = 1024 * 1024
+                });
+
+            var result = runtime.TestConnection(IPAddress.Loopback.ToString(), daemon.Port);
+
+            Assert.IsTrue(result.Succeeded, result.ResultText);
+            StringAssert.Contains(result.ResultText, "X-Spam-Status: Yes");
+            Assert.AreEqual("PROCESS SPAMC/1.2", daemon.Command);
+            StringAssert.Contains(daemon.PayloadText, "From: SpamAssassinTest@example.com\r\n");
+            StringAssert.Contains(
+                daemon.PayloadText,
+                "XJS*C4JDBQADN1.NSBN3*2IDNEN*GTUBE-STANDARD-ANTI-UBE-TEST-EMAIL*C.34X.");
+        }
+    }
+
     private static SpamAssassinClient CreateClient(int port) =>
         new(
             new SpamAssassinClientOptions

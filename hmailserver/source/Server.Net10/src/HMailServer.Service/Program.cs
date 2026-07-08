@@ -610,6 +610,7 @@ builder.Services.AddSingleton(dmarcPolicyOptions);
 builder.Services.AddSingleton<IDkimTxtResolver, SystemDkimTxtResolver>();
 builder.Services.AddSingleton<IDkimVerificationRuntime>(static serviceProvider =>
     new FileDkimVerificationRuntime(serviceProvider.GetRequiredService<IDkimTxtResolver>()));
+builder.Services.AddSingleton<ISpamAssassinConnectionTestRuntime, SpamAssassinConnectionTestRuntime>();
 builder.Services.AddSingleton<ILegacyBlowfishCipher, LegacyBlowfishCipherRuntime>();
 builder.Services.AddSingleton<IDnsAddressResolver, SystemDnsAddressResolver>();
 builder.Services.AddSingleton<ILocalIpAddressProvider, SystemLocalIpAddressProvider>();
@@ -965,6 +966,8 @@ SettingsAdministrationRuntimeHost.Configure(
         DkimVerificationRuntime: host.Services.GetRequiredService<IDkimVerificationRuntime>(),
         GreyListingTripletAdministrationStore:
             host.Services.GetRequiredService<IGreyListingTripletAdministrationStore>(),
+        SpamAssassinConnectionTestRuntime:
+            host.Services.GetRequiredService<ISpamAssassinConnectionTestRuntime>(),
         LogonFailureAdministrationStore:
             host.Services.GetRequiredService<ILogonFailureAdministrationStore>()));
 BlockedAttachmentAdministrationRuntimeHost.Configure(

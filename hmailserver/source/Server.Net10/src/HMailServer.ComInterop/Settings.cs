@@ -1214,7 +1214,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         _administrationSnapshot.AntiSpamBypassGreylistingOnSpfSuccess,
                         _administrationSnapshot.AntiSpamBypassGreylistingOnMailFromMx),
                     _runtimeConfiguration.DkimVerificationRuntime,
-                    _runtimeConfiguration.GreyListingTripletAdministrationStore);
+                    _runtimeConfiguration.GreyListingTripletAdministrationStore,
+                    _runtimeConfiguration.SpamAssassinConnectionTestRuntime);
         }
     }
 
@@ -1554,6 +1555,7 @@ public sealed record SettingsRuntimeConfiguration(
     IScriptRuntimeReloader? ScriptRuntimeReloader = null,
     IDkimVerificationRuntime? DkimVerificationRuntime = null,
     IGreyListingTripletAdministrationStore? GreyListingTripletAdministrationStore = null,
+    ISpamAssassinConnectionTestRuntime? SpamAssassinConnectionTestRuntime = null,
     ILogonFailureAdministrationStore? LogonFailureAdministrationStore = null);
 
 [ComVisible(false)]

@@ -193,10 +193,12 @@ public interface IInterfaceAntiSpam
 public sealed class AntiSpam : IInterfaceAntiSpam
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private readonly AntiSpamAdministrationSnapshot? _snapshot;
     private readonly IDkimVerificationRuntime? _dkimVerificationRuntime;
     private readonly IGreyListingTripletAdministrationStore? _greyListingTripletStore;
+    private readonly ISpamAssassinConnectionTestRuntime? _spamAssassinConnectionTestRuntime;
 
     public AntiSpam()
     {
@@ -205,11 +207,13 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private AntiSpam(
         AntiSpamAdministrationSnapshot snapshot,
         IDkimVerificationRuntime? dkimVerificationRuntime,
-        IGreyListingTripletAdministrationStore? greyListingTripletStore)
+        IGreyListingTripletAdministrationStore? greyListingTripletStore,
+        ISpamAssassinConnectionTestRuntime? spamAssassinConnectionTestRuntime)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
         _greyListingTripletStore = greyListingTripletStore;
+        _spamAssassinConnectionTestRuntime = spamAssassinConnectionTestRuntime;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -341,7 +345,26 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     public bool TestSpamAssassinConnection(string hostname, int port, out string resultText)
     {
         resultText = string.Empty;
-        return Unavailable<bool>();
+        _ = Snapshot;
+        if (_spamAssassinConnectionTestRuntime is null)
+        {
+            return Unavailable<bool>();
+        }
+
+        try
+        {
+            var result = _spamAssassinConnectionTestRuntime.TestConnection(
+                hostname ?? string.Empty,
+                port);
+            resultText = result.ResultText ?? string.Empty;
+            return result.Succeeded;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to test the SpamAssassin connection.",
+                EFail);
+        }
     }
 
     public bool CheckPTR { get => Snapshot.CheckPtr; set => Unavailable(); }
@@ -351,10 +374,15 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     internal static AntiSpam CreateAuthorized(
         AntiSpamAdministrationSnapshot snapshot,
         IDkimVerificationRuntime? dkimVerificationRuntime = null,
-        IGreyListingTripletAdministrationStore? greyListingTripletStore = null)
+        IGreyListingTripletAdministrationStore? greyListingTripletStore = null,
+        ISpamAssassinConnectionTestRuntime? spamAssassinConnectionTestRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new AntiSpam(snapshot, dkimVerificationRuntime, greyListingTripletStore);
+        return new AntiSpam(
+            snapshot,
+            dkimVerificationRuntime,
+            greyListingTripletStore,
+            spamAssassinConnectionTestRuntime);
     }
 
     private AntiSpamAdministrationSnapshot Snapshot =>
