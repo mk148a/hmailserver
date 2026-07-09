@@ -15,6 +15,12 @@ FROM hm_routeaddresses
 WHERE routeaddressrouteid = @RouteId;
 """;
 
+    public const string DeleteRouteAddressByIdSql = """
+DELETE FROM hm_routeaddresses
+WHERE routeaddressrouteid = @RouteId
+  AND routeaddressid = @Id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRouteAddressAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -45,5 +51,17 @@ WHERE routeaddressrouteid = @RouteId;
         }
 
         return addresses;
+    }
+
+    public async ValueTask DeleteRouteAddressByIdAsync(
+        int routeId,
+        int databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteRouteAddressByIdSql, connection);
+        command.Parameters.Add("@RouteId", SqlDbType.Int).Value = routeId;
+        command.Parameters.Add("@Id", SqlDbType.Int).Value = databaseId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

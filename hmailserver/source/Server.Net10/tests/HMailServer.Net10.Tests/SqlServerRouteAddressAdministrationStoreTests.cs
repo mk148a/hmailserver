@@ -22,4 +22,19 @@ public sealed class SqlServerRouteAddressAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_routes", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteRouteAddressByIdSql_DeletesOnlyMatchingAddressWithinSelectedRoute()
+    {
+        var sql = SqlServerRouteAddressAdministrationStore.DeleteRouteAddressByIdSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_routeaddresses");
+        StringAssert.Contains(sql, "WHERE routeaddressrouteid = @RouteId");
+        StringAssert.Contains(sql, "AND routeaddressid = @Id");
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_routes", StringComparison.OrdinalIgnoreCase));
+    }
 }

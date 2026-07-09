@@ -5,4 +5,9 @@ public interface IRouteAddressAdministrationStore
     ValueTask<IReadOnlyList<RouteAddressAdministrationSnapshot>> GetRouteAddressesAsync(
         int routeId,
         CancellationToken cancellationToken);
+
+    ValueTask DeleteRouteAddressByIdAsync(
+        int routeId,
+        int databaseId,
+        CancellationToken cancellationToken);
 }

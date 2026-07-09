@@ -1564,6 +1564,38 @@ ORDER BY messageid;
                 alphaRouteAddresses.get_ItemByDBID(1500).Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRouteAddressSave.ErrorCode);
 
+            alphaRouteAddresses.DeleteByDBID(1501);
+
+            Assert.AreEqual(1, alphaRouteAddresses.Count);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => alphaRouteAddresses.get_ItemByDBID(1501)).ErrorCode);
+            Assert.AreEqual(1, betaRouteAddresses.Count);
+            Assert.AreEqual("beta-user@example.test", betaRouteAddresses.get_ItemByDBID(1600).Address);
+
+            alphaRouteAddresses.DeleteByDBID(1600);
+
+            Assert.AreEqual(1, alphaRouteAddresses.Count);
+            Assert.AreEqual(1, betaRouteAddresses.Count);
+
+            await using (var routeAddressDeleteConnection = new SqlConnection(testConnectionString))
+            {
+                await routeAddressDeleteConnection.OpenAsync().ConfigureAwait(false);
+                await using var countDeletedRouteAddress = new SqlCommand(
+                    "SELECT COUNT(*) FROM dbo.hm_routeaddresses WHERE routeaddressid = 1501;",
+                    routeAddressDeleteConnection);
+                await using var countOutsideRouteAddress = new SqlCommand(
+                    "SELECT COUNT(*) FROM dbo.hm_routeaddresses WHERE routeaddressid = 1600;",
+                    routeAddressDeleteConnection);
+                Assert.AreEqual(0, Convert.ToInt32(
+                    await countDeletedRouteAddress.ExecuteScalarAsync().ConfigureAwait(false),
+                    System.Globalization.CultureInfo.InvariantCulture));
+                Assert.AreEqual(1, Convert.ToInt32(
+                    await countOutsideRouteAddress.ExecuteScalarAsync().ConfigureAwait(false),
+                    System.Globalization.CultureInfo.InvariantCulture));
+            }
+
             await using (var routeRefreshConnection = new SqlConnection(testConnectionString))
             {
                 await routeRefreshConnection.OpenAsync().ConfigureAwait(false);

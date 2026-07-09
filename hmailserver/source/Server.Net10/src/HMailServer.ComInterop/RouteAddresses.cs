@@ -65,17 +65,22 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<RouteAddressAdministrationSnapshot>? _addresses;
+    private RouteAddressAdministrationSnapshot[]? _addresses;
+    private readonly Action<int>? _deleteById;
 
     public RouteAddresses()
     {
     }
 
-    private RouteAddresses(IReadOnlyList<RouteAddressAdministrationSnapshot> addresses)
+    private RouteAddresses(
+        IReadOnlyList<RouteAddressAdministrationSnapshot> addresses,
+        Action<int>? deleteById)
     {
         _addresses = addresses.ToArray();
+        _deleteById = deleteById;
     }
 
     public int Count => GetAddresses().Count;
@@ -105,21 +110,45 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
             : RouteAddress.CreateAuthorized(match);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var addresses = GetAddresses();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _deleteById(databaseId);
+            Volatile.Write(
+                ref _addresses,
+                addresses.Where(address => address.Id != databaseId).ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the route address from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceRouteAddress Add() => Unavailable<IInterfaceRouteAddress>();
 
     public void DeleteByAddress(string address) => Unavailable();
 
-    internal static RouteAddresses CreateAuthorized(IReadOnlyList<RouteAddressAdministrationSnapshot> addresses)
+    internal static RouteAddresses CreateAuthorized(
+        IReadOnlyList<RouteAddressAdministrationSnapshot> addresses,
+        Action<int>? deleteById = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new RouteAddresses(addresses);
+        return new RouteAddresses(addresses, deleteById);
     }
 
     private IReadOnlyList<RouteAddressAdministrationSnapshot> GetAddresses()
     {
-        return _addresses
+        return Volatile.Read(ref _addresses)
             ?? throw new COMException(
                 "RouteAddresses access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -215,6 +244,12 @@ public static class RouteAddressAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return RouteAddresses.CreateAuthorized(addresses);
+        void DeleteRouteAddressById(int databaseId) => store
+            .DeleteRouteAddressByIdAsync(routeId, databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return RouteAddresses.CreateAuthorized(addresses, DeleteRouteAddressById);
     }
 }
