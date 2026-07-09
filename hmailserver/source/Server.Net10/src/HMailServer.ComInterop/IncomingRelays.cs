@@ -76,6 +76,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
 
     private IncomingRelayAdministrationSnapshot[]? _relays;
     private readonly Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? _reload;
+    private readonly Action<int>? _deleteById;
 
     public IncomingRelays()
     {
@@ -83,20 +84,23 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
 
     private IncomingRelays(
         IReadOnlyList<IncomingRelayAdministrationSnapshot> relays,
-        Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? reload,
+        Action<int>? deleteById)
     {
         _relays = relays.ToArray();
         _reload = reload;
+        _deleteById = deleteById;
     }
 
     public int Count => GetRelays().Count;
 
     internal static IncomingRelays CreateAuthorized(
         IReadOnlyList<IncomingRelayAdministrationSnapshot> relays,
-        Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? reload = null,
+        Action<int>? deleteById = null)
     {
         ArgumentNullException.ThrowIfNull(relays);
-        return new IncomingRelays(relays, reload);
+        return new IncomingRelays(relays, reload, deleteById);
     }
 
     public IInterfaceIncomingRelay this[int index]
@@ -134,7 +138,29 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
 
     public void Delete(int index) => Unavailable();
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var relays = GetRelays();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _deleteById(databaseId);
+            Volatile.Write(
+                ref _relays,
+                relays.Where(relay => relay.Id != databaseId).ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the incoming relay from the database.",
+                EFail);
+        }
+    }
 
     public void Refresh()
     {
@@ -261,6 +287,12 @@ public static class IncomingRelayAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return IncomingRelays.CreateAuthorized(LoadRelays(), LoadRelays);
+        void DeleteRelayById(int databaseId) => store
+            .DeleteIncomingRelayByIdAsync(databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return IncomingRelays.CreateAuthorized(LoadRelays(), LoadRelays, DeleteRelayById);
     }
 }

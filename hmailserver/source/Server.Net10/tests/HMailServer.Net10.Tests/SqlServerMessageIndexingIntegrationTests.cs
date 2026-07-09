@@ -1667,6 +1667,25 @@ ORDER BY messageid;
             var pendingRelaySave = Assert.ThrowsExactly<COMException>(incomingRelays[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRelaySave.ErrorCode);
 
+            incomingRelays.DeleteByDBID(800);
+
+            Assert.AreEqual(1, incomingRelays.Count);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => incomingRelays.get_ItemByDBID(800)).ErrorCode);
+
+            await using (var incomingRelayDeleteConnection = new SqlConnection(testConnectionString))
+            {
+                await incomingRelayDeleteConnection.OpenAsync().ConfigureAwait(false);
+                await using var countDeletedRelay = new SqlCommand(
+                    "SELECT COUNT(*) FROM dbo.hm_incoming_relays WHERE relayid = 800;",
+                    incomingRelayDeleteConnection);
+                Assert.AreEqual(0, Convert.ToInt32(
+                    await countDeletedRelay.ExecuteScalarAsync().ConfigureAwait(false),
+                    System.Globalization.CultureInfo.InvariantCulture));
+            }
+
             await using (var incomingRelayRefreshConnection = new SqlConnection(testConnectionString))
             {
                 await incomingRelayRefreshConnection.OpenAsync().ConfigureAwait(false);
@@ -1686,7 +1705,7 @@ ORDER BY messageid;
 
             incomingRelays.Refresh();
 
-            Assert.AreEqual(2, incomingRelays.Count);
+            Assert.AreEqual(1, incomingRelays.Count);
             Assert.AreEqual("Alpha refreshed relay", incomingRelays[0].Name);
             Assert.AreEqual("192.168.1.1", incomingRelays[0].LowerIP);
             Assert.AreEqual("192.168.1.254", incomingRelays[0].UpperIP);

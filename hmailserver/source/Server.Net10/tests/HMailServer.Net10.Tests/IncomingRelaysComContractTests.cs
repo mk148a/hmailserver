@@ -62,11 +62,13 @@ public sealed class IncomingRelaysComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var relaysError = Assert.ThrowsExactly<COMException>(() => _ = new IncomingRelays().Count);
+        var relaysDeleteByIdError = Assert.ThrowsExactly<COMException>(() => new IncomingRelays().DeleteByDBID(10));
         var relaysRefreshError = Assert.ThrowsExactly<COMException>(new IncomingRelays().Refresh);
         var relayError = Assert.ThrowsExactly<COMException>(() => _ = new IncomingRelay().Name);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().IncomingRelays);
 
         Assert.AreEqual(EAccessDenied, relaysError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relaysDeleteByIdError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relaysRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
@@ -108,6 +110,50 @@ public sealed class IncomingRelaysComContractTests
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSave.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingRelayDelete.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_DeleteByDBIDCallsConfiguredOperationAndRetainsSnapshotOnFailure()
+    {
+        var failDelete = true;
+        var deletedIds = new List<int>();
+        IInterfaceIncomingRelays relays = IncomingRelays.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1"),
+                Snapshot(20, "Beta relay", "10.0.0.0", "10.0.0.255")
+            },
+            deleteById: databaseId =>
+            {
+                deletedIds.Add(databaseId);
+                if (failDelete)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+            });
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(() => relays.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 10 }, deletedIds);
+        Assert.AreEqual(2, relays.Count);
+        AssertRelay(relays[0], 10, "Alpha relay", "127.0.0.1", "127.0.0.1");
+
+        failDelete = false;
+        relays.DeleteByDBID(10);
+
+        CollectionAssert.AreEqual(new[] { 10, 10 }, deletedIds);
+        Assert.AreEqual(1, relays.Count);
+        AssertRelay(relays[0], 20, "Beta relay", "10.0.0.0", "10.0.0.255");
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByDBID(10)).ErrorCode);
+
+        relays.DeleteByDBID(999);
+
+        CollectionAssert.AreEqual(new[] { 10, 10, 999 }, deletedIds);
+        Assert.AreEqual(1, relays.Count);
+        AssertRelay(relays[0], 20, "Beta relay", "10.0.0.0", "10.0.0.255");
     }
 
     [TestMethod]
@@ -174,6 +220,13 @@ public sealed class IncomingRelaysComContractTests
         Assert.AreEqual(2, relays.Count);
         Assert.AreEqual("Alpha relay", relays[0].Name);
         Assert.AreEqual(1, store.ReadCount);
+
+        relays.DeleteByDBID(20);
+
+        Assert.AreEqual(1, store.DeletedIds.Count);
+        Assert.AreEqual(20, store.DeletedIds[0]);
+        Assert.AreEqual(1, relays.Count);
+        AssertRelay(relays[0], 10, "Alpha relay", "127.0.0.1", "127.0.0.1");
 
         store.Replace(
             new[]
@@ -243,6 +296,8 @@ public sealed class IncomingRelaysComContractTests
 
         public int ReadCount { get; private set; }
 
+        public List<int> DeletedIds { get; } = [];
+
         public void Replace(IReadOnlyList<IncomingRelayAdministrationSnapshot> relays)
         {
             _relays = relays;
@@ -254,6 +309,17 @@ public sealed class IncomingRelaysComContractTests
             ReadCount++;
             return ValueTask.FromResult<IReadOnlyList<IncomingRelayAdministrationSnapshot>>(
                 _relays.OrderBy(relay => relay.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
+
+        public ValueTask DeleteIncomingRelayByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken)
+        {
+            DeletedIds.Add(databaseId);
+            _relays = _relays
+                .Where(relay => relay.Id != databaseId)
+                .ToArray();
+            return ValueTask.CompletedTask;
         }
     }
 }

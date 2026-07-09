@@ -23,4 +23,17 @@ public sealed class SqlServerIncomingRelayAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteIncomingRelayByIdSql_DeletesOnlyMatchingLegacyIncomingRelayRow()
+    {
+        var sql = SqlServerIncomingRelayAdministrationStore.DeleteIncomingRelayByIdSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_incoming_relays");
+        StringAssert.Contains(sql, "WHERE relayid = @id");
+        Assert.IsFalse(sql.Contains(" JOIN ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT ", StringComparison.OrdinalIgnoreCase));
+    }
 }

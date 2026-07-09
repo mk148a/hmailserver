@@ -19,6 +19,11 @@ FROM hm_incoming_relays
 ORDER BY relayname ASC;
 """;
 
+    public const string DeleteIncomingRelayByIdSql = """
+DELETE FROM hm_incoming_relays
+WHERE relayid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerIncomingRelayAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -55,6 +60,16 @@ ORDER BY relayname ASC;
         }
 
         return relays;
+    }
+
+    public async ValueTask DeleteIncomingRelayByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteIncomingRelayByIdSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = databaseId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static string FormatLegacyAddress(long address1, long? address2)
