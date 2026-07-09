@@ -304,6 +304,58 @@ public sealed class IncomingRelaysComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_AddReturnsUnsavedItemAndSaveInsertsIntoOwningSnapshot()
+    {
+        var failInsert = true;
+        var insertedRelays = new List<IncomingRelayAdministrationSnapshot>();
+        IInterfaceIncomingRelays relays = IncomingRelays.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1")
+            },
+            save: _ => Assert.Fail("Existing-row update should not be used for a new incoming relay."),
+            insert: relay =>
+            {
+                insertedRelays.Add(relay);
+                if (failInsert)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return 30;
+            });
+
+        var added = relays.Add();
+
+        Assert.AreEqual(1, relays.Count);
+        AssertRelay(added, 0, string.Empty, "0.0.0.0", "0.0.0.0");
+
+        added.Name = "Gamma relay";
+        added.LowerIP = "192.168.1.1";
+        added.UpperIP = "192.168.1.254";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(added.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, insertedRelays.Count);
+        AssertRelay(insertedRelays[0], 0, "Gamma relay", "192.168.1.1", "192.168.1.254");
+        Assert.AreEqual(0, added.ID);
+        Assert.AreEqual(1, relays.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByDBID(30)).ErrorCode);
+
+        failInsert = false;
+        added.Save();
+
+        Assert.AreEqual(2, insertedRelays.Count);
+        Assert.AreEqual(30, added.ID);
+        Assert.AreEqual(2, relays.Count);
+        AssertRelay(relays.get_ItemByDBID(30), 30, "Gamma relay", "192.168.1.1", "192.168.1.254");
+        AssertRelay(relays[0], 10, "Alpha relay", "127.0.0.1", "127.0.0.1");
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
@@ -382,12 +434,26 @@ public sealed class IncomingRelaysComContractTests
         AssertRelay(store.SavedRelays[0], 10, "Alpha saved relay", "192.168.10.1", "192.168.10.254");
         AssertRelay(relays[0], 10, "Alpha saved relay", "192.168.10.1", "192.168.10.254");
 
+        var added = relays.Add();
+        AssertRelay(added, 0, string.Empty, "0.0.0.0", "0.0.0.0");
+        added.Name = "Gamma relay";
+        added.LowerIP = "192.168.1.1";
+        added.UpperIP = "192.168.1.254";
+        added.Save();
+
+        Assert.AreEqual(1, store.InsertedRelays.Count);
+        AssertRelay(store.InsertedRelays[0], 0, "Gamma relay", "192.168.1.1", "192.168.1.254");
+        Assert.AreEqual(30, added.ID);
+        Assert.AreEqual(3, relays.Count);
+        AssertRelay(relays.get_ItemByDBID(30), 30, "Gamma relay", "192.168.1.1", "192.168.1.254");
+
         relays.DeleteByDBID(20);
 
         Assert.AreEqual(1, store.DeletedIds.Count);
         Assert.AreEqual(20, store.DeletedIds[0]);
-        Assert.AreEqual(1, relays.Count);
+        Assert.AreEqual(2, relays.Count);
         AssertRelay(relays[0], 10, "Alpha saved relay", "192.168.10.1", "192.168.10.254");
+        AssertRelay(relays.get_ItemByDBID(30), 30, "Gamma relay", "192.168.1.1", "192.168.1.254");
 
         store.Replace(
             new[]
@@ -493,6 +559,8 @@ public sealed class IncomingRelaysComContractTests
 
         public List<IncomingRelayAdministrationSnapshot> SavedRelays { get; } = [];
 
+        public List<IncomingRelayAdministrationSnapshot> InsertedRelays { get; } = [];
+
         public void Replace(IReadOnlyList<IncomingRelayAdministrationSnapshot> relays)
         {
             _relays = relays;
@@ -526,6 +594,18 @@ public sealed class IncomingRelaysComContractTests
                 .Select(existing => existing.Id == relay.Id ? relay : existing)
                 .ToArray();
             return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<int> InsertIncomingRelayAsync(
+            IncomingRelayAdministrationSnapshot relay,
+            CancellationToken cancellationToken)
+        {
+            InsertedRelays.Add(relay);
+            const int insertedId = 30;
+            _relays = _relays
+                .Concat([relay with { Id = insertedId }])
+                .ToArray();
+            return ValueTask.FromResult(insertedId);
         }
     }
 }

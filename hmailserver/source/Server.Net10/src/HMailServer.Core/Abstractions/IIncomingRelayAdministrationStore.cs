@@ -12,4 +12,8 @@ public interface IIncomingRelayAdministrationStore
     ValueTask UpdateIncomingRelayAsync(
         IncomingRelayAdministrationSnapshot relay,
         CancellationToken cancellationToken);
+
+    ValueTask<int> InsertIncomingRelayAsync(
+        IncomingRelayAdministrationSnapshot relay,
+        CancellationToken cancellationToken);
 }

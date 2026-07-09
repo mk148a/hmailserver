@@ -34,6 +34,13 @@ SET relayname = @name,
 WHERE relayid = @id;
 """;
 
+    public const string InsertIncomingRelaySql = """
+INSERT INTO hm_incoming_relays
+    (relayname, relaylowerip1, relaylowerip2, relayupperip1, relayupperip2)
+OUTPUT INSERTED.relayid
+VALUES (@name, @lowerIp1, @lowerIp2, @upperIp1, @upperIp2);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerIncomingRelayAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -98,6 +105,24 @@ WHERE relayid = @id;
         AddLegacyAddressParameters(command, "@lowerIp1", "@lowerIp2", lowerIp);
         AddLegacyAddressParameters(command, "@upperIp1", "@upperIp2", upperIp);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<int> InsertIncomingRelayAsync(
+        IncomingRelayAdministrationSnapshot relay,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(relay);
+
+        var lowerIp = ParseLegacyAddress(relay.LowerIp);
+        var upperIp = ParseLegacyAddress(relay.UpperIp);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertIncomingRelaySql, connection);
+        command.Parameters.Add("@name", SqlDbType.NVarChar, 255).Value = relay.Name;
+        AddLegacyAddressParameters(command, "@lowerIp1", "@lowerIp2", lowerIp);
+        AddLegacyAddressParameters(command, "@upperIp1", "@upperIp2", upperIp);
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static string FormatLegacyAddress(long address1, long? address2)

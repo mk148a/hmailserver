@@ -1703,6 +1703,54 @@ ORDER BY messageid;
                 Assert.IsTrue(savedRelayReader.IsDBNull(4));
             }
 
+            var addedRelay = incomingRelays.Add();
+            Assert.AreEqual(2, incomingRelays.Count);
+            Assert.AreEqual(0, addedRelay.ID);
+            Assert.AreEqual(string.Empty, addedRelay.Name);
+            Assert.AreEqual("0.0.0.0", addedRelay.LowerIP);
+            Assert.AreEqual("0.0.0.0", addedRelay.UpperIP);
+            addedRelay.Name = "Gamma relay";
+            addedRelay.LowerIP = "172.16.1.1";
+            addedRelay.UpperIP = "172.16.1.254";
+            addedRelay.Save();
+            var addedRelayId = addedRelay.ID;
+
+            Assert.IsTrue(addedRelayId > 800);
+            Assert.AreEqual(3, incomingRelays.Count);
+            Assert.AreEqual("Gamma relay", incomingRelays.get_ItemByDBID(addedRelayId).Name);
+
+            await using (var incomingRelayInsertConnection = new SqlConnection(testConnectionString))
+            {
+                await incomingRelayInsertConnection.OpenAsync().ConfigureAwait(false);
+                await using var selectInsertedRelay = new SqlCommand(
+                    """
+                    SELECT relayname, relaylowerip1, relaylowerip2, relayupperip1, relayupperip2
+                    FROM dbo.hm_incoming_relays
+                    WHERE relayid = @id;
+                    """,
+                    incomingRelayInsertConnection);
+                selectInsertedRelay.Parameters.Add("@id", System.Data.SqlDbType.Int).Value = addedRelayId;
+                await using var insertedRelayReader = await selectInsertedRelay.ExecuteReaderAsync().ConfigureAwait(false);
+                Assert.IsTrue(await insertedRelayReader.ReadAsync().ConfigureAwait(false));
+                Assert.AreEqual("Gamma relay", insertedRelayReader.GetString(0));
+                Assert.AreEqual(
+                    2886729985L,
+                    Convert.ToInt64(insertedRelayReader.GetValue(1), System.Globalization.CultureInfo.InvariantCulture));
+                Assert.IsTrue(insertedRelayReader.IsDBNull(2));
+                Assert.AreEqual(
+                    2886730238L,
+                    Convert.ToInt64(insertedRelayReader.GetValue(3), System.Globalization.CultureInfo.InvariantCulture));
+                Assert.IsTrue(insertedRelayReader.IsDBNull(4));
+            }
+
+            incomingRelays.get_ItemByDBID(addedRelayId).Delete();
+
+            Assert.AreEqual(2, incomingRelays.Count);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => incomingRelays.get_ItemByDBID(addedRelayId)).ErrorCode);
+
             incomingRelays.Delete(1);
 
             Assert.AreEqual(1, incomingRelays.Count);
@@ -3469,7 +3517,7 @@ CREATE TABLE dbo.hm_routeaddresses
 
 CREATE TABLE dbo.hm_incoming_relays
 (
-    relayid int NOT NULL PRIMARY KEY,
+    relayid int IDENTITY(1,1) NOT NULL PRIMARY KEY,
     relayname nvarchar(100) NOT NULL,
     relaylowerip1 bigint NOT NULL,
     relaylowerip2 bigint NULL,
@@ -3656,11 +3704,13 @@ VALUES
     (1501, 500, N'*@alpha.route.test'),
     (1600, 600, N'beta-user@example.test');
 
+SET IDENTITY_INSERT dbo.hm_incoming_relays ON;
 INSERT INTO dbo.hm_incoming_relays
     (relayid, relayname, relaylowerip1, relaylowerip2, relayupperip1, relayupperip2)
 VALUES
     (800, N'Beta relay', 167772160, NULL, 167772415, NULL),
     (700, N'Alpha relay', 2130706433, NULL, 2130706433, NULL);
+SET IDENTITY_INSERT dbo.hm_incoming_relays OFF;
 
 INSERT INTO dbo.hm_securityranges
     (rangeid, rangename, rangepriorityid, rangelowerip1, rangelowerip2,
