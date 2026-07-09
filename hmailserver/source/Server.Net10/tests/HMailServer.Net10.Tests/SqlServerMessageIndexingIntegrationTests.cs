@@ -1715,8 +1715,33 @@ ORDER BY messageid;
             Assert.AreEqual("Message undeliverable", serverMessages[0].Text);
             Assert.AreEqual("VIRUS_FOUND", serverMessages.get_ItemByDBID(951).Name);
             Assert.AreEqual(950, serverMessages.get_ItemByName("message_undeliverable").ID);
-            var pendingServerMessageSave = Assert.ThrowsExactly<COMException>(serverMessages[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingServerMessageSave.ErrorCode);
+            var serverMessage = serverMessages[0];
+            serverMessage.Name = "MESSAGE_UNDELIVERABLE_SAVED";
+            serverMessage.Text = "Saved message text";
+            Assert.AreEqual("MESSAGE_UNDELIVERABLE", serverMessages[0].Name);
+
+            serverMessage.Save();
+
+            Assert.AreEqual("MESSAGE_UNDELIVERABLE_SAVED", serverMessages[0].Name);
+            Assert.AreEqual("Saved message text", serverMessages[0].Text);
+            Assert.AreEqual(950, serverMessages.get_ItemByName("message_undeliverable_saved").ID);
+
+            await using (var serverMessageSaveConnection = new SqlConnection(testConnectionString))
+            {
+                await serverMessageSaveConnection.OpenAsync().ConfigureAwait(false);
+                await using var readServerMessage = new SqlCommand(
+                    """
+                    SELECT smname, smtext
+                    FROM dbo.hm_servermessages
+                    WHERE smid = 950;
+                    """,
+                    serverMessageSaveConnection);
+                await using var reader = await readServerMessage.ExecuteReaderAsync().ConfigureAwait(false);
+                Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
+                Assert.AreEqual("MESSAGE_UNDELIVERABLE_SAVED", reader.GetString(0));
+                Assert.AreEqual("Saved message text", reader.GetString(1));
+                Assert.IsFalse(await reader.ReadAsync().ConfigureAwait(false));
+            }
 
             await using (var serverMessageRefreshConnection = new SqlConnection(testConnectionString))
             {

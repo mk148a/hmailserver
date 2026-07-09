@@ -16,6 +16,13 @@ FROM hm_servermessages
 ORDER BY smname ASC;
 """;
 
+    public const string UpdateServerMessageSql = """
+UPDATE hm_servermessages
+SET smname = @name,
+    smtext = @text
+WHERE smid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerServerMessageAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -44,5 +51,19 @@ ORDER BY smname ASC;
         }
 
         return messages;
+    }
+
+    public async ValueTask UpdateServerMessageAsync(
+        ServerMessageAdministrationSnapshot message,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateServerMessageSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = message.Id;
+        command.Parameters.Add("@name", SqlDbType.NVarChar, 255).Value = message.Name;
+        command.Parameters.Add("@text", SqlDbType.NVarChar, -1).Value = message.Text;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

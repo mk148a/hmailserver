@@ -61,6 +61,7 @@ public sealed class ServerMessages : IInterfaceServerMessages
 
     private ServerMessageAdministrationSnapshot[]? _messages;
     private readonly Func<IReadOnlyList<ServerMessageAdministrationSnapshot>>? _reload;
+    private readonly Action<ServerMessageAdministrationSnapshot>? _save;
 
     public ServerMessages()
     {
@@ -68,20 +69,23 @@ public sealed class ServerMessages : IInterfaceServerMessages
 
     private ServerMessages(
         IReadOnlyList<ServerMessageAdministrationSnapshot> messages,
-        Func<IReadOnlyList<ServerMessageAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<ServerMessageAdministrationSnapshot>>? reload,
+        Action<ServerMessageAdministrationSnapshot>? save)
     {
         _messages = messages.ToArray();
         _reload = reload;
+        _save = save;
     }
 
     public int Count => GetMessages().Count;
 
     internal static ServerMessages CreateAuthorized(
         IReadOnlyList<ServerMessageAdministrationSnapshot> messages,
-        Func<IReadOnlyList<ServerMessageAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<ServerMessageAdministrationSnapshot>>? reload = null,
+        Action<ServerMessageAdministrationSnapshot>? save = null)
     {
         ArgumentNullException.ThrowIfNull(messages);
-        return new ServerMessages(messages, reload);
+        return new ServerMessages(messages, reload, save);
     }
 
     public IInterfaceServerMessage this[int index]
@@ -94,7 +98,7 @@ public sealed class ServerMessages : IInterfaceServerMessages
                 throw new COMException("Server message index was outside the collection.", DispEBadIndex);
             }
 
-            return ServerMessage.CreateAuthorized(messages[index]);
+            return CreateMessage(messages[index]);
         }
     }
 
@@ -106,7 +110,7 @@ public sealed class ServerMessages : IInterfaceServerMessages
             ? throw new COMException(
                 "No server message with the specified database identifier exists.",
                 DispEBadIndex)
-            : ServerMessage.CreateAuthorized(match);
+            : CreateMessage(match);
     }
 
     public IInterfaceServerMessage get_ItemByName(string name)
@@ -116,7 +120,34 @@ public sealed class ServerMessages : IInterfaceServerMessages
 
         return match is null
             ? throw new COMException("No server message with the specified name exists.", DispEBadIndex)
-            : ServerMessage.CreateAuthorized(match);
+            : CreateMessage(match);
+    }
+
+    private ServerMessageAdministrationSnapshot SaveMessage(ServerMessageAdministrationSnapshot message)
+    {
+        var messages = GetMessages();
+        if (_save is null)
+        {
+            Unavailable();
+            return message;
+        }
+
+        try
+        {
+            _save(message);
+            Volatile.Write(
+                ref _messages,
+                messages
+                    .Select(existing => existing.Id == message.Id ? message : existing)
+                    .ToArray());
+            return message;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the server message to the database.",
+                EFail);
+        }
     }
 
     public void Refresh()
@@ -150,6 +181,13 @@ public sealed class ServerMessages : IInterfaceServerMessages
                 EAccessDenied);
     }
 
+    private ServerMessage CreateMessage(ServerMessageAdministrationSnapshot message)
+    {
+        return ServerMessage.CreateAuthorized(
+            message,
+            save: _save is null ? null : SaveMessage);
+    }
+
     private void Unavailable()
     {
         _ = GetMessages();
@@ -169,31 +207,58 @@ public sealed class ServerMessage : IInterfaceServerMessage
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly ServerMessageAdministrationSnapshot? _message;
+    private ServerMessageAdministrationSnapshot? _message;
+    private readonly Func<ServerMessageAdministrationSnapshot, ServerMessageAdministrationSnapshot>? _save;
 
     public ServerMessage()
     {
     }
 
-    private ServerMessage(ServerMessageAdministrationSnapshot message)
+    private ServerMessage(
+        ServerMessageAdministrationSnapshot message,
+        Func<ServerMessageAdministrationSnapshot, ServerMessageAdministrationSnapshot>? save)
     {
         _message = message;
+        _save = save;
     }
 
     public int ID => Snapshot.Id;
 
-    public string Name { get => Snapshot.Name; set => Unavailable(); }
+    public string Name { get => Snapshot.Name; set => Mutate(snapshot => snapshot with { Name = value ?? string.Empty }); }
 
-    public string Text { get => Snapshot.Text; set => Unavailable(); }
+    public string Text { get => Snapshot.Text; set => Mutate(snapshot => snapshot with { Text = value ?? string.Empty }); }
 
-    internal static ServerMessage CreateAuthorized(ServerMessageAdministrationSnapshot message) => new(message);
+    internal static ServerMessage CreateAuthorized(
+        ServerMessageAdministrationSnapshot message,
+        Func<ServerMessageAdministrationSnapshot, ServerMessageAdministrationSnapshot>? save = null) =>
+        new(message, save);
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _message = _save(Snapshot);
+    }
 
     private ServerMessageAdministrationSnapshot Snapshot =>
         _message ?? throw new COMException(
             "ServerMessage access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private void Mutate(Func<ServerMessageAdministrationSnapshot, ServerMessageAdministrationSnapshot> mutation)
+    {
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _message = mutation(Snapshot);
+    }
 
     private void Unavailable()
     {
@@ -230,6 +295,12 @@ public static class ServerMessageAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return ServerMessages.CreateAuthorized(LoadMessages(), LoadMessages);
+        void SaveMessage(ServerMessageAdministrationSnapshot message) => store
+            .UpdateServerMessageAsync(message, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return ServerMessages.CreateAuthorized(LoadMessages(), LoadMessages, SaveMessage);
     }
 }

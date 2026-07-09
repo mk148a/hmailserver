@@ -57,11 +57,15 @@ public sealed class ServerMessagesComContractTests
         var messagesError = Assert.ThrowsExactly<COMException>(() => _ = new ServerMessages().Count);
         var messagesRefreshError = Assert.ThrowsExactly<COMException>(new ServerMessages().Refresh);
         var messageError = Assert.ThrowsExactly<COMException>(() => _ = new ServerMessage().Name);
+        var messageSetError = Assert.ThrowsExactly<COMException>(() => new ServerMessage().Name = "Changed");
+        var messageSaveError = Assert.ThrowsExactly<COMException>(new ServerMessage().Save);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().ServerMessages);
 
         Assert.AreEqual(EAccessDenied, messagesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, messagesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, messageError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, messageSetError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, messageSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -95,6 +99,49 @@ public sealed class ServerMessagesComContractTests
         Assert.AreEqual(ENotImplemented, pendingNameMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingTextMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSave.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ItemSaveCallsConfiguredOperationAndUpdatesOwningSnapshot()
+    {
+        var failSave = true;
+        var savedMessages = new List<ServerMessageAdministrationSnapshot>();
+        IInterfaceServerMessages messages = ServerMessages.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "MESSAGE_UNDELIVERABLE", "Message undeliverable"),
+                Snapshot(20, "VIRUS_FOUND", "Virus found")
+            },
+            save: message =>
+            {
+                savedMessages.Add(message);
+                if (failSave)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+            });
+        var undeliverable = messages[0];
+
+        undeliverable.Name = "MESSAGE_UNDELIVERABLE_STAGED";
+        undeliverable.Text = "Staged message text";
+
+        AssertMessage(undeliverable, 10, "MESSAGE_UNDELIVERABLE_STAGED", "Staged message text");
+        AssertMessage(messages[0], 10, "MESSAGE_UNDELIVERABLE", "Message undeliverable");
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(undeliverable.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, savedMessages.Count);
+        AssertMessage(savedMessages[0], 10, "MESSAGE_UNDELIVERABLE_STAGED", "Staged message text");
+        AssertMessage(messages[0], 10, "MESSAGE_UNDELIVERABLE", "Message undeliverable");
+
+        failSave = false;
+        undeliverable.Save();
+
+        Assert.AreEqual(2, savedMessages.Count);
+        AssertMessage(savedMessages[1], 10, "MESSAGE_UNDELIVERABLE_STAGED", "Staged message text");
+        AssertMessage(messages[0], 10, "MESSAGE_UNDELIVERABLE_STAGED", "Staged message text");
+        AssertMessage(messages.get_ItemByDBID(20), 20, "VIRUS_FOUND", "Virus found");
     }
 
     [TestMethod]
@@ -164,6 +211,15 @@ public sealed class ServerMessagesComContractTests
         Assert.AreEqual("Message undeliverable", messages[0].Text);
         Assert.AreEqual(1, store.ReadCount);
 
+        var undeliverable = messages[0];
+        undeliverable.Name = "MESSAGE_UNDELIVERABLE_SAVED";
+        undeliverable.Text = "Saved message text";
+        undeliverable.Save();
+
+        Assert.AreEqual(1, store.SavedMessages.Count);
+        AssertMessage(store.SavedMessages[0], 10, "MESSAGE_UNDELIVERABLE_SAVED", "Saved message text");
+        AssertMessage(messages[0], 10, "MESSAGE_UNDELIVERABLE_SAVED", "Saved message text");
+
         store.Replace(
             new[]
             {
@@ -192,6 +248,17 @@ public sealed class ServerMessagesComContractTests
         string text)
     {
         Assert.AreEqual(id, message.ID);
+        Assert.AreEqual(name, message.Name);
+        Assert.AreEqual(text, message.Text);
+    }
+
+    private static void AssertMessage(
+        ServerMessageAdministrationSnapshot message,
+        int id,
+        string name,
+        string text)
+    {
+        Assert.AreEqual(id, message.Id);
         Assert.AreEqual(name, message.Name);
         Assert.AreEqual(text, message.Text);
     }
@@ -227,6 +294,8 @@ public sealed class ServerMessagesComContractTests
 
         public int ReadCount { get; private set; }
 
+        public List<ServerMessageAdministrationSnapshot> SavedMessages { get; } = [];
+
         public void Replace(IReadOnlyList<ServerMessageAdministrationSnapshot> messages)
         {
             _messages = messages;
@@ -238,6 +307,17 @@ public sealed class ServerMessagesComContractTests
             ReadCount++;
             return ValueTask.FromResult<IReadOnlyList<ServerMessageAdministrationSnapshot>>(
                 _messages.OrderBy(static message => message.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
+
+        public ValueTask UpdateServerMessageAsync(
+            ServerMessageAdministrationSnapshot message,
+            CancellationToken cancellationToken)
+        {
+            SavedMessages.Add(message);
+            _messages = _messages
+                .Select(existing => existing.Id == message.Id ? message : existing)
+                .ToArray();
+            return ValueTask.CompletedTask;
         }
     }
 }
