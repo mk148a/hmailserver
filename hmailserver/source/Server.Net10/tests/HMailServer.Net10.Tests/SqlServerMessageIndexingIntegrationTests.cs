@@ -1564,9 +1564,17 @@ ORDER BY messageid;
                 alphaRouteAddresses.get_ItemByDBID(1500).Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRouteAddressSave.ErrorCode);
 
-            alphaRouteAddresses.DeleteByDBID(1501);
+            alphaRouteAddresses.get_ItemByDBID(1500).Delete();
 
             Assert.AreEqual(1, alphaRouteAddresses.Count);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => alphaRouteAddresses.get_ItemByDBID(1500)).ErrorCode);
+
+            alphaRouteAddresses.DeleteByDBID(1501);
+
+            Assert.AreEqual(0, alphaRouteAddresses.Count);
             Assert.AreEqual(
                 unchecked((int)0x8002000B),
                 Assert.ThrowsExactly<COMException>(
@@ -1576,20 +1584,26 @@ ORDER BY messageid;
 
             alphaRouteAddresses.DeleteByDBID(1600);
 
-            Assert.AreEqual(1, alphaRouteAddresses.Count);
+            Assert.AreEqual(0, alphaRouteAddresses.Count);
             Assert.AreEqual(1, betaRouteAddresses.Count);
 
             await using (var routeAddressDeleteConnection = new SqlConnection(testConnectionString))
             {
                 await routeAddressDeleteConnection.OpenAsync().ConfigureAwait(false);
-                await using var countDeletedRouteAddress = new SqlCommand(
+                await using var countItemDeletedRouteAddress = new SqlCommand(
+                    "SELECT COUNT(*) FROM dbo.hm_routeaddresses WHERE routeaddressid = 1500;",
+                    routeAddressDeleteConnection);
+                await using var countCollectionDeletedRouteAddress = new SqlCommand(
                     "SELECT COUNT(*) FROM dbo.hm_routeaddresses WHERE routeaddressid = 1501;",
                     routeAddressDeleteConnection);
                 await using var countOutsideRouteAddress = new SqlCommand(
                     "SELECT COUNT(*) FROM dbo.hm_routeaddresses WHERE routeaddressid = 1600;",
                     routeAddressDeleteConnection);
                 Assert.AreEqual(0, Convert.ToInt32(
-                    await countDeletedRouteAddress.ExecuteScalarAsync().ConfigureAwait(false),
+                    await countItemDeletedRouteAddress.ExecuteScalarAsync().ConfigureAwait(false),
+                    System.Globalization.CultureInfo.InvariantCulture));
+                Assert.AreEqual(0, Convert.ToInt32(
+                    await countCollectionDeletedRouteAddress.ExecuteScalarAsync().ConfigureAwait(false),
                     System.Globalization.CultureInfo.InvariantCulture));
                 Assert.AreEqual(1, Convert.ToInt32(
                     await countOutsideRouteAddress.ExecuteScalarAsync().ConfigureAwait(false),

@@ -71,10 +71,12 @@ public sealed class RouteAddressesComContractTests
         var addressesError = Assert.ThrowsExactly<COMException>(() => _ = new RouteAddresses().Count);
         var addressesDeleteError = Assert.ThrowsExactly<COMException>(() => new RouteAddresses().DeleteByDBID(100));
         var addressError = Assert.ThrowsExactly<COMException>(() => _ = new RouteAddress().Address);
+        var addressDeleteError = Assert.ThrowsExactly<COMException>(new RouteAddress().Delete);
 
         Assert.AreEqual(EAccessDenied, addressesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressesDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, addressDeleteError.ErrorCode);
     }
 
     [TestMethod]
@@ -159,6 +161,54 @@ public sealed class RouteAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_ItemDeleteCallsConfiguredOperationAndUpdatesOwningSnapshot()
+    {
+        var failDelete = true;
+        var deletedIds = new List<int>();
+        IInterfaceRouteAddresses addresses = RouteAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(100, 10, "alpha@example.test"),
+                Snapshot(200, 10, "*@example.test")
+            },
+            deleteById: databaseId =>
+            {
+                deletedIds.Add(databaseId);
+                if (failDelete)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+            });
+        var alpha = addresses[0];
+        var wildcard = addresses.get_ItemByDBID(200);
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(alpha.Delete);
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 100 }, deletedIds);
+        Assert.AreEqual(2, addresses.Count);
+        AssertAddress(addresses[0], 100, 10, "alpha@example.test");
+
+        failDelete = false;
+        alpha.Delete();
+
+        CollectionAssert.AreEqual(new[] { 100, 100 }, deletedIds);
+        Assert.AreEqual(1, addresses.Count);
+        AssertAddress(addresses[0], 200, 10, "*@example.test");
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(100)).ErrorCode);
+
+        wildcard.Delete();
+
+        CollectionAssert.AreEqual(new[] { 100, 100, 200 }, deletedIds);
+        Assert.AreEqual(0, addresses.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(200)).ErrorCode);
+    }
+
+    [TestMethod]
     public void AuthorizedRoute_UsesConfiguredRouteScopedRuntime()
     {
         var store = new FixedRouteAddressAdministrationStore(
@@ -184,8 +234,9 @@ public sealed class RouteAddressesComContractTests
         Assert.AreEqual("first@example.test", addresses[0].Address);
         var outsideRoute = Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(300));
         Assert.AreEqual(DispEBadIndex, outsideRoute.ErrorCode);
+        var firstAddress = addresses[0];
 
-        addresses.DeleteByDBID(100);
+        firstAddress.Delete();
 
         CollectionAssert.AreEqual(new[] { (RouteId: 10, DatabaseId: 100) }, store.DeletedAddresses);
         Assert.AreEqual(1, addresses.Count);

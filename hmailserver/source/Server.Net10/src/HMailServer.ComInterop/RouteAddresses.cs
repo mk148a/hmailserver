@@ -95,7 +95,7 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
                 throw new COMException("Route address index was outside the collection.", DispEBadIndex);
             }
 
-            return RouteAddress.CreateAuthorized(addresses[index]);
+            return CreateAddress(addresses[index]);
         }
     }
 
@@ -107,7 +107,7 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
             ? throw new COMException(
                 "No route address with the specified database identifier exists.",
                 DispEBadIndex)
-            : RouteAddress.CreateAuthorized(match);
+            : CreateAddress(match);
     }
 
     public void DeleteByDBID(int databaseId)
@@ -154,6 +154,13 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
                 EAccessDenied);
     }
 
+    private RouteAddress CreateAddress(RouteAddressAdministrationSnapshot address)
+    {
+        return RouteAddress.CreateAuthorized(
+            address,
+            delete: _deleteById is null ? null : DeleteByDBID);
+    }
+
     private T Unavailable<T>()
     {
         _ = GetAddresses();
@@ -182,14 +189,18 @@ public sealed class RouteAddress : IInterfaceRouteAddress
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly RouteAddressAdministrationSnapshot? _address;
+    private readonly Action<int>? _delete;
 
     public RouteAddress()
     {
     }
 
-    private RouteAddress(RouteAddressAdministrationSnapshot address)
+    private RouteAddress(
+        RouteAddressAdministrationSnapshot address,
+        Action<int>? delete)
     {
         _address = address;
+        _delete = delete;
     }
 
     public int ID => Snapshot.Id;
@@ -200,9 +211,21 @@ public sealed class RouteAddress : IInterfaceRouteAddress
 
     public void Save() => Unavailable();
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
 
-    internal static RouteAddress CreateAuthorized(RouteAddressAdministrationSnapshot address) => new(address);
+        _delete(Snapshot.Id);
+    }
+
+    internal static RouteAddress CreateAuthorized(
+        RouteAddressAdministrationSnapshot address,
+        Action<int>? delete = null) =>
+        new(address, delete);
 
     private RouteAddressAdministrationSnapshot Snapshot =>
         _address ?? throw new COMException(
