@@ -113,12 +113,15 @@ public sealed class AntiVirusComContractTests
 
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = antivirus.ClamWinEnabled);
         var blockedAttachmentsError = Assert.ThrowsExactly<COMException>(() => _ = antivirus.BlockedAttachments);
+        var testClamWinError = Assert.ThrowsExactly<COMException>(
+            () => antivirus.TestClamWinScanner(@"C:\ClamWin\bin\clamscan.exe", @"C:\ClamWin\db", out _));
         var testClamAvError = Assert.ThrowsExactly<COMException>(
             () => antivirus.TestClamAVScanner("127.0.0.1", 3310, out _));
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().AntiVirus);
 
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, blockedAttachmentsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, testClamWinError.ErrorCode);
         Assert.AreEqual(EAccessDenied, testClamAvError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -126,6 +129,8 @@ public sealed class AntiVirusComContractTests
     [TestMethod]
     public void AuthorizedSettings_ExposesReadOnlyAntiVirusSnapshot()
     {
+        var clamWinRuntime = new FakeClamWinScannerTestRuntime(
+            new ClamWinScannerTestResult(true, "Unknown"));
         var clamAvRuntime = new FakeClamAvScannerTestRuntime(
             new ClamAvScannerTestResult(true, "stream: Eicar-Test-Signature FOUND"));
         IInterfaceSettings settings = Settings.CreateAuthorized(
@@ -149,7 +154,8 @@ public sealed class AntiVirusComContractTests
                 AntiVirusClamAvHost: "127.0.0.1",
                 AntiVirusClamAvPort: 3310),
             new SettingsRuntimeConfiguration(
-                ClamAvScannerTestRuntime: clamAvRuntime));
+                ClamAvScannerTestRuntime: clamAvRuntime,
+                ClamWinScannerTestRuntime: clamWinRuntime));
 
         var antivirus = settings.AntiVirus;
 
@@ -167,6 +173,10 @@ public sealed class AntiVirusComContractTests
         Assert.IsTrue(antivirus.ClamAVEnabled);
         Assert.AreEqual("127.0.0.1", antivirus.ClamAVHost);
         Assert.AreEqual(3310, antivirus.ClamAVPort);
+        Assert.IsTrue(antivirus.TestClamWinScanner(@"C:\ClamWin\bin\clamscan.exe", @"C:\ClamWin\db", out var clamWinResultText));
+        Assert.AreEqual("Unknown", clamWinResultText);
+        Assert.AreEqual(@"C:\ClamWin\bin\clamscan.exe", clamWinRuntime.ExecutablePath);
+        Assert.AreEqual(@"C:\ClamWin\db", clamWinRuntime.DatabasePath);
         Assert.IsTrue(antivirus.TestClamAVScanner("127.0.0.1", 3310, out var clamAvResultText));
         Assert.AreEqual("stream: Eicar-Test-Signature FOUND", clamAvResultText);
         Assert.AreEqual("127.0.0.1", clamAvRuntime.Hostname);
@@ -190,13 +200,10 @@ public sealed class AntiVirusComContractTests
         var resultText = "not-empty";
         AssertPending(() => antivirus.TestCustomerScanner(@"C:\scan.cmd", 7, out resultText));
         Assert.AreEqual(string.Empty, resultText);
-        resultText = "not-empty";
-        AssertPending(() => antivirus.TestClamWinScanner(@"C:\clamscan.exe", @"C:\db", out resultText));
-        Assert.AreEqual(string.Empty, resultText);
     }
 
     [TestMethod]
-    public void AuthorizedAntiVirus_KeepsClamAvScannerTestPendingWithoutRuntime()
+    public void AuthorizedAntiVirus_KeepsScannerTestsPendingWithoutRuntimes()
     {
         IInterfaceAntiVirus antivirus = AntiVirus.CreateAuthorized(
             new AntiVirusAdministrationSnapshot(
@@ -216,8 +223,48 @@ public sealed class AntiVirusComContractTests
                 ClamAvPort: 3310));
 
         var resultText = "not-empty";
+        AssertPending(() => antivirus.TestClamWinScanner(@"C:\clamscan.exe", @"C:\db", out resultText));
+        Assert.AreEqual(string.Empty, resultText);
+        resultText = "not-empty";
         AssertPending(() => antivirus.TestClamAVScanner("clamav.example.test", 3310, out resultText));
         Assert.AreEqual(string.Empty, resultText);
+    }
+
+    [TestMethod]
+    public void AuthorizedAntiVirus_TestClamWinScannerMapsRuntimeResultAndFailure()
+    {
+        var runtime = new FakeClamWinScannerTestRuntime(
+            new ClamWinScannerTestResult(false, "Unable to launch executable."));
+        IInterfaceAntiVirus antivirus = AntiVirus.CreateAuthorized(
+            new AntiVirusAdministrationSnapshot(
+                ClamWinEnabled: true,
+                ClamWinExecutable: @"C:\ClamWin\bin\clamscan.exe",
+                ClamWinDatabase: @"C:\ClamWin\db",
+                Action: 0,
+                NotifyReceiver: false,
+                NotifySender: false,
+                CustomScannerEnabled: false,
+                CustomScannerExecutable: string.Empty,
+                CustomScannerReturnValue: 0,
+                MaximumMessageSize: 0,
+                EnableAttachmentBlocking: false,
+                ClamAvEnabled: false,
+                ClamAvHost: string.Empty,
+                ClamAvPort: 0),
+            clamWinScannerTestRuntime: runtime);
+
+        var success = antivirus.TestClamWinScanner(@"C:\ClamWin\bin\clamscan.exe", @"C:\ClamWin\db", out var resultText);
+
+        Assert.IsFalse(success);
+        Assert.AreEqual("Unable to launch executable.", resultText);
+        Assert.AreEqual(@"C:\ClamWin\bin\clamscan.exe", runtime.ExecutablePath);
+        Assert.AreEqual(@"C:\ClamWin\db", runtime.DatabasePath);
+
+        runtime.ThrowOnTestConnection = true;
+        var error = Assert.ThrowsExactly<COMException>(
+            () => antivirus.TestClamWinScanner(@"C:\ClamWin\bin\clamscan.exe", @"C:\ClamWin\db", out _));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
     }
 
     [TestMethod]
@@ -340,6 +387,31 @@ public sealed class AntiVirusComContractTests
             if (ThrowOnTestConnection)
             {
                 throw new InvalidOperationException("Simulated ClamAV test failure.");
+            }
+
+            return result;
+        }
+    }
+
+    private sealed class FakeClamWinScannerTestRuntime(
+        ClamWinScannerTestResult result)
+        : IClamWinScannerTestRuntime
+    {
+        public string ExecutablePath { get; private set; } = string.Empty;
+
+        public string DatabasePath { get; private set; } = string.Empty;
+
+        public bool ThrowOnTestConnection { get; set; }
+
+        public ClamWinScannerTestResult TestConnection(
+            string executablePath,
+            string databasePath)
+        {
+            ExecutablePath = executablePath;
+            DatabasePath = databasePath;
+            if (ThrowOnTestConnection)
+            {
+                throw new InvalidOperationException("Simulated ClamWin test failure.");
             }
 
             return result;

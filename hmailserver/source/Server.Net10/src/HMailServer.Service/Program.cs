@@ -965,6 +965,12 @@ SettingsAdministrationRuntimeHost.Configure(
         ScriptSyntaxChecker: host.Services.GetRequiredService<IScriptSyntaxChecker>(),
         ScriptRuntimeReloader: host.Services.GetRequiredService<IScriptRuntimeReloader>(),
         ClamAvScannerTestRuntime: host.Services.GetRequiredService<IClamAvScannerTestRuntime>(),
+        ClamWinScannerTestRuntime: new ClamWinScannerTestRuntime(
+            new ClamWinScannerTestRuntimeOptions
+            {
+                DataDirectory = directoryAdministrationSnapshot.DataDirectory,
+                TempDirectory = directoryAdministrationSnapshot.TempDirectory
+            }),
         DkimVerificationRuntime: host.Services.GetRequiredService<IDkimVerificationRuntime>(),
         GreyListingTripletAdministrationStore:
             host.Services.GetRequiredService<IGreyListingTripletAdministrationStore>(),

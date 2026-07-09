@@ -1173,7 +1173,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         _administrationSnapshot.AntiVirusClamAvEnabled,
                         _administrationSnapshot.AntiVirusClamAvHost,
                         _administrationSnapshot.AntiVirusClamAvPort),
-                    _runtimeConfiguration.ClamAvScannerTestRuntime);
+                    clamAvScannerTestRuntime: _runtimeConfiguration.ClamAvScannerTestRuntime,
+                    clamWinScannerTestRuntime: _runtimeConfiguration.ClamWinScannerTestRuntime);
         }
     }
 
@@ -1555,6 +1556,7 @@ public sealed record SettingsRuntimeConfiguration(
     IScriptSyntaxChecker? ScriptSyntaxChecker = null,
     IScriptRuntimeReloader? ScriptRuntimeReloader = null,
     IClamAvScannerTestRuntime? ClamAvScannerTestRuntime = null,
+    IClamWinScannerTestRuntime? ClamWinScannerTestRuntime = null,
     IDkimVerificationRuntime? DkimVerificationRuntime = null,
     IGreyListingTripletAdministrationStore? GreyListingTripletAdministrationStore = null,
     ISpamAssassinConnectionTestRuntime? SpamAssassinConnectionTestRuntime = null,

@@ -128,6 +128,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     private const int ENotImplemented = unchecked((int)0x80004001);
     private readonly AntiVirusAdministrationSnapshot? _snapshot;
     private readonly IClamAvScannerTestRuntime? _clamAvScannerTestRuntime;
+    private readonly IClamWinScannerTestRuntime? _clamWinScannerTestRuntime;
 
     public AntiVirus()
     {
@@ -135,10 +136,12 @@ public sealed class AntiVirus : IInterfaceAntiVirus
 
     private AntiVirus(
         AntiVirusAdministrationSnapshot snapshot,
-        IClamAvScannerTestRuntime? clamAvScannerTestRuntime)
+        IClamAvScannerTestRuntime? clamAvScannerTestRuntime,
+        IClamWinScannerTestRuntime? clamWinScannerTestRuntime)
     {
         _snapshot = snapshot;
         _clamAvScannerTestRuntime = clamAvScannerTestRuntime;
+        _clamWinScannerTestRuntime = clamWinScannerTestRuntime;
     }
 
     public bool ClamWinEnabled { get => Snapshot.ClamWinEnabled; set => Unavailable(); }
@@ -193,7 +196,26 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     public bool TestClamWinScanner(string clamWinExecutable, string clamWinDatabase, out string resultText)
     {
         resultText = string.Empty;
-        return Unavailable<bool>();
+        _ = Snapshot;
+        if (_clamWinScannerTestRuntime is null)
+        {
+            return Unavailable<bool>();
+        }
+
+        try
+        {
+            var result = _clamWinScannerTestRuntime.TestConnection(
+                clamWinExecutable ?? string.Empty,
+                clamWinDatabase ?? string.Empty);
+            resultText = result.ResultText ?? string.Empty;
+            return result.Succeeded;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to test the ClamWin scanner.",
+                EFail);
+        }
     }
 
     public bool TestClamAVScanner(string clamAVHostName, int clamAVPort, out string resultText)
@@ -223,10 +245,14 @@ public sealed class AntiVirus : IInterfaceAntiVirus
 
     internal static AntiVirus CreateAuthorized(
         AntiVirusAdministrationSnapshot snapshot,
-        IClamAvScannerTestRuntime? clamAvScannerTestRuntime = null)
+        IClamAvScannerTestRuntime? clamAvScannerTestRuntime = null,
+        IClamWinScannerTestRuntime? clamWinScannerTestRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new AntiVirus(snapshot, clamAvScannerTestRuntime);
+        return new AntiVirus(
+            snapshot,
+            clamAvScannerTestRuntime,
+            clamWinScannerTestRuntime);
     }
 
     private AntiVirusAdministrationSnapshot Snapshot =>
