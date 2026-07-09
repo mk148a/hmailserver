@@ -89,6 +89,7 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
     private readonly Action? _clear;
     private readonly Action<int>? _deleteById;
     private readonly Action<SslCertificateAdministrationSnapshot>? _save;
+    private readonly Func<SslCertificateAdministrationSnapshot, int>? _insert;
 
     public SSLCertificates()
     {
@@ -99,13 +100,15 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
         Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? reload,
         Action? clear,
         Action<int>? deleteById,
-        Action<SslCertificateAdministrationSnapshot>? save)
+        Action<SslCertificateAdministrationSnapshot>? save,
+        Func<SslCertificateAdministrationSnapshot, int>? insert)
     {
         _certificates = certificates.ToArray();
         _reload = reload;
         _clear = clear;
         _deleteById = deleteById;
         _save = save;
+        _insert = insert;
     }
 
     public int Count => GetCertificates().Count;
@@ -115,10 +118,11 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
         Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? reload = null,
         Action? clear = null,
         Action<int>? deleteById = null,
-        Action<SslCertificateAdministrationSnapshot>? save = null)
+        Action<SslCertificateAdministrationSnapshot>? save = null,
+        Func<SslCertificateAdministrationSnapshot, int>? insert = null)
     {
         ArgumentNullException.ThrowIfNull(certificates);
-        return new SSLCertificates(certificates, reload, clear, deleteById, save);
+        return new SSLCertificates(certificates, reload, clear, deleteById, save, insert);
     }
 
     public IInterfaceSSLCertificate this[int index]
@@ -170,25 +174,50 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
         }
     }
 
-    public IInterfaceSSLCertificate Add() => Unavailable<IInterfaceSSLCertificate>();
+    public IInterfaceSSLCertificate Add()
+    {
+        _ = GetCertificates();
+        if (_insert is null)
+        {
+            return Unavailable<IInterfaceSSLCertificate>();
+        }
 
-    private void SaveCertificate(SslCertificateAdministrationSnapshot certificate)
+        return SSLCertificate.CreateAuthorized(
+            new SslCertificateAdministrationSnapshot(0, string.Empty, string.Empty, string.Empty),
+            save: SaveCertificate);
+    }
+
+    private SslCertificateAdministrationSnapshot SaveCertificate(SslCertificateAdministrationSnapshot certificate)
     {
         var certificates = GetCertificates();
-        if (_save is null)
+        if (certificate.Id == 0 && _insert is null)
         {
             Unavailable();
-            return;
+            return certificate;
+        }
+
+        if (certificate.Id != 0 && _save is null)
+        {
+            Unavailable();
+            return certificate;
         }
 
         try
         {
-            _save(certificate);
+            if (certificate.Id == 0)
+            {
+                var insertedCertificate = certificate with { Id = _insert!(certificate) };
+                Volatile.Write(ref _certificates, certificates.Concat([insertedCertificate]).ToArray());
+                return insertedCertificate;
+            }
+
+            _save!(certificate);
             Volatile.Write(
                 ref _certificates,
                 certificates
                     .Select(existing => existing.Id == certificate.Id ? certificate : existing)
                     .ToArray());
+            return certificate;
         }
         catch (Exception)
         {
@@ -287,7 +316,7 @@ public sealed class SSLCertificate : IInterfaceSSLCertificate
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private SslCertificateAdministrationSnapshot? _certificate;
-    private readonly Action<SslCertificateAdministrationSnapshot>? _save;
+    private readonly Func<SslCertificateAdministrationSnapshot, SslCertificateAdministrationSnapshot>? _save;
     private readonly Action<int>? _delete;
 
     public SSLCertificate()
@@ -296,7 +325,7 @@ public sealed class SSLCertificate : IInterfaceSSLCertificate
 
     private SSLCertificate(
         SslCertificateAdministrationSnapshot certificate,
-        Action<SslCertificateAdministrationSnapshot>? save,
+        Func<SslCertificateAdministrationSnapshot, SslCertificateAdministrationSnapshot>? save,
         Action<int>? delete)
     {
         _certificate = certificate;
@@ -322,7 +351,7 @@ public sealed class SSLCertificate : IInterfaceSSLCertificate
 
     internal static SSLCertificate CreateAuthorized(
         SslCertificateAdministrationSnapshot certificate,
-        Action<SslCertificateAdministrationSnapshot>? save = null,
+        Func<SslCertificateAdministrationSnapshot, SslCertificateAdministrationSnapshot>? save = null,
         Action<int>? delete = null) =>
         new(certificate, save, delete);
 
@@ -334,7 +363,7 @@ public sealed class SSLCertificate : IInterfaceSSLCertificate
             return;
         }
 
-        _save(Snapshot);
+        _certificate = _save(Snapshot);
     }
 
     public void Delete()
@@ -417,11 +446,18 @@ public static class SslCertificateAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        int InsertCertificate(SslCertificateAdministrationSnapshot certificate) => store
+            .InsertSslCertificateAsync(certificate, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return SSLCertificates.CreateAuthorized(
             LoadCertificates(),
             LoadCertificates,
             ClearCertificates,
             DeleteCertificateById,
-            SaveCertificate);
+            SaveCertificate,
+            InsertCertificate);
     }
 }

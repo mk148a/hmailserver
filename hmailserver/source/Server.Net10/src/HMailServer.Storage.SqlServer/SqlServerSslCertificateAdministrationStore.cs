@@ -34,6 +34,13 @@ SET sslcertificatename = @name,
 WHERE sslcertificateid = @id;
 """;
 
+    public const string InsertSslCertificateSql = """
+INSERT INTO hm_sslcertificates
+    (sslcertificatename, sslcertificatefile, sslprivatekeyfile)
+OUTPUT INSERTED.sslcertificateid
+VALUES (@name, @certificateFile, @privateKeyFile);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerSslCertificateAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -96,5 +103,21 @@ WHERE sslcertificateid = @id;
         command.Parameters.Add("@certificateFile", SqlDbType.NVarChar, 255).Value = certificate.CertificateFile;
         command.Parameters.Add("@privateKeyFile", SqlDbType.NVarChar, 255).Value = certificate.PrivateKeyFile;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<int> InsertSslCertificateAsync(
+        SslCertificateAdministrationSnapshot certificate,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(certificate);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertSslCertificateSql, connection);
+        command.Parameters.Add("@name", SqlDbType.NVarChar, 255).Value = certificate.Name;
+        command.Parameters.Add("@certificateFile", SqlDbType.NVarChar, 255).Value = certificate.CertificateFile;
+        command.Parameters.Add("@privateKeyFile", SqlDbType.NVarChar, 255).Value = certificate.PrivateKeyFile;
+        var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+
+        return Convert.ToInt32(result, CultureInfo.InvariantCulture);
     }
 }

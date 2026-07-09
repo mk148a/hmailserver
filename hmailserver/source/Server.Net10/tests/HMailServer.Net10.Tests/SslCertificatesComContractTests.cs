@@ -64,6 +64,7 @@ public sealed class SslCertificatesComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var certificatesError = Assert.ThrowsExactly<COMException>(() => _ = new SSLCertificates().Count);
+        var certificatesAddError = Assert.ThrowsExactly<COMException>(() => new SSLCertificates().Add());
         var certificatesRefreshError = Assert.ThrowsExactly<COMException>(new SSLCertificates().Refresh);
         var certificatesClearError = Assert.ThrowsExactly<COMException>(new SSLCertificates().Clear);
         var certificateError = Assert.ThrowsExactly<COMException>(() => _ = new SSLCertificate().Name);
@@ -73,6 +74,7 @@ public sealed class SslCertificatesComContractTests
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().SSLCertificates);
 
         Assert.AreEqual(EAccessDenied, certificatesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, certificatesAddError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificatesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificatesClearError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificateError.ErrorCode);
@@ -388,6 +390,73 @@ public sealed class SslCertificatesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_AddReturnsUnsavedItemAndSaveInsertsIntoOwningSnapshot()
+    {
+        var failInsert = true;
+        var insertedCertificates = new List<SslCertificateAdministrationSnapshot>();
+        IInterfaceSSLCertificates certificates = SSLCertificates.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha certificate", @"C:\certs\alpha.crt", @"C:\certs\alpha.key")
+            },
+            save: _ => Assert.Fail("Existing-row update should not be used for a new SSL certificate."),
+            insert: certificate =>
+            {
+                insertedCertificates.Add(certificate);
+                if (failInsert)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return 30;
+            });
+
+        var added = certificates.Add();
+
+        Assert.AreEqual(1, certificates.Count);
+        AssertCertificate(added, 0, string.Empty, string.Empty, string.Empty);
+
+        added.Name = "Gamma certificate";
+        added.CertificateFile = @"C:\certs\gamma.crt";
+        added.PrivateKeyFile = @"C:\certs\gamma.key";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(added.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, insertedCertificates.Count);
+        AssertCertificate(
+            insertedCertificates[0],
+            0,
+            "Gamma certificate",
+            @"C:\certs\gamma.crt",
+            @"C:\certs\gamma.key");
+        Assert.AreEqual(0, added.ID);
+        Assert.AreEqual(1, certificates.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = certificates.get_ItemByDBID(30)).ErrorCode);
+
+        failInsert = false;
+        added.Save();
+
+        Assert.AreEqual(2, insertedCertificates.Count);
+        Assert.AreEqual(30, added.ID);
+        Assert.AreEqual(2, certificates.Count);
+        AssertCertificate(
+            certificates.get_ItemByDBID(30),
+            30,
+            "Gamma certificate",
+            @"C:\certs\gamma.crt",
+            @"C:\certs\gamma.key");
+        AssertCertificate(
+            certificates[0],
+            10,
+            "Alpha certificate",
+            @"C:\certs\alpha.crt",
+            @"C:\certs\alpha.key");
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_UsesConfiguredSslCertificateRuntime()
     {
         var store = new MutableSslCertificateAdministrationStore(
@@ -425,6 +494,28 @@ public sealed class SslCertificatesComContractTests
             "Alpha saved certificate",
             @"C:\certs\alpha-saved.crt",
             @"C:\certs\alpha-saved.key");
+
+        var addedCertificate = certificates.Add();
+        addedCertificate.Name = "Delta certificate";
+        addedCertificate.CertificateFile = @"C:\certs\delta.crt";
+        addedCertificate.PrivateKeyFile = @"C:\certs\delta.key";
+        addedCertificate.Save();
+
+        Assert.AreEqual(1, store.InsertedCertificates.Count);
+        AssertCertificate(
+            store.InsertedCertificates[0],
+            0,
+            "Delta certificate",
+            @"C:\certs\delta.crt",
+            @"C:\certs\delta.key");
+        AssertCertificate(
+            addedCertificate,
+            40,
+            "Delta certificate",
+            @"C:\certs\delta.crt",
+            @"C:\certs\delta.key");
+        Assert.AreEqual(3, certificates.Count);
+        Assert.AreEqual("Delta certificate", certificates.get_ItemByDBID(40).Name);
 
         store.Replace(
             new[]
@@ -541,6 +632,10 @@ public sealed class SslCertificatesComContractTests
 
         public List<SslCertificateAdministrationSnapshot> SavedCertificates { get; } = [];
 
+        public List<SslCertificateAdministrationSnapshot> InsertedCertificates { get; } = [];
+
+        public int NextInsertedId { get; set; } = 40;
+
         public void Replace(IReadOnlyList<SslCertificateAdministrationSnapshot> certificates)
         {
             _certificates = certificates;
@@ -581,6 +676,16 @@ public sealed class SslCertificatesComContractTests
                 .Select(existing => existing.Id == certificate.Id ? certificate : existing)
                 .ToArray();
             return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<int> InsertSslCertificateAsync(
+            SslCertificateAdministrationSnapshot certificate,
+            CancellationToken cancellationToken)
+        {
+            InsertedCertificates.Add(certificate);
+            var insertedCertificate = certificate with { Id = NextInsertedId++ };
+            _certificates = _certificates.Concat([insertedCertificate]).ToArray();
+            return ValueTask.FromResult(insertedCertificate.Id);
         }
     }
 }

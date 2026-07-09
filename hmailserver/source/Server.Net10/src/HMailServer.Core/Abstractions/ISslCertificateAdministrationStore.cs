@@ -15,4 +15,8 @@ public interface ISslCertificateAdministrationStore
     ValueTask UpdateSslCertificateAsync(
         SslCertificateAdministrationSnapshot certificate,
         CancellationToken cancellationToken);
+
+    ValueTask<int> InsertSslCertificateAsync(
+        SslCertificateAdministrationSnapshot certificate,
+        CancellationToken cancellationToken);
 }

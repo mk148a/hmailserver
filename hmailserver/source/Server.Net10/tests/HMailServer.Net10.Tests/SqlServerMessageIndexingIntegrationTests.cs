@@ -1819,6 +1819,36 @@ ORDER BY messageid;
                 Assert.AreEqual(@"C:\certs\alpha-saved.key", savedSslCertificateReader.GetString(2));
             }
 
+            var addedSslCertificate = sslCertificates.Add();
+            Assert.AreEqual(0, addedSslCertificate.ID);
+            addedSslCertificate.Name = "Gamma certificate";
+            addedSslCertificate.CertificateFile = @"C:\certs\gamma.crt";
+            addedSslCertificate.PrivateKeyFile = @"C:\certs\gamma.key";
+            addedSslCertificate.Save();
+
+            Assert.IsTrue(addedSslCertificate.ID > 1002);
+            Assert.AreEqual(3, sslCertificates.Count);
+            Assert.AreEqual("Gamma certificate", sslCertificates.get_ItemByDBID(addedSslCertificate.ID).Name);
+            await using (var sslCertificateInsertConnection = new SqlConnection(testConnectionString))
+            {
+                await sslCertificateInsertConnection.OpenAsync().ConfigureAwait(false);
+                await using var readInsertedSslCertificate = new SqlCommand(
+                    """
+                    SELECT sslcertificatename, sslcertificatefile, sslprivatekeyfile
+                    FROM dbo.hm_sslcertificates
+                    WHERE sslcertificateid = @id;
+                    """,
+                    sslCertificateInsertConnection);
+                readInsertedSslCertificate.Parameters.Add("@id", System.Data.SqlDbType.Int).Value =
+                    addedSslCertificate.ID;
+                await using var insertedSslCertificateReader =
+                    await readInsertedSslCertificate.ExecuteReaderAsync().ConfigureAwait(false);
+                Assert.IsTrue(await insertedSslCertificateReader.ReadAsync().ConfigureAwait(false));
+                Assert.AreEqual("Gamma certificate", insertedSslCertificateReader.GetString(0));
+                Assert.AreEqual(@"C:\certs\gamma.crt", insertedSslCertificateReader.GetString(1));
+                Assert.AreEqual(@"C:\certs\gamma.key", insertedSslCertificateReader.GetString(2));
+            }
+
             await using (var sslCertificateRefreshConnection = new SqlConnection(testConnectionString))
             {
                 await sslCertificateRefreshConnection.OpenAsync().ConfigureAwait(false);
@@ -1836,7 +1866,7 @@ ORDER BY messageid;
 
             sslCertificates.Refresh();
 
-            Assert.AreEqual(2, sslCertificates.Count);
+            Assert.AreEqual(3, sslCertificates.Count);
             Assert.AreEqual("Alpha refreshed certificate", sslCertificates[0].Name);
             Assert.AreEqual(@"C:\certs\alpha-refreshed.crt", sslCertificates[0].CertificateFile);
             Assert.AreEqual(@"C:\certs\alpha-refreshed.key", sslCertificates[0].PrivateKeyFile);
@@ -1844,7 +1874,7 @@ ORDER BY messageid;
 
             sslCertificates.DeleteByDBID(1002);
 
-            Assert.AreEqual(1, sslCertificates.Count);
+            Assert.AreEqual(2, sslCertificates.Count);
             Assert.AreEqual(
                 unchecked((int)0x8002000B),
                 Assert.ThrowsExactly<COMException>(
@@ -1861,7 +1891,7 @@ ORDER BY messageid;
 
             sslCertificates[0].Delete();
 
-            Assert.AreEqual(0, sslCertificates.Count);
+            Assert.AreEqual(1, sslCertificates.Count);
             Assert.AreEqual(
                 unchecked((int)0x8002000B),
                 Assert.ThrowsExactly<COMException>(
@@ -3355,7 +3385,7 @@ CREATE TABLE dbo.hm_servermessages
 
 CREATE TABLE dbo.hm_sslcertificates
 (
-    sslcertificateid bigint NOT NULL PRIMARY KEY,
+    sslcertificateid bigint IDENTITY(1,1) NOT NULL PRIMARY KEY,
     sslcertificatename nvarchar(255) NOT NULL,
     sslcertificatefile nvarchar(255) NOT NULL,
     sslprivatekeyfile nvarchar(255) NOT NULL
@@ -3526,11 +3556,13 @@ VALUES
     (951, N'VIRUS_FOUND', N'Virus found'),
     (950, N'MESSAGE_UNDELIVERABLE', N'Message undeliverable');
 
+SET IDENTITY_INSERT dbo.hm_sslcertificates ON;
 INSERT INTO dbo.hm_sslcertificates
     (sslcertificateid, sslcertificatename, sslcertificatefile, sslprivatekeyfile)
 VALUES
     (1002, N'Beta certificate', N'C:\certs\beta.crt', N'C:\certs\beta.key'),
     (1001, N'Alpha certificate', N'C:\certs\alpha.crt', N'C:\certs\alpha.key');
+SET IDENTITY_INSERT dbo.hm_sslcertificates OFF;
 
 INSERT INTO dbo.hm_groups (groupid, groupname)
 VALUES
