@@ -67,6 +67,8 @@ public sealed class SslCertificatesComContractTests
         var certificatesRefreshError = Assert.ThrowsExactly<COMException>(new SSLCertificates().Refresh);
         var certificatesClearError = Assert.ThrowsExactly<COMException>(new SSLCertificates().Clear);
         var certificateError = Assert.ThrowsExactly<COMException>(() => _ = new SSLCertificate().Name);
+        var certificateSetError = Assert.ThrowsExactly<COMException>(() => new SSLCertificate().Name = "Changed");
+        var certificateSaveError = Assert.ThrowsExactly<COMException>(new SSLCertificate().Save);
         var certificateDeleteError = Assert.ThrowsExactly<COMException>(new SSLCertificate().Delete);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().SSLCertificates);
 
@@ -74,6 +76,8 @@ public sealed class SslCertificatesComContractTests
         Assert.AreEqual(EAccessDenied, certificatesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificatesClearError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificateError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, certificateSetError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, certificateSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificateDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -305,6 +309,85 @@ public sealed class SslCertificatesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_ItemSaveCallsConfiguredOperationAndUpdatesOwningSnapshot()
+    {
+        var failSave = true;
+        var savedCertificates = new List<SslCertificateAdministrationSnapshot>();
+        IInterfaceSSLCertificates certificates = SSLCertificates.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha certificate", @"C:\certs\alpha.crt", @"C:\certs\alpha.key"),
+                Snapshot(20, "Beta certificate", @"C:\certs\beta.crt", @"C:\certs\beta.key")
+            },
+            save: certificate =>
+            {
+                savedCertificates.Add(certificate);
+                if (failSave)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+            });
+        var alpha = certificates[0];
+
+        alpha.Name = "Alpha staged certificate";
+        alpha.CertificateFile = @"C:\certs\alpha-staged.crt";
+        alpha.PrivateKeyFile = @"C:\certs\alpha-staged.key";
+
+        AssertCertificate(
+            alpha,
+            10,
+            "Alpha staged certificate",
+            @"C:\certs\alpha-staged.crt",
+            @"C:\certs\alpha-staged.key");
+        AssertCertificate(
+            certificates[0],
+            10,
+            "Alpha certificate",
+            @"C:\certs\alpha.crt",
+            @"C:\certs\alpha.key");
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(alpha.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, savedCertificates.Count);
+        AssertCertificate(
+            savedCertificates[0],
+            10,
+            "Alpha staged certificate",
+            @"C:\certs\alpha-staged.crt",
+            @"C:\certs\alpha-staged.key");
+        AssertCertificate(
+            certificates[0],
+            10,
+            "Alpha certificate",
+            @"C:\certs\alpha.crt",
+            @"C:\certs\alpha.key");
+
+        failSave = false;
+        alpha.Save();
+
+        Assert.AreEqual(2, savedCertificates.Count);
+        AssertCertificate(
+            savedCertificates[1],
+            10,
+            "Alpha staged certificate",
+            @"C:\certs\alpha-staged.crt",
+            @"C:\certs\alpha-staged.key");
+        AssertCertificate(
+            certificates[0],
+            10,
+            "Alpha staged certificate",
+            @"C:\certs\alpha-staged.crt",
+            @"C:\certs\alpha-staged.key");
+        AssertCertificate(
+            certificates.get_ItemByDBID(20),
+            20,
+            "Beta certificate",
+            @"C:\certs\beta.crt",
+            @"C:\certs\beta.key");
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_UsesConfiguredSslCertificateRuntime()
     {
         var store = new MutableSslCertificateAdministrationStore(
@@ -322,6 +405,26 @@ public sealed class SslCertificatesComContractTests
         Assert.AreEqual("Alpha certificate", certificates[0].Name);
         Assert.AreEqual(@"C:\certs\alpha.crt", certificates[0].CertificateFile);
         Assert.AreEqual(1, store.ReadCount);
+
+        var alphaCertificate = certificates[0];
+        alphaCertificate.Name = "Alpha saved certificate";
+        alphaCertificate.CertificateFile = @"C:\certs\alpha-saved.crt";
+        alphaCertificate.PrivateKeyFile = @"C:\certs\alpha-saved.key";
+        alphaCertificate.Save();
+
+        Assert.AreEqual(1, store.SavedCertificates.Count);
+        AssertCertificate(
+            store.SavedCertificates[0],
+            10,
+            "Alpha saved certificate",
+            @"C:\certs\alpha-saved.crt",
+            @"C:\certs\alpha-saved.key");
+        AssertCertificate(
+            certificates[0],
+            10,
+            "Alpha saved certificate",
+            @"C:\certs\alpha-saved.crt",
+            @"C:\certs\alpha-saved.key");
 
         store.Replace(
             new[]
@@ -388,6 +491,19 @@ public sealed class SslCertificatesComContractTests
         Assert.AreEqual(privateKeyFile, certificate.PrivateKeyFile);
     }
 
+    private static void AssertCertificate(
+        SslCertificateAdministrationSnapshot certificate,
+        int id,
+        string name,
+        string certificateFile,
+        string privateKeyFile)
+    {
+        Assert.AreEqual(id, certificate.Id);
+        Assert.AreEqual(name, certificate.Name);
+        Assert.AreEqual(certificateFile, certificate.CertificateFile);
+        Assert.AreEqual(privateKeyFile, certificate.PrivateKeyFile);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -423,6 +539,8 @@ public sealed class SslCertificatesComContractTests
 
         public List<int> DeletedIds { get; } = [];
 
+        public List<SslCertificateAdministrationSnapshot> SavedCertificates { get; } = [];
+
         public void Replace(IReadOnlyList<SslCertificateAdministrationSnapshot> certificates)
         {
             _certificates = certificates;
@@ -450,6 +568,17 @@ public sealed class SslCertificatesComContractTests
             DeletedIds.Add(databaseId);
             _certificates = _certificates
                 .Where(certificate => certificate.Id != databaseId)
+                .ToArray();
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask UpdateSslCertificateAsync(
+            SslCertificateAdministrationSnapshot certificate,
+            CancellationToken cancellationToken)
+        {
+            SavedCertificates.Add(certificate);
+            _certificates = _certificates
+                .Select(existing => existing.Id == certificate.Id ? certificate : existing)
                 .ToArray();
             return ValueTask.CompletedTask;
         }

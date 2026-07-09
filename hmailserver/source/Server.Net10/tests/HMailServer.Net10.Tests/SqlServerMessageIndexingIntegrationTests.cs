@@ -1792,8 +1792,32 @@ ORDER BY messageid;
             Assert.AreEqual(@"C:\certs\alpha.crt", sslCertificates[0].CertificateFile);
             Assert.AreEqual(@"C:\certs\alpha.key", sslCertificates[0].PrivateKeyFile);
             Assert.AreEqual("Beta certificate", sslCertificates.get_ItemByDBID(1002).Name);
-            var pendingSslCertificateSave = Assert.ThrowsExactly<COMException>(sslCertificates[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingSslCertificateSave.ErrorCode);
+            var alphaSslCertificate = sslCertificates[0];
+            alphaSslCertificate.Name = "Alpha saved certificate";
+            alphaSslCertificate.CertificateFile = @"C:\certs\alpha-saved.crt";
+            alphaSslCertificate.PrivateKeyFile = @"C:\certs\alpha-saved.key";
+            alphaSslCertificate.Save();
+
+            Assert.AreEqual("Alpha saved certificate", sslCertificates[0].Name);
+            Assert.AreEqual(@"C:\certs\alpha-saved.crt", sslCertificates[0].CertificateFile);
+            Assert.AreEqual(@"C:\certs\alpha-saved.key", sslCertificates[0].PrivateKeyFile);
+            await using (var sslCertificateSaveConnection = new SqlConnection(testConnectionString))
+            {
+                await sslCertificateSaveConnection.OpenAsync().ConfigureAwait(false);
+                await using var readSavedSslCertificate = new SqlCommand(
+                    """
+                    SELECT sslcertificatename, sslcertificatefile, sslprivatekeyfile
+                    FROM dbo.hm_sslcertificates
+                    WHERE sslcertificateid = 1001;
+                    """,
+                    sslCertificateSaveConnection);
+                await using var savedSslCertificateReader =
+                    await readSavedSslCertificate.ExecuteReaderAsync().ConfigureAwait(false);
+                Assert.IsTrue(await savedSslCertificateReader.ReadAsync().ConfigureAwait(false));
+                Assert.AreEqual("Alpha saved certificate", savedSslCertificateReader.GetString(0));
+                Assert.AreEqual(@"C:\certs\alpha-saved.crt", savedSslCertificateReader.GetString(1));
+                Assert.AreEqual(@"C:\certs\alpha-saved.key", savedSslCertificateReader.GetString(2));
+            }
 
             await using (var sslCertificateRefreshConnection = new SqlConnection(testConnectionString))
             {

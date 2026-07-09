@@ -11,4 +11,8 @@ public interface ISslCertificateAdministrationStore
     ValueTask DeleteSslCertificateByIdAsync(
         int databaseId,
         CancellationToken cancellationToken);
+
+    ValueTask UpdateSslCertificateAsync(
+        SslCertificateAdministrationSnapshot certificate,
+        CancellationToken cancellationToken);
 }
