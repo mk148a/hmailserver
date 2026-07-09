@@ -129,6 +129,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     private readonly AntiVirusAdministrationSnapshot? _snapshot;
     private readonly IClamAvScannerTestRuntime? _clamAvScannerTestRuntime;
     private readonly IClamWinScannerTestRuntime? _clamWinScannerTestRuntime;
+    private readonly ICustomScannerTestRuntime? _customScannerTestRuntime;
 
     public AntiVirus()
     {
@@ -137,11 +138,13 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     private AntiVirus(
         AntiVirusAdministrationSnapshot snapshot,
         IClamAvScannerTestRuntime? clamAvScannerTestRuntime,
-        IClamWinScannerTestRuntime? clamWinScannerTestRuntime)
+        IClamWinScannerTestRuntime? clamWinScannerTestRuntime,
+        ICustomScannerTestRuntime? customScannerTestRuntime)
     {
         _snapshot = snapshot;
         _clamAvScannerTestRuntime = clamAvScannerTestRuntime;
         _clamWinScannerTestRuntime = clamWinScannerTestRuntime;
+        _customScannerTestRuntime = customScannerTestRuntime;
     }
 
     public bool ClamWinEnabled { get => Snapshot.ClamWinEnabled; set => Unavailable(); }
@@ -190,7 +193,26 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     public bool TestCustomerScanner(string customExecutable, int virusReturnCode, out string resultText)
     {
         resultText = string.Empty;
-        return Unavailable<bool>();
+        _ = Snapshot;
+        if (_customScannerTestRuntime is null)
+        {
+            return Unavailable<bool>();
+        }
+
+        try
+        {
+            var result = _customScannerTestRuntime.TestConnection(
+                customExecutable ?? string.Empty,
+                virusReturnCode);
+            resultText = result.ResultText ?? string.Empty;
+            return result.Succeeded;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to test the custom virus scanner.",
+                EFail);
+        }
     }
 
     public bool TestClamWinScanner(string clamWinExecutable, string clamWinDatabase, out string resultText)
@@ -246,13 +268,15 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     internal static AntiVirus CreateAuthorized(
         AntiVirusAdministrationSnapshot snapshot,
         IClamAvScannerTestRuntime? clamAvScannerTestRuntime = null,
-        IClamWinScannerTestRuntime? clamWinScannerTestRuntime = null)
+        IClamWinScannerTestRuntime? clamWinScannerTestRuntime = null,
+        ICustomScannerTestRuntime? customScannerTestRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiVirus(
             snapshot,
             clamAvScannerTestRuntime,
-            clamWinScannerTestRuntime);
+            clamWinScannerTestRuntime,
+            customScannerTestRuntime);
     }
 
     private AntiVirusAdministrationSnapshot Snapshot =>

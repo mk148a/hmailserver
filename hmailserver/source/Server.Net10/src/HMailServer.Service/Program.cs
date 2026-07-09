@@ -971,6 +971,11 @@ SettingsAdministrationRuntimeHost.Configure(
                 DataDirectory = directoryAdministrationSnapshot.DataDirectory,
                 TempDirectory = directoryAdministrationSnapshot.TempDirectory
             }),
+        CustomScannerTestRuntime: new CustomScannerTestRuntime(
+            new CustomScannerTestRuntimeOptions
+            {
+                DataDirectory = directoryAdministrationSnapshot.DataDirectory
+            }),
         DkimVerificationRuntime: host.Services.GetRequiredService<IDkimVerificationRuntime>(),
         GreyListingTripletAdministrationStore:
             host.Services.GetRequiredService<IGreyListingTripletAdministrationStore>(),

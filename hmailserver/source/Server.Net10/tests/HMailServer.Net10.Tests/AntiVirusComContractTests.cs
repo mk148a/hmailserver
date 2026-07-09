@@ -113,6 +113,8 @@ public sealed class AntiVirusComContractTests
 
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = antivirus.ClamWinEnabled);
         var blockedAttachmentsError = Assert.ThrowsExactly<COMException>(() => _ = antivirus.BlockedAttachments);
+        var testCustomError = Assert.ThrowsExactly<COMException>(
+            () => antivirus.TestCustomerScanner(@"C:\Tools\virus-scan.cmd", 7, out _));
         var testClamWinError = Assert.ThrowsExactly<COMException>(
             () => antivirus.TestClamWinScanner(@"C:\ClamWin\bin\clamscan.exe", @"C:\ClamWin\db", out _));
         var testClamAvError = Assert.ThrowsExactly<COMException>(
@@ -121,6 +123,7 @@ public sealed class AntiVirusComContractTests
 
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, blockedAttachmentsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, testCustomError.ErrorCode);
         Assert.AreEqual(EAccessDenied, testClamWinError.ErrorCode);
         Assert.AreEqual(EAccessDenied, testClamAvError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
@@ -129,6 +132,8 @@ public sealed class AntiVirusComContractTests
     [TestMethod]
     public void AuthorizedSettings_ExposesReadOnlyAntiVirusSnapshot()
     {
+        var customScannerRuntime = new FakeCustomScannerTestRuntime(
+            new CustomScannerTestResult(true, "Unknown"));
         var clamWinRuntime = new FakeClamWinScannerTestRuntime(
             new ClamWinScannerTestResult(true, "Unknown"));
         var clamAvRuntime = new FakeClamAvScannerTestRuntime(
@@ -155,7 +160,8 @@ public sealed class AntiVirusComContractTests
                 AntiVirusClamAvPort: 3310),
             new SettingsRuntimeConfiguration(
                 ClamAvScannerTestRuntime: clamAvRuntime,
-                ClamWinScannerTestRuntime: clamWinRuntime));
+                ClamWinScannerTestRuntime: clamWinRuntime,
+                CustomScannerTestRuntime: customScannerRuntime));
 
         var antivirus = settings.AntiVirus;
 
@@ -173,6 +179,10 @@ public sealed class AntiVirusComContractTests
         Assert.IsTrue(antivirus.ClamAVEnabled);
         Assert.AreEqual("127.0.0.1", antivirus.ClamAVHost);
         Assert.AreEqual(3310, antivirus.ClamAVPort);
+        Assert.IsTrue(antivirus.TestCustomerScanner(@"C:\Tools\virus-scan.cmd", 7, out var customScannerResultText));
+        Assert.AreEqual("Unknown", customScannerResultText);
+        Assert.AreEqual(@"C:\Tools\virus-scan.cmd", customScannerRuntime.CommandLineTemplate);
+        Assert.AreEqual(7, customScannerRuntime.VirusReturnCode);
         Assert.IsTrue(antivirus.TestClamWinScanner(@"C:\ClamWin\bin\clamscan.exe", @"C:\ClamWin\db", out var clamWinResultText));
         Assert.AreEqual("Unknown", clamWinResultText);
         Assert.AreEqual(@"C:\ClamWin\bin\clamscan.exe", clamWinRuntime.ExecutablePath);
@@ -197,9 +207,6 @@ public sealed class AntiVirusComContractTests
         AssertPending(() => antivirus.ClamAVHost = "clamav.example.test");
         AssertPending(() => antivirus.ClamAVPort = 3311);
 
-        var resultText = "not-empty";
-        AssertPending(() => antivirus.TestCustomerScanner(@"C:\scan.cmd", 7, out resultText));
-        Assert.AreEqual(string.Empty, resultText);
     }
 
     [TestMethod]
@@ -223,11 +230,51 @@ public sealed class AntiVirusComContractTests
                 ClamAvPort: 3310));
 
         var resultText = "not-empty";
+        AssertPending(() => antivirus.TestCustomerScanner(@"C:\scan.cmd", 7, out resultText));
+        Assert.AreEqual(string.Empty, resultText);
+        resultText = "not-empty";
         AssertPending(() => antivirus.TestClamWinScanner(@"C:\clamscan.exe", @"C:\db", out resultText));
         Assert.AreEqual(string.Empty, resultText);
         resultText = "not-empty";
         AssertPending(() => antivirus.TestClamAVScanner("clamav.example.test", 3310, out resultText));
         Assert.AreEqual(string.Empty, resultText);
+    }
+
+    [TestMethod]
+    public void AuthorizedAntiVirus_TestCustomerScannerMapsRuntimeResultAndFailure()
+    {
+        var runtime = new FakeCustomScannerTestRuntime(
+            new CustomScannerTestResult(false, "Return code: 0"));
+        IInterfaceAntiVirus antivirus = AntiVirus.CreateAuthorized(
+            new AntiVirusAdministrationSnapshot(
+                ClamWinEnabled: false,
+                ClamWinExecutable: string.Empty,
+                ClamWinDatabase: string.Empty,
+                Action: 0,
+                NotifyReceiver: false,
+                NotifySender: false,
+                CustomScannerEnabled: true,
+                CustomScannerExecutable: @"C:\Tools\virus-scan.cmd",
+                CustomScannerReturnValue: 7,
+                MaximumMessageSize: 0,
+                EnableAttachmentBlocking: false,
+                ClamAvEnabled: false,
+                ClamAvHost: string.Empty,
+                ClamAvPort: 0),
+            customScannerTestRuntime: runtime);
+
+        var success = antivirus.TestCustomerScanner(@"C:\Tools\virus-scan.cmd", 7, out var resultText);
+
+        Assert.IsFalse(success);
+        Assert.AreEqual("Return code: 0", resultText);
+        Assert.AreEqual(@"C:\Tools\virus-scan.cmd", runtime.CommandLineTemplate);
+        Assert.AreEqual(7, runtime.VirusReturnCode);
+
+        runtime.ThrowOnTestConnection = true;
+        var error = Assert.ThrowsExactly<COMException>(
+            () => antivirus.TestCustomerScanner(@"C:\Tools\virus-scan.cmd", 7, out _));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
     }
 
     [TestMethod]
@@ -387,6 +434,31 @@ public sealed class AntiVirusComContractTests
             if (ThrowOnTestConnection)
             {
                 throw new InvalidOperationException("Simulated ClamAV test failure.");
+            }
+
+            return result;
+        }
+    }
+
+    private sealed class FakeCustomScannerTestRuntime(
+        CustomScannerTestResult result)
+        : ICustomScannerTestRuntime
+    {
+        public string CommandLineTemplate { get; private set; } = string.Empty;
+
+        public int VirusReturnCode { get; private set; }
+
+        public bool ThrowOnTestConnection { get; set; }
+
+        public CustomScannerTestResult TestConnection(
+            string commandLineTemplate,
+            int virusReturnCode)
+        {
+            CommandLineTemplate = commandLineTemplate;
+            VirusReturnCode = virusReturnCode;
+            if (ThrowOnTestConnection)
+            {
+                throw new InvalidOperationException("Simulated custom scanner test failure.");
             }
 
             return result;
