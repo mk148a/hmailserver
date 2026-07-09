@@ -1667,7 +1667,7 @@ ORDER BY messageid;
             var pendingRelaySave = Assert.ThrowsExactly<COMException>(incomingRelays[0].Save);
             Assert.AreEqual(unchecked((int)0x80004001), pendingRelaySave.ErrorCode);
 
-            incomingRelays.get_ItemByDBID(800).Delete();
+            incomingRelays.Delete(1);
 
             Assert.AreEqual(1, incomingRelays.Count);
             Assert.AreEqual(

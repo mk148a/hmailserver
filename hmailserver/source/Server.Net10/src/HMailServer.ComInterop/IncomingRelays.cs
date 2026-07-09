@@ -136,7 +136,22 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
             : CreateRelay(match);
     }
 
-    public void Delete(int index) => Unavailable();
+    public void Delete(int index)
+    {
+        var relays = GetRelays();
+        if (index < 0 || index >= relays.Count)
+        {
+            throw new COMException("Incoming relay index was outside the collection.", DispEBadIndex);
+        }
+
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        DeleteByDBID(relays[index].Id);
+    }
 
     public void DeleteByDBID(int databaseId)
     {
