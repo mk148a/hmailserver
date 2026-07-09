@@ -127,7 +127,7 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
                 throw new COMException("SSL certificate index was outside the collection.", DispEBadIndex);
             }
 
-            return SSLCertificate.CreateAuthorized(certificates[index]);
+            return CreateCertificate(certificates[index]);
         }
     }
 
@@ -139,7 +139,7 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
             ? throw new COMException(
                 "No SSL certificate with the specified database identifier exists.",
                 DispEBadIndex)
-            : SSLCertificate.CreateAuthorized(match);
+            : CreateCertificate(match);
     }
 
     public void DeleteByDBID(int databaseId)
@@ -221,6 +221,13 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
                 EAccessDenied);
     }
 
+    private SSLCertificate CreateCertificate(SslCertificateAdministrationSnapshot certificate)
+    {
+        return SSLCertificate.CreateAuthorized(
+            certificate,
+            _deleteById is null ? null : DeleteByDBID);
+    }
+
     private T Unavailable<T>()
     {
         _ = GetCertificates();
@@ -249,14 +256,16 @@ public sealed class SSLCertificate : IInterfaceSSLCertificate
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly SslCertificateAdministrationSnapshot? _certificate;
+    private readonly Action<int>? _delete;
 
     public SSLCertificate()
     {
     }
 
-    private SSLCertificate(SslCertificateAdministrationSnapshot certificate)
+    private SSLCertificate(SslCertificateAdministrationSnapshot certificate, Action<int>? delete)
     {
         _certificate = certificate;
+        _delete = delete;
     }
 
     public int ID => Snapshot.Id;
@@ -267,11 +276,23 @@ public sealed class SSLCertificate : IInterfaceSSLCertificate
 
     public string PrivateKeyFile { get => Snapshot.PrivateKeyFile; set => Unavailable(); }
 
-    internal static SSLCertificate CreateAuthorized(SslCertificateAdministrationSnapshot certificate) => new(certificate);
+    internal static SSLCertificate CreateAuthorized(
+        SslCertificateAdministrationSnapshot certificate,
+        Action<int>? delete = null) =>
+        new(certificate, delete);
 
     public void Save() => Unavailable();
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(Snapshot.Id);
+    }
 
     private SslCertificateAdministrationSnapshot Snapshot =>
         _certificate ?? throw new COMException(

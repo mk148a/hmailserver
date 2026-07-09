@@ -1835,6 +1835,23 @@ ORDER BY messageid;
                     await countDeletedSslCertificate.ExecuteScalarAsync().ConfigureAwait(false)));
             }
 
+            sslCertificates[0].Delete();
+
+            Assert.AreEqual(0, sslCertificates.Count);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => sslCertificates.get_ItemByDBID(1001)).ErrorCode);
+            await using (var sslCertificateItemDeleteConnection = new SqlConnection(testConnectionString))
+            {
+                await sslCertificateItemDeleteConnection.OpenAsync().ConfigureAwait(false);
+                await using var countItemDeletedSslCertificate = new SqlCommand(
+                    "SELECT COUNT(*) FROM dbo.hm_sslcertificates WHERE sslcertificateid = 1001;",
+                    sslCertificateItemDeleteConnection);
+                Assert.AreEqual(0, Convert.ToInt32(
+                    await countItemDeletedSslCertificate.ExecuteScalarAsync().ConfigureAwait(false)));
+            }
+
             sslCertificates.Clear();
 
             Assert.AreEqual(0, sslCertificates.Count);
