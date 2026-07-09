@@ -65,11 +65,13 @@ public sealed class SslCertificatesComContractTests
     {
         var certificatesError = Assert.ThrowsExactly<COMException>(() => _ = new SSLCertificates().Count);
         var certificatesRefreshError = Assert.ThrowsExactly<COMException>(new SSLCertificates().Refresh);
+        var certificatesClearError = Assert.ThrowsExactly<COMException>(new SSLCertificates().Clear);
         var certificateError = Assert.ThrowsExactly<COMException>(() => _ = new SSLCertificate().Name);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().SSLCertificates);
 
         Assert.AreEqual(EAccessDenied, certificatesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificatesRefreshError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, certificatesClearError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificateError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -172,6 +174,43 @@ public sealed class SslCertificatesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_ClearCallsConfiguredOperationAndRetainsSnapshotOnFailure()
+    {
+        var failClear = true;
+        var clears = 0;
+        IInterfaceSSLCertificates certificates = SSLCertificates.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha certificate", @"C:\certs\alpha.crt", @"C:\certs\alpha.key"),
+                Snapshot(20, "Beta certificate", @"C:\certs\beta.crt", @"C:\certs\beta.key")
+            },
+            clear: () =>
+            {
+                clears++;
+                if (failClear)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+            });
+
+        var clearFailure = Assert.ThrowsExactly<COMException>(certificates.Clear);
+
+        Assert.AreEqual(EFail, clearFailure.ErrorCode);
+        Assert.AreEqual(1, clears);
+        Assert.AreEqual(2, certificates.Count);
+        Assert.AreEqual("Alpha certificate", certificates[0].Name);
+
+        failClear = false;
+        certificates.Clear();
+
+        Assert.AreEqual(2, clears);
+        Assert.AreEqual(0, certificates.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = certificates.get_ItemByDBID(10)).ErrorCode);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_UsesConfiguredSslCertificateRuntime()
     {
         var store = new MutableSslCertificateAdministrationStore(
@@ -206,6 +245,14 @@ public sealed class SslCertificatesComContractTests
         Assert.AreEqual(
             DispEBadIndex,
             Assert.ThrowsExactly<COMException>(() => _ = certificates.get_ItemByDBID(10)).ErrorCode);
+
+        certificates.Clear();
+
+        Assert.AreEqual(1, store.ClearCount);
+        Assert.AreEqual(0, certificates.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = certificates.get_ItemByDBID(20)).ErrorCode);
     }
 
     private static SslCertificateAdministrationSnapshot Snapshot(
@@ -259,6 +306,8 @@ public sealed class SslCertificatesComContractTests
 
         public int ReadCount { get; private set; }
 
+        public int ClearCount { get; private set; }
+
         public void Replace(IReadOnlyList<SslCertificateAdministrationSnapshot> certificates)
         {
             _certificates = certificates;
@@ -270,6 +319,13 @@ public sealed class SslCertificatesComContractTests
             ReadCount++;
             return ValueTask.FromResult<IReadOnlyList<SslCertificateAdministrationSnapshot>>(
                 _certificates.OrderBy(static certificate => certificate.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+        }
+
+        public ValueTask ClearSslCertificatesAsync(CancellationToken cancellationToken)
+        {
+            ClearCount++;
+            _certificates = [];
+            return ValueTask.CompletedTask;
         }
     }
 }

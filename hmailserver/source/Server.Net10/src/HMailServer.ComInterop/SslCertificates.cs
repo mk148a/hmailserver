@@ -86,6 +86,7 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
 
     private SslCertificateAdministrationSnapshot[]? _certificates;
     private readonly Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? _reload;
+    private readonly Action? _clear;
 
     public SSLCertificates()
     {
@@ -93,20 +94,23 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
 
     private SSLCertificates(
         IReadOnlyList<SslCertificateAdministrationSnapshot> certificates,
-        Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? reload,
+        Action? clear)
     {
         _certificates = certificates.ToArray();
         _reload = reload;
+        _clear = clear;
     }
 
     public int Count => GetCertificates().Count;
 
     internal static SSLCertificates CreateAuthorized(
         IReadOnlyList<SslCertificateAdministrationSnapshot> certificates,
-        Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? reload = null,
+        Action? clear = null)
     {
         ArgumentNullException.ThrowIfNull(certificates);
-        return new SSLCertificates(certificates, reload);
+        return new SSLCertificates(certificates, reload, clear);
     }
 
     public IInterfaceSSLCertificate this[int index]
@@ -161,7 +165,27 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
         }
     }
 
-    public void Clear() => Unavailable();
+    public void Clear()
+    {
+        _ = GetCertificates();
+        if (_clear is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _clear();
+            Volatile.Write(ref _certificates, []);
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to clear the SSL certificate list from the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<SslCertificateAdministrationSnapshot> GetCertificates()
     {
@@ -263,6 +287,12 @@ public static class SslCertificateAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return SSLCertificates.CreateAuthorized(LoadCertificates(), LoadCertificates);
+        void ClearCertificates() => store
+            .ClearSslCertificatesAsync(CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return SSLCertificates.CreateAuthorized(LoadCertificates(), LoadCertificates, ClearCertificates);
     }
 }

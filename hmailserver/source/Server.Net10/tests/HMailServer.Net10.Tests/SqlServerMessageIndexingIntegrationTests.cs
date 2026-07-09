@@ -1818,6 +1818,23 @@ ORDER BY messageid;
             Assert.AreEqual(@"C:\certs\alpha-refreshed.key", sslCertificates[0].PrivateKeyFile);
             Assert.AreEqual("Alpha refreshed certificate", sslCertificates.get_ItemByDBID(1001).Name);
 
+            sslCertificates.Clear();
+
+            Assert.AreEqual(0, sslCertificates.Count);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => sslCertificates.get_ItemByDBID(1001)).ErrorCode);
+            await using (var sslCertificateClearConnection = new SqlConnection(testConnectionString))
+            {
+                await sslCertificateClearConnection.OpenAsync().ConfigureAwait(false);
+                await using var countSslCertificates = new SqlCommand(
+                    "SELECT COUNT(*) FROM dbo.hm_sslcertificates;",
+                    sslCertificateClearConnection);
+                Assert.AreEqual(0, Convert.ToInt32(
+                    await countSslCertificates.ExecuteScalarAsync().ConfigureAwait(false)));
+            }
+
             var groups = application.Settings.Groups;
             Assert.AreEqual(2, groups.Count);
             Assert.AreEqual("Administrators", groups[0].Name);

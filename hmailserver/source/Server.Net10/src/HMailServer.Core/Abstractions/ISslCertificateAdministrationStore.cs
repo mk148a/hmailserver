@@ -4,4 +4,7 @@ public interface ISslCertificateAdministrationStore
 {
     ValueTask<IReadOnlyList<SslCertificateAdministrationSnapshot>> GetSslCertificatesAsync(
         CancellationToken cancellationToken);
+
+    ValueTask ClearSslCertificatesAsync(
+        CancellationToken cancellationToken);
 }

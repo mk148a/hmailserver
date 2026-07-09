@@ -17,6 +17,10 @@ FROM hm_sslcertificates
 ORDER BY sslcertificatename ASC;
 """;
 
+    public const string ClearSslCertificatesSql = """
+DELETE FROM hm_sslcertificates;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerSslCertificateAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -46,5 +50,13 @@ ORDER BY sslcertificatename ASC;
         }
 
         return certificates;
+    }
+
+    public async ValueTask ClearSslCertificatesAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(ClearSslCertificatesSql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }
