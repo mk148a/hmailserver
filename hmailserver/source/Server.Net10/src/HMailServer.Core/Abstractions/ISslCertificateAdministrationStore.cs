@@ -7,4 +7,8 @@ public interface ISslCertificateAdministrationStore
 
     ValueTask ClearSslCertificatesAsync(
         CancellationToken cancellationToken);
+
+    ValueTask DeleteSslCertificateByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken);
 }

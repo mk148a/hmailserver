@@ -21,6 +21,11 @@ ORDER BY sslcertificatename ASC;
 DELETE FROM hm_sslcertificates;
 """;
 
+    public const string DeleteSslCertificateByIdSql = """
+DELETE FROM hm_sslcertificates
+WHERE sslcertificateid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerSslCertificateAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -57,6 +62,16 @@ DELETE FROM hm_sslcertificates;
     {
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(ClearSslCertificatesSql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask DeleteSslCertificateByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteSslCertificateByIdSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = databaseId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

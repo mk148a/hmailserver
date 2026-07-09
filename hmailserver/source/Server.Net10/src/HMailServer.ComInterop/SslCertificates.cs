@@ -87,6 +87,7 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
     private SslCertificateAdministrationSnapshot[]? _certificates;
     private readonly Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? _reload;
     private readonly Action? _clear;
+    private readonly Action<int>? _deleteById;
 
     public SSLCertificates()
     {
@@ -95,11 +96,13 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
     private SSLCertificates(
         IReadOnlyList<SslCertificateAdministrationSnapshot> certificates,
         Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? reload,
-        Action? clear)
+        Action? clear,
+        Action<int>? deleteById)
     {
         _certificates = certificates.ToArray();
         _reload = reload;
         _clear = clear;
+        _deleteById = deleteById;
     }
 
     public int Count => GetCertificates().Count;
@@ -107,10 +110,11 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
     internal static SSLCertificates CreateAuthorized(
         IReadOnlyList<SslCertificateAdministrationSnapshot> certificates,
         Func<IReadOnlyList<SslCertificateAdministrationSnapshot>>? reload = null,
-        Action? clear = null)
+        Action? clear = null,
+        Action<int>? deleteById = null)
     {
         ArgumentNullException.ThrowIfNull(certificates);
-        return new SSLCertificates(certificates, reload, clear);
+        return new SSLCertificates(certificates, reload, clear, deleteById);
     }
 
     public IInterfaceSSLCertificate this[int index]
@@ -138,7 +142,29 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
             : SSLCertificate.CreateAuthorized(match);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var certificates = GetCertificates();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _deleteById(databaseId);
+            Volatile.Write(
+                ref _certificates,
+                certificates.Where(certificate => certificate.Id != databaseId).ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the SSL certificate from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceSSLCertificate Add() => Unavailable<IInterfaceSSLCertificate>();
 
@@ -293,6 +319,16 @@ public static class SslCertificateAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return SSLCertificates.CreateAuthorized(LoadCertificates(), LoadCertificates, ClearCertificates);
+        void DeleteCertificateById(int databaseId) => store
+            .DeleteSslCertificateByIdAsync(databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return SSLCertificates.CreateAuthorized(
+            LoadCertificates(),
+            LoadCertificates,
+            ClearCertificates,
+            DeleteCertificateById);
     }
 }

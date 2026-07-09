@@ -1818,6 +1818,23 @@ ORDER BY messageid;
             Assert.AreEqual(@"C:\certs\alpha-refreshed.key", sslCertificates[0].PrivateKeyFile);
             Assert.AreEqual("Alpha refreshed certificate", sslCertificates.get_ItemByDBID(1001).Name);
 
+            sslCertificates.DeleteByDBID(1002);
+
+            Assert.AreEqual(1, sslCertificates.Count);
+            Assert.AreEqual(
+                unchecked((int)0x8002000B),
+                Assert.ThrowsExactly<COMException>(
+                    () => sslCertificates.get_ItemByDBID(1002)).ErrorCode);
+            await using (var sslCertificateDeleteConnection = new SqlConnection(testConnectionString))
+            {
+                await sslCertificateDeleteConnection.OpenAsync().ConfigureAwait(false);
+                await using var countDeletedSslCertificate = new SqlCommand(
+                    "SELECT COUNT(*) FROM dbo.hm_sslcertificates WHERE sslcertificateid = 1002;",
+                    sslCertificateDeleteConnection);
+                Assert.AreEqual(0, Convert.ToInt32(
+                    await countDeletedSslCertificate.ExecuteScalarAsync().ConfigureAwait(false)));
+            }
+
             sslCertificates.Clear();
 
             Assert.AreEqual(0, sslCertificates.Count);

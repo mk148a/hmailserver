@@ -35,4 +35,19 @@ public sealed class SqlServerSslCertificateAdministrationStoreTests
         Assert.IsFalse(sql.Contains("sslcertificatefile", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("sslprivatekeyfile", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteSslCertificateByIdSql_DeletesOnlyMatchingLegacyCertificateRow()
+    {
+        var sql = SqlServerSslCertificateAdministrationStore.DeleteSslCertificateByIdSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_sslcertificates");
+        StringAssert.Contains(sql, "WHERE sslcertificateid = @id");
+        Assert.IsFalse(sql.Contains(" JOIN ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("sslcertificatefile", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("sslprivatekeyfile", StringComparison.OrdinalIgnoreCase));
+    }
 }

@@ -211,6 +211,50 @@ public sealed class SslCertificatesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_DeleteByDBIDCallsConfiguredOperationAndRetainsSnapshotOnFailure()
+    {
+        var failDelete = true;
+        var deletedIds = new List<int>();
+        IInterfaceSSLCertificates certificates = SSLCertificates.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha certificate", @"C:\certs\alpha.crt", @"C:\certs\alpha.key"),
+                Snapshot(20, "Beta certificate", @"C:\certs\beta.crt", @"C:\certs\beta.key")
+            },
+            deleteById: databaseId =>
+            {
+                deletedIds.Add(databaseId);
+                if (failDelete)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+            });
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(() => certificates.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 10 }, deletedIds);
+        Assert.AreEqual(2, certificates.Count);
+        Assert.AreEqual("Alpha certificate", certificates[0].Name);
+
+        failDelete = false;
+        certificates.DeleteByDBID(10);
+
+        CollectionAssert.AreEqual(new[] { 10, 10 }, deletedIds);
+        Assert.AreEqual(1, certificates.Count);
+        Assert.AreEqual("Beta certificate", certificates[0].Name);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = certificates.get_ItemByDBID(10)).ErrorCode);
+
+        certificates.DeleteByDBID(999);
+
+        CollectionAssert.AreEqual(new[] { 10, 10, 999 }, deletedIds);
+        Assert.AreEqual(1, certificates.Count);
+        Assert.AreEqual("Beta certificate", certificates[0].Name);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_UsesConfiguredSslCertificateRuntime()
     {
         var store = new MutableSslCertificateAdministrationStore(
@@ -245,6 +289,16 @@ public sealed class SslCertificatesComContractTests
         Assert.AreEqual(
             DispEBadIndex,
             Assert.ThrowsExactly<COMException>(() => _ = certificates.get_ItemByDBID(10)).ErrorCode);
+
+        certificates.DeleteByDBID(20);
+
+        Assert.AreEqual(1, store.DeletedIds.Count);
+        Assert.AreEqual(20, store.DeletedIds[0]);
+        Assert.AreEqual(1, certificates.Count);
+        Assert.AreEqual(30, certificates[0].ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = certificates.get_ItemByDBID(20)).ErrorCode);
 
         certificates.Clear();
 
@@ -308,6 +362,8 @@ public sealed class SslCertificatesComContractTests
 
         public int ClearCount { get; private set; }
 
+        public List<int> DeletedIds { get; } = [];
+
         public void Replace(IReadOnlyList<SslCertificateAdministrationSnapshot> certificates)
         {
             _certificates = certificates;
@@ -325,6 +381,17 @@ public sealed class SslCertificatesComContractTests
         {
             ClearCount++;
             _certificates = [];
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DeleteSslCertificateByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken)
+        {
+            DeletedIds.Add(databaseId);
+            _certificates = _certificates
+                .Where(certificate => certificate.Id != databaseId)
+                .ToArray();
             return ValueTask.CompletedTask;
         }
     }
