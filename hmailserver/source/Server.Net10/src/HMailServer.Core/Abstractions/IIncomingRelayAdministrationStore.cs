@@ -8,4 +8,8 @@ public interface IIncomingRelayAdministrationStore
     ValueTask DeleteIncomingRelayByIdAsync(
         int databaseId,
         CancellationToken cancellationToken);
+
+    ValueTask UpdateIncomingRelayAsync(
+        IncomingRelayAdministrationSnapshot relay,
+        CancellationToken cancellationToken);
 }

@@ -1664,8 +1664,44 @@ ORDER BY messageid;
             Assert.AreEqual("127.0.0.1", incomingRelays[0].UpperIP);
             Assert.AreEqual("Beta relay", incomingRelays.get_ItemByName("BETA RELAY").Name);
             Assert.AreEqual(800, incomingRelays.get_ItemByDBID(800).ID);
-            var pendingRelaySave = Assert.ThrowsExactly<COMException>(incomingRelays[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingRelaySave.ErrorCode);
+            var alphaRelay = incomingRelays[0];
+            alphaRelay.Name = "Alpha saved relay";
+            alphaRelay.LowerIP = "10.1.2.3";
+            alphaRelay.UpperIP = "10.1.2.4";
+            Assert.AreEqual("Alpha saved relay", alphaRelay.Name);
+            Assert.AreEqual("10.1.2.3", alphaRelay.LowerIP);
+            Assert.AreEqual("10.1.2.4", alphaRelay.UpperIP);
+            Assert.AreEqual("Alpha relay", incomingRelays[0].Name);
+
+            alphaRelay.Save();
+
+            Assert.AreEqual("Alpha saved relay", incomingRelays[0].Name);
+            Assert.AreEqual("10.1.2.3", incomingRelays[0].LowerIP);
+            Assert.AreEqual("10.1.2.4", incomingRelays[0].UpperIP);
+            Assert.AreEqual(700, incomingRelays.get_ItemByName("ALPHA SAVED RELAY").ID);
+
+            await using (var incomingRelaySaveConnection = new SqlConnection(testConnectionString))
+            {
+                await incomingRelaySaveConnection.OpenAsync().ConfigureAwait(false);
+                await using var selectSavedRelay = new SqlCommand(
+                    """
+                    SELECT relayname, relaylowerip1, relaylowerip2, relayupperip1, relayupperip2
+                    FROM dbo.hm_incoming_relays
+                    WHERE relayid = 700;
+                    """,
+                    incomingRelaySaveConnection);
+                await using var savedRelayReader = await selectSavedRelay.ExecuteReaderAsync().ConfigureAwait(false);
+                Assert.IsTrue(await savedRelayReader.ReadAsync().ConfigureAwait(false));
+                Assert.AreEqual("Alpha saved relay", savedRelayReader.GetString(0));
+                Assert.AreEqual(
+                    167838211L,
+                    Convert.ToInt64(savedRelayReader.GetValue(1), System.Globalization.CultureInfo.InvariantCulture));
+                Assert.IsTrue(savedRelayReader.IsDBNull(2));
+                Assert.AreEqual(
+                    167838212L,
+                    Convert.ToInt64(savedRelayReader.GetValue(3), System.Globalization.CultureInfo.InvariantCulture));
+                Assert.IsTrue(savedRelayReader.IsDBNull(4));
+            }
 
             incomingRelays.Delete(1);
 

@@ -24,6 +24,16 @@ DELETE FROM hm_incoming_relays
 WHERE relayid = @id;
 """;
 
+    public const string UpdateIncomingRelaySql = """
+UPDATE hm_incoming_relays
+SET relayname = @name,
+    relaylowerip1 = @lowerIp1,
+    relaylowerip2 = @lowerIp2,
+    relayupperip1 = @upperIp1,
+    relayupperip2 = @upperIp2
+WHERE relayid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerIncomingRelayAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -72,6 +82,24 @@ WHERE relayid = @id;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async ValueTask UpdateIncomingRelayAsync(
+        IncomingRelayAdministrationSnapshot relay,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(relay);
+
+        var lowerIp = ParseLegacyAddress(relay.LowerIp);
+        var upperIp = ParseLegacyAddress(relay.UpperIp);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateIncomingRelaySql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = relay.Id;
+        command.Parameters.Add("@name", SqlDbType.NVarChar, 255).Value = relay.Name;
+        AddLegacyAddressParameters(command, "@lowerIp1", "@lowerIp2", lowerIp);
+        AddLegacyAddressParameters(command, "@upperIp1", "@upperIp2", upperIp);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private static string FormatLegacyAddress(long address1, long? address2)
     {
         if (address2 is null)
@@ -100,4 +128,51 @@ WHERE relayid = @id;
             bytes[offset + index] = (byte)(unsigned >> ((7 - index) * 8));
         }
     }
+
+    private static LegacyAddressParts ParseLegacyAddress(string address)
+    {
+        if (!IPAddress.TryParse(address, out var ipAddress))
+        {
+            throw new FormatException("Incoming relay IP address must be a valid IPv4 or IPv6 address.");
+        }
+
+        var bytes = ipAddress.GetAddressBytes();
+        return bytes.Length switch
+        {
+            4 => new LegacyAddressParts(
+                ((long)bytes[0] << 24)
+                | ((long)bytes[1] << 16)
+                | ((long)bytes[2] << 8)
+                | bytes[3],
+                null),
+            16 => new LegacyAddressParts(
+                ReadInt64BigEndian(bytes, 0),
+                ReadInt64BigEndian(bytes, 8)),
+            _ => throw new FormatException("Incoming relay IP address must be a valid IPv4 or IPv6 address.")
+        };
+    }
+
+    private static long ReadInt64BigEndian(byte[] bytes, int offset)
+    {
+        ulong value = 0;
+        for (var index = 0; index < 8; index++)
+        {
+            value = (value << 8) | bytes[offset + index];
+        }
+
+        return unchecked((long)value);
+    }
+
+    private static void AddLegacyAddressParameters(
+        SqlCommand command,
+        string address1Parameter,
+        string address2Parameter,
+        LegacyAddressParts address)
+    {
+        command.Parameters.Add(address1Parameter, SqlDbType.BigInt).Value = address.Address1;
+        command.Parameters.Add(address2Parameter, SqlDbType.BigInt).Value =
+            address.Address2.HasValue ? address.Address2.Value : DBNull.Value;
+    }
+
+    private sealed record LegacyAddressParts(long Address1, long? Address2);
 }

@@ -36,4 +36,22 @@ public sealed class SqlServerIncomingRelayAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("SELECT ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateIncomingRelaySql_UpdatesOnlyMatchingLegacyIncomingRelayRow()
+    {
+        var sql = SqlServerIncomingRelayAdministrationStore.UpdateIncomingRelaySql;
+
+        StringAssert.Contains(sql, "UPDATE hm_incoming_relays");
+        StringAssert.Contains(sql, "relayname = @name");
+        StringAssert.Contains(sql, "relaylowerip1 = @lowerIp1");
+        StringAssert.Contains(sql, "relaylowerip2 = @lowerIp2");
+        StringAssert.Contains(sql, "relayupperip1 = @upperIp1");
+        StringAssert.Contains(sql, "relayupperip2 = @upperIp2");
+        StringAssert.Contains(sql, "WHERE relayid = @id");
+        Assert.IsFalse(sql.Contains(" JOIN ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT ", StringComparison.OrdinalIgnoreCase));
+    }
 }

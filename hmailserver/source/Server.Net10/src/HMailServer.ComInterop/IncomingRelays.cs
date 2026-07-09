@@ -77,6 +77,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
     private IncomingRelayAdministrationSnapshot[]? _relays;
     private readonly Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? _reload;
     private readonly Action<int>? _deleteById;
+    private readonly Action<IncomingRelayAdministrationSnapshot>? _save;
 
     public IncomingRelays()
     {
@@ -85,11 +86,13 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
     private IncomingRelays(
         IReadOnlyList<IncomingRelayAdministrationSnapshot> relays,
         Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? reload,
-        Action<int>? deleteById)
+        Action<int>? deleteById,
+        Action<IncomingRelayAdministrationSnapshot>? save)
     {
         _relays = relays.ToArray();
         _reload = reload;
         _deleteById = deleteById;
+        _save = save;
     }
 
     public int Count => GetRelays().Count;
@@ -97,10 +100,11 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
     internal static IncomingRelays CreateAuthorized(
         IReadOnlyList<IncomingRelayAdministrationSnapshot> relays,
         Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? reload = null,
-        Action<int>? deleteById = null)
+        Action<int>? deleteById = null,
+        Action<IncomingRelayAdministrationSnapshot>? save = null)
     {
         ArgumentNullException.ThrowIfNull(relays);
-        return new IncomingRelays(relays, reload, deleteById);
+        return new IncomingRelays(relays, reload, deleteById, save);
     }
 
     public IInterfaceIncomingRelay this[int index]
@@ -202,6 +206,33 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
 
     public IInterfaceIncomingRelay Add() => Unavailable<IInterfaceIncomingRelay>();
 
+    private IncomingRelayAdministrationSnapshot SaveRelay(IncomingRelayAdministrationSnapshot relay)
+    {
+        var relays = GetRelays();
+        if (_save is null)
+        {
+            Unavailable();
+            return relay;
+        }
+
+        try
+        {
+            _save(relay);
+            Volatile.Write(
+                ref _relays,
+                relays
+                    .Select(existing => existing.Id == relay.Id ? relay : existing)
+                    .ToArray());
+            return relay;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the incoming relay to the database.",
+                EFail);
+        }
+    }
+
     private IReadOnlyList<IncomingRelayAdministrationSnapshot> GetRelays()
     {
         return Volatile.Read(ref _relays)
@@ -214,6 +245,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
     {
         return IncomingRelay.CreateAuthorized(
             relay,
+            save: _save is null ? null : SaveRelay,
             delete: _deleteById is null ? null : DeleteByDBID);
     }
 
@@ -244,7 +276,8 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IncomingRelayAdministrationSnapshot? _relay;
+    private IncomingRelayAdministrationSnapshot? _relay;
+    private readonly Func<IncomingRelayAdministrationSnapshot, IncomingRelayAdministrationSnapshot>? _save;
     private readonly Action<int>? _delete;
 
     public IncomingRelay()
@@ -253,24 +286,27 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
 
     private IncomingRelay(
         IncomingRelayAdministrationSnapshot relay,
+        Func<IncomingRelayAdministrationSnapshot, IncomingRelayAdministrationSnapshot>? save,
         Action<int>? delete)
     {
         _relay = relay;
+        _save = save;
         _delete = delete;
     }
 
     public int ID => Snapshot.Id;
 
-    public string LowerIP { get => Snapshot.LowerIp; set => Unavailable(); }
+    public string LowerIP { get => Snapshot.LowerIp; set => Mutate(snapshot => snapshot with { LowerIp = value ?? string.Empty }); }
 
-    public string UpperIP { get => Snapshot.UpperIp; set => Unavailable(); }
+    public string UpperIP { get => Snapshot.UpperIp; set => Mutate(snapshot => snapshot with { UpperIp = value ?? string.Empty }); }
 
-    public string Name { get => Snapshot.Name; set => Unavailable(); }
+    public string Name { get => Snapshot.Name; set => Mutate(snapshot => snapshot with { Name = value ?? string.Empty }); }
 
     internal static IncomingRelay CreateAuthorized(
         IncomingRelayAdministrationSnapshot relay,
+        Func<IncomingRelayAdministrationSnapshot, IncomingRelayAdministrationSnapshot>? save = null,
         Action<int>? delete = null) =>
-        new(relay, delete);
+        new(relay, save, delete);
 
     public void Delete()
     {
@@ -283,12 +319,32 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
         _delete(Snapshot.Id);
     }
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _relay = _save(Snapshot);
+    }
 
     private IncomingRelayAdministrationSnapshot Snapshot =>
         _relay ?? throw new COMException(
             "IncomingRelay access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private void Mutate(Func<IncomingRelayAdministrationSnapshot, IncomingRelayAdministrationSnapshot> mutation)
+    {
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _relay = mutation(Snapshot);
+    }
 
     private void Unavailable()
     {
@@ -331,6 +387,12 @@ public static class IncomingRelayAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return IncomingRelays.CreateAuthorized(LoadRelays(), LoadRelays, DeleteRelayById);
+        void SaveRelay(IncomingRelayAdministrationSnapshot relay) => store
+            .UpdateIncomingRelayAsync(relay, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return IncomingRelays.CreateAuthorized(LoadRelays(), LoadRelays, DeleteRelayById, SaveRelay);
     }
 }
