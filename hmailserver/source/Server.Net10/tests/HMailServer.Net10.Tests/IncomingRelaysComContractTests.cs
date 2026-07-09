@@ -65,12 +65,14 @@ public sealed class IncomingRelaysComContractTests
         var relaysDeleteByIdError = Assert.ThrowsExactly<COMException>(() => new IncomingRelays().DeleteByDBID(10));
         var relaysRefreshError = Assert.ThrowsExactly<COMException>(new IncomingRelays().Refresh);
         var relayError = Assert.ThrowsExactly<COMException>(() => _ = new IncomingRelay().Name);
+        var relayDeleteError = Assert.ThrowsExactly<COMException>(new IncomingRelay().Delete);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().IncomingRelays);
 
         Assert.AreEqual(EAccessDenied, relaysError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relaysDeleteByIdError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relaysRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -154,6 +156,54 @@ public sealed class IncomingRelaysComContractTests
         CollectionAssert.AreEqual(new[] { 10, 10, 999 }, deletedIds);
         Assert.AreEqual(1, relays.Count);
         AssertRelay(relays[0], 20, "Beta relay", "10.0.0.0", "10.0.0.255");
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ItemDeleteCallsConfiguredOperationAndUpdatesOwningSnapshot()
+    {
+        var failDelete = true;
+        var deletedIds = new List<int>();
+        IInterfaceIncomingRelays relays = IncomingRelays.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1"),
+                Snapshot(20, "Beta relay", "10.0.0.0", "10.0.0.255")
+            },
+            deleteById: databaseId =>
+            {
+                deletedIds.Add(databaseId);
+                if (failDelete)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+            });
+        var alpha = relays[0];
+        var beta = relays.get_ItemByDBID(20);
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(alpha.Delete);
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 10 }, deletedIds);
+        Assert.AreEqual(2, relays.Count);
+        AssertRelay(relays[0], 10, "Alpha relay", "127.0.0.1", "127.0.0.1");
+
+        failDelete = false;
+        alpha.Delete();
+
+        CollectionAssert.AreEqual(new[] { 10, 10 }, deletedIds);
+        Assert.AreEqual(1, relays.Count);
+        AssertRelay(relays[0], 20, "Beta relay", "10.0.0.0", "10.0.0.255");
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByDBID(10)).ErrorCode);
+
+        beta.Delete();
+
+        CollectionAssert.AreEqual(new[] { 10, 10, 20 }, deletedIds);
+        Assert.AreEqual(0, relays.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByDBID(20)).ErrorCode);
     }
 
     [TestMethod]
@@ -244,6 +294,16 @@ public sealed class IncomingRelaysComContractTests
         Assert.AreEqual(
             DispEBadIndex,
             Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByDBID(10)).ErrorCode);
+
+        relays.get_ItemByDBID(30).Delete();
+
+        Assert.AreEqual(2, store.DeletedIds.Count);
+        Assert.AreEqual(30, store.DeletedIds[1]);
+        Assert.AreEqual(1, relays.Count);
+        AssertRelay(relays[0], 20, "Beta relay", "10.0.0.0", "10.0.0.255");
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByDBID(30)).ErrorCode);
     }
 
     private static IncomingRelayAdministrationSnapshot Snapshot(

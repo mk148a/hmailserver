@@ -113,7 +113,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
                 throw new COMException("Incoming relay index was outside the collection.", DispEBadIndex);
             }
 
-            return IncomingRelay.CreateAuthorized(relays[index]);
+            return CreateRelay(relays[index]);
         }
     }
 
@@ -123,7 +123,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
 
         return match is null
             ? throw new COMException("No incoming relay with the specified database identifier exists.", DispEBadIndex)
-            : IncomingRelay.CreateAuthorized(match);
+            : CreateRelay(match);
     }
 
     public IInterfaceIncomingRelay get_ItemByName(string itemName)
@@ -133,7 +133,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
 
         return match is null
             ? throw new COMException("No incoming relay with the specified name exists.", DispEBadIndex)
-            : IncomingRelay.CreateAuthorized(match);
+            : CreateRelay(match);
     }
 
     public void Delete(int index) => Unavailable();
@@ -195,6 +195,13 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
                 EAccessDenied);
     }
 
+    private IncomingRelay CreateRelay(IncomingRelayAdministrationSnapshot relay)
+    {
+        return IncomingRelay.CreateAuthorized(
+            relay,
+            delete: _deleteById is null ? null : DeleteByDBID);
+    }
+
     private T Unavailable<T>()
     {
         _ = GetRelays();
@@ -223,14 +230,18 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly IncomingRelayAdministrationSnapshot? _relay;
+    private readonly Action<int>? _delete;
 
     public IncomingRelay()
     {
     }
 
-    private IncomingRelay(IncomingRelayAdministrationSnapshot relay)
+    private IncomingRelay(
+        IncomingRelayAdministrationSnapshot relay,
+        Action<int>? delete)
     {
         _relay = relay;
+        _delete = delete;
     }
 
     public int ID => Snapshot.Id;
@@ -241,9 +252,21 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
 
     public string Name { get => Snapshot.Name; set => Unavailable(); }
 
-    internal static IncomingRelay CreateAuthorized(IncomingRelayAdministrationSnapshot relay) => new(relay);
+    internal static IncomingRelay CreateAuthorized(
+        IncomingRelayAdministrationSnapshot relay,
+        Action<int>? delete = null) =>
+        new(relay, delete);
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(Snapshot.Id);
+    }
 
     public void Save() => Unavailable();
 
