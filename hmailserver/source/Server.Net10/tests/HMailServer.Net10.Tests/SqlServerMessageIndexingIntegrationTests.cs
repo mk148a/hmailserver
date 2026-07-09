@@ -1572,7 +1572,7 @@ ORDER BY messageid;
                 Assert.ThrowsExactly<COMException>(
                     () => alphaRouteAddresses.get_ItemByDBID(1500)).ErrorCode);
 
-            alphaRouteAddresses.DeleteByDBID(1501);
+            alphaRouteAddresses.DeleteByAddress("*@ALPHA.ROUTE.TEST");
 
             Assert.AreEqual(0, alphaRouteAddresses.Count);
             Assert.AreEqual(

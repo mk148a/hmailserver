@@ -136,7 +136,20 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
 
     public IInterfaceRouteAddress Add() => Unavailable<IInterfaceRouteAddress>();
 
-    public void DeleteByAddress(string address) => Unavailable();
+    public void DeleteByAddress(string address)
+    {
+        var match = GetAddresses().FirstOrDefault(
+            routeAddress => string.Equals(
+                routeAddress.Address,
+                address ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase));
+        if (match is null)
+        {
+            return;
+        }
+
+        DeleteByDBID(match.Id);
+    }
 
     internal static RouteAddresses CreateAuthorized(
         IReadOnlyList<RouteAddressAdministrationSnapshot> addresses,

@@ -70,11 +70,14 @@ public sealed class RouteAddressesComContractTests
     {
         var addressesError = Assert.ThrowsExactly<COMException>(() => _ = new RouteAddresses().Count);
         var addressesDeleteError = Assert.ThrowsExactly<COMException>(() => new RouteAddresses().DeleteByDBID(100));
+        var addressesDeleteByAddressError = Assert.ThrowsExactly<COMException>(
+            () => new RouteAddresses().DeleteByAddress("alpha@example.test"));
         var addressError = Assert.ThrowsExactly<COMException>(() => _ = new RouteAddress().Address);
         var addressDeleteError = Assert.ThrowsExactly<COMException>(new RouteAddress().Delete);
 
         Assert.AreEqual(EAccessDenied, addressesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressesDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, addressesDeleteByAddressError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressDeleteError.ErrorCode);
     }
@@ -161,6 +164,55 @@ public sealed class RouteAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_DeleteByAddressUsesFirstCaseInsensitiveMatchAndRetainsSnapshotOnFailure()
+    {
+        var failDelete = true;
+        var deletedIds = new List<int>();
+        IInterfaceRouteAddresses addresses = RouteAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(100, 10, "alpha@example.test"),
+                Snapshot(200, 10, "ALPHA@example.test"),
+                Snapshot(300, 10, "*@example.test")
+            },
+            deleteById: databaseId =>
+            {
+                deletedIds.Add(databaseId);
+                if (failDelete)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+            });
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(
+            () => addresses.DeleteByAddress("ALPHA@example.test"));
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 100 }, deletedIds);
+        Assert.AreEqual(3, addresses.Count);
+        AssertAddress(addresses[0], 100, 10, "alpha@example.test");
+
+        failDelete = false;
+        addresses.DeleteByAddress("ALPHA@example.test");
+
+        CollectionAssert.AreEqual(new[] { 100, 100 }, deletedIds);
+        Assert.AreEqual(2, addresses.Count);
+        AssertAddress(addresses[0], 200, 10, "ALPHA@example.test");
+
+        addresses.DeleteByAddress("alpha@example.test");
+
+        CollectionAssert.AreEqual(new[] { 100, 100, 200 }, deletedIds);
+        Assert.AreEqual(1, addresses.Count);
+        AssertAddress(addresses[0], 300, 10, "*@example.test");
+
+        addresses.DeleteByAddress("missing@example.test");
+
+        CollectionAssert.AreEqual(new[] { 100, 100, 200 }, deletedIds);
+        Assert.AreEqual(1, addresses.Count);
+        AssertAddress(addresses[0], 300, 10, "*@example.test");
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_ItemDeleteCallsConfiguredOperationAndUpdatesOwningSnapshot()
     {
         var failDelete = true;
@@ -242,13 +294,24 @@ public sealed class RouteAddressesComContractTests
         Assert.AreEqual(1, addresses.Count);
         AssertAddress(addresses[0], 200, 10, "second@example.test");
 
+        addresses.DeleteByAddress("SECOND@example.test");
+
+        CollectionAssert.AreEqual(
+            new[] { (RouteId: 10, DatabaseId: 100), (RouteId: 10, DatabaseId: 200) },
+            store.DeletedAddresses);
+        Assert.AreEqual(0, addresses.Count);
+
         addresses.DeleteByDBID(300);
 
         CollectionAssert.AreEqual(
-            new[] { (RouteId: 10, DatabaseId: 100), (RouteId: 10, DatabaseId: 300) },
+            new[]
+            {
+                (RouteId: 10, DatabaseId: 100),
+                (RouteId: 10, DatabaseId: 200),
+                (RouteId: 10, DatabaseId: 300)
+            },
             store.DeletedAddresses);
-        Assert.AreEqual(1, addresses.Count);
-        AssertAddress(addresses[0], 200, 10, "second@example.test");
+        Assert.AreEqual(0, addresses.Count);
     }
 
     private static RouteAddressAdministrationSnapshot Snapshot(int id, int routeId, string address) =>
