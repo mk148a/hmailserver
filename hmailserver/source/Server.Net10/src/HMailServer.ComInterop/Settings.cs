@@ -433,6 +433,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
     private readonly bool _authorized;
     private readonly SettingsAdministrationSnapshot? _administrationSnapshot;
     private readonly SettingsRuntimeConfiguration _runtimeConfiguration = new();
+    private readonly Func<bool>? _isServerAdministrator;
 
     public Settings()
     {
@@ -441,11 +442,13 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
     private Settings(
         bool authorized,
         SettingsAdministrationSnapshot? administrationSnapshot = null,
-        SettingsRuntimeConfiguration? runtimeConfiguration = null)
+        SettingsRuntimeConfiguration? runtimeConfiguration = null,
+        Func<bool>? isServerAdministrator = null)
     {
         _authorized = authorized;
         _administrationSnapshot = administrationSnapshot;
         _runtimeConfiguration = runtimeConfiguration ?? new SettingsRuntimeConfiguration();
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public override string UserInterfaceLanguage
@@ -1390,7 +1393,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
-            return IncomingRelayAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            EnsureServerAdministrator();
+            return IncomingRelayAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
         }
     }
 
@@ -1431,17 +1435,20 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
 
     private static bool HasFlag(int value, int flag) => (value & flag) != 0;
 
-    internal static Settings CreateAuthorized() => new(authorized: true);
+    internal static Settings CreateAuthorized(Func<bool>? isServerAdministrator = null) =>
+        new(authorized: true, isServerAdministrator: isServerAdministrator);
 
     internal static Settings CreateAuthorized(
         SettingsAdministrationSnapshot snapshot,
-        SettingsRuntimeConfiguration? runtimeConfiguration = null)
+        SettingsRuntimeConfiguration? runtimeConfiguration = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new Settings(
             authorized: true,
             administrationSnapshot: snapshot,
-            runtimeConfiguration: runtimeConfiguration);
+            runtimeConfiguration: runtimeConfiguration,
+            isServerAdministrator: isServerAdministrator);
     }
 
     void ISettingsAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
@@ -1449,6 +1456,14 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
     private void EnsureAuthorized()
     {
         if (!_authorized)
+        {
+            throw new COMException("Settings access requires an authenticated server administrator.", EAccessDenied);
+        }
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
         {
             throw new COMException("Settings access requires an authenticated server administrator.", EAccessDenied);
         }
@@ -1583,12 +1598,12 @@ public static class SettingsAdministrationRuntimeHost
             new RuntimeConfiguration(store, settings ?? new SettingsRuntimeConfiguration()));
     }
 
-    internal static Settings CreateAuthorizedAdapter()
+    internal static Settings CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
     {
         var configuration = Volatile.Read(ref _configuration);
         if (configuration is null)
         {
-            return Settings.CreateAuthorized();
+            return Settings.CreateAuthorized(isServerAdministrator);
         }
 
         var snapshot = configuration.Store
@@ -1597,7 +1612,7 @@ public static class SettingsAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return Settings.CreateAuthorized(snapshot, configuration.Settings);
+        return Settings.CreateAuthorized(snapshot, configuration.Settings, isServerAdministrator);
     }
 }
 

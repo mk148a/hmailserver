@@ -61,21 +61,103 @@ public sealed class IncomingRelaysComContractTests
     [TestMethod]
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
-        var relaysError = Assert.ThrowsExactly<COMException>(() => _ = new IncomingRelays().Count);
-        var relaysDeleteError = Assert.ThrowsExactly<COMException>(() => new IncomingRelays().Delete(0));
-        var relaysDeleteByIdError = Assert.ThrowsExactly<COMException>(() => new IncomingRelays().DeleteByDBID(10));
-        var relaysRefreshError = Assert.ThrowsExactly<COMException>(new IncomingRelays().Refresh);
-        var relayError = Assert.ThrowsExactly<COMException>(() => _ = new IncomingRelay().Name);
-        var relayDeleteError = Assert.ThrowsExactly<COMException>(new IncomingRelay().Delete);
-        var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().IncomingRelays);
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1")
+            });
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
+        var relays = new IncomingRelays();
+        var relay = new IncomingRelay();
+        var settings = new Settings();
+
+        var relaysError = Assert.ThrowsExactly<COMException>(() => _ = relays.Count);
+        var relaysDeleteError = Assert.ThrowsExactly<COMException>(() => relays.Delete(0));
+        var relaysDeleteByIdError = Assert.ThrowsExactly<COMException>(() => relays.DeleteByDBID(10));
+        var relaysAddError = Assert.ThrowsExactly<COMException>(() => relays.Add());
+        var relaysRefreshError = Assert.ThrowsExactly<COMException>(relays.Refresh);
+        var relayError = Assert.ThrowsExactly<COMException>(() => _ = relay.Name);
+        var relayNameError = Assert.ThrowsExactly<COMException>(() => relay.Name = "Changed relay");
+        var relayLowerIpError = Assert.ThrowsExactly<COMException>(() => relay.LowerIP = "192.168.1.1");
+        var relayUpperIpError = Assert.ThrowsExactly<COMException>(() => relay.UpperIP = "192.168.1.254");
+        var relaySaveError = Assert.ThrowsExactly<COMException>(relay.Save);
+        var relayDeleteError = Assert.ThrowsExactly<COMException>(relay.Delete);
+        var settingsError = Assert.ThrowsExactly<COMException>(() => _ = settings.IncomingRelays);
 
         Assert.AreEqual(EAccessDenied, relaysError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relaysDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relaysDeleteByIdError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relaysAddError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relaysRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayNameError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayLowerIpError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayUpperIpError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relaySaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
+        Assert.AreEqual(0, store.ReadCount);
+        Assert.AreEqual(0, store.DeletedIds.Count);
+        Assert.AreEqual(0, store.SavedRelays.Count);
+        Assert.AreEqual(0, store.InsertedRelays.Count);
+    }
+
+    [TestMethod]
+    public void FailedReauthentication_RevokesSettingsRelayAccessAndItemPersistenceOnly()
+    {
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1"),
+                Snapshot(20, "Beta relay", "10.0.0.0", "10.0.0.255")
+            });
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
+        var application = Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+        var relays = settings.IncomingRelays;
+        var alpha = relays.get_ItemByDBID(10);
+
+        Assert.AreEqual(1, store.ReadCount);
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        var applicationSettingsError = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
+        var retainedSettingsError = Assert.ThrowsExactly<COMException>(() => _ = settings.IncomingRelays);
+
+        Assert.AreEqual(EAccessDenied, applicationSettingsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, retainedSettingsError.ErrorCode);
+        Assert.AreEqual(1, store.ReadCount);
+
+        alpha.Name = "Alpha staged relay";
+        alpha.LowerIP = "192.168.10.1";
+        alpha.UpperIP = "192.168.10.254";
+        AssertRelay(alpha, 10, "Alpha staged relay", "192.168.10.1", "192.168.10.254");
+
+        var saveError = Assert.ThrowsExactly<COMException>(alpha.Save);
+        var deleteError = Assert.ThrowsExactly<COMException>(alpha.Delete);
+        var added = relays.Add();
+        added.Name = "Gamma relay";
+        added.LowerIP = "192.168.1.1";
+        added.UpperIP = "192.168.1.254";
+        var insertError = Assert.ThrowsExactly<COMException>(added.Save);
+
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, insertError.ErrorCode);
+        Assert.AreEqual(0, store.DeletedIds.Count);
+        Assert.AreEqual(0, store.SavedRelays.Count);
+        Assert.AreEqual(0, store.InsertedRelays.Count);
+
+        relays.DeleteByDBID(20);
+        relays.Refresh();
+        relays.Delete(0);
+
+        CollectionAssert.AreEqual(new[] { 20, 10 }, store.DeletedIds);
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(0, store.SavedRelays.Count);
+        Assert.AreEqual(0, store.InsertedRelays.Count);
+        Assert.AreEqual(0, relays.Count);
     }
 
     [TestMethod]
@@ -673,5 +755,13 @@ public sealed class IncomingRelaysComContractTests
                 .ToArray();
             return ValueTask.FromResult(insertedId);
         }
+    }
+
+    private sealed class TestAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            string.Equals(username, "Administrator", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(attemptedPassword, password, StringComparison.Ordinal);
     }
 }

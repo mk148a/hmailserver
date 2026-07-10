@@ -82,7 +82,7 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return SettingsAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            return SettingsAdministrationRuntimeHost.CreateAuthorizedAdapter(() => _isServerAdministrator);
         }
     }
 

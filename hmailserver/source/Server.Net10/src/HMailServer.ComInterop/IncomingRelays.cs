@@ -80,6 +80,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
     private readonly Action<int>? _deleteById;
     private readonly Action<IncomingRelayAdministrationSnapshot>? _save;
     private readonly Func<IncomingRelayAdministrationSnapshot, int>? _insert;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public IncomingRelays()
     {
@@ -90,13 +91,15 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
         Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? reload,
         Action<int>? deleteById,
         Action<IncomingRelayAdministrationSnapshot>? save,
-        Func<IncomingRelayAdministrationSnapshot, int>? insert)
+        Func<IncomingRelayAdministrationSnapshot, int>? insert,
+        Func<bool>? isServerAdministrator)
     {
         _relays = relays.ToArray();
         _reload = reload;
         _deleteById = deleteById;
         _save = save;
         _insert = insert;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int Count => GetRelays().Count;
@@ -106,10 +109,11 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
         Func<IReadOnlyList<IncomingRelayAdministrationSnapshot>>? reload = null,
         Action<int>? deleteById = null,
         Action<IncomingRelayAdministrationSnapshot>? save = null,
-        Func<IncomingRelayAdministrationSnapshot, int>? insert = null)
+        Func<IncomingRelayAdministrationSnapshot, int>? insert = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(relays);
-        return new IncomingRelays(relays, reload, deleteById, save, insert);
+        return new IncomingRelays(relays, reload, deleteById, save, insert, isServerAdministrator);
     }
 
     public IInterfaceIncomingRelay this[int index]
@@ -224,7 +228,8 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
 
         return IncomingRelay.CreateAuthorized(
             new IncomingRelayAdministrationSnapshot(0, string.Empty, "0.0.0.0", "0.0.0.0"),
-            save: SaveRelay);
+            save: SaveRelay,
+            isServerAdministrator: _isServerAdministrator);
     }
 
     private IncomingRelayAdministrationSnapshot SaveRelay(IncomingRelayAdministrationSnapshot relay)
@@ -280,7 +285,8 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
         return IncomingRelay.CreateAuthorized(
             relay,
             save: _save is null ? null : SaveRelay,
-            delete: _deleteById is null ? null : DeleteByDBID);
+            delete: _deleteById is null ? null : DeleteByDBID,
+            isServerAdministrator: _isServerAdministrator);
     }
 
     private T Unavailable<T>()
@@ -313,6 +319,7 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
     private IncomingRelayAdministrationSnapshot? _relay;
     private readonly Func<IncomingRelayAdministrationSnapshot, IncomingRelayAdministrationSnapshot>? _save;
     private readonly Action<int>? _delete;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public IncomingRelay()
     {
@@ -321,11 +328,13 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
     private IncomingRelay(
         IncomingRelayAdministrationSnapshot relay,
         Func<IncomingRelayAdministrationSnapshot, IncomingRelayAdministrationSnapshot>? save,
-        Action<int>? delete)
+        Action<int>? delete,
+        Func<bool>? isServerAdministrator)
     {
         _relay = relay;
         _save = save;
         _delete = delete;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int ID => Snapshot.Id;
@@ -339,11 +348,13 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
     internal static IncomingRelay CreateAuthorized(
         IncomingRelayAdministrationSnapshot relay,
         Func<IncomingRelayAdministrationSnapshot, IncomingRelayAdministrationSnapshot>? save = null,
-        Action<int>? delete = null) =>
-        new(relay, save, delete);
+        Action<int>? delete = null,
+        Func<bool>? isServerAdministrator = null) =>
+        new(relay, save, delete, isServerAdministrator);
 
     public void Delete()
     {
+        EnsureServerAdministrator();
         if (_delete is null)
         {
             Unavailable();
@@ -355,6 +366,7 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
 
     public void Save()
     {
+        EnsureServerAdministrator();
         if (_save is null)
         {
             Unavailable();
@@ -368,6 +380,16 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
         _relay ?? throw new COMException(
             "IncomingRelay access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "IncomingRelay access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private void Mutate(Func<IncomingRelayAdministrationSnapshot, IncomingRelayAdministrationSnapshot> mutation)
     {
@@ -449,7 +471,7 @@ public static class IncomingRelayAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static IncomingRelays CreateAuthorizedAdapter()
+    internal static IncomingRelays CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -480,6 +502,12 @@ public static class IncomingRelayAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return IncomingRelays.CreateAuthorized(LoadRelays(), LoadRelays, DeleteRelayById, SaveRelay, InsertRelay);
+        return IncomingRelays.CreateAuthorized(
+            LoadRelays(),
+            LoadRelays,
+            DeleteRelayById,
+            SaveRelay,
+            InsertRelay,
+            isServerAdministrator);
     }
 }
