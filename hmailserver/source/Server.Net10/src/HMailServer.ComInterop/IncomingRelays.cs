@@ -1,3 +1,4 @@
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using HMailServer.Core.Abstractions;
@@ -324,9 +325,9 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
 
     public int ID => Snapshot.Id;
 
-    public string LowerIP { get => Snapshot.LowerIp; set => Mutate(snapshot => snapshot with { LowerIp = value ?? string.Empty }); }
+    public string LowerIP { get => Snapshot.LowerIp; set => Mutate(snapshot => snapshot with { LowerIp = NormalizeLegacyAddress(value) }); }
 
-    public string UpperIP { get => Snapshot.UpperIp; set => Mutate(snapshot => snapshot with { UpperIp = value ?? string.Empty }); }
+    public string UpperIP { get => Snapshot.UpperIp; set => Mutate(snapshot => snapshot with { UpperIp = NormalizeLegacyAddress(value) }); }
 
     public string Name { get => Snapshot.Name; set => Mutate(snapshot => snapshot with { Name = value ?? string.Empty }); }
 
@@ -372,6 +373,53 @@ public sealed class IncomingRelay : IInterfaceIncomingRelay
         }
 
         _relay = mutation(Snapshot);
+    }
+
+    private static string NormalizeLegacyAddress(string? value)
+    {
+        var address = value ?? string.Empty;
+        if (address.Contains(':', StringComparison.Ordinal))
+        {
+            return IPAddress.TryParse(address, out var parsed) && parsed.GetAddressBytes().Length == 16
+                ? parsed.ToString()
+                : "::";
+        }
+
+        return TryParseLegacyIpv4(address, out var normalized)
+            ? normalized
+            : "0.0.0.0";
+    }
+
+    private static bool TryParseLegacyIpv4(string address, out string normalized)
+    {
+        var parts = address.Split('.');
+        if (parts.Length != 4)
+        {
+            normalized = string.Empty;
+            return false;
+        }
+
+        var bytes = new byte[4];
+        for (var index = 0; index < parts.Length; index++)
+        {
+            var part = parts[index];
+            if (part.Length == 0 || part.Any(static value => value < '0' || value > '9'))
+            {
+                normalized = string.Empty;
+                return false;
+            }
+
+            if (!int.TryParse(part, out var octet) || octet > 255)
+            {
+                normalized = string.Empty;
+                return false;
+            }
+
+            bytes[index] = (byte)octet;
+        }
+
+        normalized = new IPAddress(bytes).ToString();
+        return true;
     }
 
     private void Unavailable()

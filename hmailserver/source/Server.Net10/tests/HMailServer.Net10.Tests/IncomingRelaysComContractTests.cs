@@ -304,6 +304,33 @@ public sealed class IncomingRelaysComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_ItemSaveNormalizesMalformedIpSettersBeforeStore()
+    {
+        var savedRelays = new List<IncomingRelayAdministrationSnapshot>();
+        IInterfaceIncomingRelays relays = IncomingRelays.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1"),
+                Snapshot(20, "Beta relay", "10.0.0.0", "10.0.0.255")
+            },
+            save: savedRelays.Add);
+        var alpha = relays[0];
+
+        alpha.LowerIP = "1";
+        alpha.UpperIP = "2001:db8:::bad";
+
+        AssertRelay(alpha, 10, "Alpha relay", "0.0.0.0", "::");
+        AssertRelay(relays[0], 10, "Alpha relay", "127.0.0.1", "127.0.0.1");
+
+        alpha.Save();
+
+        Assert.AreEqual(1, savedRelays.Count);
+        AssertRelay(savedRelays[0], 10, "Alpha relay", "0.0.0.0", "::");
+        AssertRelay(relays[0], 10, "Alpha relay", "0.0.0.0", "::");
+        AssertRelay(relays.get_ItemByDBID(20), 20, "Beta relay", "10.0.0.0", "10.0.0.255");
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_AddReturnsUnsavedItemAndSaveInsertsIntoOwningSnapshot()
     {
         var failInsert = true;
@@ -352,6 +379,40 @@ public sealed class IncomingRelaysComContractTests
         Assert.AreEqual(30, added.ID);
         Assert.AreEqual(2, relays.Count);
         AssertRelay(relays.get_ItemByDBID(30), 30, "Gamma relay", "192.168.1.1", "192.168.1.254");
+        AssertRelay(relays[0], 10, "Alpha relay", "127.0.0.1", "127.0.0.1");
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_AddItemSaveNormalizesMalformedIpSettersBeforeInsert()
+    {
+        var insertedRelays = new List<IncomingRelayAdministrationSnapshot>();
+        IInterfaceIncomingRelays relays = IncomingRelays.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1")
+            },
+            save: _ => Assert.Fail("Existing-row update should not be used for a new incoming relay."),
+            insert: relay =>
+            {
+                insertedRelays.Add(relay);
+                return 30;
+            });
+
+        var added = relays.Add();
+        added.Name = "Gamma relay";
+        added.LowerIP = "127.1";
+        added.UpperIP = "fe80:::bad";
+
+        AssertRelay(added, 0, "Gamma relay", "0.0.0.0", "::");
+        Assert.AreEqual(1, relays.Count);
+
+        added.Save();
+
+        Assert.AreEqual(1, insertedRelays.Count);
+        AssertRelay(insertedRelays[0], 0, "Gamma relay", "0.0.0.0", "::");
+        Assert.AreEqual(30, added.ID);
+        Assert.AreEqual(2, relays.Count);
+        AssertRelay(relays.get_ItemByDBID(30), 30, "Gamma relay", "0.0.0.0", "::");
         AssertRelay(relays[0], 10, "Alpha relay", "127.0.0.1", "127.0.0.1");
     }
 
