@@ -119,6 +119,11 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
             return;
         }
 
+        if (!addresses.Any(address => address.Id == databaseId))
+        {
+            return;
+        }
+
         try
         {
             _deleteById(databaseId);

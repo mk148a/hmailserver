@@ -158,7 +158,7 @@ public sealed class RouteAddressesComContractTests
 
         addresses.DeleteByDBID(999);
 
-        CollectionAssert.AreEqual(new[] { 100, 100, 999 }, deletedIds);
+        CollectionAssert.AreEqual(new[] { 100, 100 }, deletedIds);
         Assert.AreEqual(1, addresses.Count);
         AssertAddress(addresses[0], 200, 10, "*@example.test");
     }
@@ -294,6 +294,11 @@ public sealed class RouteAddressesComContractTests
         Assert.AreEqual(1, addresses.Count);
         AssertAddress(addresses[0], 200, 10, "second@example.test");
 
+        firstAddress.Delete();
+
+        CollectionAssert.AreEqual(new[] { (RouteId: 10, DatabaseId: 100) }, store.DeletedAddresses);
+        Assert.AreEqual(1, addresses.Count);
+
         addresses.DeleteByAddress("SECOND@example.test");
 
         CollectionAssert.AreEqual(
@@ -307,8 +312,7 @@ public sealed class RouteAddressesComContractTests
             new[]
             {
                 (RouteId: 10, DatabaseId: 100),
-                (RouteId: 10, DatabaseId: 200),
-                (RouteId: 10, DatabaseId: 300)
+                (RouteId: 10, DatabaseId: 200)
             },
             store.DeletedAddresses);
         Assert.AreEqual(0, addresses.Count);
