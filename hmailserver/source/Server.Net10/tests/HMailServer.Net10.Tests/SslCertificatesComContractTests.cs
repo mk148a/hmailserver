@@ -63,25 +63,47 @@ public sealed class SslCertificatesComContractTests
     [TestMethod]
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
-        var certificatesError = Assert.ThrowsExactly<COMException>(() => _ = new SSLCertificates().Count);
-        var certificatesAddError = Assert.ThrowsExactly<COMException>(() => new SSLCertificates().Add());
-        var certificatesRefreshError = Assert.ThrowsExactly<COMException>(new SSLCertificates().Refresh);
-        var certificatesClearError = Assert.ThrowsExactly<COMException>(new SSLCertificates().Clear);
-        var certificateError = Assert.ThrowsExactly<COMException>(() => _ = new SSLCertificate().Name);
-        var certificateSetError = Assert.ThrowsExactly<COMException>(() => new SSLCertificate().Name = "Changed");
-        var certificateSaveError = Assert.ThrowsExactly<COMException>(new SSLCertificate().Save);
-        var certificateDeleteError = Assert.ThrowsExactly<COMException>(new SSLCertificate().Delete);
+        var store = new MutableSslCertificateAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Alpha certificate", @"C:\certs\alpha.crt", @"C:\certs\alpha.key")
+            });
+        SslCertificateAdministrationRuntimeHost.Configure(store);
+        var certificates = new SSLCertificates();
+        var certificate = new SSLCertificate();
+
+        var certificatesError = Assert.ThrowsExactly<COMException>(() => _ = certificates.Count);
+        var certificatesDeleteError = Assert.ThrowsExactly<COMException>(() => certificates.DeleteByDBID(10));
+        var certificatesAddError = Assert.ThrowsExactly<COMException>(() => certificates.Add());
+        var certificatesRefreshError = Assert.ThrowsExactly<COMException>(certificates.Refresh);
+        var certificatesClearError = Assert.ThrowsExactly<COMException>(certificates.Clear);
+        var certificateError = Assert.ThrowsExactly<COMException>(() => _ = certificate.Name);
+        var certificateNameSetError = Assert.ThrowsExactly<COMException>(() => certificate.Name = "Changed");
+        var certificateFileSetError = Assert.ThrowsExactly<COMException>(
+            () => certificate.CertificateFile = @"C:\certs\changed.crt");
+        var privateKeyFileSetError = Assert.ThrowsExactly<COMException>(
+            () => certificate.PrivateKeyFile = @"C:\certs\changed.key");
+        var certificateSaveError = Assert.ThrowsExactly<COMException>(certificate.Save);
+        var certificateDeleteError = Assert.ThrowsExactly<COMException>(certificate.Delete);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().SSLCertificates);
 
         Assert.AreEqual(EAccessDenied, certificatesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, certificatesDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificatesAddError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificatesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificatesClearError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificateError.ErrorCode);
-        Assert.AreEqual(EAccessDenied, certificateSetError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, certificateNameSetError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, certificateFileSetError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, privateKeyFileSetError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificateSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, certificateDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
+        Assert.AreEqual(0, store.ReadCount);
+        Assert.AreEqual(0, store.ClearCount);
+        Assert.AreEqual(0, store.DeletedIds.Count);
+        Assert.AreEqual(0, store.SavedCertificates.Count);
+        Assert.AreEqual(0, store.InsertedCertificates.Count);
     }
 
     [TestMethod]
