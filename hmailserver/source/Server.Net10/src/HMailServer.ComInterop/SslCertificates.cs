@@ -159,6 +159,11 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
             return;
         }
 
+        if (!certificates.Any(certificate => certificate.Id == databaseId))
+        {
+            return;
+        }
+
         try
         {
             _deleteById(databaseId);

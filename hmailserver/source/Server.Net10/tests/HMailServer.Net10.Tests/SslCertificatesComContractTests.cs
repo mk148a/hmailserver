@@ -279,7 +279,7 @@ public sealed class SslCertificatesComContractTests
 
         certificates.DeleteByDBID(999);
 
-        CollectionAssert.AreEqual(new[] { 10, 10, 999 }, deletedIds);
+        CollectionAssert.AreEqual(new[] { 10, 10 }, deletedIds);
         Assert.AreEqual(1, certificates.Count);
         Assert.AreEqual("Beta certificate", certificates[0].Name);
     }
@@ -322,6 +322,11 @@ public sealed class SslCertificatesComContractTests
         Assert.AreEqual(
             DispEBadIndex,
             Assert.ThrowsExactly<COMException>(() => _ = certificates.get_ItemByDBID(10)).ErrorCode);
+
+        alpha.Delete();
+
+        CollectionAssert.AreEqual(new[] { 10, 10 }, deletedIds);
+        Assert.AreEqual(1, certificates.Count);
 
         beta.Delete();
 
