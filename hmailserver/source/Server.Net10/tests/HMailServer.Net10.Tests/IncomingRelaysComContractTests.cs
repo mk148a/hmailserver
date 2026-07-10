@@ -155,7 +155,7 @@ public sealed class IncomingRelaysComContractTests
 
         relays.DeleteByDBID(999);
 
-        CollectionAssert.AreEqual(new[] { 10, 10, 999 }, deletedIds);
+        CollectionAssert.AreEqual(new[] { 10, 10 }, deletedIds);
         Assert.AreEqual(1, relays.Count);
         AssertRelay(relays[0], 20, "Beta relay", "10.0.0.0", "10.0.0.255");
     }
@@ -249,6 +249,11 @@ public sealed class IncomingRelaysComContractTests
         Assert.AreEqual(
             DispEBadIndex,
             Assert.ThrowsExactly<COMException>(() => _ = relays.get_ItemByDBID(10)).ErrorCode);
+
+        alpha.Delete();
+
+        CollectionAssert.AreEqual(new[] { 10, 10 }, deletedIds);
+        Assert.AreEqual(1, relays.Count);
 
         beta.Delete();
 

@@ -171,6 +171,11 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
             return;
         }
 
+        if (!relays.Any(relay => relay.Id == databaseId))
+        {
+            return;
+        }
+
         try
         {
             _deleteById(databaseId);
