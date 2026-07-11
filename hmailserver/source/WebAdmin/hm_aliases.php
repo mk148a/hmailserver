@@ -34,11 +34,20 @@ for ($i = 0; $i < $Count; $i++)
 	$aliasid             = $obAlias->ID;
 	
    $aliasname = PreprocessOutput($aliasname);
-   $aliasname_escaped = GetStringForJavaScript($aliasname);
    
 	echo "<tr bgcolor=\"$bgcolor\">";
 	echo "<td width=\"80%\"><a href=\"?page=alias&action=edit&domainid=$domainid&aliasid=$aliasid\">$aliasname</a></td>";
-   echo "<td><a href=\"javascript:ConfirmDelete('$aliasname_escaped', '?page=background_alias_save&csrftoken=$csrftoken&action=delete&domainid=$domainid&aliasid=$aliasid')\">$str_delete</a></td>";
+   $confirm_delete = str_replace("%s", EscapeStringForJs($aliasname), GetConfirmDelete());
+   echo "<td>";
+   echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\" onsubmit=\"return confirm('$confirm_delete');\">";
+   PrintHiddenCsrfToken();
+   PrintHidden("page", "background_alias_save");
+   PrintHidden("action", "delete");
+   PrintHidden("domainid", $domainid);
+   PrintHidden("aliasid", $aliasid);
+   echo "<input type=\"submit\" value=\"$str_delete\">";
+   echo "</form>";
+   echo "</td>";
 	echo "</tr>";
 	
 	if ($bgcolor == "#EEEEEE")

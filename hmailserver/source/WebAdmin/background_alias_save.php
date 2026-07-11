@@ -33,6 +33,7 @@
       $obAlias = $obDomain->Aliases->Add();  
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obDomain->Aliases->DeleteByDBID($aliasid);  
       header("Location: index.php?page=aliases&domainid=$domainid");
       exit();

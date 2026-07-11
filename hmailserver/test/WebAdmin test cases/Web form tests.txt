@@ -11,3 +11,7 @@ Confirm that the corresponding valid POST deletes the selected non-current accou
 Domain deletion must use a POST form containing page=background_domain_save, action=delete, domainid, and csrftoken.
 Confirm that a GET request to background_domain_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the domain.
 Confirm that a non-server-admin POST cannot delete a domain, while a valid server-admin POST deletes the selected domain and returns to the domain list.
+
+Alias deletion must use a POST form containing page=background_alias_save, action=delete, domainid, aliasid, and csrftoken.
+Confirm that a GET request to background_alias_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the alias.
+Confirm that a valid same-domain administrator POST deletes the selected alias and returns to the alias list, while cross-domain or user requests remain denied.
