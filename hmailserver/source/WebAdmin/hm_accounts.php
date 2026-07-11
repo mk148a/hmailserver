@@ -47,7 +47,6 @@ for ($i = 0; $i < $Count; $i++)
 	$accountmaxsize      = $obAccount->MaxSize();
 	
    $accountaddress = PreprocessOutput($accountaddress);
-   $accountaddress_escaped = GetStringForJavaScript($accountaddress);
    
 	echo "<tr bgcolor=\"$bgcolor\">";
 	echo "<td width=\"60%\"><a href=\"?page=account&action=edit&domainid=$domainid&accountid=$accountid\">$accountaddress</a></td>";
@@ -56,7 +55,15 @@ for ($i = 0; $i < $Count; $i++)
 	echo "<td width=\"20%\">";
 	if ($currentaccountid != $accountid)
    {
-      echo "<a href=\"javascript:ConfirmDelete('$accountaddress_escaped', '?page=background_account_save&csrftoken=$csrftoken&action=delete&domainid=$domainid&accountid=$accountid')\">$str_delete</a>";
+      $confirm_delete = str_replace("%s", EscapeStringForJs($accountaddress), GetConfirmDelete());
+      echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\" onsubmit=\"return confirm('$confirm_delete');\">";
+      PrintHiddenCsrfToken();
+      PrintHidden("page", "background_account_save");
+      PrintHidden("action", "delete");
+      PrintHidden("domainid", $domainid);
+      PrintHidden("accountid", $accountid);
+      echo "<input type=\"submit\" value=\"$str_delete\">";
+      echo "</form>";
    }
 
 	else "</td>";

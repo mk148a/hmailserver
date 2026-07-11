@@ -3,3 +3,7 @@ Add to a text area control and confirm that the text still exists after the udpa
 
 Add to a text area control and confirm that no message box is shown after save.
 </textarea><script>alert('hej');</script>
+
+Account deletion must use a POST form containing page=background_account_save, action=delete, domainid, accountid, and csrftoken.
+Confirm that a GET request to background_account_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the account.
+Confirm that the corresponding valid POST deletes the selected non-current account and returns to the domain account list.

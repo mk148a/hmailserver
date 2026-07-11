@@ -50,6 +50,7 @@
       $obAccount = $obDomain->Accounts->Add();  
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obAccount = $obDomain->Accounts->DeleteByDBID($accountid);  
       header("Location: index.php?page=accounts&domainid=$domainid");
       exit();
