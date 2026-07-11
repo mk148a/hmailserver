@@ -1415,6 +1415,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
+            EnsureServerAdministrator();
             return _administrationSnapshot is null
                 ? base.Cache
                 : CacheAdministrationRuntimeHost.CreateAuthorizedAdapter(
@@ -1423,7 +1424,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         _administrationSnapshot.DomainCacheTtl,
                         _administrationSnapshot.AccountCacheTtl,
                         _administrationSnapshot.AliasCacheTtl,
-                        _administrationSnapshot.DistributionListCacheTtl));
+                        _administrationSnapshot.DistributionListCacheTtl),
+                    _isServerAdministrator);
         }
     }
 

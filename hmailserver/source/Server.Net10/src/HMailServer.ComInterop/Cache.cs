@@ -81,6 +81,7 @@ public sealed class Cache : IInterfaceCache
 
     private readonly CacheAdministrationSnapshot? _snapshot;
     private readonly ICacheAdministrationRuntime? _runtime;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public Cache()
     {
@@ -88,49 +89,52 @@ public sealed class Cache : IInterfaceCache
 
     private Cache(
         CacheAdministrationSnapshot snapshot,
-        ICacheAdministrationRuntime? runtime)
+        ICacheAdministrationRuntime? runtime,
+        Func<bool>? isServerAdministrator)
     {
         _snapshot = snapshot;
         _runtime = runtime;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public bool Enabled { get => Snapshot.Enabled; set => Unavailable(); }
 
     public int DomainCacheTTL { get => Snapshot.DomainCacheTtl; set => Unavailable(); }
 
-    public int DomainHitRate => Statistics.DomainHitRate;
+    public int DomainHitRate => GetStatistics(requiresServerAdministrator: true).DomainHitRate;
 
     public int AccountCacheTTL { get => Snapshot.AccountCacheTtl; set => Unavailable(); }
 
-    public int AccountHitRate => Statistics.AccountHitRate;
+    public int AccountHitRate => GetStatistics(requiresServerAdministrator: true).AccountHitRate;
 
     public int AliasCacheTTL { get => Snapshot.AliasCacheTtl; set => Unavailable(); }
 
-    public int AliasHitRate => Statistics.AliasHitRate;
+    public int AliasHitRate => GetStatistics(requiresServerAdministrator: true).AliasHitRate;
 
     public int DistributionListCacheTTL { get => Snapshot.DistributionListCacheTtl; set => Unavailable(); }
 
-    public int DistributionListHitRate => Statistics.DistributionListHitRate;
+    public int DistributionListHitRate => GetStatistics(requiresServerAdministrator: true).DistributionListHitRate;
 
-    public int DomainCacheMaxSizeKb { get => Statistics.DomainCacheMaxSizeKb; set => Unavailable(); }
+    public int DomainCacheMaxSizeKb { get => GetStatistics().DomainCacheMaxSizeKb; set => Unavailable(); }
 
-    public int DomainCacheSizeKb => Statistics.DomainCacheSizeKb;
+    public int DomainCacheSizeKb => GetStatistics().DomainCacheSizeKb;
 
-    public int AccountCacheMaxSizeKb { get => Statistics.AccountCacheMaxSizeKb; set => Unavailable(); }
+    public int AccountCacheMaxSizeKb { get => GetStatistics().AccountCacheMaxSizeKb; set => Unavailable(); }
 
-    public int AccountCacheSizeKb => Statistics.AccountCacheSizeKb;
+    public int AccountCacheSizeKb => GetStatistics().AccountCacheSizeKb;
 
-    public int AliasCacheMaxSizeKb { get => Statistics.AliasCacheMaxSizeKb; set => Unavailable(); }
+    public int AliasCacheMaxSizeKb { get => GetStatistics().AliasCacheMaxSizeKb; set => Unavailable(); }
 
-    public int AliasCacheSizeKb => Statistics.AliasCacheSizeKb;
+    public int AliasCacheSizeKb => GetStatistics().AliasCacheSizeKb;
 
-    public int DistributionListCacheMaxSizeKb { get => Statistics.DistributionListCacheMaxSizeKb; set => Unavailable(); }
+    public int DistributionListCacheMaxSizeKb { get => GetStatistics().DistributionListCacheMaxSizeKb; set => Unavailable(); }
 
-    public int DistributionListCacheSizeKb => Statistics.DistributionListCacheSizeKb;
+    public int DistributionListCacheSizeKb => GetStatistics().DistributionListCacheSizeKb;
 
     public void Clear()
     {
         _ = Snapshot;
+        EnsureServerAdministrator();
         try
         {
             _runtime?.Clear();
@@ -145,10 +149,11 @@ public sealed class Cache : IInterfaceCache
 
     internal static Cache CreateAuthorized(
         CacheAdministrationSnapshot snapshot,
-        ICacheAdministrationRuntime? runtime = null)
+        ICacheAdministrationRuntime? runtime = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Cache(snapshot, runtime);
+        return new Cache(snapshot, runtime, isServerAdministrator);
     }
 
     private CacheAdministrationSnapshot Snapshot =>
@@ -156,26 +161,38 @@ public sealed class Cache : IInterfaceCache
             "Cache access requires an authenticated server administrator.",
             EAccessDenied);
 
-    private CacheAdministrationStatistics Statistics
+    private CacheAdministrationStatistics GetStatistics(bool requiresServerAdministrator = false)
     {
-        get
+        _ = Snapshot;
+        if (requiresServerAdministrator)
         {
-            _ = Snapshot;
-            if (_runtime is null)
-            {
-                return CacheAdministrationStatistics.Empty;
-            }
+            EnsureServerAdministrator();
+        }
 
-            try
-            {
-                return _runtime.GetStatistics();
-            }
-            catch (Exception)
-            {
-                throw new COMException(
-                    "It was not possible to retrieve cache statistics.",
-                    EFail);
-            }
+        if (_runtime is null)
+        {
+            return CacheAdministrationStatistics.Empty;
+        }
+
+        try
+        {
+            return _runtime.GetStatistics();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve cache statistics.",
+                EFail);
+        }
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Cache access requires an authenticated server administrator.",
+                EAccessDenied);
         }
     }
 
@@ -233,9 +250,14 @@ public static class CacheAdministrationRuntimeHost
         Volatile.Write(ref _runtime, runtime);
     }
 
-    internal static Cache CreateAuthorizedAdapter(CacheAdministrationSnapshot snapshot)
+    internal static Cache CreateAuthorizedAdapter(
+        CacheAdministrationSnapshot snapshot,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return Cache.CreateAuthorized(snapshot, Volatile.Read(ref _runtime));
+        return Cache.CreateAuthorized(
+            snapshot,
+            Volatile.Read(ref _runtime),
+            isServerAdministrator);
     }
 }

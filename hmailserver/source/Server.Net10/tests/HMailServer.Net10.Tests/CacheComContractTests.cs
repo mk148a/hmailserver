@@ -199,6 +199,79 @@ public sealed class CacheComContractTests
         }
     }
 
+    [TestMethod]
+    public void FailedReauthentication_RevokesSettingsCacheClearAndHitRatesOnly()
+    {
+        var runtime = new RecordingCacheAdministrationRuntime
+        {
+            Statistics = new CacheAdministrationStatistics(
+                DomainHitRate: 11,
+                AccountHitRate: 22,
+                AliasHitRate: 33,
+                DistributionListHitRate: 44,
+                DomainCacheMaxSizeKb: 100,
+                DomainCacheSizeKb: 10,
+                AccountCacheMaxSizeKb: 200,
+                AccountCacheSizeKb: 20,
+                AliasCacheMaxSizeKb: 300,
+                AliasCacheSizeKb: 30,
+                DistributionListCacheMaxSizeKb: 400,
+                DistributionListCacheSizeKb: 40)
+        };
+        var settingsStore = new RecordingSettingsAdministrationStore(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                CacheEnabled: true,
+                DomainCacheTtl: 60,
+                AccountCacheTtl: 90,
+                AliasCacheTtl: 120,
+                DistributionListCacheTtl: 180));
+        CacheAdministrationRuntimeHost.Configure(runtime);
+        SettingsAdministrationRuntimeHost.Configure(settingsStore);
+        var application = Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+        var cache = settings.Cache;
+
+        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        var applicationSettingsError = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
+        var retainedSettingsError = Assert.ThrowsExactly<COMException>(() => _ = settings.Cache);
+
+        Assert.AreEqual(EAccessDenied, applicationSettingsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, retainedSettingsError.ErrorCode);
+        Assert.AreEqual(1, settingsStore.ReadCount);
+
+        Assert.IsTrue(cache.Enabled);
+        Assert.AreEqual(60, cache.DomainCacheTTL);
+        Assert.AreEqual(100, cache.DomainCacheMaxSizeKb);
+        Assert.AreEqual(10, cache.DomainCacheSizeKb);
+        var statisticsReadsBeforeProtectedCalls = runtime.StatisticsReadCount;
+
+        foreach (var hitRate in new Func<int>[]
+                 {
+                     () => cache.DomainHitRate,
+                     () => cache.AccountHitRate,
+                     () => cache.AliasHitRate,
+                     () => cache.DistributionListHitRate
+                 })
+        {
+            var error = Assert.ThrowsExactly<COMException>(() => _ = hitRate());
+            Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        }
+
+        var clearError = Assert.ThrowsExactly<COMException>(cache.Clear);
+
+        Assert.AreEqual(EAccessDenied, clearError.ErrorCode);
+        Assert.AreEqual(statisticsReadsBeforeProtectedCalls, runtime.StatisticsReadCount);
+        Assert.AreEqual(0, runtime.ClearCount);
+    }
+
     private static void AssertNotImplemented(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
@@ -234,6 +307,8 @@ public sealed class CacheComContractTests
 
         public int ClearCount { get; private set; }
 
+        public int StatisticsReadCount { get; private set; }
+
         public bool ThrowOnClear { get; set; }
 
         public bool ThrowOnStatistics { get; set; }
@@ -249,6 +324,7 @@ public sealed class CacheComContractTests
 
         public CacheAdministrationStatistics GetStatistics()
         {
+            StatisticsReadCount++;
             if (ThrowOnStatistics)
             {
                 throw new InvalidOperationException("Simulated cache statistics failure.");
@@ -256,5 +332,25 @@ public sealed class CacheComContractTests
 
             return Statistics;
         }
+    }
+
+    private sealed class RecordingSettingsAdministrationStore(SettingsAdministrationSnapshot snapshot)
+        : ISettingsAdministrationStore
+    {
+        public int ReadCount { get; private set; }
+
+        public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult(snapshot);
+        }
+    }
+
+    private sealed class TestAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            string.Equals(username, "Administrator", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(attemptedPassword, password, StringComparison.Ordinal);
     }
 }
