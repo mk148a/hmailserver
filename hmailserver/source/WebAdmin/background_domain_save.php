@@ -52,6 +52,10 @@
       $obDomain	= $obBaseApp->Domains->Add();
    elseif ($action == "delete")
    {
+      hmailRequirePost();
+      if (hmailGetAdminLevel() != ADMIN_SERVER)
+         hmailHackingAttemp();
+
       $obDomain	= $obBaseApp->Domains->ItemByDBID($domainid);
       $obDomain->Delete();
       

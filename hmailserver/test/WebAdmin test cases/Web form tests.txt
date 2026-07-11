@@ -7,3 +7,7 @@ Add to a text area control and confirm that no message box is shown after save.
 Account deletion must use a POST form containing page=background_account_save, action=delete, domainid, accountid, and csrftoken.
 Confirm that a GET request to background_account_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the account.
 Confirm that the corresponding valid POST deletes the selected non-current account and returns to the domain account list.
+
+Domain deletion must use a POST form containing page=background_domain_save, action=delete, domainid, and csrftoken.
+Confirm that a GET request to background_domain_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the domain.
+Confirm that a non-server-admin POST cannot delete a domain, while a valid server-admin POST deletes the selected domain and returns to the domain list.

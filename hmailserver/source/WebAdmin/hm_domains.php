@@ -34,12 +34,20 @@ for ($i = 1; $i <= $DomainCount; $i++)
 	$domainmaxsize       = $obDomain->MaxSize;
    
    $domainname = PreprocessOutput($domainname);
-   $domainname_escaped = GetStringForJavaScript($domainname);
 	
 	echo "<tr bgcolor=\"$bgcolor\">";
 	echo "<td width=\"60%\"><a href=\"?page=domain&action=edit&domainid=$domainid\">$domainname</a></td>";
 	echo "<td width=\"20%\">$domainmaxsize</td>";
-	echo "<td width=\"20%\"><a href=\"javascript:ConfirmDelete('$domainname_escaped', '?page=background_domain_save&csrftoken=$csrftoken&action=delete&domainid=$domainid')\">$str_delete</a></td>";
+	$confirm_delete = str_replace("%s", EscapeStringForJs($domainname), GetConfirmDelete());
+	echo "<td width=\"20%\">";
+	echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\" onsubmit=\"return confirm('$confirm_delete');\">";
+	PrintHiddenCsrfToken();
+	PrintHidden("page", "background_domain_save");
+	PrintHidden("action", "delete");
+	PrintHidden("domainid", $domainid);
+	echo "<input type=\"submit\" value=\"$str_delete\">";
+	echo "</form>";
+	echo "</td>";
 	echo "</tr>";
 	
 	if ($bgcolor == "#EEEEEE")
