@@ -107,6 +107,72 @@ public sealed class SslCertificatesComContractTests
     }
 
     [TestMethod]
+    public void FailedReauthentication_RevokesSettingsSslCertificateAccessAndItemPersistenceOnly()
+    {
+        var store = new MutableSslCertificateAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Alpha certificate", @"C:\certs\alpha.crt", @"C:\certs\alpha.key"),
+                Snapshot(20, "Beta certificate", @"C:\certs\beta.crt", @"C:\certs\beta.key")
+            });
+        SslCertificateAdministrationRuntimeHost.Configure(store);
+        var application = Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+        var certificates = settings.SSLCertificates;
+        var alpha = certificates.get_ItemByDBID(10);
+
+        Assert.AreEqual(1, store.ReadCount);
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        var applicationSettingsError = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
+        var retainedSettingsError = Assert.ThrowsExactly<COMException>(() => _ = settings.SSLCertificates);
+
+        Assert.AreEqual(EAccessDenied, applicationSettingsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, retainedSettingsError.ErrorCode);
+        Assert.AreEqual(1, store.ReadCount);
+
+        alpha.Name = "Alpha staged certificate";
+        alpha.CertificateFile = @"C:\certs\alpha-staged.crt";
+        alpha.PrivateKeyFile = @"C:\certs\alpha-staged.key";
+        AssertCertificate(
+            alpha,
+            10,
+            "Alpha staged certificate",
+            @"C:\certs\alpha-staged.crt",
+            @"C:\certs\alpha-staged.key");
+
+        var saveError = Assert.ThrowsExactly<COMException>(alpha.Save);
+        var deleteError = Assert.ThrowsExactly<COMException>(alpha.Delete);
+        var added = certificates.Add();
+        added.Name = "Gamma certificate";
+        added.CertificateFile = @"C:\certs\gamma.crt";
+        added.PrivateKeyFile = @"C:\certs\gamma.key";
+        var insertError = Assert.ThrowsExactly<COMException>(added.Save);
+        var addedDeleteError = Assert.ThrowsExactly<COMException>(added.Delete);
+
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, insertError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, addedDeleteError.ErrorCode);
+        Assert.AreEqual(0, store.DeletedIds.Count);
+        Assert.AreEqual(0, store.SavedCertificates.Count);
+        Assert.AreEqual(0, store.InsertedCertificates.Count);
+
+        certificates.DeleteByDBID(20);
+        certificates.Refresh();
+        certificates.Clear();
+
+        CollectionAssert.AreEqual(new[] { 20 }, store.DeletedIds);
+        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(1, store.ClearCount);
+        Assert.AreEqual(0, store.SavedCertificates.Count);
+        Assert.AreEqual(0, store.InsertedCertificates.Count);
+        Assert.AreEqual(0, certificates.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_ExposesReadOnlySnapshotsAndLegacyLookupErrors()
     {
         IInterfaceSSLCertificates certificates = SSLCertificates.CreateAuthorized(
@@ -714,5 +780,13 @@ public sealed class SslCertificatesComContractTests
             _certificates = _certificates.Concat([insertedCertificate]).ToArray();
             return ValueTask.FromResult(insertedCertificate.Id);
         }
+    }
+
+    private sealed class TestAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            string.Equals(username, "Administrator", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(attemptedPassword, password, StringComparison.Ordinal);
     }
 }
