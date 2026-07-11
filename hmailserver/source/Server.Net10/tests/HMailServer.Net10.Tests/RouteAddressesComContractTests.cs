@@ -318,6 +318,65 @@ public sealed class RouteAddressesComContractTests
         Assert.AreEqual(0, addresses.Count);
     }
 
+    [TestMethod]
+    public void FailedReauthentication_RevokesSettingsRoutesAndRouteAddressDeleteOnly()
+    {
+        var routeStore = new FixedRouteAdministrationStore(
+            new[]
+            {
+                RouteSnapshot(10, "alpha.example")
+            });
+        var addressStore = new FixedRouteAddressAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "alpha@example.test"),
+                Snapshot(200, 10, "beta@example.test"),
+                Snapshot(300, 10, "gamma@example.test")
+            });
+        RouteAdministrationRuntimeHost.Configure(routeStore);
+        RouteAddressAdministrationRuntimeHost.Configure(addressStore);
+        var application = Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+        var routes = settings.Routes;
+        var route = routes[0];
+
+        Assert.AreEqual(1, routeStore.ReadCount);
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        var applicationSettingsError = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
+        var retainedSettingsError = Assert.ThrowsExactly<COMException>(() => _ = settings.Routes);
+
+        Assert.AreEqual(EAccessDenied, applicationSettingsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, retainedSettingsError.ErrorCode);
+        Assert.AreEqual(1, routeStore.ReadCount);
+
+        Assert.AreEqual(1, routes.Count);
+        Assert.AreEqual(10, routes.get_ItemByDBID(10).ID);
+        routes.Refresh();
+
+        Assert.AreEqual(2, routeStore.ReadCount);
+
+        var addresses = route.Addresses;
+        var alpha = addresses.get_ItemByDBID(100);
+
+        Assert.AreEqual(1, addressStore.ReadCount);
+        addresses.DeleteByDBID(200);
+        addresses.DeleteByAddress("GAMMA@example.test");
+
+        CollectionAssert.AreEqual(
+            new[] { (RouteId: 10, DatabaseId: 200), (RouteId: 10, DatabaseId: 300) },
+            addressStore.DeletedAddresses);
+
+        var itemDeleteError = Assert.ThrowsExactly<COMException>(alpha.Delete);
+
+        Assert.AreEqual(EAccessDenied, itemDeleteError.ErrorCode);
+        CollectionAssert.AreEqual(
+            new[] { (RouteId: 10, DatabaseId: 200), (RouteId: 10, DatabaseId: 300) },
+            addressStore.DeletedAddresses);
+    }
+
     private static RouteAddressAdministrationSnapshot Snapshot(int id, int routeId, string address) =>
         new(id, routeId, address);
 
@@ -364,13 +423,18 @@ public sealed class RouteAddressesComContractTests
     {
         public List<(int RouteId, int DatabaseId)> DeletedAddresses { get; } = [];
 
+        public int ReadCount { get; private set; }
+
         public ValueTask<IReadOnlyList<RouteAddressAdministrationSnapshot>> GetRouteAddressesAsync(
             int routeId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<RouteAddressAdministrationSnapshot>>(
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<RouteAddressAdministrationSnapshot>>(
                 addresses.Where(address => address.RouteId == routeId)
                     .OrderBy(static address => address.Id)
                     .ToArray());
+        }
 
         public ValueTask DeleteRouteAddressByIdAsync(
             int routeId,
@@ -380,5 +444,27 @@ public sealed class RouteAddressesComContractTests
             DeletedAddresses.Add((routeId, databaseId));
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class FixedRouteAdministrationStore(
+        IReadOnlyList<RouteAdministrationSnapshot> routes)
+        : IRouteAdministrationStore
+    {
+        public int ReadCount { get; private set; }
+
+        public ValueTask<IReadOnlyList<RouteAdministrationSnapshot>> GetRoutesAsync(
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult(routes);
+        }
+    }
+
+    private sealed class TestAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            string.Equals(username, "Administrator", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(attemptedPassword, password, StringComparison.Ordinal);
     }
 }

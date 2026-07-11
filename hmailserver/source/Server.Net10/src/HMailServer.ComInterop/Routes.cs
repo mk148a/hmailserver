@@ -154,6 +154,7 @@ public sealed class Routes : IInterfaceRoutes
 
     private RouteAdministrationSnapshot[]? _routes;
     private readonly Func<IReadOnlyList<RouteAdministrationSnapshot>>? _reload;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public Routes()
     {
@@ -161,20 +162,23 @@ public sealed class Routes : IInterfaceRoutes
 
     private Routes(
         IReadOnlyList<RouteAdministrationSnapshot> routes,
-        Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload,
+        Func<bool>? isServerAdministrator)
     {
         _routes = routes.ToArray();
         _reload = reload;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int Count => GetRoutes().Count;
 
     internal static Routes CreateAuthorized(
         IReadOnlyList<RouteAdministrationSnapshot> routes,
-        Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(routes);
-        return new Routes(routes, reload);
+        return new Routes(routes, reload, isServerAdministrator);
     }
 
     public IInterfaceRoute this[int index]
@@ -187,7 +191,7 @@ public sealed class Routes : IInterfaceRoutes
                 throw new COMException("Route index was outside the collection.", DispEBadIndex);
             }
 
-            return Route.CreateAuthorized(routes[index]);
+            return Route.CreateAuthorized(routes[index], _isServerAdministrator);
         }
     }
 
@@ -198,7 +202,7 @@ public sealed class Routes : IInterfaceRoutes
 
         return match is null
             ? throw new COMException("No route with the specified domain name exists.", DispEBadIndex)
-            : Route.CreateAuthorized(match);
+            : Route.CreateAuthorized(match, _isServerAdministrator);
     }
 
     public IInterfaceRoute get_ItemByDBID(int databaseId)
@@ -207,7 +211,7 @@ public sealed class Routes : IInterfaceRoutes
 
         return match is null
             ? throw new COMException("No route with the specified database identifier exists.", DispEBadIndex)
-            : Route.CreateAuthorized(match);
+            : Route.CreateAuthorized(match, _isServerAdministrator);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
@@ -273,14 +277,18 @@ public sealed class Route : IInterfaceRoute
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly RouteAdministrationSnapshot? _route;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public Route()
     {
     }
 
-    private Route(RouteAdministrationSnapshot route)
+    private Route(
+        RouteAdministrationSnapshot route,
+        Func<bool>? isServerAdministrator)
     {
         _route = route;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int ID => Snapshot.Id;
@@ -298,7 +306,9 @@ public sealed class Route : IInterfaceRoute
     public bool AllAddresses { get => Snapshot.AllAddresses; set => Unavailable(); }
 
     public IInterfaceRouteAddresses Addresses =>
-        RouteAddressAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+        RouteAddressAdministrationRuntimeHost.CreateAuthorizedAdapter(
+            Snapshot.Id,
+            _isServerAdministrator);
 
     public bool RelayerRequiresAuth { get => Snapshot.RelayerRequiresAuth; set => Unavailable(); }
 
@@ -328,7 +338,10 @@ public sealed class Route : IInterfaceRoute
         set => Unavailable();
     }
 
-    internal static Route CreateAuthorized(RouteAdministrationSnapshot route) => new(route);
+    internal static Route CreateAuthorized(
+        RouteAdministrationSnapshot route,
+        Func<bool>? isServerAdministrator = null) =>
+        new(route, isServerAdministrator);
 
     public void SetRelayerAuthPassword(string newValue) => Unavailable();
 
@@ -371,7 +384,7 @@ public static class RouteAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static Routes CreateAuthorizedAdapter()
+    internal static Routes CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -384,6 +397,6 @@ public static class RouteAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return Routes.CreateAuthorized(LoadRoutes(), LoadRoutes);
+        return Routes.CreateAuthorized(LoadRoutes(), LoadRoutes, isServerAdministrator);
     }
 }

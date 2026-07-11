@@ -1348,7 +1348,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
-            return RouteAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            EnsureServerAdministrator();
+            return RouteAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
         }
     }
 

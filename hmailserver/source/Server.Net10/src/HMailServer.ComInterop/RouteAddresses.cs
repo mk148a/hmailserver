@@ -70,6 +70,7 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
 
     private RouteAddressAdministrationSnapshot[]? _addresses;
     private readonly Action<int>? _deleteById;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public RouteAddresses()
     {
@@ -77,10 +78,12 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
 
     private RouteAddresses(
         IReadOnlyList<RouteAddressAdministrationSnapshot> addresses,
-        Action<int>? deleteById)
+        Action<int>? deleteById,
+        Func<bool>? isServerAdministrator)
     {
         _addresses = addresses.ToArray();
         _deleteById = deleteById;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int Count => GetAddresses().Count;
@@ -158,10 +161,11 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
 
     internal static RouteAddresses CreateAuthorized(
         IReadOnlyList<RouteAddressAdministrationSnapshot> addresses,
-        Action<int>? deleteById = null)
+        Action<int>? deleteById = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new RouteAddresses(addresses, deleteById);
+        return new RouteAddresses(addresses, deleteById, isServerAdministrator);
     }
 
     private IReadOnlyList<RouteAddressAdministrationSnapshot> GetAddresses()
@@ -176,7 +180,8 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
     {
         return RouteAddress.CreateAuthorized(
             address,
-            delete: _deleteById is null ? null : DeleteByDBID);
+            delete: _deleteById is null ? null : DeleteByDBID,
+            isServerAdministrator: _isServerAdministrator);
     }
 
     private T Unavailable<T>()
@@ -208,6 +213,7 @@ public sealed class RouteAddress : IInterfaceRouteAddress
 
     private readonly RouteAddressAdministrationSnapshot? _address;
     private readonly Action<int>? _delete;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public RouteAddress()
     {
@@ -215,10 +221,12 @@ public sealed class RouteAddress : IInterfaceRouteAddress
 
     private RouteAddress(
         RouteAddressAdministrationSnapshot address,
-        Action<int>? delete)
+        Action<int>? delete,
+        Func<bool>? isServerAdministrator)
     {
         _address = address;
         _delete = delete;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int ID => Snapshot.Id;
@@ -231,6 +239,13 @@ public sealed class RouteAddress : IInterfaceRouteAddress
 
     public void Delete()
     {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "RouteAddress access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+
         if (_delete is null)
         {
             Unavailable();
@@ -242,8 +257,9 @@ public sealed class RouteAddress : IInterfaceRouteAddress
 
     internal static RouteAddress CreateAuthorized(
         RouteAddressAdministrationSnapshot address,
-        Action<int>? delete = null) =>
-        new(address, delete);
+        Action<int>? delete = null,
+        Func<bool>? isServerAdministrator = null) =>
+        new(address, delete, isServerAdministrator);
 
     private RouteAddressAdministrationSnapshot Snapshot =>
         _address ?? throw new COMException(
@@ -272,7 +288,9 @@ public static class RouteAddressAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static RouteAddresses CreateAuthorizedAdapter(int routeId)
+    internal static RouteAddresses CreateAuthorizedAdapter(
+        int routeId,
+        Func<bool>? isServerAdministrator = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -291,6 +309,9 @@ public static class RouteAddressAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return RouteAddresses.CreateAuthorized(addresses, DeleteRouteAddressById);
+        return RouteAddresses.CreateAuthorized(
+            addresses,
+            DeleteRouteAddressById,
+            isServerAdministrator);
     }
 }
