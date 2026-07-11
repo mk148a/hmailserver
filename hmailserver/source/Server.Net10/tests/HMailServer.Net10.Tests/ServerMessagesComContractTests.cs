@@ -238,6 +238,46 @@ public sealed class ServerMessagesComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = messages.get_ItemByDBID(10)).ErrorCode);
     }
 
+    [TestMethod]
+    public void FailedReauthentication_RevokesSettingsServerMessageAccessButRetainedChildrenRemainUsable()
+    {
+        var store = new MutableServerMessageAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "MESSAGE_UNDELIVERABLE", "Message undeliverable"),
+                Snapshot(20, "VIRUS_FOUND", "Virus found")
+            });
+        ServerMessageAdministrationRuntimeHost.Configure(store);
+        var application = Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+        var messages = settings.ServerMessages;
+        var undeliverable = messages.get_ItemByDBID(10);
+
+        Assert.AreEqual(1, store.ReadCount);
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        var applicationSettingsError = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
+        var retainedSettingsError = Assert.ThrowsExactly<COMException>(() => _ = settings.ServerMessages);
+
+        Assert.AreEqual(EAccessDenied, applicationSettingsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, retainedSettingsError.ErrorCode);
+        Assert.AreEqual(1, store.ReadCount);
+
+        undeliverable.Name = "MESSAGE_UNDELIVERABLE_SAVED";
+        undeliverable.Text = "Saved message text";
+        undeliverable.Save();
+
+        Assert.AreEqual(1, store.SavedMessages.Count);
+        AssertMessage(store.SavedMessages[0], 10, "MESSAGE_UNDELIVERABLE_SAVED", "Saved message text");
+
+        messages.Refresh();
+
+        Assert.AreEqual(2, store.ReadCount);
+        AssertMessage(messages.get_ItemByDBID(10), 10, "MESSAGE_UNDELIVERABLE_SAVED", "Saved message text");
+    }
+
     private static ServerMessageAdministrationSnapshot Snapshot(int id, string name, string text) =>
         new(id, name, text);
 
@@ -319,5 +359,13 @@ public sealed class ServerMessagesComContractTests
                 .ToArray();
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class TestAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            string.Equals(username, "Administrator", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(attemptedPassword, password, StringComparison.Ordinal);
     }
 }
