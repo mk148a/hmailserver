@@ -15,3 +15,7 @@ Confirm that a non-server-admin POST cannot delete a domain, while a valid serve
 Alias deletion must use a POST form containing page=background_alias_save, action=delete, domainid, aliasid, and csrftoken.
 Confirm that a GET request to background_alias_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the alias.
 Confirm that a valid same-domain administrator POST deletes the selected alias and returns to the alias list, while cross-domain or user requests remain denied.
+
+Distribution list deletion must use a POST form containing page=background_distributionlist_save, action=delete, domainid, distributionlistid, and csrftoken.
+Confirm that a GET request to background_distributionlist_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the distribution list.
+Confirm that a valid same-domain administrator POST deletes the selected distribution list and returns to the distribution list, while cross-domain or user requests remain denied.

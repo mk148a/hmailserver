@@ -36,11 +36,20 @@ for ($i = 0; $i < $Count; $i++)
 	$listid              = $obList->ID;
    
    $listaddress = PreprocessOutput($listaddress);
-   $listaddress_escaped = GetStringForJavaScript($listaddress);
+	$confirm_delete = str_replace("%s", EscapeStringForJs($listaddress), GetConfirmDelete());
 	
 	echo "<tr bgcolor=\"$bgcolor\">";
 	echo "<td><a href=\"?page=distributionlist&action=edit&domainid=$domainid&distributionlistid=$listid&\">$listaddress</a></td>";
-   echo "<td width=\"20%\"><a href=\"javascript:ConfirmDelete('$listaddress_escaped', '?page=background_distributionlist_save&csrftoken=$csrftoken&action=delete&domainid=$domainid&distributionlistid=$listid')\">$str_delete</a></td>";
+	echo "<td width=\"20%\">";
+	echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\" onsubmit=\"return confirm('$confirm_delete');\">";
+	PrintHiddenCsrfToken();
+	PrintHidden("page", "background_distributionlist_save");
+	PrintHidden("action", "delete");
+	PrintHidden("domainid", $domainid);
+	PrintHidden("distributionlistid", $listid);
+	echo "<input type=\"submit\" value=\"$str_delete\">";
+	echo "</form>";
+	echo "</td>";
 	echo "</tr>";
 	
 	if ($bgcolor == "#EEEEEE")

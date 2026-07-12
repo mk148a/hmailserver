@@ -33,6 +33,7 @@
       $obList = $obDomain->DistributionLists->Add();  
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obDomain->DistributionLists->DeleteByDBID($distributionlistid);  
       header("Location: index.php?page=distributionlists&domainid=$domainid");
       exit();
