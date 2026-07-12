@@ -47,3 +47,7 @@ Confirm that a non-server-admin POST cannot delete an incoming relay, while a va
 SSL certificate deletion must use a POST form containing page=background_sslcertificate_save, action=delete, id, and csrftoken.
 Confirm that a GET request to background_sslcertificate_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the certificate.
 Confirm that a non-server-admin POST cannot delete a certificate, while a valid server-admin POST follows the selected certificate's existing legacy delete/save control flow without changing TLS or TCP/IP port behavior.
+
+TCP/IP port deletion must use a POST form containing page=background_tcpipport_save, action=delete, tcpipportid, and csrftoken.
+Confirm that a GET request to background_tcpipport_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the TCP/IP port.
+Confirm that a non-server-admin POST cannot delete a TCP/IP port, while a valid server-admin POST deletes the selected port and returns to the TCP/IP port list without restarting listeners.

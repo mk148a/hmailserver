@@ -21,7 +21,8 @@
       $obTCPIPPort = $obTCPIPPorts->Add();
    elseif ($action == "delete")
    {
-   	  $obTCPIPPorts->DeleteByDBID($tcpipportid);
+      hmailRequirePost();
+      $obTCPIPPorts->DeleteByDBID($tcpipportid);
       header("Location: index.php?page=tcpipports");
       exit();
    }
