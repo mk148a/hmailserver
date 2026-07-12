@@ -39,3 +39,7 @@ Confirm that a non-server-admin POST cannot delete a route address, while a vali
 Security range deletion must use a POST form containing page=background_securityrange_save, action=delete, securityrangeid, and csrftoken.
 Confirm that a GET request to background_securityrange_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the security range.
 Confirm that a non-server-admin POST cannot delete a security range, while a valid server-admin POST follows the selected range's existing legacy delete/save control flow.
+
+Incoming relay deletion must use a POST form containing page=background_incomingrelay_save, action=delete, relayid, and csrftoken.
+Confirm that a GET request to background_incomingrelay_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the relay.
+Confirm that a non-server-admin POST cannot delete an incoming relay, while a valid server-admin POST follows the selected relay's existing legacy delete/save control flow without changing SMTP trust behavior.

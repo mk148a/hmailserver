@@ -14,6 +14,7 @@
       $obIncomingRelay     = $obBaseApp->Settings->IncomingRelays->Add();
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obBaseApp->Settings->IncomingRelays->DeleteByDBID($relayid);
       header("Location: index.php?page=incomingrelays");
    }

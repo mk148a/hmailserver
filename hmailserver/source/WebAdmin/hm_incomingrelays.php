@@ -29,7 +29,15 @@ for ($i = 0; $i < $Count; $i++)
    
 	echo "<tr bgcolor=\"$bgcolor\">";
 	echo "<td width=\"80%\"><a href=\"?page=incomingrelay&action=edit&relayid=$relayid&\">$relayname</a></td>";
-	echo "<td width=\"20%\"><a href=\"?page=background_incomingrelay_save&csrftoken=$csrftoken&action=delete&relayid=$relayid\">$str_delete</a></td>";
+	echo "<td width=\"20%\">";
+	echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\">";
+	PrintHiddenCsrfToken();
+	PrintHidden("page", "background_incomingrelay_save");
+	PrintHidden("action", "delete");
+	PrintHidden("relayid", $relayid);
+	echo "<input type=\"submit\" value=\"$str_delete\">";
+	echo "</form>";
+	echo "</td>";
 	echo "</tr>";
 	
 	if ($bgcolor == "#EEEEEE")
