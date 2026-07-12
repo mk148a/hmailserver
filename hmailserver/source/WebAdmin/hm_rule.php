@@ -45,6 +45,7 @@ else
 
 <?php
    $rule_criteria_delete_form_ids = array();
+   $rule_action_delete_form_ids = array();
 ?>
 
 <form action="index.php" method="post" onSubmit="return formCheck(this);">
@@ -143,10 +144,12 @@ else
  
                            $actionid = $action->ID;
                            $actionName = GetRuleActionString($action->Type);
+                           $deleteFormId = "rule-action-delete-" . intval($actionid);
+                           $rule_action_delete_form_ids[] = $actionid;
                            ?>
                             <tr>
                               <td width="25%"><?php echo "<a href=\"?page=rule_action&action=edit&domainid=$domainid&accountid=$accountid&ruleid=$ruleid&actionid=$actionid\">$actionName</a>";?></td>
-                              <td width="25%"><?php echo "<a href=\"?page=background_rule_save&csrftoken=$csrftoken&savetype=action&action=delete&domainid=$domainid&accountid=$accountid&ruleid=$ruleid&actionid=$actionid\">$str_delete</a>";?></td>
+                              <td width="25%"><?php echo "<input type=\"submit\" form=\"$deleteFormId\" value=\"$str_delete\">";?></td>
                             </tr>                           
                            <?php
                          }
@@ -181,6 +184,21 @@ else
       PrintHidden("accountid", $accountid);
       PrintHidden("ruleid", $ruleid);
       PrintHidden("criteriaid", $criteriaid);
+      echo "</form>";
+   }
+
+   foreach ($rule_action_delete_form_ids as $actionid)
+   {
+      $deleteFormId = "rule-action-delete-" . intval($actionid);
+      echo "<form id=\"$deleteFormId\" action=\"index.php\" method=\"post\" style=\"display:none\">";
+      PrintHiddenCsrfToken();
+      PrintHidden("page", "background_rule_save");
+      PrintHidden("savetype", "action");
+      PrintHidden("action", "delete");
+      PrintHidden("domainid", $domainid);
+      PrintHidden("accountid", $accountid);
+      PrintHidden("ruleid", $ruleid);
+      PrintHidden("actionid", $actionid);
       echo "</form>";
    }
 ?>
