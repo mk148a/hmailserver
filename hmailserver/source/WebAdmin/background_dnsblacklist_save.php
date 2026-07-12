@@ -21,6 +21,7 @@
       $dnsBlackList     = $dnsBlackLists->Add();
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $dnsBlackLists->DeleteByDBID($id);
       header("Location: index.php?page=dnsblacklists");
    }

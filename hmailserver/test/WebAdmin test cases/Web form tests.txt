@@ -51,3 +51,7 @@ Confirm that a non-server-admin POST cannot delete a certificate, while a valid 
 TCP/IP port deletion must use a POST form containing page=background_tcpipport_save, action=delete, tcpipportid, and csrftoken.
 Confirm that a GET request to background_tcpipport_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the TCP/IP port.
 Confirm that a non-server-admin POST cannot delete a TCP/IP port, while a valid server-admin POST deletes the selected port and returns to the TCP/IP port list without restarting listeners.
+
+DNS blacklist deletion must use a POST form containing page=background_dnsblacklist_save, action=delete, id, and csrftoken.
+Confirm that a GET request to background_dnsblacklist_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the DNS blacklist.
+Confirm that a non-server-admin POST cannot delete a DNS blacklist, while a valid server-admin POST preserves the selected blacklist's legacy delete/save control flow without changing anti-spam DNS-blacklist behavior.
