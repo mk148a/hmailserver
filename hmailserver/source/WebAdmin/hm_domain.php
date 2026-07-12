@@ -194,7 +194,14 @@ $MaxNumberOfDistributionListsEnabledChecked = hmailCheckedIf1($MaxNumberOfDistri
                      </td>                     
                      <td>
                      <?php
-                        echo "<a href=\"?page=background_domain_name_save&csrftoken=$csrftoken&action=delete&domainid=$domainid&aliasid=$aliasid\">$str_delete</a>";
+                        echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\">";
+                        PrintHiddenCsrfToken();
+                        PrintHidden("page", "background_domain_name_save");
+                        PrintHidden("action", "delete");
+                        PrintHidden("domainid", $domainid);
+                        PrintHidden("aliasid", $aliasid);
+                        echo "<input type=\"submit\" value=\"$str_delete\">";
+                        echo "</form>";
                      ?>
                      </td>                     
                      </tr>

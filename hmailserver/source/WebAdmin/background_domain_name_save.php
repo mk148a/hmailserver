@@ -20,6 +20,7 @@
    }
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obDomain->DomainAliases->DeleteByDBID($aliasid);
    }
    
