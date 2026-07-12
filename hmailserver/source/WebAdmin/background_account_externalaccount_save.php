@@ -23,6 +23,7 @@
       $obFA = $obFetchAccounts->Add();  
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obFetchAccounts->DeleteByDBID($faid);  
       header("Location: index.php?page=account_externalaccounts&domainid=$domainid&accountid=$accountid");
       exit();

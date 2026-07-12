@@ -51,7 +51,17 @@ for ($i = 0; $i < $Count; $i++)
 	echo "<tr bgcolor=\"$bgcolor\">";
 	echo "<td><a href=\"?page=account_externalaccount&action=edit&domainid=$domainid&accountid=$accountid&faid=$FAID\">$Name</a></td>";
 	echo "<td><a href=\"?page=account_externalaccount&action=edit&domainid=$domainid&accountid=$accountid&faid=$FAID\">$ServerAddress</a></td>";
-	echo "<td><a href=\"?page=background_account_externalaccount_save&csrftoken=$csrftoken&action=delete&domainid=$domainid&accountid=$accountid&faid=$FAID\">$str_delete</a></td>";
+	echo "<td>";
+	echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\">";
+	PrintHiddenCsrfToken();
+	PrintHidden("page", "background_account_externalaccount_save");
+	PrintHidden("action", "delete");
+	PrintHidden("domainid", $domainid);
+	PrintHidden("accountid", $accountid);
+	PrintHidden("faid", $FAID);
+	echo "<input type=\"submit\" value=\"$str_delete\">";
+	echo "</form>";
+	echo "</td>";
 	echo "<td><a href=\"?page=background_account_externalaccount_save&csrftoken=$csrftoken&action=downloadnow&domainid=$domainid&accountid=$accountid&faid=$FAID\">$str_downloadnow</a></td>";
 	echo "</tr>";
 	
