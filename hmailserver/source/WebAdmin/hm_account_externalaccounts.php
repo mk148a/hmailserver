@@ -62,7 +62,17 @@ for ($i = 0; $i < $Count; $i++)
 	echo "<input type=\"submit\" value=\"$str_delete\">";
 	echo "</form>";
 	echo "</td>";
-	echo "<td><a href=\"?page=background_account_externalaccount_save&csrftoken=$csrftoken&action=downloadnow&domainid=$domainid&accountid=$accountid&faid=$FAID\">$str_downloadnow</a></td>";
+	echo "<td>";
+	echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\">";
+	PrintHiddenCsrfToken();
+	PrintHidden("page", "background_account_externalaccount_save");
+	PrintHidden("action", "downloadnow");
+	PrintHidden("domainid", $domainid);
+	PrintHidden("accountid", $accountid);
+	PrintHidden("faid", $FAID);
+	echo "<input type=\"submit\" value=\"$str_downloadnow\">";
+	echo "</form>";
+	echo "</td>";
 	echo "</tr>";
 	
 	if ($bgcolor == "#EEEEEE")

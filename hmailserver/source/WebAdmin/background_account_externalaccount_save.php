@@ -30,6 +30,7 @@
    }
    elseif ($action == "downloadnow")
    {
+      hmailRequirePost();
       $obFA = $obFetchAccounts->ItemByDBID($faid); 
       $obFA->DownloadNow();
       header("Location: index.php?page=account_externalaccounts&domainid=$domainid&accountid=$accountid");

@@ -67,3 +67,7 @@ Confirm that a non-server-admin POST cannot delete a whitelist address, while a 
 External account deletion must use a POST form containing page=background_account_externalaccount_save, action=delete, domainid, accountid, faid, and csrftoken.
 Confirm that a GET request to background_account_externalaccount_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the external account.
 Confirm that a same-account user, same-domain administrator, or server-admin POST deletes the selected external account and returns to that account's external-account list, while cross-account/domain requests remain denied and the existing download-now action remains unchanged.
+
+External account download-now must use a POST form containing page=background_account_externalaccount_save, action=downloadnow, domainid, accountid, faid, and csrftoken.
+Confirm that a GET request to background_account_externalaccount_save with action=downloadnow and a valid CSRF token returns HTTP 405 without invoking the external account download.
+Confirm that a same-account user, same-domain administrator, or server-admin POST invokes DownloadNow for the selected external account and returns to that account's external-account list, while cross-account/domain requests remain denied and delete behavior remains unchanged.
