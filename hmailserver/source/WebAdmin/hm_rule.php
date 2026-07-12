@@ -43,6 +43,10 @@ else
 
 <h1><?php EchoTranslation("Rule")?></h1>
 
+<?php
+   $rule_criteria_delete_form_ids = array();
+?>
+
 <form action="index.php" method="post" onSubmit="return formCheck(this);">
 
    <?php
@@ -104,13 +108,15 @@ else
                           
                           $matchType = GetMatchTypeString($criteria->MatchType);
                           $matchValue = $criteria->MatchValue;
+                          $deleteFormId = "rule-criteria-delete-" . intval($criteriaid);
+                          $rule_criteria_delete_form_ids[] = $criteriaid;
                          
                            ?>
                             <tr>
                               <td width="25%"><?php echo "<a href=\"?page=rule_criteria&action=edit&domainid=$domainid&accountid=$accountid&ruleid=$ruleid&criteriaid=$criteriaid\">$fieldName</a>";?></td>
                               <td width="25%"><?php echo PreprocessOutput($matchType)?></td>
                               <td width="25%"><?php echo PreprocessOutput($matchValue)?></td>
-                              <td width="25%"><?php echo "<a href=\"?page=background_rule_save&csrftoken=$csrftoken&savetype=criteria&action=delete&domainid=$domainid&accountid=$accountid&&ruleid=$ruleid&criteriaid=$criteriaid\">$str_delete</a>";?></td>
+                              <td width="25%"><?php echo "<input type=\"submit\" form=\"$deleteFormId\" value=\"$str_delete\">";?></td>
                             </tr>                           
                            <?php
                          }
@@ -161,3 +167,20 @@ else
       PrintSaveButton();
    ?>
 </form>
+
+<?php
+   foreach ($rule_criteria_delete_form_ids as $criteriaid)
+   {
+      $deleteFormId = "rule-criteria-delete-" . intval($criteriaid);
+      echo "<form id=\"$deleteFormId\" action=\"index.php\" method=\"post\" style=\"display:none\">";
+      PrintHiddenCsrfToken();
+      PrintHidden("page", "background_rule_save");
+      PrintHidden("savetype", "criteria");
+      PrintHidden("action", "delete");
+      PrintHidden("domainid", $domainid);
+      PrintHidden("accountid", $accountid);
+      PrintHidden("ruleid", $ruleid);
+      PrintHidden("criteriaid", $criteriaid);
+      echo "</form>";
+   }
+?>
