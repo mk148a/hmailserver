@@ -42,7 +42,18 @@ for ($i = 0; $i < $Count; $i++)
 	echo "<tr bgcolor=\"$bgcolor\">";
 	echo "<td><a href=\"?page=rule&action=edit&domainid=0&accountid=0&ruleid=$ruleid&\">$rulename</a></td>";
    echo "<td><a href=\"?page=rule&action=edit&domainid=0&accountid=0&ruleid=$ruleid&\">$enabled</a></td>";
-	echo "<td><a href=\"?page=background_rule_save&savetype=rule&csrftoken=$csrftoken&action=delete&domainid=0&accountid=0&action=delete&ruleid=$ruleid\">$str_delete</a></td>";
+	echo "<td>";
+	echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\">";
+	PrintHiddenCsrfToken();
+	PrintHidden("page", "background_rule_save");
+	PrintHidden("savetype", "rule");
+	PrintHidden("action", "delete");
+	PrintHidden("domainid", 0);
+	PrintHidden("accountid", 0);
+	PrintHidden("ruleid", $ruleid);
+	echo "<input type=\"submit\" value=\"$str_delete\">";
+	echo "</form>";
+	echo "</td>";
 	echo "</tr>";
 	
 	if ($bgcolor == "#EEEEEE")
