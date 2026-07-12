@@ -20,6 +20,7 @@
       $sslCertificate     = $sslCertificates->Add();
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $sslCertificates->DeleteByDBID($id);
       header("Location: index.php?page=sslcertificates");
    }

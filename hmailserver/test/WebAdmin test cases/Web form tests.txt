@@ -43,3 +43,7 @@ Confirm that a non-server-admin POST cannot delete a security range, while a val
 Incoming relay deletion must use a POST form containing page=background_incomingrelay_save, action=delete, relayid, and csrftoken.
 Confirm that a GET request to background_incomingrelay_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the relay.
 Confirm that a non-server-admin POST cannot delete an incoming relay, while a valid server-admin POST follows the selected relay's existing legacy delete/save control flow without changing SMTP trust behavior.
+
+SSL certificate deletion must use a POST form containing page=background_sslcertificate_save, action=delete, id, and csrftoken.
+Confirm that a GET request to background_sslcertificate_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the certificate.
+Confirm that a non-server-admin POST cannot delete a certificate, while a valid server-admin POST follows the selected certificate's existing legacy delete/save control flow without changing TLS or TCP/IP port behavior.

@@ -35,7 +35,15 @@ for ($i = 0; $i < $Count; $i++)
       
 	echo "<tr bgcolor=\"$bgcolor\">";
 	echo "<td width=\"60%\"><a href=\"?page=sslcertificate&action=edit&id=$id&\">$name</a></td>";
-	echo "<td width=\"20%\"><a href=\"?page=background_sslcertificate_save&csrftoken=$csrftoken&action=delete&id=$id\">$str_delete</a></td>";
+	echo "<td width=\"20%\">";
+	echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\">";
+	PrintHiddenCsrfToken();
+	PrintHidden("page", "background_sslcertificate_save");
+	PrintHidden("action", "delete");
+	PrintHidden("id", $id);
+	echo "<input type=\"submit\" value=\"$str_delete\">";
+	echo "</form>";
+	echo "</td>";
 	echo "</tr>";
 	
 	if ($bgcolor == "#EEEEEE")
