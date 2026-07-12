@@ -14,6 +14,7 @@
       $obSecurityRange     = $obBaseApp->Settings->SecurityRanges->Add();
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obBaseApp->Settings->SecurityRanges->DeleteByDBID($securityrangeid);
       header("Location: index.php?page=securityranges");
    }
