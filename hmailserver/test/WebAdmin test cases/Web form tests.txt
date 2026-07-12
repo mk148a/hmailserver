@@ -55,3 +55,7 @@ Confirm that a non-server-admin POST cannot delete a TCP/IP port, while a valid 
 DNS blacklist deletion must use a POST form containing page=background_dnsblacklist_save, action=delete, id, and csrftoken.
 Confirm that a GET request to background_dnsblacklist_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the DNS blacklist.
 Confirm that a non-server-admin POST cannot delete a DNS blacklist, while a valid server-admin POST preserves the selected blacklist's legacy delete/save control flow without changing anti-spam DNS-blacklist behavior.
+
+SURBL server deletion must use a POST form containing page=background_surblserver_save, action=delete, id, and csrftoken.
+Confirm that a GET request to background_surblserver_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the SURBL server.
+Confirm that a non-server-admin POST cannot delete a SURBL server, while a valid server-admin POST preserves the selected server's legacy delete/save control flow without changing anti-spam SURBL behavior.

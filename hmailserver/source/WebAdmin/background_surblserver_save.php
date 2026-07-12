@@ -20,6 +20,7 @@
       $surblServer     = $surblServers->Add();
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $surblServers->DeleteByDBID($id);
       header("Location: index.php?page=surblservers");
    }
