@@ -24,6 +24,7 @@
       $obAddress = $obAddresses->Add();
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obAddresses->DeleteByDBID($routeaddressid);
       header("Location: index.php?page=route_addresses&routeid=$routeid");
       exit();

@@ -31,3 +31,7 @@ Confirm that a non-server-admin POST cannot delete a domain alias, while a valid
 Route deletion must use a POST form containing page=background_route_save, action=delete, routeid, and csrftoken.
 Confirm that a GET request to background_route_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the route.
 Confirm that a non-server-admin POST cannot delete a route, while a valid server-admin POST deletes the selected route and returns to the route list.
+
+Route address deletion must use a POST form containing page=background_route_address_save, action=delete, routeid, routeaddressid, and csrftoken.
+Confirm that a GET request to background_route_address_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the route address.
+Confirm that a non-server-admin POST cannot delete a route address, while a valid server-admin POST deletes the selected address and returns to its parent route's address list.
