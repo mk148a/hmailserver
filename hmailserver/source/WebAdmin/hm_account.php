@@ -108,6 +108,10 @@ $str_server = $obLanguage->String("Server");
    }
 ?>
 
+<?php
+$account_rule_delete_form_ids = array();
+?>
+
 <form action="index.php" method="post" onSubmit="return formCheck(this);">
 
 	
@@ -352,7 +356,9 @@ $str_server = $obLanguage->String("Server");
                	echo "<tr bgcolor=\"$bgcolor\">";
                	echo "<td><a href=\"?page=rule&action=edit&domainid=$domainid&accountid=$accountid&ruleid=$ruleid&\">$rulename</a></td>";
                   echo "<td><a href=\"?page=rule&action=edit&domainid=$domainid&accountid=$accountid&ruleid=$ruleid&\">$enabled</a></td>";
-               	echo "<td><a href=\"?page=background_rule_save&savetype=rule&csrftoken=$csrftoken&action=delete&domainid=$domainid&accountid=$accountid&action=delete&ruleid=$ruleid\">$str_delete</a></td>";
+                  $deleteFormId = "account-rule-delete-" . intval($ruleid);
+                  $account_rule_delete_form_ids[] = $ruleid;
+                   echo "<td><input type=\"submit\" form=\"$deleteFormId\" value=\"$str_delete\"></td>";
                	echo "</tr>";
                	
                	if ($bgcolor == "#EEEEEE")
@@ -409,3 +415,20 @@ $str_server = $obLanguage->String("Server");
    ?>
 
 </form>
+
+<?php
+foreach ($account_rule_delete_form_ids as $ruleid)
+{
+   $deleteFormId = "account-rule-delete-" . intval($ruleid);
+
+   echo "<form id=\"$deleteFormId\" action=\"index.php\" method=\"post\" style=\"display:none\">";
+   PrintHiddenCsrfToken();
+   PrintHidden("page", "background_rule_save");
+   PrintHidden("savetype", "rule");
+   PrintHidden("action", "delete");
+   PrintHidden("domainid", $domainid);
+   PrintHidden("accountid", $accountid);
+   PrintHidden("ruleid", $ruleid);
+   echo "</form>";
+}
+?>

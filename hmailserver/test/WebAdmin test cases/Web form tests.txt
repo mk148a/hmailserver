@@ -75,3 +75,7 @@ Confirm that a same-account user, same-domain administrator, or server-admin POS
 Global rule deletion must use a POST form containing page=background_rule_save, savetype=rule, action=delete, domainid=0, accountid=0, ruleid, and csrftoken.
 Confirm that a GET request to background_rule_save with global-rule delete parameters and a valid CSRF token returns HTTP 405 without deleting the rule.
 Confirm that a valid server-admin POST deletes the selected global rule and returns to the global-rule list, while account-rule deletion and rule criteria/action deletion retain their existing behavior.
+
+Account rule deletion must use a detached POST form containing page=background_rule_save, savetype=rule, action=delete, domainid, accountid, ruleid, and csrftoken.
+Confirm that a GET request to background_rule_save with account-rule delete parameters and a valid CSRF token returns HTTP 405 without deleting the rule.
+Confirm that a requester authorized by GetHasRuleAccess POSTs deletion for the selected account rule and returns to that account edit page, while global-rule deletion, account-edit submission, and rule criteria/action deletion retain their existing behavior.

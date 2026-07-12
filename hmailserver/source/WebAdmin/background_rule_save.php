@@ -18,7 +18,7 @@
       
    $rule_link = "index.php?page=rule&action=edit&domainid=$domainid&accountid=$accountid&ruleid=$ruleid";
 
-   if ($action == "delete" && $savetype == "rule" && $domainid == 0)
+   if ($action == "delete" && $savetype == "rule")
       hmailRequirePost();
    
    if ($action == "add" && $savetype == "rule")
