@@ -46,7 +46,15 @@ for ($i = 0; $i < $Count; $i++)
 	echo "<td><a href=\"?page=whitelistaddress&action=edit&ID=$ID\">$LowerIPAddress</a></td>";
 	echo "<td><a href=\"?page=whitelistaddress&action=edit&ID=$ID\">$UpperIPAddress</a></td>";
 	echo "<td><a href=\"?page=whitelistaddress&action=edit&ID=$ID\">$EmailAddress</a></td>";
-	echo "<td><a href=\"?page=background_whitelistaddress_save&csrftoken=$csrftoken&action=delete&ID=$ID\">$str_delete</a></td>";
+	echo "<td>";
+	echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\">";
+	PrintHiddenCsrfToken();
+	PrintHidden("page", "background_whitelistaddress_save");
+	PrintHidden("action", "delete");
+	PrintHidden("ID", $ID);
+	echo "<input type=\"submit\" value=\"$str_delete\">";
+	echo "</form>";
+	echo "</td>";
 	echo "</tr>";
 	
 	if ($bgcolor == "#EEEEEE")

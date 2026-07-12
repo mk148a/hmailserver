@@ -16,6 +16,7 @@
       $obAddress = $obWhiteListAddresses->Add();  
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obWhiteListAddresses->DeleteByDBID($ID);  
       header("Location: index.php?page=whitelistaddresses");
       exit();
