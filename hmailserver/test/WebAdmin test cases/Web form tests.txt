@@ -19,3 +19,7 @@ Confirm that a valid same-domain administrator POST deletes the selected alias a
 Distribution list deletion must use a POST form containing page=background_distributionlist_save, action=delete, domainid, distributionlistid, and csrftoken.
 Confirm that a GET request to background_distributionlist_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the distribution list.
 Confirm that a valid same-domain administrator POST deletes the selected distribution list and returns to the distribution list, while cross-domain or user requests remain denied.
+
+Distribution list recipient deletion must use a POST form containing page=background_distributionlist_recipient_save, action=delete, domainid, distributionlistid, recipientid, and csrftoken.
+Confirm that a GET request to background_distributionlist_recipient_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the recipient.
+Confirm that a valid same-domain administrator POST deletes the selected recipient and returns to that distribution list's recipient list, while cross-domain or user requests remain denied.

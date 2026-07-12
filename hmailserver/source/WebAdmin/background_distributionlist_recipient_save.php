@@ -23,6 +23,7 @@
       $obRecipient = $obList->Recipients->Add();
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obRecipient = $obList->Recipients->ItemByDBID($recipientid);
       $obRecipient->Delete();
       

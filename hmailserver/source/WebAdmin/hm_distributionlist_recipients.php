@@ -36,7 +36,17 @@ for ($i = 0; $i < $Count; $i++)
    
 	echo "<tr bgcolor=\"$bgcolor\">";
 	echo "<td width=\"80%\"><a href=\"?page=distributionlist_recipient&action=edit&domainid=$domainid&distributionlistid=$distributionlistid&recipientid=$recipientid\">$recipientaddress</a></td>";
-	echo "<td width=\"20%\"><a href=\"?page=background_distributionlist_recipient_save&csrftoken=$csrftoken&action=delete&domainid=$domainid&distributionlistid=$distributionlistid&recipientid=$recipientid\">$str_delete</a></td>";
+	echo "<td width=\"20%\">";
+	echo "<form action=\"index.php\" method=\"post\" style=\"display:inline\">";
+	PrintHiddenCsrfToken();
+	PrintHidden("page", "background_distributionlist_recipient_save");
+	PrintHidden("action", "delete");
+	PrintHidden("domainid", $domainid);
+	PrintHidden("distributionlistid", $distributionlistid);
+	PrintHidden("recipientid", $recipientid);
+	echo "<input type=\"submit\" value=\"$str_delete\">";
+	echo "</form>";
+	echo "</td>";
 	echo "</tr>";
 	
 	if ($bgcolor == "#EEEEEE")
