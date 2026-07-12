@@ -13,6 +13,9 @@
    $description	   = hmailGetVar("description","");
    
    $action	   = hmailGetVar("action","");
+
+   if ($action == "delete")
+      hmailRequirePost();
   
    $obSettings	= $obBaseApp->Settings();
    $obAntivirus	= $obSettings->AntiVirus();

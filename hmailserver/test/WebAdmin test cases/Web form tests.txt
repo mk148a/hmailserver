@@ -87,3 +87,7 @@ Confirm that a requester authorized by GetHasRuleAccess POSTs deletion for the s
 Rule action deletion must use a detached POST form containing page=background_rule_save, savetype=action, action=delete, domainid, accountid, ruleid, actionid, and csrftoken.
 Confirm that a GET request to background_rule_save with rule-action delete parameters and a valid CSRF token returns HTTP 405 without deleting the action.
 Confirm that a requester authorized by GetHasRuleAccess POSTs deletion for the selected action and returns to that rule edit page, while global/account-rule deletion, rule-edit submission, rule criteria deletion, and rule execution retain their existing behavior.
+
+Blocked attachment deletion must use a detached POST form containing page=background_blocked_attachment_save, action=delete, id, and csrftoken.
+Confirm that a GET request to background_blocked_attachment_save with blocked-attachment delete parameters and a valid CSRF token returns HTTP 405 without deleting the attachment rule.
+Confirm that a server administrator POST deletes the selected blocked attachment and returns to the antivirus settings page, while antivirus settings save, scanner tests, blocked-attachment add/edit, and non-delete navigation retain their existing behavior.

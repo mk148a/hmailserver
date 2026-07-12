@@ -146,6 +146,10 @@ function printResponse(httpObject, elementName)
 
 <h1><?php EchoTranslation("Anti-virus")?></h1>
 
+<?php
+   $blocked_attachment_delete_form_ids = array();
+?>
+
 <form action="index.php" method="post" onSubmit="return formCheck(this);">
 
    <?php
@@ -271,6 +275,8 @@ function printResponse(httpObject, elementName)
                      $id = $blockedAttachment->ID;
                      $wildcard = $blockedAttachment->Wildcard;
                      $description= $blockedAttachment->Description;
+                     $deleteFormId = "blocked-attachment-delete-" . intval($id);
+                     $blocked_attachment_delete_form_ids[] = $id;
                      
                      ?>
                      <tr>
@@ -278,7 +284,7 @@ function printResponse(httpObject, elementName)
                         <td><?php echo PreprocessOutput($description);?></td>                     
                         <td>
                         <?php
-                           echo "<a href=\"?page=background_blocked_attachment_save&csrftoken=$csrftoken&action=delete&id=$id\">$str_delete</a>";
+                           echo "<input type=\"submit\" form=\"$deleteFormId\" value=\"$str_delete\">";
                         ?>
                         </td>                     
                      </tr>
@@ -295,3 +301,16 @@ function printResponse(httpObject, elementName)
    ?>
 
 </form>
+
+<?php
+   foreach ($blocked_attachment_delete_form_ids as $id)
+   {
+      $deleteFormId = "blocked-attachment-delete-" . intval($id);
+      echo "<form id=\"$deleteFormId\" action=\"index.php\" method=\"post\" style=\"display:none\">";
+      PrintHiddenCsrfToken();
+      PrintHidden("page", "background_blocked_attachment_save");
+      PrintHidden("action", "delete");
+      PrintHidden("id", $id);
+      echo "</form>";
+   }
+?>
