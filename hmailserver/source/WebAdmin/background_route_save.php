@@ -15,6 +15,7 @@
       $obRoute    = $obBaseApp->Settings->Routes->Add();
    elseif ($action == "delete")
    {
+      hmailRequirePost();
       $obBaseApp->Settings->Routes->DeleteByDBID($routeid);
       header("Location: index.php?page=routes");
       exit();
