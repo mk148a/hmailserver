@@ -122,6 +122,27 @@ namespace HM
       boost::mutex mutex_;
    };
 
+   // Authenticates legacy WebAdmin credentials before admitting the resulting
+   // principal to the native broker. This is not a COM or request-facing API.
+   class LegacyWebAdminCredentialAdmission
+   {
+   public:
+      typedef std::function<std::shared_ptr<const Account>(const String &, const String &)> AuthenticationHook;
+
+      static bool CreateSession(WebAdminSessionBroker &broker,
+                                const String &phpSessionID,
+                                const String &username,
+                                const String &password,
+                                String &rawToken);
+
+      static bool CreateSession(WebAdminSessionBroker &broker,
+                                const String &phpSessionID,
+                                const String &username,
+                                const String &password,
+                                const AuthenticationHook &authenticationHook,
+                                String &rawToken);
+   };
+
    // Creates the installed Application class through a native-only seam. It
    // adds no COM class, interface member, or registration surface.
    class LegacyWebAdminApplicationFactory
@@ -171,6 +192,7 @@ namespace HM
       static std::shared_ptr<Account> CreateAdministrator_();
       static std::vector<unsigned char> CreateProcessKey_(unsigned char value);
 
+      void TestCredentialAdmission_();
       void TestLifecycleAndBinding_();
       void TestIdleAndAbsoluteExpiry_();
       void TestRevocation_();

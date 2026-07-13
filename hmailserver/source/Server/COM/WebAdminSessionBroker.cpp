@@ -406,6 +406,64 @@ namespace HM
       return difference == 0;
    }
 
+   bool
+   LegacyWebAdminCredentialAdmission::CreateSession(WebAdminSessionBroker &broker,
+                                                     const String &phpSessionID,
+                                                     const String &username,
+                                                     const String &password,
+                                                     String &rawToken)
+   {
+      rawToken = "";
+
+      try
+      {
+         COMAuthentication authentication;
+         return CreateSession(
+            broker,
+            phpSessionID,
+            username,
+            password,
+            [&authentication](const String &suppliedUsername, const String &suppliedPassword)
+            {
+               return authentication.Authenticate(suppliedUsername, suppliedPassword);
+            },
+            rawToken);
+      }
+      catch (...)
+      {
+         rawToken = "";
+         return false;
+      }
+   }
+
+   bool
+   LegacyWebAdminCredentialAdmission::CreateSession(WebAdminSessionBroker &broker,
+                                                     const String &phpSessionID,
+                                                     const String &username,
+                                                     const String &password,
+                                                     const AuthenticationHook &authenticationHook,
+                                                     String &rawToken)
+   {
+      rawToken = "";
+
+      try
+      {
+         std::shared_ptr<const Account> principal = authenticationHook(username, password);
+         if (!principal || !broker.CreateSession(phpSessionID, principal, rawToken))
+         {
+            rawToken = "";
+            return false;
+         }
+
+         return true;
+      }
+      catch (...)
+      {
+         rawToken = "";
+         return false;
+      }
+   }
+
    HRESULT
    LegacyWebAdminApplicationFactory::Create(const std::shared_ptr<COMAuthentication> &authentication,
                                             IInterfaceApplication **application)
@@ -522,6 +580,7 @@ namespace HM
    void
    WebAdminSessionBrokerTester::Test()
    {
+      TestCredentialAdmission_();
       TestLifecycleAndBinding_();
       TestIdleAndAbsoluteExpiry_();
       TestRevocation_();
@@ -548,6 +607,121 @@ namespace HM
    WebAdminSessionBrokerTester::CreateProcessKey_(unsigned char value)
    {
       return std::vector<unsigned char>(ProcessKeyLength, value);
+   }
+
+   void
+   WebAdminSessionBrokerTester::TestCredentialAdmission_()
+   {
+      WebAdminSessionBroker::TimePoint now = 1000;
+      std::shared_ptr<Account> currentPrincipal = CreateAdministrator_();
+      bool allowCredentialVersion = true;
+      WebAdminSessionBroker broker(
+         [&currentPrincipal](const WebAdminSessionPrincipal &) { return std::shared_ptr<const Account>(currentPrincipal); },
+         [&allowCredentialVersion](const WebAdminSessionPrincipal &, String &version)
+         {
+            version = allowCredentialVersion ? "administrator-verifier" : "";
+            return allowCredentialVersion;
+         },
+         CreateProcessKey_(11),
+         [&now]() { return now; });
+
+      int authenticationCalls = 0;
+      String token = "stale-token";
+      if (!LegacyWebAdminCredentialAdmission::CreateSession(
+             broker,
+             "php-session-admission",
+             "Administrator",
+             "supplied-password",
+             [&authenticationCalls, &currentPrincipal](const String &username, const String &password)
+             {
+                ++authenticationCalls;
+                if (username.Compare(_T("Administrator")) != 0 || password.Compare(_T("supplied-password")) != 0)
+                   throw 0;
+
+                return std::shared_ptr<const Account>(currentPrincipal);
+             },
+             token) ||
+          authenticationCalls != 1 || token.GetLength() != 64)
+      {
+         throw 0;
+      }
+
+      std::shared_ptr<COMAuthentication> authentication = broker.OpenSession(token, "php-session-admission");
+      if (!authentication || !authentication->GetIsServerAdmin() || authentication->GetAccountID() != 0)
+         throw 0;
+
+      authenticationCalls = 0;
+      token = "stale-token";
+      if (LegacyWebAdminCredentialAdmission::CreateSession(
+             broker,
+             "php-session-null",
+             "Administrator",
+             "rejected-password",
+             [&authenticationCalls](const String &, const String &)
+             {
+                ++authenticationCalls;
+                return std::shared_ptr<const Account>();
+             },
+             token) ||
+          authenticationCalls != 1 || !token.IsEmpty())
+      {
+         throw 0;
+      }
+
+      authenticationCalls = 0;
+      token = "stale-token";
+      if (LegacyWebAdminCredentialAdmission::CreateSession(
+             broker,
+             "php-session-throw",
+             "Administrator",
+             "throwing-password",
+             [&authenticationCalls](const String &, const String &) -> std::shared_ptr<const Account>
+             {
+                ++authenticationCalls;
+                throw 0;
+             },
+             token) ||
+          authenticationCalls != 1 || !token.IsEmpty())
+      {
+         throw 0;
+      }
+
+      authenticationCalls = 0;
+      token = "stale-token";
+      if (LegacyWebAdminCredentialAdmission::CreateSession(
+             broker,
+             "",
+             "Administrator",
+             "supplied-password",
+             [&authenticationCalls, &currentPrincipal](const String &, const String &)
+             {
+                ++authenticationCalls;
+                return std::shared_ptr<const Account>(currentPrincipal);
+             },
+             token) ||
+          authenticationCalls != 1 || !token.IsEmpty())
+      {
+         throw 0;
+      }
+
+      allowCredentialVersion = false;
+      authenticationCalls = 0;
+      token = "stale-token";
+      if (LegacyWebAdminCredentialAdmission::CreateSession(
+             broker,
+             "php-session-credential-denied",
+             "Administrator",
+             "supplied-password",
+             [&authenticationCalls, &currentPrincipal](const String &, const String &)
+             {
+                ++authenticationCalls;
+                return std::shared_ptr<const Account>(currentPrincipal);
+             },
+             token) ||
+          authenticationCalls != 1 || !token.IsEmpty())
+      {
+         throw 0;
+      }
    }
 
    void
