@@ -2,16 +2,17 @@
 
 ## Status
 
-This record is current through the SEC-18 legacy authoritative-source hook implementation. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
+This record is current through the SEC-18 legacy internal-application factory implementation. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
 
 ## Implemented Foundation
 
 - `Server/COM/WebAdminSessionBroker` is a native, service-local C++ class, not a COM class. It generates a 32-byte token, stores only process-key HMACs of the token, PHP-session binding, and credential version, and never persists a token or password verifier.
 - The record expires at 20 minutes idle or 8 hours absolute, is lost on process restart, fails closed on principal/credential refresh failure, and requires the PHP-session binding for both open and revoke. A wrong binding does not revoke a valid session.
 - `LegacyWebAdminSessionBrokerFactory` composes injected current-principal and credential-version hooks with fresh `PersistentAccount::ReadObject` and active `PersistentDomain::ReadObject` lookups for regular accounts, plus `IniFileSettings::GetAdministratorPassword` for the legacy `Administrator` principal. External AD accounts fail closed because this bounded source has no current persisted credential verifier for them. `COMAuthentication::AttachAuthenticatedPrincipal` can create an already-authenticated internal principal without extending `IInterfaceApplication`.
-- `WebAdminSessionBrokerTester`, called by the existing legacy `ClassTester`, covers lifecycle, binding mismatch, idle/absolute expiry, revocation, process restart, account disable/delete, domain/admin-level mismatch, administrator/account credential-version mismatch, and the installed Application IID/CLSID/`Authenticate` signature/DISPID 17.
+- `LegacyWebAdminApplicationFactory::Create` accepts only a non-null authenticated `COMAuthentication`, creates a fresh existing `InterfaceApplication`, and installs that private shared authentication before publishing its `IInterfaceApplication` reference. It adds no COM member, identity, registration, or public authentication setter; `InterfaceApplication::Authenticate` remains unchanged.
+- `WebAdminSessionBrokerTester`, called by the existing legacy `ClassTester`, covers lifecycle, binding mismatch, idle/absolute expiry, revocation, process restart, account disable/delete, domain/admin-level mismatch, administrator/account credential-version mismatch, null/anonymous factory denial, broker-authenticated Application creation, direct-activation denial, and the installed Application IID/CLSID/`Authenticate` signature/DISPID 17.
 
-The factory does not yet create an `InterfaceApplication` and cannot be reached by PHP or any direct COM client.
+The native factory cannot be reached by PHP or any direct COM client.
 
 ## Current Evidence
 
@@ -78,7 +79,7 @@ Legacy implementation scope:
 
 - Done: add a service-local broker store and an internal `COMAuthentication` principal-attach path.
 - Done: compose authoritative account/server-administrator refresh and credential-version hooks with the native broker. Regular external AD accounts fail closed until a separately reviewed current-verifier source exists.
-- Remaining: add an internal `InterfaceApplication` creation path; preserve `InterfaceApplication::Authenticate` exactly.
+- Done: add an internal `InterfaceApplication` creation path; preserve `InterfaceApplication::Authenticate` exactly.
 - Remaining: change only `initialize.php`, `background_login.php`, `background_account_save.php`, and `logout.php` to use the broker.
 - Remaining: add a separately reviewed broker registration and DCOM identity restrictions.
 
@@ -90,7 +91,7 @@ Legacy implementation scope:
 
 ## Test Strategy
 
-The foundation covers the native token lifecycle and installed Application contract; the following PHP, caller-identity, and integration checks remain required before PHP source changes:
+The foundation covers the native token lifecycle, authoritative principal verification, broker-authenticated Application creation, and installed Application contract; the following PHP, caller-identity, and integration checks remain required before PHP source changes:
 
 1. Login stores no `session_password`; a sentinel password is absent from serialized PHP session data, URLs, logs, and error text.
 2. A valid token opens a fresh authenticated application; missing, malformed, wrong-session, expired, idle-expired, revoked, and post-restart tokens are denied.
@@ -115,4 +116,4 @@ Rollback also destroys WebAdmin sessions. It must never translate an opaque toke
 
 ## Next Implementation Slice
 
-Implement one bounded SEC-18 legacy internal-application factory slice: given a non-null `COMAuthentication` returned by the native broker, construct one fresh existing `InterfaceApplication` and attach that authentication only through a native internal helper. Add focused C++ tests for null-auth denial plus the unchanged installed Application IID/CLSID/`Authenticate` DISPID 17 and direct-activation boundary. Do not register or expose the broker, alter `IInterfaceApplication`, change PHP/WebAdmin, add a public COM member, persist tokens, alter password persistence, or change SMTP/IMAP/POP3 behavior.
+Implement one bounded SEC-18 legacy credential-admission slice: add a native-only broker helper that validates a supplied login username/password through a fresh existing `COMAuthentication::Authenticate` and delegates only a successful principal to the existing token-creation path. Add focused C++ tests for accepted and rejected injected authentication outcomes with no raw password retained. Do not create a broker COM identity or registration, alter `IInterfaceApplication`, change PHP/WebAdmin, add a public COM member, persist tokens or passwords, alter password persistence, or change SMTP/IMAP/POP3 behavior.
