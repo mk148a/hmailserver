@@ -406,6 +406,29 @@ namespace HM
       return difference == 0;
    }
 
+   HRESULT
+   LegacyWebAdminApplicationFactory::Create(const std::shared_ptr<COMAuthentication> &authentication,
+                                            IInterfaceApplication **application)
+   {
+      if (!application)
+         return E_POINTER;
+
+      *application = 0;
+      if (!authentication || !authentication->GetIsAuthenticated())
+         return E_ACCESSDENIED;
+
+      CComObject<InterfaceApplication> *rawApplication = 0;
+      HRESULT result = CComObject<InterfaceApplication>::CreateInstance(&rawApplication);
+      if (FAILED(result) || !rawApplication)
+         return FAILED(result) ? result : E_OUTOFMEMORY;
+
+      rawApplication->AddRef();
+      rawApplication->AttachAuthentication_(authentication);
+      result = rawApplication->QueryInterface(IID_IInterfaceApplication, reinterpret_cast<void **>(application));
+      rawApplication->Release();
+      return result;
+   }
+
    std::shared_ptr<WebAdminSessionBroker>
    LegacyWebAdminSessionBrokerFactory::Create(const WebAdminSessionBroker::Clock &clock,
                                               const WebAdminSessionBroker::Lifetime &lifetime)
@@ -508,6 +531,7 @@ namespace HM
       TestAuthoritativeAccountAndDomainDenial_();
       TestAuthoritativeRoleMismatchDenial_();
       TestAuthoritativeCredentialVersionDenial_();
+      TestApplicationFactory_();
       TestInstalledApplicationContract_();
    }
 
@@ -793,6 +817,42 @@ namespace HM
    }
 
    void
+   WebAdminSessionBrokerTester::TestApplicationFactory_()
+   {
+      IInterfaceApplication *application = 0;
+      if (LegacyWebAdminApplicationFactory::Create(std::shared_ptr<COMAuthentication>(), &application) != E_ACCESSDENIED || application)
+         throw 0;
+
+      std::shared_ptr<COMAuthentication> anonymousAuthentication(new COMAuthentication);
+      if (LegacyWebAdminApplicationFactory::Create(anonymousAuthentication, &application) != E_ACCESSDENIED || application)
+         throw 0;
+
+      WebAdminSessionBroker::TimePoint now = 1000;
+      std::shared_ptr<Account> currentPrincipal = CreateAdministrator_();
+      String credentialVersion = "administrator-verifier";
+      WebAdminSessionBroker broker(
+         [&currentPrincipal](const WebAdminSessionPrincipal &) { return std::shared_ptr<const Account>(currentPrincipal); },
+         [&credentialVersion](const WebAdminSessionPrincipal &, String &version) { version = credentialVersion; return true; },
+         CreateProcessKey_(8),
+         [&now]() { return now; });
+
+      String token;
+      if (!broker.CreateSession("php-session-application", currentPrincipal, token))
+         throw 0;
+
+      std::shared_ptr<COMAuthentication> authentication = broker.OpenSession(token, "php-session-application");
+      if (!authentication || FAILED(LegacyWebAdminApplicationFactory::Create(authentication, &application)) || !application)
+         throw 0;
+
+      eServerState state = hStateUnknown;
+      const HRESULT result = application->get_ServerState(&state);
+      application->Release();
+
+      if (FAILED(result))
+         throw 0;
+   }
+
+   void
    WebAdminSessionBrokerTester::TestInstalledApplicationContract_()
    {
       if (!InlineIsEqualGUID(IID_IInterfaceApplication, ExpectedApplicationInterfaceID) ||
@@ -817,9 +877,11 @@ namespace HM
       LPOLESTR memberName = const_cast<LPOLESTR>(L"Authenticate");
       DISPID dispatchID = DISPID_UNKNOWN;
       const HRESULT result = application->GetIDsOfNames(IID_NULL, &memberName, 1, LOCALE_INVARIANT, &dispatchID);
+      eServerState state = hStateUnknown;
+      const HRESULT directActivationResult = application->get_ServerState(&state);
       application->Release();
 
-      if (FAILED(result) || dispatchID != 17)
+      if (FAILED(result) || dispatchID != 17 || SUCCEEDED(directActivationResult))
          throw 0;
    }
 }

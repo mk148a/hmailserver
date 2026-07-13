@@ -5,6 +5,8 @@
 
 #include "../Common/BO/Account.h"
 
+struct IInterfaceApplication;
+
 namespace HM
 {
    class COMAuthentication;
@@ -120,6 +122,15 @@ namespace HM
       boost::mutex mutex_;
    };
 
+   // Creates the installed Application class through a native-only seam. It
+   // adds no COM class, interface member, or registration surface.
+   class LegacyWebAdminApplicationFactory
+   {
+   public:
+      static HRESULT Create(const std::shared_ptr<COMAuthentication> &authentication,
+                            IInterfaceApplication **application);
+   };
+
    // Composes only internal legacy sources with the native broker. It has no
    // COM registration or request-facing surface.
    class LegacyWebAdminSessionBrokerFactory
@@ -169,6 +180,7 @@ namespace HM
       void TestAuthoritativeAccountAndDomainDenial_();
       void TestAuthoritativeRoleMismatchDenial_();
       void TestAuthoritativeCredentialVersionDenial_();
+      void TestApplicationFactory_();
       void TestInstalledApplicationContract_();
    };
 }

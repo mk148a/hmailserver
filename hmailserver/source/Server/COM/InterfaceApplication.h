@@ -10,6 +10,7 @@
 namespace HM
 {
    class COMAuthentication;
+   class LegacyWebAdminApplicationFactory;
 }
 
 class ATL_NO_VTABLE InterfaceApplication : 
@@ -71,6 +72,13 @@ public:
    STDMETHOD(get_Rules)(/*[out, retval]*/ IInterfaceRules **pVal);
 
 private:
+   friend class HM::LegacyWebAdminApplicationFactory;
+
+   void AttachAuthentication_(const std::shared_ptr<HM::COMAuthentication> &authentication)
+   {
+      authentication_ = authentication;
+   }
+
    HRESULT EnsureDatabaseConnectivity_();
    std::shared_ptr<HM::COMAuthentication> authentication_;
 };
