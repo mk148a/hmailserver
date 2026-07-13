@@ -594,6 +594,63 @@ namespace HM
              !credentialVersion.IsEmpty();
    }
 
+   LegacyWebAdminSessionService::LegacyWebAdminSessionService() :
+      broker_(LegacyWebAdminSessionBrokerFactory::Create())
+   {
+   }
+
+   LegacyWebAdminSessionService::LegacyWebAdminSessionService(
+      const std::shared_ptr<WebAdminSessionBroker> &broker) :
+      broker_(broker)
+   {
+   }
+
+   bool
+   LegacyWebAdminSessionService::CreateSession(const String &phpSessionID,
+                                               const String &username,
+                                               const String &password,
+                                               String &rawToken)
+   {
+      rawToken = "";
+      if (!broker_)
+         return false;
+
+      return LegacyWebAdminCredentialAdmission::CreateSession(
+         *broker_, phpSessionID, username, password, rawToken);
+   }
+
+   bool
+   LegacyWebAdminSessionService::CreateSession(
+      const String &phpSessionID,
+      const String &username,
+      const String &password,
+      const LegacyWebAdminCredentialAdmission::AuthenticationHook &authenticationHook,
+      String &rawToken)
+   {
+      rawToken = "";
+      if (!broker_)
+         return false;
+
+      return LegacyWebAdminCredentialAdmission::CreateSession(
+         *broker_, phpSessionID, username, password, authenticationHook, rawToken);
+   }
+
+   HRESULT
+   LegacyWebAdminSessionService::CreateApplication(const String &rawToken,
+                                                   const String &phpSessionID,
+                                                   IInterfaceApplication **application)
+   {
+      if (!application)
+         return E_POINTER;
+
+      *application = 0;
+      if (!broker_)
+         return E_ACCESSDENIED;
+
+      return LegacyWebAdminSessionRequest::CreateApplication(
+         *broker_, rawToken, phpSessionID, application);
+   }
+
    void
    WebAdminSessionBrokerTester::Test()
    {
@@ -609,6 +666,8 @@ namespace HM
       TestAuthoritativeCredentialVersionDenial_();
       TestApplicationFactory_();
       TestSessionRequestComposition_();
+      TestSessionServiceOwnership_();
+      TestSessionServiceNullBroker_();
       TestInstalledApplicationContract_();
    }
 
@@ -1124,6 +1183,81 @@ namespace HM
       {
          throw 0;
       }
+   }
+
+   void
+   WebAdminSessionBrokerTester::TestSessionServiceOwnership_()
+   {
+      WebAdminSessionBroker::TimePoint now = 1000;
+      std::shared_ptr<Account> administrator = CreateAdministrator_();
+      std::shared_ptr<TestWebAdminSessionPrincipalSource> source(new TestWebAdminSessionPrincipalSource);
+      source->administrator_credential_version_ = "administrator-verifier";
+
+      LegacyWebAdminSessionService owner(
+         LegacyWebAdminSessionBrokerFactory::Create(source, CreateProcessKey_(13), [&now]() { return now; }));
+      LegacyWebAdminSessionService restartedOwner(
+         LegacyWebAdminSessionBrokerFactory::Create(source, CreateProcessKey_(14), [&now]() { return now; }));
+
+      String token;
+      if (!owner.CreateSession(
+             "php-session-owner",
+             "Administrator",
+             "supplied-password",
+             [&administrator](const String &username, const String &password)
+             {
+                if (username.Compare(_T("Administrator")) != 0 || password.Compare(_T("supplied-password")) != 0)
+                   return std::shared_ptr<const Account>();
+
+                return std::shared_ptr<const Account>(administrator);
+             },
+             token))
+      {
+         throw 0;
+      }
+
+      IInterfaceApplication *application = reinterpret_cast<IInterfaceApplication *>(1);
+      if (restartedOwner.CreateApplication(token, "php-session-owner", &application) != E_ACCESSDENIED || application)
+         throw 0;
+
+      if (FAILED(owner.CreateApplication(token, "php-session-owner", &application)) || !application)
+         throw 0;
+
+      eServerState state = hStateUnknown;
+      const HRESULT protectedAccessResult = application->get_ServerState(&state);
+      application->Release();
+      if (FAILED(protectedAccessResult))
+         throw 0;
+   }
+
+   void
+   WebAdminSessionBrokerTester::TestSessionServiceNullBroker_()
+   {
+      std::shared_ptr<WebAdminSessionBroker> nullBroker;
+      LegacyWebAdminSessionService owner(nullBroker);
+
+      int authenticationCalls = 0;
+      String token = "stale-token";
+      if (owner.CreateSession(
+             "php-session-null-owner",
+             "Administrator",
+             "supplied-password",
+             [&authenticationCalls](const String &, const String &)
+             {
+                ++authenticationCalls;
+                return std::shared_ptr<const Account>();
+             },
+             token) ||
+          authenticationCalls != 0 || !token.IsEmpty())
+      {
+         throw 0;
+      }
+
+      if (owner.CreateApplication("token", "php-session-null-owner", 0) != E_POINTER)
+         throw 0;
+
+      IInterfaceApplication *application = reinterpret_cast<IInterfaceApplication *>(1);
+      if (owner.CreateApplication("token", "php-session-null-owner", &application) != E_ACCESSDENIED || application)
+         throw 0;
    }
 
    void

@@ -194,6 +194,33 @@ namespace HM
          String &credentialVersion);
    };
 
+   // Owns one process-local broker for a native service lifetime and exposes
+   // only the existing credential-admission and authenticated-request seams.
+   class LegacyWebAdminSessionService
+   {
+   public:
+      LegacyWebAdminSessionService();
+      explicit LegacyWebAdminSessionService(const std::shared_ptr<WebAdminSessionBroker> &broker);
+
+      bool CreateSession(const String &phpSessionID,
+                         const String &username,
+                         const String &password,
+                         String &rawToken);
+
+      bool CreateSession(const String &phpSessionID,
+                         const String &username,
+                         const String &password,
+                         const LegacyWebAdminCredentialAdmission::AuthenticationHook &authenticationHook,
+                         String &rawToken);
+
+      HRESULT CreateApplication(const String &rawToken,
+                                const String &phpSessionID,
+                                IInterfaceApplication **application);
+
+   private:
+      std::shared_ptr<WebAdminSessionBroker> broker_;
+   };
+
    class WebAdminSessionBrokerTester
    {
    public:
@@ -215,6 +242,8 @@ namespace HM
       void TestAuthoritativeCredentialVersionDenial_();
       void TestApplicationFactory_();
       void TestSessionRequestComposition_();
+      void TestSessionServiceOwnership_();
+      void TestSessionServiceNullBroker_();
       void TestInstalledApplicationContract_();
    };
 }
