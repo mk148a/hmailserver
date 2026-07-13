@@ -87,7 +87,7 @@ public sealed class ExternalFetchProcessor
             catch
             {
                 accountsFailed++;
-                await ReleaseAccountSafelyAsync(account.FetchAccountId, cancellationToken).ConfigureAwait(false);
+                await CompleteAccountSafelyAsync(account.FetchAccountId, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -786,13 +786,13 @@ public sealed class ExternalFetchProcessor
             && (response.Length == 3 || char.IsWhiteSpace(response[3]) || response[3] == '-');
     }
 
-    private async ValueTask ReleaseAccountSafelyAsync(
+    private async ValueTask CompleteAccountSafelyAsync(
         int fetchAccountId,
         CancellationToken cancellationToken)
     {
         try
         {
-            await _accountStore.ReleaseAsync(fetchAccountId, cancellationToken).ConfigureAwait(false);
+            await _accountStore.CompleteAsync(fetchAccountId, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

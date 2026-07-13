@@ -367,7 +367,7 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
-    public async Task RunBatchAsync_ReleasesLeaseWhenReceiverRejects()
+    public async Task RunBatchAsync_CompletesLeaseWhenReceiverRejects()
     {
         var account = CreateAccount();
         var store = new FakeExternalFetchAccountStore(account);
@@ -382,12 +382,36 @@ public sealed class ExternalFetchProcessorTests
         Assert.AreEqual(1, result.AccountsLeased);
         Assert.AreEqual(0, result.AccountsCompleted);
         Assert.AreEqual(1, result.AccountsFailed);
-        Assert.AreEqual(77, store.ReleasedFetchAccountIds.Single());
+        Assert.AreEqual(77, store.CompletedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.ReleasedFetchAccountIds.Count);
         Assert.AreEqual(0, store.AddedUids.Count);
     }
 
     [TestMethod]
-    public async Task RunBatchAsync_ReleasesLeaseWhenMessageDownloadFails()
+    public async Task RunBatchAsync_CompletesLeaseWhenSessionFactoryConnectionFails()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession();
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(
+            store,
+            session,
+            receiver,
+            connectionException: new IOException("External POP3 connection failed."));
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsLeased);
+        Assert.AreEqual(0, result.AccountsCompleted);
+        Assert.AreEqual(1, result.AccountsFailed);
+        Assert.AreEqual(77, store.CompletedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.ReleasedFetchAccountIds.Count);
+        Assert.AreEqual(0, receiver.Requests.Count);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_CompletesLeaseWhenMessageDownloadFails()
     {
         var account = CreateAccount();
         var store = new FakeExternalFetchAccountStore(account);
@@ -407,14 +431,15 @@ public sealed class ExternalFetchProcessorTests
         Assert.AreEqual(1, result.AccountsFailed);
         Assert.AreEqual(0, result.MessagesDownloaded);
         Assert.AreEqual(0, result.MessagesAccepted);
-        Assert.AreEqual(77, store.ReleasedFetchAccountIds.Single());
+        Assert.AreEqual(77, store.CompletedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.ReleasedFetchAccountIds.Count);
         Assert.AreEqual(0, receiver.Requests.Count);
         Assert.AreEqual(0, store.AddedUids.Count);
         Assert.AreEqual(0, session.DeletedUids.Count);
     }
 
     [TestMethod]
-    public async Task RunBatchAsync_ReleasesLeaseWhenMessageBodyTerminatesEarly()
+    public async Task RunBatchAsync_CompletesLeaseWhenMessageBodyTerminatesEarly()
     {
         var account = CreateAccount();
         var store = new FakeExternalFetchAccountStore(account);
@@ -437,8 +462,8 @@ public sealed class ExternalFetchProcessorTests
         Assert.AreEqual(0, result.RemoteMessagesDeleted);
         Assert.AreEqual(0, result.KnownUidsAdded);
         Assert.AreEqual(0, result.KnownUidsDeleted);
-        Assert.AreEqual(77, store.ReleasedFetchAccountIds.Single());
-        Assert.AreEqual(0, store.CompletedFetchAccountIds.Count);
+        Assert.AreEqual(77, store.CompletedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.ReleasedFetchAccountIds.Count);
         Assert.AreEqual(0, store.AddedUids.Count);
         Assert.AreEqual(0, store.DeletedUidIds.Count);
         Assert.AreEqual(1, session.DownloadedSequences.Single());
@@ -447,7 +472,7 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
-    public async Task RunBatchAsync_ReleasesLeaseWhenMessageListingTerminatesEarly()
+    public async Task RunBatchAsync_CompletesLeaseWhenMessageListingTerminatesEarly()
     {
         var account = CreateAccount();
         var store = new FakeExternalFetchAccountStore(account);
@@ -470,8 +495,8 @@ public sealed class ExternalFetchProcessorTests
         Assert.AreEqual(0, result.RemoteMessagesDeleted);
         Assert.AreEqual(0, result.KnownUidsAdded);
         Assert.AreEqual(0, result.KnownUidsDeleted);
-        Assert.AreEqual(77, store.ReleasedFetchAccountIds.Single());
-        Assert.AreEqual(0, store.CompletedFetchAccountIds.Count);
+        Assert.AreEqual(77, store.CompletedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.ReleasedFetchAccountIds.Count);
         Assert.AreEqual(0, store.AddedUids.Count);
         Assert.AreEqual(0, store.DeletedUidIds.Count);
         Assert.AreEqual(0, session.DownloadedSequences.Count);
@@ -509,7 +534,8 @@ public sealed class ExternalFetchProcessorTests
         Assert.AreEqual(1, result.AccountsFailed);
         Assert.AreEqual(0, result.RemoteMessagesDeleted);
         Assert.AreEqual(0, result.KnownUidsDeleted);
-        Assert.AreEqual(77, store.ReleasedFetchAccountIds.Single());
+        Assert.AreEqual(77, store.CompletedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.ReleasedFetchAccountIds.Count);
         Assert.AreEqual("uid-delete-failure", session.DeletedUids.Single());
         Assert.AreEqual(0, store.DeletedUidIds.Count);
         Assert.AreEqual(0, session.DownloadedSequences.Count);
@@ -966,10 +992,11 @@ public sealed class ExternalFetchProcessorTests
         IExternalAccountDownloadScriptExecutor? scriptExecutor = null,
         IMessageAntivirusScanner? antivirusScanner = null,
         ISmtpRecipientValidator? recipientValidator = null,
-        TimeProvider? timeProvider = null) =>
+        TimeProvider? timeProvider = null,
+        Exception? connectionException = null) =>
         new(
             store,
-            new FakeExternalFetchSessionFactory(session),
+            new FakeExternalFetchSessionFactory(session, connectionException),
             receiver,
             scriptExecutor,
             antivirusScanner,
@@ -1093,16 +1120,22 @@ public sealed class ExternalFetchProcessorTests
     private sealed class FakeExternalFetchSessionFactory : IExternalFetchSessionFactory
     {
         private readonly FakeExternalFetchSession _session;
+        private readonly Exception? _connectionException;
 
-        public FakeExternalFetchSessionFactory(FakeExternalFetchSession session)
+        public FakeExternalFetchSessionFactory(
+            FakeExternalFetchSession session,
+            Exception? connectionException = null)
         {
             _session = session;
+            _connectionException = connectionException;
         }
 
         public ValueTask<IExternalFetchSession> ConnectAsync(
             ExternalFetchAccountLease account,
             CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IExternalFetchSession>(_session);
+            _connectionException is null
+                ? ValueTask.FromResult<IExternalFetchSession>(_session)
+                : ValueTask.FromException<IExternalFetchSession>(_connectionException);
     }
 
     private sealed class FakeExternalFetchSession : IExternalFetchSession
