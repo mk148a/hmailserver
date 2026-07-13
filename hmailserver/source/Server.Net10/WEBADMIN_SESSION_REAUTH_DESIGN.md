@@ -2,7 +2,16 @@
 
 ## Status
 
-This is the SEC-18 read-only design record. It does not change the legacy PHP WebAdmin, the legacy C++ COM API, or the .NET 10 runtime.
+This record is current through the SEC-18 legacy broker-foundation implementation. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
+
+## Implemented Foundation
+
+- `Server/COM/WebAdminSessionBroker` is a native, service-local C++ class, not a COM class. It generates a 32-byte token, stores only process-key HMACs of the token, PHP-session binding, and credential version, and never persists a token or password verifier.
+- The record expires at 20 minutes idle or 8 hours absolute, is lost on process restart, fails closed on principal/credential refresh failure, and requires the PHP-session binding for both open and revoke. A wrong binding does not revoke a valid session.
+- The broker receives injected current-principal and credential-version hooks. `COMAuthentication::AttachAuthenticatedPrincipal` can create an already-authenticated internal principal without extending `IInterfaceApplication`.
+- `WebAdminSessionBrokerTester`, called by the existing legacy `ClassTester`, covers lifecycle, binding mismatch, idle/absolute expiry, revocation, process restart, credential-version mismatch, principal-refresh denial, and the installed Application IID/CLSID/`Authenticate` signature/DISPID 17.
+
+The foundation is intentionally not yet composed with legacy account/configuration sources and cannot be reached by PHP or any direct COM client.
 
 ## Current Evidence
 
@@ -31,7 +40,7 @@ Do not use these alternatives:
 
 ## Proposed Broker Protocol
 
-The future implementation adds a new internal COM class and interface with new identifiers. It does not alter any existing class, ProgID, IID, DISPIDs, default interface, or type library member.
+The implemented foundation is a native class with no COM identity. A future dedicated internal COM bridge may use new identifiers only after the identity and registration review; it must not alter any existing class, ProgID, IID, DISPIDs, default interface, or type library member.
 
 1. `CreateSession(username, password, phpSessionId)` is called only by the login handler. The broker validates the submitted password using the authoritative server authentication path, generates a 32-byte token using the service random source, and returns the token plus authoritative principal metadata.
 2. PHP stores only `session_reauth_token`, `session_loggedin`, the CSRF token, and non-secret UI metadata. It never writes `session_password`.
@@ -67,10 +76,11 @@ The broker creates an existing `InterfaceApplication`/`Application` instance thr
 
 Legacy implementation scope:
 
-- Add a service-local broker store and an internal `COMAuthentication` principal-attach path.
-- Add an internal `InterfaceApplication` creation path; preserve `InterfaceApplication::Authenticate` exactly.
-- Change only `initialize.php`, `background_login.php`, `background_account_save.php`, and `logout.php` to use the broker.
-- Add installer registration and DCOM identity restrictions for the new broker.
+- Done: add a service-local broker store and an internal `COMAuthentication` principal-attach path.
+- Remaining: compose authoritative account/server-administrator refresh and credential-version hooks with the native broker.
+- Remaining: add an internal `InterfaceApplication` creation path; preserve `InterfaceApplication::Authenticate` exactly.
+- Remaining: change only `initialize.php`, `background_login.php`, `background_account_save.php`, and `logout.php` to use the broker.
+- Remaining: add a separately reviewed broker registration and DCOM identity restrictions.
 
 .NET 10 implementation scope:
 
@@ -80,7 +90,7 @@ Legacy implementation scope:
 
 ## Test Strategy
 
-The implementation slice must add focused unit and integration coverage before PHP source changes:
+The foundation covers the native token lifecycle and installed Application contract; the following PHP, caller-identity, and integration checks remain required before PHP source changes:
 
 1. Login stores no `session_password`; a sentinel password is absent from serialized PHP session data, URLs, logs, and error text.
 2. A valid token opens a fresh authenticated application; missing, malformed, wrong-session, expired, idle-expired, revoked, and post-restart tokens are denied.
@@ -89,7 +99,7 @@ The implementation slice must add focused unit and integration coverage before P
 5. Session-ID and CSRF-token rotation on successful login remain intact.
 6. Current-user password save returns a rotated token only after the new password verifies; an interrupted rotation forces re-login. Other sessions for that account are revoked by credential-version mismatch.
 7. Account disable/delete, administrator/domain/account-role changes, and out-of-band administrator password changes deny the next request.
-8. Unauthorized local COM clients cannot activate or use the broker; existing direct child activation remains `E_ACCESSDENIED` and the installed Application vtable/type-library bytes remain unchanged.
+8. Unauthorized local COM clients cannot activate or use a future registered broker; existing direct child activation must remain `E_ACCESSDENIED` and the installed Application vtable/type-library bytes must remain unchanged. Caller-identity checks are deferred because this foundation intentionally has no registered COM class.
 9. PHP/WebAdmin acceptance covers login, normal request, logout, current-user password change, domain-admin and server-admin scopes, CSRF failure, and service restart.
 10. .NET 10 tests cover the broker's access boundary, token lifecycle, principal refresh, and unchanged `Application.Authenticate` contract before hosted registration is enabled.
 
@@ -105,4 +115,4 @@ Rollback also destroys WebAdmin sessions. It must never translate an opaque toke
 
 ## Next Implementation Slice
 
-Implement the legacy broker foundation only: in-memory token record, internal principal attachment, and no PHP wiring. Prove token lifecycle, service-restart invalidation, caller-identity denial, and unchanged legacy COM contracts before changing WebAdmin request handling.
+Implement one bounded legacy authoritative-source hook slice: compose the existing native broker with fresh account/domain reads by account ID plus `IniFileSettings::GetAdministratorPassword`, so its injected hooks deny missing/inactive principals, role/domain changes, and externally changed persisted credential verifiers. Add focused C++ tests for disabled/deleted account, domain/admin-level mismatch, and administrator/account credential-version denial. Do not register or expose the broker, create an `InterfaceApplication`, change PHP/WebAdmin, add a public COM member, persist tokens, or change SMTP/IMAP/POP3 behavior.
