@@ -2,7 +2,7 @@
 
 ## Status
 
-This record is current through the SEC-18 non-production deployment inventory. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
+This record is current through the SEC-18 repeatable dedicated-IIS staging-inventory collector. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
 
 ## Implemented Foundation
 
@@ -123,6 +123,22 @@ The available Windows 11 development host has a legacy test installation at `C:\
 
 This is a negative evidence result, not approval to register a bridge. A dedicated IIS staging host with an already authorized caller-token probe is required before broker code, AppID registration, or PHP changes can be considered.
 
+### Repeatable Staging Collector
+
+`build/get-webadmin-broker-staging-inventory.ps1` makes the required host inspection repeatable without changing the host. It reads the supplied WebAdmin path, IIS site/application and application-pool mappings, both registry views of the existing Application AppID, and machine-default DCOM descriptors. It never starts hMailServer, activates COM, executes a probe, writes registry/IIS/service state, or approves broker registration.
+
+Run it only on a dedicated non-production IIS staging host after an independently authorized caller-token probe has written a JSON evidence file:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\get-webadmin-broker-staging-inventory.ps1 `
+  -WebAdminPath 'C:\hMailServer57-Test\PHPWebAdmin' `
+  -CallerTokenEvidencePath 'C:\evidence\webadmin-caller-token.json' `
+  -OutputPath 'C:\evidence\webadmin-broker-inventory.json' `
+  -FailOnIncomplete
+```
+
+The caller-token evidence must contain only non-secret fields: `probeVersion`, `observedUtc`, `transport` with value `local`, `impersonationSucceeded` with value `true`, and `callerSid`. The collector checks that the caller SID equals the discovered worker SID, records all mappings sharing that application pool, and reports `EvidenceCollectedSecurityReviewRequired` only when the WebAdmin path, existing Application AppID, one dedicated-pool candidate, and the caller evidence are present. It always reports `ReadyForBrokerRegistration = false`; the broker-only AppID ACL and method-level caller-SID code still need dedicated review. `-FailOnIncomplete` exits `2` for incomplete evidence.
+
 Legacy implementation scope:
 
 - Done: add a service-local broker store and an internal `COMAuthentication` principal-attach path.
@@ -133,7 +149,7 @@ Legacy implementation scope:
 - Done: add a native service-local owner that holds one broker and exposes only those existing admission/request helpers; it is not yet hosted by the service.
 - Done: audit the bridge identity and caller-access boundary. Existing PHP/IIS deployment source does not provide a worker SID or broker-only DCOM ACL, so broker COM registration remains intentionally blocked.
 - Remaining: change only `initialize.php`, `background_login.php`, `background_account_save.php`, and `logout.php` to use the broker.
-- Remaining: on a dedicated IIS staging host, capture and validate a WebAdmin worker SID, a dedicated-pool proof, broker-only AppID launch/access descriptors, and an authorized caller-token probe before a separately reviewed broker registration.
+- Remaining: run the checked-in collector on a dedicated IIS staging host with independent caller-token evidence, then validate the worker SID, dedicated-pool proof, broker-only AppID launch/access descriptors, and caller-token result before a separately reviewed broker registration.
 
 .NET 10 implementation scope:
 
@@ -168,4 +184,4 @@ Rollback also destroys WebAdmin sessions. It must never translate an opaque toke
 
 ## Next Implementation Slice
 
-Perform one bounded SEC-18 read-only dedicated-IIS-staging inventory. On a host where PHP WebAdmin is actually served from a dedicated IIS application pool, capture the worker SID and pool-isolation evidence, export the existing Application AppID and effective DCOM descriptors, and run an already-authorized caller-token probe to establish whether the local COM server can impersonate that caller. Do not edit C++/C#/PHP source, registry, IIS, service configuration, or production data; do not register a class, alter `IInterfaceApplication`, persist tokens or passwords, or change SMTP/IMAP/POP3 behavior.
+Perform one bounded SEC-18 read-only dedicated-IIS-staging run of `build/get-webadmin-broker-staging-inventory.ps1`. On a host where PHP WebAdmin is actually served from a dedicated IIS application pool, supply independently produced caller-token evidence and capture the worker SID, pool-isolation mappings, existing Application AppID/effective DCOM descriptors, and caller-token result. Do not edit C++/C#/PHP source, registry, IIS, service configuration, or production data; do not register a class, alter `IInterfaceApplication`, persist tokens or passwords, or change SMTP/IMAP/POP3 behavior.
