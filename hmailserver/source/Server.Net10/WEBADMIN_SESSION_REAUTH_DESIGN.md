@@ -2,7 +2,7 @@
 
 ## Status
 
-This record is current through the SEC-18 legacy session-request-composition implementation. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
+This record is current through the SEC-18 legacy broker-lifetime-owner implementation. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
 
 ## Implemented Foundation
 
@@ -12,9 +12,10 @@ This record is current through the SEC-18 legacy session-request-composition imp
 - `LegacyWebAdminApplicationFactory::Create` accepts only a non-null authenticated `COMAuthentication`, creates a fresh existing `InterfaceApplication`, and installs that private shared authentication before publishing its `IInterfaceApplication` reference. It adds no COM member, identity, registration, or public authentication setter; `InterfaceApplication::Authenticate` remains unchanged.
 - `LegacyWebAdminCredentialAdmission::CreateSession` constructs a fresh local `COMAuthentication` for every production call, delegates username/password validation to its unchanged legacy `Authenticate` method, and passes only a successful principal to the existing broker token path. The injection overload exists only for native tests; it clears the raw token and fails closed on null or exception outcomes. No password field is added to the admission helper, broker, or session record.
 - `LegacyWebAdminSessionRequest::CreateApplication` takes an existing broker, raw token, and PHP-session ID, then calls `OpenSession` and publishes only its authenticated result through `LegacyWebAdminApplicationFactory`. It clears the output pointer before every denial and adds no COM, registration, persistence, or request-facing surface.
-- `WebAdminSessionBrokerTester`, called by the existing legacy `ClassTester`, covers lifecycle, binding mismatch, idle/absolute expiry, revocation, process restart, account disable/delete, domain/admin-level mismatch, administrator/account credential-version mismatch, null/anonymous factory denial, broker-authenticated Application creation, credential-admission accept/null/exception/empty-session/current-verifier denial, session-request valid/missing/wrong-session/expired/revoked outcomes, direct-activation denial, and the installed Application IID/CLSID/`Authenticate` signature/DISPID 17.
+- `LegacyWebAdminSessionService` retains exactly one broker created through `LegacyWebAdminSessionBrokerFactory` per owning native service instance and exposes only wrappers over credential admission and authenticated request composition. Its injected-broker constructor is a native test seam; a null broker clears raw tokens and denies application creation. It is not yet wired into service startup, COM registration, or PHP.
+- `WebAdminSessionBrokerTester`, called by the existing legacy `ClassTester`, covers lifecycle, binding mismatch, idle/absolute expiry, revocation, process restart, account disable/delete, domain/admin-level mismatch, administrator/account credential-version mismatch, null/anonymous factory denial, broker-authenticated Application creation, credential-admission accept/null/exception/empty-session/current-verifier denial, session-request valid/missing/wrong-session/expired/revoked outcomes, same-owner admission/request success, separate-owner restart-model denial, null-owner denial, direct-activation denial, and the installed Application IID/CLSID/`Authenticate` signature/DISPID 17.
 
-Neither native factory nor session-request helper can be reached by PHP or any direct COM client.
+Neither native factory, session-request helper, nor service owner can be reached by PHP or any direct COM client.
 
 Credential admission intentionally follows the legacy COM authentication path, including its account/domain cache behavior, alias/default-domain handling, script override, and SSPI behavior. The broker's later credential-version check uses fresh persistence/configuration reads. An out-of-band account update can therefore remain admission-visible until the legacy cache expires or is invalidated, but an already-issued token is still denied after the fresh verifier changes.
 
@@ -86,6 +87,7 @@ Legacy implementation scope:
 - Done: add an internal `InterfaceApplication` creation path; preserve `InterfaceApplication::Authenticate` exactly.
 - Done: add native credential admission through the unchanged legacy `COMAuthentication::Authenticate` path without retaining the supplied password.
 - Done: compose an existing broker token/session binding with the internal Application factory through a native-only request helper.
+- Done: add a native service-local owner that holds one broker and exposes only those existing admission/request helpers; it is not yet hosted by the service.
 - Remaining: change only `initialize.php`, `background_login.php`, `background_account_save.php`, and `logout.php` to use the broker.
 - Remaining: add a separately reviewed broker registration and DCOM identity restrictions.
 
@@ -122,4 +124,4 @@ Rollback also destroys WebAdmin sessions. It must never translate an opaque toke
 
 ## Next Implementation Slice
 
-Implement one bounded SEC-18 legacy broker-lifetime-owner slice: add a native-only service-local owner that creates and retains one broker through `LegacyWebAdminSessionBrokerFactory`, and expose it only to the existing native credential-admission and session-request helpers. Add focused C++ tests that a token created through one owner opens through that same owner and that a separate owner denies it, modeling process-restart invalidation. Do not register a broker COM identity, alter `IInterfaceApplication`, change PHP/WebAdmin, add a public COM member, persist tokens or passwords, alter password persistence, or change SMTP/IMAP/POP3 behavior.
+Perform one bounded SEC-18 read-only broker-bridge identity and caller-access audit. Map the legacy IIS application-pool identity, COM AppID launch/access ACLs, and impersonated caller verification needed before any broker exposure; specify only additive new broker CLSID/IID/ProgID/default-interface and deployment-preflight requirements. Do not edit C++/C#/PHP source, register a class, alter `IInterfaceApplication`, persist tokens or passwords, or change SMTP/IMAP/POP3 behavior.
