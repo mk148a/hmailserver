@@ -15,6 +15,10 @@ namespace HM
 
       std::shared_ptr<const Account> Authenticate(const String &sUsername, const String &sPassword);
 
+      // Used only by internal service-local authentication bridges. This does not
+      // add a member to an installed COM interface.
+      void AttachAuthenticatedPrincipal(const std::shared_ptr<const Account> &account);
+
       void AttempAnonymousAuthentication();
 
       bool GetIsAuthenticated() const;

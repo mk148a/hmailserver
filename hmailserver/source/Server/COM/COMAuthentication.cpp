@@ -67,6 +67,12 @@ namespace HM
       return account_;
    }
 
+   void
+   COMAuthentication::AttachAuthenticatedPrincipal(const std::shared_ptr<const Account> &account)
+   {
+      account_ = account;
+   }
+
    void 
    COMAuthentication::AttempAnonymousAuthentication()
    {

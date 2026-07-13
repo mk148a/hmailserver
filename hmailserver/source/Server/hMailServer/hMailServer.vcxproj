@@ -455,6 +455,7 @@ EXIT 0
     <ClCompile Include="..\Common\Util\XMLite.cpp" />
     <ClCompile Include="..\COM\COMAuthentication.cpp" />
     <ClCompile Include="..\COM\COMError.cpp" />
+    <ClCompile Include="..\COM\WebAdminSessionBroker.cpp" />
     <ClCompile Include="..\COM\InterfaceAccount.cpp" />
     <ClCompile Include="..\COM\InterfaceAccounts.cpp" />
     <ClCompile Include="..\COM\InterfaceAlias.cpp" />
@@ -962,6 +963,7 @@ EXIT 0
     <ClInclude Include="..\COM\COMAuthenticator.h" />
     <ClInclude Include="..\Com\COMCollection.h" />
     <ClInclude Include="..\COM\COMError.h" />
+    <ClInclude Include="..\COM\WebAdminSessionBroker.h" />
     <ClInclude Include="..\COM\InterfaceAccount.h" />
     <ClInclude Include="..\COM\InterfaceAccounts.h" />
     <ClInclude Include="..\COM\InterfaceAlias.h" />

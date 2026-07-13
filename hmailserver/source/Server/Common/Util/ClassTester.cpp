@@ -27,6 +27,7 @@
 #include "../Util/Encoding/ModifiedUTF7.h"
 #include "../Util/Hashing/HashCreator.h"
 #include "../Util/EventTester.h"
+#include "../../COM/WebAdminSessionBroker.h"
 #include <boost/pool/object_pool.hpp>
 
 #ifdef _DEBUG
@@ -53,6 +54,10 @@ namespace HM
       EventTester *pEventTester = new EventTester;
       pEventTester->Test();
       delete pEventTester;
+
+      OutputDebugString(_T("hMailServer: Testing WebAdminSessionBroker\n"));
+      WebAdminSessionBrokerTester webAdminSessionBrokerTester;
+      webAdminSessionBrokerTester.Test();
 
       OutputDebugString(_T("hMailServer: Testing mime parser\n"));
 	   MimeTester *pMimeTester = new MimeTester;
