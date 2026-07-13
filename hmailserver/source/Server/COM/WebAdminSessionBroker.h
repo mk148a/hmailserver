@@ -152,6 +152,17 @@ namespace HM
                             IInterfaceApplication **application);
    };
 
+   // Resolves an existing native broker session and publishes only an
+   // authenticated Application. It adds no COM or registration surface.
+   class LegacyWebAdminSessionRequest
+   {
+   public:
+      static HRESULT CreateApplication(WebAdminSessionBroker &broker,
+                                       const String &rawToken,
+                                       const String &phpSessionID,
+                                       IInterfaceApplication **application);
+   };
+
    // Composes only internal legacy sources with the native broker. It has no
    // COM registration or request-facing surface.
    class LegacyWebAdminSessionBrokerFactory
@@ -203,6 +214,7 @@ namespace HM
       void TestAuthoritativeRoleMismatchDenial_();
       void TestAuthoritativeCredentialVersionDenial_();
       void TestApplicationFactory_();
+      void TestSessionRequestComposition_();
       void TestInstalledApplicationContract_();
    };
 }

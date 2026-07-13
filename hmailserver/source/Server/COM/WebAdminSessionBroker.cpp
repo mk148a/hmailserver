@@ -487,6 +487,23 @@ namespace HM
       return result;
    }
 
+   HRESULT
+   LegacyWebAdminSessionRequest::CreateApplication(WebAdminSessionBroker &broker,
+                                                   const String &rawToken,
+                                                   const String &phpSessionID,
+                                                   IInterfaceApplication **application)
+   {
+      if (!application)
+         return E_POINTER;
+
+      *application = 0;
+      std::shared_ptr<COMAuthentication> authentication = broker.OpenSession(rawToken, phpSessionID);
+      if (!authentication || !authentication->GetIsAuthenticated())
+         return E_ACCESSDENIED;
+
+      return LegacyWebAdminApplicationFactory::Create(authentication, application);
+   }
+
    std::shared_ptr<WebAdminSessionBroker>
    LegacyWebAdminSessionBrokerFactory::Create(const WebAdminSessionBroker::Clock &clock,
                                               const WebAdminSessionBroker::Lifetime &lifetime)
@@ -591,6 +608,7 @@ namespace HM
       TestAuthoritativeRoleMismatchDenial_();
       TestAuthoritativeCredentialVersionDenial_();
       TestApplicationFactory_();
+      TestSessionRequestComposition_();
       TestInstalledApplicationContract_();
    }
 
@@ -1024,6 +1042,88 @@ namespace HM
 
       if (FAILED(result))
          throw 0;
+   }
+
+   void
+   WebAdminSessionBrokerTester::TestSessionRequestComposition_()
+   {
+      WebAdminSessionBroker::TimePoint now = 1000;
+      std::shared_ptr<Account> currentPrincipal = CreateAdministrator_();
+      String credentialVersion = "administrator-verifier";
+      WebAdminSessionBroker broker(
+         [&currentPrincipal](const WebAdminSessionPrincipal &) { return std::shared_ptr<const Account>(currentPrincipal); },
+         [&credentialVersion](const WebAdminSessionPrincipal &, String &version) { version = credentialVersion; return true; },
+         CreateProcessKey_(12),
+         [&now]() { return now; },
+         WebAdminSessionBroker::Lifetime(10, 30));
+
+      String token;
+      if (!broker.CreateSession("php-session-request", currentPrincipal, token))
+         throw 0;
+
+      if (LegacyWebAdminSessionRequest::CreateApplication(
+             broker, token, "php-session-request", 0) != E_POINTER)
+      {
+         throw 0;
+      }
+
+      IInterfaceApplication *application = reinterpret_cast<IInterfaceApplication *>(1);
+      if (LegacyWebAdminSessionRequest::CreateApplication(
+             broker, "", "php-session-request", &application) != E_ACCESSDENIED || application)
+      {
+         throw 0;
+      }
+
+      application = reinterpret_cast<IInterfaceApplication *>(1);
+      if (LegacyWebAdminSessionRequest::CreateApplication(
+             broker, "not-issued-token", "php-session-request", &application) != E_ACCESSDENIED || application)
+      {
+         throw 0;
+      }
+
+      application = reinterpret_cast<IInterfaceApplication *>(1);
+      if (LegacyWebAdminSessionRequest::CreateApplication(
+             broker, token, "wrong-php-session", &application) != E_ACCESSDENIED || application)
+      {
+         throw 0;
+      }
+
+      if (FAILED(LegacyWebAdminSessionRequest::CreateApplication(
+             broker, token, "php-session-request", &application)) || !application)
+      {
+         throw 0;
+      }
+
+      eServerState state = hStateUnknown;
+      const HRESULT protectedAccessResult = application->get_ServerState(&state);
+      application->Release();
+      application = 0;
+      if (FAILED(protectedAccessResult))
+         throw 0;
+
+      String expiredToken;
+      if (!broker.CreateSession("php-session-expired", currentPrincipal, expiredToken))
+         throw 0;
+
+      now += 10;
+      application = reinterpret_cast<IInterfaceApplication *>(1);
+      if (LegacyWebAdminSessionRequest::CreateApplication(
+             broker, expiredToken, "php-session-expired", &application) != E_ACCESSDENIED || application)
+      {
+         throw 0;
+      }
+
+      String revokedToken;
+      if (!broker.CreateSession("php-session-revoked", currentPrincipal, revokedToken))
+         throw 0;
+
+      broker.RevokeSession(revokedToken, "php-session-revoked");
+      application = reinterpret_cast<IInterfaceApplication *>(1);
+      if (LegacyWebAdminSessionRequest::CreateApplication(
+             broker, revokedToken, "php-session-revoked", &application) != E_ACCESSDENIED || application)
+      {
+         throw 0;
+      }
    }
 
    void
