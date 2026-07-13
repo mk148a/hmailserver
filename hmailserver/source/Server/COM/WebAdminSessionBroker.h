@@ -9,6 +9,19 @@ namespace HM
 {
    class COMAuthentication;
 
+   // This is a native dependency seam, not a COM interface. Production reads
+   // use the legacy persistence/configuration sources; tests provide snapshots.
+   class IWebAdminSessionPrincipalSource
+   {
+   public:
+      virtual ~IWebAdminSessionPrincipalSource() {}
+
+      virtual std::shared_ptr<const Account> ReadAccountByID(__int64 accountID) const = 0;
+      virtual bool IsDomainActive(__int64 domainID) const = 0;
+      virtual bool GetAccountCredentialVersion(__int64 accountID, String &credentialVersion) const = 0;
+      virtual bool GetAdministratorCredentialVersion(String &credentialVersion) const = 0;
+   };
+
    class WebAdminSessionPrincipal
    {
    public:
@@ -107,6 +120,37 @@ namespace HM
       boost::mutex mutex_;
    };
 
+   // Composes only internal legacy sources with the native broker. It has no
+   // COM registration or request-facing surface.
+   class LegacyWebAdminSessionBrokerFactory
+   {
+   public:
+      static std::shared_ptr<WebAdminSessionBroker> Create(
+         const WebAdminSessionBroker::Clock &clock = WebAdminSessionBroker::Clock(),
+         const WebAdminSessionBroker::Lifetime &lifetime = WebAdminSessionBroker::Lifetime());
+
+      static std::shared_ptr<WebAdminSessionBroker> Create(
+         const std::shared_ptr<IWebAdminSessionPrincipalSource> &source,
+         const WebAdminSessionBroker::Clock &clock = WebAdminSessionBroker::Clock(),
+         const WebAdminSessionBroker::Lifetime &lifetime = WebAdminSessionBroker::Lifetime());
+
+      static std::shared_ptr<WebAdminSessionBroker> Create(
+         const std::shared_ptr<IWebAdminSessionPrincipalSource> &source,
+         const std::vector<unsigned char> &processKey,
+         const WebAdminSessionBroker::Clock &clock = WebAdminSessionBroker::Clock(),
+         const WebAdminSessionBroker::Lifetime &lifetime = WebAdminSessionBroker::Lifetime());
+
+   private:
+      static bool IsAdministrator_(const WebAdminSessionPrincipal &principal);
+      static std::shared_ptr<const Account> RefreshPrincipal_(
+         const std::shared_ptr<IWebAdminSessionPrincipalSource> &source,
+         const WebAdminSessionPrincipal &principal);
+      static bool GetCredentialVersion_(
+         const std::shared_ptr<IWebAdminSessionPrincipalSource> &source,
+         const WebAdminSessionPrincipal &principal,
+         String &credentialVersion);
+   };
+
    class WebAdminSessionBrokerTester
    {
    public:
@@ -122,6 +166,9 @@ namespace HM
       void TestCredentialVersionDenial_();
       void TestPrincipalRefreshDenial_();
       void TestProcessRestartInvalidation_();
+      void TestAuthoritativeAccountAndDomainDenial_();
+      void TestAuthoritativeRoleMismatchDenial_();
+      void TestAuthoritativeCredentialVersionDenial_();
       void TestInstalledApplicationContract_();
    };
 }

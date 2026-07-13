@@ -7,6 +7,11 @@
 #include "COMAuthentication.h"
 #include "InterfaceApplication.h"
 
+#include "../Common/Application/IniFileSettings.h"
+#include "../Common/BO/Domain.h"
+#include "../Common/Persistence/PersistentAccount.h"
+#include "../Common/Persistence/PersistentDomain.h"
+
 #include <ctime>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
@@ -28,6 +33,92 @@ namespace HM
 
       const GUID ExpectedApplicationClassID =
       { 0xd6567ef8, 0x0a6c, 0x48e7, { 0x92, 0x88, 0xa2, 0x46, 0x31, 0x23, 0xc2, 0xf3 } };
+
+      class PersistentWebAdminSessionPrincipalSource : public IWebAdminSessionPrincipalSource
+      {
+      public:
+         std::shared_ptr<const Account> ReadAccountByID(__int64 accountID) const
+         {
+            std::shared_ptr<Account> account(new Account);
+            if (!PersistentAccount::ReadObject(account, accountID))
+               return std::shared_ptr<const Account>();
+
+            return account;
+         }
+
+         bool IsDomainActive(__int64 domainID) const
+         {
+            std::shared_ptr<Domain> domain(new Domain);
+            return PersistentDomain::ReadObject(domain, domainID) && domain->GetIsActive();
+         }
+
+         bool GetAccountCredentialVersion(__int64 accountID, String &credentialVersion) const
+         {
+            credentialVersion = "";
+            std::shared_ptr<const Account> account = ReadAccountByID(accountID);
+            if (!account || account->GetIsAD() || account->GetPassword().IsEmpty())
+               return false;
+
+            credentialVersion = account->GetPassword();
+            return true;
+         }
+
+         bool GetAdministratorCredentialVersion(String &credentialVersion) const
+         {
+            credentialVersion = IniFileSettings::Instance()->GetAdministratorPassword();
+            return !credentialVersion.IsEmpty();
+         }
+      };
+
+      class TestWebAdminSessionPrincipalSource : public IWebAdminSessionPrincipalSource
+      {
+      public:
+         std::map<__int64, std::shared_ptr<Account> > accounts_;
+         std::map<__int64, bool> domain_activity_;
+         std::map<__int64, String> account_credential_versions_;
+         String administrator_credential_version_;
+
+         std::shared_ptr<const Account> ReadAccountByID(__int64 accountID) const
+         {
+            std::map<__int64, std::shared_ptr<Account> >::const_iterator found = accounts_.find(accountID);
+            if (found == accounts_.end())
+               return std::shared_ptr<const Account>();
+
+            return found->second;
+         }
+
+         bool IsDomainActive(__int64 domainID) const
+         {
+            std::map<__int64, bool>::const_iterator found = domain_activity_.find(domainID);
+            return found != domain_activity_.end() && found->second;
+         }
+
+         bool GetAccountCredentialVersion(__int64 accountID, String &credentialVersion) const
+         {
+            credentialVersion = "";
+            std::map<__int64, String>::const_iterator found = account_credential_versions_.find(accountID);
+            if (found == account_credential_versions_.end())
+               return false;
+
+            credentialVersion = found->second;
+            return !credentialVersion.IsEmpty();
+         }
+
+         bool GetAdministratorCredentialVersion(String &credentialVersion) const
+         {
+            credentialVersion = administrator_credential_version_;
+            return !credentialVersion.IsEmpty();
+         }
+      };
+
+      std::shared_ptr<Account> CreateTestDomainAdministrator()
+      {
+         std::shared_ptr<Account> account(new Account("domain-admin@example.com", Account::DomainAdmin));
+         account->SetID(41);
+         account->SetDomainID(7);
+         account->SetActive(true);
+         return account;
+      }
    }
 
    WebAdminSessionPrincipal::WebAdminSessionPrincipal() :
@@ -315,6 +406,96 @@ namespace HM
       return difference == 0;
    }
 
+   std::shared_ptr<WebAdminSessionBroker>
+   LegacyWebAdminSessionBrokerFactory::Create(const WebAdminSessionBroker::Clock &clock,
+                                              const WebAdminSessionBroker::Lifetime &lifetime)
+   {
+      return Create(std::shared_ptr<IWebAdminSessionPrincipalSource>(new PersistentWebAdminSessionPrincipalSource),
+                    clock,
+                    lifetime);
+   }
+
+   std::shared_ptr<WebAdminSessionBroker>
+   LegacyWebAdminSessionBrokerFactory::Create(const std::shared_ptr<IWebAdminSessionPrincipalSource> &source,
+                                              const WebAdminSessionBroker::Clock &clock,
+                                              const WebAdminSessionBroker::Lifetime &lifetime)
+   {
+      if (!source)
+         throw 0;
+
+      return std::shared_ptr<WebAdminSessionBroker>(new WebAdminSessionBroker(
+         [source](const WebAdminSessionPrincipal &principal) { return RefreshPrincipal_(source, principal); },
+         [source](const WebAdminSessionPrincipal &principal, String &credentialVersion) { return GetCredentialVersion_(source, principal, credentialVersion); },
+         clock,
+         lifetime));
+   }
+
+   std::shared_ptr<WebAdminSessionBroker>
+   LegacyWebAdminSessionBrokerFactory::Create(const std::shared_ptr<IWebAdminSessionPrincipalSource> &source,
+                                              const std::vector<unsigned char> &processKey,
+                                              const WebAdminSessionBroker::Clock &clock,
+                                              const WebAdminSessionBroker::Lifetime &lifetime)
+   {
+      if (!source)
+         throw 0;
+
+      return std::shared_ptr<WebAdminSessionBroker>(new WebAdminSessionBroker(
+         [source](const WebAdminSessionPrincipal &principal) { return RefreshPrincipal_(source, principal); },
+         [source](const WebAdminSessionPrincipal &principal, String &credentialVersion) { return GetCredentialVersion_(source, principal, credentialVersion); },
+         processKey,
+         clock,
+         lifetime));
+   }
+
+   bool
+   LegacyWebAdminSessionBrokerFactory::IsAdministrator_(const WebAdminSessionPrincipal &principal)
+   {
+      return principal.GetAccountID() == 0 &&
+             principal.GetDomainID() == 0 &&
+             principal.GetAdminLevel() == Account::ServerAdmin &&
+             principal.GetAddress().CompareNoCase(_T("Administrator")) == 0;
+   }
+
+   std::shared_ptr<const Account>
+   LegacyWebAdminSessionBrokerFactory::RefreshPrincipal_(
+      const std::shared_ptr<IWebAdminSessionPrincipalSource> &source,
+      const WebAdminSessionPrincipal &principal)
+   {
+      if (IsAdministrator_(principal))
+      {
+         String credentialVersion;
+         if (!source->GetAdministratorCredentialVersion(credentialVersion))
+            return std::shared_ptr<const Account>();
+
+         return std::shared_ptr<const Account>(new Account("Administrator", Account::ServerAdmin));
+      }
+
+      std::shared_ptr<const Account> account = source->ReadAccountByID(principal.GetAccountID());
+      if (!account || !account->GetActive() || !source->IsDomainActive(account->GetDomainID()))
+         return std::shared_ptr<const Account>();
+
+      return account;
+   }
+
+   bool
+   LegacyWebAdminSessionBrokerFactory::GetCredentialVersion_(
+      const std::shared_ptr<IWebAdminSessionPrincipalSource> &source,
+      const WebAdminSessionPrincipal &principal,
+      String &credentialVersion)
+   {
+      credentialVersion = "";
+
+      if (IsAdministrator_(principal))
+         return source->GetAdministratorCredentialVersion(credentialVersion);
+
+      std::shared_ptr<const Account> account = RefreshPrincipal_(source, principal);
+      if (!principal.Matches(account) || account->GetIsAD())
+         return false;
+
+      return source->GetAccountCredentialVersion(principal.GetAccountID(), credentialVersion) &&
+             !credentialVersion.IsEmpty();
+   }
+
    void
    WebAdminSessionBrokerTester::Test()
    {
@@ -324,6 +505,9 @@ namespace HM
       TestCredentialVersionDenial_();
       TestPrincipalRefreshDenial_();
       TestProcessRestartInvalidation_();
+      TestAuthoritativeAccountAndDomainDenial_();
+      TestAuthoritativeRoleMismatchDenial_();
+      TestAuthoritativeCredentialVersionDenial_();
       TestInstalledApplicationContract_();
    }
 
@@ -495,6 +679,116 @@ namespace HM
          [&now]() { return now; });
 
       if (restartedProcess.OpenSession(token, "php-session-restart"))
+         throw 0;
+   }
+
+   void
+   WebAdminSessionBrokerTester::TestAuthoritativeAccountAndDomainDenial_()
+   {
+      WebAdminSessionBroker::TimePoint now = 1000;
+      std::shared_ptr<TestWebAdminSessionPrincipalSource> source(new TestWebAdminSessionPrincipalSource);
+      std::shared_ptr<Account> account = CreateTestDomainAdministrator();
+      source->accounts_[account->GetID()] = account;
+      source->domain_activity_[account->GetDomainID()] = true;
+      source->account_credential_versions_[account->GetID()] = "account-verifier";
+
+      std::shared_ptr<WebAdminSessionBroker> broker = LegacyWebAdminSessionBrokerFactory::Create(
+         source,
+         CreateProcessKey_(8),
+         [&now]() { return now; });
+
+      String inactiveToken;
+      if (!broker->CreateSession("php-session-inactive", account, inactiveToken))
+         throw 0;
+
+      account->SetActive(false);
+      if (broker->OpenSession(inactiveToken, "php-session-inactive"))
+         throw 0;
+
+      account->SetActive(true);
+      String deletedToken;
+      if (!broker->CreateSession("php-session-deleted", account, deletedToken))
+         throw 0;
+
+      source->accounts_.erase(account->GetID());
+      if (broker->OpenSession(deletedToken, "php-session-deleted"))
+         throw 0;
+
+      source->accounts_[account->GetID()] = account;
+      String inactiveDomainToken;
+      if (!broker->CreateSession("php-session-domain", account, inactiveDomainToken))
+         throw 0;
+
+      source->domain_activity_[account->GetDomainID()] = false;
+      if (broker->OpenSession(inactiveDomainToken, "php-session-domain"))
+         throw 0;
+   }
+
+   void
+   WebAdminSessionBrokerTester::TestAuthoritativeRoleMismatchDenial_()
+   {
+      WebAdminSessionBroker::TimePoint now = 1000;
+      std::shared_ptr<TestWebAdminSessionPrincipalSource> source(new TestWebAdminSessionPrincipalSource);
+      std::shared_ptr<Account> account = CreateTestDomainAdministrator();
+      source->accounts_[account->GetID()] = account;
+      source->domain_activity_[account->GetDomainID()] = true;
+      source->account_credential_versions_[account->GetID()] = "account-verifier";
+
+      std::shared_ptr<WebAdminSessionBroker> broker = LegacyWebAdminSessionBrokerFactory::Create(
+         source,
+         CreateProcessKey_(9),
+         [&now]() { return now; });
+
+      String roleToken;
+      if (!broker->CreateSession("php-session-role", account, roleToken))
+         throw 0;
+
+      account->SetAdminLevel(Account::NormalUser);
+      if (broker->OpenSession(roleToken, "php-session-role"))
+         throw 0;
+
+      account->SetAdminLevel(Account::DomainAdmin);
+      String domainToken;
+      if (!broker->CreateSession("php-session-domain-change", account, domainToken))
+         throw 0;
+
+      account->SetDomainID(8);
+      source->domain_activity_[8] = true;
+      if (broker->OpenSession(domainToken, "php-session-domain-change"))
+         throw 0;
+   }
+
+   void
+   WebAdminSessionBrokerTester::TestAuthoritativeCredentialVersionDenial_()
+   {
+      WebAdminSessionBroker::TimePoint now = 1000;
+      std::shared_ptr<TestWebAdminSessionPrincipalSource> source(new TestWebAdminSessionPrincipalSource);
+      std::shared_ptr<Account> account = CreateTestDomainAdministrator();
+      source->accounts_[account->GetID()] = account;
+      source->domain_activity_[account->GetDomainID()] = true;
+      source->account_credential_versions_[account->GetID()] = "account-verifier-one";
+      source->administrator_credential_version_ = "administrator-verifier-one";
+
+      std::shared_ptr<WebAdminSessionBroker> broker = LegacyWebAdminSessionBrokerFactory::Create(
+         source,
+         CreateProcessKey_(10),
+         [&now]() { return now; });
+
+      String accountToken;
+      if (!broker->CreateSession("php-session-account-verifier", account, accountToken))
+         throw 0;
+
+      source->account_credential_versions_[account->GetID()] = "account-verifier-two";
+      if (broker->OpenSession(accountToken, "php-session-account-verifier"))
+         throw 0;
+
+      std::shared_ptr<Account> administrator = CreateAdministrator_();
+      String administratorToken;
+      if (!broker->CreateSession("php-session-administrator-verifier", administrator, administratorToken))
+         throw 0;
+
+      source->administrator_credential_version_ = "administrator-verifier-two";
+      if (broker->OpenSession(administratorToken, "php-session-administrator-verifier"))
          throw 0;
    }
 
