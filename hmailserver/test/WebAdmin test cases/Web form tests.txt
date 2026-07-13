@@ -91,3 +91,8 @@ Confirm that a requester authorized by GetHasRuleAccess POSTs deletion for the s
 Blocked attachment deletion must use a detached POST form containing page=background_blocked_attachment_save, action=delete, id, and csrftoken.
 Confirm that a GET request to background_blocked_attachment_save with blocked-attachment delete parameters and a valid CSRF token returns HTTP 405 without deleting the attachment rule.
 Confirm that a server administrator POST deletes the selected blocked attachment and returns to the antivirus settings page, while antivirus settings save, scanner tests, blocked-attachment add/edit, and non-delete navigation retain their existing behavior.
+
+ClamAV and SpamAssassin scanner-test requests must use a POST form containing the existing page, csrftoken, Hostname, and Port parameters.
+Confirm that a server administrator can test a scanner at a local IPv4 literal and at a hostname resolving to a local IPv4 address, with the resolved literal passed to the existing COM test method.
+Confirm that a remote, unresolved, IPv6-only, or array-valued Hostname returns HTTP 400 with a body of 0 and does not invoke TestClamAVScanner or TestSpamAssassinConnection.
+Confirm that ClamWin and External antivirus tests, saved scanner settings, normal SMTP scanner connections, and direct COM scanner tests retain their existing behavior.

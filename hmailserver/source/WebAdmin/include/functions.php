@@ -403,4 +403,35 @@ function hmailRequirePost()
 	die;
 }
 
+function hmailResolveLocalScannerTarget($application, $hostname)
+{
+	if (!is_string($hostname))
+		return false;
+
+	$hostname = trim($hostname);
+	if ($hostname == '')
+		return false;
+
+	if (filter_var($hostname, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false)
+		$resolvedHostname = $hostname;
+	else
+	{
+		$resolvedHostname = gethostbyname($hostname);
+		if ($resolvedHostname == $hostname || filter_var($resolvedHostname, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false)
+			return false;
+	}
+
+	try
+	{
+		if (!$application->Utilities->IsLocalHost($resolvedHostname))
+			return false;
+	}
+	catch (Exception $e)
+	{
+		return false;
+	}
+
+	return $resolvedHostname;
+}
+
 ?>

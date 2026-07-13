@@ -9,10 +9,17 @@
    
    $Hostname = hmailGetVar("Hostname", "localhost");
    $Port = hmailGetVar("Port", 783);
+   $ResolvedHostname = hmailResolveLocalScannerTarget($obBaseApp, $Hostname);
+   if ($ResolvedHostname === false)
+   {
+      header("HTTP/1.1 400 Bad Request");
+      echo "0";
+      die;
+   }
    
    $message = "";
    $AntiSpam = $obBaseApp->Settings->AntiSpam;
-   $result = $AntiSpam->TestSpamAssassinConnection($Hostname, $Port, $message);
+   $result = $AntiSpam->TestSpamAssassinConnection($ResolvedHostname, $Port, $message);
    
    echo $result;
 ?>

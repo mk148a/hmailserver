@@ -23,7 +23,15 @@
 	  case "ClamAV":
 		$Hostname = hmailGetVar("Hostname", "localhost");
 		$Port = hmailGetVar("Port", 783);
-		$result = $AntiVirusSettings->TestClamAVScanner($Hostname, $Port, $message);
+		$ResolvedHostname = hmailResolveLocalScannerTarget($obBaseApp, $Hostname);
+		if ($ResolvedHostname === false)
+		{
+			header("HTTP/1.1 400 Bad Request");
+			echo "0";
+			die;
+		}
+
+		$result = $AntiVirusSettings->TestClamAVScanner($ResolvedHostname, $Port, $message);
 		break;
 	  case "External":
 		$Executable = hmailGetVar("Executable", "");
