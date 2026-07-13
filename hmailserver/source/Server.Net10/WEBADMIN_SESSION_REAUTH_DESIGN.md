@@ -2,7 +2,7 @@
 
 ## Status
 
-This record is current through the SEC-18 legacy broker-bridge identity and caller-access audit. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
+This record is current through the SEC-18 non-production deployment inventory. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
 
 ## Implemented Foundation
 
@@ -113,6 +113,16 @@ The raw bearer token is not sufficient authorization for direct COM activation. 
 
 This is a security gate, not a production implementation approval. The current source has no trusted worker SID or broker-only DCOM ACL evidence, so registering the bridge now would broaden direct activation without a proven caller boundary.
 
+### 2026-07-13 Local Non-Production Inventory
+
+The available Windows 11 development host has a legacy test installation at `C:\hMailServer57-Test`. Its `hMailServer` service is `LocalSystem`, `Disabled`, and stopped; this audit did not start the service or activate COM. The installed Application ProgIDs resolve to CLSID `{D6567EF8-0A6C-48E7-9288-A2463123C2F3}`, which uses the existing AppID `{5EDEC473-39E0-43F6-A234-1947071721C8}` and the installed type library `{DB241B59-A1B1-4C59-98FC-8D101A2995F2}`.
+
+- `C:\hMailServer57-Test\PHPWebAdmin` is present, but this host has no `WebAdministration` module, `appcmd.exe`, or `applicationHost.config`; no IIS application, application pool, worker process, or PHP worker was found. There is therefore no actual WebAdmin worker SID, no evidence that a pool would be dedicated, and no authorized IIS caller from which to observe an impersonable COM token.
+- In both 32-bit and 64-bit AppID registry views, the existing Application AppID has `LocalService = hMailServer` but no `LaunchPermission` or `AccessPermission`. The machine `DefaultLaunchPermission` instead grants `BA`, `IU`, and `SY`; `DefaultAccessPermission` is absent. This proves that the test installation relies on machine default DCOM policy and cannot satisfy the required broker-only SID allow-list.
+- The existing server's static `CoInitializeSecurity(..., RPC_C_AUTHN_LEVEL_CONNECT, RPC_C_IMP_LEVEL_IMPERSONATE, ...)` setting does not prove caller impersonation is available. The audited server source still contains no `CoImpersonateClient`, `CoQueryClientBlanket`, `OpenThreadToken`, or caller-SID validation path, and no registered broker exists to probe without changing the deployment.
+
+This is a negative evidence result, not approval to register a bridge. A dedicated IIS staging host with an already authorized caller-token probe is required before broker code, AppID registration, or PHP changes can be considered.
+
 Legacy implementation scope:
 
 - Done: add a service-local broker store and an internal `COMAuthentication` principal-attach path.
@@ -123,7 +133,7 @@ Legacy implementation scope:
 - Done: add a native service-local owner that holds one broker and exposes only those existing admission/request helpers; it is not yet hosted by the service.
 - Done: audit the bridge identity and caller-access boundary. Existing PHP/IIS deployment source does not provide a worker SID or broker-only DCOM ACL, so broker COM registration remains intentionally blocked.
 - Remaining: change only `initialize.php`, `background_login.php`, `background_account_save.php`, and `logout.php` to use the broker.
-- Remaining: capture and validate a non-production IIS worker SID plus broker-only AppID launch/access descriptors before a separately reviewed broker registration.
+- Remaining: on a dedicated IIS staging host, capture and validate a WebAdmin worker SID, a dedicated-pool proof, broker-only AppID launch/access descriptors, and an authorized caller-token probe before a separately reviewed broker registration.
 
 .NET 10 implementation scope:
 
@@ -158,4 +168,4 @@ Rollback also destroys WebAdmin sessions. It must never translate an opaque toke
 
 ## Next Implementation Slice
 
-Perform one bounded SEC-18 read-only non-production deployment inventory: capture the actual PHP WebAdmin IIS application-pool worker SID, the effective existing hMailServer AppID security descriptors, and whether an authorized local COM call exposes an impersonable caller token. Record evidence against the broker-only AppID preflight requirements. Do not edit C++/C#/PHP source, registry, IIS, service configuration, or production data; do not register a class, alter `IInterfaceApplication`, persist tokens or passwords, or change SMTP/IMAP/POP3 behavior.
+Perform one bounded SEC-18 read-only dedicated-IIS-staging inventory. On a host where PHP WebAdmin is actually served from a dedicated IIS application pool, capture the worker SID and pool-isolation evidence, export the existing Application AppID and effective DCOM descriptors, and run an already-authorized caller-token probe to establish whether the local COM server can impersonate that caller. Do not edit C++/C#/PHP source, registry, IIS, service configuration, or production data; do not register a class, alter `IInterfaceApplication`, persist tokens or passwords, or change SMTP/IMAP/POP3 behavior.
