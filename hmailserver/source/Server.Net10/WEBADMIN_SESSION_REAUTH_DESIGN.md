@@ -2,7 +2,7 @@
 
 ## Status
 
-This record is current through the SEC-18 legacy broker-lifetime-owner implementation. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
+This record is current through the SEC-18 legacy broker-bridge identity and caller-access audit. The foundation changes only internal legacy C++ classes; it does not change PHP WebAdmin, register a broker COM class, alter an installed legacy COM interface, or change the .NET 10 runtime.
 
 ## Implemented Foundation
 
@@ -80,6 +80,39 @@ Changing another account's password does not rotate the current administrator's 
 
 The broker creates an existing `InterfaceApplication`/`Application` instance through an internal factory and injects an internal authenticated principal. It must not append to `IInterfaceApplication`, add a member to its default interface, or make any existing child class directly activatable. The broker class itself needs a new interface/CLSID/ProgID only after a dedicated identity and registration review.
 
+## Broker Bridge Identity and Caller-Access Audit
+
+### Evidence
+
+- Every PHP request creates `new COM("hMailServer.Application")` in `WebAdmin/initialize.php`; the existing error path identifies DCOM permissions but supplies no caller identity. The same file authenticates each new Application from `session_username` and `session_password`.
+- The legacy installer copies `source/WebAdmin` to `PHPWebAdmin` but contains no IIS site, application-pool, worker identity, AppID ACL, or DCOM ACL configuration. The versioned source therefore cannot identify the trusted PHP caller for a deployment.
+- The existing `Application` ProgID/CLSID and its `LocalServer32` registration all use the installed AppID `{5EDEC473-39E0-43F6-A234-1947071721C8}`. The service writes only `LocalService = hMailServer` for that AppID. It does not write `LaunchPermission` or `AccessPermission`.
+- `ChMailServerModule::RegisterObjects` calls `CoInitializeSecurity` once for the entire local COM server with `RPC_C_AUTHN_LEVEL_CONNECT` and `RPC_C_IMP_LEVEL_IMPERSONATE`; no current server path calls `CoImpersonateClient`, `CoQueryClientBlanket`, `OpenThreadToken`, or verifies a caller SID.
+- The .NET 10 `LegacyComRegistrationManifest` intentionally mirrors the same installed AppID for every current hosted class, while `ComLocalServerHost` registers class factories without caller-identity policy. It cannot host a WebAdmin bridge as another existing Application-class registration.
+
+### Required Additive Contract
+
+Do not add a member, coclass, IID, DISPID, or registration value to the installed `hMailServer.Application` contract or its existing type library. A future bridge must instead use all-new identifiers:
+
+- A new broker type library, separate from `{DB241B59-A1B1-4C59-98FC-8D101A2995F2}`, with a newly allocated and collision-checked library GUID.
+- A new dual, nonextensible default interface named `IInterfaceWebAdminSessionBroker`, with a newly allocated IID and a frozen vtable/DISPID list containing only `CreateSession`, `OpenApplication`, `Revoke`, and `RotateAfterOwnPasswordChange`.
+- A new `WebAdminSessionBroker` coclass and CLSID plus versioned and version-independent ProgIDs `hMailServer.WebAdminSessionBroker.1` and `hMailServer.WebAdminSessionBroker`. The future implementation must allocate fresh GUIDs once, record them in its separate type library and registration tests, and never reuse an installed Application, child-class, or type-library identifier.
+- A separate broker AppID mapped to the same local service only after security validation. It must not inherit the broad installed Application AppID or its registration manifest.
+
+The bridge may return only a fresh existing `IInterfaceApplication` after successful broker validation. It must never expose `WebAdminSessionBroker`, `COMAuthentication`, a raw principal, a process key, or a token lookup capability.
+
+### Mandatory Caller-Access Gate
+
+The raw bearer token is not sufficient authorization for direct COM activation. Before any bridge code, registration, or PHP change is allowed:
+
+1. A non-production deployment inventory must resolve the exact IIS application-pool worker SID used by PHP WebAdmin and prove that the pool is not shared with untrusted applications.
+2. The new AppID must use explicit local `LaunchPermission` and `AccessPermission` descriptors limited to that configured SID and the minimum service identities required for activation; it must not rely on the machine default DCOM permissions.
+3. Every broker method must impersonate the COM caller, obtain its effective token, compare its SID to the configured worker SID, and always revert impersonation. Missing, anonymous, remote, or mismatched caller identity returns `E_ACCESSDENIED` without token or identity details.
+4. A non-production integration test must prove authorized PHP-worker activation and method access, unauthorized local-user denial before and during invocation, bearer-token reuse from an unauthorized process denial, and denial after the configured worker SID changes.
+5. Installer/update preflight must resolve the configured SID, write and read back the broker-only AppID ACLs, confirm the existing Application AppID/type-library bytes are unchanged, and fail closed without modifying PHP session behavior if any check fails. Rollback removes only the new broker registration and destroys broker sessions; it never restores a password from a token.
+
+This is a security gate, not a production implementation approval. The current source has no trusted worker SID or broker-only DCOM ACL evidence, so registering the bridge now would broaden direct activation without a proven caller boundary.
+
 Legacy implementation scope:
 
 - Done: add a service-local broker store and an internal `COMAuthentication` principal-attach path.
@@ -88,8 +121,9 @@ Legacy implementation scope:
 - Done: add native credential admission through the unchanged legacy `COMAuthentication::Authenticate` path without retaining the supplied password.
 - Done: compose an existing broker token/session binding with the internal Application factory through a native-only request helper.
 - Done: add a native service-local owner that holds one broker and exposes only those existing admission/request helpers; it is not yet hosted by the service.
+- Done: audit the bridge identity and caller-access boundary. Existing PHP/IIS deployment source does not provide a worker SID or broker-only DCOM ACL, so broker COM registration remains intentionally blocked.
 - Remaining: change only `initialize.php`, `background_login.php`, `background_account_save.php`, and `logout.php` to use the broker.
-- Remaining: add a separately reviewed broker registration and DCOM identity restrictions.
+- Remaining: capture and validate a non-production IIS worker SID plus broker-only AppID launch/access descriptors before a separately reviewed broker registration.
 
 .NET 10 implementation scope:
 
@@ -108,7 +142,7 @@ The foundation covers the native token lifecycle, authoritative principal verifi
 5. Session-ID and CSRF-token rotation on successful login remain intact.
 6. Current-user password save returns a rotated token only after the new password verifies; an interrupted rotation forces re-login. Other sessions for that account are revoked by credential-version mismatch.
 7. Account disable/delete, administrator/domain/account-role changes, and out-of-band administrator password changes deny the next request.
-8. Unauthorized local COM clients cannot activate or use a future registered broker; existing direct child activation must remain `E_ACCESSDENIED` and the installed Application vtable/type-library bytes must remain unchanged. Caller-identity checks are deferred because this foundation intentionally has no registered COM class.
+8. A future broker activation requires both broker-only AppID launch/access descriptors and method-level impersonated caller-SID verification. Unauthorized local clients and bearer-token reuse from another process must be denied; existing direct child activation must remain `E_ACCESSDENIED` and installed Application vtable/type-library bytes must remain unchanged.
 9. PHP/WebAdmin acceptance covers login, normal request, logout, current-user password change, domain-admin and server-admin scopes, CSRF failure, and service restart.
 10. .NET 10 tests cover the broker's access boundary, token lifecycle, principal refresh, and unchanged `Application.Authenticate` contract before hosted registration is enabled.
 
@@ -116,7 +150,7 @@ The foundation covers the native token lifecycle, authoritative principal verifi
 
 This design requires no SQL migration and does not touch mail data, `hm_messages`, `hm_message_metadata`, or the data directory.
 
-Deployment must install the service/broker and WebAdmin changes as one versioned unit. Preflight must verify the broker registration, application-pool identity ACL, secure random source, and ability to create a broker-authenticated application. Broker initialization failure must fail closed to the login page.
+Deployment must install the service/broker and WebAdmin changes as one versioned unit. Preflight must resolve the IIS worker SID, verify broker-only AppID launch/access descriptors, prove impersonated caller-SID verification, verify the broker registration, secure random source, and ability to create a broker-authenticated application. Broker initialization failure must fail closed to the login page.
 
 At cutover, any legacy PHP session containing `session_password` is destroyed. Do not migrate, encrypt in place, or copy the plaintext password. All users log in again. Service restart intentionally invalidates broker tokens and requires reauthentication.
 
@@ -124,4 +158,4 @@ Rollback also destroys WebAdmin sessions. It must never translate an opaque toke
 
 ## Next Implementation Slice
 
-Perform one bounded SEC-18 read-only broker-bridge identity and caller-access audit. Map the legacy IIS application-pool identity, COM AppID launch/access ACLs, and impersonated caller verification needed before any broker exposure; specify only additive new broker CLSID/IID/ProgID/default-interface and deployment-preflight requirements. Do not edit C++/C#/PHP source, register a class, alter `IInterfaceApplication`, persist tokens or passwords, or change SMTP/IMAP/POP3 behavior.
+Perform one bounded SEC-18 read-only non-production deployment inventory: capture the actual PHP WebAdmin IIS application-pool worker SID, the effective existing hMailServer AppID security descriptors, and whether an authorized local COM call exposes an impersonable caller token. Record evidence against the broker-only AppID preflight requirements. Do not edit C++/C#/PHP source, registry, IIS, service configuration, or production data; do not register a class, alter `IInterfaceApplication`, persist tokens or passwords, or change SMTP/IMAP/POP3 behavior.
