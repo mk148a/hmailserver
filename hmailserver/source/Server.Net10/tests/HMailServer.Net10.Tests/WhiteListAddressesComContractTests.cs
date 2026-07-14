@@ -225,6 +225,63 @@ public sealed class WhiteListAddressesComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(10)).ErrorCode);
     }
 
+    [TestMethod]
+    public void FailedReauthentication_DeniesNewAntiSpamWhiteListAccessButRetainedObjectsRemainReadable()
+    {
+        var settingsStore = new RecordingSettingsAdministrationStore(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty));
+        var whiteListStore = new MutableWhiteListAddressAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "*@example.test", "Test network")
+            });
+        SettingsAdministrationRuntimeHost.Configure(settingsStore);
+        WhiteListAddressAdministrationRuntimeHost.Configure(whiteListStore);
+        var application = Application.CreateForRuntime(
+            new TestAdministratorAuthenticationProvider("secret"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+        var retainedAntiSpam = settings.AntiSpam;
+        var retainedAddresses = retainedAntiSpam.WhiteListAddresses;
+        var retainedAddress = retainedAddresses[0];
+
+        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(1, whiteListStore.ReadCount);
+
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        var newlyObtainedAntiSpam = settings.AntiSpam;
+        var deniedError = Assert.ThrowsExactly<COMException>(
+            () => _ = newlyObtainedAntiSpam.WhiteListAddresses);
+
+        Assert.AreEqual(EAccessDenied, deniedError.ErrorCode);
+        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(1, whiteListStore.ReadCount);
+
+        var postReauthenticationAddresses = retainedAntiSpam.WhiteListAddresses;
+
+        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, whiteListStore.ReadCount);
+        Assert.AreEqual(1, postReauthenticationAddresses.Count);
+
+        Assert.AreEqual(1, retainedAddresses.Count);
+        Assert.AreEqual(10, retainedAddresses.get_ItemByDBID(10).ID);
+        AssertAddress(
+            retainedAddress,
+            10,
+            "192.0.2.1",
+            "192.0.2.255",
+            "*@example.test",
+            "Test network");
+        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, whiteListStore.ReadCount);
+    }
+
     private static WhiteListAddressAdministrationSnapshot Snapshot(
         long id,
         string lowerIpAddress,
@@ -335,5 +392,25 @@ public sealed class WhiteListAddressesComContractTests
 
             return left.Length.CompareTo(right.Length);
         }
+    }
+
+    private sealed class RecordingSettingsAdministrationStore(SettingsAdministrationSnapshot snapshot)
+        : ISettingsAdministrationStore
+    {
+        public int ReadCount { get; private set; }
+
+        public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult(snapshot);
+        }
+    }
+
+    private sealed class TestAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            string.Equals(username, "Administrator", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(attemptedPassword, password, StringComparison.Ordinal);
     }
 }
