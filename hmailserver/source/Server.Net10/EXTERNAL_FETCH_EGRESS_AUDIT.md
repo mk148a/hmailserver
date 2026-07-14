@@ -98,11 +98,20 @@ enforcement and must be handled before a new destination policy is opened:
   execute through GET-shaped requests. The handler also reads action, scope,
   field, and CSRF values from POST only; the existing `index.php` background
   validation remains in place, and the add/edit form carries the token in a
-  hidden POST field. Credential-authority retargeting remains a separate slice.
-- Changing an external-account destination while retaining a blank password
-  field can replay the stored password to a new POP3 authority. Destination,
-  port, username, and security mode need credential-authority handling in a
-  later WebAdmin/COM slice.
+  hidden POST field. The edit path now captures the existing
+  `ServerAddress`/`Port`/`Username`/`ConnectionSecurity` tuple before applying
+  setters and clears the stored password when that tuple changes and the
+  submitted password is blank or omitted. String comparisons are type-safe, explicit
+  passwords take precedence, unchanged edits retain the existing password,
+  and new-item add behavior is unchanged.
+- This retargeting hardening is WebAdmin-only. Legacy
+  `InterfaceFetchAccount::get/put_ServerAddress`, `get/put_Port`,
+  `get/put_Username`, `get/put_Password`, `get/put_ConnectionSecurity`, and
+  `InterfaceFetchAccount::Save` keep the installed COM shape; legacy
+  `PersistentFetchAccount::ReadObject` decrypts `fapassword` and
+  `PersistentFetchAccount::SaveObject` rewrites it. The .NET 10
+  `FetchAccount` setters and `Save()` remain `E_NOTIMPL`, so full COM
+  mutation parity is still a separate migration blocker.
 - The .NET external POP3 client has no explicit greeting/command/idle timeout
   or maximum line/message budget equivalent to the legacy POP3-client timeout.
   This remains an operational/performance security gap, separate from the
