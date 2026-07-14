@@ -225,6 +225,62 @@ public sealed class GreyListingWhiteAddressesComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(10)).ErrorCode);
     }
 
+    [TestMethod]
+    public void FailedReauthentication_DeniesNewAntiSpamGreyListingAccessButRetainedObjectsRemainReadable()
+    {
+        var settingsStore = new RecordingSettingsAdministrationStore(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty));
+        var greyListingStore = new MutableGreyListingWhiteAddressAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "192.0.2.%", "Test network")
+            });
+        SettingsAdministrationRuntimeHost.Configure(settingsStore);
+        GreyListingWhiteAddressAdministrationRuntimeHost.Configure(greyListingStore);
+        var application = Application.CreateForRuntime(
+            new TestAdministratorAuthenticationProvider("secret"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+        var retainedAntiSpam = settings.AntiSpam;
+        var retainedAddresses = retainedAntiSpam.GreyListingWhiteAddresses;
+        var retainedAddress = retainedAddresses[0];
+
+        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(1, greyListingStore.ReadCount);
+        Assert.AreEqual(1, retainedAddresses.Count);
+        AssertAddress(retainedAddress, 10, "192.0.2.*", "Test network");
+
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        var newlyObtainedAntiSpam = settings.AntiSpam;
+        var deniedError = Assert.ThrowsExactly<COMException>(
+            () => _ = newlyObtainedAntiSpam.GreyListingWhiteAddresses);
+
+        Assert.AreEqual(EAccessDenied, deniedError.ErrorCode);
+        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(1, greyListingStore.ReadCount);
+
+        var readsBeforeRetainedAccess = greyListingStore.ReadCount;
+        var postReauthenticationAddresses = retainedAntiSpam.GreyListingWhiteAddresses;
+
+        Assert.AreEqual(readsBeforeRetainedAccess + 1, greyListingStore.ReadCount);
+        Assert.AreEqual(1, postReauthenticationAddresses.Count);
+        Assert.AreEqual(10, postReauthenticationAddresses[0].ID);
+
+        var readsBeforeRetainedGetters = greyListingStore.ReadCount;
+
+        Assert.AreEqual(1, retainedAddresses.Count);
+        Assert.AreEqual(10, retainedAddresses.get_ItemByDBID(10).ID);
+        AssertAddress(retainedAddress, 10, "192.0.2.*", "Test network");
+        Assert.AreEqual(readsBeforeRetainedGetters, greyListingStore.ReadCount);
+        Assert.AreEqual(1, settingsStore.ReadCount);
+    }
+
     private static GreyListingWhiteAddressAdministrationSnapshot Snapshot(
         long id,
         string storedIpAddress,
@@ -306,5 +362,25 @@ public sealed class GreyListingWhiteAddressesComContractTests
             return ValueTask.FromResult<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>(
                 _addresses.OrderBy(static address => address.StoredIpAddress, StringComparer.OrdinalIgnoreCase).ToArray());
         }
+    }
+
+    private sealed class RecordingSettingsAdministrationStore(SettingsAdministrationSnapshot snapshot)
+        : ISettingsAdministrationStore
+    {
+        public int ReadCount { get; private set; }
+
+        public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult(snapshot);
+        }
+    }
+
+    private sealed class TestAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            string.Equals(username, "Administrator", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(attemptedPassword, password, StringComparison.Ordinal);
     }
 }
