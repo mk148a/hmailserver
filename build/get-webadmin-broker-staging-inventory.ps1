@@ -68,7 +68,7 @@ function Get-RegistryValueEvidence {
         return $null
     }
 
-    return $Key.GetValue($Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+    return ,($Key.GetValue($Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames))
 }
 
 function Get-RegistryViewEvidence {
