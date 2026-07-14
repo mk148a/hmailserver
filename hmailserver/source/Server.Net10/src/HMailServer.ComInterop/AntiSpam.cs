@@ -385,6 +385,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             spamAssassinConnectionTestRuntime);
     }
 
+    internal static AntiSpam CreateDenied() => new();
+
     private AntiSpamAdministrationSnapshot Snapshot =>
         _snapshot ?? throw new COMException(
             "AntiSpam access requires an authenticated server administrator.",

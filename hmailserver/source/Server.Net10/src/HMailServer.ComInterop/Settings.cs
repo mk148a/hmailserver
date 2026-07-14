@@ -1189,6 +1189,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
             EnsureAuthorized();
             return _administrationSnapshot is null
                 ? base.AntiSpam
+                : _isServerAdministrator is not null && !_isServerAdministrator()
+                    ? HMailServer.ComInterop.AntiSpam.CreateDenied()
                 : HMailServer.ComInterop.AntiSpam.CreateAuthorized(
                     new AntiSpamAdministrationSnapshot(
                         _administrationSnapshot.AntiSpamGreyListingEnabled,

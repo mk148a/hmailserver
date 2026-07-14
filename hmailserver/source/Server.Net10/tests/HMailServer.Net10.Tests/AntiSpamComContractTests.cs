@@ -98,15 +98,72 @@ public sealed class AntiSpamComContractTests
 
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = antiSpam.GreyListingEnabled);
         var collectionError = Assert.ThrowsExactly<COMException>(() => _ = antiSpam.DNSBlackLists);
-        var methodError = Assert.ThrowsExactly<COMException>(() => antiSpam.ClearGreyListingTriplets());
+        var clearError = Assert.ThrowsExactly<COMException>(() => antiSpam.ClearGreyListingTriplets());
+        var spamAssassinError = Assert.ThrowsExactly<COMException>(
+            () => antiSpam.TestSpamAssassinConnection("127.0.0.1", 783, out _));
         var dkimError = Assert.ThrowsExactly<COMException>(() => antiSpam.DKIMVerify(@"C:\mail\message.eml"));
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().AntiSpam);
 
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
-        Assert.AreEqual(EAccessDenied, methodError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, clearError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, spamAssassinError.ErrorCode);
         Assert.AreEqual(EAccessDenied, dkimError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void FailedReauthentication_DeniesNewAntiSpamAccessButRetainedOperationsRemainAvailable()
+    {
+        var settingsStore = new RecordingSettingsAdministrationStore(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty));
+        var greyListingTripletStore = new FakeGreyListingTripletAdministrationStore();
+        var spamAssassinRuntime = new FakeSpamAssassinConnectionTestRuntime(
+            new SpamAssassinConnectionTestResult(true, "SpamAssassin test succeeded."));
+        SettingsAdministrationRuntimeHost.Configure(
+            settingsStore,
+            new SettingsRuntimeConfiguration(
+                GreyListingTripletAdministrationStore: greyListingTripletStore,
+                SpamAssassinConnectionTestRuntime: spamAssassinRuntime));
+        var application = Application.CreateForRuntime(
+            new TestAdministratorAuthenticationProvider("secret"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+        var antiSpam = settings.AntiSpam;
+
+        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        var applicationSettingsError = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
+        var newAntiSpam = settings.AntiSpam;
+        var newChildClearError = Assert.ThrowsExactly<COMException>(
+            () => newAntiSpam.ClearGreyListingTriplets());
+        var newChildSpamAssassinError = Assert.ThrowsExactly<COMException>(
+            () => newAntiSpam.TestSpamAssassinConnection("spamd.example.test", 1783, out _));
+
+        Assert.AreEqual(EAccessDenied, applicationSettingsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, newChildClearError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, newChildSpamAssassinError.ErrorCode);
+        Assert.AreEqual(1, settingsStore.ReadCount);
+
+        antiSpam.ClearGreyListingTriplets();
+        var succeeded = antiSpam.TestSpamAssassinConnection(
+            "spamd.example.test",
+            1783,
+            out var resultText);
+
+        Assert.IsTrue(succeeded);
+        Assert.AreEqual("SpamAssassin test succeeded.", resultText);
+        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(1, greyListingTripletStore.CallCount);
+        Assert.AreEqual(1, spamAssassinRuntime.CallCount);
+        Assert.AreEqual("spamd.example.test", spamAssassinRuntime.Hostname);
+        Assert.AreEqual(1783, spamAssassinRuntime.Port);
     }
 
     [TestMethod]
@@ -434,6 +491,8 @@ public sealed class AntiSpamComContractTests
         SpamAssassinConnectionTestResult result)
         : ISpamAssassinConnectionTestRuntime
     {
+        public int CallCount { get; private set; }
+
         public string Hostname { get; private set; } = string.Empty;
 
         public int Port { get; private set; }
@@ -444,6 +503,7 @@ public sealed class AntiSpamComContractTests
             string hostname,
             int port)
         {
+            CallCount++;
             Hostname = hostname;
             Port = port;
             if (ThrowOnTestConnection)
@@ -453,5 +513,25 @@ public sealed class AntiSpamComContractTests
 
             return result;
         }
+    }
+
+    private sealed class RecordingSettingsAdministrationStore(SettingsAdministrationSnapshot snapshot)
+        : ISettingsAdministrationStore
+    {
+        public int ReadCount { get; private set; }
+
+        public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult(snapshot);
+        }
+    }
+
+    private sealed class TestAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            string.Equals(username, "Administrator", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(attemptedPassword, password, StringComparison.Ordinal);
     }
 }
