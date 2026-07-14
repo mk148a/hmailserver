@@ -83,9 +83,9 @@ public sealed class FetchAccountsComContractTests
     }
 
     [TestMethod]
-    public void DirectlyConstructedFetchAccount_DeniesEveryMemberBeforeSnapshotAccess()
+    public void RegisteredFetchAccountActivation_DeniesEveryMemberBeforeSnapshotAccess()
     {
-        var account = new FetchAccount();
+        var account = (IInterfaceFetchAccount)Activator.CreateInstance(typeof(FetchAccount))!;
         var accesses = new (string Member, Action Access)[]
         {
             ("ID.get", () => _ = account.ID),
@@ -303,6 +303,7 @@ public sealed class FetchAccountsComContractTests
 
         Assert.AreEqual(1, fetchAccounts.Count);
         Assert.AreEqual("External POP3", fetchAccounts[0].Name);
+        Assert.AreEqual("External POP3", fetchAccounts.get_ItemByDBID(10).Name);
 
         store.Accounts =
         [
@@ -313,6 +314,7 @@ public sealed class FetchAccountsComContractTests
 
         Assert.AreEqual(1, fetchAccounts.Count);
         Assert.AreEqual("Updated POP3", fetchAccounts[0].Name);
+        Assert.AreEqual("Updated POP3", fetchAccounts.get_ItemByDBID(30).Name);
         Assert.AreEqual(2, store.ReadCount);
     }
 
