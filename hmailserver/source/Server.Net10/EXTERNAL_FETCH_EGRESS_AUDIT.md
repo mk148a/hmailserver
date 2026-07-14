@@ -92,10 +92,13 @@ enforcement and must be handled before a new destination policy is opened:
   `Server/COM/InterfaceFetchAccount.rgs`. The next COM slice must preserve the
   installed CLSID/IID/ProgID/DISPID/vtable shape while denying direct activation
   and requiring an authenticated owning collection for every mutator.
-- `source/WebAdmin/background_account_externalaccount_save.php` still allows
-  external-account add/edit mutation through GET-shaped requests while delete
-  and download-now have narrower POST checks. This is a separate WebAdmin
-  slice and must not be mixed into egress policy.
+- `source/WebAdmin/background_account_externalaccount_save.php` now requires
+  POST before reading scope IDs or resolving the domain/account/fetch-account
+  objects, so external-account add/edit/delete/download-now mutations cannot
+  execute through GET-shaped requests. The handler also reads action, scope,
+  field, and CSRF values from POST only; the existing `index.php` background
+  validation remains in place, and the add/edit form carries the token in a
+  hidden POST field. Credential-authority retargeting remains a separate slice.
 - Changing an external-account destination while retaining a blank password
   field can replay the stored password to a new POP3 authority. Destination,
   port, username, and security mode need credential-authority handling in a
