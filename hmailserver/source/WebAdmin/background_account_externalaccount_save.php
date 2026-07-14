@@ -2,10 +2,12 @@
    if (!defined('IN_WEBADMIN'))
       exit();
 
-   $domainid	= hmailGetVar("domainid",0, true);
-   $accountid 	= hmailGetVar("accountid",0,true);
-   $faid 		= hmailGetVar("faid",0, true);
-   $action	   = hmailGetVar("action","");
+   hmailRequirePostCsrfToken();
+
+   $domainid	= hmailGetPostVar("domainid",0, true);
+   $accountid 	= hmailGetPostVar("accountid",0,true);
+   $faid 		= hmailGetPostVar("faid",0, true);
+   $action	   = hmailGetPostVar("action","");
    
    if (hmailGetAdminLevel() == 0 && ($accountid != hmailGetAccountID() || $domainid != hmailGetDomainID()))
       hmailHackingAttemp();
@@ -37,36 +39,36 @@
       exit();       
    }
    
-   $DaysToKeepMessages      = hmailGetVar("DaysToKeepMessages",0);
-   $DaysToKeepMessagesValue = hmailGetVar("DaysToKeepMessagesValue",0);
+   $DaysToKeepMessages      = hmailGetPostVar("DaysToKeepMessages",0);
+   $DaysToKeepMessagesValue = hmailGetPostVar("DaysToKeepMessagesValue",0);
    
-   $obFA->Enabled               = hmailGetVar("Enabled",0);
-   $obFA->Name                  = hmailGetVar("Name",0);
-   $obFA->MinutesBetweenFetch   = hmailGetVar("MinutesBetweenFetch",0);
-   $obFA->Port                  = hmailGetVar("Port",0);
-   $obFA->MIMERecipientHeaders  = hmailGetVar("MIMERecipientHeaders","To,CC,X-RCPT-To,X-Envelope-To");
+   $obFA->Enabled               = hmailGetPostVar("Enabled",0);
+   $obFA->Name                  = hmailGetPostVar("Name",0);
+   $obFA->MinutesBetweenFetch   = hmailGetPostVar("MinutesBetweenFetch",0);
+   $obFA->Port                  = hmailGetPostVar("Port",0);
+   $obFA->MIMERecipientHeaders  = hmailGetPostVar("MIMERecipientHeaders","To,CC,X-RCPT-To,X-Envelope-To");
    if (strlen($obFA->MIMERecipientHeaders) > 0)
-      $obFA->ProcessMIMERecipients = hmailGetVar("ProcessMIMERecipients",0);
+      $obFA->ProcessMIMERecipients = hmailGetPostVar("ProcessMIMERecipients",0);
    else
       $obFA->ProcessMIMERecipients = 0;
-   $obFA->ProcessMIMEDate       = hmailGetVar("ProcessMIMEDate",0);
-   $obFA->ServerAddress         = hmailGetVar("ServerAddress",0);
-   $obFA->ServerType            = hmailGetVar("ServerType",0);
-   $obFA->Username              = hmailGetVar("Username",0);
-   $obFA->UseAntiVirus          = hmailGetVar("UseAntiVirus",0);
-   $obFA->UseAntiSpam           = hmailGetVar("UseAntiSpam",0);
+   $obFA->ProcessMIMEDate       = hmailGetPostVar("ProcessMIMEDate",0);
+   $obFA->ServerAddress         = hmailGetPostVar("ServerAddress",0);
+   $obFA->ServerType            = hmailGetPostVar("ServerType",0);
+   $obFA->Username              = hmailGetPostVar("Username",0);
+   $obFA->UseAntiVirus          = hmailGetPostVar("UseAntiVirus",0);
+   $obFA->UseAntiSpam           = hmailGetPostVar("UseAntiSpam",0);
    if ($obFA->ProcessMIMERecipients != 0)
-      $obFA->EnableRouteRecipients = hmailGetVar("EnableRouteRecipients",0);
+      $obFA->EnableRouteRecipients = hmailGetPostVar("EnableRouteRecipients",0);
    else
       $obFA->EnableRouteRecipients = 0;
-   $obFA->ConnectionSecurity 	= hmailGetVar("ConnectionSecurity",0);
+   $obFA->ConnectionSecurity 	= hmailGetPostVar("ConnectionSecurity",0);
    
    if (strlen($DaysToKeepMessages) > 0 && $DaysToKeepMessages <= 0)
       $obFA->DaysToKeepMessages = $DaysToKeepMessages; 
    else 
       $obFA->DaysToKeepMessages = $DaysToKeepMessagesValue; 
    
-   $Password = hmailGetVar("Password",0);
+   $Password = hmailGetPostVar("Password",0);
    
    if (strlen($Password) > 0)
       $obFA->Password = $Password;

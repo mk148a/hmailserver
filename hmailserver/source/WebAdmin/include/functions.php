@@ -38,6 +38,22 @@ function hmailGetVar($p_varname, $p_defaultvalue = null, $p_isnumeric = false)
 	return $retval;
 }
 
+function hmailGetPostVar($p_varname, $p_defaultvalue = null, $p_isnumeric = false)
+{
+	$retval = $p_defaultvalue;
+	if (isset($_POST[$p_varname]))
+	{
+		$retval = $_POST[$p_varname];
+	}
+
+	if ($p_isnumeric)
+	{
+		$retval = intval($retval);
+	}
+
+	return $retval;
+}
+
 
 function hmailGetUserDomainName($username)
 {
@@ -401,6 +417,25 @@ function hmailRequirePost()
 	header("Allow: POST");
 	echo "Method not allowed.";
 	die;
+}
+
+function hmailRequirePostCsrfToken()
+{
+	hmailRequirePost();
+
+	if (!defined('CSRF_ENABLED') || CSRF_ENABLED !== true)
+	{
+		return;
+	}
+
+	$expected_token = get_csrf_session_token();
+	$actual_token = isset($_POST[CSRF_TOKEN_PARAMNAME]) ? $_POST[CSRF_TOKEN_PARAMNAME] : null;
+
+	if (!is_string($actual_token) || !hash_equals($expected_token, $actual_token))
+	{
+		echo "Invalid CSRF token.";
+		die;
+	}
 }
 
 function hmailResolveLocalScannerTarget($application, $hostname)

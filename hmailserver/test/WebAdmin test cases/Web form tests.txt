@@ -72,6 +72,11 @@ External account download-now must use a POST form containing page=background_ac
 Confirm that a GET request to background_account_externalaccount_save with action=downloadnow and a valid CSRF token returns HTTP 405 without invoking the external account download.
 Confirm that a same-account user, same-domain administrator, or server-admin POST invokes DownloadNow for the selected external account and returns to that account's external-account list, while cross-account/domain requests remain denied and delete behavior remains unchanged.
 
+External account add/edit saves must use a POST form containing page=background_account_externalaccount_save, action=add/edit, domainid, accountid, faid where applicable, all existing form fields, and csrftoken.
+Confirm that a GET request to background_account_externalaccount_save with action=add or action=edit and a valid CSRF token returns HTTP 405 before domain/account/fetch-account lookup or COM mutation.
+Confirm that a POST with action, scope IDs, fields, or csrftoken supplied only in the query string is rejected or performs no mutation; POST body values must be the only values used.
+Confirm that a same-account user, same-domain administrator, or server-admin POST preserves the existing add/edit field mapping, password-retention behavior, save redirect, and cross-account/domain authorization denial.
+
 Global rule deletion must use a POST form containing page=background_rule_save, savetype=rule, action=delete, domainid=0, accountid=0, ruleid, and csrftoken.
 Confirm that a GET request to background_rule_save with global-rule delete parameters and a valid CSRF token returns HTTP 405 without deleting the rule.
 Confirm that a valid server-admin POST deletes the selected global rule and returns to the global-rule list, while account-rule deletion and rule criteria/action deletion retain their existing behavior.
