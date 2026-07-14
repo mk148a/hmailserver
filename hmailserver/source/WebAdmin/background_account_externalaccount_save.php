@@ -20,7 +20,13 @@
 	$obFetchAccounts = $obAccount->FetchAccounts();
 
    if ($action == "edit")
+   {
       $obFA = $obFetchAccounts->ItemByDBID($faid);  
+      $OldServerAddress = $obFA->ServerAddress;
+      $OldPort = $obFA->Port;
+      $OldUsername = $obFA->Username;
+      $OldConnectionSecurity = $obFA->ConnectionSecurity;
+   }
    elseif ($action == "add")
       $obFA = $obFetchAccounts->Add();  
    elseif ($action == "delete")
@@ -68,10 +74,16 @@
    else 
       $obFA->DaysToKeepMessages = $DaysToKeepMessagesValue; 
    
-   $Password = hmailGetPostVar("Password",0);
+   $Password = hmailGetPostVar("Password","");
    
    if (strlen($Password) > 0)
       $obFA->Password = $Password;
+   elseif ($action == "edit" &&
+           (strcmp((string) $OldServerAddress, (string) $obFA->ServerAddress) !== 0 ||
+            (int) $OldPort !== (int) $obFA->Port ||
+            strcmp((string) $OldUsername, (string) $obFA->Username) !== 0 ||
+            (int) $OldConnectionSecurity !== (int) $obFA->ConnectionSecurity))
+      $obFA->Password = "";
    
    $obFA->Save();
    
