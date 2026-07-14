@@ -1223,7 +1223,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         _administrationSnapshot.AntiSpamBypassGreylistingOnMailFromMx),
                     _runtimeConfiguration.DkimVerificationRuntime,
                     _runtimeConfiguration.GreyListingTripletAdministrationStore,
-                    _runtimeConfiguration.SpamAssassinConnectionTestRuntime);
+                    _runtimeConfiguration.SpamAssassinConnectionTestRuntime,
+                    isServerAdministrator: _isServerAdministrator);
         }
     }
 

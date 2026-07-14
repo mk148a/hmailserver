@@ -113,7 +113,7 @@ public sealed class AntiSpamComContractTests
     }
 
     [TestMethod]
-    public void FailedReauthentication_DeniesNewAntiSpamAccessButRetainedOperationsRemainAvailable()
+    public void FailedReauthentication_DeniesNewAntiSpamAndSurblAccessButRetainedOperationsRemainAvailable()
     {
         var settingsStore = new RecordingSettingsAdministrationStore(
             new SettingsAdministrationSnapshot(
@@ -121,6 +121,16 @@ public sealed class AntiSpamComContractTests
                 WelcomeSmtp: string.Empty,
                 WelcomePop3: string.Empty,
                 WelcomeImap: string.Empty));
+        var surblStore = new RecordingSurblServerAdministrationStore(
+            new[]
+            {
+                new SurblServerAdministrationSnapshot(
+                    10,
+                    Active: true,
+                    DnsHost: "multi.surbl.org",
+                    RejectMessage: "Rejected by SURBL.",
+                    Score: 4)
+            });
         var greyListingTripletStore = new FakeGreyListingTripletAdministrationStore();
         var dkimRuntime = new FakeDkimVerificationRuntime(DkimVerificationResult.Pass);
         var spamAssassinRuntime = new FakeSpamAssassinConnectionTestRuntime(
@@ -131,18 +141,25 @@ public sealed class AntiSpamComContractTests
                 DkimVerificationRuntime: dkimRuntime,
                 GreyListingTripletAdministrationStore: greyListingTripletStore,
                 SpamAssassinConnectionTestRuntime: spamAssassinRuntime));
+        SurblServerAdministrationRuntimeHost.Configure(surblStore);
         var application = Application.CreateForRuntime(
             new TestAdministratorAuthenticationProvider("secret"));
 
         Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
         var settings = application.Settings;
         var antiSpam = settings.AntiSpam;
+        var retainedSurblServers = antiSpam.SURBLServers;
 
         Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(1, surblStore.ReadCount);
+        Assert.AreEqual(1, retainedSurblServers.Count);
+        Assert.AreEqual("multi.surbl.org", retainedSurblServers[0].DNSHost);
         Assert.IsNull(application.Authenticate("Administrator", "wrong"));
 
         var applicationSettingsError = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
         var newAntiSpam = settings.AntiSpam;
+        var deniedSurblServers = antiSpam.SURBLServers;
+        var deniedSurblError = Assert.ThrowsExactly<COMException>(() => _ = deniedSurblServers.Count);
         var newChildClearError = Assert.ThrowsExactly<COMException>(
             () => newAntiSpam.ClearGreyListingTriplets());
         var newChildSpamAssassinError = Assert.ThrowsExactly<COMException>(
@@ -151,11 +168,15 @@ public sealed class AntiSpamComContractTests
             () => newAntiSpam.DKIMVerify(@"C:\mail\message.eml"));
 
         Assert.AreEqual(EAccessDenied, applicationSettingsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deniedSurblError.ErrorCode);
         Assert.AreEqual(EAccessDenied, newChildClearError.ErrorCode);
         Assert.AreEqual(EAccessDenied, newChildSpamAssassinError.ErrorCode);
         Assert.AreEqual(EAccessDenied, newChildDkimError.ErrorCode);
         Assert.AreEqual(0, dkimRuntime.CallCount);
         Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(1, surblStore.ReadCount);
+        Assert.AreEqual(1, retainedSurblServers.Count);
+        Assert.AreEqual(10, retainedSurblServers.get_ItemByDNSHost("MULTI.SURBL.ORG").ID);
 
         antiSpam.ClearGreyListingTriplets();
         var dkimResult = antiSpam.DKIMVerify(@"C:\mail\message.eml");
@@ -168,6 +189,7 @@ public sealed class AntiSpamComContractTests
         Assert.AreEqual(ComDkimResult.Pass, dkimResult);
         Assert.AreEqual("SpamAssassin test succeeded.", resultText);
         Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(1, surblStore.ReadCount);
         Assert.AreEqual(1, greyListingTripletStore.CallCount);
         Assert.AreEqual(1, dkimRuntime.CallCount);
         Assert.AreEqual(@"C:\mail\message.eml", dkimRuntime.File);
@@ -534,6 +556,20 @@ public sealed class AntiSpamComContractTests
         {
             ReadCount++;
             return ValueTask.FromResult(snapshot);
+        }
+    }
+
+    private sealed class RecordingSurblServerAdministrationStore(
+        IReadOnlyList<SurblServerAdministrationSnapshot> servers)
+        : ISurblServerAdministrationStore
+    {
+        public int ReadCount { get; private set; }
+
+        public ValueTask<IReadOnlyList<SurblServerAdministrationSnapshot>> GetSurblServersAsync(
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult(servers);
         }
     }
 

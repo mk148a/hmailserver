@@ -199,6 +199,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly IDkimVerificationRuntime? _dkimVerificationRuntime;
     private readonly IGreyListingTripletAdministrationStore? _greyListingTripletStore;
     private readonly ISpamAssassinConnectionTestRuntime? _spamAssassinConnectionTestRuntime;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public AntiSpam()
     {
@@ -208,12 +209,14 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         AntiSpamAdministrationSnapshot snapshot,
         IDkimVerificationRuntime? dkimVerificationRuntime,
         IGreyListingTripletAdministrationStore? greyListingTripletStore,
-        ISpamAssassinConnectionTestRuntime? spamAssassinConnectionTestRuntime)
+        ISpamAssassinConnectionTestRuntime? spamAssassinConnectionTestRuntime,
+        Func<bool>? isServerAdministrator)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
         _greyListingTripletStore = greyListingTripletStore;
         _spamAssassinConnectionTestRuntime = spamAssassinConnectionTestRuntime;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -229,7 +232,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         get
         {
             _ = Snapshot;
-            return SurblServerAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            return _isServerAdministrator is not null && !_isServerAdministrator()
+                ? new SURBLServers()
+                : SurblServerAdministrationRuntimeHost.CreateAuthorizedAdapter();
         }
     }
 
@@ -375,14 +380,16 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         AntiSpamAdministrationSnapshot snapshot,
         IDkimVerificationRuntime? dkimVerificationRuntime = null,
         IGreyListingTripletAdministrationStore? greyListingTripletStore = null,
-        ISpamAssassinConnectionTestRuntime? spamAssassinConnectionTestRuntime = null)
+        ISpamAssassinConnectionTestRuntime? spamAssassinConnectionTestRuntime = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
             snapshot,
             dkimVerificationRuntime,
             greyListingTripletStore,
-            spamAssassinConnectionTestRuntime);
+            spamAssassinConnectionTestRuntime,
+            isServerAdministrator);
     }
 
     internal static AntiSpam CreateDenied() => new();
