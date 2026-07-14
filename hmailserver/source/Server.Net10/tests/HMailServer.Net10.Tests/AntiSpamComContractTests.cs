@@ -122,11 +122,13 @@ public sealed class AntiSpamComContractTests
                 WelcomePop3: string.Empty,
                 WelcomeImap: string.Empty));
         var greyListingTripletStore = new FakeGreyListingTripletAdministrationStore();
+        var dkimRuntime = new FakeDkimVerificationRuntime(DkimVerificationResult.Pass);
         var spamAssassinRuntime = new FakeSpamAssassinConnectionTestRuntime(
             new SpamAssassinConnectionTestResult(true, "SpamAssassin test succeeded."));
         SettingsAdministrationRuntimeHost.Configure(
             settingsStore,
             new SettingsRuntimeConfiguration(
+                DkimVerificationRuntime: dkimRuntime,
                 GreyListingTripletAdministrationStore: greyListingTripletStore,
                 SpamAssassinConnectionTestRuntime: spamAssassinRuntime));
         var application = Application.CreateForRuntime(
@@ -145,22 +147,30 @@ public sealed class AntiSpamComContractTests
             () => newAntiSpam.ClearGreyListingTriplets());
         var newChildSpamAssassinError = Assert.ThrowsExactly<COMException>(
             () => newAntiSpam.TestSpamAssassinConnection("spamd.example.test", 1783, out _));
+        var newChildDkimError = Assert.ThrowsExactly<COMException>(
+            () => newAntiSpam.DKIMVerify(@"C:\mail\message.eml"));
 
         Assert.AreEqual(EAccessDenied, applicationSettingsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, newChildClearError.ErrorCode);
         Assert.AreEqual(EAccessDenied, newChildSpamAssassinError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, newChildDkimError.ErrorCode);
+        Assert.AreEqual(0, dkimRuntime.CallCount);
         Assert.AreEqual(1, settingsStore.ReadCount);
 
         antiSpam.ClearGreyListingTriplets();
+        var dkimResult = antiSpam.DKIMVerify(@"C:\mail\message.eml");
         var succeeded = antiSpam.TestSpamAssassinConnection(
             "spamd.example.test",
             1783,
             out var resultText);
 
         Assert.IsTrue(succeeded);
+        Assert.AreEqual(ComDkimResult.Pass, dkimResult);
         Assert.AreEqual("SpamAssassin test succeeded.", resultText);
         Assert.AreEqual(1, settingsStore.ReadCount);
         Assert.AreEqual(1, greyListingTripletStore.CallCount);
+        Assert.AreEqual(1, dkimRuntime.CallCount);
+        Assert.AreEqual(@"C:\mail\message.eml", dkimRuntime.File);
         Assert.AreEqual(1, spamAssassinRuntime.CallCount);
         Assert.AreEqual("spamd.example.test", spamAssassinRuntime.Hostname);
         Assert.AreEqual(1783, spamAssassinRuntime.Port);
