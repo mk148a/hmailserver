@@ -11,6 +11,106 @@ namespace HMailServer.Net10.Tests;
 public sealed class TcpExternalFetchSessionFactoryTests
 {
     [TestMethod]
+    public async Task ConnectAsync_ResolvesOnceAndPinsTheSelectedEndpoint()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var resolver = new RecordingAddressResolver([IPAddress.Loopback]);
+        ExternalFetchEndpointDecision? decision = null;
+        var serverTask = RunPop3ServerAsync(
+            listener,
+            commands,
+            rejectRetr: false,
+            rejectDele: false,
+            disconnectOnDele: false,
+            timeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory(
+                addressResolver: resolver,
+                endpointDecisionObserver: value => decision = value);
+            await using var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port), timeout.Token)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+
+        Assert.AreEqual(1, resolver.CallCount);
+        Assert.AreEqual(IPAddress.Loopback.ToString(), resolver.LastHostName);
+        Assert.IsNotNull(decision);
+        Assert.IsFalse(decision!.IsAllowed);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_PassesOriginalHostnameToTlsUpgrade()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var commands = new List<string>();
+        var resolver = new RecordingAddressResolver([IPAddress.Loopback]);
+        string? tlsTargetHost = null;
+        var serverTask = RunPop3ServerAsync(
+            listener,
+            commands,
+            rejectRetr: false,
+            rejectDele: false,
+            disconnectOnDele: false,
+            timeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory(
+                addressResolver: resolver,
+                tlsStreamFactory: (stream, targetHost, _) =>
+                {
+                    tlsTargetHost = targetHost;
+                    return ValueTask.FromResult<Stream>(stream);
+                });
+            var account = CreateAccount(endpoint.Port, ExternalFetchConnectionSecurity.Ssl) with
+            {
+                ServerAddress = "pop3.example.test"
+            };
+
+            await using var session = await factory
+                .ConnectAsync(account, timeout.Token)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+        Assert.AreEqual("pop3.example.test", tlsTargetHost);
+        Assert.AreEqual("pop3.example.test", resolver.LastHostName);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_EnforcedEgressPolicyRejectsPrivateAddressBeforeConnect()
+    {
+        var resolver = new RecordingAddressResolver([IPAddress.Parse("10.20.30.40")]);
+        var factory = new TcpExternalFetchSessionFactory(
+            new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = true },
+            resolver);
+        var account = CreateAccount(1) with { ServerAddress = "pop3.internal.test" };
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await factory.ConnectAsync(account, CancellationToken.None).ConfigureAwait(false));
+
+        Assert.AreEqual(1, resolver.CallCount);
+        Assert.AreEqual("pop3.internal.test", resolver.LastHostName);
+    }
+
+    [TestMethod]
     public async Task ConnectAsync_ListsDownloadsDeletesAndQuitsPop3Session()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -1137,4 +1237,20 @@ public sealed class TcpExternalFetchSessionFactoryTests
             EnableRouteRecipients: false,
             MimeRecipientHeaders: "To,CC",
             AccountAddress: "user@example.test");
+
+    private sealed class RecordingAddressResolver(IReadOnlyList<IPAddress> addresses) : IExternalFetchAddressResolver
+    {
+        public int CallCount { get; private set; }
+
+        public string? LastHostName { get; private set; }
+
+        public ValueTask<IReadOnlyList<IPAddress>> ResolveAddressesAsync(
+            string hostName,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            LastHostName = hostName;
+            return ValueTask.FromResult(addresses);
+        }
+    }
 }

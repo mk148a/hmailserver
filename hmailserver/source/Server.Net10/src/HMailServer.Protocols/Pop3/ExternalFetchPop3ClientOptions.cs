@@ -7,4 +7,8 @@ public sealed record ExternalFetchPop3ClientOptions
     public int SendBufferBytes { get; init; } = 64 * 1024;
 
     public bool NoDelay { get; init; } = true;
+
+    public bool EnforceEgressPolicy { get; init; }
+
+    public IReadOnlyList<string> AllowedPrivateCidrs { get; init; } = [];
 }

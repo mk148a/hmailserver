@@ -144,7 +144,12 @@ var externalFetchPop3ClientOptions = new ExternalFetchPop3ClientOptions
             defaultValue: 64 * 1024)),
     NoDelay = ReadBool(
         builder.Configuration["ExternalFetch:NoDelay"] ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_NO_DELAY"],
-        defaultValue: true)
+        defaultValue: true),
+    EnforceEgressPolicy = ReadBool(
+        builder.Configuration["ExternalFetch:EgressEnforce"] ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_EGRESS_ENFORCE"],
+        defaultValue: false),
+    AllowedPrivateCidrs = ReadList(
+        builder.Configuration["ExternalFetch:AllowedPrivateCidrs"] ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_ALLOWED_PRIVATE_CIDRS"])
 };
 var clamAvEnabled = ReadBool(
     builder.Configuration["Antivirus:ClamAv:Enabled"] ?? builder.Configuration["HMAILSERVER_CLAMAV_ENABLED"],
@@ -726,7 +731,28 @@ builder.Services.AddSingleton<IImapRecentFlagStore, SqlServerImapRecentFlagStore
 builder.Services.AddSingleton<IPop3MailboxStore, SqlServerPop3MailboxStore>();
 builder.Services.AddSingleton<IPop3MailboxLockManager, InMemoryPop3MailboxLockManager>();
 builder.Services.AddSingleton<IExternalFetchAccountStore, SqlServerExternalFetchAccountStore>();
-builder.Services.AddSingleton<IExternalFetchSessionFactory, TcpExternalFetchSessionFactory>();
+builder.Services.AddSingleton<IExternalFetchSessionFactory>(static serviceProvider =>
+{
+    var logger = serviceProvider.GetRequiredService<ILogger<ExternalFetchHostedService>>();
+    return new TcpExternalFetchSessionFactory(
+        serviceProvider.GetRequiredService<ExternalFetchPop3ClientOptions>(),
+        endpointDecisionObserver: decision =>
+        {
+            if (decision.IsAllowed)
+            {
+                logger.LogDebug(
+                    "External fetch egress allowed endpoint {Endpoint}.",
+                    decision.Endpoint);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "External fetch egress denied endpoint {Endpoint}: {Reason}.",
+                    decision.Endpoint,
+                    decision.Reason);
+            }
+        });
+});
 builder.Services.AddSingleton<SqlServerSmtpQueueWriter>();
 builder.Services.AddSingleton<SqlServerSmtpRuleProcessor>();
 builder.Services.AddSingleton<ISmtpRuleProcessor>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerSmtpRuleProcessor>());

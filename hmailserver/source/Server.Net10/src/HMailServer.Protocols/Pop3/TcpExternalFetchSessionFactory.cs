@@ -11,10 +11,20 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
     private static readonly Encoding CommandEncoding = Encoding.ASCII;
 
     private readonly ExternalFetchPop3ClientOptions _options;
+    private readonly IExternalFetchAddressResolver _addressResolver;
+    private readonly Action<ExternalFetchEndpointDecision>? _endpointDecisionObserver;
+    private readonly Func<Stream, string, CancellationToken, ValueTask<Stream>> _tlsStreamFactory;
 
-    public TcpExternalFetchSessionFactory(ExternalFetchPop3ClientOptions? options = null)
+    public TcpExternalFetchSessionFactory(
+        ExternalFetchPop3ClientOptions? options = null,
+        IExternalFetchAddressResolver? addressResolver = null,
+        Action<ExternalFetchEndpointDecision>? endpointDecisionObserver = null,
+        Func<Stream, string, CancellationToken, ValueTask<Stream>>? tlsStreamFactory = null)
     {
         _options = options ?? new ExternalFetchPop3ClientOptions();
+        _addressResolver = addressResolver ?? new SystemExternalFetchAddressResolver();
+        _endpointDecisionObserver = endpointDecisionObserver;
+        _tlsStreamFactory = tlsStreamFactory ?? UpgradeToTlsAsync;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.ReceiveBufferBytes);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.SendBufferBytes);
     }
@@ -38,14 +48,28 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
 
         try
         {
-            await client.ConnectAsync(account.ServerAddress, account.ServerPort, cancellationToken).ConfigureAwait(false);
+            var resolvedAddresses = await _addressResolver
+                .ResolveAddressesAsync(account.ServerAddress, cancellationToken)
+                .ConfigureAwait(false);
+            var decision = ExternalFetchEndpointPolicy.Evaluate(
+                account.ServerAddress,
+                resolvedAddresses,
+                _options.AllowedPrivateCidrs);
+            _endpointDecisionObserver?.Invoke(decision);
+            if (_options.EnforceEgressPolicy && !decision.IsAllowed)
+            {
+                throw new InvalidOperationException(
+                    "External fetch destination was denied by the egress policy: " + decision.Reason + ".");
+            }
+
+            await client.ConnectAsync(decision.Endpoint, account.ServerPort, cancellationToken).ConfigureAwait(false);
             Stream stream = client.GetStream();
             if (account.ConnectionSecurity == ExternalFetchConnectionSecurity.Ssl)
             {
-                stream = await UpgradeToTlsAsync(stream, account.ServerAddress, cancellationToken).ConfigureAwait(false);
+                stream = await _tlsStreamFactory(stream, account.ServerAddress, cancellationToken).ConfigureAwait(false);
             }
 
-            var session = new TcpExternalFetchSession(client, stream);
+            var session = new TcpExternalFetchSession(client, stream, _tlsStreamFactory);
             await session.InitializeAsync(account, cancellationToken).ConfigureAwait(false);
             return session;
         }
@@ -81,13 +105,18 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
         private static readonly byte[] CrLf = "\r\n"u8.ToArray();
 
         private readonly TcpClient _client;
+        private readonly Func<Stream, string, CancellationToken, ValueTask<Stream>> _tlsStreamFactory;
         private Stream _stream;
         private Pop3LineReader _reader;
         private bool _quitSent;
 
-        public TcpExternalFetchSession(TcpClient client, Stream stream)
+        public TcpExternalFetchSession(
+            TcpClient client,
+            Stream stream,
+            Func<Stream, string, CancellationToken, ValueTask<Stream>> tlsStreamFactory)
         {
             _client = client;
+            _tlsStreamFactory = tlsStreamFactory;
             _stream = stream;
             _reader = new Pop3LineReader(stream);
         }
@@ -109,7 +138,7 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
                         throw new InvalidOperationException("External POP3 server rejected STLS.");
                     }
 
-                    _stream = await UpgradeToTlsAsync(_stream, account.ServerAddress, cancellationToken).ConfigureAwait(false);
+                    _stream = await _tlsStreamFactory(_stream, account.ServerAddress, cancellationToken).ConfigureAwait(false);
                     _reader = new Pop3LineReader(_stream);
                 }
                 else if (account.ConnectionSecurity == ExternalFetchConnectionSecurity.StartTlsRequired)
