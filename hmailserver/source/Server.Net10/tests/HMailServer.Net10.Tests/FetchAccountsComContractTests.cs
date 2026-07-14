@@ -83,15 +83,80 @@ public sealed class FetchAccountsComContractTests
     }
 
     [TestMethod]
-    public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
+    public void DirectlyConstructedFetchAccount_DeniesEveryMemberBeforeSnapshotAccess()
     {
-        var accountsError = Assert.ThrowsExactly<COMException>(() => _ = new FetchAccounts().Count);
-        var refreshError = Assert.ThrowsExactly<COMException>(new FetchAccounts().Refresh);
-        var accountError = Assert.ThrowsExactly<COMException>(() => _ = new FetchAccount().Name);
+        var account = new FetchAccount();
+        var accesses = new (string Member, Action Access)[]
+        {
+            ("ID.get", () => _ = account.ID),
+            ("Name.get", () => _ = account.Name),
+            ("Name.set", () => account.Name = "changed"),
+            ("ServerAddress.get", () => _ = account.ServerAddress),
+            ("ServerAddress.set", () => account.ServerAddress = "changed.example"),
+            ("Port.get", () => _ = account.Port),
+            ("Port.set", () => account.Port = 110),
+            ("ServerType.get", () => _ = account.ServerType),
+            ("ServerType.set", () => account.ServerType = 0),
+            ("Username.get", () => _ = account.Username),
+            ("Username.set", () => account.Username = "changed-user"),
+            ("Password.get", () => _ = account.Password),
+            ("Password.set", () => account.Password = "secret"),
+            ("MinutesBetweenFetch.get", () => _ = account.MinutesBetweenFetch),
+            ("MinutesBetweenFetch.set", () => account.MinutesBetweenFetch = 30),
+            ("DaysToKeepMessages.get", () => _ = account.DaysToKeepMessages),
+            ("DaysToKeepMessages.set", () => account.DaysToKeepMessages = 30),
+            ("AccountID.get", () => _ = account.AccountID),
+            ("AccountID.set", () => account.AccountID = 100),
+            ("Enabled.get", () => _ = account.Enabled),
+            ("Enabled.set", () => account.Enabled = false),
+            ("ProcessMIMERecipients.get", () => _ = account.ProcessMIMERecipients),
+            ("ProcessMIMERecipients.set", () => account.ProcessMIMERecipients = false),
+            ("ProcessMIMEDate.get", () => _ = account.ProcessMIMEDate),
+            ("ProcessMIMEDate.set", () => account.ProcessMIMEDate = false),
+            ("UseSSL.get", () => _ = account.UseSSL),
+            ("UseSSL.set", () => account.UseSSL = false),
+            ("NextDownloadTime.get", () => _ = account.NextDownloadTime),
+            ("UseAntiSpam.get", () => _ = account.UseAntiSpam),
+            ("UseAntiSpam.set", () => account.UseAntiSpam = false),
+            ("UseAntiVirus.get", () => _ = account.UseAntiVirus),
+            ("UseAntiVirus.set", () => account.UseAntiVirus = false),
+            ("EnableRouteRecipients.get", () => _ = account.EnableRouteRecipients),
+            ("EnableRouteRecipients.set", () => account.EnableRouteRecipients = false),
+            ("IsLocked.get", () => _ = account.IsLocked),
+            ("ConnectionSecurity.get", () => _ = account.ConnectionSecurity),
+            ("ConnectionSecurity.set", () => account.ConnectionSecurity = ComConnectionSecurity.None),
+            ("MIMERecipientHeaders.get", () => _ = account.MIMERecipientHeaders),
+            ("MIMERecipientHeaders.set", () => account.MIMERecipientHeaders = "To"),
+            (nameof(IInterfaceFetchAccount.Save), account.Save),
+            (nameof(IInterfaceFetchAccount.Delete), account.Delete),
+            (nameof(IInterfaceFetchAccount.DownloadNow), account.DownloadNow)
+        };
 
-        Assert.AreEqual(EAccessDenied, accountsError.ErrorCode);
-        Assert.AreEqual(EAccessDenied, refreshError.ErrorCode);
-        Assert.AreEqual(EAccessDenied, accountError.ErrorCode);
+        foreach (var (member, access) in accesses)
+        {
+            AssertAccessDenied(member, access);
+        }
+    }
+
+    [TestMethod]
+    public void DirectlyConstructedFetchAccounts_DeniesEveryMemberBeforeSnapshotOrStoreAccess()
+    {
+        var accounts = new FetchAccounts();
+        var accesses = new (string Member, Action Access)[]
+        {
+            ("Count.get", () => _ = accounts.Count),
+            (nameof(IInterfaceFetchAccounts.get_ItemByDBID), () => _ = accounts.get_ItemByDBID(1)),
+            ("Item.get", () => _ = accounts[0]),
+            (nameof(IInterfaceFetchAccounts.Refresh), accounts.Refresh),
+            (nameof(IInterfaceFetchAccounts.Delete), () => accounts.Delete(0)),
+            (nameof(IInterfaceFetchAccounts.DeleteByDBID), () => accounts.DeleteByDBID(1)),
+            (nameof(IInterfaceFetchAccounts.Add), () => _ = accounts.Add())
+        };
+
+        foreach (var (member, access) in accesses)
+        {
+            AssertAccessDenied(member, access);
+        }
     }
 
     [TestMethod]
@@ -305,6 +370,13 @@ public sealed class FetchAccountsComContractTests
         Assert.AreEqual("To,CC,X-RCPT-TO", account.MIMERecipientHeaders);
         Assert.AreEqual("2026-07-01 02:03:04", account.NextDownloadTime);
         Assert.IsTrue(account.IsLocked);
+    }
+
+    private static void AssertAccessDenied(string member, Action access)
+    {
+        var error = Assert.ThrowsExactly<COMException>(access, $"{member} should reject direct activation.");
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode, $"{member} should return E_ACCESSDENIED, not E_NOTIMPL.");
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
