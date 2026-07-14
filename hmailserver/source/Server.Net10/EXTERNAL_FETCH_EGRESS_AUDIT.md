@@ -1,10 +1,10 @@
 # External Fetch Egress Audit
 
-Date: 2026-07-13
+Date: 2026-07-14
 
-This is a read-only parity audit for the production parity loop. It does not
-change COM contracts, SQL schema, POP3 commands, TLS settings, service
-configuration, or destination access.
+This records the external-fetch egress slice for the production parity loop.
+It does not change COM contracts, SQL schema, POP3 commands, TLS settings, or
+legacy destination behavior.
 
 ## Legacy Reference
 
@@ -44,9 +44,11 @@ configuration, or destination access.
 ## .NET 10 Comparison
 
 - `src/HMailServer.Protocols/Pop3/TcpExternalFetchSessionFactory.cs::ConnectAsync`
-  passes `ExternalFetchAccountLease.ServerAddress` directly to
-  `TcpClient.ConnectAsync`. Runtime DNS resolution and endpoint selection are
-  therefore not exposed to a policy seam and no numeric endpoint is pinned.
+  now resolves `ExternalFetchAccountLease.ServerAddress` once through
+  `IExternalFetchAddressResolver`, evaluates the complete answer set through
+  `ExternalFetchEndpointPolicy`, and connects to the selected numeric
+  endpoint. The original configured hostname remains the TLS
+  `TargetHost`.
 - The same factory's `UpgradeToTlsAsync` uses the original configured hostname
   as `SslClientAuthenticationOptions.TargetHost`. STARTTLS is negotiated by
   `TcpExternalFetchSession.InitializeAsync` after the greeting and CAPA check.
@@ -54,34 +56,54 @@ configuration, or destination access.
   catches per-account failures and now completes the lease through the existing
   `CompleteAsync` path. That SQL path schedules `fanexttry` from `faminutes`,
   preserving legacy retry timing; this bounded change landed in `dada12fea`.
-- `src/HMailServer.Service/ExternalFetchHostedService.cs` polls every 30 seconds
-  by default, and `Program.cs` registers the raw TCP session factory. No
-  external-fetch egress policy, address allow-list, private-network classifier,
-  proxy, redirect handler, or DNS-resolution injection exists.
-- `ExternalFetchPop3ClientOptions` currently contains only buffer sizes and
-  `NoDelay`. `ExternalFetchAccountLease` carries the legacy address, port,
-  credentials, and security mode but no policy context.
-- Existing focused coverage is protocol/processor behavior only:
-  `TcpExternalFetchSessionFactoryTests` (20 test methods),
+- `src/HMailServer.Service/ExternalFetchHostedService.cs` still polls every 30
+  seconds by default, and `Program.cs` still registers the raw TCP session
+  factory. The new resolver/policy seam does not add proxy or redirect
+  behavior.
+- `ExternalFetchPop3ClientOptions` adds an audit-only-by-default
+  `EnforceEgressPolicy` switch and an explicit `AllowedPrivateCidrs` list.
+  `Program.cs` maps these to `ExternalFetch:EgressEnforce` /
+  `HMAILSERVER_EXTERNAL_FETCH_EGRESS_ENFORCE` and
+  `ExternalFetch:AllowedPrivateCidrs` /
+  `HMAILSERVER_EXTERNAL_FETCH_ALLOWED_PRIVATE_CIDRS`. The default preserves
+  configured legacy local POP3 compatibility; enforcement is a
+  configuration-only rollback boundary.
+- Existing focused coverage now includes
+  `ExternalFetchEndpointPolicyTests` for public, explicit loopback, private
+  CIDR opt-in, mixed, metadata, mapped-IPv6, and special-use answers, plus
+  `TcpExternalFetchSessionFactoryTests` for resolve-once numeric endpoint
+  pinning and enforcement-before-connect, alongside
   `ExternalFetchProcessorTests` (31), and
-  `SqlServerExternalFetchAccountStoreTests` (4). No test covers mixed DNS
-  answers, DNS rebinding, special-use addresses, metadata addresses, endpoint
-  pinning, proxy/redirect behavior, or egress denial.
+  `SqlServerExternalFetchAccountStoreTests` (4). DNS answer changes between
+  calls, and live TLS certificate/SNI handshake behavior remain explicit test
+  gaps; the factory-level TLS hostname seam and credential-free decision
+  observer are covered.
 - The .NET COM `FetchAccount` mutators and `DownloadNow` remain `E_NOTIMPL`,
   so this audit does not open a new administrator destination-mutation path.
 
-## Decision and Next Boundary
+## Current Slice and Next Boundary
 
-The current local gate is not ready for a blanket private-network deny. Legacy
-supports configured local POP3 servers, and the .NET failure path now preserves
-the legacy `faminutes` retry schedule so a future policy denial does not create
-a tight retry loop. The completed failure-scheduling slice is therefore kept
-separate from destination policy.
+The bounded .NET 10 slice is complete: resolution is injected and performed
+once, the first resolver-order numeric endpoint is used, all answers are
+evaluated before the connection, IPv4-mapped IPv6 values are normalized,
+  metadata/cloud-platform targets are denied, arbitrary hostnames resolving to
+  loopback are denied, and explicit `localhost`/loopback literals require an
+  explicit matching CIDR entry when enforcement is enabled. Private/ULA
+  destinations require the same allow-list. Audit-only mode remains the
+  default so existing configured local POP3 deployments are not changed
+  without an operator switch.
 
-## Higher-Priority Blockers
+The .NET failure path preserves the legacy `faminutes` retry schedule. The
+remaining egress work is operational: add explicit external-fetch
+deadlines/POP3 line budgets and live DNS/TLS integration coverage before
+enabling enforcement broadly. Credential-free policy decisions now flow
+through the service logger without logging credentials. These are separate
+from this resolve-once slice.
 
-The production-gate security review found blockers that outrank egress-policy
-enforcement and must be handled before a new destination policy is opened:
+## Remaining Higher-Priority Blockers
+
+The production-gate security review found blockers that prevent broad egress
+enforcement and remain ahead of live policy rollout:
 
 - The registered legacy `InterfaceFetchAccount` class is directly activatable.
   Its constructor creates a live object before an authenticated owning
@@ -117,22 +139,12 @@ enforcement and must be handled before a new destination policy is opened:
   This remains an operational/performance security gap, separate from the
   resolver policy seam.
 
-After the higher-priority COM/WebAdmin blockers are closed, the egress slice
-should add an injected address-resolution/policy boundary at
-`IExternalFetchSessionFactory`/`TcpExternalFetchSessionFactory`. It should:
-
-1. Resolve once and connect to an approved numeric endpoint while retaining the
-   original hostname for TLS SNI/certificate validation.
-2. Evaluate every resolved address, including IPv4-mapped IPv6 values, against
-   loopback, unspecified, link-local, private, carrier-grade NAT, unique-local,
-   and cloud metadata ranges.
-3. Permit local/private destinations only through an explicit, auditable
-   configuration or CIDR allow-list; keep metadata targets denied.
-4. Preserve no-proxy/no-redirect POP3 behavior, cancellation/timeouts, and
-   legacy local-server compatibility through an explicit rollout switch.
-5. Add tests for public targets, allowed local targets, denied special-use
-   targets, mixed answers, DNS changes between calls, and TLS hostname
-   preservation. Log the policy decision without logging credentials.
+The resolve-once/policy boundary now covers the first four implementation
+points above. It preserves no-proxy/no-redirect behavior and uses the caller's
+cancellation token for resolution and numeric connect. Factory-level tests
+cover the TLS hostname seam and credential-free decision observer; remaining
+live evidence is DNS changes between calls and TLS certificate/SNI handshake
+behavior.
 
 Rollout should begin in audit-only mode, then enable enforcement with a
 configuration-only rollback. No database migration, COM identity change,
