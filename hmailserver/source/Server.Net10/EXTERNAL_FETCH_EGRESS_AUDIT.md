@@ -94,11 +94,11 @@ evaluated before the connection, IPv4-mapped IPv6 values are normalized,
   without an operator switch.
 
 The .NET failure path preserves the legacy `faminutes` retry schedule. The
-remaining egress work is operational: add explicit external-fetch
-deadlines/POP3 line budgets and live DNS/TLS integration coverage before
-enabling enforcement broadly. Credential-free policy decisions now flow
-through the service logger without logging credentials. These are separate
-from this resolve-once slice.
+external-fetch client now has explicit operation deadlines and the legacy
+POP3 control-line budget; remaining egress work is operational live DNS/TLS
+integration coverage before enabling enforcement broadly. Credential-free
+policy decisions now flow through the service logger without logging
+credentials. These are separate from this resolve-once slice.
 
 ## Remaining Higher-Priority Blockers
 
