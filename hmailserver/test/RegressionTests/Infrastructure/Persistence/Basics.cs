@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using NUnit.Framework;
 using RegressionTests.Shared;
 
@@ -213,6 +214,18 @@ namespace RegressionTests.Infrastructure.Persistence
       }
 
       [Test]
+      public void TestDirectlyConstructedFetchAccountIsUnattached()
+      {
+         var fetchAccount = new hMailServer.FetchAccount();
+
+         AssertAccessDenied(() => { var id = fetchAccount.ID; });
+         AssertAccessDenied(() => fetchAccount.Name = "detached");
+         AssertAccessDenied(() => fetchAccount.Save());
+         AssertAccessDenied(() => fetchAccount.DownloadNow());
+         AssertAccessDenied(() => fetchAccount.Delete());
+      }
+
+      [Test]
       public void TestFetchAccount()
       {
          var account1 = SingletonProvider<TestSetup>.Instance.AddAccount(_domain, "fatester@example.test", "test");
@@ -225,6 +238,12 @@ namespace RegressionTests.Infrastructure.Persistence
             throw new Exception("Fetch account could not be saved");
 
          account1.FetchAccounts.Delete(0);
+      }
+
+      private static void AssertAccessDenied(TestDelegate action)
+      {
+         var exception = Assert.Throws<COMException>(action);
+         StringAssert.Contains("You do not have access to this property / method.", exception.Message);
       }
 
       [Test]

@@ -13,7 +13,6 @@
 
 InterfaceFetchAccount::InterfaceFetchAccount()
 {
-   object_ = std::shared_ptr<HM::FetchAccount>(new HM::FetchAccount());
 }
 
 STDMETHODIMP InterfaceFetchAccount::get_ID(LONG* pVal)
