@@ -8,7 +8,9 @@ namespace HMailServer.Protocols.Pop3;
 
 public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactory
 {
+    private const int ControlLineBudgetBytes = 250_000;
     private static readonly Encoding CommandEncoding = Encoding.ASCII;
+    private static readonly TimeSpan QuitTimeout = TimeSpan.FromSeconds(5);
 
     private readonly ExternalFetchPop3ClientOptions _options;
     private readonly IExternalFetchAddressResolver _addressResolver;
@@ -25,6 +27,7 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
         _addressResolver = addressResolver ?? new SystemExternalFetchAddressResolver();
         _endpointDecisionObserver = endpointDecisionObserver;
         _tlsStreamFactory = tlsStreamFactory ?? UpgradeToTlsAsync;
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_options.OperationTimeout.Ticks, 0);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.ReceiveBufferBytes);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.SendBufferBytes);
     }
@@ -48,8 +51,9 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
 
         try
         {
-            var resolvedAddresses = await _addressResolver
-                .ResolveAddressesAsync(account.ServerAddress, cancellationToken)
+            var resolvedAddresses = await ExecuteOperationAsync(
+                    token => _addressResolver.ResolveAddressesAsync(account.ServerAddress, token),
+                    cancellationToken)
                 .ConfigureAwait(false);
             var decision = ExternalFetchEndpointPolicy.Evaluate(
                 account.ServerAddress,
@@ -62,14 +66,24 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
                     "External fetch destination was denied by the egress policy: " + decision.Reason + ".");
             }
 
-            await client.ConnectAsync(decision.Endpoint, account.ServerPort, cancellationToken).ConfigureAwait(false);
+            await ExecuteOperationAsync(
+                    token => client.ConnectAsync(decision.Endpoint, account.ServerPort, token),
+                    cancellationToken)
+                .ConfigureAwait(false);
             Stream stream = client.GetStream();
             if (account.ConnectionSecurity == ExternalFetchConnectionSecurity.Ssl)
             {
-                stream = await _tlsStreamFactory(stream, account.ServerAddress, cancellationToken).ConfigureAwait(false);
+                stream = await ExecuteOperationAsync(
+                        token => _tlsStreamFactory(stream, account.ServerAddress, token),
+                        cancellationToken)
+                    .ConfigureAwait(false);
             }
 
-            var session = new TcpExternalFetchSession(client, stream, _tlsStreamFactory);
+            var session = new TcpExternalFetchSession(
+                client,
+                stream,
+                _tlsStreamFactory,
+                _options.OperationTimeout);
             await session.InitializeAsync(account, cancellationToken).ConfigureAwait(false);
             return session;
         }
@@ -77,6 +91,38 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
         {
             client.Dispose();
             throw;
+        }
+    }
+
+    private async ValueTask ExecuteOperationAsync(
+        Func<CancellationToken, ValueTask> operation,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_options.OperationTimeout);
+        try
+        {
+            await operation(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("External POP3 operation timed out.", ex);
+        }
+    }
+
+    private async ValueTask<T> ExecuteOperationAsync<T>(
+        Func<CancellationToken, ValueTask<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_options.OperationTimeout);
+        try
+        {
+            return await operation(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("External POP3 operation timed out.", ex);
         }
     }
 
@@ -106,6 +152,7 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
 
         private readonly TcpClient _client;
         private readonly Func<Stream, string, CancellationToken, ValueTask<Stream>> _tlsStreamFactory;
+        private readonly TimeSpan _operationTimeout;
         private Stream _stream;
         private Pop3LineReader _reader;
         private bool _quitSent;
@@ -113,10 +160,12 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
         public TcpExternalFetchSession(
             TcpClient client,
             Stream stream,
-            Func<Stream, string, CancellationToken, ValueTask<Stream>> tlsStreamFactory)
+            Func<Stream, string, CancellationToken, ValueTask<Stream>> tlsStreamFactory,
+            TimeSpan operationTimeout)
         {
             _client = client;
             _tlsStreamFactory = tlsStreamFactory;
+            _operationTimeout = operationTimeout;
             _stream = stream;
             _reader = new Pop3LineReader(stream);
         }
@@ -138,7 +187,10 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
                         throw new InvalidOperationException("External POP3 server rejected STLS.");
                     }
 
-                    _stream = await _tlsStreamFactory(_stream, account.ServerAddress, cancellationToken).ConfigureAwait(false);
+                    _stream = await ExecuteOperationAsync(
+                            token => _tlsStreamFactory(_stream, account.ServerAddress, token),
+                            cancellationToken)
+                        .ConfigureAwait(false);
                     _reader = new Pop3LineReader(_stream);
                 }
                 else if (account.ConnectionSecurity == ExternalFetchConnectionSecurity.StartTlsRequired)
@@ -159,7 +211,7 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
             var messages = new List<ExternalFetchRemoteMessage>();
             while (true)
             {
-                var lineBytes = await _reader.ReadLineBytesAsync(cancellationToken).ConfigureAwait(false);
+                var lineBytes = await ReadDataLineBytesAsync(cancellationToken).ConfigureAwait(false);
                 if (IsTerminator(lineBytes))
                 {
                     break;
@@ -191,7 +243,7 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
             using var output = new MemoryStream();
             while (true)
             {
-                var line = await _reader.ReadLineBytesAsync(cancellationToken).ConfigureAwait(false);
+                var line = await ReadDataLineBytesAsync(cancellationToken).ConfigureAwait(false);
                 if (IsTerminator(line))
                 {
                     break;
@@ -228,7 +280,8 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
                 if (!_quitSent)
                 {
                     _quitSent = true;
-                    await SendCommandExpectOkAsync("QUIT", CancellationToken.None).ConfigureAwait(false);
+                    var timeout = _operationTimeout < QuitTimeout ? _operationTimeout : QuitTimeout;
+                    await SendCommandExpectOkAsync("QUIT", CancellationToken.None, timeout).ConfigureAwait(false);
                 }
             }
             catch (IOException)
@@ -240,6 +293,9 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
             catch (InvalidOperationException)
             {
             }
+            catch (TimeoutException)
+            {
+            }
             finally
             {
                 await _stream.DisposeAsync().ConfigureAwait(false);
@@ -249,9 +305,10 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
 
         private async ValueTask SendCommandExpectOkAsync(
             string command,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            TimeSpan? operationTimeout = null)
         {
-            var response = await SendCommandReadLineAsync(command, cancellationToken).ConfigureAwait(false);
+            var response = await SendCommandReadLineAsync(command, cancellationToken, operationTimeout).ConfigureAwait(false);
             if (!IsOk(response))
             {
                 throw new InvalidOperationException("External POP3 command failed: " + SanitizeResponse(response));
@@ -260,10 +317,18 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
 
         private async ValueTask<string> SendCommandReadLineAsync(
             string command,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            TimeSpan? operationTimeout = null)
         {
-            await SendCommandAsync(command, cancellationToken).ConfigureAwait(false);
-            return await _reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+            return await ExecuteOperationAsync(
+                    async token =>
+                    {
+                        await SendCommandAsync(command, token).ConfigureAwait(false);
+                        return await _reader.ReadControlLineAsync(token).ConfigureAwait(false);
+                    },
+                    cancellationToken,
+                    operationTimeout)
+                .ConfigureAwait(false);
         }
 
         private async ValueTask<bool> ReadStartTlsCapabilityAsync(CancellationToken cancellationToken)
@@ -277,7 +342,7 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
             var supportsStartTls = false;
             while (true)
             {
-                var lineBytes = await _reader.ReadLineBytesAsync(cancellationToken).ConfigureAwait(false);
+                var lineBytes = await ReadControlLineBytesAsync(cancellationToken).ConfigureAwait(false);
                 if (IsTerminator(lineBytes))
                 {
                     return supportsStartTls;
@@ -293,7 +358,7 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
 
         private async ValueTask ReadOkLineAsync(CancellationToken cancellationToken)
         {
-            var line = await _reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+            var line = await ReadControlLineAsync(cancellationToken).ConfigureAwait(false);
             if (!IsOk(line))
             {
                 throw new InvalidOperationException("External POP3 server rejected the connection: " + SanitizeResponse(line));
@@ -307,6 +372,38 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
             var bytes = CommandEncoding.GetBytes(command + "\r\n");
             await _stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
             await _stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        private ValueTask<string> ReadControlLineAsync(CancellationToken cancellationToken) =>
+            ExecuteOperationAsync(
+                token => _reader.ReadControlLineAsync(token),
+                cancellationToken);
+
+        private ValueTask<byte[]> ReadControlLineBytesAsync(CancellationToken cancellationToken) =>
+            ExecuteOperationAsync(
+                token => _reader.ReadControlLineBytesAsync(token),
+                cancellationToken);
+
+        private ValueTask<byte[]> ReadDataLineBytesAsync(CancellationToken cancellationToken) =>
+            ExecuteOperationAsync(
+                token => _reader.ReadDataLineBytesAsync(token),
+                cancellationToken);
+
+        private async ValueTask<T> ExecuteOperationAsync<T>(
+            Func<CancellationToken, ValueTask<T>> operation,
+            CancellationToken cancellationToken,
+            TimeSpan? operationTimeout = null)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(operationTimeout ?? _operationTimeout);
+            try
+            {
+                return await operation(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException ex) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException("External POP3 operation timed out.", ex);
+            }
         }
 
         private static bool IsOk(string response) =>
@@ -329,13 +426,22 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
             _stream = stream;
         }
 
-        public async ValueTask<string> ReadLineAsync(CancellationToken cancellationToken)
+        public async ValueTask<string> ReadControlLineAsync(CancellationToken cancellationToken)
         {
-            var line = await ReadLineBytesAsync(cancellationToken).ConfigureAwait(false);
+            var line = await ReadControlLineBytesAsync(cancellationToken).ConfigureAwait(false);
             return CommandEncoding.GetString(line);
         }
 
-        public async ValueTask<byte[]> ReadLineBytesAsync(CancellationToken cancellationToken)
+        public ValueTask<byte[]> ReadControlLineBytesAsync(CancellationToken cancellationToken) =>
+            ReadLineBytesAsync(requireCrlf: true, ControlLineBudgetBytes, cancellationToken);
+
+        public ValueTask<byte[]> ReadDataLineBytesAsync(CancellationToken cancellationToken) =>
+            ReadLineBytesAsync(requireCrlf: false, maxBytes: null, cancellationToken);
+
+        private async ValueTask<byte[]> ReadLineBytesAsync(
+            bool requireCrlf,
+            int? maxBytes,
+            CancellationToken cancellationToken)
         {
             using var output = new MemoryStream();
             while (true)
@@ -348,10 +454,19 @@ public sealed class TcpExternalFetchSessionFactory : IExternalFetchSessionFactor
 
                 if (_singleByte[0] == (byte)'\n')
                 {
+                    if (requireCrlf && (output.Length == 0 || output.GetBuffer()[(int)output.Length - 1] != (byte)'\r'))
+                    {
+                        throw new IOException("External POP3 control line was not terminated with CRLF.");
+                    }
+
                     break;
                 }
 
                 output.WriteByte(_singleByte[0]);
+                if (maxBytes is not null && output.Length >= maxBytes.Value)
+                {
+                    throw new IOException("External POP3 control line exceeded the 250000-byte budget without CRLF.");
+                }
             }
 
             var line = output.ToArray();

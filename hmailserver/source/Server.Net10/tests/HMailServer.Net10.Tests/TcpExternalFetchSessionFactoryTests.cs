@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -10,6 +11,12 @@ namespace HMailServer.Net10.Tests;
 [TestClass]
 public sealed class TcpExternalFetchSessionFactoryTests
 {
+    [TestMethod]
+    public void Options_DefaultOperationTimeoutMatchesLegacyLowLoadTimeout()
+    {
+        Assert.AreEqual(TimeSpan.FromSeconds(900), new ExternalFetchPop3ClientOptions().OperationTimeout);
+    }
+
     [TestMethod]
     public async Task ConnectAsync_ResolvesOnceAndPinsTheSelectedEndpoint()
     {
@@ -108,6 +115,239 @@ public sealed class TcpExternalFetchSessionFactoryTests
 
         Assert.AreEqual(1, resolver.CallCount);
         Assert.AreEqual("pop3.internal.test", resolver.LastHostName);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_StalledAddressResolutionExpiresAsTimeoutFailure()
+    {
+        using var testTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var factory = new TcpExternalFetchSessionFactory(
+            new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100) },
+            new StallingAddressResolver());
+
+        await Assert.ThrowsExactlyAsync<TimeoutException>(
+            async () => await factory.ConnectAsync(CreateAccount(110), testTimeout.Token).ConfigureAwait(false));
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_StalledImplicitTlsHandshakeExpiresAsTimeoutFailure()
+    {
+        using var testTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var serverTask = RunControlServerAsync(
+            listener,
+            [],
+            stallAfterGreeting: true,
+            stallAfterUser: false,
+            stallAfterQuit: false,
+            testTimeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory(
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100) },
+                tlsStreamFactory: async (stream, _, cancellationToken) =>
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+                    return stream;
+                });
+
+            await Assert.ThrowsExactlyAsync<TimeoutException>(
+                async () => await factory
+                    .ConnectAsync(CreateAccount(endpoint.Port, ExternalFetchConnectionSecurity.Ssl), testTimeout.Token)
+                    .ConfigureAwait(false));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_StalledGreetingExpiresAsTimeoutFailure()
+    {
+        using var testTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var serverTask = RunControlServerAsync(
+            listener,
+            [],
+            stallAfterGreeting: true,
+            stallAfterUser: false,
+            stallAfterQuit: false,
+            testTimeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory(
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100) });
+
+            await Assert.ThrowsExactlyAsync<TimeoutException>(
+                async () => await factory.ConnectAsync(CreateAccount(endpoint.Port), testTimeout.Token).ConfigureAwait(false));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_StalledControlReadExpiresAsTimeoutFailure()
+    {
+        using var testTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var serverTask = RunControlServerAsync(
+            listener,
+            "+OK ready\r\n"u8.ToArray(),
+            stallAfterGreeting: false,
+            stallAfterUser: true,
+            stallAfterQuit: false,
+            testTimeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory(
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100) });
+
+            await Assert.ThrowsExactlyAsync<TimeoutException>(
+                async () => await factory.ConnectAsync(CreateAccount(endpoint.Port), testTimeout.Token).ConfigureAwait(false));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_AcceptsControlLineEndingAt250000ByteBudget()
+    {
+        using var testTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var serverTask = RunControlServerAsync(
+            listener,
+            CreateOkControlLine(250_000),
+            stallAfterGreeting: false,
+            stallAfterUser: false,
+            stallAfterQuit: false,
+            testTimeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory(
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromSeconds(20) });
+            await using var session = await factory
+                .ConnectAsync(CreateAccount(endpoint.Port), testTimeout.Token)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_RejectsControlLineExceeding250000ByteBudget()
+    {
+        using var testTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var serverTask = RunControlServerAsync(
+            listener,
+            CreateOkControlLine(250_001),
+            stallAfterGreeting: true,
+            stallAfterUser: false,
+            stallAfterQuit: false,
+            testTimeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory(
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromSeconds(20) });
+
+            await Assert.ThrowsExactlyAsync<IOException>(
+                async () => await factory.ConnectAsync(CreateAccount(endpoint.Port), testTimeout.Token).ConfigureAwait(false));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_StalledQuitResponseIsBounded()
+    {
+        using var testTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var serverTask = RunControlServerAsync(
+            listener,
+            "+OK ready\r\n"u8.ToArray(),
+            stallAfterGreeting: false,
+            stallAfterUser: false,
+            stallAfterQuit: true,
+            testTimeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory(
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100) });
+            var session = await factory.ConnectAsync(CreateAccount(endpoint.Port), testTimeout.Token).ConfigureAwait(false);
+            var stopwatch = Stopwatch.StartNew();
+
+            await session.DisposeAsync().ConfigureAwait(false);
+
+            Assert.IsTrue(stopwatch.Elapsed < TimeSpan.FromSeconds(2), $"QUIT disposal took {stopwatch.Elapsed}.");
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_CallerCancellationRemainsOperationCanceledException()
+    {
+        using var testTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var callerCancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var serverTask = RunControlServerAsync(
+            listener,
+            [],
+            stallAfterGreeting: true,
+            stallAfterUser: false,
+            stallAfterQuit: false,
+            testTimeout.Token);
+        try
+        {
+            var factory = new TcpExternalFetchSessionFactory(
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromSeconds(5) });
+
+            await Assert.ThrowsExactlyAsync<OperationCanceledException>(
+                async () => await factory.ConnectAsync(CreateAccount(endpoint.Port), callerCancellation.Token).ConfigureAwait(false));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.ConfigureAwait(false);
     }
 
     [TestMethod]
@@ -958,6 +1198,79 @@ public sealed class TcpExternalFetchSessionFactoryTests
             commands);
     }
 
+    private static byte[] CreateOkControlLine(int totalBytes)
+    {
+        const int framingBytes = 6;
+        return Encoding.ASCII.GetBytes("+OK " + new string('x', totalBytes - framingBytes) + "\r\n");
+    }
+
+    private static async Task RunControlServerAsync(
+        TcpListener listener,
+        byte[] greeting,
+        bool stallAfterGreeting,
+        bool stallAfterUser,
+        bool stallAfterQuit,
+        CancellationToken cancellationToken)
+    {
+        using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
+        await using var stream = client.GetStream();
+        if (greeting.Length > 0)
+        {
+            await stream.WriteAsync(greeting, cancellationToken).ConfigureAwait(false);
+            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (stallAfterGreeting)
+        {
+            await WaitForDisconnectAsync(stream, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        while (true)
+        {
+            var command = await ReadLineAsync(stream, cancellationToken).ConfigureAwait(false);
+            if (command.StartsWith("USER ", StringComparison.OrdinalIgnoreCase) && stallAfterUser)
+            {
+                await WaitForDisconnectAsync(stream, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (command.StartsWith("USER ", StringComparison.OrdinalIgnoreCase) ||
+                command.StartsWith("PASS ", StringComparison.OrdinalIgnoreCase))
+            {
+                await WriteRawAsync(stream, "+OK\r\n", cancellationToken).ConfigureAwait(false);
+            }
+            else if (command.Equals("QUIT", StringComparison.OrdinalIgnoreCase))
+            {
+                if (stallAfterQuit)
+                {
+                    await WaitForDisconnectAsync(stream, cancellationToken).ConfigureAwait(false);
+                    return;
+                }
+
+                await WriteRawAsync(stream, "+OK bye\r\n", cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            else
+            {
+                await WriteRawAsync(stream, "-ERR unexpected\r\n", cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static async Task WaitForDisconnectAsync(
+        Stream stream,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await ReadUntilDisconnectAsync(stream, cancellationToken).ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+        }
+    }
+
     private static async Task RunPop3ServerAsync(
         TcpListener listener,
         List<string> commands,
@@ -1251,6 +1564,17 @@ public sealed class TcpExternalFetchSessionFactoryTests
             CallCount++;
             LastHostName = hostName;
             return ValueTask.FromResult(addresses);
+        }
+    }
+
+    private sealed class StallingAddressResolver : IExternalFetchAddressResolver
+    {
+        public async ValueTask<IReadOnlyList<IPAddress>> ResolveAddressesAsync(
+            string hostName,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            return [];
         }
     }
 }

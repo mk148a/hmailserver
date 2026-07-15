@@ -411,6 +411,29 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_CompletesLeaseWhenExternalFetchOperationTimesOut()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession();
+        var receiver = new FakeSmtpMessageReceiver();
+        var processor = CreateProcessor(
+            store,
+            session,
+            receiver,
+            connectionException: new TimeoutException("External POP3 operation timed out."));
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsLeased);
+        Assert.AreEqual(0, result.AccountsCompleted);
+        Assert.AreEqual(1, result.AccountsFailed);
+        Assert.AreEqual(77, store.CompletedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.ReleasedFetchAccountIds.Count);
+        Assert.AreEqual(0, receiver.Requests.Count);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_CompletesLeaseWhenMessageDownloadFails()
     {
         var account = CreateAccount();
