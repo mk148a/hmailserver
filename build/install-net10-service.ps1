@@ -2,10 +2,13 @@ Param(
     [string]$Configuration = 'Release',
     [string]$BinDirectory,
     [switch]$ReplaceExisting,
+    [string]$BackupArchive,
     [switch]$Start
 )
 
 $ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot 'net10-rollback-archive-preflight.ps1')
 
 function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -35,6 +38,7 @@ if (-not (Test-Path -LiteralPath $typeLibrary)) {
 $serviceName = 'hMailServer'
 $existingService = Get-CimInstance -ClassName Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
 $serviceExists = $null -ne $existingService
+$requiresRollbackArchive = $false
 if ($serviceExists) {
     $existingExecutable = $existingService.PathName.Trim().Trim('"')
     if (-not $existingExecutable.Equals($executable, [StringComparison]::OrdinalIgnoreCase)) {
@@ -44,7 +48,17 @@ if ($serviceExists) {
         if ($existingService.State -ne 'Stopped') {
             throw "Stop service '$serviceName' before using -ReplaceExisting."
         }
+        $requiresRollbackArchive = $true
     }
+}
+
+if ($requiresRollbackArchive) {
+    if ([string]::IsNullOrWhiteSpace($BackupArchive)) {
+        throw '-BackupArchive is required when -ReplaceExisting replaces a service that points to a different executable.'
+    }
+
+    $sevenZip = Join-Path $bin '7za.exe'
+    Assert-Net10RollbackArchivePreflight -BackupArchive $BackupArchive -SevenZipPath $sevenZip
 }
 
 & $executable --register-com
