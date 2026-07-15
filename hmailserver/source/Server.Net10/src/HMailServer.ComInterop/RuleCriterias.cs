@@ -93,6 +93,7 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
 
     private RuleCriteriaAdministrationSnapshot[]? _criteria;
     private readonly Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? _reload;
+    private readonly Action<int>? _deleteById;
 
     public RuleCriterias()
     {
@@ -100,10 +101,12 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
 
     private RuleCriterias(
         IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria,
-        Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? reload,
+        Action<int>? deleteById)
     {
         _criteria = criteria.ToArray();
         _reload = reload;
+        _deleteById = deleteById;
     }
 
     public IInterfaceRuleCriteria this[int index]
@@ -135,7 +138,34 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
 
     public IInterfaceRuleCriteria Add() => Unavailable<IInterfaceRuleCriteria>();
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var criteria = GetCriteria();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (!criteria.Any(criterion => criterion.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            _deleteById(databaseId);
+            Volatile.Write(
+                ref _criteria,
+                criteria.Where(criterion => criterion.Id != databaseId).ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the rule criteria from the database.",
+                EFail);
+        }
+    }
 
     public void Refresh()
     {
@@ -164,10 +194,11 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
 
     internal static RuleCriterias CreateAuthorized(
         IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria,
-        Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? reload = null,
+        Action<int>? deleteById = null)
     {
         ArgumentNullException.ThrowIfNull(criteria);
-        return new RuleCriterias(criteria, reload);
+        return new RuleCriterias(criteria, reload, deleteById);
     }
 
     private IReadOnlyList<RuleCriteriaAdministrationSnapshot> GetCriteria()
@@ -284,6 +315,12 @@ public static class RuleCriteriaAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return RuleCriterias.CreateAuthorized(LoadCriteria(), LoadCriteria);
+        void DeleteCriterionById(int databaseId) => store
+            .DeleteRuleCriteriaByIdAsync(ruleId, databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return RuleCriterias.CreateAuthorized(LoadCriteria(), LoadCriteria, DeleteCriterionById);
     }
 }

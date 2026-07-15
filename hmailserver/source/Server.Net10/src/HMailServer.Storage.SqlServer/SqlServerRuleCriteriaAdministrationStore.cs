@@ -21,6 +21,12 @@ WHERE criteriaruleid = @RuleId
 ORDER BY criteriaid ASC;
 """;
 
+    public const string DeleteRuleCriteriaByIdSql = """
+DELETE FROM hm_rule_criterias
+WHERE criteriaruleid = @RuleId
+  AND criteriaid = @CriteriaId;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRuleCriteriaAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -55,6 +61,18 @@ ORDER BY criteriaid ASC;
         }
 
         return criteria;
+    }
+
+    public async ValueTask DeleteRuleCriteriaByIdAsync(
+        int ruleId,
+        int databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteRuleCriteriaByIdSql, connection);
+        command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
+        command.Parameters.Add("@CriteriaId", SqlDbType.Int).Value = databaseId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>

@@ -90,13 +90,19 @@ public sealed class RuleCriteriasComContractTests
     [TestMethod]
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
+        var store = new MutableRuleCriteriaAdministrationStore([]);
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
         var criteriaError = Assert.ThrowsExactly<COMException>(() => _ = new RuleCriterias().Count);
         var criteriaRefreshError = Assert.ThrowsExactly<COMException>(new RuleCriterias().Refresh);
+        var criteriaDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleCriterias().DeleteByDBID(100));
         var criterionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleCriteria().MatchValue);
 
         Assert.AreEqual(EAccessDenied, criteriaError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criteriaRefreshError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, criteriaDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionError.ErrorCode);
+        Assert.AreEqual(0, store.ReadCount);
+        Assert.AreEqual(0, store.DeletedCriteria.Count);
     }
 
     [TestMethod]
@@ -211,6 +217,121 @@ public sealed class RuleCriteriasComContractTests
         Assert.AreEqual(2, criteria.Count);
         Assert.AreEqual("updated", criteria.get_ItemByDBID(200).MatchValue);
         Assert.AreEqual(2, reloads);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_DeleteByDBIDRemovesOnlyMemberAndRetainsSnapshotOnFailure()
+    {
+        var failDelete = true;
+        var deletedIds = new List<int>();
+        IInterfaceRuleCriterias criteria = RuleCriterias.CreateAuthorized(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty),
+                Snapshot(200, 10, "second", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Test")
+            },
+            deleteById: databaseId =>
+            {
+                deletedIds.Add(databaseId);
+                if (failDelete)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+            });
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(() => criteria.DeleteByDBID(100));
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 100 }, deletedIds);
+        Assert.AreEqual(2, criteria.Count);
+        Assert.AreEqual("first", criteria.get_ItemByDBID(100).MatchValue);
+
+        failDelete = false;
+        criteria.DeleteByDBID(100);
+
+        CollectionAssert.AreEqual(new[] { 100, 100 }, deletedIds);
+        Assert.AreEqual(1, criteria.Count);
+        Assert.AreEqual(200, criteria[0].ID);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = criteria.get_ItemByDBID(100)).ErrorCode);
+
+        criteria.DeleteByDBID(100);
+        criteria.DeleteByDBID(999);
+
+        CollectionAssert.AreEqual(new[] { 100, 100 }, deletedIds);
+        Assert.AreEqual(1, criteria.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedRule_DeleteByDBIDScopesStoreCallAndNoOpsForForeignOrUnknownIds()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty),
+                Snapshot(200, 10, "second", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Test"),
+                Snapshot(300, 20, "foreign", true, ComRulePredefinedField.To, ComRuleMatchType.Equals, string.Empty)
+            });
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+        var criteria = rules[0].Criterias;
+
+        criteria.DeleteByDBID(300);
+        criteria.DeleteByDBID(999);
+
+        Assert.AreEqual(0, store.DeletedCriteria.Count);
+        Assert.AreEqual(2, criteria.Count);
+
+        criteria.DeleteByDBID(100);
+        criteria.DeleteByDBID(100);
+
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 100) },
+            store.DeletedCriteria);
+        Assert.AreEqual(1, criteria.Count);
+        Assert.AreEqual(200, criteria[0].ID);
+    }
+
+    [TestMethod]
+    public void FailedReauthentication_DeniesNewRulesAccessButRetainedCriteriasCanDelete()
+    {
+        var ruleStore = new FixedRuleAdministrationStore(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 0, "Global rule", true, true, 1)
+            });
+        var criteriaStore = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty)
+            });
+        RuleAdministrationRuntimeHost.Configure(ruleStore);
+        RuleCriteriaAdministrationRuntimeHost.Configure(criteriaStore);
+        var application = Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var rules = application.Rules;
+        var criteria = rules[0].Criterias;
+
+        Assert.AreEqual(1, ruleStore.ReadCount);
+        Assert.AreEqual(1, criteriaStore.ReadCount);
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        var newRulesError = Assert.ThrowsExactly<COMException>(() => _ = application.Rules);
+
+        Assert.AreEqual(EAccessDenied, newRulesError.ErrorCode);
+        Assert.AreEqual(1, ruleStore.ReadCount);
+        criteria.DeleteByDBID(100);
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 100) },
+            criteriaStore.DeletedCriteria);
+        Assert.AreEqual(0, criteria.Count);
     }
 
     [TestMethod]
@@ -339,6 +460,8 @@ public sealed class RuleCriteriasComContractTests
 
         public int ReadCount { get; private set; }
 
+        public List<(int RuleId, int DatabaseId)> DeletedCriteria { get; } = [];
+
         public void Replace(IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria)
         {
             _criteria = criteria;
@@ -354,5 +477,42 @@ public sealed class RuleCriteriasComContractTests
                     .OrderBy(static criterion => criterion.Id)
                     .ToArray());
         }
+
+        public ValueTask DeleteRuleCriteriaByIdAsync(
+            int ruleId,
+            int databaseId,
+            CancellationToken cancellationToken)
+        {
+            DeletedCriteria.Add((ruleId, databaseId));
+            _criteria = _criteria
+                .Where(criterion => criterion.RuleId != ruleId || criterion.Id != databaseId)
+                .ToArray();
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class FixedRuleAdministrationStore(IReadOnlyList<RuleAdministrationSnapshot> rules)
+        : IRuleAdministrationStore
+    {
+        public int ReadCount { get; private set; }
+
+        public ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetRulesAsync(
+            int accountId,
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
+                rules.Where(rule => rule.AccountId == accountId)
+                    .OrderBy(static rule => rule.SortOrder)
+                    .ToArray());
+        }
+    }
+
+    private sealed class TestAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            string.Equals(username, "Administrator", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(attemptedPassword, password, StringComparison.Ordinal);
     }
 }
