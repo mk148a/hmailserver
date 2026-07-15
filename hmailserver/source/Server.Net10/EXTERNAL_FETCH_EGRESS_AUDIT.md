@@ -105,15 +105,16 @@ credentials. These are separate from this resolve-once slice.
 The production-gate security review found blockers that prevent broad egress
 enforcement and remain ahead of live policy rollout:
 
-- The registered legacy `InterfaceFetchAccount` class is directly activatable.
-  Its constructor creates a live object before an authenticated owning
-  `Account -> FetchAccounts` parent is attached. `put_ServerAddress`,
-  `put_AccountID`, `Save`, and `DownloadNow` can therefore be reached without
-  the parent ownership boundary. See
-  `Server/COM/InterfaceFetchAccount.cpp` and
-  `Server/COM/InterfaceFetchAccount.rgs`. The next COM slice must preserve the
-  installed CLSID/IID/ProgID/DISPID/vtable shape while denying direct activation
-  and requiring an authenticated owning collection for every mutator.
+- The registered legacy `InterfaceFetchAccount` class remains directly
+  activatable for COM identity compatibility, but commit `62f40dc77` now leaves
+  that constructor unattached. Its existing member guards fail closed before
+  `put_ServerAddress`, `put_AccountID`, `Save`, or `DownloadNow` can reach
+  `hm_fetchaccounts` persistence or external-fetch scheduling. The authorized
+  `Account -> FetchAccounts` attachment paths remain unchanged. The remaining
+  SEC-20 evidence gaps are live DNS/TLS integration and adaptive timeout
+  behavior under high load; the next COM slice must preserve the installed
+  CLSID/IID/ProgID/DISPID/vtable shape while keeping every mutator behind an
+  authenticated owning collection.
 - `source/WebAdmin/background_account_externalaccount_save.php` now requires
   POST before reading scope IDs or resolving the domain/account/fetch-account
   objects, so external-account add/edit/delete/download-now mutations cannot
