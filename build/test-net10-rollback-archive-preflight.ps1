@@ -46,13 +46,27 @@ function New-TestArchive {
         [string]$Directory,
         [string]$Name,
         [AllowNull()]
-        [string]$Metadata
+        [string]$Metadata,
+        [ValidateSet('Directory', 'EmptyDirectory', 'File', 'Missing')]
+        [string]$DataBackupShape = 'Directory'
     )
 
     $sourceDirectory = Join-Path $Directory "$Name-source"
     $archivePath = Join-Path $Directory "$Name.7z"
     $null = New-Item -ItemType Directory -Path $sourceDirectory
-    Set-Content -LiteralPath (Join-Path $sourceDirectory 'payload.txt') -Value 'rollback payload' -Encoding UTF8
+    $dataBackupPath = Join-Path $sourceDirectory 'DataBackup'
+    switch ($DataBackupShape) {
+        'Directory' {
+            $null = New-Item -ItemType Directory -Path $dataBackupPath
+            Set-Content -LiteralPath (Join-Path $dataBackupPath 'message.eml') -Value 'rollback payload' -Encoding UTF8
+        }
+        'EmptyDirectory' {
+            $null = New-Item -ItemType Directory -Path $dataBackupPath
+        }
+        'File' {
+            Set-Content -LiteralPath $dataBackupPath -Value 'not a directory' -Encoding UTF8
+        }
+    }
     if ($null -ne $Metadata) {
         Set-Content -LiteralPath (Join-Path $sourceDirectory 'hMailServerBackup.xml') -Value $Metadata -Encoding UTF8
     }
@@ -87,6 +101,40 @@ try {
     $validArchive = New-TestArchive -SevenZipPath $sevenZipPath -Directory $tempRoot -Name 'valid archive with spaces' -Metadata $validMetadata
     Assert-Net10RollbackArchivePreflight -BackupArchive $validArchive -SevenZipPath $sevenZipPath
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $tempRoot 'hMailServerBackup.xml'))) 'Preflight extracted metadata to disk.'
+
+    $emptyDataBackupArchive = New-TestArchive -SevenZipPath $sevenZipPath -Directory $tempRoot -Name 'empty-data-backup' -Metadata $validMetadata -DataBackupShape EmptyDirectory
+    Assert-Net10RollbackArchivePreflight -BackupArchive $emptyDataBackupArchive -SevenZipPath $sevenZipPath
+
+    $missingDataBackupArchive = New-TestArchive -SevenZipPath $sevenZipPath -Directory $tempRoot -Name 'missing-data-backup' -Metadata $validMetadata -DataBackupShape Missing
+    Assert-ThrowsLike { Assert-Net10RollbackArchivePreflight -BackupArchive $missingDataBackupArchive -SevenZipPath $sevenZipPath } '*DataBackup*directory*'
+
+    $fileDataBackupArchive = New-TestArchive -SevenZipPath $sevenZipPath -Directory $tempRoot -Name 'file-data-backup' -Metadata $validMetadata -DataBackupShape File
+    Assert-ThrowsLike { Assert-Net10RollbackArchivePreflight -BackupArchive $fileDataBackupArchive -SevenZipPath $sevenZipPath } '*DataBackup*directory*'
+
+    $parentTraversalArchive = New-TestArchive -SevenZipPath $sevenZipPath -Directory $tempRoot -Name 'parent-traversal' -Metadata $validMetadata
+    $renameStartInfo = New-Net10RollbackArchiveProcessStartInfo -FilePath $sevenZipPath -ArgumentList @(
+        'rn'
+        $parentTraversalArchive
+        'DataBackup\message.eml'
+        '..\message.eml'
+        '-y'
+    )
+    $null = Invoke-Net10RollbackArchiveProcess -StartInfo $renameStartInfo -Timeout ([TimeSpan]::FromSeconds(15))
+    Assert-ThrowsLike { Assert-Net10RollbackArchivePreflight -BackupArchive $parentTraversalArchive -SevenZipPath $sevenZipPath } '*unsafe*parent traversal*'
+
+    $absolutePathArchive = New-TestArchive -SevenZipPath $sevenZipPath -Directory $tempRoot -Name 'absolute-path' -Metadata $validMetadata
+    $absolutePayload = Join-Path $tempRoot 'absolute-message.eml'
+    Set-Content -LiteralPath $absolutePayload -Value 'absolute payload' -Encoding UTF8
+    $absoluteAddStartInfo = New-Net10RollbackArchiveProcessStartInfo -FilePath $sevenZipPath -ArgumentList @(
+        'a'
+        $absolutePathArchive
+        $absolutePayload
+        '-spf'
+        '-t7z'
+        '-y'
+    )
+    $null = Invoke-Net10RollbackArchiveProcess -StartInfo $absoluteAddStartInfo -Timeout ([TimeSpan]::FromSeconds(15))
+    Assert-ThrowsLike { Assert-Net10RollbackArchivePreflight -BackupArchive $absolutePathArchive -SevenZipPath $sevenZipPath } '*unsafe*absolute*'
 
     $missingMetadataArchive = New-TestArchive -SevenZipPath $sevenZipPath -Directory $tempRoot -Name 'missing-metadata' -Metadata $null
     Assert-ThrowsLike { Assert-Net10RollbackArchivePreflight -BackupArchive $missingMetadataArchive -SevenZipPath $sevenZipPath } '*metadata*'

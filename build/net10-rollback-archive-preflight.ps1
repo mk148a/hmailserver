@@ -254,6 +254,91 @@ function Assert-Net10RollbackArchiveMetadata {
     }
 }
 
+function Assert-Net10RollbackArchiveListing {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [byte[]]$Listing,
+
+        [ValidateRange(1, 16777216)]
+        [int]$MaxListingBytes = 16777216
+    )
+
+    if ($Listing.Length -eq 0) {
+        throw 'Rollback backup archive listing is empty.'
+    }
+    if ($Listing.Length -gt $MaxListingBytes) {
+        throw "Rollback backup archive listing exceeded the $MaxListingBytes-byte limit."
+    }
+
+    try {
+        $utf8 = [System.Text.UTF8Encoding]::new($false, $true)
+        $listingText = $utf8.GetString($Listing)
+    }
+    catch {
+        throw "Rollback backup archive listing is not valid UTF-8: $($_.Exception.Message)"
+    }
+
+    $entries = @()
+    $currentEntry = $null
+    foreach ($line in ($listingText -split "`r?`n")) {
+        if ($line.StartsWith('Path = ', [StringComparison]::Ordinal)) {
+            if ($null -ne $currentEntry) {
+                $entries += $currentEntry
+            }
+
+            $currentEntry = [pscustomobject]@{
+                Path = $line.Substring(7)
+                Attributes = $null
+            }
+        }
+        elseif ($null -ne $currentEntry -and $line.StartsWith('Attributes = ', [StringComparison]::Ordinal)) {
+            $currentEntry.Attributes = $line.Substring(13)
+        }
+        elseif ([string]::IsNullOrWhiteSpace($line) -and $null -ne $currentEntry) {
+            $entries += $currentEntry
+            $currentEntry = $null
+        }
+    }
+    if ($null -ne $currentEntry) {
+        $entries += $currentEntry
+    }
+    if ($entries.Count -eq 0) {
+        throw 'Rollback backup archive listing contains no entries.'
+    }
+
+    $hasDataBackupDirectory = $false
+    foreach ($entry in $entries) {
+        $entryPath = [string]$entry.Path
+        if ([string]::IsNullOrWhiteSpace($entryPath)) {
+            throw 'Rollback backup archive contains an empty entry path.'
+        }
+
+        if ([System.IO.Path]::IsPathRooted($entryPath) -or
+            $entryPath.StartsWith('/', [StringComparison]::Ordinal) -or
+            $entryPath.StartsWith('\', [StringComparison]::Ordinal) -or
+            $entryPath -match '^[A-Za-z]:') {
+            throw "Rollback backup archive contains an unsafe absolute entry path: $entryPath"
+        }
+
+        $pathSegments = @($entryPath -split '[\\/]')
+        if ($pathSegments -contains '..') {
+            throw "Rollback backup archive contains an unsafe parent traversal entry path: $entryPath"
+        }
+
+        $normalizedEntryPath = $entryPath.TrimEnd([char[]]@('\', '/'))
+        if ($normalizedEntryPath -ceq 'DataBackup' -and
+            $null -ne $entry.Attributes -and
+            $entry.Attributes.StartsWith('D', [StringComparison]::Ordinal)) {
+            $hasDataBackupDirectory = $true
+        }
+    }
+
+    if (-not $hasDataBackupDirectory) {
+        throw 'Rollback backup archive must contain a DataBackup directory entry.'
+    }
+}
+
 function Assert-Net10RollbackArchivePreflight {
     [CmdletBinding()]
     param(
@@ -264,6 +349,9 @@ function Assert-Net10RollbackArchivePreflight {
         [string]$SevenZipPath,
 
         [TimeSpan]$ProcessTimeout = ([TimeSpan]::FromSeconds(30)),
+
+        [ValidateRange(1, 16777216)]
+        [int]$MaxArchiveListingBytes = 16777216,
 
         [ValidateRange(1, 16777216)]
         [int]$MaxMetadataBytes = 1048576
@@ -292,6 +380,23 @@ function Assert-Net10RollbackArchivePreflight {
     catch {
         throw "Rollback backup archive test failed: $($_.Exception.Message)"
     }
+
+    $listingStartInfo = New-Net10RollbackArchiveProcessStartInfo -FilePath $toolPath -ArgumentList @(
+        'l'
+        $archivePath
+        '-slt'
+        '-ba'
+        '-sccUTF-8'
+    )
+
+    try {
+        $listingResult = Invoke-Net10RollbackArchiveProcess -StartInfo $listingStartInfo -Timeout $ProcessTimeout -MaxStandardOutputBytes $MaxArchiveListingBytes
+    }
+    catch {
+        throw "Rollback backup archive listing could not be read: $($_.Exception.Message)"
+    }
+
+    Assert-Net10RollbackArchiveListing -Listing $listingResult.StandardOutput -MaxListingBytes $MaxArchiveListingBytes
 
     $metadataStartInfo = New-Net10RollbackArchiveProcessStartInfo -FilePath $toolPath -ArgumentList @(
         'x'
