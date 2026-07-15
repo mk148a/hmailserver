@@ -1,0 +1,32 @@
+﻿{
+    "AppId":  {
+                  "LocalService":  "SEC18CallerProbe",
+                  "AuthenticationLevel":  2,
+                  "ImpersonationLevel":  3
+              },
+    "Launch":  {
+                   "Length":  112,
+                   "Sddl":  "O:SYG:SYD:(A;;CCDCSW;;;SY)(A;;CCDCSW;;;S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494)",
+                   "Bytes":  "010004801400000020000000000000002C0000000101000000000005120000000101000000000005120000000200440002000000000014000B000000010100000000000512000000000028000B000000010600000000000552000000BA0781A40B119FBDF15118CEDE00E87DF6EA92DA"
+               },
+    "Access":  {
+                   "Length":  112,
+                   "Sddl":  "O:SYG:SYD:(A;;CCDCSW;;;SY)(A;;CCDCSW;;;S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494)",
+                   "Bytes":  "010004801400000020000000000000002C0000000101000000000005120000000101000000000005120000000200440002000000000014000B000000010100000000000512000000000028000B000000010600000000000552000000BA0781A40B119FBDF15118CEDE00E87DF6EA92DA"
+               },
+    "Clsid":  {
+                  "AppID":  "{C3E8DB24-6E66-44A4-9DAF-E7961BF1F3B6}",
+                  "ProgID":  "SEC18.CallerProbe.1",
+                  "VersionIndependentProgID":  "SEC18.CallerProbe",
+                  "TypeLib":  "{A3D26C98-52F2-4F21-8D2F-5BC1F5D1F7D1}",
+                  "Version":  "1.0"
+              },
+    "LocalServer":  {
+                        "(default)":  "\"C:\\SEC18-Staging\\Probe\\SEC18CallerProbe.exe\" -Embedding"
+                    },
+    "Service":  {
+                    "Name":  "SEC18CallerProbe",
+                    "Status":  4,
+                    "StartType":  3
+                }
+}

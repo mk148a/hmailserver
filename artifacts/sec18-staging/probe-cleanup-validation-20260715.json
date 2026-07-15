@@ -1,0 +1,28 @@
+{
+  "ObservedUtc": "2026-07-15T11:41:28.9641694Z",
+  "ProbeServiceAbsent": true,
+  "ProbeProcessAbsent": true,
+  "ProbeRegistryAbsent": true,
+  "ProbeEndpointsAndFilesAbsent": true,
+  "IisHealth": {
+    "status": "ok",
+    "phpVersion": "8.4.23",
+    "sapi": "cgi-fcgi",
+    "pid": 55300,
+    "comDotNetLoaded": true,
+    "comClassAvailable": true,
+    "opensslLoaded": true,
+    "sessionLoaded": true,
+    "jsonLoaded": true,
+    "hMailServerComActivated": false
+  },
+  "WebAdminPathPreserved": true,
+  "PhpPathPreserved": true,
+  "HMailService": {
+    "Status": "Stopped",
+    "StartType": "Disabled"
+  },
+  "HMailProcessCount": 0,
+  "ExistingApplicationRegistrationTouched": false,
+  "TemporaryEvidenceDirectoryRemoved": true
+}

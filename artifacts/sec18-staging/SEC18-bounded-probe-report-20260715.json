@@ -1,0 +1,178 @@
+{
+  "SchemaVersion": 1,
+  "CollectedUtc": "2026-07-15T11:37:50.308242Z",
+  "Host": "NOUTML-KANDIL",
+  "Environment": "non-production SEC-18 staging",
+  "Decision": "RED",
+  "DecisionReason": "Dedicated pool SID is proven in IIS/PHP and inherited child process, but DCOM activation is denied before method execution, so no valid server-side caller-token evidence exists.",
+  "AuthorizedBoundary": {
+    "AppPool": "HMailWebAdminBrokerPool",
+    "PoolSid": "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494",
+    "AppIdAclSddl": "O:SYG:SYD:(A;;CCDCSW;;;SY)(A;;CCDCSW;;;S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494)",
+    "AclPrincipals": [
+      "SYSTEM",
+      "IIS AppPool\\HMailWebAdminBrokerPool"
+    ]
+  },
+  "WorkerIdentity": {
+    "Sapi": "cgi-fcgi",
+    "Pid": 55300,
+    "FastcgiImpersonate": "0",
+    "Whoami": [
+      "\"iis apppool\\hmailwebadminbrokerpool\",\"S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494\""
+    ],
+    "PoolSidMatchesExpected": true,
+    "ExistingWorkerEvidence": [
+      {
+        "ObservedUtc": "2026-07-15T08:48:59.9175972Z",
+        "Name": "w3wp.exe",
+        "ProcessId": 61644,
+        "ExecutablePath": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+        "TokenSid": "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494"
+      },
+      {
+        "ObservedUtc": "2026-07-15T08:48:59.9282538Z",
+        "Name": "php-cgi.exe",
+        "ProcessId": 103076,
+        "ExecutablePath": "C:\\SEC18-Staging\\PHP\\8.4.23\\php-cgi.exe",
+        "TokenSid": "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494"
+      }
+    ]
+  },
+  "Compatibility": {
+    "PhpCgi": "x64",
+    "PhpComDotNet": "x64",
+    "Probe": "x64",
+    "TypeLibView": "win64",
+    "InterfaceIid": "{7F0E3F9A-4A4C-4D44-AD09-5E13DF84B76E}",
+    "TypeLib": "{A3D26C98-52F2-4F21-8D2F-5BC1F5D1F7D1}",
+    "RegistrationReadback": {
+      "AppId": {
+        "LocalService": "SEC18CallerProbe",
+        "AuthenticationLevel": 2,
+        "ImpersonationLevel": 3
+      },
+      "Launch": {
+        "Length": 112,
+        "Sddl": "O:SYG:SYD:(A;;CCDCSW;;;SY)(A;;CCDCSW;;;S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494)",
+        "Bytes": "010004801400000020000000000000002C0000000101000000000005120000000101000000000005120000000200440002000000000014000B000000010100000000000512000000000028000B000000010600000000000552000000BA0781A40B119FBDF15118CEDE00E87DF6EA92DA"
+      },
+      "Access": {
+        "Length": 112,
+        "Sddl": "O:SYG:SYD:(A;;CCDCSW;;;SY)(A;;CCDCSW;;;S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494)",
+        "Bytes": "010004801400000020000000000000002C0000000101000000000005120000000101000000000005120000000200440002000000000014000B000000010100000000000512000000000028000B000000010600000000000552000000BA0781A40B119FBDF15118CEDE00E87DF6EA92DA"
+      },
+      "Clsid": {
+        "AppID": "{C3E8DB24-6E66-44A4-9DAF-E7961BF1F3B6}",
+        "ProgID": "SEC18.CallerProbe.1",
+        "VersionIndependentProgID": "SEC18.CallerProbe",
+        "TypeLib": "{A3D26C98-52F2-4F21-8D2F-5BC1F5D1F7D1}",
+        "Version": "1.0"
+      },
+      "LocalServer": {
+        "(default)": "\"C:\\SEC18-Staging\\Probe\\SEC18CallerProbe.exe\" -Embedding"
+      },
+      "Service": {
+        "Name": "SEC18CallerProbe",
+        "Status": 4,
+        "StartType": 3
+      }
+    }
+  },
+  "NegativeTests": {
+    "DesktopUser": {
+      "ObservedUtc": "2026-07-15T11:33:26.3678461Z",
+      "Identity": "NOUTML-KANDIL\\Kandil",
+      "Sid": "S-1-5-21-901680329-682942131-322962695-1002",
+      "IsElevated": false,
+      "Activated": false,
+      "Stage": "activation-denied",
+      "HResultDecimal": -2147024891,
+      "HResultHex": "0x80070005",
+      "Win32Error": 5,
+      "MethodReached": false,
+      "EvidenceFilePresent": false,
+      "InvocationCounterPresent": false
+    },
+    "PhpActivation": {
+      "ObservedUtc": "2026-07-15T11:33:26.7239675Z",
+      "Endpoint": "http://127.0.0.1:8088/caller-probe-diagnostics.php",
+      "StatusCode": 502,
+      "Response": "\r\n{\r\n  \"stage\": \"activation\",\r\n  \"success\": false,\r\n  \"exception\": \"com_exception\",\r\n  \"hresult\": 2147942405,\r\n  \"message\": \"Failed to create COM object \\u0060SEC18.CallerProbe\\u0027: Access is denied\"\r\n}",
+      "ActivationHResultDecimal": 2147942405,
+      "ActivationHResultHex": "0x80070005",
+      "InterfaceStage": "not-reached",
+      "MethodStage": "not-reached",
+      "InvocationCounterPresent": false,
+      "EvidenceFilePresent": false
+    },
+    "InheritedChild": {
+      "identitySid": "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494",
+      "response": null,
+      "activationExceptionType": "System.UnauthorizedAccessException",
+      "activationHresult": -2147024891,
+      "interfaceExceptionType": null,
+      "interfaceHresult": 0,
+      "methodExceptionType": null,
+      "methodHresult": 0,
+      "coInitializeHresult": -2147417850,
+      "coInitializeSecurityHresult": 0
+    },
+    "NoEvidenceOrCounterOnDenial": true
+  },
+  "ServerReachability": {
+    "SystemSelfClient": {
+      "identitySid": "S-1-5-18",
+      "response": "{\"success\":false,\"reason\":\"impersonation-level-too-low\",\"reverted\":true}",
+      "exceptionType": null,
+      "exceptionHresult": 0
+    },
+    "MethodWasReachedByAuthorizedSystemDiagnostic": true,
+    "SystemDiagnosticValidForPool": false,
+    "Reason": "SYSTEM self-client reported impersonation-level-too-low and reverted=true; it does not prove IIS pool caller identity."
+  },
+  "Collector": {
+    "Path": "E:\\Yazılım\\hmailserver57\\repo\\artifacts\\sec18-staging\\staging-inventory-20260715-bounded-tests.json",
+    "ExitCode": 2,
+    "Status": "Incomplete",
+    "WorkerSidResolved": false,
+    "CallerTokenEvidenceValid": false,
+    "CallerSidMatchesWorkerSid": false
+  },
+  "ProductionSafety": {
+    "HMailService": "Stopped",
+    "HMailProcessCount": 0,
+    "ExistingApplicationRegistrationUnchanged": true,
+    "DatabaseAccessed": false,
+    "DataDirectoryAccessed": false,
+    "FirewallChanged": false,
+    "PermanentBrokerRegistered": false
+  },
+  "Rollback": {
+    "Script": "E:\\Yazılım\\hmailserver57\\repo\\artifacts\\sec18-staging\\rollback-sec18-probe-20260715.ps1",
+    "WhatIfValidated": true,
+    "PreservesIisPoolSitePhp": true
+  },
+  "Reviews": [
+    {
+      "Reviewer": "hmail_security_reviewer",
+      "Decision": "RED",
+      "Reason": "Authorized pool activation denied before method; no valid server-side caller-token evidence."
+    },
+    {
+      "Reviewer": "hmail_reality_checker",
+      "Decision": "RED",
+      "Reason": "Collector incomplete and permanent broker registration is not justified."
+    }
+  ],
+  "Cleanup": {
+    "ProbeServiceRemoved": true,
+    "ProbeRegistryRemoved": true,
+    "ProbeEndpointsRemoved": true,
+    "IisSiteRetained": true,
+    "IisPoolRetained": true,
+    "PhpRuntimeRetained": true,
+    "HMailServiceAfterCleanup": "Stopped/Disabled",
+    "ValidationPath": "E:\\Yazılım\\hmailserver57\\repo\\artifacts\\sec18-staging\\probe-cleanup-validation-20260715.json"
+  }
+}

@@ -1,0 +1,111 @@
+{
+    "SchemaVersion":  1,
+    "CollectedUtc":  "2026-07-15T11:30:18.2306061Z",
+    "ComputerName":  "NOUTML-KANDIL",
+    "RequestedWebAdminPath":  "C:\\SEC18-STAGING\\WEBADMIN",
+    "WebAdminPathExists":  true,
+    "ApplicationAppId":  "{5EDEC473-39E0-43F6-A234-1947071721C8}",
+    "Registry":  [
+                     {
+                         "View":  "Registry64",
+                         "ApplicationAppId":  {
+                                                  "Present":  true,
+                                                  "LocalService":  "hMailServer",
+                                                  "LaunchPermission":  {
+                                                                           "Present":  false,
+                                                                           "Length":  0,
+                                                                           "Sddl":  null,
+                                                                           "DecodeError":  null
+                                                                       },
+                                                  "AccessPermission":  {
+                                                                           "Present":  false,
+                                                                           "Length":  0,
+                                                                           "Sddl":  null,
+                                                                           "DecodeError":  null
+                                                                       }
+                                              },
+                         "MachineDefaults":  {
+                                                 "Present":  true,
+                                                 "EnableDcom":  "Y",
+                                                 "DefaultLaunchPermission":  {
+                                                                                 "Present":  true,
+                                                                                 "Length":  124,
+                                                                                 "Sddl":  "O:BAG:BAD:(A;;CCDCLCSWRP;;;BA)(A;;CCDCLCSWRP;;;IU)(A;;CCDCLCSWRP;;;SY)",
+                                                                                 "DecodeError":  null
+                                                                             },
+                                                 "DefaultAccessPermission":  {
+                                                                                 "Present":  false,
+                                                                                 "Length":  0,
+                                                                                 "Sddl":  null,
+                                                                                 "DecodeError":  null
+                                                                             }
+                                             }
+                     },
+                     {
+                         "View":  "Registry32",
+                         "ApplicationAppId":  {
+                                                  "Present":  true,
+                                                  "LocalService":  "hMailServer",
+                                                  "LaunchPermission":  {
+                                                                           "Present":  false,
+                                                                           "Length":  0,
+                                                                           "Sddl":  null,
+                                                                           "DecodeError":  null
+                                                                       },
+                                                  "AccessPermission":  {
+                                                                           "Present":  false,
+                                                                           "Length":  0,
+                                                                           "Sddl":  null,
+                                                                           "DecodeError":  null
+                                                                       }
+                                              },
+                         "MachineDefaults":  {
+                                                 "Present":  true,
+                                                 "EnableDcom":  "Y",
+                                                 "DefaultLaunchPermission":  {
+                                                                                 "Present":  true,
+                                                                                 "Length":  124,
+                                                                                 "Sddl":  "O:BAG:BAD:(A;;CCDCLCSWRP;;;BA)(A;;CCDCLCSWRP;;;IU)(A;;CCDCLCSWRP;;;SY)",
+                                                                                 "DecodeError":  null
+                                                                             },
+                                                 "DefaultAccessPermission":  {
+                                                                                 "Present":  false,
+                                                                                 "Length":  0,
+                                                                                 "Sddl":  null,
+                                                                                 "DecodeError":  null
+                                                                             }
+                                             }
+                     }
+                 ],
+    "Iis":  {
+                "Available":  false,
+                "Reason":  "IIS yapılandırma verilerine erişmek için işlemin durumu yükseltmiş olması gerekirdi.",
+                "TargetPath":  "C:\\SEC18-STAGING\\WEBADMIN",
+                "Mappings":  [
+
+                             ],
+                "Pools":  [
+
+                          ]
+            },
+    "CallerTokenEvidence":  {
+                                "Present":  false,
+                                "Valid":  false,
+                                "Reason":  "Caller-token evidence file was not found: C:\\SEC18-Staging\\Evidence\\caller-token-evidence.json",
+                                "ProbeVersion":  null,
+                                "ObservedUtc":  null,
+                                "Transport":  null,
+                                "CallerSid":  null,
+                                "ImpersonationSucceeded":  false,
+                                "MatchesWorkerSid":  false
+                            },
+    "Gate":  {
+                 "DedicatedPoolCandidate":  false,
+                 "ExistingApplicationAppIdPresent":  true,
+                 "ExistingApplicationHasExplicitAcl":  false,
+                 "CallerTokenMatchesWorkerSid":  false,
+                 "ReadyForBrokerRegistration":  false,
+                 "Status":  "Incomplete",
+                 "Reason":  "This collector never approves broker registration. A reviewed broker-only AppID ACL and method-level caller-SID checks remain required."
+             }
+}

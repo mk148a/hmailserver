@@ -1,0 +1,12 @@
+{
+  "ObservedUtc": "2026-07-15T11:33:26.7239675Z",
+  "Endpoint": "http://127.0.0.1:8088/caller-probe-diagnostics.php",
+  "StatusCode": 502,
+  "Response": "\r\n{\r\n  \"stage\": \"activation\",\r\n  \"success\": false,\r\n  \"exception\": \"com_exception\",\r\n  \"hresult\": 2147942405,\r\n  \"message\": \"Failed to create COM object \\u0060SEC18.CallerProbe\\u0027: Access is denied\"\r\n}",
+  "ActivationHResultDecimal": 2147942405,
+  "ActivationHResultHex": "0x80070005",
+  "InterfaceStage": "not-reached",
+  "MethodStage": "not-reached",
+  "InvocationCounterPresent": false,
+  "EvidenceFilePresent": false
+}
