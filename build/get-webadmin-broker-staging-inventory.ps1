@@ -148,6 +148,16 @@ function Resolve-AccountSid {
     }
 }
 
+function Get-ApplicationPoolIdentityName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$PoolName
+    )
+
+    return "IIS AppPool\$PoolName"
+}
+
 function Get-IisInventory {
     param(
         [string]$RequestedWebAdminPath
@@ -201,7 +211,7 @@ function Get-IisInventory {
             $identityName = [string]$pool.processModel.userName
 
             if ($identityType -eq 'ApplicationPoolIdentity') {
-                $identityName = "IIS AppPool\\$poolName"
+                $identityName = Get-ApplicationPoolIdentityName -PoolName $poolName
             }
 
             $poolMappings = @($mappings | Where-Object { $_.ApplicationPool -eq $poolName })
