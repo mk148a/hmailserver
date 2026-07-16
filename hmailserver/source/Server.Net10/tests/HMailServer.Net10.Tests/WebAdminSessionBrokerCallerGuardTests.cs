@@ -85,10 +85,57 @@ public sealed class WebAdminSessionBrokerCallerGuardTests
             RevertResult = false
         };
         var guard = new WebAdminSessionBrokerCallerGuard(WorkerSid, source);
+        var calls = 0;
 
-        var error = Assert.ThrowsExactly<COMException>(() => guard.Invoke(() => "must-deny"));
+        var error = Assert.ThrowsExactly<COMException>(() => guard.Invoke(() =>
+        {
+            calls++;
+            return "must-deny";
+        }));
 
         Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, calls);
+        Assert.AreEqual(1, source.RevertCalls);
+    }
+
+    [TestMethod]
+    public void CaptureFailureIsSanitizedAndReverted()
+    {
+        var source = new FakeIdentitySource(null)
+        {
+            CaptureException = new InvalidOperationException("native detail")
+        };
+        var guard = new WebAdminSessionBrokerCallerGuard(WorkerSid, source);
+        var calls = 0;
+
+        var error = Assert.ThrowsExactly<COMException>(() => guard.Invoke(() =>
+        {
+            calls++;
+            return "must-deny";
+        }));
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, calls);
+        Assert.AreEqual(1, source.RevertCalls);
+    }
+
+    [TestMethod]
+    public void AuthorizedOperationRunsOnlyAfterRevert()
+    {
+        var source = new FakeIdentitySource(new(
+            WorkerSid,
+            WebAdminBrokerTokenType.Impersonation,
+            WebAdminBrokerImpersonationLevel.Identification,
+            IsRemote: false));
+        var guard = new WebAdminSessionBrokerCallerGuard(WorkerSid, source);
+
+        var result = guard.Invoke(() =>
+        {
+            Assert.IsTrue(source.HasReverted);
+            return "authorized";
+        });
+
+        Assert.AreEqual("authorized", result);
         Assert.AreEqual(1, source.RevertCalls);
     }
 
@@ -114,13 +161,26 @@ public sealed class WebAdminSessionBrokerCallerGuardTests
     {
         public int RevertCalls { get; private set; }
 
+        public bool HasReverted { get; private set; }
+
+        public Exception? CaptureException { get; init; }
+
         public bool RevertResult { get; init; } = true;
 
-        public WebAdminBrokerCallerIdentity? CaptureImpersonatedCaller() => identity;
+        public WebAdminBrokerCallerIdentity? CaptureImpersonatedCaller()
+        {
+            if (CaptureException is not null)
+            {
+                throw CaptureException;
+            }
+
+            return identity;
+        }
 
         public bool RevertToSelf()
         {
             RevertCalls++;
+            HasReverted = true;
             return RevertResult;
         }
     }

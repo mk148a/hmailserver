@@ -73,24 +73,19 @@ public sealed class WebAdminSessionBrokerCallerGuard
     {
         ArgumentNullException.ThrowIfNull(operation);
 
-        Exception? failure = null;
-        T result = default!;
+        COMException? authorizationFailure = null;
 
         try
         {
             var caller = _identitySource.CaptureImpersonatedCaller();
             if (!IsAuthorized(caller))
             {
-                failure = AccessDenied();
-            }
-            else
-            {
-                result = operation();
+                authorizationFailure = AccessDenied();
             }
         }
-        catch (Exception exception)
+        catch
         {
-            failure = exception;
+            authorizationFailure = AccessDenied();
         }
         finally
         {
@@ -98,21 +93,23 @@ public sealed class WebAdminSessionBrokerCallerGuard
             {
                 if (!_identitySource.RevertToSelf())
                 {
-                    failure = AccessDenied();
+                    authorizationFailure = AccessDenied();
                 }
             }
             catch
             {
-                failure = AccessDenied();
+                authorizationFailure = AccessDenied();
             }
         }
 
-        if (failure is not null)
+        if (authorizationFailure is not null)
         {
-            ExceptionDispatchInfo.Capture(failure).Throw();
+            ExceptionDispatchInfo.Capture(authorizationFailure).Throw();
         }
 
-        return result;
+        // The operation runs only after the caller token has been reverted.
+        // Its own failure is therefore preserved without weakening the gate.
+        return operation();
     }
 
     private bool IsAuthorized(WebAdminBrokerCallerIdentity? caller) =>
