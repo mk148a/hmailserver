@@ -1,0 +1,34 @@
+﻿{
+    "SchemaVersion":  1,
+    "CollectedUtc":  "2026-07-16T05:35:49.3054352Z",
+    "TemporaryProbeServicePresent":  false,
+    "TemporaryRegistryResiduals":  [
+
+                                   ],
+    "TemporaryEndpointResiduals":  [
+
+                                   ],
+    "ProbeRootPresent":  false,
+    "UnsanitizedEvidenceRootPresent":  false,
+    "Staging":  {
+                    "SiteName":  "HMailWebAdminBrokerStaging",
+                    "SiteState":  "Started",
+                    "PhysicalPath":  "C:\\SEC18-Staging\\WebAdmin",
+                    "PoolName":  "HMailWebAdminBrokerPool",
+                    "PoolState":  "Started",
+                    "HealthStatus":  "ok",
+                    "PhpVersion":  "8.4.23",
+                    "ComDotNetLoaded":  true,
+                    "HMailServerComActivated":  false
+                },
+    "ProductionSafety":  {
+                             "HMailServiceStatus":  "Stopped",
+                             "HMailServiceStartType":  "Disabled",
+                             "HMailProcessCount":  0,
+                             "ProbeProcessCount":  0,
+                             "DatabaseAccessed":  false,
+                             "DataDirectoryAccessed":  false,
+                             "FirewallChanged":  false,
+                             "PermanentBrokerRegistered":  false
+                         }
+}

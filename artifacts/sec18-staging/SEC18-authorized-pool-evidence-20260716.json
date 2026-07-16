@@ -1,0 +1,149 @@
+﻿{
+    "SchemaVersion":  1,
+    "CollectedUtc":  "2026-07-16T05:32:24.2908871Z",
+    "Host":  "NOUTML-KANDIL",
+    "Environment":  "non-production SEC-18 isolated IIS staging",
+    "Decision":  "REVIEW_REQUIRED",
+    "AuthorizedPool":  {
+                           "Name":  "HMailWebAdminBrokerPool",
+                           "Sid":  "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494",
+                           "WorkerSidResolved":  "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494",
+                           "DedicatedPoolCandidate":  true,
+                           "CallerEvidenceValid":  true,
+                           "CallerSidMatchesWorkerSid":  true
+                       },
+    "MethodEvidence":  {
+                           "probeVersion":  "service-dacl-1",
+                           "observedUtc":  "2026-07-16T05:32:24.1186754Z",
+                           "serverPid":  177204,
+                           "serverIdentitySid":  "S-1-5-18",
+                           "serverImage":  "C:\\SEC18-Staging\\Probe\\SEC18CallerProbeDacl.exe",
+                           "transport":  "local",
+                           "nonceAccepted":  true,
+                           "queryClientBlanketHresult":  0,
+                           "authenticationService":  10,
+                           "authorizationService":  0,
+                           "authenticationLevel":  6,
+                           "impersonationLevel":  null,
+                           "queryImpersonationLevelNotRequested":  true,
+                           "capabilities":  0,
+                           "coImpersonateClientHresult":  0,
+                           "openThreadTokenError":  0,
+                           "callerTokenType":  2,
+                           "callerTokenImpersonationLevel":  1,
+                           "identityOnly":  true,
+                           "resourceImpersonationAvailable":  false,
+                           "callerSid":  "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494",
+                           "coRevertToSelfHresult":  0,
+                           "residualTokenError":  1008,
+                           "residualSid":  null,
+                           "impersonationSucceeded":  true
+                       },
+    "DirectPhpAuthorized":  {
+                                "Endpoint":  "http://127.0.0.1:8088/sec18-pool-direct-com.php",
+                                "Success":  true,
+                                "CallerEvidence":  {
+                                                       "probeVersion":  "service-dacl-1",
+                                                       "observedUtc":  "2026-07-16T05:32:24.1186754Z",
+                                                       "serverPid":  177204,
+                                                       "serverIdentitySid":  "S-1-5-18",
+                                                       "serverImage":  "C:\\SEC18-Staging\\Probe\\SEC18CallerProbeDacl.exe",
+                                                       "transport":  "local",
+                                                       "nonceAccepted":  true,
+                                                       "queryClientBlanketHresult":  0,
+                                                       "authenticationService":  10,
+                                                       "authorizationService":  0,
+                                                       "authenticationLevel":  6,
+                                                       "impersonationLevel":  null,
+                                                       "queryImpersonationLevelNotRequested":  true,
+                                                       "capabilities":  0,
+                                                       "coImpersonateClientHresult":  0,
+                                                       "openThreadTokenError":  0,
+                                                       "callerTokenType":  2,
+                                                       "callerTokenImpersonationLevel":  1,
+                                                       "identityOnly":  true,
+                                                       "resourceImpersonationAvailable":  false,
+                                                       "callerSid":  "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494",
+                                                       "coRevertToSelfHresult":  0,
+                                                       "residualTokenError":  1008,
+                                                       "residualSid":  null,
+                                                       "impersonationSucceeded":  true
+                                                   }
+                            },
+    "DirectPhpWrongSid":  {
+                              "Endpoint":  "http://127.0.0.1:8088/sec18-pool-direct-com-wrong-sid.php",
+                              "Success":  true,
+                              "MethodDenied":  true,
+                              "MethodHresult":  -2147024891,
+                              "MethodHresultHex":  "0x80070005"
+                          },
+    "UnauthorizedDesktop":  {
+                                "Identity":  "NOUTML-KANDIL\\Kandil",
+                                "Sid":  "S-1-5-21-901680329-682942131-322962695-1002",
+                                "ActivationHresult":  -2147024891,
+                                "ActivationHresultHex":  "0x80070005",
+                                "MethodReached":  false,
+                                "CounterUnchanged":  true,
+                                "EvidenceHashUnchanged":  true
+                            },
+    "Registration":  {
+                         "ProbeAppId":  {
+                                            "AppId":  "{b5fa1c3f-b6c4-4eeb-9658-2ae538ae287e}",
+                                            "LocalService":  "SEC18ProbeSvcDacl",
+                                            "ServiceParameters":  "-Embedding",
+                                            "AuthenticationLevel":  2,
+                                            "LaunchPermissionSddl":  "O:SYG:SYD:(A;;CCDCSW;;;SY)(A;;CCDCSW;;;S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494)",
+                                            "AccessPermissionSddl":  "O:SYG:SYD:(A;;CCDCSW;;;SY)(A;;CCDCSW;;;S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494)"
+                                        },
+                         "ProbeClsid":  {
+                                            "Clsid":  "{8e294295-4b96-4079-8821-e19f3bacab54}",
+                                            "AppId":  "{b5fa1c3f-b6c4-4eeb-9658-2ae538ae287e}",
+                                            "InprocServer32Present":  false,
+                                            "LocalServer32":  "\"C:\\SEC18-Staging\\Probe\\SEC18CallerProbeDacl.exe\" -Embedding"
+                                        },
+                         "ExistingHMailApplication":  {
+                                                          "AppId":  "{5EDEC473-39E0-43F6-A234-1947071721C8}",
+                                                          "LocalService":  "hMailServer",
+                                                          "LaunchPermissionPresent":  false,
+                                                          "AccessPermissionPresent":  false,
+                                                          "MachineDefaultLaunchPermissionSha256":  "676c527032b2a9ef91d731abb4f8e8bf422d6b6b20e5044579a8c3f677b0e8ff",
+                                                          "MatchesPriorMachineDefaultLaunchPermission":  true
+                                                      }
+                     },
+    "TemporaryService":  {
+                             "Name":  "SEC18ProbeSvcDacl",
+                             "Status":  "Running",
+                             "DefaultServiceSddl":  "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)",
+                             "ServiceDaclChanged":  false
+                         },
+    "StagingHealth":  {
+                          "status":  "ok",
+                          "phpVersion":  "8.4.23",
+                          "sapi":  "cgi-fcgi",
+                          "pid":  16364,
+                          "comDotNetLoaded":  true,
+                          "comClassAvailable":  true,
+                          "opensslLoaded":  true,
+                          "sessionLoaded":  true,
+                          "jsonLoaded":  true,
+                          "hMailServerComActivated":  false
+                      },
+    "DcomEvents":  {
+                       "DistributedCom10016Last30Minutes":  0
+                   },
+    "ProductionSafety":  {
+                             "HMailServiceStatus":  "Stopped",
+                             "HMailServiceStartType":  "Disabled",
+                             "HMailProcessCount":  0,
+                             "ExistingApplicationRegistrationUnchanged":  true,
+                             "DatabaseAccessed":  false,
+                             "DataDirectoryAccessed":  false,
+                             "FirewallChanged":  false,
+                             "PermanentBrokerRegistered":  false
+                         },
+    "Collector":  {
+                      "Path":  "E:\\Yazılım\\hmailserver57\\repo\\artifacts\\sec18-staging\\staging-inventory-20260715-dacl.json",
+                      "Status":  "EvidenceCollectedSecurityReviewRequired",
+                      "ReadyForBrokerRegistration":  false
+                  }
+}
