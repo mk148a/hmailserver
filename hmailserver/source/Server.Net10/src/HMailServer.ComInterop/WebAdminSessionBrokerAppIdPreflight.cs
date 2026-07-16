@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Security.Principal;
 
 namespace HMailServer.ComInterop;
@@ -7,7 +8,9 @@ namespace HMailServer.ComInterop;
 public sealed record WebAdminBrokerPermissionEvidence(
     bool Present,
     IReadOnlyCollection<string> AllowedSids,
-    IReadOnlyCollection<string> DeniedSids);
+    IReadOnlyCollection<string> DeniedSids,
+    bool ExplicitDacl = false,
+    IReadOnlyDictionary<string, int>? AllowedAccessMasks = null);
 
 [ComVisible(false)]
 public sealed record WebAdminBrokerAppIdEvidence(
@@ -16,7 +19,7 @@ public sealed record WebAdminBrokerAppIdEvidence(
     string? LocalService,
     WebAdminBrokerPermissionEvidence LaunchPermission,
     WebAdminBrokerPermissionEvidence AccessPermission,
-    bool ExistingApplicationRegistrationUnchanged);
+    bool ExistingApplicationAppIdUnchanged);
 
 [ComVisible(false)]
 public sealed record WebAdminBrokerAppIdPreflightResult(bool Ready, string Reason);
@@ -24,6 +27,38 @@ public sealed record WebAdminBrokerAppIdPreflightResult(bool Ready, string Reaso
 [ComVisible(false)]
 public static class WebAdminSessionBrokerAppIdPreflight
 {
+    public const int RequiredLocalBrokerAccessMask = 0x0B;
+
+    [SupportedOSPlatform("windows")]
+    public static WebAdminBrokerAppIdPreflightResult EvaluateFromRegistryReadback(
+        string configuredWorkerSid,
+        IReadOnlyCollection<string> requiredServiceSids,
+        WebAdminBrokerAppIdRegistryReadback current,
+        WebAdminBrokerAppIdRegistryReadback baseline,
+        WindowsWebAdminBrokerRegistryEvidenceSource registryEvidenceSource,
+        string requiredLocalService = "hMailServer")
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(baseline);
+        ArgumentNullException.ThrowIfNull(registryEvidenceSource);
+
+        if (!registryEvidenceSource.TryBuildPreflightEvidence(
+                current,
+                baseline,
+                out var evidence,
+                out var reason))
+        {
+            return Fail(reason);
+        }
+
+        if (reason == "broker-registration-missing")
+        {
+            return Fail(reason);
+        }
+
+        return Evaluate(configuredWorkerSid, requiredServiceSids, evidence, requiredLocalService);
+    }
+
     public static WebAdminBrokerAppIdPreflightResult Evaluate(
         string configuredWorkerSid,
         IReadOnlyCollection<string> requiredServiceSids,
@@ -79,7 +114,7 @@ public static class WebAdminSessionBrokerAppIdPreflight
             return Fail("broker-local-service-mismatch");
         }
 
-        if (!evidence.ExistingApplicationRegistrationUnchanged)
+        if (!evidence.ExistingApplicationAppIdUnchanged)
         {
             return Fail("installed-application-registration-changed");
         }
@@ -95,11 +130,41 @@ public static class WebAdminSessionBrokerAppIdPreflight
 
     private static bool HasExactPermission(
         WebAdminBrokerPermissionEvidence permission,
-        IReadOnlySet<string> expectedSids) =>
-        permission.Present
-        && permission.DeniedSids.Count == 0
-        && NormalizeSidSet(permission.AllowedSids) is { } allowedSids
-        && allowedSids.SetEquals(expectedSids);
+        IReadOnlySet<string> expectedSids)
+    {
+        if (!permission.Present
+            || !permission.ExplicitDacl
+            || permission.DeniedSids.Count != 0
+            || NormalizeSidSet(permission.AllowedSids) is not { } allowedSids
+            || !allowedSids.SetEquals(expectedSids)
+            || permission.AllowedAccessMasks is not { } accessMasks
+            || NormalizeAccessMasks(accessMasks) is not { } normalizedMasks)
+        {
+            return false;
+        }
+
+        var maskSids = new HashSet<string>(normalizedMasks.Keys, StringComparer.OrdinalIgnoreCase);
+        return maskSids.SetEquals(expectedSids)
+            && maskSids.SetEquals(allowedSids)
+            && normalizedMasks.Values.All(static mask =>
+                mask == RequiredLocalBrokerAccessMask);
+    }
+
+    private static Dictionary<string, int>? NormalizeAccessMasks(
+        IReadOnlyDictionary<string, int> accessMasks)
+    {
+        var normalized = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in accessMasks)
+        {
+            if (!TryNormalizeSid(pair.Key, out var normalizedSid)
+                || !normalized.TryAdd(normalizedSid, pair.Value))
+            {
+                return null;
+            }
+        }
+
+        return normalized;
+    }
 
     private static HashSet<string>? NormalizeSidSet(IReadOnlyCollection<string> sids)
     {

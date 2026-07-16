@@ -64,8 +64,17 @@ public sealed class WebAdminSessionBrokerWindowsBoundaryTests
     {
         var evidence = Evidence(
             brokerRegistrationPresent: true,
-            launchPermission: new(true, [WorkerSid, SystemSid, "S-1-5-32-544"], []),
-            accessPermission: new(true, [WorkerSid, SystemSid], ["S-1-1-0"]));
+            launchPermission: Permission(WorkerSid, SystemSid, "S-1-5-32-544"),
+            accessPermission: new(
+                true,
+                [WorkerSid, SystemSid],
+                ["S-1-1-0"],
+                ExplicitDacl: true,
+                AllowedAccessMasks: new Dictionary<string, int>
+                {
+                    [WorkerSid] = WebAdminSessionBrokerAppIdPreflight.RequiredLocalBrokerAccessMask,
+                    [SystemSid] = WebAdminSessionBrokerAppIdPreflight.RequiredLocalBrokerAccessMask
+                }));
 
         var result = WebAdminSessionBrokerAppIdPreflight.Evaluate(
             WorkerSid,
@@ -81,8 +90,8 @@ public sealed class WebAdminSessionBrokerWindowsBoundaryTests
     {
         var evidence = Evidence(
             brokerRegistrationPresent: true,
-            launchPermission: new(true, [WorkerSid, SystemSid], []),
-            accessPermission: new(true, [SystemSid, WorkerSid], []));
+            launchPermission: Permission(WorkerSid, SystemSid),
+            accessPermission: Permission(SystemSid, WorkerSid));
 
         var result = WebAdminSessionBrokerAppIdPreflight.Evaluate(
             WorkerSid,
@@ -113,6 +122,31 @@ public sealed class WebAdminSessionBrokerWindowsBoundaryTests
         Assert.AreEqual("installed-application-appid-reused", result.Reason);
     }
 
+    [TestMethod]
+    public void AppIdPreflightRejectsDuplicateNormalizedAccessMaskSids()
+    {
+        var duplicateMasks = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            [SystemSid] = WebAdminSessionBrokerAppIdPreflight.RequiredLocalBrokerAccessMask,
+            [SystemSid.ToLowerInvariant()] = WebAdminSessionBrokerAppIdPreflight.RequiredLocalBrokerAccessMask
+        };
+        var permission = new WebAdminBrokerPermissionEvidence(
+            true,
+            [WorkerSid, SystemSid],
+            [],
+            ExplicitDacl: true,
+            AllowedAccessMasks: duplicateMasks);
+        var evidence = Evidence(true, permission, permission);
+
+        var result = WebAdminSessionBrokerAppIdPreflight.Evaluate(
+            WorkerSid,
+            [SystemSid],
+            evidence);
+
+        Assert.IsFalse(result.Ready);
+        Assert.AreEqual("broker-appid-permissions-not-explicit-and-exact", result.Reason);
+    }
+
     private static WebAdminBrokerAppIdEvidence Evidence(
         bool brokerRegistrationPresent,
         WebAdminBrokerPermissionEvidence launchPermission,
@@ -123,7 +157,18 @@ public sealed class WebAdminSessionBrokerWindowsBoundaryTests
             "hMailServer",
             launchPermission,
             accessPermission,
-            ExistingApplicationRegistrationUnchanged: true);
+            ExistingApplicationAppIdUnchanged: true);
+
+    private static WebAdminBrokerPermissionEvidence Permission(params string[] sids) =>
+        new(
+            true,
+            sids,
+            [],
+            ExplicitDacl: true,
+            AllowedAccessMasks: sids.ToDictionary(
+                static sid => sid,
+                static _ => WebAdminSessionBrokerAppIdPreflight.RequiredLocalBrokerAccessMask,
+                StringComparer.OrdinalIgnoreCase));
 
     private sealed class FakeCallerNative(WebAdminBrokerCallerIdentity? identity)
         : IWebAdminBrokerCallerIdentityNative

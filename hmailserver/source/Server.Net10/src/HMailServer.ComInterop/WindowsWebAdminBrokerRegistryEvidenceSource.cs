@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using Microsoft.Win32;
 
@@ -29,8 +31,12 @@ public sealed record WebAdminBrokerRegistryKeySnapshot(
 {
     public bool BytewiseEquals(WebAdminBrokerRegistryKeySnapshot other)
     {
-        if (View != other.View
-            || !string.Equals(KeyPath, other.KeyPath, StringComparison.Ordinal)
+        return View == other.View && ContentEquals(other);
+    }
+
+    public bool ContentEquals(WebAdminBrokerRegistryKeySnapshot other)
+    {
+        if (!string.Equals(KeyPath, other.KeyPath, StringComparison.Ordinal)
             || Present != other.Present
             || !string.Equals(ReadError, other.ReadError, StringComparison.Ordinal)
             || Values.Count != other.Values.Count)
@@ -106,6 +112,240 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
             Views.Select(view => _reader.Read(view, brokerPath)).ToArray(),
             Views.Select(view => _reader.Read(view, applicationPath)).ToArray());
     }
+
+    public bool TryBuildPreflightEvidence(
+        WebAdminBrokerAppIdRegistryReadback current,
+        WebAdminBrokerAppIdRegistryReadback baseline,
+        out WebAdminBrokerAppIdEvidence evidence,
+        out string reason)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(baseline);
+
+        if (!HasReadableExistingApplicationSnapshots(current)
+            || !HasReadableExistingApplicationSnapshots(baseline))
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: false);
+            reason = "installed-application-appid-readback-incomplete";
+            return false;
+        }
+
+        if (!current.ExistingApplicationAppIdUnchanged(baseline))
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: false);
+            reason = "installed-application-registration-changed";
+            return false;
+        }
+
+        var broker64Views = current.BrokerAppIdViews
+            .Where(static view => view.View == RegistryView.Registry64)
+            .ToArray();
+        if (broker64Views.Length != 1)
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
+            reason = "broker-registry-64-view-missing";
+            return false;
+        }
+
+        var broker64 = broker64Views[0];
+        if (broker64.ReadError is not null)
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
+            reason = "broker-registry-readback-error";
+            return false;
+        }
+
+        if (!broker64.Present)
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
+            reason = "broker-registration-missing";
+            return true;
+        }
+
+        var broker32Views = current.BrokerAppIdViews
+            .Where(static view => view.View == RegistryView.Registry32)
+            .ToArray();
+        if (broker32Views.Length != 1)
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
+            reason = "broker-registry-32-view-missing";
+            return false;
+        }
+
+        var broker32 = broker32Views[0];
+        if (broker32.ReadError is not null)
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
+            reason = "broker-registry-readback-error";
+            return false;
+        }
+
+        if (!broker32.Present)
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
+            reason = "broker-registry-32-view-missing";
+            return false;
+        }
+
+        if (!broker32.ContentEquals(broker64))
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
+            reason = "broker-registry-views-mismatch";
+            return false;
+        }
+
+        var expectedBrokerPath = $"{ClassesPath}{WebAdminSessionBrokerContract.AppId}";
+        if (!string.Equals(broker64.KeyPath, expectedBrokerPath, StringComparison.Ordinal))
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
+            reason = "broker-registry-path-mismatch";
+            return false;
+        }
+
+        evidence = new(
+            WebAdminSessionBrokerContract.AppId,
+            BrokerRegistrationPresent: true,
+            ReadStringValue(broker64, "LocalService"),
+            ReadPermissionValue(broker64, "LaunchPermission"),
+            ReadPermissionValue(broker64, "AccessPermission"),
+            ExistingApplicationAppIdUnchanged: true);
+        reason = "broker-registry-readback-captured";
+        return true;
+    }
+
+    private static bool HasReadableExistingApplicationSnapshots(
+        WebAdminBrokerAppIdRegistryReadback readback)
+    {
+        var views = readback.ExistingApplicationAppIdViews;
+        return views.Count == 2
+            && views.All(static view => view.Present && view.ReadError is null)
+            && views.Any(static view => view.View == RegistryView.Registry64)
+            && views.Any(static view => view.View == RegistryView.Registry32)
+            && views.All(view =>
+                string.Equals(
+                    view.KeyPath,
+                    $"{ClassesPath}{LegacyComRegistrationManifest.AppId}",
+                    StringComparison.Ordinal));
+    }
+
+    private static WebAdminBrokerAppIdEvidence MissingBrokerEvidence(
+        bool existingApplicationAppIdUnchanged) =>
+        new(
+            WebAdminSessionBrokerContract.AppId,
+            BrokerRegistrationPresent: false,
+            LocalService: null,
+            new(false, [], []),
+            new(false, [], []),
+            existingApplicationAppIdUnchanged);
+
+    private static string? ReadStringValue(
+        WebAdminBrokerRegistryKeySnapshot snapshot,
+        string name)
+    {
+        var value = FindValue(snapshot, name);
+        if (value is null
+            || (value.Kind is not RegistryValueKind.String and not RegistryValueKind.ExpandString))
+        {
+            return null;
+        }
+
+        return Encoding.Unicode.GetString(value.RawBytes).TrimEnd('\0');
+    }
+
+    private static WebAdminBrokerPermissionEvidence ReadPermissionValue(
+        WebAdminBrokerRegistryKeySnapshot snapshot,
+        string name)
+    {
+        var value = FindValue(snapshot, name);
+        if (value is null || value.Kind != RegistryValueKind.Binary)
+        {
+            return new(false, [], []);
+        }
+
+        try
+        {
+            var descriptor = new RawSecurityDescriptor(value.RawBytes, 0);
+            var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var denied = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var accessMasks = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var explicitDacl = descriptor.ControlFlags.HasFlag(ControlFlags.DiscretionaryAclPresent)
+                && descriptor.DiscretionaryAcl is not null;
+            if (!explicitDacl)
+            {
+                return new(
+                    true,
+                    [],
+                    [],
+                    ExplicitDacl: false,
+                    AllowedAccessMasks: new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
+            }
+
+            foreach (var ace in descriptor.DiscretionaryAcl!)
+            {
+                if (ace is not CommonAce commonAce
+                    || commonAce.IsInherited
+                    || commonAce.IsCallback
+                    || commonAce.AceFlags != AceFlags.None)
+                {
+                    return new(
+                        true,
+                        [],
+                        [],
+                        ExplicitDacl: false,
+                        AllowedAccessMasks: new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
+                }
+
+                var sid = new SecurityIdentifier(commonAce.SecurityIdentifier.Value).Value;
+                switch (commonAce.AceQualifier)
+                {
+                    case AceQualifier.AccessDenied:
+                        denied.Add(sid);
+                        break;
+                    case AceQualifier.AccessAllowed:
+                        if (commonAce.AccessMask != WebAdminSessionBrokerAppIdPreflight.RequiredLocalBrokerAccessMask
+                            || !allowed.Add(sid)
+                            || !accessMasks.TryAdd(sid, commonAce.AccessMask))
+                        {
+                            return new(
+                                true,
+                                [],
+                                [],
+                                ExplicitDacl: false,
+                                AllowedAccessMasks: new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
+                        }
+
+                        break;
+                    default:
+                        return new(
+                            true,
+                            [],
+                            [],
+                            ExplicitDacl: false,
+                            AllowedAccessMasks: new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
+                }
+            }
+
+            return new(true, allowed.ToArray(), denied.ToArray(), ExplicitDacl: true, accessMasks);
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException
+            or IndexOutOfRangeException
+            or NotSupportedException)
+        {
+            return new(
+                true,
+                [],
+                [],
+                ExplicitDacl: false,
+                AllowedAccessMasks: new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
+        }
+    }
+
+    private static WebAdminBrokerRegistryValueSnapshot? FindValue(
+        WebAdminBrokerRegistryKeySnapshot snapshot,
+        string name) =>
+        snapshot.Values.FirstOrDefault(value =>
+            string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase));
 
     private sealed class WindowsWebAdminBrokerRegistryKeyReader : IWebAdminBrokerRegistryKeyReader
     {
