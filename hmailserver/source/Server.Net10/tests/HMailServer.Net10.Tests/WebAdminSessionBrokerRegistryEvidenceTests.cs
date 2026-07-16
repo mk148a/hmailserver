@@ -20,6 +20,44 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
     private const string BrokerPath =
         $"Software\\Classes\\AppID\\{WebAdminSessionBrokerContract.AppId}";
 
+    private const string ApplicationClassPath =
+        "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}";
+
+    private const string TypeLibraryRootPath =
+        "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}";
+
+    private const string TypeLibraryVersionPath =
+        "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0";
+
+    private const string ApplicationInterfacePath =
+        "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}";
+
+    private static readonly string[] InstalledApplicationGraphPaths =
+    [
+        "Software\\Classes\\hMailServer.Application.1",
+        "Software\\Classes\\hMailServer.Application.1\\CLSID",
+        "Software\\Classes\\hMailServer.Application",
+        "Software\\Classes\\hMailServer.Application\\CLSID",
+        "Software\\Classes\\hMailServer.Application\\CurVer",
+        ApplicationClassPath,
+        $"{ApplicationClassPath}\\ProgID",
+        $"{ApplicationClassPath}\\VersionIndependentProgID",
+        $"{ApplicationClassPath}\\Programmable",
+        $"{ApplicationClassPath}\\LocalServer32",
+        $"{ApplicationClassPath}\\TypeLib",
+        ExistingApplicationPath,
+        "Software\\Classes\\AppID\\hMailServer.EXE",
+        TypeLibraryRootPath,
+        TypeLibraryVersionPath,
+        $"{TypeLibraryVersionPath}\\0",
+        $"{TypeLibraryVersionPath}\\0\\win64",
+        $"{TypeLibraryVersionPath}\\FLAGS",
+        $"{TypeLibraryVersionPath}\\HELPDIR",
+        ApplicationInterfacePath,
+        $"{ApplicationInterfacePath}\\ProxyStubClsid32",
+        $"{ApplicationInterfacePath}\\TypeLib"
+    ];
+
     [TestMethod]
     public void CaptureReadsBothRegistryViewsAndPreservesRawValueBytes()
     {
@@ -33,10 +71,17 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 
         Assert.AreEqual(2, readback.BrokerAppIdViews.Count);
         Assert.AreEqual(2, readback.ExistingApplicationAppIdViews.Count);
+        Assert.AreEqual(InstalledApplicationGraphPaths.Length * 2, readback.InstalledApplicationGraphViews.Count);
+        CollectionAssert.AreEquivalent(
+            InstalledApplicationGraphPaths,
+            readback.InstalledApplicationGraphViews
+                .Where(static snapshot => snapshot.View == RegistryView.Registry64)
+                .Select(static snapshot => snapshot.KeyPath)
+                .ToArray());
         CollectionAssert.AreEqual(
             new byte[] { 1, 2, 3 },
             readback.BrokerAppIdViews[0].Values.Single().RawBytes);
-        Assert.AreEqual(4, reader.ReadCount);
+        Assert.AreEqual(InstalledApplicationGraphPaths.Length * 2 + 2, reader.ReadCount);
     }
 
     [TestMethod]
@@ -50,7 +95,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 
         Assert.IsFalse(readback.BrokerAppIdViews.Any(static view => view.Present));
         Assert.IsTrue(readback.ExistingApplicationAppIdViews.All(static view => view.Present));
-        Assert.AreEqual(4, reader.ReadCount);
+        Assert.AreEqual(InstalledApplicationGraphPaths.Length * 2 + 2, reader.ReadCount);
     }
 
     [TestMethod]
@@ -123,14 +168,12 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
             Value("LaunchPermission", permission),
             Value("AccessPermission", permission)
         };
-        var legacy64 = Snapshot(RegistryView.Registry64, ExistingApplicationPath, [Value("LocalService", "hMailServer")]);
-        var legacy32 = Snapshot(RegistryView.Registry32, ExistingApplicationPath, [Value("LocalService", "hMailServer")]);
-        var baseline = new WindowsWebAdminBrokerRegistryEvidenceSource(
-            new FakeReader(legacy64, legacy32)).Capture();
+        var baseline = CreateReadbackWithBroker([], []);
 
-        var missing64 = new WebAdminBrokerAppIdRegistryReadback(
-            [Snapshot(RegistryView.Registry32, BrokerPath, values)],
-            [legacy64, legacy32]);
+        var missing64 = baseline with
+        {
+            BrokerAppIdViews = [Snapshot(RegistryView.Registry32, BrokerPath, values)]
+        };
         var missing64Result = WebAdminSessionBrokerAppIdPreflight.EvaluateFromRegistryReadback(
             WorkerSid,
             [SystemSid],
@@ -138,11 +181,14 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
             baseline,
             new WindowsWebAdminBrokerRegistryEvidenceSource(new FakeReader()));
 
-        var readError = new WindowsWebAdminBrokerRegistryEvidenceSource(
-            new FakeReader(
-                legacy64,
-                legacy32,
-                new(RegistryView.Registry64, BrokerPath, false, [], "UnauthorizedAccessException"))).Capture();
+        var readError = baseline with
+        {
+            BrokerAppIdViews =
+            [
+                new(RegistryView.Registry64, BrokerPath, false, [], "UnauthorizedAccessException"),
+                new(RegistryView.Registry32, BrokerPath, false, [], ReadError: null)
+            ]
+        };
         var readErrorResult = WebAdminSessionBrokerAppIdPreflight.EvaluateFromRegistryReadback(
             WorkerSid,
             [SystemSid],
@@ -150,10 +196,16 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
             baseline,
             new WindowsWebAdminBrokerRegistryEvidenceSource(new FakeReader()));
 
-        var incompleteLegacy = new WindowsWebAdminBrokerRegistryEvidenceSource(
-            new FakeReader(
-                new(RegistryView.Registry64, ExistingApplicationPath, false, [], "IOException"),
-                legacy32)).Capture();
+        var incompleteLegacy = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ExistingApplicationPath,
+            new WebAdminBrokerRegistryKeySnapshot(
+                RegistryView.Registry64,
+                ExistingApplicationPath,
+                false,
+                [],
+                "IOException"));
         var incompleteLegacyResult = WebAdminSessionBrokerAppIdPreflight.EvaluateFromRegistryReadback(
             WorkerSid,
             [SystemSid],
@@ -161,12 +213,14 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
             baseline,
             new WindowsWebAdminBrokerRegistryEvidenceSource(new FakeReader()));
 
-        var readError32 = new WindowsWebAdminBrokerRegistryEvidenceSource(
-            new FakeReader(
-                legacy64,
-                legacy32,
+        var readError32 = baseline with
+        {
+            BrokerAppIdViews =
+            [
                 Snapshot(RegistryView.Registry64, BrokerPath, values),
-                new(RegistryView.Registry32, BrokerPath, false, [], "IOException"))).Capture();
+                new(RegistryView.Registry32, BrokerPath, false, [], "IOException")
+            ]
+        };
         var readError32Result = WebAdminSessionBrokerAppIdPreflight.EvaluateFromRegistryReadback(
             WorkerSid,
             [SystemSid],
@@ -194,19 +248,11 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
             Value("LaunchPermission", permission),
             Value("AccessPermission", permission)
         };
-        var legacyValues = new[] { Value("LocalService", "hMailServer") };
-        var current = new WebAdminBrokerAppIdRegistryReadback(
-            [Snapshot(RegistryView.Registry64, BrokerPath, brokerValues)],
-            [
-                Snapshot(RegistryView.Registry64, ExistingApplicationPath, legacyValues),
-                Snapshot(RegistryView.Registry32, ExistingApplicationPath, legacyValues)
-            ]);
-        var baseline = new WebAdminBrokerAppIdRegistryReadback(
-            [],
-            [
-                Snapshot(RegistryView.Registry64, ExistingApplicationPath, legacyValues),
-                Snapshot(RegistryView.Registry32, ExistingApplicationPath, legacyValues)
-            ]);
+        var baseline = CreateReadbackWithBroker([], []);
+        var current = baseline with
+        {
+            BrokerAppIdViews = [Snapshot(RegistryView.Registry64, BrokerPath, brokerValues)]
+        };
 
         var result = WebAdminSessionBrokerAppIdPreflight.EvaluateFromRegistryReadback(
             WorkerSid,
@@ -331,23 +377,14 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
     [TestMethod]
     public void RegistryReadbackRejectsWrongExistingApplicationPath()
     {
-        var permission = SecurityDescriptor(WorkerSid, SystemSid);
-        var brokerValues = new[]
-        {
-            Value("LocalService", "hMailServer"),
-            Value("LaunchPermission", permission),
-            Value("AccessPermission", permission)
-        };
         var wrongPath = "Software\\Classes\\AppID\\{00000000-0000-0000-0000-000000000001}";
-        var current = new WebAdminBrokerAppIdRegistryReadback(
-            [
-                Snapshot(RegistryView.Registry64, BrokerPath, brokerValues),
-                Snapshot(RegistryView.Registry32, BrokerPath, brokerValues)
-            ],
-            [
-                Snapshot(RegistryView.Registry64, wrongPath, [Value("LocalService", "hMailServer")]),
-                Snapshot(RegistryView.Registry32, wrongPath, [Value("LocalService", "hMailServer")])
-            ]);
+        var valid = CreateReadyReadback();
+        var existing = FindGraphSnapshot(valid, RegistryView.Registry64, ExistingApplicationPath);
+        var current = ReplaceGraphSnapshot(
+            valid,
+            RegistryView.Registry64,
+            ExistingApplicationPath,
+            existing with { KeyPath = wrongPath });
 
         var result = WebAdminSessionBrokerAppIdPreflight.EvaluateFromRegistryReadback(
             WorkerSid,
@@ -358,6 +395,122 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 
         Assert.IsFalse(result.Ready);
         Assert.AreEqual("installed-application-appid-readback-incomplete", result.Reason);
+    }
+
+    [TestMethod]
+    public void RegistryReadbackAcceptsViewAsymmetricInstalledApplicationGraph()
+    {
+        var readback = CreateReadyReadback();
+        var class64 = FindGraphSnapshot(readback, RegistryView.Registry64, ApplicationClassPath);
+        var class32 = FindGraphSnapshot(readback, RegistryView.Registry32, ApplicationClassPath);
+
+        var result = EvaluateRegistryReadback(readback, readback);
+
+        Assert.IsFalse(class64.ContentEquals(class32));
+        Assert.IsTrue(result.Ready, result.Reason);
+    }
+
+    [TestMethod]
+    public void RegistryReadbackRejectsMissingExtraAndEmptiedInstalledApplicationGraphKeys()
+    {
+        var baseline = CreateReadyReadback();
+        var missing = baseline with
+        {
+            InstalledApplicationGraphViews = baseline.InstalledApplicationGraphViews
+                .Where(snapshot => snapshot != FindGraphSnapshot(
+                    baseline,
+                    RegistryView.Registry32,
+                    ApplicationClassPath))
+                .ToArray()
+        };
+        var extra = baseline with
+        {
+            InstalledApplicationGraphViews =
+            [
+                .. baseline.InstalledApplicationGraphViews,
+                Snapshot(
+                    RegistryView.Registry64,
+                    "Software\\Classes\\Unexpected",
+                    [Value(string.Empty, "unexpected")])
+            ]
+        };
+        var emptied = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            values: []);
+
+        var missingResult = EvaluateRegistryReadback(missing, baseline);
+        var extraResult = EvaluateRegistryReadback(extra, baseline);
+        var emptiedResult = EvaluateRegistryReadback(emptied, baseline);
+
+        Assert.IsFalse(missingResult.Ready);
+        Assert.AreEqual("installed-application-appid-readback-incomplete", missingResult.Reason);
+        Assert.IsFalse(extraResult.Ready);
+        Assert.AreEqual("installed-application-appid-readback-incomplete", extraResult.Reason);
+        Assert.IsFalse(emptiedResult.Ready);
+        Assert.AreEqual("installed-application-registration-changed", emptiedResult.Reason);
+    }
+
+    [TestMethod]
+    public void RegistryReadbackRejectsInstalledApplicationGraphValueNameKindAndBytesChanges()
+    {
+        var baseline = CreateReadyReadback();
+        var original = FindGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath).Values.Single();
+        var changedName = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            [new("ChangedName", original.Kind, original.RawBytes)]);
+        var changedKind = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            [new(original.Name, RegistryValueKind.DWord, original.RawBytes)]);
+        var changedBytes = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            [new(original.Name, original.Kind, [.. original.RawBytes, 1])]);
+
+        foreach (var changed in new[] { changedName, changedKind, changedBytes })
+        {
+            var result = EvaluateRegistryReadback(changed, baseline);
+
+            Assert.IsFalse(result.Ready);
+            Assert.AreEqual("installed-application-registration-changed", result.Reason);
+        }
+    }
+
+    [TestMethod]
+    public void RegistryReadbackRejectsInstalledApplicationGraphPathAndReadErrorChanges()
+    {
+        var baseline = CreateReadyReadback();
+        var original = FindGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath);
+        var changedPath = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            original with { KeyPath = $"{ApplicationClassPath}\\Changed" });
+        var readError = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            original with { Present = false, Values = [], ReadError = "IOException" });
+
+        var changedPathResult = EvaluateRegistryReadback(changedPath, baseline);
+        var readErrorResult = EvaluateRegistryReadback(readError, baseline);
+
+        Assert.IsFalse(changedPathResult.Ready);
+        Assert.AreEqual("installed-application-appid-readback-incomplete", changedPathResult.Reason);
+        Assert.IsFalse(readErrorResult.Ready);
+        Assert.AreEqual("installed-application-appid-readback-incomplete", readErrorResult.Reason);
     }
 
     [TestMethod]
@@ -396,12 +549,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
     private static WebAdminBrokerAppIdRegistryReadback CreateReadback(
         params WebAdminBrokerRegistryValueSnapshot[] values)
     {
-        var broker = new FakeReader(
-            Snapshot(RegistryView.Registry64, BrokerPath, []),
-            Snapshot(RegistryView.Registry32, BrokerPath, []),
-            Snapshot(RegistryView.Registry64, ExistingApplicationPath, values),
-            Snapshot(RegistryView.Registry32, ExistingApplicationPath, values));
-        return new WindowsWebAdminBrokerRegistryEvidenceSource(broker).Capture();
+        return CreateReadbackWithBroker([], [], values);
     }
 
     private static WebAdminBrokerAppIdRegistryReadback CreateReadbackWithBroker(
@@ -410,11 +558,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         IReadOnlyList<WebAdminBrokerRegistryValueSnapshot>? existing = null)
     {
         existing ??= [Value("LocalService", "hMailServer")];
-        var snapshots = new List<WebAdminBrokerRegistryKeySnapshot>
-        {
-            Snapshot(RegistryView.Registry64, ExistingApplicationPath, existing),
-            Snapshot(RegistryView.Registry32, ExistingApplicationPath, existing)
-        };
+        var snapshots = CreateInstalledApplicationGraph(existing);
         if (broker64.Count > 0 || broker32.Count > 0)
         {
             snapshots.Add(Snapshot(RegistryView.Registry64, BrokerPath, broker64));
@@ -424,6 +568,88 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         var reader = new FakeReader([.. snapshots]);
         return new WindowsWebAdminBrokerRegistryEvidenceSource(reader).Capture();
     }
+
+    private static WebAdminBrokerAppIdRegistryReadback CreateReadyReadback()
+    {
+        var permission = SecurityDescriptor(WorkerSid, SystemSid);
+        var brokerValues = new[]
+        {
+            Value("LocalService", "hMailServer"),
+            Value("LaunchPermission", permission),
+            Value("AccessPermission", permission)
+        };
+        return CreateReadbackWithBroker(brokerValues, brokerValues);
+    }
+
+    private static List<WebAdminBrokerRegistryKeySnapshot> CreateInstalledApplicationGraph(
+        IReadOnlyList<WebAdminBrokerRegistryValueSnapshot>? existingApplicationValues = null)
+    {
+        existingApplicationValues ??= [Value("LocalService", "hMailServer")];
+        var snapshots = new List<WebAdminBrokerRegistryKeySnapshot>();
+        foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
+        {
+            foreach (var path in InstalledApplicationGraphPaths)
+            {
+                var present = view != RegistryView.Registry32
+                    || !string.Equals(path, ApplicationClassPath, StringComparison.Ordinal);
+                IReadOnlyList<WebAdminBrokerRegistryValueSnapshot> values = !present
+                    || string.Equals(path, TypeLibraryRootPath, StringComparison.Ordinal)
+                    || string.Equals(path, $"{TypeLibraryVersionPath}\\0", StringComparison.Ordinal)
+                    || string.Equals(path, $"{ApplicationClassPath}\\Programmable", StringComparison.Ordinal)
+                    ? []
+                    : string.Equals(path, ExistingApplicationPath, StringComparison.Ordinal)
+                        ? existingApplicationValues
+                        : [Value(string.Empty, $"{view}:{path}")];
+                snapshots.Add(new(view, path, present, values, ReadError: null));
+            }
+        }
+
+        return snapshots;
+    }
+
+    private static WebAdminBrokerAppIdPreflightResult EvaluateRegistryReadback(
+        WebAdminBrokerAppIdRegistryReadback current,
+        WebAdminBrokerAppIdRegistryReadback baseline) =>
+        WebAdminSessionBrokerAppIdPreflight.EvaluateFromRegistryReadback(
+            WorkerSid,
+            [SystemSid],
+            current,
+            baseline,
+            new WindowsWebAdminBrokerRegistryEvidenceSource(new FakeReader()));
+
+    private static WebAdminBrokerRegistryKeySnapshot FindGraphSnapshot(
+        WebAdminBrokerAppIdRegistryReadback readback,
+        RegistryView view,
+        string path) =>
+        readback.InstalledApplicationGraphViews.Single(snapshot =>
+            snapshot.View == view
+            && string.Equals(snapshot.KeyPath, path, StringComparison.Ordinal));
+
+    private static WebAdminBrokerAppIdRegistryReadback ReplaceGraphSnapshot(
+        WebAdminBrokerAppIdRegistryReadback readback,
+        RegistryView view,
+        string path,
+        IReadOnlyList<WebAdminBrokerRegistryValueSnapshot> values) =>
+        ReplaceGraphSnapshot(
+            readback,
+            view,
+            path,
+            FindGraphSnapshot(readback, view, path) with { Values = values });
+
+    private static WebAdminBrokerAppIdRegistryReadback ReplaceGraphSnapshot(
+        WebAdminBrokerAppIdRegistryReadback readback,
+        RegistryView view,
+        string path,
+        WebAdminBrokerRegistryKeySnapshot replacement) =>
+        readback with
+        {
+            InstalledApplicationGraphViews = readback.InstalledApplicationGraphViews
+                .Select(snapshot => snapshot.View == view
+                    && string.Equals(snapshot.KeyPath, path, StringComparison.Ordinal)
+                        ? replacement
+                        : snapshot)
+                .ToArray()
+        };
 
     private static WebAdminBrokerRegistryKeySnapshot Snapshot(
         RegistryView view,

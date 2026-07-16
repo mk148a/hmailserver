@@ -1,4 +1,4 @@
-using System.Globalization;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security;
@@ -6,6 +6,7 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using Microsoft.Win32;
+using Microsoft.Win32.SafeHandles;
 
 namespace HMailServer.ComInterop;
 
@@ -53,12 +54,29 @@ public sealed record WebAdminBrokerRegistryKeySnapshot(
 [ComVisible(false)]
 public sealed record WebAdminBrokerAppIdRegistryReadback(
     IReadOnlyList<WebAdminBrokerRegistryKeySnapshot> BrokerAppIdViews,
-    IReadOnlyList<WebAdminBrokerRegistryKeySnapshot> ExistingApplicationAppIdViews)
+    IReadOnlyList<WebAdminBrokerRegistryKeySnapshot> InstalledApplicationGraphViews)
 {
+    private const string ExistingApplicationAppIdPath =
+        $"Software\\Classes\\AppID\\{LegacyComRegistrationManifest.AppId}";
+
+    public IReadOnlyList<WebAdminBrokerRegistryKeySnapshot> ExistingApplicationAppIdViews =>
+        InstalledApplicationGraphViews
+            .Where(static snapshot => string.Equals(
+                snapshot.KeyPath,
+                ExistingApplicationAppIdPath,
+                StringComparison.Ordinal))
+            .ToArray();
+
     public bool ExistingApplicationAppIdUnchanged(WebAdminBrokerAppIdRegistryReadback baseline)
     {
         ArgumentNullException.ThrowIfNull(baseline);
         return HaveSameSnapshots(ExistingApplicationAppIdViews, baseline.ExistingApplicationAppIdViews);
+    }
+
+    public bool InstalledApplicationGraphUnchanged(WebAdminBrokerAppIdRegistryReadback baseline)
+    {
+        ArgumentNullException.ThrowIfNull(baseline);
+        return HaveSameSnapshots(InstalledApplicationGraphViews, baseline.InstalledApplicationGraphViews);
     }
 
     private static bool HaveSameSnapshots(
@@ -70,7 +88,13 @@ public sealed record WebAdminBrokerAppIdRegistryReadback(
             return false;
         }
 
-        return left.Zip(right).All(static pair => pair.First.BytewiseEquals(pair.Second));
+        return left.All(snapshot =>
+        {
+            var matches = right.Where(candidate =>
+                candidate.View == snapshot.View
+                && string.Equals(candidate.KeyPath, snapshot.KeyPath, StringComparison.Ordinal));
+            return matches.Count() == 1 && snapshot.BytewiseEquals(matches.Single());
+        });
     }
 }
 
@@ -84,7 +108,35 @@ public interface IWebAdminBrokerRegistryKeyReader
 [ComVisible(false)]
 public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
 {
-    private const string ClassesPath = @"Software\Classes\AppID\";
+    private const string ClassesPath = @"Software\Classes\";
+    private const string ApplicationClassId = "{D6567EF8-0A6C-48E7-9288-A2463123C2F3}";
+    private const string ApplicationInterfaceId = "{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}";
+
+    private static readonly string[] InstalledApplicationGraphPaths =
+    [
+        $"{ClassesPath}hMailServer.Application.1",
+        $"{ClassesPath}hMailServer.Application.1\\CLSID",
+        $"{ClassesPath}hMailServer.Application",
+        $"{ClassesPath}hMailServer.Application\\CLSID",
+        $"{ClassesPath}hMailServer.Application\\CurVer",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}\\ProgID",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}\\VersionIndependentProgID",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}\\Programmable",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}\\LocalServer32",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}\\TypeLib",
+        $"{ClassesPath}AppID\\{LegacyComRegistrationManifest.AppId}",
+        $"{ClassesPath}AppID\\hMailServer.EXE",
+        $"{ClassesPath}TypeLib\\{LegacyComRegistrationManifest.TypeLibraryId}",
+        $"{ClassesPath}TypeLib\\{LegacyComRegistrationManifest.TypeLibraryId}\\1.0",
+        $"{ClassesPath}TypeLib\\{LegacyComRegistrationManifest.TypeLibraryId}\\1.0\\0",
+        $"{ClassesPath}TypeLib\\{LegacyComRegistrationManifest.TypeLibraryId}\\1.0\\0\\win64",
+        $"{ClassesPath}TypeLib\\{LegacyComRegistrationManifest.TypeLibraryId}\\1.0\\FLAGS",
+        $"{ClassesPath}TypeLib\\{LegacyComRegistrationManifest.TypeLibraryId}\\1.0\\HELPDIR",
+        $"{ClassesPath}Interface\\{ApplicationInterfaceId}",
+        $"{ClassesPath}Interface\\{ApplicationInterfaceId}\\ProxyStubClsid32",
+        $"{ClassesPath}Interface\\{ApplicationInterfaceId}\\TypeLib"
+    ];
 
     private static readonly RegistryView[] Views =
     [
@@ -106,11 +158,11 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
 
     public WebAdminBrokerAppIdRegistryReadback Capture()
     {
-        var brokerPath = $"{ClassesPath}{WebAdminSessionBrokerContract.AppId}";
-        var applicationPath = $"{ClassesPath}{LegacyComRegistrationManifest.AppId}";
+        var brokerPath = $"{ClassesPath}AppID\\{WebAdminSessionBrokerContract.AppId}";
         return new(
             Views.Select(view => _reader.Read(view, brokerPath)).ToArray(),
-            Views.Select(view => _reader.Read(view, applicationPath)).ToArray());
+            Views.SelectMany(view => InstalledApplicationGraphPaths.Select(
+                path => _reader.Read(view, path))).ToArray());
     }
 
     public bool TryBuildPreflightEvidence(
@@ -122,15 +174,15 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(baseline);
 
-        if (!HasReadableExistingApplicationSnapshots(current)
-            || !HasReadableExistingApplicationSnapshots(baseline))
+        if (!HasCompleteInstalledApplicationGraphSnapshots(current)
+            || !HasCompleteInstalledApplicationGraphSnapshots(baseline))
         {
             evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: false);
             reason = "installed-application-appid-readback-incomplete";
             return false;
         }
 
-        if (!current.ExistingApplicationAppIdUnchanged(baseline))
+        if (!current.InstalledApplicationGraphUnchanged(baseline))
         {
             evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: false);
             reason = "installed-application-registration-changed";
@@ -194,7 +246,7 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
             return false;
         }
 
-        var expectedBrokerPath = $"{ClassesPath}{WebAdminSessionBrokerContract.AppId}";
+        var expectedBrokerPath = $"{ClassesPath}AppID\\{WebAdminSessionBrokerContract.AppId}";
         if (!string.Equals(broker64.KeyPath, expectedBrokerPath, StringComparison.Ordinal))
         {
             evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
@@ -213,19 +265,30 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
         return true;
     }
 
-    private static bool HasReadableExistingApplicationSnapshots(
+    private static bool HasCompleteInstalledApplicationGraphSnapshots(
         WebAdminBrokerAppIdRegistryReadback readback)
     {
-        var views = readback.ExistingApplicationAppIdViews;
-        return views.Count == 2
-            && views.All(static view => view.Present && view.ReadError is null)
-            && views.Any(static view => view.View == RegistryView.Registry64)
-            && views.Any(static view => view.View == RegistryView.Registry32)
-            && views.All(view =>
-                string.Equals(
-                    view.KeyPath,
-                    $"{ClassesPath}{LegacyComRegistrationManifest.AppId}",
-                    StringComparison.Ordinal));
+        var snapshots = readback.InstalledApplicationGraphViews;
+        if (snapshots.Count != Views.Length * InstalledApplicationGraphPaths.Length)
+        {
+            return false;
+        }
+
+        return Views.All(view => InstalledApplicationGraphPaths.All(path =>
+        {
+            var matches = snapshots.Where(snapshot =>
+                snapshot.View == view
+                && string.Equals(snapshot.KeyPath, path, StringComparison.Ordinal));
+            if (matches.Count() != 1)
+            {
+                return false;
+            }
+
+            return matches.Single().ReadError is null;
+        }))
+        && readback.ExistingApplicationAppIdViews.Count == Views.Length
+        && readback.ExistingApplicationAppIdViews.All(static snapshot =>
+            snapshot.Present && snapshot.ReadError is null);
     }
 
     private static WebAdminBrokerAppIdEvidence MissingBrokerEvidence(
@@ -369,7 +432,8 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
             }
             catch (Exception exception) when (exception is UnauthorizedAccessException
                 or IOException
-                or SecurityException)
+                or SecurityException
+                or Win32Exception)
             {
                 return new(view, keyPath, Present: false, [], exception.GetType().Name);
             }
@@ -377,27 +441,60 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
 
         private static WebAdminBrokerRegistryValueSnapshot CaptureValue(RegistryKey key, string name)
         {
-            var kind = key.GetValueKind(name);
-            var value = key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
-            return new(name, kind, EncodeRawValue(kind, value));
+            var (kind, rawBytes) = ReadNativeValue(key, name);
+            return new(name, kind, rawBytes);
         }
 
-        private static byte[] EncodeRawValue(RegistryValueKind kind, object? value) => kind switch
+        private static (RegistryValueKind Kind, byte[] RawBytes) ReadNativeValue(
+            RegistryKey key,
+            string name)
         {
-            RegistryValueKind.Binary => value is byte[] bytes ? bytes.ToArray() : [],
-            RegistryValueKind.String or RegistryValueKind.ExpandString =>
-                EncodeUnicodeString(value as string ?? string.Empty),
-            RegistryValueKind.DWord => BitConverter.GetBytes(Convert.ToInt32(value, CultureInfo.InvariantCulture)),
-            RegistryValueKind.QWord => BitConverter.GetBytes(Convert.ToInt64(value, CultureInfo.InvariantCulture)),
-            RegistryValueKind.MultiString => EncodeMultiString(value as string[] ?? []),
-            RegistryValueKind.None => value is byte[] noneBytes ? noneBytes.ToArray() : [],
-            _ => Encoding.UTF8.GetBytes(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty)
-        };
+            var valueName = string.IsNullOrEmpty(name) ? null : name;
+            uint type = 0;
+            uint byteCount = 0;
+            var result = RegQueryValueEx(
+                key.Handle,
+                valueName,
+                IntPtr.Zero,
+                out type,
+                null,
+                ref byteCount);
+            if (result != 0)
+            {
+                throw new Win32Exception(result);
+            }
 
-        private static byte[] EncodeUnicodeString(string value) =>
-            Encoding.Unicode.GetBytes(value + "\0");
+            var rawBytes = new byte[checked((int)byteCount)];
+            if (byteCount != 0)
+            {
+                result = RegQueryValueEx(
+                    key.Handle,
+                    valueName,
+                    IntPtr.Zero,
+                    out type,
+                    rawBytes,
+                    ref byteCount);
+                if (result != 0)
+                {
+                    throw new Win32Exception(result);
+                }
 
-        private static byte[] EncodeMultiString(IReadOnlyList<string> values) =>
-            EncodeUnicodeString(string.Join("\0", values) + "\0");
+                if (byteCount != rawBytes.Length)
+                {
+                    Array.Resize(ref rawBytes, checked((int)byteCount));
+                }
+            }
+
+            return ((RegistryValueKind)type, rawBytes);
+        }
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern int RegQueryValueEx(
+            SafeRegistryHandle hKey,
+            string? lpValueName,
+            IntPtr lpReserved,
+            out uint lpType,
+            byte[]? lpData,
+            ref uint lpcbData);
     }
 }
