@@ -1,0 +1,1123 @@
+{
+  "Schema": "sec18-installed-application-registration-graph-live-evidence/v1",
+  "CaptureUtc": "2026-07-18T14:02:58.4033273Z",
+  "Hostname": "NOUTML-KANDIL",
+  "ReadOnly": true,
+  "ProductionDatabaseAccessed": false,
+  "ProductionDataDirectoryAccessed": false,
+  "ComActivationAttempted": false,
+  "HMailServerService": {
+    "Present": true,
+    "Status": "Stopped",
+    "StartType": "Disabled"
+  },
+  "RegistryHive": "HKLM\\Software\\Classes",
+  "Views": [
+    "Registry64",
+    "Registry32"
+  ],
+  "GraphPathCount": 22,
+  "GraphPaths": [
+    "Software\\Classes\\hMailServer.Application.1",
+    "Software\\Classes\\hMailServer.Application.1\\CLSID",
+    "Software\\Classes\\hMailServer.Application",
+    "Software\\Classes\\hMailServer.Application\\CLSID",
+    "Software\\Classes\\hMailServer.Application\\CurVer",
+    "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}",
+    "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\ProgID",
+    "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\VersionIndependentProgID",
+    "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\Programmable",
+    "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\LocalServer32",
+    "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\TypeLib",
+    "Software\\Classes\\AppID\\{5EDEC473-39E0-43F6-A234-1947071721C8}",
+    "Software\\Classes\\AppID\\hMailServer.EXE",
+    "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}",
+    "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0",
+    "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\0",
+    "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\0\\win64",
+    "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\FLAGS",
+    "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\HELPDIR",
+    "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}",
+    "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\\ProxyStubClsid32",
+    "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\\TypeLib"
+  ],
+  "Before": [
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\hMailServer.Application.1",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QQBwAHAAbABpAGMAYQB0AGkAbwBuACAAQwBsAGEAcwBzAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\hMailServer.Application.1\\CLSID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEADYANQA2ADcARQBGADgALQAwAEEANgBDAC0ANAA4AEUANwAtADkAMgA4ADgALQBBADIANAA2ADMAMQAyADMAQwAyAEYAMwB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\hMailServer.Application",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QQBwAHAAbABpAGMAYQB0AGkAbwBuACAAQwBsAGEAcwBzAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\hMailServer.Application\\CLSID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEADYANQA2ADcARQBGADgALQAwAEEANgBDAC0ANAA4AEUANwAtADkAMgA4ADgALQBBADIANAA2ADMAMQAyADMAQwAyAEYAMwB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\hMailServer.Application\\CurVer",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAC4AQQBwAHAAbABpAGMAYQB0AGkAbwBuAC4AMQAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QQBwAHAAbABpAGMAYQB0AGkAbwBuACAAQwBsAGEAcwBzAAAA"
+        },
+        {
+          "Name": "AppID",
+          "Kind": 1,
+          "RawBytesBase64": "ewA1AEUARABFAEMANAA3ADMALQAzADkARQAwAC0ANAAzAEYANgAtAEEAMgAzADQALQAxADkANAA3ADAANwAxADcAMgAxAEMAOAB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\ProgID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAC4AQQBwAHAAbABpAGMAYQB0AGkAbwBuAC4AMQAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\VersionIndependentProgID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAC4AQQBwAHAAbABpAGMAYQB0AGkAbwBuAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\Programmable",
+      "Present": true,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\LocalServer32",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "IgBDADoAXABoAE0AYQBpAGwAUwBlAHIAdgBlAHIANQA3AC0AVABlAHMAdABcAEIAaQBuAFwAaABNAGEAaQBsAFMAZQByAHYAZQByAC4AZQB4AGUAIgAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\TypeLib",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEAEIAMgA0ADEAQgA1ADkALQBBADEAQgAxAC0ANABDADUAOQAtADkAOABGAEMALQA4AEQAMQAwADEAQQAyADkAOQA1AEYAMgB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\AppID\\{5EDEC473-39E0-43F6-A234-1947071721C8}",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAAAA"
+        },
+        {
+          "Name": "LocalService",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\AppID\\hMailServer.EXE",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "AppID",
+          "Kind": 1,
+          "RawBytesBase64": "ewA1AEUARABFAEMANAA3ADMALQAzADkARQAwAC0ANAAzAEYANgAtAEEAMgAzADQALQAxADkANAA3ADAANwAxADcAMgAxAEMAOAB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}",
+      "Present": true,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByACAAVAB5AHAAZQAgAEwAaQBiAHIAYQByAHkAAAA="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\0",
+      "Present": true,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\0\\win64",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QwA6AFwAaABNAGEAaQBsAFMAZQByAHYAZQByADUANwAtAFQAZQBzAHQAXABCAGkAbgBcAGgATQBhAGkAbABTAGUAcgB2AGUAcgAuAGUAeABlAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\FLAGS",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "MAAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\HELPDIR",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QwA6AFwAaABNAGEAaQBsAFMAZQByAHYAZQByADUANwAtAFQAZQBzAHQAXABCAGkAbgAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "SQBJAG4AdABlAHIAZgBhAGMAZQBBAHAAcABsAGkAYwBhAHQAaQBvAG4AAAA="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\\ProxyStubClsid32",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewAwADAAMAAyADAANAAyADQALQAwADAAMAAwAC0AMAAwADAAMAAtAEMAMAAwADAALQAwADAAMAAwADAAMAAwADAAMAAwADQANgB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\\TypeLib",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEAEIAMgA0ADEAQgA1ADkALQBBADEAQgAxAC0ANABDADUAOQAtADkAOABGAEMALQA4AEQAMQAwADEAQQAyADkAOQA1AEYAMgB9AAAA"
+        },
+        {
+          "Name": "Version",
+          "Kind": 1,
+          "RawBytesBase64": "MQAuADAAAAA="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\hMailServer.Application.1",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QQBwAHAAbABpAGMAYQB0AGkAbwBuACAAQwBsAGEAcwBzAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\hMailServer.Application.1\\CLSID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEADYANQA2ADcARQBGADgALQAwAEEANgBDAC0ANAA4AEUANwAtADkAMgA4ADgALQBBADIANAA2ADMAMQAyADMAQwAyAEYAMwB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\hMailServer.Application",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QQBwAHAAbABpAGMAYQB0AGkAbwBuACAAQwBsAGEAcwBzAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\hMailServer.Application\\CLSID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEADYANQA2ADcARQBGADgALQAwAEEANgBDAC0ANAA4AEUANwAtADkAMgA4ADgALQBBADIANAA2ADMAMQAyADMAQwAyAEYAMwB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\hMailServer.Application\\CurVer",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAC4AQQBwAHAAbABpAGMAYQB0AGkAbwBuAC4AMQAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\ProgID",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\VersionIndependentProgID",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\Programmable",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\LocalServer32",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\TypeLib",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\AppID\\{5EDEC473-39E0-43F6-A234-1947071721C8}",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAAAA"
+        },
+        {
+          "Name": "LocalService",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\AppID\\hMailServer.EXE",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "AppID",
+          "Kind": 1,
+          "RawBytesBase64": "ewA1AEUARABFAEMANAA3ADMALQAzADkARQAwAC0ANAAzAEYANgAtAEEAMgAzADQALQAxADkANAA3ADAANwAxADcAMgAxAEMAOAB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}",
+      "Present": true,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByACAAVAB5AHAAZQAgAEwAaQBiAHIAYQByAHkAAAA="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\0",
+      "Present": true,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\0\\win64",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QwA6AFwAaABNAGEAaQBsAFMAZQByAHYAZQByADUANwAtAFQAZQBzAHQAXABCAGkAbgBcAGgATQBhAGkAbABTAGUAcgB2AGUAcgAuAGUAeABlAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\FLAGS",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "MAAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\HELPDIR",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QwA6AFwAaABNAGEAaQBsAFMAZQByAHYAZQByADUANwAtAFQAZQBzAHQAXABCAGkAbgAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "SQBJAG4AdABlAHIAZgBhAGMAZQBBAHAAcABsAGkAYwBhAHQAaQBvAG4AAAA="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\\ProxyStubClsid32",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewAwADAAMAAyADAANAAyADQALQAwADAAMAAwAC0AMAAwADAAMAAtAEMAMAAwADAALQAwADAAMAAwADAAMAAwADAAMAAwADQANgB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\\TypeLib",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEAEIAMgA0ADEAQgA1ADkALQBBADEAQgAxAC0ANABDADUAOQAtADkAOABGAEMALQA4AEQAMQAwADEAQQAyADkAOQA1AEYAMgB9AAAA"
+        },
+        {
+          "Name": "Version",
+          "Kind": 1,
+          "RawBytesBase64": "MQAuADAAAAA="
+        }
+      ],
+      "ReadError": null
+    }
+  ],
+  "After": [
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\hMailServer.Application.1",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QQBwAHAAbABpAGMAYQB0AGkAbwBuACAAQwBsAGEAcwBzAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\hMailServer.Application.1\\CLSID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEADYANQA2ADcARQBGADgALQAwAEEANgBDAC0ANAA4AEUANwAtADkAMgA4ADgALQBBADIANAA2ADMAMQAyADMAQwAyAEYAMwB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\hMailServer.Application",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QQBwAHAAbABpAGMAYQB0AGkAbwBuACAAQwBsAGEAcwBzAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\hMailServer.Application\\CLSID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEADYANQA2ADcARQBGADgALQAwAEEANgBDAC0ANAA4AEUANwAtADkAMgA4ADgALQBBADIANAA2ADMAMQAyADMAQwAyAEYAMwB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\hMailServer.Application\\CurVer",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAC4AQQBwAHAAbABpAGMAYQB0AGkAbwBuAC4AMQAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QQBwAHAAbABpAGMAYQB0AGkAbwBuACAAQwBsAGEAcwBzAAAA"
+        },
+        {
+          "Name": "AppID",
+          "Kind": 1,
+          "RawBytesBase64": "ewA1AEUARABFAEMANAA3ADMALQAzADkARQAwAC0ANAAzAEYANgAtAEEAMgAzADQALQAxADkANAA3ADAANwAxADcAMgAxAEMAOAB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\ProgID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAC4AQQBwAHAAbABpAGMAYQB0AGkAbwBuAC4AMQAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\VersionIndependentProgID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAC4AQQBwAHAAbABpAGMAYQB0AGkAbwBuAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\Programmable",
+      "Present": true,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\LocalServer32",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "IgBDADoAXABoAE0AYQBpAGwAUwBlAHIAdgBlAHIANQA3AC0AVABlAHMAdABcAEIAaQBuAFwAaABNAGEAaQBsAFMAZQByAHYAZQByAC4AZQB4AGUAIgAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\TypeLib",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEAEIAMgA0ADEAQgA1ADkALQBBADEAQgAxAC0ANABDADUAOQAtADkAOABGAEMALQA4AEQAMQAwADEAQQAyADkAOQA1AEYAMgB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\AppID\\{5EDEC473-39E0-43F6-A234-1947071721C8}",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAAAA"
+        },
+        {
+          "Name": "LocalService",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\AppID\\hMailServer.EXE",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "AppID",
+          "Kind": 1,
+          "RawBytesBase64": "ewA1AEUARABFAEMANAA3ADMALQAzADkARQAwAC0ANAAzAEYANgAtAEEAMgAzADQALQAxADkANAA3ADAANwAxADcAMgAxAEMAOAB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}",
+      "Present": true,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByACAAVAB5AHAAZQAgAEwAaQBiAHIAYQByAHkAAAA="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\0",
+      "Present": true,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\0\\win64",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QwA6AFwAaABNAGEAaQBsAFMAZQByAHYAZQByADUANwAtAFQAZQBzAHQAXABCAGkAbgBcAGgATQBhAGkAbABTAGUAcgB2AGUAcgAuAGUAeABlAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\FLAGS",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "MAAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\HELPDIR",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QwA6AFwAaABNAGEAaQBsAFMAZQByAHYAZQByADUANwAtAFQAZQBzAHQAXABCAGkAbgAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "SQBJAG4AdABlAHIAZgBhAGMAZQBBAHAAcABsAGkAYwBhAHQAaQBvAG4AAAA="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\\ProxyStubClsid32",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewAwADAAMAAyADAANAAyADQALQAwADAAMAAwAC0AMAAwADAAMAAtAEMAMAAwADAALQAwADAAMAAwADAAMAAwADAAMAAwADQANgB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry64",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\\TypeLib",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEAEIAMgA0ADEAQgA1ADkALQBBADEAQgAxAC0ANABDADUAOQAtADkAOABGAEMALQA4AEQAMQAwADEAQQAyADkAOQA1AEYAMgB9AAAA"
+        },
+        {
+          "Name": "Version",
+          "Kind": 1,
+          "RawBytesBase64": "MQAuADAAAAA="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\hMailServer.Application.1",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QQBwAHAAbABpAGMAYQB0AGkAbwBuACAAQwBsAGEAcwBzAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\hMailServer.Application.1\\CLSID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEADYANQA2ADcARQBGADgALQAwAEEANgBDAC0ANAA4AEUANwAtADkAMgA4ADgALQBBADIANAA2ADMAMQAyADMAQwAyAEYAMwB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\hMailServer.Application",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QQBwAHAAbABpAGMAYQB0AGkAbwBuACAAQwBsAGEAcwBzAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\hMailServer.Application\\CLSID",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEADYANQA2ADcARQBGADgALQAwAEEANgBDAC0ANAA4AEUANwAtADkAMgA4ADgALQBBADIANAA2ADMAMQAyADMAQwAyAEYAMwB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\hMailServer.Application\\CurVer",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAC4AQQBwAHAAbABpAGMAYQB0AGkAbwBuAC4AMQAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\ProgID",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\VersionIndependentProgID",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\Programmable",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\LocalServer32",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\\TypeLib",
+      "Present": false,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\AppID\\{5EDEC473-39E0-43F6-A234-1947071721C8}",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAAAA"
+        },
+        {
+          "Name": "LocalService",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\AppID\\hMailServer.EXE",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "AppID",
+          "Kind": 1,
+          "RawBytesBase64": "ewA1AEUARABFAEMANAA3ADMALQAzADkARQAwAC0ANAAzAEYANgAtAEEAMgAzADQALQAxADkANAA3ADAANwAxADcAMgAxAEMAOAB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}",
+      "Present": true,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "aABNAGEAaQBsAFMAZQByAHYAZQByACAAVAB5AHAAZQAgAEwAaQBiAHIAYQByAHkAAAA="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\0",
+      "Present": true,
+      "Values": [],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\0\\win64",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QwA6AFwAaABNAGEAaQBsAFMAZQByAHYAZQByADUANwAtAFQAZQBzAHQAXABCAGkAbgBcAGgATQBhAGkAbABTAGUAcgB2AGUAcgAuAGUAeABlAAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\FLAGS",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "MAAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\\1.0\\HELPDIR",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "QwA6AFwAaABNAGEAaQBsAFMAZQByAHYAZQByADUANwAtAFQAZQBzAHQAXABCAGkAbgAAAA=="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "SQBJAG4AdABlAHIAZgBhAGMAZQBBAHAAcABsAGkAYwBhAHQAaQBvAG4AAAA="
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\\ProxyStubClsid32",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewAwADAAMAAyADAANAAyADQALQAwADAAMAAwAC0AMAAwADAAMAAtAEMAMAAwADAALQAwADAAMAAwADAAMAAwADAAMAAwADQANgB9AAAA"
+        }
+      ],
+      "ReadError": null
+    },
+    {
+      "View": "Registry32",
+      "KeyPath": "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\\TypeLib",
+      "Present": true,
+      "Values": [
+        {
+          "Name": "",
+          "Kind": 1,
+          "RawBytesBase64": "ewBEAEIAMgA0ADEAQgA1ADkALQBBADEAQgAxAC0ANABDADUAOQAtADkAOABGAEMALQA4AEQAMQAwADEAQQAyADkAOQA1AEYAMgB9AAAA"
+        },
+        {
+          "Name": "Version",
+          "Kind": 1,
+          "RawBytesBase64": "MQAuADAAAAA="
+        }
+      ],
+      "ReadError": null
+    }
+  ],
+  "BytewiseUnchanged": true,
+  "CompleteReadback": true,
+  "Registry32ApplicationClassIdPresent": false,
+  "RepositoryHead": "673c3bafcbafb29d935bc24135d8d3d37436ccb0",
+  "Collector": "In-memory PowerShell Add-Type native RegQueryValueEx read-only collector",
+  "CollectorAttested": false,
+  "CanonicalExpectedContentsValidated": false,
+  "UnknownSubkeysEnumerated": false,
+  "KeySecurityDescriptorsCaptured": false,
+  "ServiceStateBeforeAfterCaptured": false,
+  "IndependentSecurityReview": "RED",
+  "IndependentRealityReview": "RED",
+  "GateDecision": "RED-do-not-proceed-to-isolated-COM-integration"
+}
