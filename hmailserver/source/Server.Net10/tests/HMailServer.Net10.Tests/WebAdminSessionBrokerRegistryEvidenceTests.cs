@@ -58,6 +58,16 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         $"{ApplicationInterfacePath}\\TypeLib"
     ];
 
+    private static readonly string[] Registry32AbsentApplicationClassPaths =
+    [
+        ApplicationClassPath,
+        $"{ApplicationClassPath}\\ProgID",
+        $"{ApplicationClassPath}\\VersionIndependentProgID",
+        $"{ApplicationClassPath}\\Programmable",
+        $"{ApplicationClassPath}\\LocalServer32",
+        $"{ApplicationClassPath}\\TypeLib"
+    ];
+
     [TestMethod]
     public void CaptureReadsBothRegistryViewsAndPreservesRawValueBytes()
     {
@@ -398,7 +408,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
     }
 
     [TestMethod]
-    public void RegistryReadbackAcceptsViewAsymmetricInstalledApplicationGraph()
+    public void RegistryReadbackAcceptsCanonicalInstalledApplicationGraphShape()
     {
         var readback = CreateReadyReadback();
         var class64 = FindGraphSnapshot(readback, RegistryView.Registry64, ApplicationClassPath);
@@ -407,7 +417,38 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         var result = EvaluateRegistryReadback(readback, readback);
 
         Assert.IsFalse(class64.ContentEquals(class32));
+        Assert.IsTrue(class64.Present);
+        CollectionAssert.AreEquivalent(
+            new[] { "ProgID", "VersionIndependentProgID", "Programmable", "LocalServer32", "TypeLib" },
+            class64.DirectSubkeyNames.ToArray());
+        Assert.IsTrue(Registry32AbsentApplicationClassPaths.All(path =>
+            !FindGraphSnapshot(readback, RegistryView.Registry32, path).Present));
         Assert.IsTrue(result.Ready, result.Reason);
+    }
+
+    [TestMethod]
+    public void RegistryReadbackRejectsUnexpectedSubkeyAndCorruptedBaselineShape()
+    {
+        var canonical = CreateReadyReadback();
+        var class64 = FindGraphSnapshot(canonical, RegistryView.Registry64, ApplicationClassPath);
+        var unexpectedSubkey = ReplaceGraphSnapshot(
+            canonical,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            class64 with { DirectSubkeyNames = [.. class64.DirectSubkeyNames, "Unexpected"] });
+        var corruptedBaseline = ReplaceGraphSnapshot(
+            canonical,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            class64 with { Present = false, Values = [], DirectSubkeyNames = [] });
+
+        var unexpectedSubkeyResult = EvaluateRegistryReadback(unexpectedSubkey, unexpectedSubkey);
+        var corruptedBaselineResult = EvaluateRegistryReadback(canonical, corruptedBaseline);
+
+        Assert.IsFalse(unexpectedSubkeyResult.Ready);
+        Assert.AreEqual("installed-application-appid-readback-incomplete", unexpectedSubkeyResult.Reason);
+        Assert.IsFalse(corruptedBaselineResult.Ready);
+        Assert.AreEqual("installed-application-appid-readback-incomplete", corruptedBaselineResult.Reason);
     }
 
     [TestMethod]
@@ -591,7 +632,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
             foreach (var path in InstalledApplicationGraphPaths)
             {
                 var present = view != RegistryView.Registry32
-                    || !string.Equals(path, ApplicationClassPath, StringComparison.Ordinal);
+                    || !Registry32AbsentApplicationClassPaths.Contains(path, StringComparer.Ordinal);
                 IReadOnlyList<WebAdminBrokerRegistryValueSnapshot> values = !present
                     || string.Equals(path, TypeLibraryRootPath, StringComparison.Ordinal)
                     || string.Equals(path, $"{TypeLibraryVersionPath}\\0", StringComparison.Ordinal)
@@ -600,12 +641,28 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
                     : string.Equals(path, ExistingApplicationPath, StringComparison.Ordinal)
                         ? existingApplicationValues
                         : [Value(string.Empty, $"{view}:{path}")];
-                snapshots.Add(new(view, path, present, values, ReadError: null));
+                snapshots.Add(new(view, path, present, values, ReadError: null)
+                {
+                    DirectSubkeyNames = present ? ExpectedDirectSubkeyNames(path) : []
+                });
             }
         }
 
         return snapshots;
     }
+
+    private static IReadOnlyList<string> ExpectedDirectSubkeyNames(string path) => path switch
+    {
+        "Software\\Classes\\hMailServer.Application.1" => ["CLSID"],
+        "Software\\Classes\\hMailServer.Application" => ["CLSID", "CurVer"],
+        ApplicationClassPath =>
+            ["ProgID", "VersionIndependentProgID", "Programmable", "LocalServer32", "TypeLib"],
+        TypeLibraryRootPath => ["1.0"],
+        TypeLibraryVersionPath => ["0", "FLAGS", "HELPDIR"],
+        $"{TypeLibraryVersionPath}\\0" => ["win64"],
+        ApplicationInterfacePath => ["ProxyStubClsid32", "TypeLib"],
+        _ => []
+    };
 
     private static WebAdminBrokerAppIdPreflightResult EvaluateRegistryReadback(
         WebAdminBrokerAppIdRegistryReadback current,

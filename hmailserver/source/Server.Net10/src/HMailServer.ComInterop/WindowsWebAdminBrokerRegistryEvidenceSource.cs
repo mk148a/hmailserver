@@ -30,6 +30,8 @@ public sealed record WebAdminBrokerRegistryKeySnapshot(
     IReadOnlyList<WebAdminBrokerRegistryValueSnapshot> Values,
     string? ReadError)
 {
+    public IReadOnlyList<string> DirectSubkeyNames { get; init; } = [];
+
     public bool BytewiseEquals(WebAdminBrokerRegistryKeySnapshot other)
     {
         return View == other.View && ContentEquals(other);
@@ -40,14 +42,18 @@ public sealed record WebAdminBrokerRegistryKeySnapshot(
         if (!string.Equals(KeyPath, other.KeyPath, StringComparison.Ordinal)
             || Present != other.Present
             || !string.Equals(ReadError, other.ReadError, StringComparison.Ordinal)
-            || Values.Count != other.Values.Count)
+            || Values.Count != other.Values.Count
+            || DirectSubkeyNames.Count != other.DirectSubkeyNames.Count)
         {
             return false;
         }
 
         var left = Values.OrderBy(static value => value.Name, StringComparer.Ordinal).ToArray();
         var right = other.Values.OrderBy(static value => value.Name, StringComparer.Ordinal).ToArray();
-        return left.Zip(right).All(static pair => pair.First.BytewiseEquals(pair.Second));
+        return left.Zip(right).All(static pair => pair.First.BytewiseEquals(pair.Second))
+            && DirectSubkeyNames.Order(StringComparer.Ordinal).SequenceEqual(
+                other.DirectSubkeyNames.Order(StringComparer.Ordinal),
+                StringComparer.Ordinal);
     }
 }
 
@@ -136,6 +142,30 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
         $"{ClassesPath}Interface\\{ApplicationInterfaceId}",
         $"{ClassesPath}Interface\\{ApplicationInterfaceId}\\ProxyStubClsid32",
         $"{ClassesPath}Interface\\{ApplicationInterfaceId}\\TypeLib"
+    ];
+
+    private static readonly IReadOnlyDictionary<string, string[]> InstalledApplicationGraphDirectSubkeyNames =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            [$"{ClassesPath}hMailServer.Application.1"] = ["CLSID"],
+            [$"{ClassesPath}hMailServer.Application"] = ["CLSID", "CurVer"],
+            [$"{ClassesPath}CLSID\\{ApplicationClassId}"] =
+                ["ProgID", "VersionIndependentProgID", "Programmable", "LocalServer32", "TypeLib"],
+            [$"{ClassesPath}TypeLib\\{LegacyComRegistrationManifest.TypeLibraryId}"] = ["1.0"],
+            [$"{ClassesPath}TypeLib\\{LegacyComRegistrationManifest.TypeLibraryId}\\1.0"] =
+                ["0", "FLAGS", "HELPDIR"],
+            [$"{ClassesPath}TypeLib\\{LegacyComRegistrationManifest.TypeLibraryId}\\1.0\\0"] = ["win64"],
+            [$"{ClassesPath}Interface\\{ApplicationInterfaceId}"] = ["ProxyStubClsid32", "TypeLib"]
+        };
+
+    private static readonly HashSet<string> Registry32AbsentApplicationGraphPaths =
+    [
+        $"{ClassesPath}CLSID\\{ApplicationClassId}",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}\\ProgID",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}\\VersionIndependentProgID",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}\\Programmable",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}\\LocalServer32",
+        $"{ClassesPath}CLSID\\{ApplicationClassId}\\TypeLib"
     ];
 
     private static readonly RegistryView[] Views =
@@ -284,7 +314,24 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
                 return false;
             }
 
-            return matches.Single().ReadError is null;
+            var snapshot = matches.Single();
+            var expectedPresent = view != RegistryView.Registry32
+                || !Registry32AbsentApplicationGraphPaths.Contains(path);
+            if (snapshot.ReadError is not null || snapshot.Present != expectedPresent)
+            {
+                return false;
+            }
+
+            if (!expectedPresent)
+            {
+                return snapshot.Values.Count == 0 && snapshot.DirectSubkeyNames.Count == 0;
+            }
+
+            var expectedSubkeyNames = InstalledApplicationGraphDirectSubkeyNames.GetValueOrDefault(path, []);
+            return snapshot.DirectSubkeyNames.Count == expectedSubkeyNames.Length
+                && snapshot.DirectSubkeyNames.Order(StringComparer.Ordinal).SequenceEqual(
+                    expectedSubkeyNames.Order(StringComparer.Ordinal),
+                    StringComparer.Ordinal);
         }))
         && readback.ExistingApplicationAppIdViews.Count == Views.Length
         && readback.ExistingApplicationAppIdViews.All(static snapshot =>
@@ -428,7 +475,12 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
                     .Select(name => CaptureValue(key, name))
                     .OrderBy(static value => value.Name, StringComparer.Ordinal)
                     .ToArray();
-                return new(view, keyPath, Present: true, values, ReadError: null);
+                return new(view, keyPath, Present: true, values, ReadError: null)
+                {
+                    DirectSubkeyNames = key.GetSubKeyNames()
+                        .Order(StringComparer.Ordinal)
+                        .ToArray()
+                };
             }
             catch (Exception exception) when (exception is UnauthorizedAccessException
                 or IOException
