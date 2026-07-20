@@ -378,6 +378,8 @@ SEC-18 remains open: legacy PHP WebAdmin still serializes its authenticated mail
 
 ## Database
 
+The SEC-18 deterministic installed-Application graph collector is landed in `6f9b876ee`. It is read-only, captures both registry views and all 22 legacy graph paths with raw value bytes/direct subkeys, validates canonical contents and installation path relationships, and records collector/source SHA-256 attestation. Offline and mismatch tests pass; the 2026-07-20 non-production evidence reports 44 snapshots with zero read errors and complete attestation. Key security-descriptor capture and native-reader integration coverage remain the next gates; broker registration, DCOM ACL writes, isolated COM activation, PHP session cutover, and existing Application identity changes remain blocked.
+
 Apply `hmailserver/source/DBScripts/Upgrade5708to6000MSSQL.sql` on a backed-up MS SQL hMailServer database. It adds delivery lease columns, rule delivery metadata columns, search queue/documents tables, `hm_delivery_queue_status`, and the SQL Server Full-Text Search catalog/index used by fast mode. Set `HMAILSERVER_DELIVERY_STATUS_SQL_ENABLED=true` after that migration to persist delivery worker transition events to SQL Server.
 
 The migration is additive: existing `hm_messages`, `hm_message_metadata`, and the data directory remain the source of truth during the transition.
