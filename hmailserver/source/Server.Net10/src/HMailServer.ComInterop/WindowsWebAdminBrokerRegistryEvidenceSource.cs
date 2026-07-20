@@ -32,6 +32,10 @@ public sealed record WebAdminBrokerRegistryKeySnapshot(
 {
     public IReadOnlyList<string> DirectSubkeyNames { get; init; } = [];
 
+    public byte[]? RawDaclBytes { get; init; }
+
+    public string? DaclReadError { get; init; }
+
     public bool BytewiseEquals(WebAdminBrokerRegistryKeySnapshot other)
     {
         return View == other.View && ContentEquals(other);
@@ -42,6 +46,7 @@ public sealed record WebAdminBrokerRegistryKeySnapshot(
         if (!string.Equals(KeyPath, other.KeyPath, StringComparison.Ordinal)
             || Present != other.Present
             || !string.Equals(ReadError, other.ReadError, StringComparison.Ordinal)
+            || !string.Equals(DaclReadError, other.DaclReadError, StringComparison.Ordinal)
             || Values.Count != other.Values.Count
             || DirectSubkeyNames.Count != other.DirectSubkeyNames.Count)
         {
@@ -53,7 +58,11 @@ public sealed record WebAdminBrokerRegistryKeySnapshot(
         return left.Zip(right).All(static pair => pair.First.BytewiseEquals(pair.Second))
             && DirectSubkeyNames.Order(StringComparer.Ordinal).SequenceEqual(
                 other.DirectSubkeyNames.Order(StringComparer.Ordinal),
-                StringComparer.Ordinal);
+                StringComparer.Ordinal)
+            && (RawDaclBytes is null
+                ? other.RawDaclBytes is null
+                : other.RawDaclBytes is not null
+                    && RawDaclBytes.AsSpan().SequenceEqual(other.RawDaclBytes));
     }
 }
 
@@ -325,14 +334,23 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
             var snapshot = matches.Single();
             var expectedPresent = view != RegistryView.Registry32
                 || !Registry32AbsentApplicationGraphPaths.Contains(path);
-            if (snapshot.ReadError is not null || snapshot.Present != expectedPresent)
+            if (snapshot.ReadError is not null
+                || snapshot.DaclReadError is not null
+                || snapshot.Present != expectedPresent)
             {
                 return false;
             }
 
             if (!expectedPresent)
             {
-                return snapshot.Values.Count == 0 && snapshot.DirectSubkeyNames.Count == 0;
+                return snapshot.Values.Count == 0
+                    && snapshot.DirectSubkeyNames.Count == 0
+                    && snapshot.RawDaclBytes is null;
+            }
+
+            if (snapshot.RawDaclBytes is not { Length: > 0 })
+            {
+                return false;
             }
 
             var expectedSubkeyNames = InstalledApplicationGraphDirectSubkeyNames.GetValueOrDefault(path, []);
@@ -731,11 +749,27 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
                     .Select(name => CaptureValue(key, name))
                     .OrderBy(static value => value.Name, StringComparer.Ordinal)
                     .ToArray();
+                byte[]? rawDaclBytes = null;
+                string? daclReadError = null;
+                try
+                {
+                    rawDaclBytes = ReadNativeDacl(key);
+                }
+                catch (Exception exception) when (exception is UnauthorizedAccessException
+                    or IOException
+                    or SecurityException
+                    or Win32Exception)
+                {
+                    daclReadError = exception.GetType().Name;
+                }
+
                 return new(view, keyPath, Present: true, values, ReadError: null)
                 {
                     DirectSubkeyNames = key.GetSubKeyNames()
                         .Order(StringComparer.Ordinal)
-                        .ToArray()
+                        .ToArray(),
+                    RawDaclBytes = rawDaclBytes,
+                    DaclReadError = daclReadError
                 };
             }
             catch (Exception exception) when (exception is UnauthorizedAccessException
@@ -796,6 +830,46 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
             return ((RegistryValueKind)type, rawBytes);
         }
 
+        private static byte[] ReadNativeDacl(RegistryKey key)
+        {
+            const uint DaclSecurityInformation = 0x00000004;
+            const int ErrorInsufficientBuffer = 122;
+
+            uint byteCount = 0;
+            var result = RegGetKeySecurity(
+                key.Handle,
+                DaclSecurityInformation,
+                null,
+                ref byteCount);
+            if (result != 0 && result != ErrorInsufficientBuffer)
+            {
+                throw new Win32Exception(result);
+            }
+
+            var rawBytes = new byte[checked((int)byteCount)];
+            if (byteCount == 0)
+            {
+                return rawBytes;
+            }
+
+            result = RegGetKeySecurity(
+                key.Handle,
+                DaclSecurityInformation,
+                rawBytes,
+                ref byteCount);
+            if (result != 0)
+            {
+                throw new Win32Exception(result);
+            }
+
+            if (byteCount != rawBytes.Length)
+            {
+                Array.Resize(ref rawBytes, checked((int)byteCount));
+            }
+
+            return rawBytes;
+        }
+
         [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern int RegQueryValueEx(
             SafeRegistryHandle hKey,
@@ -804,5 +878,12 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
             out uint lpType,
             byte[]? lpData,
             ref uint lpcbData);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern int RegGetKeySecurity(
+            SafeRegistryHandle hKey,
+            uint securityInformation,
+            byte[]? pSecurityDescriptor,
+            ref uint lpcbSecurityDescriptor);
     }
 }

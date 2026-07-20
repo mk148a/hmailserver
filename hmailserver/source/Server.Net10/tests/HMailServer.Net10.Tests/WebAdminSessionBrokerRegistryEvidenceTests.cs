@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -44,6 +46,9 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 
     private const string TestModuleDirectory =
         @"C:\hMailServer57-Test\Bin";
+
+    private static readonly byte[] TestDaclBytes =
+        SecurityDescriptorWithSddl("D:(A;;FA;;;SY)");
 
     private static readonly string[] InstalledApplicationGraphPaths =
     [
@@ -105,6 +110,109 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
             new byte[] { 1, 2, 3 },
             readback.BrokerAppIdViews[0].Values.Single().RawBytes);
         Assert.AreEqual(InstalledApplicationGraphPaths.Length * 2 + 2, reader.ReadCount);
+    }
+
+    [TestMethod]
+    public void CapturePreservesRawDaclBytesAndDaclReadErrors()
+    {
+        var daclBytes = new byte[] { 1, 2, 3, 4 };
+        var reader = new FakeReader(
+            Snapshot(RegistryView.Registry64, BrokerPath, []) with
+            {
+                RawDaclBytes = daclBytes,
+                DaclReadError = null
+            },
+            Snapshot(RegistryView.Registry32, BrokerPath, []) with
+            {
+                RawDaclBytes = null,
+                DaclReadError = "UnauthorizedAccessException"
+            });
+
+        var readback = new WindowsWebAdminBrokerRegistryEvidenceSource(reader).Capture();
+
+        CollectionAssert.AreEqual(daclBytes, readback.BrokerAppIdViews[0].RawDaclBytes);
+        Assert.IsNull(readback.BrokerAppIdViews[0].DaclReadError);
+        Assert.IsNull(readback.BrokerAppIdViews[1].RawDaclBytes);
+        Assert.AreEqual("UnauthorizedAccessException", readback.BrokerAppIdViews[1].DaclReadError);
+    }
+
+    [TestMethod]
+    public void RegistryReadbackRejectsInstalledApplicationDaclChanges()
+    {
+        var baseline = CreateReadyReadback();
+        var original = FindGraphSnapshot(baseline, RegistryView.Registry64, ApplicationClassPath);
+        var changed = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            original with { RawDaclBytes = [.. original.RawDaclBytes!, 1] });
+
+        var result = EvaluateRegistryReadback(changed, baseline);
+
+        Assert.IsFalse(result.Ready);
+        Assert.AreEqual("installed-application-registration-changed", result.Reason);
+    }
+
+    [TestMethod]
+    public void RegistryReadbackRejectsMissingOrUnreadableInstalledApplicationDacl()
+    {
+        var baseline = CreateReadyReadback();
+        var original = FindGraphSnapshot(baseline, RegistryView.Registry64, ApplicationClassPath);
+        var missing = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            original with { RawDaclBytes = null });
+        var readError = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            original with { DaclReadError = "UnauthorizedAccessException" });
+        var empty = ReplaceGraphSnapshot(
+            baseline,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            original with { RawDaclBytes = [] });
+
+        foreach (var current in new[] { missing, readError, empty })
+        {
+            var result = EvaluateRegistryReadback(current, baseline);
+
+            Assert.IsFalse(result.Ready);
+            Assert.AreEqual("installed-application-appid-readback-incomplete", result.Reason);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("WindowsRegistryIntegration")]
+    public void OptInNativeRegistryIntegrationComparesRegGetKeySecurityBytes()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable("HMAILSERVER_NET10_RUN_WINDOWS_REGISTRY_INTEGRATION"),
+                "1",
+                StringComparison.Ordinal))
+        {
+            Assert.Inconclusive("Set HMAILSERVER_NET10_RUN_WINDOWS_REGISTRY_INTEGRATION=1 to run the read-only registry integration test.");
+        }
+
+        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+        using var key = baseKey.OpenSubKey(ExistingApplicationPath, writable: false);
+        if (key is null)
+        {
+            Assert.Inconclusive($"Known graph key is not installed: {ExistingApplicationPath}");
+        }
+
+        var readback = new WindowsWebAdminBrokerRegistryEvidenceSource().Capture();
+        var captured = readback.InstalledApplicationGraphViews.Single(snapshot =>
+            snapshot.View == RegistryView.Registry64
+            && string.Equals(snapshot.KeyPath, ExistingApplicationPath, StringComparison.Ordinal));
+        Assert.IsTrue(captured.Present, captured.ReadError ?? "Known graph key was reported absent.");
+        Assert.IsNull(captured.DaclReadError);
+        Assert.IsNotNull(captured.RawDaclBytes);
+
+        var independentlyRead = ReadNativeDacl(key);
+
+        CollectionAssert.AreEqual(independentlyRead, captured.RawDaclBytes);
     }
 
     [TestMethod]
@@ -765,7 +873,9 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
                         : CanonicalValues(view, path);
                 snapshots.Add(new(view, path, present, values, ReadError: null)
                 {
-                    DirectSubkeyNames = present ? ExpectedDirectSubkeyNames(path) : []
+                    DirectSubkeyNames = present ? ExpectedDirectSubkeyNames(path) : [],
+                    RawDaclBytes = present ? [.. TestDaclBytes] : null,
+                    DaclReadError = null
                 });
             }
         }
@@ -905,6 +1015,48 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         descriptor.GetBinaryForm(bytes, 0);
         return bytes;
     }
+
+    private static byte[] ReadNativeDacl(RegistryKey key)
+    {
+        const uint daclSecurityInformation = 0x00000004;
+        const int errorInsufficientBuffer = 122;
+
+        uint byteCount = 0;
+        var result = RegGetKeySecurity(
+            key.Handle.DangerousGetHandle(),
+            daclSecurityInformation,
+            null,
+            ref byteCount);
+        if (result != 0 && result != errorInsufficientBuffer)
+        {
+            throw new Win32Exception(result);
+        }
+
+        var bytes = new byte[checked((int)byteCount)];
+        result = RegGetKeySecurity(
+            key.Handle.DangerousGetHandle(),
+            daclSecurityInformation,
+            bytes,
+            ref byteCount);
+        if (result != 0)
+        {
+            throw new Win32Exception(result);
+        }
+
+        if (byteCount != bytes.Length)
+        {
+            Array.Resize(ref bytes, checked((int)byteCount));
+        }
+
+        return bytes;
+    }
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern int RegGetKeySecurity(
+        IntPtr hKey,
+        uint securityInformation,
+        byte[]? pSecurityDescriptor,
+        ref uint lpcbSecurityDescriptor);
 
     private static byte[] SecurityDescriptorWithObjectAce(string sid)
     {

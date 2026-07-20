@@ -34,6 +34,7 @@ try {
     Assert-True ($evidence.SnapshotCount -eq 44) 'snapshot count is not 44'
     Assert-True ([bool]$evidence.CanonicalExpectedContentsValidated) 'canonical values were not validated'
     Assert-True ([bool]$evidence.UnknownSubkeysEnumerated) 'direct subkey enumeration was not recorded'
+    Assert-True ($evidence.DaclReadErrorCount -eq 0) 'offline fixture reported a DACL read error'
     Assert-True ([bool]$evidence.CollectorAttested) 'collector/source attestation is incomplete'
     Assert-True ([bool]$evidence.CompleteReadback) 'offline graph readback is incomplete'
     Assert-True ($evidence.GateDecision -eq 'EvidenceReadyForIndependentReview') 'unexpected gate decision'
@@ -58,6 +59,13 @@ try {
     }
     Assert-True ($null -ne $applicationClass) 'Registry64 Application CLSID root is missing'
     Assert-True (@($applicationClass.DirectSubkeyNames) -contains 'LocalServer32') 'LocalServer32 direct subkey was not captured'
+    Assert-True (-not [string]::IsNullOrWhiteSpace([string]$applicationClass.RawDaclBytesBase64)) 'present graph key has no offline DACL bytes'
+    Assert-True ($null -eq $applicationClass.DaclReadError) 'present graph key has an offline DACL read error'
+
+    foreach ($absent in $absentRegistry32) {
+        Assert-True ($null -eq $absent.RawDaclBytesBase64) 'absent graph key unexpectedly has DACL bytes'
+        Assert-True ($null -eq $absent.DaclReadError) 'absent graph key unexpectedly has a DACL read error'
+    }
 
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $collectorPath -OfflineFixture -ExpectedModulePath 'C:\different\hMailServer.exe' -OutputPath $mismatchOutputPath -FailOnIncomplete
     Assert-True ($LASTEXITCODE -eq 2) "mismatched module path exited with $LASTEXITCODE instead of 2"

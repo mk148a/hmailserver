@@ -108,7 +108,9 @@ function New-Snapshot {
         [Parameter(Mandatory = $true)][bool]$Present,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowNull()][object[]]$Values,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowNull()][string[]]$DirectSubkeyNames,
-        [AllowNull()][string]$ReadError
+        [AllowNull()][string]$ReadError,
+        [AllowNull()][string]$RawDaclBytesBase64,
+        [AllowNull()][string]$DaclReadError
     )
 
     $normalizedValues = @($Values | Where-Object { $null -ne $_ })
@@ -121,7 +123,16 @@ function New-Snapshot {
         Values = $normalizedValues
         DirectSubkeyNames = $normalizedSubkeyNames
         ReadError = $normalizedReadError
+        RawDaclBytesBase64 = if ([string]::IsNullOrWhiteSpace($RawDaclBytesBase64)) { $null } else { $RawDaclBytesBase64 }
+        DaclReadError = if ([string]::IsNullOrWhiteSpace($DaclReadError)) { $null } else { $DaclReadError }
     }
+}
+
+function New-OfflineDaclBytesBase64 {
+    $descriptor = [System.Security.AccessControl.RawSecurityDescriptor]::new('D:(A;;FA;;;SY)')
+    $bytes = New-Object byte[] $descriptor.BinaryLength
+    $descriptor.GetBinaryForm($bytes, 0)
+    return [Convert]::ToBase64String($bytes)
 }
 
 function Get-CanonicalValues {
@@ -160,13 +171,15 @@ function Get-CanonicalValues {
 function Get-OfflineSnapshots {
     param([Parameter(Mandatory = $true)][string]$ModulePath)
 
+    $offlineDaclBytesBase64 = New-OfflineDaclBytesBase64
     $snapshots = @()
     foreach ($view in $views) {
         foreach ($path in $graphPaths) {
             $present = $view -ne 'Registry32' -or $registry32AbsentPaths -notcontains $path
             $children = if ($present -and $directSubkeys.ContainsKey($path)) { $directSubkeys[$path] } else { @() }
             $values = if ($present) { Get-CanonicalValues $path $ModulePath } else { @() }
-            $snapshots += New-Snapshot $view $path $present $values $children $null
+            $daclBytes = if ($present) { $offlineDaclBytesBase64 } else { $null }
+            $snapshots += New-Snapshot $view $path $present $values $children $null $daclBytes $null
         }
     }
 
@@ -184,13 +197,20 @@ namespace Sec18
     public static class NativeRegistry
     {
         [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        public static extern int RegQueryValueEx(
+    public static extern int RegQueryValueEx(
             IntPtr hKey,
             string lpValueName,
             IntPtr lpReserved,
             out uint lpType,
             byte[] lpData,
             ref uint lpcbData);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public static extern int RegGetKeySecurity(
+            IntPtr hKey,
+            uint securityInformation,
+            byte[] pSecurityDescriptor,
+            ref uint lpcbSecurityDescriptor);
     }
 }
 '@
@@ -239,6 +259,41 @@ function Read-NativeRegistryValue {
     }
 }
 
+function Read-NativeRegistryDacl {
+    param([Parameter(Mandatory = $true)][Microsoft.Win32.RegistryKey]$Key)
+
+    $securityInformation = [uint32]0x00000004
+    $errorInsufficientBuffer = 122
+    $byteCount = [uint32]0
+    $handle = $Key.Handle.DangerousGetHandle()
+    $result = [Sec18.NativeRegistry]::RegGetKeySecurity(
+        $handle,
+        $securityInformation,
+        $null,
+        [ref]$byteCount)
+    if ($result -ne 0 -and $result -ne $errorInsufficientBuffer) {
+        throw [ComponentModel.Win32Exception]::new($result)
+    }
+
+    $rawBytes = New-Object byte[] ([int]$byteCount)
+    if ($byteCount -gt 0) {
+        $result = [Sec18.NativeRegistry]::RegGetKeySecurity(
+            $handle,
+            $securityInformation,
+            $rawBytes,
+            [ref]$byteCount)
+        if ($result -ne 0) {
+            throw [ComponentModel.Win32Exception]::new($result)
+        }
+    }
+
+    if ($byteCount -ne $rawBytes.Length) {
+        [Array]::Resize([ref]$rawBytes, [int]$byteCount)
+    }
+
+    return [Convert]::ToBase64String($rawBytes)
+}
+
 function Get-LiveSnapshots {
     Ensure-NativeRegistryReader
     $snapshots = @()
@@ -264,7 +319,15 @@ function Get-LiveSnapshots {
                             ForEach-Object { Read-NativeRegistryValue $key $_ }
                     )
                     $children = @($key.GetSubKeyNames() | Sort-Object)
-                    $snapshots += New-Snapshot $viewName $path $true $values $children $null
+                    $daclBytes = $null
+                    $daclReadError = $null
+                    try {
+                        $daclBytes = Read-NativeRegistryDacl $key
+                    }
+                    catch {
+                        $daclReadError = $_.Exception.GetType().Name
+                    }
+                    $snapshots += New-Snapshot $viewName $path $true $values $children $null $daclBytes $daclReadError
                 }
                 catch {
                     $snapshots += New-Snapshot $viewName $path $false @() @() $_.Exception.GetType().Name
@@ -403,6 +466,17 @@ function Test-CanonicalGraph {
             $expectedPresent = $view -ne 'Registry32' -or $registry32AbsentPaths -notcontains $path
             if ([bool]$snapshot.Present -ne $expectedPresent -or $null -ne $snapshot.ReadError) {
                 $errors += "Presence/read error mismatch: $view $path."
+                continue
+            }
+
+            if ($expectedPresent) {
+                if ($null -eq $snapshot.RawDaclBytesBase64 -or [string]::IsNullOrWhiteSpace([string]$snapshot.RawDaclBytesBase64) -or $null -ne $snapshot.DaclReadError) {
+                    $errors += "DACL readback mismatch: $view $path."
+                    continue
+                }
+            }
+            elseif ($null -ne $snapshot.RawDaclBytesBase64 -or $null -ne $snapshot.DaclReadError) {
+                $errors += "Absent key has DACL readback state: $view $path."
                 continue
             }
 
@@ -608,6 +682,7 @@ $result = [pscustomobject]@{
     CanonicalValidation = $canonical
     CanonicalExpectedContentsValidated = [bool]$canonical.Complete
     UnknownSubkeysEnumerated = @($snapshots | Where-Object { $null -eq $_.DirectSubkeyNames }).Count -eq 0
+    DaclReadErrorCount = @($snapshots | Where-Object { $null -ne $_.DaclReadError }).Count
     CollectorAttested = [bool]$attestation.Complete
     Attestation = $attestation
     CompleteReadback = [bool]$canonical.Complete
