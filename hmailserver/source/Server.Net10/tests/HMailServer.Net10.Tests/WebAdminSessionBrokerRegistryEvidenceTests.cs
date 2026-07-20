@@ -255,6 +255,52 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
     }
 
     [TestMethod]
+    public void RegistryReadbackRejectsMissingEmptyAndUnreadableBrokerKeyDacl()
+    {
+        var baseline = CreateReadyReadback();
+        foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
+        {
+            var broker = FindBrokerSnapshot(baseline, view);
+            var cases = new[]
+            {
+                ReplaceBrokerSnapshot(baseline, broker with { RawDaclBytes = null }),
+                ReplaceBrokerSnapshot(baseline, broker with { RawDaclBytes = [] }),
+                ReplaceBrokerSnapshot(baseline, broker with { DaclReadError = "UnauthorizedAccessException" })
+            };
+
+            foreach (var current in cases)
+            {
+                var result = EvaluateRegistryReadback(current, baseline);
+
+                Assert.IsFalse(result.Ready, result.Reason);
+                Assert.AreEqual("broker-registry-key-dacl-incomplete", result.Reason);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void RegistryReadbackAcceptsArbitraryNonEmptyBrokerKeyDaclBytes()
+    {
+        var baseline = CreateReadyReadback();
+        var arbitraryDaclBytes = new byte[] { 0x01, 0x7F, 0xFF };
+        var current = ReplaceBrokerSnapshot(
+            ReplaceBrokerSnapshot(
+                baseline,
+                FindBrokerSnapshot(baseline, RegistryView.Registry64) with
+                {
+                    RawDaclBytes = [.. arbitraryDaclBytes]
+                }),
+            FindBrokerSnapshot(baseline, RegistryView.Registry32) with
+            {
+                RawDaclBytes = [.. arbitraryDaclBytes]
+            });
+
+        var result = EvaluateRegistryReadback(current, baseline);
+
+        Assert.IsTrue(result.Ready, result.Reason);
+    }
+
+    [TestMethod]
     public void RegistryReadbackRejectsMissingBrokerAndMismatchedViews()
     {
         var permission = SecurityDescriptor(WorkerSid, SystemSid);
@@ -807,8 +853,14 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         var snapshots = CreateInstalledApplicationGraph(existing);
         if (broker64.Count > 0 || broker32.Count > 0)
         {
-            snapshots.Add(Snapshot(RegistryView.Registry64, BrokerPath, broker64));
-            snapshots.Add(Snapshot(RegistryView.Registry32, BrokerPath, broker32));
+            snapshots.Add(Snapshot(RegistryView.Registry64, BrokerPath, broker64) with
+            {
+                RawDaclBytes = [.. TestDaclBytes]
+            });
+            snapshots.Add(Snapshot(RegistryView.Registry32, BrokerPath, broker32) with
+            {
+                RawDaclBytes = [.. TestDaclBytes]
+            });
         }
 
         var reader = new FakeReader([.. snapshots]);
@@ -954,6 +1006,24 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         readback.InstalledApplicationGraphViews.Single(snapshot =>
             snapshot.View == view
             && string.Equals(snapshot.KeyPath, path, StringComparison.Ordinal));
+
+    private static WebAdminBrokerRegistryKeySnapshot FindBrokerSnapshot(
+        WebAdminBrokerAppIdRegistryReadback readback,
+        RegistryView view) =>
+        readback.BrokerAppIdViews.Single(snapshot => snapshot.View == view);
+
+    private static WebAdminBrokerAppIdRegistryReadback ReplaceBrokerSnapshot(
+        WebAdminBrokerAppIdRegistryReadback readback,
+        WebAdminBrokerRegistryKeySnapshot replacement) =>
+        readback with
+        {
+            BrokerAppIdViews = readback.BrokerAppIdViews
+                .Select(snapshot => snapshot.View == replacement.View
+                    && string.Equals(snapshot.KeyPath, replacement.KeyPath, StringComparison.Ordinal)
+                        ? replacement
+                        : snapshot)
+                .ToArray()
+        };
 
     private static WebAdminBrokerAppIdRegistryReadback ReplaceGraphSnapshot(
         WebAdminBrokerAppIdRegistryReadback readback,

@@ -286,6 +286,16 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
             return false;
         }
 
+        if (broker64.DaclReadError is not null
+            || broker64.RawDaclBytes is not { Length: > 0 }
+            || broker32.DaclReadError is not null
+            || broker32.RawDaclBytes is not { Length: > 0 })
+        {
+            evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
+            reason = "broker-registry-key-dacl-incomplete";
+            return false;
+        }
+
         if (!broker32.ContentEquals(broker64))
         {
             evidence = MissingBrokerEvidence(existingApplicationAppIdUnchanged: true);
