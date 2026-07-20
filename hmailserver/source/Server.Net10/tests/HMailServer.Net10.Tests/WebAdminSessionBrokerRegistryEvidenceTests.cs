@@ -23,6 +23,13 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
     private const string ApplicationClassPath =
         "Software\\Classes\\CLSID\\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}";
 
+    private const string ApplicationClassId =
+        "{D6567EF8-0A6C-48E7-9288-A2463123C2F3}";
+
+    private const string ExistingAppId = LegacyComRegistrationManifest.AppId;
+
+    private const string TypeLibraryId = LegacyComRegistrationManifest.TypeLibraryId;
+
     private const string TypeLibraryRootPath =
         "Software\\Classes\\TypeLib\\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}";
 
@@ -31,6 +38,12 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 
     private const string ApplicationInterfacePath =
         "Software\\Classes\\Interface\\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}";
+
+    private const string TestModulePath =
+        @"C:\hMailServer57-Test\Bin\hMailServer.exe";
+
+    private const string TestModuleDirectory =
+        @"C:\hMailServer57-Test\Bin";
 
     private static readonly string[] InstalledApplicationGraphPaths =
     [
@@ -381,7 +394,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
             new WindowsWebAdminBrokerRegistryEvidenceSource(new FakeReader()));
 
         Assert.IsFalse(result.Ready);
-        Assert.AreEqual("installed-application-registration-changed", result.Reason);
+        Assert.AreEqual("installed-application-appid-readback-incomplete", result.Reason);
     }
 
     [TestMethod]
@@ -490,7 +503,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         Assert.IsFalse(extraResult.Ready);
         Assert.AreEqual("installed-application-appid-readback-incomplete", extraResult.Reason);
         Assert.IsFalse(emptiedResult.Ready);
-        Assert.AreEqual("installed-application-registration-changed", emptiedResult.Reason);
+        Assert.AreEqual("installed-application-appid-readback-incomplete", emptiedResult.Reason);
     }
 
     [TestMethod]
@@ -500,7 +513,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         var original = FindGraphSnapshot(
             baseline,
             RegistryView.Registry64,
-            ApplicationClassPath).Values.Single();
+            ApplicationClassPath).Values.Single(value => string.IsNullOrEmpty(value.Name));
         var changedName = ReplaceGraphSnapshot(
             baseline,
             RegistryView.Registry64,
@@ -522,7 +535,91 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
             var result = EvaluateRegistryReadback(changed, baseline);
 
             Assert.IsFalse(result.Ready);
-            Assert.AreEqual("installed-application-registration-changed", result.Reason);
+            Assert.AreEqual("installed-application-appid-readback-incomplete", result.Reason);
+        }
+    }
+
+    [TestMethod]
+    public void RegistryReadbackRejectsStableNonCanonicalInstalledApplicationValues()
+    {
+        var canonical = CreateReadyReadback();
+        var applicationClass = FindGraphSnapshot(canonical, RegistryView.Registry64, ApplicationClassPath);
+        var changed = ReplaceGraphSnapshot(
+            canonical,
+            RegistryView.Registry64,
+            ApplicationClassPath,
+            applicationClass with { Values = [Value(string.Empty, "Wrong Application Class")] });
+
+        var result = EvaluateRegistryReadback(changed, changed);
+
+        Assert.IsFalse(result.Ready);
+        Assert.AreEqual("installed-application-appid-readback-incomplete", result.Reason);
+    }
+
+    [TestMethod]
+    public void RegistryReadbackPreservesAdditionalExistingApplicationPolicyValues()
+    {
+        var permission = SecurityDescriptor(WorkerSid, SystemSid);
+        var brokerValues = new[]
+        {
+            Value("LocalService", "hMailServer"),
+            Value("LaunchPermission", permission),
+            Value("AccessPermission", permission)
+        };
+        var readback = CreateReadbackWithBroker(
+            brokerValues,
+            brokerValues,
+            [
+                Value(string.Empty, "hMailServer"),
+                Value("LocalService", "hMailServer"),
+                Value("LaunchPermission", permission)
+            ]);
+
+        var result = EvaluateRegistryReadback(readback, readback);
+
+        Assert.IsTrue(result.Ready, result.Reason);
+    }
+
+    [TestMethod]
+    public void RegistryReadbackRejectsMalformedInstalledApplicationModulePaths()
+    {
+        var canonical = CreateReadyReadback();
+        var localServerPath =
+            $"{ApplicationClassPath}\\LocalServer32";
+        var typeLibraryModulePath =
+            $"{TypeLibraryVersionPath}\\0\\win64";
+        var helpDirectoryPath =
+            $"{TypeLibraryVersionPath}\\HELPDIR";
+        var cases = new[]
+        {
+            ReplaceGraphSnapshot(
+                canonical,
+                RegistryView.Registry64,
+                localServerPath,
+                [Value(string.Empty, TestModulePath)]),
+            ReplaceGraphSnapshot(
+                canonical,
+                RegistryView.Registry64,
+                typeLibraryModulePath,
+                [Value(string.Empty, $"\"{TestModulePath}\"")]),
+            ReplaceGraphSnapshot(
+                canonical,
+                RegistryView.Registry64,
+                helpDirectoryPath,
+                [Value(string.Empty, "relative-bin")]),
+            ReplaceGraphSnapshot(
+                canonical,
+                RegistryView.Registry64,
+                typeLibraryModulePath,
+                [Value(string.Empty, string.Empty)])
+        };
+
+        foreach (var changed in cases)
+        {
+            var result = EvaluateRegistryReadback(changed, changed);
+
+            Assert.IsFalse(result.Ready);
+            Assert.AreEqual("installed-application-appid-readback-incomplete", result.Reason);
         }
     }
 
@@ -598,7 +695,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         IReadOnlyList<WebAdminBrokerRegistryValueSnapshot> broker32,
         IReadOnlyList<WebAdminBrokerRegistryValueSnapshot>? existing = null)
     {
-        existing ??= [Value("LocalService", "hMailServer")];
+        existing = NormalizeExistingApplicationValues(existing);
         var snapshots = CreateInstalledApplicationGraph(existing);
         if (broker64.Count > 0 || broker32.Count > 0)
         {
@@ -608,6 +705,31 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 
         var reader = new FakeReader([.. snapshots]);
         return new WindowsWebAdminBrokerRegistryEvidenceSource(reader).Capture();
+    }
+
+    private static IReadOnlyList<WebAdminBrokerRegistryValueSnapshot> NormalizeExistingApplicationValues(
+        IReadOnlyList<WebAdminBrokerRegistryValueSnapshot>? values)
+    {
+        var normalized = new List<WebAdminBrokerRegistryValueSnapshot>
+        {
+            Value(string.Empty, "hMailServer"),
+            Value("LocalService", "hMailServer")
+        };
+        foreach (var value in values ?? [])
+        {
+            var index = normalized.FindIndex(existing =>
+                string.Equals(existing.Name, value.Name, StringComparison.Ordinal));
+            if (index >= 0)
+            {
+                normalized[index] = value;
+            }
+            else
+            {
+                normalized.Add(value);
+            }
+        }
+
+        return normalized;
     }
 
     private static WebAdminBrokerAppIdRegistryReadback CreateReadyReadback()
@@ -625,7 +747,10 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
     private static List<WebAdminBrokerRegistryKeySnapshot> CreateInstalledApplicationGraph(
         IReadOnlyList<WebAdminBrokerRegistryValueSnapshot>? existingApplicationValues = null)
     {
-        existingApplicationValues ??= [Value("LocalService", "hMailServer")];
+        existingApplicationValues ??= [
+            Value(string.Empty, "hMailServer"),
+            Value("LocalService", "hMailServer")
+        ];
         var snapshots = new List<WebAdminBrokerRegistryKeySnapshot>();
         foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
         {
@@ -634,13 +759,10 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
                 var present = view != RegistryView.Registry32
                     || !Registry32AbsentApplicationClassPaths.Contains(path, StringComparer.Ordinal);
                 IReadOnlyList<WebAdminBrokerRegistryValueSnapshot> values = !present
-                    || string.Equals(path, TypeLibraryRootPath, StringComparison.Ordinal)
-                    || string.Equals(path, $"{TypeLibraryVersionPath}\\0", StringComparison.Ordinal)
-                    || string.Equals(path, $"{ApplicationClassPath}\\Programmable", StringComparison.Ordinal)
                     ? []
                     : string.Equals(path, ExistingApplicationPath, StringComparison.Ordinal)
                         ? existingApplicationValues
-                        : [Value(string.Empty, $"{view}:{path}")];
+                        : CanonicalValues(view, path);
                 snapshots.Add(new(view, path, present, values, ReadError: null)
                 {
                     DirectSubkeyNames = present ? ExpectedDirectSubkeyNames(path) : []
@@ -650,6 +772,47 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 
         return snapshots;
     }
+
+    private static IReadOnlyList<WebAdminBrokerRegistryValueSnapshot> CanonicalValues(
+        RegistryView view,
+        string path) => path switch
+    {
+        "Software\\Classes\\hMailServer.Application.1" => [Value(string.Empty, "Application Class")],
+        "Software\\Classes\\hMailServer.Application.1\\CLSID" =>
+            [Value(string.Empty, ApplicationClassId)],
+        "Software\\Classes\\hMailServer.Application" => [Value(string.Empty, "Application Class")],
+        "Software\\Classes\\hMailServer.Application\\CLSID" =>
+            [Value(string.Empty, ApplicationClassId)],
+        "Software\\Classes\\hMailServer.Application\\CurVer" =>
+            [Value(string.Empty, "hMailServer.Application.1")],
+        ApplicationClassPath =>
+            [Value(string.Empty, "Application Class"), Value("AppID", ExistingAppId)],
+        $"{ApplicationClassPath}\\ProgID" =>
+            [Value(string.Empty, "hMailServer.Application.1")],
+        $"{ApplicationClassPath}\\VersionIndependentProgID" =>
+            [Value(string.Empty, "hMailServer.Application")],
+        $"{ApplicationClassPath}\\Programmable" => [],
+        $"{ApplicationClassPath}\\LocalServer32" =>
+            [Value(string.Empty, $"\"{TestModulePath}\"")],
+        $"{ApplicationClassPath}\\TypeLib" =>
+            [Value(string.Empty, TypeLibraryId)],
+        $"Software\\Classes\\AppID\\{ExistingAppId}" =>
+            [Value(string.Empty, "hMailServer"), Value("LocalService", "hMailServer")],
+        "Software\\Classes\\AppID\\hMailServer.EXE" =>
+            [Value("AppID", ExistingAppId)],
+        TypeLibraryRootPath => [],
+        TypeLibraryVersionPath => [Value(string.Empty, "hMailServer Type Library")],
+        $"{TypeLibraryVersionPath}\\0" => [],
+        $"{TypeLibraryVersionPath}\\0\\win64" => [Value(string.Empty, TestModulePath)],
+        $"{TypeLibraryVersionPath}\\FLAGS" => [Value(string.Empty, "0")],
+        $"{TypeLibraryVersionPath}\\HELPDIR" => [Value(string.Empty, TestModuleDirectory)],
+        ApplicationInterfacePath => [Value(string.Empty, "IInterfaceApplication")],
+        $"{ApplicationInterfacePath}\\ProxyStubClsid32" =>
+            [Value(string.Empty, "{00020424-0000-0000-C000-000000000046}")],
+        $"{ApplicationInterfacePath}\\TypeLib" =>
+            [Value(string.Empty, TypeLibraryId), Value("Version", "1.0")],
+        _ => throw new ArgumentOutOfRangeException(nameof(path), path, $"Unknown graph path for {view}.")
+    };
 
     private static IReadOnlyList<string> ExpectedDirectSubkeyNames(string path) => path switch
     {
