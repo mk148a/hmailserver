@@ -186,7 +186,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 
     [TestMethod]
     [TestCategory("WindowsRegistryIntegration")]
-    public void OptInNativeRegistryIntegrationComparesRegGetKeySecurityBytes()
+    public void OptInNativeRegistryIntegrationCapturesLegacyOwnerAndDaclAndMissingBroker()
     {
         if (!string.Equals(
                 Environment.GetEnvironmentVariable("HMAILSERVER_NET10_RUN_WINDOWS_REGISTRY_INTEGRATION"),
@@ -196,24 +196,44 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
             Assert.Inconclusive("Set HMAILSERVER_NET10_RUN_WINDOWS_REGISTRY_INTEGRATION=1 to run the read-only registry integration test.");
         }
 
-        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
-        using var key = baseKey.OpenSubKey(ExistingApplicationPath, writable: false);
-        if (key is null)
+        var readback = new WindowsWebAdminBrokerRegistryEvidenceSource().Capture();
+        var captured = new[] { RegistryView.Registry64, RegistryView.Registry32 }
+            .Select(view => readback.ExistingApplicationAppIdViews.Single(snapshot =>
+                snapshot.View == view
+                && string.Equals(snapshot.KeyPath, ExistingApplicationPath, StringComparison.Ordinal)))
+            .ToArray();
+        if (captured.Any(static snapshot => !snapshot.Present))
         {
             Assert.Inconclusive($"Known graph key is not installed: {ExistingApplicationPath}");
         }
 
-        var readback = new WindowsWebAdminBrokerRegistryEvidenceSource().Capture();
-        var captured = readback.InstalledApplicationGraphViews.Single(snapshot =>
-            snapshot.View == RegistryView.Registry64
-            && string.Equals(snapshot.KeyPath, ExistingApplicationPath, StringComparison.Ordinal));
-        Assert.IsTrue(captured.Present, captured.ReadError ?? "Known graph key was reported absent.");
-        Assert.IsNull(captured.DaclReadError);
-        Assert.IsNotNull(captured.RawDaclBytes);
+        foreach (var snapshot in captured)
+        {
+            Assert.IsTrue(snapshot.Present, snapshot.ReadError ?? "Known graph key was reported absent.");
+            Assert.IsNull(snapshot.ReadError);
+            Assert.IsNull(snapshot.DaclReadError);
+            Assert.IsNull(snapshot.OwnerReadError);
+            Assert.IsNotNull(snapshot.RawDaclBytes);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(snapshot.OwnerSid));
 
-        var independentlyRead = ReadNativeDacl(key);
+            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, snapshot.View);
+            using var key = baseKey.OpenSubKey(ExistingApplicationPath, writable: false);
+            Assert.IsNotNull(key);
 
-        CollectionAssert.AreEqual(independentlyRead, captured.RawDaclBytes);
+            Assert.AreEqual(ReadNativeOwnerSid(key!), snapshot.OwnerSid);
+            CollectionAssert.AreEqual(ReadNativeDacl(key!), snapshot.RawDaclBytes);
+        }
+
+        Assert.AreEqual(captured[0].OwnerSid, captured[1].OwnerSid);
+        CollectionAssert.AreEqual(captured[0].RawDaclBytes, captured[1].RawDaclBytes);
+
+        Assert.AreEqual(2, readback.BrokerAppIdViews.Count);
+        foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
+        {
+            var broker = readback.BrokerAppIdViews.Single(snapshot => snapshot.View == view);
+            Assert.IsFalse(broker.Present);
+            Assert.IsNull(broker.ReadError);
+        }
     }
 
     [TestMethod]
@@ -1219,13 +1239,26 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 
     private static byte[] ReadNativeDacl(RegistryKey key)
     {
-        const uint daclSecurityInformation = 0x00000004;
+        return ReadNativeSecurityInformation(key, securityInformation: 0x00000004);
+    }
+
+    private static string ReadNativeOwnerSid(RegistryKey key)
+    {
+        var descriptor = new RawSecurityDescriptor(
+            ReadNativeSecurityInformation(key, securityInformation: 0x00000001),
+            0);
+        return descriptor.Owner?.Value
+            ?? throw new InvalidDataException("Registry key owner is missing.");
+    }
+
+    private static byte[] ReadNativeSecurityInformation(RegistryKey key, uint securityInformation)
+    {
         const int errorInsufficientBuffer = 122;
 
         uint byteCount = 0;
         var result = RegGetKeySecurity(
             key.Handle.DangerousGetHandle(),
-            daclSecurityInformation,
+            securityInformation,
             null,
             ref byteCount);
         if (result != 0 && result != errorInsufficientBuffer)
@@ -1236,7 +1269,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         var bytes = new byte[checked((int)byteCount)];
         result = RegGetKeySecurity(
             key.Handle.DangerousGetHandle(),
-            daclSecurityInformation,
+            securityInformation,
             bytes,
             ref byteCount);
         if (result != 0)
