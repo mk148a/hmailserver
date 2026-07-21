@@ -95,7 +95,7 @@ public static class WebAdminSessionBrokerAppIdPreflight
         return result;
     }
 
-    public static WebAdminBrokerAppIdPreflightResult Evaluate(
+    internal static WebAdminBrokerAppIdPreflightResult Evaluate(
         string configuredWorkerSid,
         IReadOnlyCollection<string> requiredServiceSids,
         WebAdminBrokerAppIdEvidence evidence,

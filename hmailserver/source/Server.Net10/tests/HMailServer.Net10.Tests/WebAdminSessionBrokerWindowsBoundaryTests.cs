@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.Versioning;
 using HMailServer.ComInterop;
 
@@ -40,6 +41,21 @@ public sealed class WebAdminSessionBrokerWindowsBoundaryTests
 
         Assert.IsNull(source.CaptureImpersonatedCaller());
         Assert.AreEqual(1, native.CaptureCalls);
+    }
+
+    [TestMethod]
+    public void AppIdPreflightEvidenceOnlyEvaluateIsNotPublic()
+    {
+        var publicMethod = typeof(WebAdminSessionBrokerAppIdPreflight).GetMethod(
+            nameof(WebAdminSessionBrokerAppIdPreflight.Evaluate),
+            BindingFlags.Public | BindingFlags.Static);
+        var internalMethod = typeof(WebAdminSessionBrokerAppIdPreflight).GetMethod(
+            nameof(WebAdminSessionBrokerAppIdPreflight.Evaluate),
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.IsNull(publicMethod);
+        Assert.IsNotNull(internalMethod);
+        Assert.IsTrue(internalMethod!.IsAssembly);
     }
 
     [TestMethod]
