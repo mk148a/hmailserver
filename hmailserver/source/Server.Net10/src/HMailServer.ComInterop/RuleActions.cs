@@ -116,6 +116,7 @@ public sealed class RuleActions : IInterfaceRuleActions
     private RuleActionAdministrationSnapshot[]? _actions;
     private readonly Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? _reload;
     private readonly Action<int>? _deleteById;
+    private readonly Action<RuleActionAdministrationSnapshot>? _save;
 
     public RuleActions()
     {
@@ -124,11 +125,13 @@ public sealed class RuleActions : IInterfaceRuleActions
     private RuleActions(
         IReadOnlyList<RuleActionAdministrationSnapshot> actions,
         Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload,
-        Action<int>? deleteById)
+        Action<int>? deleteById,
+        Action<RuleActionAdministrationSnapshot>? save)
     {
         _actions = actions.ToArray();
         _reload = reload;
         _deleteById = deleteById;
+        _save = save;
     }
 
     public IInterfaceRuleAction this[int index]
@@ -142,7 +145,10 @@ public sealed class RuleActions : IInterfaceRuleActions
             }
 
             var action = actions[index];
-            return RuleAction.CreateAuthorized(action, () => DeleteByDBID(action.Id));
+            return RuleAction.CreateAuthorized(
+                action,
+                () => DeleteByDBID(action.Id),
+                () => SaveAction(action));
         }
     }
 
@@ -154,7 +160,10 @@ public sealed class RuleActions : IInterfaceRuleActions
             ? throw new COMException(
                 "No rule action with the specified database identifier exists.",
                 DispEBadIndex)
-            : RuleAction.CreateAuthorized(match, () => DeleteByDBID(match.Id));
+            : RuleAction.CreateAuthorized(
+                match,
+                () => DeleteByDBID(match.Id),
+                () => SaveAction(match));
     }
 
     public int Count => GetActions().Count;
@@ -247,10 +256,22 @@ public sealed class RuleActions : IInterfaceRuleActions
     internal static RuleActions CreateAuthorized(
         IReadOnlyList<RuleActionAdministrationSnapshot> actions,
         Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload = null,
-        Action<int>? deleteById = null)
+        Action<int>? deleteById = null,
+        Action<RuleActionAdministrationSnapshot>? save = null)
     {
         ArgumentNullException.ThrowIfNull(actions);
-        return new RuleActions(actions, reload, deleteById);
+        return new RuleActions(actions, reload, deleteById, save);
+    }
+
+    private void SaveAction(RuleActionAdministrationSnapshot action)
+    {
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _save(action);
     }
 
     private IReadOnlyList<RuleActionAdministrationSnapshot> GetActions()
@@ -286,19 +307,25 @@ public sealed class RuleActions : IInterfaceRuleActions
 public sealed class RuleAction : IInterfaceRuleAction
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly RuleActionAdministrationSnapshot? _action;
     private readonly Action? _delete;
+    private readonly Action? _save;
 
     public RuleAction()
     {
     }
 
-    private RuleAction(RuleActionAdministrationSnapshot action, Action? delete)
+    private RuleAction(
+        RuleActionAdministrationSnapshot action,
+        Action? delete,
+        Action? save)
     {
         _action = action;
         _delete = delete;
+        _save = save;
     }
 
     public int ID => Snapshot.Id;
@@ -331,7 +358,30 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public bool AbortSpamFlagged { get => Snapshot.AbortSpamFlagged; set => Unavailable(); }
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        _ = Snapshot;
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _save();
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the rule action to the database.",
+                EFail);
+        }
+    }
 
     public void MoveUp() => Unavailable();
 
@@ -351,7 +401,8 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     internal static RuleAction CreateAuthorized(
         RuleActionAdministrationSnapshot action,
-        Action? delete = null) => new(action, delete);
+        Action? delete = null,
+        Action? save = null) => new(action, delete, save);
 
     private RuleActionAdministrationSnapshot Snapshot =>
         _action ?? throw new COMException(
@@ -399,6 +450,16 @@ public static class RuleActionAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return RuleActions.CreateAuthorized(LoadActions(), LoadActions, DeleteActionById);
+        void SaveAction(RuleActionAdministrationSnapshot action) => store
+            .SaveRuleActionAsync(action, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return RuleActions.CreateAuthorized(
+            LoadActions(),
+            LoadActions,
+            DeleteActionById,
+            SaveAction);
     }
 }

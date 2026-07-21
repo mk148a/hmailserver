@@ -10,4 +10,8 @@ public interface IRuleActionAdministrationStore
         int ruleId,
         int databaseId,
         CancellationToken cancellationToken);
+
+    ValueTask SaveRuleActionAsync(
+        RuleActionAdministrationSnapshot action,
+        CancellationToken cancellationToken);
 }

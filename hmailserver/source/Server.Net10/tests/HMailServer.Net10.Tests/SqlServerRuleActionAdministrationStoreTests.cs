@@ -46,4 +46,32 @@ public sealed class SqlServerRuleActionAdministrationStoreTests
         Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_rules", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void SaveRuleActionSql_UsesRuleAndActionPredicatesAndAllPersistedFields()
+    {
+        var sql = SqlServerRuleActionAdministrationStore.SaveRuleActionSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_rule_actions");
+        foreach (var column in new[]
+                 {
+                     "actionruleid = @RuleId", "actiontype = @Type", "actionimapfolder = @ImapFolder",
+                     "actionsubject = @Subject", "actionfromname = @FromName",
+                     "actionfromaddress = @FromAddress", "actionto = @To", "actionbody = @Body",
+                     "actionfilename = @Filename", "actionsortorder = @SortOrder",
+                     "actionscriptfunction = @ScriptFunction", "actionheader = @HeaderName",
+                     "actionvalue = @Value", "actionrouteid = @RouteId",
+                     "actionabortspamflagged = @AbortSpamFlagged"
+                 })
+        {
+            StringAssert.Contains(sql, column);
+        }
+
+        StringAssert.Contains(sql, "WHERE actionruleid = @RuleId");
+        StringAssert.Contains(sql, "AND actionid = @ActionId");
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+    }
 }

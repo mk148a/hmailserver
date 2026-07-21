@@ -107,6 +107,7 @@ public sealed class RuleActionsComContractTests
         var actionsDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().DeleteByDBID(100));
         var actionsIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().Delete(0));
         var actionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleAction().Type);
+        var actionSaveError = Assert.ThrowsExactly<COMException>(new RuleAction().Save);
         var actionDeleteError = Assert.ThrowsExactly<COMException>(new RuleAction().Delete);
 
         Assert.AreEqual(EAccessDenied, actionsError.ErrorCode);
@@ -114,8 +115,10 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionsDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionsIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionDeleteError.ErrorCode);
         Assert.AreEqual(0, store.ReadCount);
+        Assert.AreEqual(0, store.SavedActions.Count);
         Assert.AreEqual(0, store.DeletedActions.Count);
     }
 
@@ -417,6 +420,55 @@ public sealed class RuleActionsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleAction_SaveUsesOwningRuleScopeAndPersistsSnapshot()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1),
+                Snapshot(200, 20, ComRuleActionType.DeleteEmail, 1)
+            });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+
+        rules[0].Actions[0].Save();
+
+        CollectionAssert.AreEqual(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) },
+            store.SavedActions);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_SaveMapsStoreFailureToEFailAndAllowsRetry()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) })
+        {
+            FailSave = true
+        };
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(action.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, store.SavedActions.Count);
+        Assert.AreEqual(100, action.ID);
+
+        store.FailSave = false;
+        action.Save();
+
+        Assert.AreEqual(2, store.SavedActions.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedRuleAction_DeleteMapsStoreFailureToEFailAndRetainsSnapshot()
     {
         var store = new MutableRuleActionAdministrationStore(
@@ -542,7 +594,11 @@ public sealed class RuleActionsComContractTests
 
         public bool FailDelete { get; set; }
 
+        public bool FailSave { get; set; }
+
         public List<(int RuleId, int DatabaseId)> DeletedActions { get; } = [];
+
+        public List<RuleActionAdministrationSnapshot> SavedActions { get; } = [];
 
         public void Replace(IReadOnlyList<RuleActionAdministrationSnapshot> actions)
         {
@@ -567,6 +623,19 @@ public sealed class RuleActionsComContractTests
         {
             DeletedActions.Add((ruleId, databaseId));
             if (FailDelete)
+            {
+                throw new InvalidOperationException("Simulated store failure.");
+            }
+
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask SaveRuleActionAsync(
+            RuleActionAdministrationSnapshot action,
+            CancellationToken cancellationToken)
+        {
+            SavedActions.Add(action);
+            if (FailSave)
             {
                 throw new InvalidOperationException("Simulated store failure.");
             }

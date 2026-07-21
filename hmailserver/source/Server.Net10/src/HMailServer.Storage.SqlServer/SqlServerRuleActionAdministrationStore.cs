@@ -36,6 +36,27 @@ WHERE actionruleid = @RuleId
   AND actionid = @ActionId;
 """;
 
+    public const string SaveRuleActionSql = """
+UPDATE hm_rule_actions
+SET actionruleid = @RuleId,
+    actiontype = @Type,
+    actionimapfolder = @ImapFolder,
+    actionsubject = @Subject,
+    actionfromname = @FromName,
+    actionfromaddress = @FromAddress,
+    actionto = @To,
+    actionbody = @Body,
+    actionfilename = @Filename,
+    actionsortorder = @SortOrder,
+    actionscriptfunction = @ScriptFunction,
+    actionheader = @HeaderName,
+    actionvalue = @Value,
+    actionrouteid = @RouteId,
+    actionabortspamflagged = @AbortSpamFlagged
+WHERE actionruleid = @RuleId
+  AND actionid = @ActionId;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRuleActionAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -90,6 +111,32 @@ WHERE actionruleid = @RuleId
         await using var command = new SqlCommand(DeleteRuleActionByIdSql, connection);
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
         command.Parameters.Add("@ActionId", SqlDbType.Int).Value = databaseId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask SaveRuleActionAsync(
+        RuleActionAdministrationSnapshot action,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(SaveRuleActionSql, connection);
+        command.Parameters.Add("@RuleId", SqlDbType.Int).Value = action.RuleId;
+        command.Parameters.Add("@ActionId", SqlDbType.Int).Value = action.Id;
+        command.Parameters.Add("@Type", SqlDbType.TinyInt).Value = action.Type;
+        command.Parameters.Add("@ImapFolder", SqlDbType.NVarChar, 255).Value = action.ImapFolder;
+        command.Parameters.Add("@Subject", SqlDbType.NVarChar, 255).Value = action.Subject;
+        command.Parameters.Add("@FromName", SqlDbType.NVarChar, 255).Value = action.FromName;
+        command.Parameters.Add("@FromAddress", SqlDbType.NVarChar, 255).Value = action.FromAddress;
+        command.Parameters.Add("@To", SqlDbType.NVarChar, 255).Value = action.To;
+        command.Parameters.Add("@Body", SqlDbType.NVarChar, -1).Value = action.Body;
+        command.Parameters.Add("@Filename", SqlDbType.NVarChar, 255).Value = action.Filename;
+        command.Parameters.Add("@SortOrder", SqlDbType.Int).Value = action.SortOrder;
+        command.Parameters.Add("@ScriptFunction", SqlDbType.NVarChar, 255).Value = action.ScriptFunction;
+        command.Parameters.Add("@HeaderName", SqlDbType.NVarChar, 80).Value = action.HeaderName;
+        command.Parameters.Add("@Value", SqlDbType.NVarChar, 255).Value = action.Value;
+        command.Parameters.Add("@RouteId", SqlDbType.Int).Value = action.RouteId;
+        command.Parameters.Add("@AbortSpamFlagged", SqlDbType.TinyInt).Value = action.AbortSpamFlagged ? 1 : 0;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
