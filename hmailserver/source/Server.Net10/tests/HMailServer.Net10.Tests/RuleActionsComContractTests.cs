@@ -100,13 +100,19 @@ public sealed class RuleActionsComContractTests
     [TestMethod]
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
+        var store = new MutableRuleActionAdministrationStore([]);
+        RuleActionAdministrationRuntimeHost.Configure(store);
         var actionsError = Assert.ThrowsExactly<COMException>(() => _ = new RuleActions().Count);
         var actionsRefreshError = Assert.ThrowsExactly<COMException>(new RuleActions().Refresh);
+        var actionsDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().DeleteByDBID(100));
         var actionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleAction().Type);
 
         Assert.AreEqual(EAccessDenied, actionsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionsRefreshError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionsDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionError.ErrorCode);
+        Assert.AreEqual(0, store.ReadCount);
+        Assert.AreEqual(0, store.DeletedActions.Count);
     }
 
     [TestMethod]
@@ -246,6 +252,58 @@ public sealed class RuleActionsComContractTests
         AssertError(DispEBadIndex, () => _ = actions.get_ItemByDBID(500));
     }
 
+    [TestMethod]
+    public void AuthorizedRule_DeleteByDBIDScopesStoreCallAndRetainsSnapshotOnFailure()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1),
+                Snapshot(200, 10, ComRuleActionType.SendUsingRoute, 2),
+                Snapshot(300, 20, ComRuleActionType.DeleteEmail, 1)
+            });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+        var actions = rules[0].Actions;
+
+        actions.DeleteByDBID(300);
+        actions.DeleteByDBID(999);
+
+        Assert.AreEqual(0, store.DeletedActions.Count);
+        Assert.AreEqual(2, actions.Count);
+
+        store.FailDelete = true;
+        var deleteFailure = Assert.ThrowsExactly<COMException>(() => actions.DeleteByDBID(100));
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 100) },
+            store.DeletedActions);
+        Assert.AreEqual(2, actions.Count);
+        Assert.AreEqual(100, actions[0].ID);
+
+        store.FailDelete = false;
+        actions.DeleteByDBID(100);
+
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 100), (RuleId: 10, DatabaseId: 100) },
+            store.DeletedActions);
+        Assert.AreEqual(1, actions.Count);
+        Assert.AreEqual(200, actions[0].ID);
+
+        actions.DeleteByDBID(100);
+        actions.DeleteByDBID(999);
+
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 100), (RuleId: 10, DatabaseId: 100) },
+            store.DeletedActions);
+    }
+
     private static RuleActionAdministrationSnapshot Snapshot(
         int id,
         int ruleId,
@@ -340,6 +398,10 @@ public sealed class RuleActionsComContractTests
 
         public int ReadCount { get; private set; }
 
+        public bool FailDelete { get; set; }
+
+        public List<(int RuleId, int DatabaseId)> DeletedActions { get; } = [];
+
         public void Replace(IReadOnlyList<RuleActionAdministrationSnapshot> actions)
         {
             _actions = actions;
@@ -354,6 +416,20 @@ public sealed class RuleActionsComContractTests
                 _actions.Where(action => action.RuleId == ruleId)
                     .OrderBy(static action => action.SortOrder)
                     .ToArray());
+        }
+
+        public ValueTask DeleteRuleActionByIdAsync(
+            int ruleId,
+            int databaseId,
+            CancellationToken cancellationToken)
+        {
+            DeletedActions.Add((ruleId, databaseId));
+            if (FailDelete)
+            {
+                throw new InvalidOperationException("Simulated store failure.");
+            }
+
+            return ValueTask.CompletedTask;
         }
     }
 }

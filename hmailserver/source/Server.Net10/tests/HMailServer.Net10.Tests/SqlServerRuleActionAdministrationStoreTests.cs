@@ -31,4 +31,19 @@ public sealed class SqlServerRuleActionAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteRuleActionByIdSql_UsesRuleAndActionPredicatesAndParameters()
+    {
+        var sql = SqlServerRuleActionAdministrationStore.DeleteRuleActionByIdSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_rule_actions");
+        StringAssert.Contains(sql, "WHERE actionruleid = @RuleId");
+        StringAssert.Contains(sql, "AND actionid = @ActionId");
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_rules", StringComparison.OrdinalIgnoreCase));
+    }
 }

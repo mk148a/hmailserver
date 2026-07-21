@@ -115,6 +115,7 @@ public sealed class RuleActions : IInterfaceRuleActions
 
     private RuleActionAdministrationSnapshot[]? _actions;
     private readonly Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? _reload;
+    private readonly Action<int>? _deleteById;
 
     public RuleActions()
     {
@@ -122,10 +123,12 @@ public sealed class RuleActions : IInterfaceRuleActions
 
     private RuleActions(
         IReadOnlyList<RuleActionAdministrationSnapshot> actions,
-        Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload,
+        Action<int>? deleteById)
     {
         _actions = actions.ToArray();
         _reload = reload;
+        _deleteById = deleteById;
     }
 
     public IInterfaceRuleAction this[int index]
@@ -157,7 +160,34 @@ public sealed class RuleActions : IInterfaceRuleActions
 
     public IInterfaceRuleAction Add() => Unavailable<IInterfaceRuleAction>();
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var actions = GetActions();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (!actions.Any(action => action.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            _deleteById(databaseId);
+            Volatile.Write(
+                ref _actions,
+                actions.Where(action => action.Id != databaseId).ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the rule action from the database.",
+                EFail);
+        }
+    }
 
     public void Refresh()
     {
@@ -186,10 +216,11 @@ public sealed class RuleActions : IInterfaceRuleActions
 
     internal static RuleActions CreateAuthorized(
         IReadOnlyList<RuleActionAdministrationSnapshot> actions,
-        Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload = null,
+        Action<int>? deleteById = null)
     {
         ArgumentNullException.ThrowIfNull(actions);
-        return new RuleActions(actions, reload);
+        return new RuleActions(actions, reload, deleteById);
     }
 
     private IReadOnlyList<RuleActionAdministrationSnapshot> GetActions()
@@ -318,6 +349,12 @@ public static class RuleActionAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return RuleActions.CreateAuthorized(LoadActions(), LoadActions);
+        void DeleteActionById(int databaseId) => store
+            .DeleteRuleActionByIdAsync(ruleId, databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return RuleActions.CreateAuthorized(LoadActions(), LoadActions, DeleteActionById);
     }
 }
