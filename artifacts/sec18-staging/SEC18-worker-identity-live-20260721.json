@@ -1,0 +1,40 @@
+{
+  "SchemaVersion": 1,
+  "ObservedUtc": "2026-07-21T06:29:56.6967790Z",
+  "RepositoryHead": "07221c50a760d4de5c6592c37cb0afb4a93df358",
+  "HealthStatusCode": 200,
+  "Health": {
+    "status": "ok",
+    "phpVersion": "8.4.23",
+    "sapi": "cgi-fcgi",
+    "pid": 8428,
+    "comDotNetLoaded": true,
+    "comClassAvailable": true,
+    "opensslLoaded": true,
+    "sessionLoaded": true,
+    "jsonLoaded": true,
+    "hMailServerComActivated": false
+  },
+  "ExpectedPoolSid": "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494",
+  "Processes": [
+    {
+      "Name": "w3wp.exe",
+      "ProcessId": 36384,
+      "ParentProcessId": 4336,
+      "ExecutablePath": null,
+      "TokenSid": "ERROR: Exception calling \"SidForProcess\" with \"1\" argument(s): \"Erişim engellendi.\""
+    },
+    {
+      "Name": "php-cgi.exe",
+      "ProcessId": 8428,
+      "ParentProcessId": 36384,
+      "ExecutablePath": null,
+      "TokenSid": "ERROR: Exception calling \"SidForProcess\" with \"1\" argument(s): \"Erişim engellendi.\""
+    }
+  ],
+  "HMailServerService": "Stopped",
+  "HMailServerStartType": "Disabled",
+  "HMailServerProcessCount": 0,
+  "Method": "OpenProcessToken/GetTokenInformation/ConvertSidToStringSid",
+  "ProductionAccessed": false
+}
