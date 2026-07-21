@@ -212,7 +212,36 @@ public sealed class RuleActions : IInterfaceRuleActions
         }
     }
 
-    public void Delete(int databaseId) => Unavailable();
+    public void Delete(int index)
+    {
+        var actions = GetActions();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (index < 0 || index >= actions.Count)
+        {
+            return;
+        }
+
+        var action = actions[index];
+        try
+        {
+            _deleteById(action.Id);
+            var remaining = actions
+                .Where((_, candidateIndex) => candidateIndex != index)
+                .ToArray();
+            Volatile.Write(ref _actions, remaining);
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the rule action from the database.",
+                EFail);
+        }
+    }
 
     internal static RuleActions CreateAuthorized(
         IReadOnlyList<RuleActionAdministrationSnapshot> actions,
