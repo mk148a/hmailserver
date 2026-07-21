@@ -141,7 +141,8 @@ public sealed class RuleActions : IInterfaceRuleActions
                 throw new COMException("Rule action index was outside the collection.", DispEBadIndex);
             }
 
-            return RuleAction.CreateAuthorized(actions[index]);
+            var action = actions[index];
+            return RuleAction.CreateAuthorized(action, () => DeleteByDBID(action.Id));
         }
     }
 
@@ -153,7 +154,7 @@ public sealed class RuleActions : IInterfaceRuleActions
             ? throw new COMException(
                 "No rule action with the specified database identifier exists.",
                 DispEBadIndex)
-            : RuleAction.CreateAuthorized(match);
+            : RuleAction.CreateAuthorized(match, () => DeleteByDBID(match.Id));
     }
 
     public int Count => GetActions().Count;
@@ -288,14 +289,16 @@ public sealed class RuleAction : IInterfaceRuleAction
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly RuleActionAdministrationSnapshot? _action;
+    private readonly Action? _delete;
 
     public RuleAction()
     {
     }
 
-    private RuleAction(RuleActionAdministrationSnapshot action)
+    private RuleAction(RuleActionAdministrationSnapshot action, Action? delete)
     {
         _action = action;
+        _delete = delete;
     }
 
     public int ID => Snapshot.Id;
@@ -334,9 +337,21 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public void MoveDown() => Unavailable();
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        _ = Snapshot;
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
 
-    internal static RuleAction CreateAuthorized(RuleActionAdministrationSnapshot action) => new(action);
+        _delete();
+    }
+
+    internal static RuleAction CreateAuthorized(
+        RuleActionAdministrationSnapshot action,
+        Action? delete = null) => new(action, delete);
 
     private RuleActionAdministrationSnapshot Snapshot =>
         _action ?? throw new COMException(

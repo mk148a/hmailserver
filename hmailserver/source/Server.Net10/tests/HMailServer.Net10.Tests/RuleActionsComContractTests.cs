@@ -107,12 +107,14 @@ public sealed class RuleActionsComContractTests
         var actionsDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().DeleteByDBID(100));
         var actionsIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().Delete(0));
         var actionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleAction().Type);
+        var actionDeleteError = Assert.ThrowsExactly<COMException>(new RuleAction().Delete);
 
         Assert.AreEqual(EAccessDenied, actionsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionsRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionsDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionsIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionDeleteError.ErrorCode);
         Assert.AreEqual(0, store.ReadCount);
         Assert.AreEqual(0, store.DeletedActions.Count);
     }
@@ -382,6 +384,66 @@ public sealed class RuleActionsComContractTests
         CollectionAssert.AreEqual(
             new[] { (RuleId: 10, DatabaseId: 100), (RuleId: 10, DatabaseId: 100) },
             store.DeletedActions);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_DeleteUsesOwningRuleScopeAndNoOpsWhenRepeatedOrStale()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1),
+                Snapshot(200, 20, ComRuleActionType.DeleteEmail, 1)
+            });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+        var actions = rules[0].Actions;
+        var indexItem = actions[0];
+        var dbidItem = actions.get_ItemByDBID(100);
+
+        indexItem.Delete();
+        dbidItem.Delete();
+
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 100) },
+            store.DeletedActions);
+        Assert.AreEqual(0, actions.Count);
+        AssertError(DispEBadIndex, () => _ = actions.get_ItemByDBID(100));
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_DeleteMapsStoreFailureToEFailAndRetainsSnapshot()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1)
+            });
+        var actions = rules[0].Actions;
+        var action = actions[0];
+        store.FailDelete = true;
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(action.Delete);
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 100) },
+            store.DeletedActions);
+        Assert.AreEqual(1, actions.Count);
+        Assert.AreEqual(100, actions[0].ID);
+
+        store.FailDelete = false;
+        action.Delete();
+
+        Assert.AreEqual(0, actions.Count);
     }
 
     private static RuleActionAdministrationSnapshot Snapshot(
