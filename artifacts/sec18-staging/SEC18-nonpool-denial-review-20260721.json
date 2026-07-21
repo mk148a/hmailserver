@@ -1,0 +1,85 @@
+{
+  "SchemaVersion": 1,
+  "ObservedUtc": "2026-07-21T06:20:42.4856919Z",
+  "RepositoryHead": "e215f4f1d4ac8d4908366b45ddf0ba28710508ba",
+  "Environment": "non-production SEC-18 isolated IIS staging",
+  "Authorization": {
+    "Scope": "bounded negative non-pool identity testing",
+    "DesktopUserMustBeNonElevated": true,
+    "AclBroadeningAllowed": false,
+    "HMailServerApplicationActivationAllowed": false,
+    "PermanentBrokerRegistrationAllowed": false
+  },
+  "CurrentHost": {
+    "InteractiveUser": "NOUTML-KANDIL\\Kandil",
+    "InteractiveUserElevated": false,
+    "HMailServerService": "Stopped/Disabled",
+    "HMailServerProcessCount": 0,
+    "TemporaryProbePresent": false,
+    "TemporaryProbeServicePresent": false,
+    "TemporaryProbeRegistryPresent": false,
+    "PermanentBrokerAppIdPresentInRegistry64": false,
+    "PermanentBrokerAppIdPresentInRegistry32": false,
+    "StagingHealth": "HTTP 200 / PHP 8.4.23 / COM extension loaded"
+  },
+  "PriorLiveProbeResults": {
+    "PhpActivation": {
+      "Stage": "activation",
+      "HResultHex": "0x80070005",
+      "Win32Error": 5,
+      "InterfaceReached": false,
+      "MethodReached": false,
+      "InvocationCounterPresent": false,
+      "CallerEvidencePresent": false,
+      "Source": "php-activation-diagnostics-20260715.json"
+    },
+    "DesktopUser": {
+      "Identity": "NOUTML-KANDIL\\Kandil",
+      "NonElevated": true,
+      "Stage": "activation-denied",
+      "HResultHex": "0x80070005",
+      "Win32Error": 5,
+      "MethodReached": false,
+      "InvocationCounterPresent": false,
+      "CallerEvidencePresent": false,
+      "Source": "desktop-denial-20260715.json"
+    },
+    "AuthorizedPoolMethod": {
+      "CallerSid": "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494",
+      "CallerSidMatchesWorkerSid": true,
+      "CoImpersonateClientHResult": 0,
+      "OpenThreadTokenError": 0,
+      "CoRevertToSelfHResult": 0,
+      "ResidualTokenError": 1008,
+      "Source": "SEC18-authorized-pool-evidence-20260716.json"
+    },
+    "WrongSidMethod": {
+      "Denied": true,
+      "HResultHex": "0x80070005",
+      "Source": "SEC18-authorized-pool-evidence-20260716.json"
+    }
+  },
+  "CurrentCollector": {
+    "Artifact": "staging-inventory-20260721-nonpool-denial-review.json",
+    "IisAvailable": false,
+    "WorkerSidResolved": false,
+    "CallerTokenEvidenceValid": false,
+    "GateStatus": "Incomplete",
+    "ReadyForBrokerRegistration": false,
+    "Reason": "The read-only run was non-elevated and could not read IIS configuration; the temporary probe evidence file is absent after cleanup."
+  },
+  "Validation": {
+    "CollectorHelperTests": "PASS",
+    "RegistryBinaryTest": "PASS",
+    "FocusedBrokerTestsDefault": "50 passed, 1 skipped",
+    "FocusedNativeRegistryAndBoundaryTests": "37/37 passed",
+    "FullNet10WithNativeRegistryIntegration": "1131/1131 passed"
+  },
+  "IndependentReviews": {
+    "hmail_security_reviewer": "RED",
+    "hmail_reality_checker": "RED"
+  },
+  "Decision": "RED",
+  "DecisionReason": "The temporary probe proved the tested pool and desktop denial boundary, but it is absent now; current collector evidence is incomplete, the permanent broker AppID is absent, and no permanent registration or PHP session cutover is authorized.",
+  "NextSlice": "Run the staging inventory elevated and read-only. Only after that, with explicit authorization, reprovision a fresh isolated temporary probe and rerun PHP pool success, wrong-SID method denial, non-elevated desktop denial, optional standard-user denial, collector capture, and cleanup."
+}
