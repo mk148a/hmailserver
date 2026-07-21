@@ -94,6 +94,7 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
     private RuleCriteriaAdministrationSnapshot[]? _criteria;
     private readonly Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? _reload;
     private readonly Action<int>? _deleteById;
+    private readonly Action<RuleCriteriaAdministrationSnapshot>? _save;
 
     public RuleCriterias()
     {
@@ -102,11 +103,13 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
     private RuleCriterias(
         IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria,
         Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? reload,
-        Action<int>? deleteById)
+        Action<int>? deleteById,
+        Action<RuleCriteriaAdministrationSnapshot>? save)
     {
         _criteria = criteria.ToArray();
         _reload = reload;
         _deleteById = deleteById;
+        _save = save;
     }
 
     public IInterfaceRuleCriteria this[int index]
@@ -120,7 +123,10 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
             }
 
             var criterion = criteria[index];
-            return RuleCriteria.CreateAuthorized(criterion, () => DeleteByDBID(criterion.Id));
+            return RuleCriteria.CreateAuthorized(
+                criterion,
+                () => DeleteByDBID(criterion.Id),
+                () => SaveCriterion(criterion));
         }
     }
 
@@ -132,7 +138,10 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
             ? throw new COMException(
                 "No rule criteria with the specified database identifier exists.",
                 DispEBadIndex)
-            : RuleCriteria.CreateAuthorized(match, () => DeleteByDBID(match.Id));
+            : RuleCriteria.CreateAuthorized(
+                match,
+                () => DeleteByDBID(match.Id),
+                () => SaveCriterion(match));
     }
 
     public int Count => GetCriteria().Count;
@@ -225,10 +234,22 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
     internal static RuleCriterias CreateAuthorized(
         IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria,
         Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? reload = null,
-        Action<int>? deleteById = null)
+        Action<int>? deleteById = null,
+        Action<RuleCriteriaAdministrationSnapshot>? save = null)
     {
         ArgumentNullException.ThrowIfNull(criteria);
-        return new RuleCriterias(criteria, reload, deleteById);
+        return new RuleCriterias(criteria, reload, deleteById, save);
+    }
+
+    private void SaveCriterion(RuleCriteriaAdministrationSnapshot criterion)
+    {
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _save(criterion);
     }
 
     private IReadOnlyList<RuleCriteriaAdministrationSnapshot> GetCriteria()
@@ -264,19 +285,25 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
 public sealed class RuleCriteria : IInterfaceRuleCriteria
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly RuleCriteriaAdministrationSnapshot? _criterion;
     private readonly Action? _delete;
+    private readonly Action? _save;
 
     public RuleCriteria()
     {
     }
 
-    private RuleCriteria(RuleCriteriaAdministrationSnapshot criterion, Action? delete)
+    private RuleCriteria(
+        RuleCriteriaAdministrationSnapshot criterion,
+        Action? delete,
+        Action? save)
     {
         _criterion = criterion;
         _delete = delete;
+        _save = save;
     }
 
     public int ID => Snapshot.Id;
@@ -301,7 +328,30 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
 
     public string HeaderField { get => Snapshot.HeaderField; set => Unavailable(); }
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        _ = Snapshot;
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _save();
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the rule criteria to the database.",
+                EFail);
+        }
+    }
 
     public void Delete()
     {
@@ -317,7 +367,8 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
 
     internal static RuleCriteria CreateAuthorized(
         RuleCriteriaAdministrationSnapshot criterion,
-        Action? delete = null) => new(criterion, delete);
+        Action? delete = null,
+        Action? save = null) => new(criterion, delete, save);
 
     private RuleCriteriaAdministrationSnapshot Snapshot =>
         _criterion ?? throw new COMException(
@@ -365,6 +416,16 @@ public static class RuleCriteriaAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return RuleCriterias.CreateAuthorized(LoadCriteria(), LoadCriteria, DeleteCriterionById);
+        void SaveCriterion(RuleCriteriaAdministrationSnapshot criterion) => store
+            .SaveRuleCriteriaAsync(criterion, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return RuleCriterias.CreateAuthorized(
+            LoadCriteria(),
+            LoadCriteria,
+            DeleteCriterionById,
+            SaveCriterion);
     }
 }

@@ -10,4 +10,8 @@ public interface IRuleCriteriaAdministrationStore
         int ruleId,
         int databaseId,
         CancellationToken cancellationToken);
+
+    ValueTask SaveRuleCriteriaAsync(
+        RuleCriteriaAdministrationSnapshot criterion,
+        CancellationToken cancellationToken);
 }

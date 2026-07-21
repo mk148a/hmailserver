@@ -41,4 +41,23 @@ public sealed class SqlServerRuleCriteriaAdministrationStoreTests
         Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_rules", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void SaveRuleCriteriaSql_UsesRuleAndCriteriaPredicatesAndAllPersistedFields()
+    {
+        var sql = SqlServerRuleCriteriaAdministrationStore.SaveRuleCriteriaSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_rule_criterias");
+        StringAssert.Contains(sql, "criteriaruleid = @RuleId");
+        StringAssert.Contains(sql, "criteriausepredefined = @UsePredefined");
+        StringAssert.Contains(sql, "criteriapredefinedfield = @PredefinedField");
+        StringAssert.Contains(sql, "criteriaheadername = @HeaderField");
+        StringAssert.Contains(sql, "criteriamatchtype = @MatchType");
+        StringAssert.Contains(sql, "criteriamatchvalue = @MatchValue");
+        StringAssert.Contains(sql, "AND criteriaid = @CriteriaId");
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+    }
 }

@@ -27,6 +27,18 @@ WHERE criteriaruleid = @RuleId
   AND criteriaid = @CriteriaId;
 """;
 
+    public const string SaveRuleCriteriaSql = """
+UPDATE hm_rule_criterias
+SET criteriaruleid = @RuleId,
+    criteriausepredefined = @UsePredefined,
+    criteriapredefinedfield = @PredefinedField,
+    criteriaheadername = @HeaderField,
+    criteriamatchtype = @MatchType,
+    criteriamatchvalue = @MatchValue
+WHERE criteriaruleid = @RuleId
+  AND criteriaid = @CriteriaId;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRuleCriteriaAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -72,6 +84,23 @@ WHERE criteriaruleid = @RuleId
         await using var command = new SqlCommand(DeleteRuleCriteriaByIdSql, connection);
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
         command.Parameters.Add("@CriteriaId", SqlDbType.Int).Value = databaseId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask SaveRuleCriteriaAsync(
+        RuleCriteriaAdministrationSnapshot criterion,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(criterion);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(SaveRuleCriteriaSql, connection);
+        command.Parameters.Add("@RuleId", SqlDbType.Int).Value = criterion.RuleId;
+        command.Parameters.Add("@CriteriaId", SqlDbType.Int).Value = criterion.Id;
+        command.Parameters.Add("@UsePredefined", SqlDbType.TinyInt).Value = criterion.UsePredefined ? 1 : 0;
+        command.Parameters.Add("@PredefinedField", SqlDbType.TinyInt).Value = criterion.PredefinedField;
+        command.Parameters.Add("@HeaderField", SqlDbType.NVarChar, 255).Value = criterion.HeaderField;
+        command.Parameters.Add("@MatchType", SqlDbType.TinyInt).Value = criterion.MatchType;
+        command.Parameters.Add("@MatchValue", SqlDbType.NVarChar, 255).Value = criterion.MatchValue;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

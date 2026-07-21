@@ -97,6 +97,7 @@ public sealed class RuleCriteriasComContractTests
         var criteriaDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleCriterias().DeleteByDBID(100));
         var criteriaIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleCriterias().Delete(0));
         var criterionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleCriteria().MatchValue);
+        var criterionSaveError = Assert.ThrowsExactly<COMException>(new RuleCriteria().Save);
         var criterionDeleteError = Assert.ThrowsExactly<COMException>(new RuleCriteria().Delete);
 
         Assert.AreEqual(EAccessDenied, criteriaError.ErrorCode);
@@ -104,9 +105,11 @@ public sealed class RuleCriteriasComContractTests
         Assert.AreEqual(EAccessDenied, criteriaDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criteriaIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, criterionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionDeleteError.ErrorCode);
         Assert.AreEqual(0, store.ReadCount);
         Assert.AreEqual(0, store.DeletedCriteria.Count);
+        Assert.AreEqual(0, store.SavedCriteria.Count);
     }
 
     [TestMethod]
@@ -382,6 +385,59 @@ public sealed class RuleCriteriasComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleCriteria_SaveUsesOwningRuleScopeAndPersistsSnapshot()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty),
+                Snapshot(200, 20, "foreign", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Test")
+            });
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+
+        rules[0].Criterias[0].Save();
+
+        Assert.AreEqual(1, store.SavedCriteria.Count);
+        Assert.AreEqual(100, store.SavedCriteria[0].Id);
+        Assert.AreEqual(10, store.SavedCriteria[0].RuleId);
+        Assert.AreEqual("first", store.SavedCriteria[0].MatchValue);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleCriteria_SaveMapsStoreFailureToEFailAndAllowsRetry()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty)
+            })
+        {
+            FailSave = true
+        };
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var criterion = rules[0].Criterias[0];
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(criterion.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, store.SavedCriteria.Count);
+        Assert.AreEqual(100, criterion.ID);
+
+        store.FailSave = false;
+        criterion.Save();
+
+        Assert.AreEqual(2, store.SavedCriteria.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedRuleCriteria_DeleteUsesOwningRuleScopeAndNoOpsWhenRepeatedOrStale()
     {
         var store = new MutableRuleCriteriaAdministrationStore(
@@ -607,7 +663,11 @@ public sealed class RuleCriteriasComContractTests
 
         public List<(int RuleId, int DatabaseId)> DeletedCriteria { get; } = [];
 
+        public List<RuleCriteriaAdministrationSnapshot> SavedCriteria { get; } = [];
+
         public bool FailDelete { get; set; }
+
+        public bool FailSave { get; set; }
 
         public void Replace(IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria)
         {
@@ -639,6 +699,19 @@ public sealed class RuleCriteriasComContractTests
             _criteria = _criteria
                 .Where(criterion => criterion.RuleId != ruleId || criterion.Id != databaseId)
                 .ToArray();
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask SaveRuleCriteriaAsync(
+            RuleCriteriaAdministrationSnapshot criterion,
+            CancellationToken cancellationToken)
+        {
+            SavedCriteria.Add(criterion);
+            if (FailSave)
+            {
+                throw new InvalidOperationException("Simulated store failure.");
+            }
+
             return ValueTask.CompletedTask;
         }
     }
