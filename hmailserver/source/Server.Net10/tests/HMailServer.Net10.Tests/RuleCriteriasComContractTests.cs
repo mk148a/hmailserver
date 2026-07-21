@@ -96,11 +96,13 @@ public sealed class RuleCriteriasComContractTests
         var criteriaRefreshError = Assert.ThrowsExactly<COMException>(new RuleCriterias().Refresh);
         var criteriaDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleCriterias().DeleteByDBID(100));
         var criterionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleCriteria().MatchValue);
+        var criterionDeleteError = Assert.ThrowsExactly<COMException>(new RuleCriteria().Delete);
 
         Assert.AreEqual(EAccessDenied, criteriaError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criteriaRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criteriaDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, criterionDeleteError.ErrorCode);
         Assert.AreEqual(0, store.ReadCount);
         Assert.AreEqual(0, store.DeletedCriteria.Count);
     }
@@ -299,6 +301,68 @@ public sealed class RuleCriteriasComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleCriteria_DeleteUsesOwningRuleScopeAndNoOpsWhenRepeatedOrStale()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty),
+                Snapshot(200, 20, "foreign", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Test")
+            });
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+        var criteria = rules[0].Criterias;
+        var indexItem = criteria[0];
+        var dbidItem = criteria.get_ItemByDBID(100);
+
+        indexItem.Delete();
+        dbidItem.Delete();
+
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 100) },
+            store.DeletedCriteria);
+        Assert.AreEqual(0, criteria.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = criteria.get_ItemByDBID(100)).ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleCriteria_DeleteMapsStoreFailureToEFailAndRetainsSnapshot()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[] { Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty) });
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1)
+            });
+        var criteria = rules[0].Criterias;
+        var criterion = criteria[0];
+        store.FailDelete = true;
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(criterion.Delete);
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 100) },
+            store.DeletedCriteria);
+        Assert.AreEqual(1, criteria.Count);
+        Assert.AreEqual(100, criteria[0].ID);
+
+        store.FailDelete = false;
+        criterion.Delete();
+
+        Assert.AreEqual(0, criteria.Count);
+    }
+
+    [TestMethod]
     public void FailedReauthentication_DeniesNewRulesAccessButRetainedCriteriasCanDelete()
     {
         var ruleStore = new FixedRuleAdministrationStore(
@@ -462,6 +526,8 @@ public sealed class RuleCriteriasComContractTests
 
         public List<(int RuleId, int DatabaseId)> DeletedCriteria { get; } = [];
 
+        public bool FailDelete { get; set; }
+
         public void Replace(IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria)
         {
             _criteria = criteria;
@@ -484,6 +550,11 @@ public sealed class RuleCriteriasComContractTests
             CancellationToken cancellationToken)
         {
             DeletedCriteria.Add((ruleId, databaseId));
+            if (FailDelete)
+            {
+                throw new InvalidOperationException("Simulated store failure.");
+            }
+
             _criteria = _criteria
                 .Where(criterion => criterion.RuleId != ruleId || criterion.Id != databaseId)
                 .ToArray();

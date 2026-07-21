@@ -119,7 +119,8 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
                 throw new COMException("Rule criteria index was outside the collection.", DispEBadIndex);
             }
 
-            return RuleCriteria.CreateAuthorized(criteria[index]);
+            var criterion = criteria[index];
+            return RuleCriteria.CreateAuthorized(criterion, () => DeleteByDBID(criterion.Id));
         }
     }
 
@@ -131,7 +132,7 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
             ? throw new COMException(
                 "No rule criteria with the specified database identifier exists.",
                 DispEBadIndex)
-            : RuleCriteria.CreateAuthorized(match);
+            : RuleCriteria.CreateAuthorized(match, () => DeleteByDBID(match.Id));
     }
 
     public int Count => GetCriteria().Count;
@@ -237,14 +238,16 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly RuleCriteriaAdministrationSnapshot? _criterion;
+    private readonly Action? _delete;
 
     public RuleCriteria()
     {
     }
 
-    private RuleCriteria(RuleCriteriaAdministrationSnapshot criterion)
+    private RuleCriteria(RuleCriteriaAdministrationSnapshot criterion, Action? delete)
     {
         _criterion = criterion;
+        _delete = delete;
     }
 
     public int ID => Snapshot.Id;
@@ -271,9 +274,21 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
 
     public void Save() => Unavailable();
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        _ = Snapshot;
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
 
-    internal static RuleCriteria CreateAuthorized(RuleCriteriaAdministrationSnapshot criterion) => new(criterion);
+        _delete();
+    }
+
+    internal static RuleCriteria CreateAuthorized(
+        RuleCriteriaAdministrationSnapshot criterion,
+        Action? delete = null) => new(criterion, delete);
 
     private RuleCriteriaAdministrationSnapshot Snapshot =>
         _criterion ?? throw new COMException(
