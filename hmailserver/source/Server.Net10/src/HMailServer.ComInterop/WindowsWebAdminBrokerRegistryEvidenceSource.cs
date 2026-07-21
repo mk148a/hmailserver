@@ -36,6 +36,10 @@ public sealed record WebAdminBrokerRegistryKeySnapshot(
 
     public string? DaclReadError { get; init; }
 
+    public string? OwnerSid { get; init; }
+
+    public string? OwnerReadError { get; init; }
+
     public bool BytewiseEquals(WebAdminBrokerRegistryKeySnapshot other)
     {
         return View == other.View && ContentEquals(other);
@@ -47,6 +51,8 @@ public sealed record WebAdminBrokerRegistryKeySnapshot(
             || Present != other.Present
             || !string.Equals(ReadError, other.ReadError, StringComparison.Ordinal)
             || !string.Equals(DaclReadError, other.DaclReadError, StringComparison.Ordinal)
+            || !string.Equals(OwnerSid, other.OwnerSid, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(OwnerReadError, other.OwnerReadError, StringComparison.Ordinal)
             || Values.Count != other.Values.Count
             || DirectSubkeyNames.Count != other.DirectSubkeyNames.Count)
         {
@@ -773,13 +779,30 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
                     daclReadError = exception.GetType().Name;
                 }
 
+                string? ownerSid = null;
+                string? ownerReadError = null;
+                try
+                {
+                    ownerSid = ReadNativeOwnerSid(key);
+                }
+                catch (Exception exception) when (exception is UnauthorizedAccessException
+                    or IOException
+                    or SecurityException
+                    or Win32Exception
+                    or InvalidDataException)
+                {
+                    ownerReadError = exception.GetType().Name;
+                }
+
                 return new(view, keyPath, Present: true, values, ReadError: null)
                 {
                     DirectSubkeyNames = key.GetSubKeyNames()
                         .Order(StringComparer.Ordinal)
                         .ToArray(),
                     RawDaclBytes = rawDaclBytes,
-                    DaclReadError = daclReadError
+                    DaclReadError = daclReadError,
+                    OwnerSid = ownerSid,
+                    OwnerReadError = ownerReadError
                 };
             }
             catch (Exception exception) when (exception is UnauthorizedAccessException
@@ -843,12 +866,29 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
         private static byte[] ReadNativeDacl(RegistryKey key)
         {
             const uint DaclSecurityInformation = 0x00000004;
+            return ReadNativeSecurityInformation(key, DaclSecurityInformation);
+        }
+
+        private static string ReadNativeOwnerSid(RegistryKey key)
+        {
+            const uint OwnerSecurityInformation = 0x00000001;
+            var descriptor = new RawSecurityDescriptor(
+                ReadNativeSecurityInformation(key, OwnerSecurityInformation),
+                0);
+            return descriptor.Owner?.Value
+                ?? throw new InvalidDataException("Registry key owner is missing.");
+        }
+
+        private static byte[] ReadNativeSecurityInformation(
+            RegistryKey key,
+            uint securityInformation)
+        {
             const int ErrorInsufficientBuffer = 122;
 
             uint byteCount = 0;
             var result = RegGetKeySecurity(
                 key.Handle,
-                DaclSecurityInformation,
+                securityInformation,
                 null,
                 ref byteCount);
             if (result != 0 && result != ErrorInsufficientBuffer)
@@ -864,7 +904,7 @@ public sealed class WindowsWebAdminBrokerRegistryEvidenceSource
 
             result = RegGetKeySecurity(
                 key.Handle,
-                DaclSecurityInformation,
+                securityInformation,
                 rawBytes,
                 ref byteCount);
             if (result != 0)

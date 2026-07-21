@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Security.AccessControl;
 using System.Security.Principal;
 
 namespace HMailServer.ComInterop;
@@ -29,6 +30,28 @@ public static class WebAdminSessionBrokerAppIdPreflight
 {
     public const int RequiredLocalBrokerAccessMask = 0x0B;
 
+    private const int KeySetValueMask = 0x00000002;
+    private const int KeyCreateSubKeyMask = 0x00000004;
+    private const int KeyCreateLinkMask = 0x00000020;
+    private const int DeleteMask = 0x00010000;
+    private const int WriteDacMask = 0x00040000;
+    private const int WriteOwnerMask = 0x00080000;
+    private const int GenericWriteMask = 0x40000000;
+    private const int GenericAllMask = 0x10000000;
+    private const int MaximumAllowedMask = 0x02000000;
+    private const string TrustedRegistryOwnerSid = "S-1-5-18";
+    private static readonly string[] TrustedRegistryWriterSids = [TrustedRegistryOwnerSid];
+    private const int BrokerKeyWriteTamperMask =
+        KeySetValueMask
+        | KeyCreateSubKeyMask
+        | KeyCreateLinkMask
+        | DeleteMask
+        | WriteDacMask
+        | WriteOwnerMask
+        | GenericWriteMask
+        | GenericAllMask
+        | MaximumAllowedMask;
+
     [SupportedOSPlatform("windows")]
     public static WebAdminBrokerAppIdPreflightResult EvaluateFromRegistryReadback(
         string configuredWorkerSid,
@@ -56,7 +79,20 @@ public static class WebAdminSessionBrokerAppIdPreflight
             return Fail(reason);
         }
 
-        return Evaluate(configuredWorkerSid, requiredServiceSids, evidence, requiredLocalService);
+        var result = Evaluate(configuredWorkerSid, requiredServiceSids, evidence, requiredLocalService);
+        if (!result.Ready)
+        {
+            return result;
+        }
+
+        if (!HasValidBrokerKeyDacls(
+                current.BrokerAppIdViews,
+                configuredWorkerSid))
+        {
+            return Fail("broker-registry-key-dacl-policy-rejected");
+        }
+
+        return result;
     }
 
     public static WebAdminBrokerAppIdPreflightResult Evaluate(
@@ -180,6 +216,92 @@ public static class WebAdminSessionBrokerAppIdPreflight
         }
 
         return normalized;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool HasValidBrokerKeyDacls(
+        IReadOnlyCollection<WebAdminBrokerRegistryKeySnapshot> snapshots,
+        string configuredWorkerSid)
+    {
+        if (!TryNormalizeSid(configuredWorkerSid, out var workerSid)
+            || !TryNormalizeSid(TrustedRegistryOwnerSid, out var trustedOwnerSid)
+            || NormalizeSidSet(TrustedRegistryWriterSids) is not { } trustedWriterSids)
+        {
+            return false;
+        }
+
+        var presentSnapshots = snapshots.Where(static snapshot => snapshot.Present).ToArray();
+        return presentSnapshots.Length == 2
+            && presentSnapshots.All(snapshot => IsValidBrokerKeyDacl(
+                snapshot,
+                workerSid,
+                trustedOwnerSid,
+                trustedWriterSids));
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool IsValidBrokerKeyDacl(
+        WebAdminBrokerRegistryKeySnapshot snapshot,
+        string workerSid,
+        string trustedOwnerSid,
+        IReadOnlySet<string> trustedRegistryWriterSids)
+    {
+        if (snapshot.DaclReadError is not null
+            || snapshot.OwnerReadError is not null
+            || snapshot.RawDaclBytes is not { Length: > 0 })
+        {
+            return false;
+        }
+
+        try
+        {
+            var descriptor = new RawSecurityDescriptor(snapshot.RawDaclBytes, 0);
+            if (!descriptor.ControlFlags.HasFlag(ControlFlags.SelfRelative)
+                || !descriptor.ControlFlags.HasFlag(ControlFlags.DiscretionaryAclPresent)
+                || !descriptor.ControlFlags.HasFlag(ControlFlags.DiscretionaryAclProtected)
+                || descriptor.DiscretionaryAcl is not { Count: > 0 } dacl)
+            {
+                return false;
+            }
+
+            if (!TryNormalizeSid(snapshot.OwnerSid ?? string.Empty, out var ownerSid)
+                || !StringComparer.OrdinalIgnoreCase.Equals(ownerSid, trustedOwnerSid))
+            {
+                return false;
+            }
+
+            foreach (var ace in dacl)
+            {
+                if (ace is not CommonAce commonAce
+                    || commonAce.IsCallback
+                    || commonAce.IsInherited
+                    || commonAce.AceFlags.HasFlag(AceFlags.InheritOnly)
+                    || commonAce.AceFlags.HasFlag(AceFlags.ObjectInherit)
+                    || commonAce.AceFlags.HasFlag(AceFlags.ContainerInherit)
+                    || commonAce.AceFlags.HasFlag(AceFlags.NoPropagateInherit)
+                    || commonAce.AceQualifier != AceQualifier.AccessAllowed)
+                {
+                    return false;
+                }
+
+                var sid = new SecurityIdentifier(commonAce.SecurityIdentifier.Value).Value;
+                if ((commonAce.AccessMask & BrokerKeyWriteTamperMask) != 0
+                    && (StringComparer.OrdinalIgnoreCase.Equals(sid, workerSid)
+                        || !trustedRegistryWriterSids.Contains(sid)))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException
+            or IndexOutOfRangeException
+            or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     private static bool TryNormalizeSid(string sid, out string normalizedSid)

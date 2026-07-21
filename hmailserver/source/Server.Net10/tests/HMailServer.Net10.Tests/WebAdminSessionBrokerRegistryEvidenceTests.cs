@@ -15,6 +15,7 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 {
     private const string WorkerSid = "S-1-5-82-2759919546-3181318411-3457700337-2112356574-3667061494";
     private const string SystemSid = "S-1-5-18";
+    private const string AlternateServiceSid = "S-1-5-21-1000-2000-3000-4000";
 
     private const string ExistingApplicationPath =
         $"Software\\Classes\\AppID\\{LegacyComRegistrationManifest.AppId}";
@@ -279,25 +280,113 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
     }
 
     [TestMethod]
-    public void RegistryReadbackAcceptsArbitraryNonEmptyBrokerKeyDaclBytes()
+    public void RegistryReadbackAcceptsExplicitReadOnlyAndTrustedSystemWriteBrokerKeyDacl()
     {
         var baseline = CreateReadyReadback();
-        var arbitraryDaclBytes = new byte[] { 0x01, 0x7F, 0xFF };
+        var validDaclBytes = SecurityDescriptorWithSddl(
+            $"D:(A;;0x20019;;;BU)(A;;FA;;;{SystemSid})");
         var current = ReplaceBrokerSnapshot(
             ReplaceBrokerSnapshot(
                 baseline,
                 FindBrokerSnapshot(baseline, RegistryView.Registry64) with
                 {
-                    RawDaclBytes = [.. arbitraryDaclBytes]
+                    RawDaclBytes = [.. validDaclBytes]
                 }),
             FindBrokerSnapshot(baseline, RegistryView.Registry32) with
             {
-                RawDaclBytes = [.. arbitraryDaclBytes]
+                RawDaclBytes = [.. validDaclBytes]
             });
 
         var result = EvaluateRegistryReadback(current, baseline);
 
         Assert.IsTrue(result.Ready, result.Reason);
+    }
+
+    [TestMethod]
+    public void RegistryReadbackRejectsConfiguredServiceSidWithBrokerKeyWriteAccess()
+    {
+        var permission = SecurityDescriptor(WorkerSid, SystemSid, AlternateServiceSid);
+        var brokerValues = new[]
+        {
+            Value("LocalService", "hMailServer"),
+            Value("LaunchPermission", permission),
+            Value("AccessPermission", permission)
+        };
+        var baseline = CreateReadbackWithBroker(brokerValues, brokerValues);
+        var daclBytes = SecurityDescriptorWithSddl(
+            $"D:(A;;FA;;;{AlternateServiceSid})(A;;0x20019;;;BU)(A;;FA;;;{SystemSid})");
+        var current = ReplaceBrokerSnapshot(
+            ReplaceBrokerSnapshot(
+                baseline,
+                FindBrokerSnapshot(baseline, RegistryView.Registry64) with
+                {
+                    RawDaclBytes = [.. daclBytes]
+                }),
+            FindBrokerSnapshot(baseline, RegistryView.Registry32) with
+            {
+                RawDaclBytes = [.. daclBytes]
+            });
+
+        var result = WebAdminSessionBrokerAppIdPreflight.EvaluateFromRegistryReadback(
+            WorkerSid,
+            [SystemSid, AlternateServiceSid],
+            current,
+            baseline,
+            new WindowsWebAdminBrokerRegistryEvidenceSource(new FakeReader()));
+
+        Assert.IsFalse(result.Ready, result.Reason);
+        Assert.AreEqual("broker-registry-key-dacl-policy-rejected", result.Reason);
+    }
+
+    [TestMethod]
+    public void RegistryReadbackRejectsMalformedNonSelfRelativeAndUnsafeBrokerKeyDacls()
+    {
+        var baseline = CreateReadyReadback();
+        var cases = new[]
+        {
+            new byte[] { 0x01, 0x7F, 0xFF },
+            NonSelfRelativeSecurityDescriptor(),
+            SecurityDescriptorWithoutDacl(),
+            SecurityDescriptorWithSddl("D:"),
+            SecurityDescriptorWithSddl(
+                $"D:(D;;FA;;;BU)(A;;FA;;;{SystemSid})"),
+            SecurityDescriptorWithSddl(
+                $"D:(A;ID;0x20019;;;BU)(A;;FA;;;{SystemSid})"),
+            SecurityDescriptorWithSddl(
+                $"D:(A;IO;0x20019;;;BU)(A;;FA;;;{SystemSid})"),
+            UnprotectedSecurityDescriptor(
+                $"D:(A;;0x20019;;;BU)(A;;FA;;;{SystemSid})"),
+            SecurityDescriptorWithCallbackAce(WorkerSid),
+            SecurityDescriptorWithObjectAce(WorkerSid),
+            SecurityDescriptorWithSddl(
+                $"D:(A;;FA;;;{WorkerSid})(A;;FA;;;{SystemSid})"),
+            SecurityDescriptorWithSddl(
+                $"D:(A;;FA;;;BU)(A;;FA;;;{SystemSid})"),
+            SecurityDescriptorWithSddl(
+                $"D:(A;;FA;;;WD)(A;;FA;;;{SystemSid})"),
+            SecurityDescriptorWithSddl(
+                $"D:(A;;0x20;;;BU)(A;;FA;;;{SystemSid})")
+        };
+
+        foreach (var daclBytes in cases)
+        {
+            var current = ReplaceBrokerSnapshot(
+                ReplaceBrokerSnapshot(
+                    baseline,
+                    FindBrokerSnapshot(baseline, RegistryView.Registry64) with
+                    {
+                        RawDaclBytes = [.. daclBytes]
+                    }),
+                FindBrokerSnapshot(baseline, RegistryView.Registry32) with
+                {
+                    RawDaclBytes = [.. daclBytes]
+                });
+
+            var result = EvaluateRegistryReadback(current, baseline);
+
+            Assert.IsFalse(result.Ready, result.Reason);
+            Assert.AreEqual("broker-registry-key-dacl-policy-rejected", result.Reason);
+        }
     }
 
     [TestMethod]
@@ -855,11 +944,13 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
         {
             snapshots.Add(Snapshot(RegistryView.Registry64, BrokerPath, broker64) with
             {
-                RawDaclBytes = [.. TestDaclBytes]
+                RawDaclBytes = [.. TestDaclBytes],
+                OwnerSid = SystemSid
             });
             snapshots.Add(Snapshot(RegistryView.Registry32, BrokerPath, broker32) with
             {
-                RawDaclBytes = [.. TestDaclBytes]
+                RawDaclBytes = [.. TestDaclBytes],
+                OwnerSid = SystemSid
             });
         }
 
@@ -1080,9 +1171,49 @@ public sealed class WebAdminSessionBrokerRegistryEvidenceTests
 
     private static byte[] SecurityDescriptorWithSddl(string sddl)
     {
-        var descriptor = new RawSecurityDescriptor(sddl);
+        var parsed = new RawSecurityDescriptor(sddl);
+        var descriptor = new RawSecurityDescriptor(
+            parsed.ControlFlags | ControlFlags.DiscretionaryAclProtected,
+            parsed.Owner,
+            parsed.Group,
+            parsed.SystemAcl,
+            parsed.DiscretionaryAcl);
         var bytes = new byte[descriptor.BinaryLength];
         descriptor.GetBinaryForm(bytes, 0);
+        return bytes;
+    }
+
+    private static byte[] UnprotectedSecurityDescriptor(string sddl)
+    {
+        var parsed = new RawSecurityDescriptor(sddl);
+        var descriptor = new RawSecurityDescriptor(
+            parsed.ControlFlags & ~ControlFlags.DiscretionaryAclProtected,
+            parsed.Owner,
+            parsed.Group,
+            parsed.SystemAcl,
+            parsed.DiscretionaryAcl);
+        var bytes = new byte[descriptor.BinaryLength];
+        descriptor.GetBinaryForm(bytes, 0);
+        return bytes;
+    }
+
+    private static byte[] SecurityDescriptorWithoutDacl()
+    {
+        var descriptor = new RawSecurityDescriptor(
+            ControlFlags.SelfRelative,
+            owner: new SecurityIdentifier(SystemSid),
+            group: new SecurityIdentifier(SystemSid),
+            systemAcl: null,
+            discretionaryAcl: null);
+        var bytes = new byte[descriptor.BinaryLength];
+        descriptor.GetBinaryForm(bytes, 0);
+        return bytes;
+    }
+
+    private static byte[] NonSelfRelativeSecurityDescriptor()
+    {
+        var bytes = SecurityDescriptorWithSddl($"D:(A;;FA;;;{SystemSid})");
+        bytes[3] = (byte)(bytes[3] & ~0x80);
         return bytes;
     }
 
