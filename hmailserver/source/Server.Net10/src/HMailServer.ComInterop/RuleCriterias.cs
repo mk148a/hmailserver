@@ -191,7 +191,36 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
         }
     }
 
-    public void Delete(int databaseId) => Unavailable();
+    public void Delete(int index)
+    {
+        var criteria = GetCriteria();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (index < 0 || index >= criteria.Count)
+        {
+            return;
+        }
+
+        var criterion = criteria[index];
+        try
+        {
+            _deleteById(criterion.Id);
+            var remaining = criteria
+                .Where((_, candidateIndex) => candidateIndex != index)
+                .ToArray();
+            Volatile.Write(ref _criteria, remaining);
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the rule criteria from the database.",
+                EFail);
+        }
+    }
 
     internal static RuleCriterias CreateAuthorized(
         IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria,

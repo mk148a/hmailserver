@@ -95,12 +95,14 @@ public sealed class RuleCriteriasComContractTests
         var criteriaError = Assert.ThrowsExactly<COMException>(() => _ = new RuleCriterias().Count);
         var criteriaRefreshError = Assert.ThrowsExactly<COMException>(new RuleCriterias().Refresh);
         var criteriaDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleCriterias().DeleteByDBID(100));
+        var criteriaIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleCriterias().Delete(0));
         var criterionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleCriteria().MatchValue);
         var criterionDeleteError = Assert.ThrowsExactly<COMException>(new RuleCriteria().Delete);
 
         Assert.AreEqual(EAccessDenied, criteriaError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criteriaRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criteriaDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, criteriaIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionDeleteError.ErrorCode);
         Assert.AreEqual(0, store.ReadCount);
@@ -295,6 +297,85 @@ public sealed class RuleCriteriasComContractTests
 
         CollectionAssert.AreEqual(
             new[] { (RuleId: 10, DatabaseId: 100) },
+            store.DeletedCriteria);
+        Assert.AreEqual(1, criteria.Count);
+        Assert.AreEqual(200, criteria[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedRule_DeleteByIndexDeletesOnlySelectedCriterionAndNoOpsForInvalidIndices()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty),
+                Snapshot(200, 10, "second", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Test"),
+                Snapshot(300, 10, "third", true, ComRulePredefinedField.From, ComRuleMatchType.NotEquals, string.Empty),
+                Snapshot(400, 20, "foreign", true, ComRulePredefinedField.To, ComRuleMatchType.Equals, string.Empty)
+            });
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+        var criteria = rules[0].Criterias;
+
+        criteria.Delete(-1);
+        criteria.Delete(3);
+
+        Assert.AreEqual(0, store.DeletedCriteria.Count);
+        Assert.AreEqual(3, criteria.Count);
+
+        criteria.Delete(1);
+
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 200) },
+            store.DeletedCriteria);
+        Assert.AreEqual(2, criteria.Count);
+        Assert.AreEqual(100, criteria[0].ID);
+        Assert.AreEqual(300, criteria[1].ID);
+        Assert.AreEqual(10, criteria[1].RuleID);
+    }
+
+    [TestMethod]
+    public void AuthorizedRule_DeleteByIndexMapsStoreFailureToEFailAndRetainsSnapshotForRetry()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty),
+                Snapshot(200, 10, "second", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Test")
+            });
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1)
+            });
+        var criteria = rules[0].Criterias;
+        store.FailDelete = true;
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(() => criteria.Delete(0));
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        CollectionAssert.AreEqual(
+            new[] { (RuleId: 10, DatabaseId: 100) },
+            store.DeletedCriteria);
+        Assert.AreEqual(2, criteria.Count);
+        Assert.AreEqual(100, criteria[0].ID);
+        Assert.AreEqual(200, criteria[1].ID);
+
+        store.FailDelete = false;
+        criteria.Delete(0);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                (RuleId: 10, DatabaseId: 100),
+                (RuleId: 10, DatabaseId: 100)
+            },
             store.DeletedCriteria);
         Assert.AreEqual(1, criteria.Count);
         Assert.AreEqual(200, criteria[0].ID);
