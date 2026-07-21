@@ -469,6 +469,52 @@ public sealed class RuleActionsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleAction_TypeSetterStagesForOwningActionAndSavePersistsIt()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1),
+                Snapshot(200, 20, ComRuleActionType.DeleteEmail, 1)
+            });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+        var action = rules[0].Actions[0];
+
+        action.Type = ComRuleActionType.RunScriptFunction;
+
+        Assert.AreEqual(ComRuleActionType.RunScriptFunction, action.Type);
+        action.Save();
+
+        CollectionAssert.AreEqual(
+            new[] { Snapshot(100, 10, ComRuleActionType.RunScriptFunction, 1) },
+            store.SavedActions);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_TypeSetterDeniesScriptFunctionForNonAdministrator()
+    {
+        var saved = new List<RuleActionAdministrationSnapshot>();
+        IInterfaceRuleActions actions = RuleActions.CreateAuthorized(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) },
+            save: saved.Add,
+            isServerAdministrator: static () => false);
+        var action = actions[0];
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => action.Type = ComRuleActionType.RunScriptFunction);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(ComRuleActionType.Reply, action.Type);
+        Assert.AreEqual(0, saved.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedRuleAction_DeleteMapsStoreFailureToEFailAndRetainsSnapshot()
     {
         var store = new MutableRuleActionAdministrationStore(
