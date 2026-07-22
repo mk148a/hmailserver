@@ -123,6 +123,10 @@ public sealed class RuleActionsComContractTests
             () => _ = new RuleAction().HeaderName);
         var actionHeaderNameSetterError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().HeaderName = "Detached");
+        var actionValueGetterError = Assert.ThrowsExactly<COMException>(
+            () => _ = new RuleAction().Value);
+        var actionValueSetterError = Assert.ThrowsExactly<COMException>(
+            () => new RuleAction().Value = "Detached");
         var actionImapFolderError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().IMAPFolder = "Detached");
         var actionScriptFunctionError = Assert.ThrowsExactly<COMException>(
@@ -143,6 +147,8 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionToError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionHeaderNameGetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionHeaderNameSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionValueGetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionValueSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionImapFolderError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionScriptFunctionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSaveError.ErrorCode);
@@ -753,6 +759,37 @@ public sealed class RuleActionsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleAction_ValueSetterStagesExactRawValuesAndSavePersistsThem()
+    {
+        var values = new[]
+        {
+            string.Empty,
+            " \t ",
+            "\r\n",
+            "%YEAR%|%FROM%",
+            "値-é-😀"
+        };
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.SetHeaderValue, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+
+        foreach (var value in values)
+        {
+            action.Value = value;
+
+            Assert.AreEqual(value, action.Value);
+            action.Save();
+        }
+
+        CollectionAssert.AreEqual(
+            values,
+            store.SavedActions.Select(static saved => saved.Value).ToArray());
+    }
+
+    [TestMethod]
     public void AuthorizedRuleAction_ImapFolderSetterRoundTripsUnicodeAndPersistsModifiedUtf7()
     {
         const string unicodeFolder = "Archive.Café";
@@ -921,6 +958,40 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(2, store.SavedActions.Count);
         Assert.AreEqual(rawHeaderName, store.SavedActions[1].HeaderName);
         Assert.AreEqual(rawHeaderName, action.HeaderName);
+        Assert.AreEqual(1, actions.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_ValueSaveMapsStoreFailureToEFailAndAllowsRetry()
+    {
+        const string rawValue = "  %YEAR%\t值\r\n";
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.SetHeaderValue, 1) })
+        {
+            FailSave = true
+        };
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var actions = rules[0].Actions;
+        var action = actions[0];
+        action.Value = rawValue;
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(action.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, store.SavedActions.Count);
+        Assert.AreEqual(rawValue, store.SavedActions[0].Value);
+        Assert.AreEqual(rawValue, action.Value);
+        Assert.AreEqual(1, actions.Count);
+        Assert.AreEqual(100, actions[0].ID);
+
+        store.FailSave = false;
+        action.Save();
+
+        Assert.AreEqual(2, store.SavedActions.Count);
+        Assert.AreEqual(rawValue, store.SavedActions[1].Value);
+        Assert.AreEqual(rawValue, action.Value);
         Assert.AreEqual(1, actions.Count);
     }
 

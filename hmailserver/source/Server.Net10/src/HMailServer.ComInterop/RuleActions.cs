@@ -386,7 +386,7 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public string HeaderName { get => Snapshot.HeaderName; set => Mutate(snapshot => snapshot with { HeaderName = value }); }
 
-    public string Value { get => Snapshot.Value; set => Unavailable(); }
+    public string Value { get => Snapshot.Value; set => Mutate(snapshot => snapshot with { Value = value }); }
 
     public int RouteID { get => Snapshot.RouteId; set => Unavailable(); }
 
