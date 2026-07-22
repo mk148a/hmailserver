@@ -535,6 +535,62 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_PassesSpfDkimAndDmarcSpamClassificationToGlobalRules()
+    {
+        SmtpReceiveRequest? capturedRuleRequest = null;
+        var spfPolicy = new FakeSpfPolicy(
+            SmtpSpfPolicyResult.FromEvaluation(
+                SmtpSpfPolicyStatus.Fail,
+                failScore: 3,
+                domain: "example.test",
+                sender: "sender@example.test",
+                heloDomain: "client.example",
+                matchedMechanism: "-all",
+                diagnostic: "SPF fail."));
+        var dkimPolicy = new FakeDkimPolicy(
+            SmtpDkimPolicyResult.FromEvaluation(
+                SmtpDkimPolicyStatus.PermFail,
+                failureScore: 5,
+                diagnostic: "DKIM fail."));
+        var dmarcPolicy = new FakeDmarcPolicy(
+            SmtpDmarcPolicyResult.FromEvaluation(
+                SmtpDmarcPolicyStatus.Fail,
+                SmtpDmarcAppliedPolicy.Reject,
+                markFailuresAsSpam: true,
+                failureScore: 6,
+                headerFromDomain: "example.test",
+                diagnostic: "DMARC fail."));
+        var queueWriter = new RecordingSmtpQueueWriter();
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            ruleProcessor: new FakeRuleProcessor(
+                request =>
+                {
+                    capturedRuleRequest = request;
+                    return SmtpRuleProcessingResult.Continue(request.MessageData);
+                }),
+            queueWriter: queueWriter,
+            spfPolicy: spfPolicy,
+            dkimPolicy: dkimPolicy,
+            dmarcPolicy: dmarcPolicy);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("From: Sender <sender@example.test>\r\nSubject: Classification\r\n\r\nBody\r\n"u8.ToArray()) with { IsAuthenticated = false },
+            CancellationToken.None);
+
+        Assert.IsTrue(result.Accepted, result.FailureResponse);
+        Assert.IsNotNull(capturedRuleRequest);
+        Assert.IsTrue(capturedRuleRequest.OriginalMessageSpamFlagged);
+        Assert.AreEqual(1, spfPolicy.Requests.Count);
+        Assert.AreEqual(1, dkimPolicy.Requests.Count);
+        Assert.AreEqual(1, dmarcPolicy.Requests.Count);
+        Assert.AreEqual(
+            (byte)(SmtpQueueWriteRequest.RecentFlag | SmtpQueueWriteRequest.SpamFlag),
+            queueWriter.Requests.Single().MessageFlags);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_MarksDmarcPolicyFailureAsSpamWithoutRejectingMessage()
     {
         var statusRuntimeState = new ServerStatusRuntimeState();

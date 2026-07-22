@@ -154,31 +154,6 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         };
         var messageFlags = spamScanResult.MessageFlags;
 
-        var ruleForcedRouteId = 0;
-        string? ruleBindAddress = null;
-        if (_ruleProcessor is not null)
-        {
-            var ruleResult = await _ruleProcessor.ProcessAsync(request, cancellationToken).ConfigureAwait(false);
-            if (!ruleResult.Accepted)
-            {
-                return SmtpReceiveResult.Failure(
-                    string.IsNullOrWhiteSpace(ruleResult.FailureResponse)
-                        ? "451 Requested action aborted: local error in processing"
-                        : ruleResult.FailureResponse);
-            }
-
-            if (ruleResult.DropMessage)
-            {
-                await EnqueueGeneratedMessagesAsync(ruleResult, request.ReceivedUtc, cancellationToken).ConfigureAwait(false);
-                return SmtpReceiveResult.Success();
-            }
-
-            await EnqueueGeneratedMessagesAsync(ruleResult, request.ReceivedUtc, cancellationToken).ConfigureAwait(false);
-            request = request with { MessageData = ruleResult.MessageData };
-            ruleForcedRouteId = ruleResult.ForcedRouteId;
-            ruleBindAddress = ruleResult.BindToAddress;
-        }
-
         var dkimPolicyResult = await RunDkimPolicyAsync(request, cancellationToken).ConfigureAwait(false);
         var dmarcPolicyResult = await RunDmarcPolicyAsync(
                 request,
@@ -215,6 +190,37 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
             }
 
             messageFlags |= SmtpQueueWriteRequest.SpamFlag;
+        }
+
+        request = request with
+        {
+            OriginalMessageSpamFlagged = request.OriginalMessageSpamFlagged == true
+                || (messageFlags & SmtpQueueWriteRequest.SpamFlag) != 0
+        };
+
+        var ruleForcedRouteId = 0;
+        string? ruleBindAddress = null;
+        if (_ruleProcessor is not null)
+        {
+            var ruleResult = await _ruleProcessor.ProcessAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!ruleResult.Accepted)
+            {
+                return SmtpReceiveResult.Failure(
+                    string.IsNullOrWhiteSpace(ruleResult.FailureResponse)
+                        ? "451 Requested action aborted: local error in processing"
+                        : ruleResult.FailureResponse);
+            }
+
+            if (ruleResult.DropMessage)
+            {
+                await EnqueueGeneratedMessagesAsync(ruleResult, request.ReceivedUtc, cancellationToken).ConfigureAwait(false);
+                return SmtpReceiveResult.Success();
+            }
+
+            await EnqueueGeneratedMessagesAsync(ruleResult, request.ReceivedUtc, cancellationToken).ConfigureAwait(false);
+            request = request with { MessageData = ruleResult.MessageData };
+            ruleForcedRouteId = ruleResult.ForcedRouteId;
+            ruleBindAddress = ruleResult.BindToAddress;
         }
 
         request = await RunAttachmentPolicyAsync(request, cancellationToken).ConfigureAwait(false);
