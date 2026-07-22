@@ -102,7 +102,7 @@ public sealed class SqlServerSmtpRuleProcessorTests
     {
         var request = CreateRequest(
             "Subject: Size\r\n\r\nBody\r\n",
-            new SmtpResolvedRecipient("person@example.test", "person@example.test", 0, IsLocal: false));
+            recipients: [new SmtpResolvedRecipient("person@example.test", "person@example.test", 0, IsLocal: false)]);
         var rule = new SmtpRuleDefinition(
             Id: 4,
             Name: "recipient and size",
@@ -194,6 +194,41 @@ public sealed class SqlServerSmtpRuleProcessorTests
         using var stream = new MemoryStream(result.GeneratedMessages[0].MessageData);
         var message = MimeMessage.Load(stream);
         Assert.AreEqual("1", message.Headers["X-hMailServer-LoopCount"]);
+    }
+
+    [TestMethod]
+    [DataRow(false, false, 1)]
+    [DataRow(false, true, 1)]
+    [DataRow(true, false, 1)]
+    [DataRow(true, true, 0)]
+    public void ApplyRules_ForwardHonorsAbortSpamFlaggedOnlyForOriginalSpam(
+        bool originalMessageSpamFlagged,
+        bool abortSpamFlagged,
+        int expectedGeneratedMessageCount)
+    {
+        var request = CreateRequest(
+            "Subject: Forward\r\n\r\nBody\r\n",
+            originalMessageSpamFlagged: originalMessageSpamFlagged);
+        var rule = CreateRule(
+            criteria: new SmtpRuleCriterion(
+                Id: 62,
+                UsePredefinedField: true,
+                PredefinedField: SmtpRuleCriteriaField.Subject,
+                HeaderName: string.Empty,
+                MatchType: SmtpRuleMatchType.Contains,
+                MatchValue: "Forward"),
+            actions:
+            [
+                CreateForwardAction(63, abortSpamFlagged),
+                CreateHeaderAction(64, "X-After-Forward", "continued")
+            ]);
+
+        var result = SqlServerSmtpRuleProcessor.ApplyRules(request, new[] { rule });
+
+        Assert.AreEqual(expectedGeneratedMessageCount, result.GeneratedMessages.Count);
+        using var stream = new MemoryStream(result.MessageData);
+        var message = MimeMessage.Load(stream);
+        Assert.AreEqual("continued", message.Headers["X-After-Forward"]);
     }
 
     [TestMethod]
@@ -327,6 +362,41 @@ public sealed class SqlServerSmtpRuleProcessorTests
         var result = SqlServerSmtpRuleProcessor.ApplyRules(request, new[] { rule });
 
         Assert.AreEqual(0, result.GeneratedMessages.Count);
+    }
+
+    [TestMethod]
+    [DataRow(false, false, 1)]
+    [DataRow(false, true, 1)]
+    [DataRow(true, false, 1)]
+    [DataRow(true, true, 0)]
+    public void ApplyRules_ReplyHonorsAbortSpamFlaggedOnlyForOriginalSpam(
+        bool originalMessageSpamFlagged,
+        bool abortSpamFlagged,
+        int expectedGeneratedMessageCount)
+    {
+        var request = CreateRequest(
+            "From: Sender <sender@example.test>\r\nSubject: Needs reply\r\n\r\nOriginal body\r\n",
+            originalMessageSpamFlagged: originalMessageSpamFlagged);
+        var rule = CreateRule(
+            criteria: new SmtpRuleCriterion(
+                Id: 682,
+                UsePredefinedField: true,
+                PredefinedField: SmtpRuleCriteriaField.Subject,
+                HeaderName: string.Empty,
+                MatchType: SmtpRuleMatchType.Contains,
+                MatchValue: "reply"),
+            actions:
+            [
+                CreateReplyAction(683, abortSpamFlagged),
+                CreateHeaderAction(684, "X-After-Reply", "continued")
+            ]);
+
+        var result = SqlServerSmtpRuleProcessor.ApplyRules(request, new[] { rule });
+
+        Assert.AreEqual(expectedGeneratedMessageCount, result.GeneratedMessages.Count);
+        using var stream = new MemoryStream(result.MessageData);
+        var message = MimeMessage.Load(stream);
+        Assert.AreEqual("continued", message.Headers["X-After-Reply"]);
     }
 
     [TestMethod]
@@ -481,7 +551,7 @@ public sealed class SqlServerSmtpRuleProcessorTests
     {
         var request = CreateRequest(
             "Subject: Copy\r\n\r\nBody\r\n",
-            new SmtpResolvedRecipient("copy@example.test", "copy@example.test", 0, IsLocal: false));
+            recipients: [new SmtpResolvedRecipient("copy@example.test", "copy@example.test", 0, IsLocal: false)]);
         var rule = CreateRule(
             criteria: new SmtpRuleCriterion(
                 Id: 70,
@@ -619,6 +689,7 @@ public sealed class SqlServerSmtpRuleProcessorTests
 
     private static SmtpReceiveRequest CreateRequest(
         string message,
+        bool? originalMessageSpamFlagged = null,
         params SmtpResolvedRecipient[] recipients)
     {
         return new SmtpReceiveRequest(
@@ -630,8 +701,49 @@ public sealed class SqlServerSmtpRuleProcessorTests
                 : recipients,
             DeclaredSize: null,
             MessageData: Encoding.Latin1.GetBytes(message),
-            ReceivedUtc: DateTimeOffset.UtcNow);
+            ReceivedUtc: DateTimeOffset.UtcNow,
+            OriginalMessageSpamFlagged: originalMessageSpamFlagged);
     }
+
+    private static SmtpRuleAction CreateForwardAction(
+        long id,
+        bool abortSpamFlagged) =>
+        new(
+            Id: id,
+            Type: SmtpRuleActionType.Forward,
+            SortOrder: (int)id,
+            ImapFolder: string.Empty,
+            Subject: string.Empty,
+            FromName: string.Empty,
+            FromAddress: string.Empty,
+            To: "forward@example.test",
+            Body: string.Empty,
+            FileName: string.Empty,
+            ScriptFunction: string.Empty,
+            HeaderName: string.Empty,
+            Value: string.Empty,
+            RouteId: 0,
+            AbortSpamFlagged: abortSpamFlagged);
+
+    private static SmtpRuleAction CreateReplyAction(
+        long id,
+        bool abortSpamFlagged) =>
+        new(
+            Id: id,
+            Type: SmtpRuleActionType.Reply,
+            SortOrder: (int)id,
+            ImapFolder: string.Empty,
+            Subject: "Auto reply",
+            FromName: "Support",
+            FromAddress: "support@example.test",
+            To: string.Empty,
+            Body: "Thanks for the message.",
+            FileName: string.Empty,
+            ScriptFunction: string.Empty,
+            HeaderName: string.Empty,
+            Value: string.Empty,
+            RouteId: 0,
+            AbortSpamFlagged: abortSpamFlagged);
 
     private static SmtpRuleDefinition CreateRule(
         SmtpRuleCriterion criteria,

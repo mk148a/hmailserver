@@ -218,6 +218,8 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
 
                     case SmtpRuleActionType.Forward:
                         if (context.CanGenerate(ruleLoopLimit) &&
+                            !string.IsNullOrWhiteSpace(action.To) &&
+                            !IsSpamAbortRequested(request, action) &&
                             TryCreateRuleRecipients(action.To, out var forwardRecipients))
                         {
                             generatedMessages.Add(
@@ -473,6 +475,11 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
             TimeSpan.FromMilliseconds(250));
     }
 
+    private static bool IsSpamAbortRequested(
+        SmtpReceiveRequest request,
+        SmtpRuleAction action) =>
+        request.OriginalMessageSpamFlagged == true && action.AbortSpamFlagged;
+
     private static bool TryCreateRuleRecipients(
         string recipientList,
         out IReadOnlyList<SmtpResolvedRecipient> recipients)
@@ -609,8 +616,17 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(_request.MailFrom) ||
-                !TryCreateRuleRecipients(_request.MailFrom, out var replyRecipients))
+            if (string.IsNullOrWhiteSpace(_request.MailFrom))
+            {
+                return false;
+            }
+
+            if (IsSpamAbortRequested(_request, action))
+            {
+                return false;
+            }
+
+            if (!TryCreateRuleRecipients(_request.MailFrom, out var replyRecipients))
             {
                 return false;
             }

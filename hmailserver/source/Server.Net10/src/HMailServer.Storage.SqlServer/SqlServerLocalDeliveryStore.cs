@@ -280,7 +280,8 @@ VALUES
             Recipients: recipients,
             DeclaredSize: message.Size,
             MessageData: messageData,
-            ReceivedUtc: message.CreatedUtc);
+            ReceivedUtc: message.CreatedUtc,
+            OriginalMessageSpamFlagged: (message.Flags & SmtpQueueWriteRequest.SpamFlag) != 0);
 
         var result = await _accountRuleProcessor!
             .ProcessAccountAsync(accountId, request, cancellationToken)
