@@ -469,4 +469,26 @@ function hmailResolveLocalScannerTarget($application, $hostname)
 	return $resolvedHostname;
 }
 
+function hmailResolveLocalScannerPort($port)
+{
+	if (is_int($port))
+		$resolvedPort = $port;
+	else if (is_string($port) && preg_match('/\A[0-9]{1,5}\z/D', $port))
+		$resolvedPort = intval($port);
+	else
+		return false;
+
+	if ($resolvedPort < 1 || $resolvedPort > 65535)
+		return false;
+
+	return $resolvedPort;
+}
+
+function hmailRejectScannerTarget()
+{
+	header("HTTP/1.1 400 Bad Request");
+	echo "0";
+	die;
+}
+
 ?>

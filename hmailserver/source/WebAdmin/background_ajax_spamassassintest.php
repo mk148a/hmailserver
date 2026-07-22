@@ -7,15 +7,11 @@
 
    hmailRequirePost();
    
-   $Hostname = hmailGetVar("Hostname", "localhost");
-   $Port = hmailGetVar("Port", 783);
+   $Hostname = hmailGetPostVar("Hostname", "localhost");
+   $Port = hmailResolveLocalScannerPort(hmailGetPostVar("Port", 783));
    $ResolvedHostname = hmailResolveLocalScannerTarget($obBaseApp, $Hostname);
-   if ($ResolvedHostname === false)
-   {
-      header("HTTP/1.1 400 Bad Request");
-      echo "0";
-      die;
-   }
+   if ($ResolvedHostname === false || $Port === false)
+      hmailRejectScannerTarget();
    
    $message = "";
    $AntiSpam = $obBaseApp->Settings->AntiSpam;
