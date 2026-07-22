@@ -355,7 +355,7 @@ public sealed class RuleAction : IInterfaceRuleAction
         }
     }
 
-    public string Subject { get => Snapshot.Subject; set => Unavailable(); }
+    public string Subject { get => Snapshot.Subject; set => Mutate(snapshot => snapshot with { Subject = value }); }
 
     public string Body { get => Snapshot.Body; set => Unavailable(); }
 
