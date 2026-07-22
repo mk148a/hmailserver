@@ -361,7 +361,7 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public string FromName { get => Snapshot.FromName; set => Mutate(snapshot => snapshot with { FromName = value }); }
 
-    public string FromAddress { get => Snapshot.FromAddress; set => Unavailable(); }
+    public string FromAddress { get => Snapshot.FromAddress; set => Mutate(snapshot => snapshot with { FromAddress = value }); }
 
     public string Filename { get => Snapshot.Filename; set => Unavailable(); }
 

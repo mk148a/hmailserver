@@ -113,6 +113,8 @@ public sealed class RuleActionsComContractTests
             () => new RuleAction().Body = "Detached");
         var actionFromNameError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().FromName = "Detached");
+        var actionFromAddressError = Assert.ThrowsExactly<COMException>(
+            () => new RuleAction().FromAddress = "Detached");
         var actionScriptFunctionError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().ScriptFunction = "Detached");
         var actionSaveError = Assert.ThrowsExactly<COMException>(new RuleAction().Save);
@@ -126,6 +128,7 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionSubjectError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionBodyError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionFromNameError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionFromAddressError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionScriptFunctionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionDeleteError.ErrorCode);
@@ -625,6 +628,31 @@ public sealed class RuleActionsComContractTests
             {
                 Snapshot(100, 10, ComRuleActionType.Reply, 1)
                     with { FromName = rawFromName }
+            },
+            store.SavedActions);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_FromAddressSetterStagesRawValueAndSavePersistsIt()
+    {
+        const string rawFromAddress = "  raw.sender+tag@example.test\t\r\n";
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+
+        action.FromAddress = rawFromAddress;
+
+        Assert.AreEqual(rawFromAddress, action.FromAddress);
+        action.Save();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1)
+                    with { FromAddress = rawFromAddress }
             },
             store.SavedActions);
     }
