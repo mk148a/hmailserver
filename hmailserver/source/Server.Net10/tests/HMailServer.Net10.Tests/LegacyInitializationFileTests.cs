@@ -119,6 +119,31 @@ public sealed class LegacyInitializationFileTests
         }
     }
 
+    [TestMethod]
+    public void LoadBackupMessagesDbOnly_EnablesOnlyLegacyIntegerOne()
+    {
+        var enabledPath = CreateTemporaryInitializationFile(
+            "[Settings]\nBackupMessagesDBOnly=1\n");
+        var disabledPath = CreateTemporaryInitializationFile(
+            "[Settings]\nBackupMessagesDBOnly=0\n");
+        var missingKeyPath = CreateTemporaryInitializationFile("[Settings]\n");
+        var missingPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ini");
+
+        try
+        {
+            Assert.IsTrue(LegacyInitializationFile.LoadBackupMessagesDbOnly(enabledPath));
+            Assert.IsFalse(LegacyInitializationFile.LoadBackupMessagesDbOnly(disabledPath));
+            Assert.IsFalse(LegacyInitializationFile.LoadBackupMessagesDbOnly(missingKeyPath));
+            Assert.IsFalse(LegacyInitializationFile.LoadBackupMessagesDbOnly(missingPath));
+        }
+        finally
+        {
+            File.Delete(enabledPath);
+            File.Delete(disabledPath);
+            File.Delete(missingKeyPath);
+        }
+    }
+
     private static string CreateTemporaryInitializationFile(string contents)
     {
         var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ini");

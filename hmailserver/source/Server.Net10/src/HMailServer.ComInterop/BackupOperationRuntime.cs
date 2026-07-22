@@ -86,17 +86,71 @@ internal sealed class BackupOperationCoordinator : IBackupOperationRuntime
 public sealed class BackupOperationRuntime : IBackupOperationRuntime
 {
     private readonly BackupOperationCoordinator _coordinator;
+    private readonly Func<CancellationToken, ValueTask>? _preflightAsync;
 
-    public BackupOperationRuntime(IBackupTaskQueue taskQueue)
+    public BackupOperationRuntime(
+        IBackupTaskQueue taskQueue,
+        Func<CancellationToken, ValueTask<BackupStartPlanEvidence>>? startPlanEvidence = null)
     {
         ArgumentNullException.ThrowIfNull(taskQueue);
         _coordinator = new(taskQueue.TryEnqueue);
+        _preflightAsync = startPlanEvidence is null
+            ? null
+            : cancellationToken => RunPreflightAsync(startPlanEvidence, cancellationToken);
     }
 
-    public BackupStartDispatchResult TryStartBackup(Func<BackupTaskRequest> taskFactory) =>
-        _coordinator.TryStartBackup(taskFactory);
+    public BackupStartDispatchResult TryStartBackup(Func<BackupTaskRequest> taskFactory)
+    {
+        ArgumentNullException.ThrowIfNull(taskFactory);
+
+        return _coordinator.TryStartBackup(
+            _preflightAsync is null
+                ? taskFactory
+                : () => WrapTaskWithPreflight(taskFactory()));
+    }
 
     public void OnThreadStopped() => _coordinator.OnThreadStopped();
+
+    private BackupTaskRequest WrapTaskWithPreflight(BackupTaskRequest task)
+    {
+        var preflightAsync = _preflightAsync!;
+        return new BackupTaskRequest(
+            cancellationToken => ExecuteWithPreflightAsync(
+                preflightAsync,
+                task.ExecuteAsync,
+                cancellationToken),
+            task.SetStatus,
+            task.Failed,
+            task.Completed,
+            task.ThreadStopped);
+    }
+
+    private static async ValueTask RunPreflightAsync(
+        Func<CancellationToken, ValueTask<BackupStartPlanEvidence>> getEvidenceAsync,
+        CancellationToken cancellationToken)
+    {
+        var evidence = await getEvidenceAsync(cancellationToken).ConfigureAwait(false);
+        var plan = BackupStartPlan.Evaluate(
+            evidence.Destination,
+            evidence.BackupOptions,
+            evidence.BackupMessagesDbOnly,
+            evidence.AllMessageFilesInDataDirectory,
+            evidence.DestinationExists);
+
+        if (!plan.CanStart)
+        {
+            throw new InvalidOperationException(plan.FailureReason);
+        }
+    }
+
+    private static async ValueTask ExecuteWithPreflightAsync(
+        Func<CancellationToken, ValueTask> preflightAsync,
+        Func<CancellationToken, ValueTask> executeAsync,
+        CancellationToken cancellationToken)
+    {
+        await preflightAsync(cancellationToken).ConfigureAwait(false);
+        await executeAsync(cancellationToken).ConfigureAwait(false);
+    }
 }
 
 [ComVisible(false)]

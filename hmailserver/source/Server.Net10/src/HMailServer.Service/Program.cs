@@ -33,6 +33,7 @@ var databaseConfiguration = LegacyInitializationFile.LoadDatabaseConfiguration(i
 var userInterfaceLanguage = LegacyInitializationFile.LoadUserInterfaceLanguage(initializationFile);
 var rewriteEnvelopeFromWhenForwarding =
     LegacyInitializationFile.LoadRewriteEnvelopeFromWhenForwarding(initializationFile);
+var backupMessagesDbOnly = LegacyInitializationFile.LoadBackupMessagesDbOnly(initializationFile);
 var applicationVersion = builder.Configuration["Application:Version"]
     ?? builder.Configuration["HMAILSERVER_VERSION"]
     ?? "1.0.0-B0";
@@ -888,6 +889,7 @@ builder.Services.AddSingleton<IApplicationRuntimeStore>(
         initializationFile));
 builder.Services.AddSingleton<IServerStatusAdministrationStore, SqlServerServerStatusAdministrationStore>();
 builder.Services.AddSingleton<ISettingsAdministrationStore, SqlServerSettingsAdministrationStore>();
+builder.Services.AddSingleton<IBackupPreflightAdministrationStore, SqlServerBackupPreflightAdministrationStore>();
 builder.Services.AddSingleton<ILogonFailureAdministrationStore, SqlServerLogonFailureAdministrationStore>();
 builder.Services.AddSingleton<IBlockedAttachmentAdministrationStore, SqlServerBlockedAttachmentAdministrationStore>();
 builder.Services.AddSingleton<IDnsBlackListAdministrationStore, SqlServerDnsBlackListAdministrationStore>();
@@ -973,7 +975,14 @@ var directoryAdministrationSnapshot = await directoryAdministrationStore
 ApplicationRuntimeHost.Configure(
     host.Services.GetRequiredService<IApplicationRuntimeStore>());
 BackupManagerRuntimeHost.Configure(
-    new BackupOperationRuntime(host.Services.GetRequiredService<IBackupTaskQueue>()));
+    new BackupOperationRuntime(
+        host.Services.GetRequiredService<IBackupTaskQueue>(),
+        new BackupStartPlanRuntime(
+            host.Services.GetRequiredService<ISettingsAdministrationStore>(),
+            host.Services.GetRequiredService<IBackupPreflightAdministrationStore>(),
+            dataDirectory,
+            backupMessagesDbOnly)
+            .GetEvidenceAsync));
 MessageIndexingRuntimeHost.Configure(
     host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());
 DatabaseAdministrationRuntimeHost.Configure(
