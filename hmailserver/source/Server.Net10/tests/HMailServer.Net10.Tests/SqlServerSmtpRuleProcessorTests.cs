@@ -580,7 +580,8 @@ public sealed class SqlServerSmtpRuleProcessorTests
     {
         var request = CreateRequest(
             "Subject: Copy\r\n\r\nBody\r\n",
-            recipients: [new SmtpResolvedRecipient("copy@example.test", "copy@example.test", 0, IsLocal: false)]);
+            recipients: [new SmtpResolvedRecipient("copy@example.test", "copy@example.test", 0, IsLocal: false)],
+            originalMessageSpamFlagged: true);
         var rule = CreateRule(
             criteria: new SmtpRuleCriterion(
                 Id: 70,
@@ -610,6 +611,7 @@ public sealed class SqlServerSmtpRuleProcessorTests
 
         Assert.AreEqual(1, result.GeneratedMessages.Count);
         Assert.AreEqual("copy@example.test", result.GeneratedMessages[0].Recipients.Single().Address);
+        Assert.IsTrue(result.GeneratedMessages[0].SpamFlagged);
         using var stream = new MemoryStream(result.GeneratedMessages[0].MessageData);
         var message = MimeMessage.Load(stream);
         Assert.AreEqual("rule", message.Headers["X-CopyRule"]);

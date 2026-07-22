@@ -248,7 +248,8 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
                                 new SmtpRuleGeneratedMessage(
                                     request.MailFrom,
                                     request.Recipients.ToArray(),
-                                    context.CreateGeneratedMessageData(copyRuleName: rule.Name)));
+                                    context.CreateGeneratedMessageData(copyRuleName: rule.Name),
+                                    SpamFlagged: request.OriginalMessageSpamFlagged == true));
                         }
 
                         break;
