@@ -87,6 +87,74 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
+    public void StartPlan_PreservesLegacyPreflightOrderAndNormalizedDestination()
+    {
+        var plan = BackupManagerComClass.CreateStartPlan(
+            destination: @"D:\MailBackup\",
+            backupOptions: 2 | 4 | 8,
+            backupMessagesDbOnly: false,
+            allMessageFilesInDataFolder: false,
+            destinationExists: false);
+
+        Assert.IsFalse(plan.CanStart);
+        Assert.AreEqual(@"D:\MailBackup", plan.Destination);
+        Assert.AreEqual("All messages are not located in the data folder.", plan.FailureReason);
+        Assert.IsTrue(plan.IncludesMessages);
+        Assert.IsTrue(plan.RequiresDataDirectoryCopy);
+    }
+
+    [TestMethod]
+    public void StartPlan_RequiresMessagePlacementEvenInDatabaseOnlyMode()
+    {
+        var plan = BackupManagerComClass.CreateStartPlan(
+            destination: @"D:\MailBackup",
+            backupOptions: 4,
+            backupMessagesDbOnly: true,
+            allMessageFilesInDataFolder: false,
+            destinationExists: true);
+
+        Assert.IsFalse(plan.CanStart);
+        Assert.AreEqual("All messages are not located in the data folder.", plan.FailureReason);
+        Assert.IsFalse(plan.RequiresDataDirectoryCopy);
+    }
+
+    [TestMethod]
+    public void StartPlan_ReportsNormalizedDestinationFailureWithoutFilesystemAccess()
+    {
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-plan-{Guid.NewGuid():N}") + "\\";
+        var plan = BackupManagerComClass.CreateStartPlan(
+            destination,
+            backupOptions: 0,
+            backupMessagesDbOnly: false,
+            allMessageFilesInDataFolder: true,
+            destinationExists: false);
+
+        Assert.IsFalse(plan.CanStart);
+        Assert.AreEqual(destination[..^1], plan.Destination);
+        Assert.AreEqual(
+            "The specified backup directory is not accessible: " + destination[..^1],
+            plan.FailureReason);
+        Assert.IsFalse(Directory.Exists(destination[..^1]));
+    }
+
+    [TestMethod]
+    public void StartPlan_AllowsConfiguredOptionsWhenLegacyPreconditionsPass()
+    {
+        var plan = BackupManagerComClass.CreateStartPlan(
+            destination: @"D:\MailBackup\",
+            backupOptions: 1 | 2 | 4 | 8,
+            backupMessagesDbOnly: false,
+            allMessageFilesInDataFolder: true,
+            destinationExists: true);
+
+        Assert.IsTrue(plan.CanStart);
+        Assert.IsNull(plan.FailureReason);
+        Assert.AreEqual(@"D:\MailBackup", plan.Destination);
+        Assert.IsTrue(plan.IncludesMessages);
+        Assert.IsTrue(plan.RequiresDataDirectoryCopy);
+    }
+
+    [TestMethod]
     public void AuthenticatedApplication_ExposesAuthorizedBackupManagerChild()
     {
         var reader = new RecordingBackupArchiveMetadataReader(2);

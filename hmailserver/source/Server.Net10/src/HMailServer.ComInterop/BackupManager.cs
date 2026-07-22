@@ -55,6 +55,19 @@ public sealed class BackupManager : IInterfaceBackupManager
     internal static BackupManager CreateAuthorized(IBackupArchiveMetadataReader? metadataReader = null) =>
         new(metadataReader ?? SevenZipBackupArchiveMetadataReader.CreateDefault());
 
+    internal static BackupStartPlan CreateStartPlan(
+        string destination,
+        int backupOptions,
+        bool backupMessagesDbOnly,
+        bool allMessageFilesInDataFolder,
+        bool destinationExists) =>
+        BackupStartPlan.Evaluate(
+            destination,
+            backupOptions,
+            backupMessagesDbOnly,
+            allMessageFilesInDataFolder,
+            destinationExists);
+
     private void EnsureAuthorized()
     {
         if (_metadataReader is null)
