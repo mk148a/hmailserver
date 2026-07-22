@@ -359,7 +359,7 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public string Body { get => Snapshot.Body; set => Mutate(snapshot => snapshot with { Body = value }); }
 
-    public string FromName { get => Snapshot.FromName; set => Unavailable(); }
+    public string FromName { get => Snapshot.FromName; set => Mutate(snapshot => snapshot with { FromName = value }); }
 
     public string FromAddress { get => Snapshot.FromAddress; set => Unavailable(); }
 
