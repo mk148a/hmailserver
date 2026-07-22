@@ -109,6 +109,8 @@ public sealed class RuleActionsComContractTests
         var actionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleAction().Type);
         var actionSubjectError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().Subject = "Detached");
+        var actionBodyError = Assert.ThrowsExactly<COMException>(
+            () => new RuleAction().Body = "Detached");
         var actionScriptFunctionError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().ScriptFunction = "Detached");
         var actionSaveError = Assert.ThrowsExactly<COMException>(new RuleAction().Save);
@@ -120,6 +122,7 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionsIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSubjectError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionBodyError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionScriptFunctionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionDeleteError.ErrorCode);
@@ -571,6 +574,60 @@ public sealed class RuleActionsComContractTests
                     with { Subject = rawSubject }
             },
             store.SavedActions);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_BodySetterStagesRawValueAndSavePersistsIt()
+    {
+        const string rawBody = "  Raw\tBody \r\nNext\rLine\n";
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+
+        action.Body = rawBody;
+
+        Assert.AreEqual(rawBody, action.Body);
+        action.Save();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1)
+                    with { Body = rawBody }
+            },
+            store.SavedActions);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_BodySaveMapsStoreFailureToEFailAndAllowsRetry()
+    {
+        const string rawBody = "  Retry\tBody\r\n";
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) })
+        {
+            FailSave = true
+        };
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+        action.Body = rawBody;
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(action.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, store.SavedActions.Count);
+        Assert.AreEqual(rawBody, store.SavedActions[0].Body);
+
+        store.FailSave = false;
+        action.Save();
+
+        Assert.AreEqual(2, store.SavedActions.Count);
+        Assert.AreEqual(rawBody, store.SavedActions[1].Body);
+        Assert.AreEqual(rawBody, action.Body);
     }
 
     [TestMethod]
