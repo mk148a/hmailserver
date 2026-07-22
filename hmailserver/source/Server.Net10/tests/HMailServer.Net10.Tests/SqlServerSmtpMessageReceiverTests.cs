@@ -62,7 +62,8 @@ public sealed class SqlServerSmtpMessageReceiverTests
                     LocalAccountId: 0,
                     IsLocal: false)
             ],
-            "Subject: Generated\r\n\r\nBody\r\n"u8.ToArray());
+            "Subject: Generated\r\n\r\nBody\r\n"u8.ToArray(),
+            SpamFlagged: true);
         var durableWriter = new RecordingSmtpQueueWriter();
         var wakeSignal = new RecordingDeliveryQueueWakeSignal();
         var receiver = new SqlServerSmtpMessageReceiver(
@@ -83,6 +84,10 @@ public sealed class SqlServerSmtpMessageReceiverTests
         CollectionAssert.AreEqual(
             new[] { "generated@example.test", "sender@example.test" },
             durableWriter.Requests.Select(static request => request.MailFrom).ToArray());
+        Assert.AreEqual(
+            (byte)(SmtpQueueWriteRequest.RecentFlag | SmtpQueueWriteRequest.SpamFlag),
+            durableWriter.Requests[0].MessageFlags);
+        Assert.AreEqual(SmtpQueueWriteRequest.RecentFlag, durableWriter.Requests[1].MessageFlags);
         Assert.AreEqual(2, wakeSignal.SignalCount);
     }
 

@@ -331,6 +331,35 @@ public sealed class SqlServerSmtpRuleProcessorTests
     }
 
     [TestMethod]
+    public void ApplyRules_ForwardCopiesSpamFlagButReplyStartsClean()
+    {
+        var request = CreateRequest(
+            "From: Sender <sender@example.test>\r\nSubject: Copy flags\r\n\r\nOriginal body\r\n",
+            originalMessageSpamFlagged: true);
+        var rule = CreateRule(
+            criteria: new SmtpRuleCriterion(
+                Id: 680,
+                UsePredefinedField: true,
+                PredefinedField: SmtpRuleCriteriaField.Subject,
+                HeaderName: string.Empty,
+                MatchType: SmtpRuleMatchType.Contains,
+                MatchValue: "flags"),
+            actions:
+            [
+                CreateForwardAction(681, abortSpamFlagged: false),
+                CreateReplyAction(682, abortSpamFlagged: false)
+            ]);
+
+        var result = SqlServerSmtpRuleProcessor.ApplyRules(request, new[] { rule });
+
+        Assert.AreEqual(2, result.GeneratedMessages.Count);
+        var forward = result.GeneratedMessages.Single(message => message.MailFrom == "sender@example.test");
+        var reply = result.GeneratedMessages.Single(message => message.MailFrom == "support@example.test");
+        Assert.IsTrue(forward.SpamFlagged);
+        Assert.IsFalse(reply.SpamFlagged);
+    }
+
+    [TestMethod]
     public void ApplyRules_ReplySkipsAutoSubmittedMessages()
     {
         var request = CreateRequest("Subject: Needs reply\r\nAuto-Submitted: auto-generated\r\n\r\nOriginal body\r\n");

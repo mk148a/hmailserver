@@ -364,7 +364,9 @@ VALUES
                         message.MailFrom,
                         message.Recipients,
                         message.MessageData,
-                        receivedUtc),
+                        receivedUtc,
+                        MessageFlags: (byte)(SmtpQueueWriteRequest.RecentFlag
+                            | (message.SpamFlagged ? SmtpQueueWriteRequest.SpamFlag : 0))),
                     cancellationToken)
                 .ConfigureAwait(false);
         }

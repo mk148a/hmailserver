@@ -226,7 +226,8 @@ ORDER BY a.actionruleid ASC, a.actionsortorder ASC, a.actionid ASC;
                                 new SmtpRuleGeneratedMessage(
                                     request.MailFrom,
                                     forwardRecipients,
-                                    context.CreateGeneratedMessageData()));
+                                    context.CreateGeneratedMessageData(),
+                                    SpamFlagged: request.OriginalMessageSpamFlagged == true));
                         }
 
                         break;
