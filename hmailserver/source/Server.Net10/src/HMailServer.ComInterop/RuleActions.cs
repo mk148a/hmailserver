@@ -369,7 +369,16 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public string IMAPFolder { get => Snapshot.ImapFolder; set => Unavailable(); }
 
-    public string ScriptFunction { get => Snapshot.ScriptFunction; set => Unavailable(); }
+    public string ScriptFunction
+    {
+        get => Snapshot.ScriptFunction;
+        set
+        {
+            _ = Snapshot;
+            EnsureServerAdministrator();
+            Mutate(snapshot => snapshot with { ScriptFunction = value });
+        }
+    }
 
     public string HeaderName { get => Snapshot.HeaderName; set => Unavailable(); }
 

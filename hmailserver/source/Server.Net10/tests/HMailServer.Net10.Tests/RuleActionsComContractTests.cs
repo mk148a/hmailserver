@@ -107,6 +107,8 @@ public sealed class RuleActionsComContractTests
         var actionsDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().DeleteByDBID(100));
         var actionsIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().Delete(0));
         var actionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleAction().Type);
+        var actionScriptFunctionError = Assert.ThrowsExactly<COMException>(
+            () => new RuleAction().ScriptFunction = "Detached");
         var actionSaveError = Assert.ThrowsExactly<COMException>(new RuleAction().Save);
         var actionDeleteError = Assert.ThrowsExactly<COMException>(new RuleAction().Delete);
 
@@ -115,6 +117,7 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionsDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionsIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionScriptFunctionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionDeleteError.ErrorCode);
         Assert.AreEqual(0, store.ReadCount);
@@ -155,7 +158,6 @@ public sealed class RuleActionsComContractTests
                      () => action.Filename = "changed.eml",
                      () => action.To = "changed@example.test",
                      () => action.IMAPFolder = "Changed",
-                     () => action.ScriptFunction = "Changed",
                      () => action.HeaderName = "X-Changed",
                      () => action.Value = "changed",
                      () => action.RouteID = 200,
@@ -511,6 +513,49 @@ public sealed class RuleActionsComContractTests
 
         Assert.AreEqual(EAccessDenied, error.ErrorCode);
         Assert.AreEqual(ComRuleActionType.Reply, action.Type);
+        Assert.AreEqual(0, saved.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_ScriptFunctionSetterStagesRawValueAndSavePersistsIt()
+    {
+        const string rawScriptFunction = "  Raw.Function \t";
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.RunScriptFunction, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+
+        action.ScriptFunction = rawScriptFunction;
+
+        Assert.AreEqual(rawScriptFunction, action.ScriptFunction);
+        action.Save();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.RunScriptFunction, 1)
+                    with { ScriptFunction = rawScriptFunction }
+            },
+            store.SavedActions);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_ScriptFunctionSetterDeniesNonAdministrator()
+    {
+        var saved = new List<RuleActionAdministrationSnapshot>();
+        IInterfaceRuleActions actions = RuleActions.CreateAuthorized(
+            new[] { Snapshot(100, 10, ComRuleActionType.RunScriptFunction, 1) },
+            save: saved.Add,
+            isServerAdministrator: static () => false);
+        var action = actions[0];
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => action.ScriptFunction = "Changed");
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual("HandleMessage", action.ScriptFunction);
         Assert.AreEqual(0, saved.Count);
     }
 
