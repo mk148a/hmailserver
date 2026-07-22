@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Xml;
+using HMailServer.Core.Abstractions;
 
 namespace HMailServer.ComInterop;
 
@@ -51,7 +52,16 @@ public sealed class BackupManager : IInterfaceBackupManager
             throw NotImplemented();
         }
 
-        _ = _operationRuntime.TryStartBackup();
+        SetStatus("Backup started");
+        var result = _operationRuntime.TryStartBackup(CreateBackupTask);
+        if (result == BackupStartDispatchResult.AlreadyRunning)
+        {
+            OnBackupFailed("Backup or restore operation is already started");
+        }
+        else if (result == BackupStartDispatchResult.QueueUnavailable)
+        {
+            OnBackupFailed("Backup operation failed because random work queue did not exist.");
+        }
     }
 
     public IInterfaceBackup LoadBackup(string xmlFile)
@@ -69,6 +79,14 @@ public sealed class BackupManager : IInterfaceBackupManager
             operationRuntime ?? BackupManagerRuntimeHost.Runtime);
 
     internal void OnThreadStopped() => _operationRuntime?.OnThreadStopped();
+
+    internal string GetStatus()
+    {
+        lock (_statusGate)
+        {
+            return _statusLog;
+        }
+    }
 
     internal static BackupStartPlan CreateStartPlan(
         string destination,
@@ -92,6 +110,33 @@ public sealed class BackupManager : IInterfaceBackupManager
                 EAccessDenied);
         }
     }
+
+    private readonly object _statusGate = new();
+    private string _statusLog = string.Empty;
+
+    private BackupTaskRequest CreateBackupTask() => new(
+        ExecuteBackupAsync,
+        SetStatus,
+        OnBackupFailed,
+        OnBackupCompleted,
+        OnThreadStopped);
+
+    private static ValueTask ExecuteBackupAsync(CancellationToken _)
+    {
+        throw NotImplemented();
+    }
+
+    private void SetStatus(string status)
+    {
+        lock (_statusGate)
+        {
+            _statusLog += status + "\r\n";
+        }
+    }
+
+    private void OnBackupFailed(string reason) => SetStatus("BACKUP ERROR: " + reason);
+
+    private void OnBackupCompleted() => SetStatus("Backup completed successfully");
 
     private static COMException NotImplemented() => new(
         "This BackupManager member is not implemented by the .NET 10 rewrite yet.",

@@ -159,7 +159,7 @@ public sealed class BackupManagerComContractTests
     {
         var enqueueCount = 0;
         var coordinator = new BackupOperationCoordinator(
-            () =>
+            _ =>
             {
                 enqueueCount++;
                 return true;
@@ -186,7 +186,7 @@ public sealed class BackupManagerComContractTests
     {
         var enqueueCount = 0;
         var coordinator = new BackupOperationCoordinator(
-            () =>
+            _ =>
             {
                 enqueueCount++;
                 return false;
@@ -207,7 +207,7 @@ public sealed class BackupManagerComContractTests
     {
         var enqueueCount = 0;
         var coordinator = new BackupOperationCoordinator(
-            () =>
+            _ =>
             {
                 enqueueCount++;
                 return true;
@@ -230,6 +230,33 @@ public sealed class BackupManagerComContractTests
         {
             BackupManagerRuntimeHost.ResetForTests();
         }
+    }
+
+    [TestMethod]
+    public async Task QueuedBackupTask_CarriesStatusFailureCompletionAndThreadStopCallbacks()
+    {
+        using var queue = new BackupTaskQueue();
+        var runtime = new BackupOperationRuntime(queue);
+        var manager = BackupManagerComClass.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(0),
+            runtime);
+
+        manager.StartBackup();
+
+        await using var reader = queue
+            .ReadAllAsync(CancellationToken.None)
+            .GetAsyncEnumerator();
+        Assert.IsTrue(await reader.MoveNextAsync());
+
+        var task = reader.Current;
+        task.SetStatus("Loading backup settings....");
+        task.Failed("Backup execution is not implemented.");
+        task.Completed();
+        task.ThreadStopped();
+
+        StringAssert.Contains(
+            manager.GetStatus(),
+            "Backup started\r\nLoading backup settings....\r\nBACKUP ERROR: Backup execution is not implemented.\r\nBackup completed successfully\r\n");
     }
 
     [TestMethod]

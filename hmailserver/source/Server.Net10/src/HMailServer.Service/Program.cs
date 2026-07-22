@@ -39,6 +39,9 @@ var applicationVersion = builder.Configuration["Application:Version"]
 builder.Services.AddSingleton<IServerAdministratorAuthenticationProvider>(
     new LegacyServerAdministratorAuthenticationProvider(administratorPasswordHash));
 builder.Services.AddSingleton<ILoggerProvider, LoggingLiveLogLoggerProvider>();
+builder.Services.AddSingleton<BackupTaskQueue>();
+builder.Services.AddSingleton<IBackupTaskQueue>(
+    serviceProvider => serviceProvider.GetRequiredService<BackupTaskQueue>());
 
 var connectionString = builder.Configuration["ConnectionStrings:hMailServer"]
     ?? builder.Configuration["HMAILSERVER_SQLSERVER_CONNECTION"]
@@ -951,6 +954,7 @@ builder.Services.AddSingleton<SmtpTcpListener>();
 builder.Services.AddSingleton<MessageSearchBackfillProcessor>();
 builder.Services.AddHostedService<ComLocalServerHostedService>();
 builder.Services.AddHostedService<ServerBootstrapper>();
+builder.Services.AddHostedService<BackupTaskHostedService>();
 builder.Services.AddHostedService<MessageSearchBackfillHostedService>();
 builder.Services.AddHostedService<DeliveryQueueProcessorHostedService>();
 builder.Services.AddHostedService<DeliveryQueueStatusMaintenanceHostedService>();
@@ -968,6 +972,8 @@ var directoryAdministrationSnapshot = await directoryAdministrationStore
     .GetDirectoriesAsync(CancellationToken.None);
 ApplicationRuntimeHost.Configure(
     host.Services.GetRequiredService<IApplicationRuntimeStore>());
+BackupManagerRuntimeHost.Configure(
+    new BackupOperationRuntime(host.Services.GetRequiredService<IBackupTaskQueue>()));
 MessageIndexingRuntimeHost.Configure(
     host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());
 DatabaseAdministrationRuntimeHost.Configure(

@@ -1,9 +1,10 @@
 using System.Runtime.InteropServices;
+using HMailServer.Core.Abstractions;
 
 namespace HMailServer.ComInterop;
 
 [ComVisible(false)]
-internal enum BackupStartDispatchResult
+public enum BackupStartDispatchResult
 {
     Queued,
     AlreadyRunning,
@@ -11,9 +12,9 @@ internal enum BackupStartDispatchResult
 }
 
 [ComVisible(false)]
-internal interface IBackupOperationRuntime
+public interface IBackupOperationRuntime
 {
-    BackupStartDispatchResult TryStartBackup();
+    BackupStartDispatchResult TryStartBackup(Func<BackupTaskRequest> taskFactory);
 
     void OnThreadStopped();
 }
@@ -22,10 +23,10 @@ internal interface IBackupOperationRuntime
 internal sealed class BackupOperationCoordinator : IBackupOperationRuntime
 {
     private readonly object _gate = new();
-    private readonly Func<bool> _tryEnqueueBackupTask;
+    private readonly Func<BackupTaskRequest, bool> _tryEnqueueBackupTask;
     private bool _isRunning;
 
-    internal BackupOperationCoordinator(Func<bool> tryEnqueueBackupTask)
+    internal BackupOperationCoordinator(Func<BackupTaskRequest, bool> tryEnqueueBackupTask)
     {
         ArgumentNullException.ThrowIfNull(tryEnqueueBackupTask);
         _tryEnqueueBackupTask = tryEnqueueBackupTask;
@@ -42,8 +43,10 @@ internal sealed class BackupOperationCoordinator : IBackupOperationRuntime
         }
     }
 
-    public BackupStartDispatchResult TryStartBackup()
+    public BackupStartDispatchResult TryStartBackup(Func<BackupTaskRequest> taskFactory)
     {
+        ArgumentNullException.ThrowIfNull(taskFactory);
+
         lock (_gate)
         {
             if (_isRunning)
@@ -52,10 +55,18 @@ internal sealed class BackupOperationCoordinator : IBackupOperationRuntime
             }
 
             _isRunning = true;
-            if (!_tryEnqueueBackupTask())
+            try
+            {
+                if (!_tryEnqueueBackupTask(taskFactory()))
+                {
+                    _isRunning = false;
+                    return BackupStartDispatchResult.QueueUnavailable;
+                }
+            }
+            catch
             {
                 _isRunning = false;
-                return BackupStartDispatchResult.QueueUnavailable;
+                throw;
             }
 
             return BackupStartDispatchResult.Queued;
@@ -72,13 +83,30 @@ internal sealed class BackupOperationCoordinator : IBackupOperationRuntime
 }
 
 [ComVisible(false)]
-internal static class BackupManagerRuntimeHost
+public sealed class BackupOperationRuntime : IBackupOperationRuntime
+{
+    private readonly BackupOperationCoordinator _coordinator;
+
+    public BackupOperationRuntime(IBackupTaskQueue taskQueue)
+    {
+        ArgumentNullException.ThrowIfNull(taskQueue);
+        _coordinator = new(taskQueue.TryEnqueue);
+    }
+
+    public BackupStartDispatchResult TryStartBackup(Func<BackupTaskRequest> taskFactory) =>
+        _coordinator.TryStartBackup(taskFactory);
+
+    public void OnThreadStopped() => _coordinator.OnThreadStopped();
+}
+
+[ComVisible(false)]
+public static class BackupManagerRuntimeHost
 {
     private static IBackupOperationRuntime? _runtime;
 
     internal static IBackupOperationRuntime? Runtime => Volatile.Read(ref _runtime);
 
-    internal static void Configure(IBackupOperationRuntime runtime)
+    public static void Configure(IBackupOperationRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         Volatile.Write(ref _runtime, runtime);
