@@ -119,6 +119,8 @@ public sealed class RuleActionsComContractTests
             () => new RuleAction().Filename = "Detached");
         var actionToError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().To = "Detached");
+        var actionImapFolderError = Assert.ThrowsExactly<COMException>(
+            () => new RuleAction().IMAPFolder = "Detached");
         var actionScriptFunctionError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().ScriptFunction = "Detached");
         var actionSaveError = Assert.ThrowsExactly<COMException>(new RuleAction().Save);
@@ -135,6 +137,7 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionFromAddressError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionFilenameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionToError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionImapFolderError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionScriptFunctionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionDeleteError.ErrorCode);
@@ -714,6 +717,56 @@ public sealed class RuleActionsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleAction_ImapFolderSetterRoundTripsUnicodeAndPersistsModifiedUtf7()
+    {
+        const string unicodeFolder = "Archive.Café";
+        const string encodedFolder = "Archive.Caf&AOk-";
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.MoveToImapFolder, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+
+        action.IMAPFolder = unicodeFolder;
+
+        Assert.AreEqual(unicodeFolder, action.IMAPFolder);
+        action.Save();
+
+        Assert.AreEqual(encodedFolder, store.SavedActions[0].ImapFolder);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_ImapFolderSetterAcceptsOpaqueAsciiValues()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.MoveToImapFolder, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+        var values = new[]
+        {
+            "%YEAR%",
+            "/Archive/Inbox",
+            "#Public.X",
+            @"\\server\share\folder"
+        };
+
+        foreach (var value in values)
+        {
+            action.IMAPFolder = value;
+
+            Assert.AreEqual(value, action.IMAPFolder);
+            action.Save();
+        }
+
+        CollectionAssert.AreEqual(
+            values,
+            store.SavedActions.Select(static saved => saved.ImapFolder).ToArray());
+    }
+
+    [TestMethod]
     public void AuthorizedRuleAction_BodySaveMapsStoreFailureToEFailAndAllowsRetry()
     {
         const string rawBody = "  Retry\tBody\r\n";
@@ -799,6 +852,35 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(2, store.SavedActions.Count);
         Assert.AreEqual(rawTo, store.SavedActions[1].To);
         Assert.AreEqual(rawTo, action.To);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_ImapFolderSaveMapsStoreFailureToEFailAndAllowsRetry()
+    {
+        const string unicodeFolder = "Archive.Café";
+        const string encodedFolder = "Archive.Caf&AOk-";
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.MoveToImapFolder, 1) })
+        {
+            FailSave = true
+        };
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+        action.IMAPFolder = unicodeFolder;
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(action.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(encodedFolder, store.SavedActions[0].ImapFolder);
+        Assert.AreEqual(unicodeFolder, action.IMAPFolder);
+
+        store.FailSave = false;
+        action.Save();
+
+        Assert.AreEqual(encodedFolder, store.SavedActions[1].ImapFolder);
+        Assert.AreEqual(unicodeFolder, action.IMAPFolder);
     }
 
     [TestMethod]
