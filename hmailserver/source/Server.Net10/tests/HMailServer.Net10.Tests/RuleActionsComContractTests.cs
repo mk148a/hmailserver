@@ -115,6 +115,8 @@ public sealed class RuleActionsComContractTests
             () => new RuleAction().FromName = "Detached");
         var actionFromAddressError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().FromAddress = "Detached");
+        var actionFilenameError = Assert.ThrowsExactly<COMException>(
+            () => new RuleAction().Filename = "Detached");
         var actionScriptFunctionError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().ScriptFunction = "Detached");
         var actionSaveError = Assert.ThrowsExactly<COMException>(new RuleAction().Save);
@@ -129,6 +131,7 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionBodyError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionFromNameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionFromAddressError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionFilenameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionScriptFunctionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionDeleteError.ErrorCode);
@@ -658,6 +661,31 @@ public sealed class RuleActionsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleAction_FilenameSetterStagesOpaqueRawValueAndSavePersistsIt()
+    {
+        const string rawFilename = @"  \\?\UNC\opaque-share\..\drop\message?.eml	 ";
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+
+        action.Filename = rawFilename;
+
+        Assert.AreEqual(rawFilename, action.Filename);
+        action.Save();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1)
+                    with { Filename = rawFilename }
+            },
+            store.SavedActions);
+    }
+
+    [TestMethod]
     public void AuthorizedRuleAction_BodySaveMapsStoreFailureToEFailAndAllowsRetry()
     {
         const string rawBody = "  Retry\tBody\r\n";
@@ -684,6 +712,35 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(2, store.SavedActions.Count);
         Assert.AreEqual(rawBody, store.SavedActions[1].Body);
         Assert.AreEqual(rawBody, action.Body);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_FilenameSaveMapsStoreFailureToEFailAndAllowsRetry()
+    {
+        const string rawFilename = @"\\?\UNC\retry-share\..\opaque\retry.eml";
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) })
+        {
+            FailSave = true
+        };
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+        action.Filename = rawFilename;
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(action.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, store.SavedActions.Count);
+        Assert.AreEqual(rawFilename, store.SavedActions[0].Filename);
+
+        store.FailSave = false;
+        action.Save();
+
+        Assert.AreEqual(2, store.SavedActions.Count);
+        Assert.AreEqual(rawFilename, store.SavedActions[1].Filename);
+        Assert.AreEqual(rawFilename, action.Filename);
     }
 
     [TestMethod]
