@@ -390,7 +390,7 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public int RouteID { get => Snapshot.RouteId; set => Mutate(snapshot => snapshot with { RouteId = value }); }
 
-    public bool AbortSpamFlagged { get => Snapshot.AbortSpamFlagged; set => Unavailable(); }
+    public bool AbortSpamFlagged { get => Snapshot.AbortSpamFlagged; set => Mutate(snapshot => snapshot with { AbortSpamFlagged = value }); }
 
     public void Save()
     {

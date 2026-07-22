@@ -135,6 +135,10 @@ public sealed class RuleActionsComContractTests
             () => _ = new RuleAction().RouteID);
         var actionRouteIdSetterError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().RouteID = 123);
+        var actionAbortSpamFlaggedGetterError = Assert.ThrowsExactly<COMException>(
+            () => _ = new RuleAction().AbortSpamFlagged);
+        var actionAbortSpamFlaggedSetterError = Assert.ThrowsExactly<COMException>(
+            () => new RuleAction().AbortSpamFlagged = true);
         var actionSaveError = Assert.ThrowsExactly<COMException>(new RuleAction().Save);
         var actionDeleteError = Assert.ThrowsExactly<COMException>(new RuleAction().Delete);
 
@@ -157,6 +161,8 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionScriptFunctionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionRouteIdGetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionRouteIdSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionAbortSpamFlaggedGetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionAbortSpamFlaggedSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionDeleteError.ErrorCode);
         Assert.AreEqual(0, store.ReadCount);
@@ -590,6 +596,77 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(2, store.SavedActions.Count);
         Assert.AreEqual(-42, store.SavedActions[1].RouteId);
         Assert.AreEqual(-42, action.RouteID);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_AbortSpamFlaggedSetterStagesBooleanValuesAndSavePersistsThem()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+
+        foreach (var value in new[] { false, true })
+        {
+            action.AbortSpamFlagged = value;
+
+            Assert.AreEqual(value, action.AbortSpamFlagged);
+            action.Save();
+        }
+
+        CollectionAssert.AreEqual(
+            new[] { false, true },
+            store.SavedActions.Select(static saved => saved.AbortSpamFlagged).ToArray());
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_AbortSpamFlaggedSaveMapsStoreFailureToEFailAndAllowsRetry()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) })
+        {
+            FailSave = true
+        };
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+        action.AbortSpamFlagged = true;
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(action.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, store.SavedActions.Count);
+        Assert.IsTrue(store.SavedActions[0].AbortSpamFlagged);
+        Assert.IsTrue(action.AbortSpamFlagged);
+
+        store.FailSave = false;
+        action.Save();
+
+        Assert.AreEqual(2, store.SavedActions.Count);
+        Assert.IsTrue(store.SavedActions[1].AbortSpamFlagged);
+        Assert.IsTrue(action.AbortSpamFlagged);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_AbortSpamFlaggedSetterAllowsNonAdministrator()
+    {
+        var saved = new List<RuleActionAdministrationSnapshot>();
+        IInterfaceRuleActions actions = RuleActions.CreateAuthorized(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) },
+            save: saved.Add,
+            isServerAdministrator: static () => false);
+        var action = actions[0];
+
+        action.AbortSpamFlagged = false;
+
+        Assert.IsFalse(action.AbortSpamFlagged);
+        action.Save();
+
+        Assert.AreEqual(1, saved.Count);
+        Assert.IsFalse(saved[0].AbortSpamFlagged);
     }
 
     [TestMethod]
