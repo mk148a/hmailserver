@@ -388,7 +388,7 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public string Value { get => Snapshot.Value; set => Mutate(snapshot => snapshot with { Value = value }); }
 
-    public int RouteID { get => Snapshot.RouteId; set => Unavailable(); }
+    public int RouteID { get => Snapshot.RouteId; set => Mutate(snapshot => snapshot with { RouteId = value }); }
 
     public bool AbortSpamFlagged { get => Snapshot.AbortSpamFlagged; set => Unavailable(); }
 

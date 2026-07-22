@@ -131,6 +131,10 @@ public sealed class RuleActionsComContractTests
             () => new RuleAction().IMAPFolder = "Detached");
         var actionScriptFunctionError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().ScriptFunction = "Detached");
+        var actionRouteIdGetterError = Assert.ThrowsExactly<COMException>(
+            () => _ = new RuleAction().RouteID);
+        var actionRouteIdSetterError = Assert.ThrowsExactly<COMException>(
+            () => new RuleAction().RouteID = 123);
         var actionSaveError = Assert.ThrowsExactly<COMException>(new RuleAction().Save);
         var actionDeleteError = Assert.ThrowsExactly<COMException>(new RuleAction().Delete);
 
@@ -151,6 +155,8 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionValueSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionImapFolderError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionScriptFunctionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionRouteIdGetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionRouteIdSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionDeleteError.ErrorCode);
         Assert.AreEqual(0, store.ReadCount);
@@ -533,6 +539,57 @@ public sealed class RuleActionsComContractTests
         CollectionAssert.AreEqual(
             new[] { Snapshot(100, 10, ComRuleActionType.RunScriptFunction, 1) },
             store.SavedActions);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_RouteIdSetterStagesRawValuesAndSavePersistsThem()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.SendUsingRoute, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+
+        foreach (var routeId in new[] { 0, -7, 123456789 })
+        {
+            action.RouteID = routeId;
+
+            Assert.AreEqual(routeId, action.RouteID);
+            action.Save();
+        }
+
+        CollectionAssert.AreEqual(
+            new[] { 0, -7, 123456789 },
+            store.SavedActions.Select(static saved => saved.RouteId).ToArray());
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_RouteIdSaveMapsStoreFailureToEFailAndAllowsRetry()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.SendUsingRoute, 1) })
+        {
+            FailSave = true
+        };
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+        action.RouteID = -42;
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(action.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(-42, store.SavedActions[0].RouteId);
+        Assert.AreEqual(-42, action.RouteID);
+
+        store.FailSave = false;
+        action.Save();
+
+        Assert.AreEqual(2, store.SavedActions.Count);
+        Assert.AreEqual(-42, store.SavedActions[1].RouteId);
+        Assert.AreEqual(-42, action.RouteID);
     }
 
     [TestMethod]
