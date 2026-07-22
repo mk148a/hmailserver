@@ -29,20 +29,29 @@ public sealed class BackupManager : IInterfaceBackupManager
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly IBackupArchiveMetadataReader? _metadataReader;
+    private readonly IBackupOperationRuntime? _operationRuntime;
 
     public BackupManager()
     {
     }
 
-    private BackupManager(IBackupArchiveMetadataReader metadataReader)
+    private BackupManager(
+        IBackupArchiveMetadataReader metadataReader,
+        IBackupOperationRuntime? operationRuntime)
     {
         _metadataReader = metadataReader;
+        _operationRuntime = operationRuntime;
     }
 
     public void StartBackup()
     {
         EnsureAuthorized();
-        throw NotImplemented();
+        if (_operationRuntime is null)
+        {
+            throw NotImplemented();
+        }
+
+        _ = _operationRuntime.TryStartBackup();
     }
 
     public IInterfaceBackup LoadBackup(string xmlFile)
@@ -52,8 +61,14 @@ public sealed class BackupManager : IInterfaceBackupManager
         return Backup.CreateAuthorized(containsOptions);
     }
 
-    internal static BackupManager CreateAuthorized(IBackupArchiveMetadataReader? metadataReader = null) =>
-        new(metadataReader ?? SevenZipBackupArchiveMetadataReader.CreateDefault());
+    internal static BackupManager CreateAuthorized(
+        IBackupArchiveMetadataReader? metadataReader = null,
+        IBackupOperationRuntime? operationRuntime = null) =>
+        new(
+            metadataReader ?? SevenZipBackupArchiveMetadataReader.CreateDefault(),
+            operationRuntime ?? BackupManagerRuntimeHost.Runtime);
+
+    internal void OnThreadStopped() => _operationRuntime?.OnThreadStopped();
 
     internal static BackupStartPlan CreateStartPlan(
         string destination,

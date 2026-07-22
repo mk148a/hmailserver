@@ -155,6 +155,84 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedStartBackup_QueuesOnceUntilThreadStops()
+    {
+        var enqueueCount = 0;
+        var coordinator = new BackupOperationCoordinator(
+            () =>
+            {
+                enqueueCount++;
+                return true;
+            });
+        IInterfaceBackupManager manager = BackupManagerComClass.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(0),
+            coordinator);
+
+        manager.StartBackup();
+        manager.StartBackup();
+
+        Assert.AreEqual(1, enqueueCount);
+        Assert.IsTrue(coordinator.IsRunning);
+
+        coordinator.OnThreadStopped();
+        manager.StartBackup();
+
+        Assert.AreEqual(2, enqueueCount);
+        Assert.IsTrue(coordinator.IsRunning);
+    }
+
+    [TestMethod]
+    public void AuthorizedStartBackup_ResetsStateWhenMaintenanceQueueIsUnavailable()
+    {
+        var enqueueCount = 0;
+        var coordinator = new BackupOperationCoordinator(
+            () =>
+            {
+                enqueueCount++;
+                return false;
+            });
+        IInterfaceBackupManager manager = BackupManagerComClass.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(0),
+            coordinator);
+
+        manager.StartBackup();
+        manager.StartBackup();
+
+        Assert.AreEqual(2, enqueueCount);
+        Assert.IsFalse(coordinator.IsRunning);
+    }
+
+    [TestMethod]
+    public void AuthenticatedApplication_UsesConfiguredBackupOperationRuntime()
+    {
+        var enqueueCount = 0;
+        var coordinator = new BackupOperationCoordinator(
+            () =>
+            {
+                enqueueCount++;
+                return true;
+            });
+        BackupManagerRuntimeHost.Configure(coordinator);
+
+        try
+        {
+            var application = new Application(
+                new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"),
+                new RecordingBackupArchiveMetadataReader(0));
+
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+            application.BackupManager.StartBackup();
+
+            Assert.AreEqual(1, enqueueCount);
+            Assert.IsTrue(coordinator.IsRunning);
+        }
+        finally
+        {
+            BackupManagerRuntimeHost.ResetForTests();
+        }
+    }
+
+    [TestMethod]
     public void AuthenticatedApplication_ExposesAuthorizedBackupManagerChild()
     {
         var reader = new RecordingBackupArchiveMetadataReader(2);
