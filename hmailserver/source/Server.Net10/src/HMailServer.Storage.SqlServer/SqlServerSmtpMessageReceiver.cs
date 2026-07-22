@@ -141,6 +141,19 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
             }
         }
 
+        var spamScanResult = await RunSpamScanAsync(request, cancellationToken).ConfigureAwait(false);
+        if (spamScanResult.FailureResult is not null)
+        {
+            return spamScanResult.FailureResult;
+        }
+
+        request = spamScanResult.Request with
+        {
+            OriginalMessageSpamFlagged = request.OriginalMessageSpamFlagged == true
+                || (spamScanResult.MessageFlags & SmtpQueueWriteRequest.SpamFlag) != 0
+        };
+        var messageFlags = spamScanResult.MessageFlags;
+
         var ruleForcedRouteId = 0;
         string? ruleBindAddress = null;
         if (_ruleProcessor is not null)
@@ -174,14 +187,6 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
                 cancellationToken)
             .ConfigureAwait(false);
 
-        var spamScanResult = await RunSpamScanAsync(request, cancellationToken).ConfigureAwait(false);
-        if (spamScanResult.FailureResult is not null)
-        {
-            return spamScanResult.FailureResult;
-        }
-
-        request = spamScanResult.Request;
-        var messageFlags = spamScanResult.MessageFlags;
         if (spfPolicyResult.MarkAsSpam)
         {
             if ((messageFlags & SmtpQueueWriteRequest.SpamFlag) == 0)

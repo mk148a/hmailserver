@@ -590,6 +590,46 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_PassesSpamClassificationToGlobalRuleProcessor()
+    {
+        var spamProcessedMessage = Encoding.Latin1.GetBytes(
+            "Subject: Original\r\n\r\nBody\r\n");
+        var spamScanner = new FakeSpamScanner(
+            MessageSpamScanResult.Spam(
+                spamProcessedMessage,
+                score: 7,
+                details: "Tagged as spam"));
+        SmtpReceiveRequest? capturedRuleRequest = null;
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            ruleProcessor: new FakeRuleProcessor(
+                request =>
+                {
+                    capturedRuleRequest = request;
+                    return SmtpRuleProcessingResult.Drop(request.MessageData);
+                }),
+            spamScanner: spamScanner,
+            spamPolicy: new MessageSpamPolicy(
+                new MessageSpamPolicyOptions
+                {
+                    AddSpamHeader = true
+                }));
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: Original\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None);
+
+        Assert.IsTrue(result.Accepted, result.FailureResponse);
+        Assert.IsNotNull(capturedRuleRequest);
+        Assert.IsTrue(capturedRuleRequest.OriginalMessageSpamFlagged);
+        StringAssert.Contains(
+            Encoding.Latin1.GetString(capturedRuleRequest.MessageData),
+            "X-hMailServer-Spam: YES");
+        Assert.AreEqual(1, spamScanner.ScannedMessages.Count);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_RejectsVirusBeforeQueueWrite()
     {
         var scanner = new FakeAntivirusScanner(
