@@ -365,7 +365,7 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public string Filename { get => Snapshot.Filename; set => Mutate(snapshot => snapshot with { Filename = value }); }
 
-    public string To { get => Snapshot.To; set => Unavailable(); }
+    public string To { get => Snapshot.To; set => Mutate(snapshot => snapshot with { To = value }); }
 
     public string IMAPFolder { get => Snapshot.ImapFolder; set => Unavailable(); }
 
