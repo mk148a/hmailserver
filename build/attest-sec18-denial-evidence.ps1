@@ -6,8 +6,12 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$AuthorizedEvidencePath,
 
+    [string]$AuthorizedResponsePath,
+
     [Parameter(Mandatory = $true)]
     [string]$WrongSidEvidencePath,
+
+    [string]$WrongSidResponsePath,
 
     [Parameter(Mandatory = $true)]
     [string]$NonPoolEvidencePath,
@@ -88,7 +92,15 @@ function Add-Check {
 $checks = New-Object 'System.Collections.Generic.List[object]'
 $matrix = Read-JsonFile $MatrixReportPath
 $authorized = Read-JsonFile $AuthorizedEvidencePath
+$authorizedResponse = $null
+if (-not [string]::IsNullOrWhiteSpace($AuthorizedResponsePath)) {
+    $authorizedResponse = Read-JsonFile $AuthorizedResponsePath
+}
 $wrongSid = Read-JsonFile $WrongSidEvidencePath
+$wrongSidResponse = $null
+if (-not [string]::IsNullOrWhiteSpace($WrongSidResponsePath)) {
+    $wrongSidResponse = Read-JsonFile $WrongSidResponsePath
+}
 $nonPool = Read-JsonFile $NonPoolEvidencePath
 $processes = Read-JsonFile $ProcessEvidencePath
 $collector = Read-JsonFile $CollectorPath
@@ -99,14 +111,16 @@ $postGraph = Read-JsonFile $PostGraphPath
 $sourcePaths = @(
     $MatrixReportPath,
     $AuthorizedEvidencePath,
+    $AuthorizedResponsePath,
     $WrongSidEvidencePath,
+    $WrongSidResponsePath,
     $NonPoolEvidencePath,
     $ProcessEvidencePath,
     $CollectorPath,
     $CleanupPath,
     $BaselineGraphPath,
     $PostGraphPath
-) | Sort-Object -Unique
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique
 $sourceHashes = foreach ($path in $sourcePaths) {
     if (Test-Path -LiteralPath $path -PathType Leaf) {
         [pscustomobject]@{
@@ -130,14 +144,18 @@ $wrongSidTest = $matrixTests | Where-Object { $_.name -eq 'authorized-process-wr
 $nonPoolTest = $matrixTests | Where-Object { $_.name -eq 'genuine-nonpool-desktop-process' } | Select-Object -First 1
 
 $authorizedCorrelation = Has-Property $authorized 'correlationId' -and [bool]$authorized.correlationId
-$authorizedServerCorrelation = $authorizedCorrelation -and [string]::Equals(
+$authorizedMatrixCorrelation = $authorizedCorrelation -and [string]::Equals(
     [string]$authorized.correlationId,
     [string]$authorizedTest.correlationId,
     [StringComparison]::Ordinal)
+$authorizedResponseCorrelation = $null -eq $authorizedResponse -or (
+    (Has-Property $authorizedResponse 'correlationId') -and
+    [string]::Equals([string]$authorized.correlationId, [string]$authorizedResponse.correlationId, [StringComparison]::Ordinal))
 
 $authorizedStageFields = @('activationHresult', 'interfaceHresult', 'methodHresult')
+$authorizedStageSource = if ($null -ne $authorizedResponse) { $authorizedResponse } else { $authorizedTest.serverEvidence }
 $authorizedStageFieldsPresent = @($authorizedStageFields | Where-Object {
-        Has-Property $authorizedTest.serverEvidence $_
+        Has-Property $authorizedStageSource $_
     }).Count -eq $authorizedStageFields.Count
 
 $poolSid = if (Has-Property $matrix.runtime 'poolSid') { [string]$matrix.runtime.poolSid } else { $null }
@@ -150,7 +168,7 @@ $authorizedTokenSteps = [int]$authorized.coImpersonateClientHresult -eq 0 -and
     [int]$authorized.residualTokenError -eq 1008
 
 Add-Check 'source-files-present' (@($sourceHashes | Where-Object { -not $_.Present }).Count -eq 0) 'Every attested source file exists.'
-Add-Check 'authorized-correlation-bound' ($authorizedCorrelation -and $authorizedServerCorrelation) 'The authorized server record has a non-empty response correlation id.'
+Add-Check 'authorized-correlation-bound' ($authorizedCorrelation -and $authorizedMatrixCorrelation -and $authorizedResponseCorrelation) 'The authorized server and response records share one non-empty correlation id.'
 Add-Check 'authorized-effective-sid' $authorizedSidBound 'The authorized server caller SID matches the configured pool SID.'
 Add-Check 'authorized-token-steps' $authorizedTokenSteps 'Impersonation, token read, revert, and residual-token cleanup are exact.'
 Add-Check 'authorized-stage-hresults' $authorizedStageFieldsPresent 'Activation, interface, and method HRESULTs are explicitly captured in the authorized response record.'

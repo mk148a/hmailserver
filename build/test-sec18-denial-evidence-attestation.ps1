@@ -64,7 +64,9 @@ try {
         )
     }
     $authorizedPath = Join-Path $temporaryDirectory 'authorized.json'
+    $authorizedResponsePath = Join-Path $temporaryDirectory 'authorized-response.json'
     $wrongPath = Join-Path $temporaryDirectory 'wrong.json'
+    $wrongResponsePath = Join-Path $temporaryDirectory 'wrong-response.json'
     $nonPoolPath = Join-Path $temporaryDirectory 'nonpool.json'
     $processPath = Join-Path $temporaryDirectory 'process.json'
     $collectorPath = Join-Path $temporaryDirectory 'collector.json'
@@ -78,7 +80,14 @@ try {
 
     Write-JsonFixture $matrixPath $matrix
     Write-JsonFixture $authorizedPath $authorizedServer
+    Write-JsonFixture $authorizedResponsePath ([pscustomobject]@{
+            correlationId = $authorizedCorrelation
+            activationHresult = 0
+            interfaceHresult = 0
+            methodHresult = 0
+        })
     Write-JsonFixture $wrongPath $wrongServer
+    Write-JsonFixture $wrongResponsePath ([pscustomobject]@{ correlationId = $wrongCorrelation })
     Write-JsonFixture $nonPoolPath ([pscustomobject]@{
             clientRecordId = $nonPoolRecord
             activationHresultHex = '0x80070005'
@@ -107,7 +116,9 @@ try {
         '-File', $attester,
         '-MatrixReportPath', $matrixPath,
         '-AuthorizedEvidencePath', $authorizedPath,
+        '-AuthorizedResponsePath', $authorizedResponsePath,
         '-WrongSidEvidencePath', $wrongPath,
+        '-WrongSidResponsePath', $wrongResponsePath,
         '-NonPoolEvidencePath', $nonPoolPath,
         '-ProcessEvidencePath', $processPath,
         '-CollectorPath', $collectorPath,
@@ -120,7 +131,7 @@ try {
     $good = Get-Content -LiteralPath $goodOutputPath -Raw | ConvertFrom-Json
     Assert-True ([bool]$good.Gate.EvidenceReadyForIndependentReview) 'complete fixture must be review-ready.'
     Assert-True (@($good.Checks).Count -eq 11) 'attestation must emit all eleven checks as an array.'
-    Assert-True ($good.SourceHashes.Count -eq 9) 'attestation must hash every source file.'
+    Assert-True ($good.SourceHashes.Count -eq 11) 'attestation must hash every source file.'
 
     $bad = $matrix | ConvertTo-Json -Depth 20 | ConvertFrom-Json
     $badNonPool = $bad.tests | Where-Object { $_.name -eq 'genuine-nonpool-desktop-process' }
