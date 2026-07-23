@@ -697,5 +697,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak inbound SMTP spam-state ordering parity'sini legacy `SMTPConnection`/`SMTPDeliverer::RunGlobalRules_` ve current `SqlServerSmtpMessageReceiver` ile read-only trace et; sonra yalniz safe runtime mutation ac. SEC-18 permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation, PHP session cutover, production service/database/data/firewall ve SMTP/IMAP behavior degistirme.
+5. Current Next Slice olarak SEC-18 icin yeni, izole ve gecici probe matrisi calistir: gercekten farkli bir unauthorized process SID'i, immutable before/after invocation counter'i, exact activation/interface/method/impersonation HRESULT'lari ve server-to-response correlation kaniti topla; sonra iki registry view'da temporary probe cleanup yoklugunu dogrula. Permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation, PHP session cutover, production service/database/data/firewall ve SMTP/IMAP behavior degistirme.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; kullanici ozellikle istemedikce push yapma.
