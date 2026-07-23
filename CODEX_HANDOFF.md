@@ -694,6 +694,11 @@ Terminal/log incelemesi:
 - Independent `hmail_security_reviewer` and `hmail_reality_checker` decisions are RED for permanent broker registration. Remaining gate work is immutable, stage-bound counter/response attestation with a separately launched non-pool client, explicit activation/interface HRESULT capture, and fresh review. Permanent broker registration, DCOM ACL writes, PHP cutover, installed Application activation, production service/database/data/firewall changes, and SMTP/IMAP behavior remain out of scope.
 - Validation: `test-webadmin-broker-staging-inventory.ps1` passed; `test-sec18-installed-application-graph-evidence.ps1` passed; full `build/test-net10.ps1 -Configuration Debug` passed `1198/1198` with one opt-in native-registry test skipped. No production code changed in this staging slice.
 
+## SEC-18 Evidence Attestation Tooling (2026-07-23)
+
+- Added `build/attest-sec18-denial-evidence.ps1` and `build/test-sec18-denial-evidence-attestation.ps1` in commit `5014073bf`. The attester hashes nine source artifacts, binds authorized/wrong-SID correlations and effective pool SID, checks impersonation/revert cleanup, verifies non-pool activation denial and counter delta, validates cleanup and installed-Application graph equality, and exits `2` fail-closed when required fields are absent.
+- `artifacts/sec18-staging/SEC18-denial-evidence-attestation-20260723.json` is `Incomplete`: only `authorized-stage-hresults` and `nonpool-client-correlation` fail. The complete/incomplete fixture test passes. Next slice is a fresh disposable probe/client capture that emits explicit activation/interface/method HRESULTs and a client correlation identifier, then reruns the attester and both independent reviewers. Permanent broker registration, DCOM ACL writes, PHP cutover, and installed Application activation remain blocked.
+
 ## Yeni Thread Icin Baslangic Talimati
 
 1. Repo kokune gec: `<repo-root>`.
