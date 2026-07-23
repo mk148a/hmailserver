@@ -686,6 +686,14 @@ Terminal/log incelemesi:
    - SQL Server FTS integration ve 100k mailbox SEARCH/SORT p95 hedefi.
    - 1k concurrent IMAP, SMTP queue latency, delivery throughput ve uzun soak memory/handle testleri.
 
+## SEC-18 Fresh Non-Pool Denial Matrix (2026-07-23)
+
+- The isolated matrix completed without touching the installed `hMailServer.Application` registration or starting the hMailServer service. The real PHP/FastCGI request reached the temporary COM method under `IIS APPPOOL\HMailWebAdminBrokerPool`, and the server captured `CoImpersonateClient=0`, `OpenThreadToken=0`, exact caller SID equality, `CoRevertToSelf=0`, and residual `ERROR_NO_TOKEN=1008`. A wrong-expected-SID control reached the method and rejected with server `0x80070005` and PHP `0x80020009`. A genuinely non-pool medium-integrity desktop PowerShell process was denied at activation with `0x80070005`; no interface/method entry occurred and invocation-counter delta was zero.
+- Evidence: `artifacts/sec18-staging/SEC18-nonpool-denial-exact-20260723-report.json`/`.md`, `SEC18-authorized-pool-evidence-exact-20260723.json`, `SEC18-method-wrong-sid-exact-20260723.json`, `SEC18-nonpool-denial-exact-20260723.json`, `SEC18-process-evidence-exact-20260723.json`, `staging-inventory-20260723-sec18-exact.json`, `SEC18-installed-application-graph-evidence-20260723-post-probe.json`, and `SEC18-temporary-probe-cleanup-20260723.json`.
+- Rollback passed after adding the disposable `sec18-identity.php` diagnostic to `rollback-sec18-nonpool-probe-20260722.ps1`: both Registry64/Registry32 temporary AppID/CLSID/ProgID keys are absent, the temporary service/process/endpoints/probe directories are absent, the IIS site/pool/PHP staging remains, and the hMailServer service remains stopped/disabled. Installed Application graph snapshots remain 22 paths/44 snapshots with identical snapshot hash `EB0D90539F2F0DD8E9F3A92755F127D30D571DED43B0A2492A416F05D05BF6A0` before/after.
+- Independent `hmail_security_reviewer` and `hmail_reality_checker` decisions are RED for permanent broker registration. Remaining gate work is immutable, stage-bound counter/response attestation with a separately launched non-pool client, explicit activation/interface HRESULT capture, and fresh review. Permanent broker registration, DCOM ACL writes, PHP cutover, installed Application activation, production service/database/data/firewall changes, and SMTP/IMAP behavior remain out of scope.
+- Validation: `test-webadmin-broker-staging-inventory.ps1` passed; `test-sec18-installed-application-graph-evidence.ps1` passed; full `build/test-net10.ps1 -Configuration Debug` passed `1198/1198` with one opt-in native-registry test skipped. No production code changed in this staging slice.
+
 ## Yeni Thread Icin Baslangic Talimati
 
 1. Repo kokune gec: `<repo-root>`.
@@ -697,5 +705,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak SEC-18 icin yeni, izole ve gecici probe matrisi calistir: gercekten farkli bir unauthorized process SID'i, immutable before/after invocation counter'i, exact activation/interface/method/impersonation HRESULT'lari ve server-to-response correlation kaniti topla; sonra iki registry view'da temporary probe cleanup yoklugunu dogrula. Permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation, PHP session cutover, production service/database/data/firewall ve SMTP/IMAP behavior degistirme.
+5. Current Next Slice olarak SEC-18 icin immutable stage-bound evidence attestation calistir: ayri bir non-pool client process SID/token kaydi, immutable before/after invocation counter hash'i, activation/interface/method/impersonation HRESULT'lari ve server-to-response correlation kaydini tek evidence bundle'a bagla; sonra iki independent reviewer ile gate'i yeniden degerlendir. Permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation, PHP session cutover, production service/database/data/firewall ve SMTP/IMAP behavior degistirme.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; kullanici ozellikle istemedikce push yapma.
