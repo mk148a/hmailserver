@@ -71,12 +71,21 @@ try {
     $processPath = Join-Path $temporaryDirectory 'process.json'
     $collectorPath = Join-Path $temporaryDirectory 'collector.json'
     $cleanupPath = Join-Path $temporaryDirectory 'cleanup.json'
+    $badCleanupPath = Join-Path $temporaryDirectory 'bad-cleanup.json'
+    $duplicateCleanupPath = Join-Path $temporaryDirectory 'duplicate-cleanup.json'
+    $rollbackPath = Join-Path $temporaryDirectory 'rollback-sec18-nonpool-probe-20260722.ps1'
     $baselinePath = Join-Path $temporaryDirectory 'baseline.json'
     $postPath = Join-Path $temporaryDirectory 'post.json'
     $matrixPath = Join-Path $temporaryDirectory 'matrix.json'
     $badMatrixPath = Join-Path $temporaryDirectory 'bad-matrix.json'
     $goodOutputPath = Join-Path $temporaryDirectory 'good-output.json'
     $badOutputPath = Join-Path $temporaryDirectory 'bad-output.json'
+    $badCleanupOutputPath = Join-Path $temporaryDirectory 'bad-cleanup-output.json'
+    $badWrongResponsePath = Join-Path $temporaryDirectory 'bad-wrong-response.json'
+    $badWrongOutputPath = Join-Path $temporaryDirectory 'bad-wrong-output.json'
+
+    'fixture rollback script' | Set-Content -LiteralPath $rollbackPath -Encoding UTF8
+    $rollbackHash = (Get-FileHash -LiteralPath $rollbackPath -Algorithm SHA256).Hash
 
     Write-JsonFixture $matrixPath $matrix
     Write-JsonFixture $authorizedPath $authorizedServer
@@ -104,9 +113,39 @@ try {
             productionApplicationTouched = $false
             servicePresent = $false
             probeProcess = @()
-            registry = @([pscustomobject]@{ Present = $false })
-            paths = @([pscustomobject]@{ Present = $false })
+            rollbackExitCode = 0
+            rollbackScript = 'artifacts/sec18-staging/rollback-sec18-nonpool-probe-20260722.ps1'
+            rollbackScriptSha256 = $rollbackHash
+            registry = @(
+                [pscustomobject]@{ View = 'Registry64'; Key = 'SOFTWARE\Classes\AppID\{A5F0D0A4-1B58-4D84-9E0D-9D5A7C8C8A53}'; Present = $false }
+                [pscustomobject]@{ View = 'Registry64'; Key = 'SOFTWARE\Classes\CLSID\{D1E02B68-7A62-4C4B-B5D4-7DA8C26C0B48}'; Present = $false }
+                [pscustomobject]@{ View = 'Registry64'; Key = 'SOFTWARE\Classes\SEC18.CallerProbe'; Present = $false }
+                [pscustomobject]@{ View = 'Registry64'; Key = 'SOFTWARE\Classes\SEC18.CallerProbe.1'; Present = $false }
+                [pscustomobject]@{ View = 'Registry32'; Key = 'SOFTWARE\Classes\AppID\{A5F0D0A4-1B58-4D84-9E0D-9D5A7C8C8A53}'; Present = $false }
+                [pscustomobject]@{ View = 'Registry32'; Key = 'SOFTWARE\Classes\CLSID\{D1E02B68-7A62-4C4B-B5D4-7DA8C26C0B48}'; Present = $false }
+                [pscustomobject]@{ View = 'Registry32'; Key = 'SOFTWARE\Classes\SEC18.CallerProbe'; Present = $false }
+                [pscustomobject]@{ View = 'Registry32'; Key = 'SOFTWARE\Classes\SEC18.CallerProbe.1'; Present = $false }
+            )
+            paths = @(
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\Probe'; Present = $false }
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\ProbeSource'; Present = $false }
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\ProbeBuild'; Present = $false }
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\ProbeSourceFx'; Present = $false }
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\WebAdmin\sec18-pool-direct-com.php'; Present = $false }
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\WebAdmin\sec18-pool-direct-com-wrong-sid.php'; Present = $false }
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\WebAdmin\caller-probe-diagnostics.php'; Present = $false }
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\WebAdmin\sec18-worker-identity.php'; Present = $false }
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\WebAdmin\sec18-identity.php'; Present = $false }
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\nonpool-client-attested.ps1'; Present = $false }
+                [pscustomobject]@{ Path = 'C:\SEC18-Staging\nonpool-client-attested.json'; Present = $false }
+            )
+            hMailService = [pscustomobject]@{ Name = 'hMailServer'; Status = 1; StartType = 4 }
         })
+    $badCleanup = Get-Content -LiteralPath $cleanupPath -Raw | ConvertFrom-Json
+    $badCleanup.rollbackExitCode = 1
+    $badCleanup.paths[0].Present = $true
+    Write-JsonFixture $badCleanupPath $badCleanup
+    '{"schemaVersion":1,"schemaVersion":2}' | Set-Content -LiteralPath $duplicateCleanupPath -Encoding UTF8
     Write-JsonFixture $baselinePath ([pscustomobject]@{ GraphPathCount = 22; SnapshotCount = 44; Snapshots = @([pscustomobject]@{ Key = 'same' }) })
     Write-JsonFixture $postPath ([pscustomobject]@{ GraphPathCount = 22; SnapshotCount = 44; Snapshots = @([pscustomobject]@{ Key = 'same' }) })
 
@@ -123,6 +162,7 @@ try {
         '-ProcessEvidencePath', $processPath,
         '-CollectorPath', $collectorPath,
         '-CleanupPath', $cleanupPath,
+        '-RollbackScriptPath', $rollbackPath,
         '-BaselineGraphPath', $baselinePath,
         '-PostGraphPath', $postPath
     )
@@ -130,8 +170,8 @@ try {
     Assert-True ($LASTEXITCODE -eq 0) 'complete attestation fixture must pass.'
     $good = Get-Content -LiteralPath $goodOutputPath -Raw | ConvertFrom-Json
     Assert-True ([bool]$good.Gate.EvidenceReadyForIndependentReview) 'complete fixture must be review-ready.'
-    Assert-True (@($good.Checks).Count -eq 11) 'attestation must emit all eleven checks as an array.'
-    Assert-True ($good.SourceHashes.Count -eq 11) 'attestation must hash every source file.'
+    Assert-True (@($good.Checks).Count -eq 14) 'attestation must emit all fourteen checks as an array.'
+    Assert-True ($good.SourceHashes.Count -eq 13) 'attestation must hash every source file and verifier script.'
 
     $bad = $matrix | ConvertTo-Json -Depth 20 | ConvertFrom-Json
     $badNonPool = $bad.tests | Where-Object { $_.name -eq 'genuine-nonpool-desktop-process' }
@@ -144,6 +184,37 @@ try {
     Assert-True ($LASTEXITCODE -eq 2) 'incomplete attestation fixture must fail closed with exit 2.'
     $badReport = Get-Content -LiteralPath $badOutputPath -Raw | ConvertFrom-Json
     Assert-True (-not [bool]$badReport.Gate.EvidenceReadyForIndependentReview) 'incomplete fixture must not be review-ready.'
+
+    $badWrongResponse = [pscustomobject]@{ correlationId = 'fixture-wrong-other' }
+    Write-JsonFixture $badWrongResponsePath $badWrongResponse
+    $badWrongArguments = $commonArguments.Clone()
+    $badWrongArguments[$badWrongArguments.IndexOf('-WrongSidResponsePath') + 1] = $badWrongResponsePath
+    $badWrongArguments += @('-OutputPath', $badWrongOutputPath, '-FailOnIncomplete')
+    & powershell.exe @badWrongArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'wrong-SID correlation mismatch must fail closed with exit 2.'
+    $badWrongReport = Get-Content -LiteralPath $badWrongOutputPath -Raw | ConvertFrom-Json
+    $wrongCorrelationCheck = $badWrongReport.Checks | Where-Object { $_.Name -eq 'wrong-sid-correlation-bound' }
+    Assert-True (-not [bool]$wrongCorrelationCheck.Passed) 'wrong-SID correlation mismatch must fail its check.'
+
+    $badCleanupArguments = $commonArguments.Clone()
+    $badCleanupArguments[$badCleanupArguments.IndexOf('-CleanupPath') + 1] = $badCleanupPath
+    $badCleanupArguments += @('-OutputPath', $badCleanupOutputPath, '-FailOnIncomplete')
+    & powershell.exe @badCleanupArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'incomplete cleanup fixture must fail closed with exit 2.'
+    $badCleanupReport = Get-Content -LiteralPath $badCleanupOutputPath -Raw | ConvertFrom-Json
+    $cleanupCheck = $badCleanupReport.Checks | Where-Object { $_.Name -eq 'cleanup-verified' }
+    $provenanceCheck = $badCleanupReport.Checks | Where-Object { $_.Name -eq 'cleanup-provenance' }
+    Assert-True (-not [bool]$cleanupCheck.Passed) 'incomplete cleanup coverage must fail its check.'
+    Assert-True (-not [bool]$provenanceCheck.Passed) 'non-zero rollback must fail provenance check.'
+
+    $duplicateArguments = $commonArguments.Clone()
+    $duplicateArguments[$duplicateArguments.IndexOf('-CleanupPath') + 1] = $duplicateCleanupPath
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & powershell.exe @duplicateArguments 2>$null | Out-Null
+    $duplicateExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+    Assert-True ($duplicateExitCode -ne 0) 'duplicate JSON properties must be rejected.'
 
     Write-Output 'SEC-18 denial evidence attestation tests passed.'
 }

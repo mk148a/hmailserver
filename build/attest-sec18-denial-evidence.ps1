@@ -26,6 +26,9 @@ param(
     [string]$CleanupPath,
 
     [Parameter(Mandatory = $true)]
+    [string]$RollbackScriptPath,
+
+    [Parameter(Mandatory = $true)]
     [string]$BaselineGraphPath,
 
     [Parameter(Mandatory = $true)]
@@ -46,7 +49,71 @@ function Read-JsonFile {
         throw "Evidence file does not exist: $Path"
     }
 
-    return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    $json = Get-Content -LiteralPath $Path -Raw
+    Assert-NoDuplicateJsonProperties $json $Path
+    return $json | ConvertFrom-Json
+}
+
+function Assert-NoDuplicateJsonProperties {
+    param(
+        [string]$Json,
+        [string]$Path
+    )
+
+    $objectStack = New-Object 'System.Collections.Generic.List[hashtable]'
+    $length = $Json.Length
+    for ($i = 0; $i -lt $length; $i++) {
+        $character = $Json[$i]
+        if ($character -eq '"') {
+            $start = $i
+            $i++
+            $escaped = $false
+            for (; $i -lt $length; $i++) {
+                if ($escaped) {
+                    $escaped = $false
+                    continue
+                }
+                if ($Json[$i] -eq '\\') {
+                    $escaped = $true
+                    continue
+                }
+                if ($Json[$i] -eq '"') {
+                    break
+                }
+            }
+            if ($i -ge $length) {
+                throw "Invalid JSON string in evidence file: $Path"
+            }
+
+            $end = $i
+            $lookahead = $i + 1
+            while ($lookahead -lt $length -and [char]::IsWhiteSpace($Json[$lookahead])) {
+                $lookahead++
+            }
+            if ($objectStack.Count -gt 0 -and $lookahead -lt $length -and $Json[$lookahead] -eq ':') {
+                $rawName = $Json.Substring($start, $end - $start + 1)
+                try {
+                    $name = @($rawName | ConvertFrom-Json)[0]
+                }
+                catch {
+                    throw "Invalid JSON property name in evidence file: $Path"
+                }
+                $currentObject = $objectStack[$objectStack.Count - 1]
+                if ($currentObject.ContainsKey([string]$name)) {
+                    throw "Duplicate JSON property '$name' in evidence file: $Path"
+                }
+                $currentObject[[string]$name] = $true
+            }
+            continue
+        }
+
+        if ($character -eq '{') {
+            $objectStack.Add(@{})
+        }
+        elseif ($character -eq '}' -and $objectStack.Count -gt 0) {
+            $objectStack.RemoveAt($objectStack.Count - 1)
+        }
+    }
 }
 
 function Has-Property {
@@ -86,7 +153,22 @@ function Add-Check {
             Name = $Name
             Passed = $Passed
             Detail = $Detail
-        })
+    })
+}
+
+function Test-ExactStringSet {
+    param(
+        [string[]]$Expected,
+        [string[]]$Actual
+    )
+
+    $expectedSet = @($Expected | Sort-Object -Unique)
+    $actualSet = @($Actual | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    if ($Expected.Count -ne $Actual.Count -or $expectedSet.Count -ne $actualSet.Count) {
+        return $false
+    }
+
+    return @($expectedSet | Where-Object { $_ -notin $actualSet }).Count -eq 0
 }
 
 $checks = New-Object 'System.Collections.Generic.List[object]'
@@ -108,6 +190,7 @@ $cleanup = Read-JsonFile $CleanupPath
 $baselineGraph = Read-JsonFile $BaselineGraphPath
 $postGraph = Read-JsonFile $PostGraphPath
 
+$attesterScriptPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
 $sourcePaths = @(
     $MatrixReportPath,
     $AuthorizedEvidencePath,
@@ -118,8 +201,10 @@ $sourcePaths = @(
     $ProcessEvidencePath,
     $CollectorPath,
     $CleanupPath,
+    $RollbackScriptPath,
     $BaselineGraphPath,
-    $PostGraphPath
+    $PostGraphPath,
+    $attesterScriptPath
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique
 $sourceHashes = foreach ($path in $sourcePaths) {
     if (Test-Path -LiteralPath $path -PathType Leaf) {
@@ -151,6 +236,13 @@ $authorizedMatrixCorrelation = $authorizedCorrelation -and [string]::Equals(
 $authorizedResponseCorrelation = $null -eq $authorizedResponse -or (
     (Has-Property $authorizedResponse 'correlationId') -and
     [string]::Equals([string]$authorized.correlationId, [string]$authorizedResponse.correlationId, [StringComparison]::Ordinal))
+$wrongSidCorrelation = $null -ne $wrongSidTest -and
+    (Has-Property $wrongSid 'correlationId') -and
+    (Has-Property $wrongSidTest 'correlationId') -and
+    [string]::Equals([string]$wrongSid.correlationId, [string]$wrongSidTest.correlationId, [StringComparison]::Ordinal) -and
+    ($null -eq $wrongSidResponse -or (
+        (Has-Property $wrongSidResponse 'correlationId') -and
+        [string]::Equals([string]$wrongSid.correlationId, [string]$wrongSidResponse.correlationId, [StringComparison]::Ordinal)))
 
 $authorizedStageFields = @('activationHresult', 'interfaceHresult', 'methodHresult')
 $authorizedStageSource = if ($null -ne $authorizedResponse) { $authorizedResponse } else { $authorizedTest.serverEvidence }
@@ -167,6 +259,60 @@ $authorizedTokenSteps = [int]$authorized.coImpersonateClientHresult -eq 0 -and
     [int]$authorized.coRevertToSelfHresult -eq 0 -and
     [int]$authorized.residualTokenError -eq 1008
 
+$expectedRegistry = @(
+    'Registry64|SOFTWARE\Classes\AppID\{A5F0D0A4-1B58-4D84-9E0D-9D5A7C8C8A53}',
+    'Registry64|SOFTWARE\Classes\CLSID\{D1E02B68-7A62-4C4B-B5D4-7DA8C26C0B48}',
+    'Registry64|SOFTWARE\Classes\SEC18.CallerProbe',
+    'Registry64|SOFTWARE\Classes\SEC18.CallerProbe.1',
+    'Registry32|SOFTWARE\Classes\AppID\{A5F0D0A4-1B58-4D84-9E0D-9D5A7C8C8A53}',
+    'Registry32|SOFTWARE\Classes\CLSID\{D1E02B68-7A62-4C4B-B5D4-7DA8C26C0B48}',
+    'Registry32|SOFTWARE\Classes\SEC18.CallerProbe',
+    'Registry32|SOFTWARE\Classes\SEC18.CallerProbe.1'
+)
+$expectedCleanupPaths = @(
+    'C:\SEC18-Staging\Probe',
+    'C:\SEC18-Staging\ProbeSource',
+    'C:\SEC18-Staging\ProbeBuild',
+    'C:\SEC18-Staging\ProbeSourceFx',
+    'C:\SEC18-Staging\WebAdmin\sec18-pool-direct-com.php',
+    'C:\SEC18-Staging\WebAdmin\sec18-pool-direct-com-wrong-sid.php',
+    'C:\SEC18-Staging\WebAdmin\caller-probe-diagnostics.php',
+    'C:\SEC18-Staging\WebAdmin\sec18-worker-identity.php',
+    'C:\SEC18-Staging\WebAdmin\sec18-identity.php',
+    'C:\SEC18-Staging\nonpool-client-attested.ps1',
+    'C:\SEC18-Staging\nonpool-client-attested.json'
+)
+$actualRegistry = @($cleanup.registry | ForEach-Object {
+        if ((Has-Property $_ 'View') -and (Has-Property $_ 'Key')) {
+            '{0}|{1}' -f ([string]$_.View), ([string]$_.Key)
+        }
+    })
+$actualCleanupPaths = @($cleanup.paths | ForEach-Object {
+        if (Has-Property $_ 'Path') { [string]$_.Path }
+    })
+$cleanupCoverageExact = (Test-ExactStringSet $expectedRegistry $actualRegistry) -and
+    (Test-ExactStringSet $expectedCleanupPaths $actualCleanupPaths) -and
+    @($cleanup.registry | Where-Object { (Has-Property $_ 'Present') -and [bool]$_.Present }).Count -eq 0 -and
+    @($cleanup.paths | Where-Object { (Has-Property $_ 'Present') -and [bool]$_.Present }).Count -eq 0
+$rollbackHash = (Get-FileHash -LiteralPath $RollbackScriptPath -Algorithm SHA256).Hash
+$cleanupRollbackName = if (Has-Property $cleanup 'rollbackScript') { Split-Path -Leaf ([string]$cleanup.rollbackScript) } else { $null }
+$cleanupProvenance = (Has-Property $cleanup 'rollbackExitCode') -and
+    [int]$cleanup.rollbackExitCode -eq 0 -and
+    (Has-Property $cleanup 'rollbackScriptSha256') -and
+    [string]::Equals([string]$cleanup.rollbackScriptSha256, $rollbackHash, [StringComparison]::OrdinalIgnoreCase) -and
+    [string]::Equals($cleanupRollbackName, (Split-Path -Leaf $RollbackScriptPath), [StringComparison]::OrdinalIgnoreCase)
+$hMailServiceSafe = (Has-Property $cleanup 'hMailService') -and
+    (Has-Property $cleanup.hMailService 'Name') -and
+    [string]::Equals([string]$cleanup.hMailService.Name, 'hMailServer', [StringComparison]::OrdinalIgnoreCase) -and
+    [int]$cleanup.hMailService.Status -eq 1 -and
+    [int]$cleanup.hMailService.StartType -eq 4
+$rollbackSourcePresent = @($sourceHashes | Where-Object {
+        [string]::Equals([IO.Path]::GetFullPath($_.Path), [IO.Path]::GetFullPath($RollbackScriptPath), [StringComparison]::OrdinalIgnoreCase) -and $_.Present
+    }).Count -eq 1
+$attesterSourcePresent = @($sourceHashes | Where-Object {
+        [string]::Equals([IO.Path]::GetFullPath($_.Path), $attesterScriptPath, [StringComparison]::OrdinalIgnoreCase) -and $_.Present
+    }).Count -eq 1
+
 Add-Check 'source-files-present' (@($sourceHashes | Where-Object { -not $_.Present }).Count -eq 0) 'Every attested source file exists.'
 Add-Check 'authorized-correlation-bound' ($authorizedCorrelation -and $authorizedMatrixCorrelation -and $authorizedResponseCorrelation) 'The authorized server and response records share one non-empty correlation id.'
 Add-Check 'authorized-effective-sid' $authorizedSidBound 'The authorized server caller SID matches the configured pool SID.'
@@ -178,6 +324,7 @@ Add-Check 'wrong-sid-method-denial' (
     [int]$wrongSid.errorHresult -eq -2147024891 -and
     [int]$wrongSid.invocationCount -gt 0 -and
     [bool]$wrongSid.correlationId) 'The wrong-expected-SID method denial is bound to one server invocation and correlation id.'
+Add-Check 'wrong-sid-correlation-bound' $wrongSidCorrelation 'The wrong-SID server, matrix, and optional response records share one correlation id.'
 Add-Check 'nonpool-activation-denial' (
     [string]$nonPool.activationHresultHex -eq '0x80070005' -and
     [int]$nonPool.invocationCountDelta -eq 0 -and
@@ -196,8 +343,10 @@ Add-Check 'cleanup-verified' (
     [bool]$cleanup.productionApplicationTouched -eq $false -and
     [bool]$cleanup.servicePresent -eq $false -and
     @($cleanup.probeProcess).Count -eq 0 -and
-    @($cleanup.registry | Where-Object { $_.Present }).Count -eq 0 -and
-    @($cleanup.paths | Where-Object { $_.Present }).Count -eq 0) 'Temporary service, process, registry objects, endpoints, and probe paths are absent.'
+    $cleanupCoverageExact -and
+    $hMailServiceSafe) 'Temporary service, process, registry objects, endpoints, probe paths, and hMailServer state are exactly accounted for.'
+Add-Check 'cleanup-provenance' $cleanupProvenance 'Rollback completed successfully and its exact script hash/name are bound to the cleanup evidence.'
+Add-Check 'attester-provenance' ($rollbackSourcePresent -and $attesterSourcePresent) 'The rollback script and attester script are present in the hashed source set.'
 $baselineHash = Get-SnapshotHash $baselineGraph
 $postHash = Get-SnapshotHash $postGraph
 Add-Check 'installed-application-graph-unchanged' (
