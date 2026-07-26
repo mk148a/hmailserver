@@ -320,11 +320,44 @@ function Get-CallerTokenEvidence {
     }
 }
 
+function Get-HMailServerServiceEvidence {
+    $service = $null
+    try {
+        $service = Get-Service -Name 'hMailServer' -ErrorAction SilentlyContinue
+        $processes = @(Get-Process -Name 'hMailServer' -ErrorAction SilentlyContinue)
+        return [pscustomobject]@{
+            Name = 'hMailServer'
+            Present = $null -ne $service
+            Status = if ($null -ne $service) { [int]$service.Status } else { $null }
+            StatusName = if ($null -ne $service) { [string]$service.Status } else { $null }
+            StartType = if ($null -ne $service) { [int]$service.StartType } else { $null }
+            StartTypeName = if ($null -ne $service) { [string]$service.StartType } else { $null }
+            ProcessPresent = $processes.Count -gt 0
+            ProcessIds = @($processes | ForEach-Object { [int]$_.Id })
+            ReadError = $null
+        }
+    }
+    catch {
+        return [pscustomobject]@{
+            Name = 'hMailServer'
+            Present = $null -ne $service
+            Status = if ($null -ne $service) { [int]$service.Status } else { $null }
+            StatusName = if ($null -ne $service) { [string]$service.Status } else { $null }
+            StartType = if ($null -ne $service) { [int]$service.StartType } else { $null }
+            StartTypeName = if ($null -ne $service) { [string]$service.StartType } else { $null }
+            ProcessPresent = $null
+            ProcessIds = @()
+            ReadError = $_.Exception.Message
+        }
+    }
+}
+
 $registryEvidence = @(
     Get-RegistryViewEvidence -View ([Microsoft.Win32.RegistryView]::Registry64) -AppId $ApplicationAppId
     Get-RegistryViewEvidence -View ([Microsoft.Win32.RegistryView]::Registry32) -AppId $ApplicationAppId
 )
 $iisEvidence = Get-IisInventory -RequestedWebAdminPath $WebAdminPath
+$hMailServerService = Get-HMailServerServiceEvidence
 $workerSids = @($iisEvidence.Pools | ForEach-Object { $_.WorkerSid } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
 $callerEvidence = Get-CallerTokenEvidence -Path $CallerTokenEvidencePath -ExpectedWorkerSids $workerSids
 $webAdminPathExists = Test-Path -LiteralPath $WebAdminPath -PathType Container
@@ -333,7 +366,12 @@ $hasDedicatedPoolCandidate = @($iisEvidence.Pools | Where-Object { $_.DedicatedP
 $hasExplicitApplicationAcl = @($registryEvidence | Where-Object {
         $_.ApplicationAppId.LaunchPermission.Present -and $_.ApplicationAppId.AccessPermission.Present
     }).Count -gt 0
-$stagingEvidenceComplete = $webAdminPathExists -and $hasExistingApplicationAppId -and $hasDedicatedPoolCandidate -and $callerEvidence.Valid
+$hMailServerServiceSafe = $hMailServerService.Present -and
+    [string]::Equals([string]$hMailServerService.Name, 'hMailServer', [StringComparison]::OrdinalIgnoreCase) -and
+    [string]::Equals([string]$hMailServerService.StatusName, 'Stopped', [StringComparison]::OrdinalIgnoreCase) -and
+    [string]::Equals([string]$hMailServerService.StartTypeName, 'Disabled', [StringComparison]::OrdinalIgnoreCase) -and
+    $hMailServerService.ProcessPresent -eq $false
+$stagingEvidenceComplete = $webAdminPathExists -and $hasExistingApplicationAppId -and $hasDedicatedPoolCandidate -and $callerEvidence.Valid -and $hMailServerServiceSafe
 
 $report = [pscustomobject]@{
     SchemaVersion = 1
@@ -344,12 +382,14 @@ $report = [pscustomobject]@{
     ApplicationAppId = $ApplicationAppId
     Registry = $registryEvidence
     Iis = $iisEvidence
+    HMailServerService = $hMailServerService
     CallerTokenEvidence = $callerEvidence
     Gate = [pscustomobject]@{
         DedicatedPoolCandidate = $hasDedicatedPoolCandidate
         ExistingApplicationAppIdPresent = $hasExistingApplicationAppId
         ExistingApplicationHasExplicitAcl = $hasExplicitApplicationAcl
         CallerTokenMatchesWorkerSid = $callerEvidence.Valid
+        HMailServerServiceSafe = $hMailServerServiceSafe
         ReadyForBrokerRegistration = $false
         Status = if ($stagingEvidenceComplete) { 'EvidenceCollectedSecurityReviewRequired' } else { 'Incomplete' }
         Reason = 'This collector never approves broker registration. A reviewed broker-only AppID ACL and method-level caller-SID checks remain required.'

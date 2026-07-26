@@ -70,6 +70,7 @@ try {
     $nonPoolPath = Join-Path $temporaryDirectory 'nonpool.json'
     $processPath = Join-Path $temporaryDirectory 'process.json'
     $collectorPath = Join-Path $temporaryDirectory 'collector.json'
+    $collectorScriptPath = Join-Path $temporaryDirectory 'get-webadmin-broker-staging-inventory.ps1'
     $cleanupPath = Join-Path $temporaryDirectory 'cleanup.json'
     $badCleanupPath = Join-Path $temporaryDirectory 'bad-cleanup.json'
     $duplicateCleanupPath = Join-Path $temporaryDirectory 'duplicate-cleanup.json'
@@ -85,6 +86,7 @@ try {
     $badWrongOutputPath = Join-Path $temporaryDirectory 'bad-wrong-output.json'
 
     'fixture rollback script' | Set-Content -LiteralPath $rollbackPath -Encoding UTF8
+    'fixture collector script' | Set-Content -LiteralPath $collectorScriptPath -Encoding UTF8
     $rollbackHash = (Get-FileHash -LiteralPath $rollbackPath -Algorithm SHA256).Hash
 
     Write-JsonFixture $matrixPath $matrix
@@ -107,7 +109,17 @@ try {
     Write-JsonFixture $processPath @([pscustomobject]@{ Name = 'php-cgi.exe'; UserSid = $poolSid })
     Write-JsonFixture $collectorPath ([pscustomobject]@{
             CallerTokenEvidence = [pscustomobject]@{ Valid = $true }
-            Gate = [pscustomobject]@{ CallerTokenMatchesWorkerSid = $true; DedicatedPoolCandidate = $true }
+            HMailServerService = [pscustomobject]@{
+                Name = 'hMailServer'
+                Present = $true
+                Status = 1
+                StatusName = 'Stopped'
+                StartType = 4
+                StartTypeName = 'Disabled'
+                ProcessPresent = $false
+                ProcessIds = @()
+            }
+            Gate = [pscustomobject]@{ CallerTokenMatchesWorkerSid = $true; DedicatedPoolCandidate = $true; HMailServerServiceSafe = $true }
         })
     Write-JsonFixture $cleanupPath ([pscustomobject]@{
             productionApplicationTouched = $false
@@ -161,6 +173,7 @@ try {
         '-NonPoolEvidencePath', $nonPoolPath,
         '-ProcessEvidencePath', $processPath,
         '-CollectorPath', $collectorPath,
+        '-CollectorScriptPath', $collectorScriptPath,
         '-CleanupPath', $cleanupPath,
         '-RollbackScriptPath', $rollbackPath,
         '-BaselineGraphPath', $baselinePath,
@@ -170,8 +183,8 @@ try {
     Assert-True ($LASTEXITCODE -eq 0) 'complete attestation fixture must pass.'
     $good = Get-Content -LiteralPath $goodOutputPath -Raw | ConvertFrom-Json
     Assert-True ([bool]$good.Gate.EvidenceReadyForIndependentReview) 'complete fixture must be review-ready.'
-    Assert-True (@($good.Checks).Count -eq 14) 'attestation must emit all fourteen checks as an array.'
-    Assert-True ($good.SourceHashes.Count -eq 13) 'attestation must hash every source file and verifier script.'
+    Assert-True (@($good.Checks).Count -eq 16) 'attestation must emit all sixteen checks as an array.'
+    Assert-True ($good.SourceHashes.Count -eq 14) 'attestation must hash every source file and verifier script.'
 
     $bad = $matrix | ConvertTo-Json -Depth 20 | ConvertFrom-Json
     $badNonPool = $bad.tests | Where-Object { $_.name -eq 'genuine-nonpool-desktop-process' }

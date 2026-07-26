@@ -23,6 +23,9 @@ param(
     [string]$CollectorPath,
 
     [Parameter(Mandatory = $true)]
+    [string]$CollectorScriptPath,
+
+    [Parameter(Mandatory = $true)]
     [string]$CleanupPath,
 
     [Parameter(Mandatory = $true)]
@@ -200,6 +203,7 @@ $sourcePaths = @(
     $NonPoolEvidencePath,
     $ProcessEvidencePath,
     $CollectorPath,
+    $CollectorScriptPath,
     $CleanupPath,
     $RollbackScriptPath,
     $BaselineGraphPath,
@@ -312,6 +316,22 @@ $rollbackSourcePresent = @($sourceHashes | Where-Object {
 $attesterSourcePresent = @($sourceHashes | Where-Object {
         [string]::Equals([IO.Path]::GetFullPath($_.Path), $attesterScriptPath, [StringComparison]::OrdinalIgnoreCase) -and $_.Present
     }).Count -eq 1
+$collectorScriptSourcePresent = @($sourceHashes | Where-Object {
+        [string]::Equals([IO.Path]::GetFullPath($_.Path), [IO.Path]::GetFullPath($CollectorScriptPath), [StringComparison]::OrdinalIgnoreCase) -and $_.Present
+    }).Count -eq 1
+$collectorService = if (Has-Property $collector 'HMailServerService') { $collector.HMailServerService } else { $null }
+$cleanupService = if (Has-Property $cleanup 'hMailService') { $cleanup.hMailService } else { $null }
+$collectorServiceStateBound = $null -ne $collectorService -and
+    [string]::Equals([string]$collectorService.Name, 'hMailServer', [StringComparison]::OrdinalIgnoreCase) -and
+    [bool]$collectorService.Present -and
+    [string]::Equals([string]$collectorService.StatusName, 'Stopped', [StringComparison]::OrdinalIgnoreCase) -and
+    [string]::Equals([string]$collectorService.StartTypeName, 'Disabled', [StringComparison]::OrdinalIgnoreCase) -and
+    [bool]$collectorService.ProcessPresent -eq $false -and
+    [bool]$collector.Gate.HMailServerServiceSafe -and
+    $null -ne $cleanupService -and
+    [string]::Equals([string]$cleanupService.Name, [string]$collectorService.Name, [StringComparison]::OrdinalIgnoreCase) -and
+    [int]$cleanupService.Status -eq [int]$collectorService.Status -and
+    [int]$cleanupService.StartType -eq [int]$collectorService.StartType
 
 Add-Check 'source-files-present' (@($sourceHashes | Where-Object { -not $_.Present }).Count -eq 0) 'Every attested source file exists.'
 Add-Check 'authorized-correlation-bound' ($authorizedCorrelation -and $authorizedMatrixCorrelation -and $authorizedResponseCorrelation) 'The authorized server and response records share one non-empty correlation id.'
@@ -339,6 +359,7 @@ Add-Check 'collector-caller-token' (
     [bool]$collector.CallerTokenEvidence.Valid -and
     [bool]$collector.Gate.CallerTokenMatchesWorkerSid -and
     [bool]$collector.Gate.DedicatedPoolCandidate) 'The elevated collector links the caller SID to the dedicated IIS pool.'
+Add-Check 'collector-service-state' $collectorServiceStateBound 'The collector and cleanup evidence bind the exact hMailServer service to Stopped/Disabled state with no process.'
 Add-Check 'cleanup-verified' (
     [bool]$cleanup.productionApplicationTouched -eq $false -and
     [bool]$cleanup.servicePresent -eq $false -and
@@ -347,6 +368,7 @@ Add-Check 'cleanup-verified' (
     $hMailServiceSafe) 'Temporary service, process, registry objects, endpoints, probe paths, and hMailServer state are exactly accounted for.'
 Add-Check 'cleanup-provenance' $cleanupProvenance 'Rollback completed successfully and its exact script hash/name are bound to the cleanup evidence.'
 Add-Check 'attester-provenance' ($rollbackSourcePresent -and $attesterSourcePresent) 'The rollback script and attester script are present in the hashed source set.'
+Add-Check 'collector-provenance' $collectorScriptSourcePresent 'The collector implementation is present in the hashed source set.'
 $baselineHash = Get-SnapshotHash $baselineGraph
 $postHash = Get-SnapshotHash $postGraph
 Add-Check 'installed-application-graph-unchanged' (
