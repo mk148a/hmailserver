@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Globalization;
+using System.Net;
 using System.Text;
 using HMailServer.Core.Abstractions;
 
@@ -13,11 +14,10 @@ public sealed class Pop3Session
     private static readonly byte[] LfByte = "\n"u8.ToArray();
     private static readonly byte[] MessageTerminatorBytes = ".\r\n"u8.ToArray();
 
-    private readonly IImapAccountAuthenticator _accountAuthenticator;
     private readonly IPop3MailboxStore _mailboxStore;
     private readonly IPop3MailboxLockManager? _mailboxLockManager;
     private readonly Pop3SessionOptions _options;
-    private readonly IAutoBanLogonFailureRecorder? _autoBanLogonFailureRecorder;
+    private readonly IClientAwareAuthenticationService _clientAwareAuthenticationService;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
 
     public Pop3Session(
@@ -26,13 +26,14 @@ public sealed class Pop3Session
         Pop3SessionOptions? options = null,
         IPop3MailboxLockManager? mailboxLockManager = null,
         IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null,
-        ISmtpEventScriptExecutor? eventScriptExecutor = null)
+        ISmtpEventScriptExecutor? eventScriptExecutor = null,
+        IClientAwareAuthenticationService? clientAwareAuthenticationService = null)
     {
-        _accountAuthenticator = accountAuthenticator;
         _mailboxStore = mailboxStore;
         _mailboxLockManager = mailboxLockManager;
         _options = options ?? new Pop3SessionOptions();
-        _autoBanLogonFailureRecorder = autoBanLogonFailureRecorder;
+        _clientAwareAuthenticationService = clientAwareAuthenticationService
+            ?? new ClientAwareAuthenticationService(accountAuthenticator, autoBanLogonFailureRecorder);
         _eventScriptExecutor = eventScriptExecutor;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.Greeting);
@@ -248,9 +249,18 @@ public sealed class Pop3Session
             return false;
         }
 
-        var result = await _accountAuthenticator
-            .AuthenticateAsync(state.PendingUsername, arguments, cancellationToken)
+        var clientAuthentication = await _clientAwareAuthenticationService
+            .AuthenticateAsync(
+                new ClientAuthenticationRequest(
+                    state.PendingUsername,
+                    arguments,
+                    IPAddress.TryParse(state.ClientIPAddress, out var clientAddress)
+                        ? clientAddress
+                        : null,
+                    ClientAuthenticationCaller.Pop3),
+                cancellationToken)
             .ConfigureAwait(false);
+        var result = clientAuthentication.Authentication;
         if (!result.Succeeded || result.Account is null)
         {
             RunClientLogonEvent(
@@ -264,7 +274,7 @@ public sealed class Pop3Session
                     ? "Invalid user name or password."
                     : result.FailureMessage),
                 cancellationToken).ConfigureAwait(false);
-            return await RecordAutoBanFailureAsync(state, state.PendingUsername, cancellationToken).ConfigureAwait(false);
+            return clientAuthentication.Disconnect;
         }
 
         IAsyncDisposable? mailboxLock = null;
@@ -304,15 +314,6 @@ public sealed class Pop3Session
         await WriteOkAsync(stream, "Mailbox locked and ready", cancellationToken).ConfigureAwait(false);
         return false;
     }
-
-    private async ValueTask<bool> RecordAutoBanFailureAsync(
-        SessionState state,
-        string username,
-        CancellationToken cancellationToken) =>
-        _autoBanLogonFailureRecorder is not null
-            && await _autoBanLogonFailureRecorder
-                .TryRecordFailureAsync(state.ClientIPAddress, username, cancellationToken)
-                .ConfigureAwait(false);
 
     private void RunClientLogonEvent(
         SessionState state,

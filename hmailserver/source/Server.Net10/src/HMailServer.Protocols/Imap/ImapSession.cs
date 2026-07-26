@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using HMailServer.Core.Abstractions;
 using HMailServer.Protocols;
@@ -27,7 +28,7 @@ public sealed class ImapSession
     private readonly IImapAccountAuthenticator? _accountAuthenticator;
     private readonly IImapMailboxStore? _mailboxStore;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
-    private readonly IAutoBanLogonFailureRecorder? _autoBanLogonFailureRecorder;
+    private readonly IClientAwareAuthenticationService? _clientAwareAuthenticationService;
 
     public ImapSession(
         ImapSearchCommandHandler searchCommandHandler,
@@ -47,7 +48,8 @@ public sealed class ImapSession
         IImapAccountAuthenticator? accountAuthenticator = null,
         IImapMailboxStore? mailboxStore = null,
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
-        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null)
+        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null,
+        IClientAwareAuthenticationService? clientAwareAuthenticationService = null)
     {
         _searchCommandHandler = searchCommandHandler;
         _sortCommandHandler = sortCommandHandler;
@@ -66,7 +68,10 @@ public sealed class ImapSession
         _accountAuthenticator = accountAuthenticator;
         _mailboxStore = mailboxStore;
         _eventScriptExecutor = eventScriptExecutor;
-        _autoBanLogonFailureRecorder = autoBanLogonFailureRecorder;
+        _clientAwareAuthenticationService = clientAwareAuthenticationService
+            ?? (accountAuthenticator is null
+                ? null
+                : new ClientAwareAuthenticationService(accountAuthenticator, autoBanLogonFailureRecorder));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
     }
 
@@ -725,7 +730,6 @@ public sealed class ImapSession
         return await AuthenticateAndSetStateAsync(
             stream,
             state,
-            _accountAuthenticator,
             commandLine.Tag,
             arguments[0],
             arguments[1],
@@ -820,7 +824,6 @@ public sealed class ImapSession
         return await AuthenticateAndSetStateAsync(
             stream,
             state,
-            _accountAuthenticator,
             commandLine.Tag,
             username,
             password,
@@ -831,14 +834,24 @@ public sealed class ImapSession
     private async ValueTask<bool> AuthenticateAndSetStateAsync(
         Stream stream,
         SessionState state,
-        IImapAccountAuthenticator authenticator,
         string tag,
         string username,
         string password,
         string successResponse,
         CancellationToken cancellationToken)
     {
-        var result = await authenticator.AuthenticateAsync(username, password, cancellationToken).ConfigureAwait(false);
+        var clientAuthentication = await _clientAwareAuthenticationService!
+            .AuthenticateAsync(
+                new ClientAuthenticationRequest(
+                    username,
+                    password,
+                    IPAddress.TryParse(state.ClientIPAddress, out var clientAddress)
+                        ? clientAddress
+                        : null,
+                    ClientAuthenticationCaller.Imap),
+                cancellationToken)
+            .ConfigureAwait(false);
+        var result = clientAuthentication.Authentication;
         var isAuthenticated = result.Succeeded && result.Account is not null;
         RunClientLogonEvent(state, username, isAuthenticated, cancellationToken);
 
@@ -848,7 +861,7 @@ public sealed class ImapSession
                 ? "Invalid user name or password."
                 : result.FailureMessage;
             await WriteTaggedAsync(stream, tag, $"NO {SanitizeResponseText(message)}", cancellationToken).ConfigureAwait(false);
-            return await RecordAutoBanFailureAsync(state, username, cancellationToken).ConfigureAwait(false);
+            return clientAuthentication.Disconnect;
         }
 
         state.Account = result.Account;
@@ -856,14 +869,6 @@ public sealed class ImapSession
         await WriteTaggedAsync(stream, tag, successResponse, cancellationToken).ConfigureAwait(false);
         return false;
     }
-
-    private async ValueTask<bool> RecordAutoBanFailureAsync(
-        SessionState state,
-        string username,
-        CancellationToken cancellationToken) =>
-        await _autoBanLogonFailureRecorder
-            .TryRecordFailureAsync(state.ClientIPAddress, username, cancellationToken)
-            .ConfigureAwait(false);
 
     private void RunClientLogonEvent(
         SessionState state,

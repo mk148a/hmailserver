@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using HMailServer.Core.Abstractions;
 
@@ -16,7 +17,7 @@ public sealed class SmtpSession
     private readonly ISmtpRecipientValidator? _recipientValidator;
     private readonly IImapAccountAuthenticator? _accountAuthenticator;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
-    private readonly IAutoBanLogonFailureRecorder? _autoBanLogonFailureRecorder;
+    private readonly IClientAwareAuthenticationService? _clientAwareAuthenticationService;
     private long _nextSessionId;
 
     public SmtpSession(
@@ -25,14 +26,18 @@ public sealed class SmtpSession
         ISmtpRecipientValidator? recipientValidator = null,
         IImapAccountAuthenticator? accountAuthenticator = null,
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
-        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null)
+        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null,
+        IClientAwareAuthenticationService? clientAwareAuthenticationService = null)
     {
         _options = options ?? new SmtpSessionOptions();
         _messageReceiver = messageReceiver;
         _recipientValidator = recipientValidator;
         _accountAuthenticator = accountAuthenticator;
         _eventScriptExecutor = eventScriptExecutor;
-        _autoBanLogonFailureRecorder = autoBanLogonFailureRecorder;
+        _clientAwareAuthenticationService = clientAwareAuthenticationService
+            ?? (accountAuthenticator is null
+                ? null
+                : new ClientAwareAuthenticationService(accountAuthenticator, autoBanLogonFailureRecorder));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
         ArgumentOutOfRangeException.ThrowIfNegative(_options.MaxMessageBytes);
         ArgumentOutOfRangeException.ThrowIfNegative(_options.MaximumIncorrectCommands);
@@ -616,7 +621,18 @@ public sealed class SmtpSession
             return;
         }
 
-        var result = await _accountAuthenticator.AuthenticateAsync(username, password, cancellationToken).ConfigureAwait(false);
+        var clientAuthentication = await _clientAwareAuthenticationService!
+            .AuthenticateAsync(
+                new ClientAuthenticationRequest(
+                    username,
+                    password,
+                    IPAddress.TryParse(state.ClientIPAddress, out var clientAddress)
+                        ? clientAddress
+                        : null,
+                    ClientAuthenticationCaller.Smtp),
+                cancellationToken)
+            .ConfigureAwait(false);
+        var result = clientAuthentication.Authentication;
         RunClientLogonEvent(
             state,
             username,
@@ -625,7 +641,7 @@ public sealed class SmtpSession
         if (!result.Succeeded || result.Account is null)
         {
             await WriteSmtpResponseAsync(stream, state, "535 Authentication failed", cancellationToken).ConfigureAwait(false);
-            if (await RecordAutoBanFailureAsync(state, username, cancellationToken).ConfigureAwait(false))
+            if (clientAuthentication.Disconnect)
             {
                 state.RequestDisconnect();
             }
@@ -636,14 +652,6 @@ public sealed class SmtpSession
         state.AuthenticatedAccount = result.Account;
         await WriteAsync(stream, "235 Authentication successful\r\n", cancellationToken).ConfigureAwait(false);
     }
-
-    private async ValueTask<bool> RecordAutoBanFailureAsync(
-        SessionState state,
-        string username,
-        CancellationToken cancellationToken) =>
-        await _autoBanLogonFailureRecorder
-            .TryRecordFailureAsync(state.ClientIPAddress, username, cancellationToken)
-            .ConfigureAwait(false);
 
     private void RunClientLogonEvent(
         SessionState state,
