@@ -707,6 +707,13 @@ Terminal/log incelemesi:
 - The prior `artifacts/sec18-staging/staging-inventory-20260726-live-bound.json` was collected before this contract. A read-only rerun using its caller evidence produces `artifacts/sec18-staging/staging-inventory-20260726-freshness-gate.json` with `exit 2`, `Status=Incomplete`, `TimestampFresh=false`, and matching correlation, proving stale evidence is rejected. No production installation, service, database, data directory, COM registration, DCOM ACL, firewall, or PHP behavior changed.
 - Fresh independent reviewers rate this bounded slice YELLOW and permanent broker approval RED. They additionally require explicit attester rejection of `ServiceReadError`, freshness binding to the final collector timestamp, a collector-issued challenge or external seal instead of operator-controlled equality, and canonical AppID/output path restrictions. The superseded 16-check artifact is historical evidence only and must not be used as approval evidence.
 
+## SEC-18 Final Validation and Service-Read Attestation (2026-07-26)
+
+- Code/test commit `16e8b431f` binds caller freshness to `CollectedUtc` captured after registry, IIS, service, and path reads, while preserving `CollectionStartedUtc` for duration evidence. The attester now explicitly requires empty `ServiceReadError`, `ProcessReadError`, and aggregate `ReadError`; the focused fixture includes process-only and service-only failure cases.
+- Focused collector, attester, registry-binary, and installed-Application graph tests pass. Full `build/test-net10.ps1 -Configuration Debug` passes `1198`, with one opt-in native-registry test skipped. The read-only `staging-inventory-20260726-final-timestamp-gate.json` rerun remains `Incomplete`/exit `2` because the old caller evidence is stale; no fresh authorized probe or production state change occurred.
+- Reviewers confirm the explicit `ServiceReadError` control is green. The remaining timestamp is only post-host-read and is captured before caller validation/final gate calculation, so it is not yet a trusted final-state seal; the collector still accepts operator-supplied correlation equality and unrestricted AppID/output paths. Bounded evidence remains YELLOW and permanent broker approval RED.
+- The remaining production-gate work is a fresh isolated authorized/non-pool matrix with one shared invocation ID, collector-issued challenge or external evidence seal, and canonical AppID/output path restrictions. Permanent broker registration, DCOM ACL writes, PHP session cutover, and existing Application activation remain blocked.
+
 ## Yeni Thread Icin Baslangic Talimati
 
 1. Repo kokune gec: `<repo-root>`.
@@ -718,5 +725,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak izole IIS staging hostunda authorized PHP/FastCGI ve non-pool denial matrix'i tek shared `CollectorInvocationId` ile yeniden calistirip fresh live evidence uret; ayni dilimde `ServiceReadError`, final-timestamp, collector-challenge ve canonical path testlerini kapat; sonra evidence bundle'i externally pin/sign et ve iki independent reviewer gate'ini yeniden degerlendir. Permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation, PHP session cutover, production service/database/data/firewall ve SMTP/IMAP behavior degistirme.
+5. Current Next Slice olarak izole IIS staging hostunda authorized PHP/FastCGI ve non-pool denial matrix'i tek shared `CollectorInvocationId` ile yeniden calistirip fresh live evidence uret; sonra collector-issued challenge/canonical AppID-output path hardening'i tamamla, evidence bundle'i externally pin/sign et ve iki independent reviewer gate'ini yeniden degerlendir. Permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation, PHP session cutover, production service/database/data/firewall ve SMTP/IMAP behavior degistirme.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; kullanici ozellikle istemedikce push yapma.
