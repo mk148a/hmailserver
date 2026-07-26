@@ -429,13 +429,14 @@ $registryEvidence = @(
 $iisEvidence = Get-IisInventory -RequestedWebAdminPath $WebAdminPath
 $hMailServerService = Get-HMailServerServiceEvidence
 $workerSids = @($iisEvidence.Pools | ForEach-Object { $_.WorkerSid } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
-$callerEvidence = Get-CallerTokenEvidence -Path $CallerTokenEvidencePath -ExpectedWorkerSids $workerSids -ExpectedCollectorInvocationId $CollectorInvocationId -NowUtc $collectorStartedUtc -MaxAgeSeconds $CallerEvidenceMaxAgeSeconds
 $webAdminPathExists = Test-Path -LiteralPath $WebAdminPath -PathType Container
 $hasExistingApplicationAppId = @($registryEvidence | Where-Object { $_.ApplicationAppId.Present }).Count -gt 0
 $hasDedicatedPoolCandidate = @($iisEvidence.Pools | Where-Object { $_.DedicatedPoolCandidate -and $_.WorkerSid }).Count -eq 1
 $hasExplicitApplicationAcl = @($registryEvidence | Where-Object {
         $_.ApplicationAppId.LaunchPermission.Present -and $_.ApplicationAppId.AccessPermission.Present
     }).Count -gt 0
+$collectorValidatedUtc = [DateTimeOffset]::UtcNow
+$callerEvidence = Get-CallerTokenEvidence -Path $CallerTokenEvidencePath -ExpectedWorkerSids $workerSids -ExpectedCollectorInvocationId $CollectorInvocationId -NowUtc $collectorValidatedUtc -MaxAgeSeconds $CallerEvidenceMaxAgeSeconds
 $hMailServerServiceSafe = $hMailServerService.Present -and
     [string]::Equals([string]$hMailServerService.Name, 'hMailServer', [StringComparison]::OrdinalIgnoreCase) -and
     [string]::Equals([string]$hMailServerService.StatusName, 'Stopped', [StringComparison]::OrdinalIgnoreCase) -and
@@ -446,7 +447,8 @@ $stagingEvidenceComplete = $webAdminPathExists -and $hasExistingApplicationAppId
 
 $report = [pscustomobject]@{
     SchemaVersion = 1
-    CollectedUtc = $collectorStartedUtc.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    CollectionStartedUtc = $collectorStartedUtc.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    CollectedUtc = $collectorValidatedUtc.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
     CollectorInvocationId = $CollectorInvocationId
     CallerEvidenceMaxAgeSeconds = $CallerEvidenceMaxAgeSeconds
     ComputerName = $env:COMPUTERNAME

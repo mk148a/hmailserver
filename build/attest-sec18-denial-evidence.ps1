@@ -361,6 +361,8 @@ $collectorCallerFreshAndCorrelated = $collectorTimestampsParseable -and
     $collectorCallerAgeSeconds -ge -30 -and
     $collectorCallerAgeSeconds -le $attestationMaxCallerAgeSeconds
 $collectorProcessReadFailClosed = $null -ne $collectorService -and
+    (Has-Property $collectorService 'ServiceReadError') -and
+    [string]::IsNullOrWhiteSpace([string]$collectorService.ServiceReadError) -and
     (Has-Property $collectorService 'ProcessReadError') -and
     [string]::IsNullOrWhiteSpace([string]$collectorService.ProcessReadError) -and
     (Has-Property $collectorService 'ReadError') -and

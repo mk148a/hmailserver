@@ -79,6 +79,7 @@ try {
     $duplicateCleanupPath = Join-Path $temporaryDirectory 'duplicate-cleanup.json'
     $badCollectorPath = Join-Path $temporaryDirectory 'bad-collector.json'
     $badServiceCollectorPath = Join-Path $temporaryDirectory 'bad-service-collector.json'
+    $badServiceOnlyCollectorPath = Join-Path $temporaryDirectory 'bad-service-only-collector.json'
     $rollbackPath = Join-Path $temporaryDirectory 'rollback-sec18-nonpool-probe-20260722.ps1'
     $baselinePath = Join-Path $temporaryDirectory 'baseline.json'
     $postPath = Join-Path $temporaryDirectory 'post.json'
@@ -89,6 +90,7 @@ try {
     $badCleanupOutputPath = Join-Path $temporaryDirectory 'bad-cleanup-output.json'
     $badCollectorOutputPath = Join-Path $temporaryDirectory 'bad-collector-output.json'
     $badServiceCollectorOutputPath = Join-Path $temporaryDirectory 'bad-service-collector-output.json'
+    $badServiceOnlyCollectorOutputPath = Join-Path $temporaryDirectory 'bad-service-only-collector-output.json'
     $badWrongResponsePath = Join-Path $temporaryDirectory 'bad-wrong-response.json'
     $badWrongOutputPath = Join-Path $temporaryDirectory 'bad-wrong-output.json'
 
@@ -231,6 +233,18 @@ try {
     $badServiceReport = Get-Content -LiteralPath $badServiceCollectorOutputPath -Raw | ConvertFrom-Json
     $serviceReadCheck = $badServiceReport.Checks | Where-Object { $_.Name -eq 'collector-service-read-fail-closed' }
     Assert-True (-not [bool]$serviceReadCheck.Passed) 'process read errors must fail their fail-closed check.'
+
+    $badServiceOnlyCollector = Get-Content -LiteralPath $collectorPath -Raw | ConvertFrom-Json
+    $badServiceOnlyCollector.HMailServerService.ServiceReadError = 'synthetic service read failure'
+    Write-JsonFixture $badServiceOnlyCollectorPath $badServiceOnlyCollector
+    $badServiceOnlyArguments = $commonArguments.Clone()
+    $badServiceOnlyArguments[$badServiceOnlyArguments.IndexOf('-CollectorPath') + 1] = $badServiceOnlyCollectorPath
+    $badServiceOnlyArguments += @('-OutputPath', $badServiceOnlyCollectorOutputPath, '-FailOnIncomplete')
+    & powershell.exe @badServiceOnlyArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'service-only read errors must fail closed with exit 2.'
+    $badServiceOnlyReport = Get-Content -LiteralPath $badServiceOnlyCollectorOutputPath -Raw | ConvertFrom-Json
+    $serviceOnlyReadCheck = $badServiceOnlyReport.Checks | Where-Object { $_.Name -eq 'collector-service-read-fail-closed' }
+    Assert-True (-not [bool]$serviceOnlyReadCheck.Passed) 'service-only read errors must fail their fail-closed check.'
 
     $bad = $matrix | ConvertTo-Json -Depth 20 | ConvertFrom-Json
     $badNonPool = $bad.tests | Where-Object { $_.name -eq 'genuine-nonpool-desktop-process' }
