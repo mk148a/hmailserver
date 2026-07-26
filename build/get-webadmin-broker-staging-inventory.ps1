@@ -135,6 +135,75 @@ function ConvertTo-NormalizedPath {
     return [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($Path)).TrimEnd('\\').ToUpperInvariant()
 }
 
+function Get-Sec18EvidenceRoot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$ScriptPath
+    )
+
+    $buildDirectory = Split-Path -Parent ([System.IO.Path]::GetFullPath($ScriptPath))
+    $repositoryRoot = Split-Path -Parent $buildDirectory
+    return [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot 'artifacts\\sec18-staging'))
+}
+
+function Resolve-Sec18EvidenceOutputPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$RequestedPath,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$EvidenceRoot
+    )
+
+    $fullRoot = [System.IO.Path]::GetFullPath($EvidenceRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    if (-not [System.IO.Directory]::Exists($fullRoot)) {
+        throw "SEC-18 evidence root does not exist: $fullRoot"
+    }
+
+    $repositoryRoot = Split-Path -Parent (Split-Path -Parent $fullRoot)
+    $fullPath = if ([System.IO.Path]::IsPathRooted($RequestedPath)) {
+        [System.IO.Path]::GetFullPath($RequestedPath)
+    }
+    else {
+        [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $RequestedPath))
+    }
+
+    $rootPrefix = $fullRoot + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $fullPath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "SEC-18 output path must remain under ${fullRoot}: $fullPath"
+    }
+
+    $outputDirectory = Split-Path -Parent $fullPath
+    if (-not [System.IO.Directory]::Exists($outputDirectory)) {
+        throw "SEC-18 output directory does not exist: $outputDirectory"
+    }
+
+    $currentDirectory = [System.IO.Path]::GetFullPath($outputDirectory)
+    while ($true) {
+        $item = Get-Item -LiteralPath $currentDirectory -Force -ErrorAction Stop
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "SEC-18 output path cannot use a reparse-point directory: $currentDirectory"
+        }
+        if ([string]::Equals($currentDirectory, $fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $currentDirectory = [System.IO.Path]::GetFullPath((Split-Path -Parent $currentDirectory))
+        if (-not [string]::Equals($currentDirectory, $fullRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
+            -not $currentDirectory.StartsWith($fullRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "SEC-18 output path ancestry escaped the evidence root: $currentDirectory"
+        }
+    }
+
+    if ([System.IO.File]::Exists($fullPath) -or [System.IO.Directory]::Exists($fullPath)) {
+        throw "SEC-18 output path already exists and will not be overwritten: $fullPath"
+    }
+
+    return $fullPath
+}
+
 function Resolve-AccountSid {
     param(
         [AllowNull()]
@@ -421,6 +490,10 @@ $collectorStartedUtc = [DateTimeOffset]::UtcNow
 if ([string]::IsNullOrWhiteSpace($CollectorInvocationId)) {
     $CollectorInvocationId = [Guid]::NewGuid().ToString('N')
 }
+$canonicalApplicationAppId = '{5EDEC473-39E0-43F6-A234-1947071721C8}'
+if (-not [string]::Equals($ApplicationAppId, $canonicalApplicationAppId, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "SEC-18 collector only permits the canonical hMailServer Application AppID: $canonicalApplicationAppId"
+}
 
 $registryEvidence = @(
     Get-RegistryViewEvidence -View ([Microsoft.Win32.RegistryView]::Registry64) -AppId $ApplicationAppId
@@ -476,13 +549,20 @@ if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $json
 }
 else {
-    $fullOutputPath = [System.IO.Path]::GetFullPath($OutputPath)
-    $outputDirectory = Split-Path -Parent $fullOutputPath
-    if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
-        throw "Output directory does not exist: $outputDirectory"
+    $evidenceRoot = Get-Sec18EvidenceRoot -ScriptPath $MyInvocation.MyCommand.Path
+    $fullOutputPath = Resolve-Sec18EvidenceOutputPath -RequestedPath $OutputPath -EvidenceRoot $evidenceRoot
+    $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($json)
+    $stream = $null
+    try {
+        $stream = [System.IO.File]::Open($fullOutputPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush()
     }
-
-    [System.IO.File]::WriteAllText($fullOutputPath, $json, [System.Text.UTF8Encoding]::new($false))
+    finally {
+        if ($null -ne $stream) {
+            $stream.Dispose()
+        }
+    }
     Write-Output $fullOutputPath
 }
 

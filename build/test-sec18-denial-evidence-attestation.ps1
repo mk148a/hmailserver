@@ -26,6 +26,7 @@ function Write-JsonFixture {
 
 $attester = Join-Path $PSScriptRoot 'attest-sec18-denial-evidence.ps1'
 $temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ('sec18-attestation-' + [Guid]::NewGuid().ToString('N'))
+$testOutputDirectory = $null
 New-Item -ItemType Directory -Path $temporaryDirectory -Force | Out-Null
 
 try {
@@ -78,6 +79,7 @@ try {
     $badCleanupPath = Join-Path $temporaryDirectory 'bad-cleanup.json'
     $duplicateCleanupPath = Join-Path $temporaryDirectory 'duplicate-cleanup.json'
     $badCollectorPath = Join-Path $temporaryDirectory 'bad-collector.json'
+    $badApplicationIdCollectorPath = Join-Path $temporaryDirectory 'bad-application-id-collector.json'
     $badServiceCollectorPath = Join-Path $temporaryDirectory 'bad-service-collector.json'
     $badServiceOnlyCollectorPath = Join-Path $temporaryDirectory 'bad-service-only-collector.json'
     $rollbackPath = Join-Path $temporaryDirectory 'rollback-sec18-nonpool-probe-20260722.ps1'
@@ -85,14 +87,18 @@ try {
     $postPath = Join-Path $temporaryDirectory 'post.json'
     $matrixPath = Join-Path $temporaryDirectory 'matrix.json'
     $badMatrixPath = Join-Path $temporaryDirectory 'bad-matrix.json'
-    $goodOutputPath = Join-Path $temporaryDirectory 'good-output.json'
-    $badOutputPath = Join-Path $temporaryDirectory 'bad-output.json'
-    $badCleanupOutputPath = Join-Path $temporaryDirectory 'bad-cleanup-output.json'
-    $badCollectorOutputPath = Join-Path $temporaryDirectory 'bad-collector-output.json'
-    $badServiceCollectorOutputPath = Join-Path $temporaryDirectory 'bad-service-collector-output.json'
-    $badServiceOnlyCollectorOutputPath = Join-Path $temporaryDirectory 'bad-service-only-collector-output.json'
+    $evidenceRoot = Join-Path $PSScriptRoot '..\artifacts\sec18-staging'
+    $testOutputDirectory = Join-Path $evidenceRoot ('test-attestation-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $testOutputDirectory -Force | Out-Null
+    $goodOutputPath = Join-Path $testOutputDirectory 'good-output.json'
+    $badOutputPath = Join-Path $testOutputDirectory 'bad-output.json'
+    $badCleanupOutputPath = Join-Path $testOutputDirectory 'bad-cleanup-output.json'
+    $badCollectorOutputPath = Join-Path $testOutputDirectory 'bad-collector-output.json'
+    $badApplicationIdCollectorOutputPath = Join-Path $testOutputDirectory 'bad-application-id-collector-output.json'
+    $badServiceCollectorOutputPath = Join-Path $testOutputDirectory 'bad-service-collector-output.json'
+    $badServiceOnlyCollectorOutputPath = Join-Path $testOutputDirectory 'bad-service-only-collector-output.json'
     $badWrongResponsePath = Join-Path $temporaryDirectory 'bad-wrong-response.json'
-    $badWrongOutputPath = Join-Path $temporaryDirectory 'bad-wrong-output.json'
+    $badWrongOutputPath = Join-Path $testOutputDirectory 'bad-wrong-output.json'
 
     'fixture rollback script' | Set-Content -LiteralPath $rollbackPath -Encoding UTF8
     'fixture collector script' | Set-Content -LiteralPath $collectorScriptPath -Encoding UTF8
@@ -119,6 +125,7 @@ try {
     Write-JsonFixture $collectorPath ([pscustomobject]@{
             CollectedUtc = $collectorCollectedUtc.ToString('o')
             CollectorInvocationId = $collectorInvocationId
+            ApplicationAppId = '{5EDEC473-39E0-43F6-A234-1947071721C8}'
             CallerEvidenceMaxAgeSeconds = 300
             CallerTokenEvidence = [pscustomobject]@{
                 Valid = $true
@@ -183,6 +190,9 @@ try {
     $badCollector.CallerTokenEvidence.ObservedUtc = $collectorCollectedUtc.AddSeconds(-301).ToString('o')
     $badCollector.CallerTokenEvidence.TimestampFresh = $false
     Write-JsonFixture $badCollectorPath $badCollector
+    $badApplicationIdCollector = Get-Content -LiteralPath $collectorPath -Raw | ConvertFrom-Json
+    $badApplicationIdCollector.ApplicationAppId = '{00000000-0000-0000-0000-000000000000}'
+    Write-JsonFixture $badApplicationIdCollectorPath $badApplicationIdCollector
     '{"schemaVersion":1,"schemaVersion":2}' | Set-Content -LiteralPath $duplicateCleanupPath -Encoding UTF8
     Write-JsonFixture $baselinePath ([pscustomobject]@{ GraphPathCount = 22; SnapshotCount = 44; Snapshots = @([pscustomobject]@{ Key = 'same' }) })
     Write-JsonFixture $postPath ([pscustomobject]@{ GraphPathCount = 22; SnapshotCount = 44; Snapshots = @([pscustomobject]@{ Key = 'same' }) })
@@ -209,8 +219,27 @@ try {
     Assert-True ($LASTEXITCODE -eq 0) 'complete attestation fixture must pass.'
     $good = Get-Content -LiteralPath $goodOutputPath -Raw | ConvertFrom-Json
     Assert-True ([bool]$good.Gate.EvidenceReadyForIndependentReview) 'complete fixture must be review-ready.'
-    Assert-True (@($good.Checks).Count -eq 18) 'attestation must emit all eighteen checks as an array.'
+    Assert-True (@($good.Checks).Count -eq 19) 'attestation must emit all nineteen checks as an array.'
     Assert-True ($good.SourceHashes.Count -eq 14) 'attestation must hash every source file and verifier script.'
+
+    $duplicateOutputArguments = $commonArguments.Clone()
+    $duplicateOutputArguments += @('-OutputPath', $goodOutputPath)
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & powershell.exe @duplicateOutputArguments 2>$null | Out-Null
+    $duplicateOutputExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+    Assert-True ($duplicateOutputExitCode -ne 0) 'attestation must not overwrite an existing evidence report.'
+
+    $outsideOutputPath = Join-Path $temporaryDirectory 'outside-output.json'
+    $outsideOutputArguments = $commonArguments.Clone()
+    $outsideOutputArguments += @('-OutputPath', $outsideOutputPath)
+    $ErrorActionPreference = 'Continue'
+    & powershell.exe @outsideOutputArguments 2>$null | Out-Null
+    $outsideOutputExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+    Assert-True ($outsideOutputExitCode -ne 0) 'attestation must reject output outside the SEC-18 evidence root.'
+    Assert-True (-not (Test-Path -LiteralPath $outsideOutputPath)) 'rejected output outside the evidence root must not be created.'
 
     $badCollectorArguments = $commonArguments.Clone()
     $badCollectorArguments[$badCollectorArguments.IndexOf('-CollectorPath') + 1] = $badCollectorPath
@@ -220,6 +249,15 @@ try {
     $badCollectorReport = Get-Content -LiteralPath $badCollectorOutputPath -Raw | ConvertFrom-Json
     $callerFreshnessCheck = $badCollectorReport.Checks | Where-Object { $_.Name -eq 'collector-caller-freshness-correlation' }
     Assert-True (-not [bool]$callerFreshnessCheck.Passed) 'stale caller-token evidence must fail its freshness/correlation check.'
+
+    $badApplicationIdArguments = $commonArguments.Clone()
+    $badApplicationIdArguments[$badApplicationIdArguments.IndexOf('-CollectorPath') + 1] = $badApplicationIdCollectorPath
+    $badApplicationIdArguments += @('-OutputPath', $badApplicationIdCollectorOutputPath, '-FailOnIncomplete')
+    & powershell.exe @badApplicationIdArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'a non-canonical collector Application AppID must fail closed with exit 2.'
+    $badApplicationIdReport = Get-Content -LiteralPath $badApplicationIdCollectorOutputPath -Raw | ConvertFrom-Json
+    $applicationAppIdCheck = $badApplicationIdReport.Checks | Where-Object { $_.Name -eq 'collector-application-appid' }
+    Assert-True (-not [bool]$applicationAppIdCheck.Passed) 'a non-canonical collector Application AppID must fail its binding check.'
 
     $badServiceCollector = Get-Content -LiteralPath $collectorPath -Raw | ConvertFrom-Json
     $badServiceCollector.HMailServerService.ProcessReadError = 'synthetic process read failure'
@@ -294,5 +332,8 @@ try {
 finally {
     if (Test-Path -LiteralPath $temporaryDirectory) {
         Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force
+    }
+    if ($null -ne $testOutputDirectory -and (Test-Path -LiteralPath $testOutputDirectory)) {
+        Remove-Item -LiteralPath $testOutputDirectory -Recurse -Force
     }
 }

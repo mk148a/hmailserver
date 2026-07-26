@@ -128,6 +128,75 @@ function Has-Property {
     return $null -ne $Object -and $null -ne $Object.PSObject.Properties[$Name]
 }
 
+function Get-Sec18EvidenceRoot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$ScriptPath
+    )
+
+    $buildDirectory = Split-Path -Parent ([System.IO.Path]::GetFullPath($ScriptPath))
+    $repositoryRoot = Split-Path -Parent $buildDirectory
+    return [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot 'artifacts\sec18-staging'))
+}
+
+function Resolve-Sec18EvidenceOutputPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$RequestedPath,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$EvidenceRoot
+    )
+
+    $fullRoot = [System.IO.Path]::GetFullPath($EvidenceRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    if (-not [System.IO.Directory]::Exists($fullRoot)) {
+        throw "SEC-18 evidence root does not exist: $fullRoot"
+    }
+
+    $repositoryRoot = Split-Path -Parent (Split-Path -Parent $fullRoot)
+    $fullPath = if ([System.IO.Path]::IsPathRooted($RequestedPath)) {
+        [System.IO.Path]::GetFullPath($RequestedPath)
+    }
+    else {
+        [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $RequestedPath))
+    }
+
+    $rootPrefix = $fullRoot + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $fullPath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "SEC-18 output path must remain under ${fullRoot}: $fullPath"
+    }
+
+    $outputDirectory = Split-Path -Parent $fullPath
+    if (-not [System.IO.Directory]::Exists($outputDirectory)) {
+        throw "SEC-18 output directory does not exist: $outputDirectory"
+    }
+
+    $currentDirectory = [System.IO.Path]::GetFullPath($outputDirectory)
+    while ($true) {
+        $item = Get-Item -LiteralPath $currentDirectory -Force -ErrorAction Stop
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "SEC-18 output path cannot use a reparse-point directory: $currentDirectory"
+        }
+        if ([string]::Equals($currentDirectory, $fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $currentDirectory = [System.IO.Path]::GetFullPath((Split-Path -Parent $currentDirectory))
+        if (-not [string]::Equals($currentDirectory, $fullRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
+            -not $currentDirectory.StartsWith($fullRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "SEC-18 output path ancestry escaped the evidence root: $currentDirectory"
+        }
+    }
+
+    if ([System.IO.File]::Exists($fullPath) -or [System.IO.Directory]::Exists($fullPath)) {
+        throw "SEC-18 output path already exists and will not be overwritten: $fullPath"
+    }
+
+    return $fullPath
+}
+
 function Get-SnapshotHash {
     param([object]$Evidence)
 
@@ -192,6 +261,7 @@ $collector = Read-JsonFile $CollectorPath
 $cleanup = Read-JsonFile $CleanupPath
 $baselineGraph = Read-JsonFile $BaselineGraphPath
 $postGraph = Read-JsonFile $PostGraphPath
+$canonicalApplicationAppId = '{5EDEC473-39E0-43F6-A234-1947071721C8}'
 
 $attesterScriptPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
 $sourcePaths = @(
@@ -348,6 +418,9 @@ $collectorCallerCorrelationBound = $null -ne $collector -and
     (Has-Property $collector.CallerTokenEvidence 'CorrelationId') -and
     -not [string]::IsNullOrWhiteSpace([string]$collector.CollectorInvocationId) -and
     [string]::Equals([string]$collector.CollectorInvocationId, [string]$collector.CallerTokenEvidence.CorrelationId, [StringComparison]::Ordinal)
+$collectorApplicationAppIdBound = $null -ne $collector -and
+    (Has-Property $collector 'ApplicationAppId') -and
+    [string]::Equals([string]$collector.ApplicationAppId, $canonicalApplicationAppId, [StringComparison]::OrdinalIgnoreCase)
 $collectorCallerFreshAndCorrelated = $collectorTimestampsParseable -and
     (Has-Property $collector 'CallerEvidenceMaxAgeSeconds') -and
     [int]$collector.CallerEvidenceMaxAgeSeconds -eq $attestationMaxCallerAgeSeconds -and
@@ -406,6 +479,7 @@ Add-Check 'collector-caller-token' (
     [bool]$collector.CallerTokenEvidence.Valid -and
     [bool]$collector.Gate.CallerTokenMatchesWorkerSid -and
     [bool]$collector.Gate.DedicatedPoolCandidate) 'The elevated collector links the caller SID to the dedicated IIS pool.'
+Add-Check 'collector-application-appid' $collectorApplicationAppIdBound 'The collector evidence is bound to the installed hMailServer Application AppID.'
 Add-Check 'collector-caller-freshness-correlation' $collectorCallerFreshAndCorrelated 'Caller-token evidence is fresh, parseable, and correlated to this collector invocation.'
 Add-Check 'collector-service-state' $collectorServiceStateBound 'The collector and cleanup evidence bind the exact hMailServer service to Stopped/Disabled state with no process.'
 Add-Check 'collector-service-read-fail-closed' $collectorProcessReadFailClosed 'Service and process enumeration errors cannot be represented as a false absent-process result.'
@@ -466,13 +540,21 @@ if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $json
 }
 else {
-    $outputDirectory = Split-Path -Parent ([System.IO.Path]::GetFullPath($OutputPath))
-    if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
-        throw "Output directory does not exist: $outputDirectory"
+    $evidenceRoot = Get-Sec18EvidenceRoot -ScriptPath $MyInvocation.MyCommand.Path
+    $fullOutputPath = Resolve-Sec18EvidenceOutputPath -RequestedPath $OutputPath -EvidenceRoot $evidenceRoot
+    $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($json)
+    $stream = $null
+    try {
+        $stream = [System.IO.File]::Open($fullOutputPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush()
     }
-
-    [System.IO.File]::WriteAllText($OutputPath, $json, (New-Object System.Text.UTF8Encoding($false)))
-    Write-Output $OutputPath
+    finally {
+        if ($null -ne $stream) {
+            $stream.Dispose()
+        }
+    }
+    Write-Output $fullOutputPath
 }
 
 if ($FailOnIncomplete -and -not $ready) {

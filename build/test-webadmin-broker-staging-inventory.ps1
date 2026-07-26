@@ -30,6 +30,7 @@ Assert-True ([string]::IsNullOrWhiteSpace($unresolvedPoolSid)) 'an unresolved ap
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('sec18-collector-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+$evidenceRoot = Get-Sec18EvidenceRoot -ScriptPath $subjectPath
 
 try {
     $matchingPath = Join-Path $tempRoot 'matching.json'
@@ -90,6 +91,38 @@ try {
         Assert-True (-not [string]::IsNullOrWhiteSpace([string]$serviceEvidence.ProcessReadError)) 'process enumeration errors must be captured.'
         Assert-True (-not [string]::IsNullOrWhiteSpace([string]$serviceEvidence.ReadError)) 'any process enumeration error must fail the aggregate read gate.'
         Assert-True ($null -eq $serviceEvidence.ProcessPresent) 'process presence must be unknown, not false, after a read error.'
+
+    $allowedOutputPath = Join-Path $evidenceRoot ('collector-path-test-' + [Guid]::NewGuid().ToString('N') + '.json')
+    $resolvedAllowedPath = Resolve-Sec18EvidenceOutputPath -RequestedPath $allowedOutputPath -EvidenceRoot $evidenceRoot
+    Assert-True ([string]::Equals($resolvedAllowedPath, [IO.Path]::GetFullPath($allowedOutputPath), [StringComparison]::OrdinalIgnoreCase)) 'an unused output path under the evidence root must resolve.'
+    $outsideOutputPath = Join-Path $tempRoot 'outside-output.json'
+    $outsideRejected = $false
+    try {
+        Resolve-Sec18EvidenceOutputPath -RequestedPath $outsideOutputPath -EvidenceRoot $evidenceRoot | Out-Null
+    }
+    catch {
+        $outsideRejected = $true
+    }
+    Assert-True $outsideRejected 'an output path outside the evidence root must be rejected.'
+    New-Item -ItemType File -Path $allowedOutputPath -Force | Out-Null
+    $existingRejected = $false
+    try {
+        Resolve-Sec18EvidenceOutputPath -RequestedPath $allowedOutputPath -EvidenceRoot $evidenceRoot | Out-Null
+    }
+    catch {
+        $existingRejected = $true
+    }
+    Assert-True $existingRejected 'an existing evidence output path must be rejected.'
+    Remove-Item -LiteralPath $allowedOutputPath -Force
+
+    $invalidAppIdOutputPath = Join-Path $evidenceRoot ('collector-appid-test-' + [Guid]::NewGuid().ToString('N') + '.json')
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $subjectPath -WebAdminPath $PSScriptRoot -ApplicationAppId '{00000000-0000-0000-0000-000000000000}' -OutputPath $invalidAppIdOutputPath 2>$null | Out-Null
+    $invalidAppIdExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+    Assert-True ($invalidAppIdExitCode -ne 0) 'the collector must reject a non-canonical Application AppID.'
+    Assert-True (-not (Test-Path -LiteralPath $invalidAppIdOutputPath)) 'a rejected Application AppID must not create evidence output.'
     }
     finally {
         if ($null -eq $existingProcessFunction) {
