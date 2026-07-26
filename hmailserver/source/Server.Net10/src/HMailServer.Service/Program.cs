@@ -722,7 +722,6 @@ builder.Services.AddSingleton<IMessageSortIndex, SqlServerMessageSortIndex>();
 builder.Services.AddSingleton<IAutoBanLogonFailureRecorder, SqlServerAutoBanLogonFailureRecorder>();
 builder.Services.AddSingleton<IImapSequenceNumberResolver, SqlServerImapSequenceNumberResolver>();
 builder.Services.AddSingleton<IImapAccountAuthenticator, SqlServerImapAccountAuthenticator>();
-builder.Services.AddSingleton<IClientAwareAuthenticationService, ClientAwareAuthenticationService>();
 builder.Services.AddSingleton<SqlServerImapMailboxStore>();
 builder.Services.AddSingleton<IImapMailboxStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
 builder.Services.AddSingleton<IImapMailboxDiscoveryStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
@@ -927,9 +926,7 @@ builder.Services.AddSingleton<IDistributionListRecipientAdministrationStore, Sql
 builder.Services.AddSingleton<IDomainAliasAdministrationStore, SqlServerDomainAliasAdministrationStore>();
 builder.Services.AddSingleton<StoreBackedMessageIndexingRuntime>();
 builder.Services.AddSingleton<IMessageSearchDocumentSource, MessageFileSearchDocumentSource>();
-builder.Services.AddSingleton<ImapSearchCommandParser>();
-builder.Services.AddSingleton<ImapSearchExecutor>();
-builder.Services.AddSingleton<ImapSearchCommandHandler>();
+builder.Services.AddCallerAwareProtocolServices();
 builder.Services.AddSingleton<ImapSortCommandParser>();
 builder.Services.AddSingleton<ImapSortExecutor>();
 builder.Services.AddSingleton<ImapSortCommandHandler>();
@@ -949,12 +946,6 @@ builder.Services.AddSingleton<ImapQuotaCommandHandler>();
 builder.Services.AddSingleton(serviceProvider => new ImapListCommandHandler(
     serviceProvider.GetRequiredService<IImapMailboxDiscoveryStore>(),
     mailboxOptions.HierarchyDelimiter));
-builder.Services.AddSingleton<ImapSession>();
-builder.Services.AddSingleton<ImapTcpListener>();
-builder.Services.AddSingleton<Pop3Session>();
-builder.Services.AddSingleton<Pop3TcpListener>();
-builder.Services.AddSingleton<SmtpSession>();
-builder.Services.AddSingleton<SmtpTcpListener>();
 builder.Services.AddSingleton<MessageSearchBackfillProcessor>();
 builder.Services.AddHostedService<ComLocalServerHostedService>();
 builder.Services.AddHostedService<ServerBootstrapper>();
