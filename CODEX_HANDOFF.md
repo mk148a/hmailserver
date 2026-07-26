@@ -722,6 +722,13 @@ Terminal/log incelemesi:
 - Independent reviewers keep the gate RED: evidence inputs are not externally authenticated, AppID enforcement is syntactic rather than semantic graph validation, authorized HRESULTs are only presence-checked, `ProcessEvidencePath` is not consumed, endpoint cleanup is not attested, and the output directory check has a TOCTOU race. These are residual review blockers; this slice did not broaden into their implementation.
 - Current next slice: rerun the isolated authorized PHP/FastCGI and genuine non-pool denial matrix with one shared invocation ID and fresh evidence. Then add collector-issued challenge/final-state sealing and externally pin or sign the complete manifest before fresh independent review. Do not register the broker, change DCOM ACLs, activate the installed Application, cut over PHP sessions, or alter production service/database/data/firewall/SMTP/IMAP state.
 
+## SEC-12 Account ValidatePassword Authorization Fence (2026-07-26)
+
+- Parity explorer confirmed legacy `InterfaceAccount::ValidatePassword` (DISPID 22) calls `PasswordValidator::ValidatePassword` directly for attached objects, while detached objects return `E_ACCESSDENIED`; protocol `AccountLogon::Logon` carries client-aware `hm_logon_failures`/`hm_securityranges` auto-ban behavior that the COM call does not have.
+- Test commit `aab2e307e` adds focused `AccountsComContractTests` coverage proving direct `Account.ValidatePassword` remains `E_ACCESSDENIED` and authenticated SQL-backed account snapshots remain explicit `E_NOTIMPL`. This intentionally does not add password lookup, SQL access, auto-ban writes, or protocol behavior, and preserves Account IID `{E5EDC050-0899-4A3B-BF4C-420212FC3895}`, CLSID `{369BE902-9F27-4722-A29F-3059E4D7021D}`, ProgID `hMailServer.Account.1`, and installed dispatch shape.
+- Focused Accounts tests pass `16/16`; full Net10 passes `1198`, with one opt-in native-registry test skipped. The next slice is a caller-aware throttled authentication boundary with explicit client identity and shared auto-ban integration; the COM method must remain unavailable until that boundary exists. SEC-18 remains RED for bridge registration and fresh evidence/challenge sealing.
+- Independent review is GREEN for this fence and RED for enabling the method. The coverage is process-local/in-memory; an installed out-of-process `CoCreateInstance`/DISPID 22 check remains a later opt-in validation item and is not required to justify keeping the method disabled.
+
 ## Yeni Thread Icin Baslangic Talimati
 
 1. Repo kokune gec: `<repo-root>`.
@@ -733,5 +740,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak izole IIS staging hostunda authorized PHP/FastCGI ve non-pool denial matrix'i tek shared `CollectorInvocationId` ile yeniden calistirip fresh live evidence uret; sonra collector-issued challenge/final-state sealing'i tamamla, evidence bundle'i externally pin/sign et ve iki independent reviewer gate'ini yeniden degerlendir. Canonical AppID/output path hardening is complete in `6d40f1b6d`. Permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation, PHP session cutover, production service/database/data/firewall ve SMTP/IMAP behavior degistirme.
+5. Current Next Slice olarak SEC-12 icin caller-aware throttled authentication boundary ve explicit client identity/auto-ban entegrasyonu tasarla/uygula; `Account.ValidatePassword` COM metodunu bu sinir olmadan acma. `aab2e307e` authorization fence'ini testle kapatiyor. SEC-18 fresh PHP/FastCGI/non-pool evidence ve collector-issued challenge/final-state sealing bekliyor. Permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation, PHP session cutover, production service/database/data/firewall ve SMTP/IMAP behavior degistirme.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; kullanici ozellikle istemedikce push yapma.
