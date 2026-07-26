@@ -947,19 +947,7 @@ builder.Services.AddSingleton(serviceProvider => new ImapListCommandHandler(
     serviceProvider.GetRequiredService<IImapMailboxDiscoveryStore>(),
     mailboxOptions.HierarchyDelimiter));
 builder.Services.AddSingleton<MessageSearchBackfillProcessor>();
-builder.Services.AddHostedService<ComLocalServerHostedService>();
-builder.Services.AddHostedService<ServerBootstrapper>();
-builder.Services.AddHostedService<BackupTaskHostedService>();
-builder.Services.AddHostedService<MessageSearchBackfillHostedService>();
-builder.Services.AddHostedService<DeliveryQueueProcessorHostedService>();
-builder.Services.AddHostedService<DeliveryQueueStatusMaintenanceHostedService>();
-if (externalFetchEnabled)
-{
-    builder.Services.AddHostedService<ExternalFetchHostedService>();
-}
-builder.Services.AddHostedService<ImapTcpListenerHostedService>();
-builder.Services.AddHostedService<Pop3TcpListenerHostedService>();
-builder.Services.AddHostedService<SmtpTcpListenerHostedService>();
+builder.Services.AddProductionHostedServices(externalFetchEnabled);
 
 var host = builder.Build();
 var directoryAdministrationStore = host.Services.GetRequiredService<IDirectoryAdministrationStore>();

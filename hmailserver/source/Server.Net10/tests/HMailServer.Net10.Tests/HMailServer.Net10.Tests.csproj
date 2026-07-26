@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <AssemblyName>HMailServer.Net10.Tests</AssemblyName>
     <RootNamespace>HMailServer.Net10.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
@@ -8,11 +8,13 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
     <PackageReference Include="MSTest.TestAdapter" Version="4.2.3" />
     <PackageReference Include="MSTest.TestFramework" Version="4.2.3" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\HMailServer.ComInterop\HMailServer.ComInterop.csproj" />
+    <ProjectReference Include="..\..\src\HMailServer.Service\HMailServer.Service.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Indexing\HMailServer.Indexing.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Delivery\HMailServer.Delivery.csproj" />
     <ProjectReference Include="..\..\src\HMailServer.Protocols\HMailServer.Protocols.csproj" />
