@@ -1,5 +1,5 @@
 # CODEX_HANDOFF.md
-
+- Validation: `test-sec18-denial-evidence-attestation.ps1`, `test-sec18-installed-application-graph-evidence.ps1`, and `test-webadmin-broker-staging-inventory.ps1` pass; full `build/test-net10.ps1 -Configuration Debug` passes `1198` with one opt-in native-registry test skipped. Rollback exit code is `0`; temporary registry keys, service/process, endpoints, client helper, and probe paths are absent; hMailServer remains stopped/disabled.
 Bu dosya yeni bir Codex thread'inin hMailServer .NET 10 rewrite calismasina kaldigi yerden devam edebilmesi icin hazirlandi.
 
 ## Projenin Amaci
@@ -694,10 +694,10 @@ Terminal/log incelemesi:
 - Independent `hmail_security_reviewer` and `hmail_reality_checker` decisions are RED for permanent broker registration. Remaining gate work is immutable, stage-bound counter/response attestation with a separately launched non-pool client, explicit activation/interface HRESULT capture, and fresh review. Permanent broker registration, DCOM ACL writes, PHP cutover, installed Application activation, production service/database/data/firewall changes, and SMTP/IMAP behavior remain out of scope.
 - Validation: `test-webadmin-broker-staging-inventory.ps1` passed; `test-sec18-installed-application-graph-evidence.ps1` passed; full `build/test-net10.ps1 -Configuration Debug` passed `1198/1198` with one opt-in native-registry test skipped. No production code changed in this staging slice.
 
-## SEC-18 Response-Aware Evidence Attestation (2026-07-23)
+## SEC-18 Hardened Evidence Attestation (2026-07-26)
 
-- Added response-aware checks in `build/attest-sec18-denial-evidence.ps1` and its focused test in commit `c6ca23d09` on top of `5014073bf`. The attester hashes eleven source artifacts, binds authorized server/response correlations and effective pool SID, checks explicit activation/interface/method HRESULTs, impersonation/revert cleanup, non-pool activation denial and counter delta, temporary cleanup, and installed-Application graph equality.
-- `artifacts/sec18-staging/SEC18-denial-evidence-attestation-attested-20260723.json` is `EvidenceReadyForIndependentReview` with 11/11 checks passed and `ReadyForBrokerRegistration=false`; the companion Markdown report records the same result. Both independent reviewers are GREEN for bounded staging evidence only and RED for permanent broker registration/implementation. Remaining blockers are exhaustive rollback target enforcement, rollback-script/evidence provenance sealing, and reviewed broker-only AppID authorization plus fail-closed method enforcement. Permanent broker registration, DCOM ACL writes, PHP cutover, and installed Application activation remain blocked.
+- Added exact cleanup/provenance and correlation hardening in `build/attest-sec18-denial-evidence.ps1` and its focused test in commit `686ad8179` on top of `c6ca23d09`. The attester hashes thirteen sources, binds wrong-SID server/matrix/response correlations, requires exact 8-key/two-view registry and 11-path coverage, rollback exit/hash/name, duplicate JSON-property rejection, exact hMailServer identity/state, and verifier/rollback source presence.
+- `artifacts/sec18-staging/SEC18-denial-evidence-attestation-hardened-20260723.json` is `EvidenceReadyForIndependentReview` with 14/14 checks passed and `ReadyForBrokerRegistration=false`; the companion Markdown report records the same result. Fresh independent reviewers rate bounded evidence integrity YELLOW because the bundle is self-attested without a detached/external signature; permanent broker registration/implementation remains RED because broker-only AppID authorization and per-method caller enforcement are not implemented or approved.
 - Validation: `test-sec18-denial-evidence-attestation.ps1`, `test-sec18-installed-application-graph-evidence.ps1`, and `test-webadmin-broker-staging-inventory.ps1` pass; full `build/test-net10.ps1 -Configuration Debug` passes `1198` with one opt-in native-registry test skipped. Rollback exit code is `0`; temporary registry keys, service/process, endpoints, client helper, and probe paths are absent; hMailServer remains stopped/disabled.
 
 ## Yeni Thread Icin Baslangic Talimati
@@ -711,5 +711,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak SEC-18 attestation'i harden et: rollback script hash'i ve exact registry/service/process/file/directory target coverage'ini fail-closed zorunlu kil, evidence timestamp/provenance kaydini reconcile et, sealed bundle ile iki independent reviewer gate'ini yeniden degerlendir. Permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation, PHP session cutover, production service/database/data/firewall ve SMTP/IMAP behavior degistirme.
+5. Current Next Slice olarak SEC-18 evidence bundle'i externally pin/sign et ve collector'in live hMailServer service identity/state kaydini attestation'a bind et; sonra iki independent reviewer gate'ini yeniden degerlendir. Permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation, PHP session cutover, production service/database/data/firewall ve SMTP/IMAP behavior degistirme.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; kullanici ozellikle istemedikce push yapma.
