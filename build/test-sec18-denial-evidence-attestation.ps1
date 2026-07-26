@@ -33,6 +33,9 @@ try {
     $authorizedCorrelation = 'fixture-authorized-001'
     $wrongCorrelation = 'fixture-wrong-002'
     $nonPoolRecord = 'fixture-nonpool-003'
+    $collectorInvocationId = $authorizedCorrelation
+    $collectorCollectedUtc = [DateTimeOffset]::UtcNow
+    $callerObservedUtc = $collectorCollectedUtc.AddSeconds(-5)
     $authorizedServer = [pscustomobject]@{
         correlationId = $authorizedCorrelation
         expectedSid = $poolSid
@@ -74,6 +77,8 @@ try {
     $cleanupPath = Join-Path $temporaryDirectory 'cleanup.json'
     $badCleanupPath = Join-Path $temporaryDirectory 'bad-cleanup.json'
     $duplicateCleanupPath = Join-Path $temporaryDirectory 'duplicate-cleanup.json'
+    $badCollectorPath = Join-Path $temporaryDirectory 'bad-collector.json'
+    $badServiceCollectorPath = Join-Path $temporaryDirectory 'bad-service-collector.json'
     $rollbackPath = Join-Path $temporaryDirectory 'rollback-sec18-nonpool-probe-20260722.ps1'
     $baselinePath = Join-Path $temporaryDirectory 'baseline.json'
     $postPath = Join-Path $temporaryDirectory 'post.json'
@@ -82,6 +87,8 @@ try {
     $goodOutputPath = Join-Path $temporaryDirectory 'good-output.json'
     $badOutputPath = Join-Path $temporaryDirectory 'bad-output.json'
     $badCleanupOutputPath = Join-Path $temporaryDirectory 'bad-cleanup-output.json'
+    $badCollectorOutputPath = Join-Path $temporaryDirectory 'bad-collector-output.json'
+    $badServiceCollectorOutputPath = Join-Path $temporaryDirectory 'bad-service-collector-output.json'
     $badWrongResponsePath = Join-Path $temporaryDirectory 'bad-wrong-response.json'
     $badWrongOutputPath = Join-Path $temporaryDirectory 'bad-wrong-output.json'
 
@@ -108,7 +115,17 @@ try {
         })
     Write-JsonFixture $processPath @([pscustomobject]@{ Name = 'php-cgi.exe'; UserSid = $poolSid })
     Write-JsonFixture $collectorPath ([pscustomobject]@{
-            CallerTokenEvidence = [pscustomobject]@{ Valid = $true }
+            CollectedUtc = $collectorCollectedUtc.ToString('o')
+            CollectorInvocationId = $collectorInvocationId
+            CallerEvidenceMaxAgeSeconds = 300
+            CallerTokenEvidence = [pscustomobject]@{
+                Valid = $true
+                ObservedUtc = $callerObservedUtc.ToString('o')
+                TimestampParseable = $true
+                TimestampFresh = $true
+                CorrelationId = $authorizedCorrelation
+                CorrelationMatchesCollectorInvocation = $true
+            }
             HMailServerService = [pscustomobject]@{
                 Name = 'hMailServer'
                 Present = $true
@@ -118,6 +135,9 @@ try {
                 StartTypeName = 'Disabled'
                 ProcessPresent = $false
                 ProcessIds = @()
+                ServiceReadError = $null
+                ProcessReadError = $null
+                ReadError = $null
             }
             Gate = [pscustomobject]@{ CallerTokenMatchesWorkerSid = $true; DedicatedPoolCandidate = $true; HMailServerServiceSafe = $true }
         })
@@ -157,6 +177,10 @@ try {
     $badCleanup.rollbackExitCode = 1
     $badCleanup.paths[0].Present = $true
     Write-JsonFixture $badCleanupPath $badCleanup
+    $badCollector = Get-Content -LiteralPath $collectorPath -Raw | ConvertFrom-Json
+    $badCollector.CallerTokenEvidence.ObservedUtc = $collectorCollectedUtc.AddSeconds(-301).ToString('o')
+    $badCollector.CallerTokenEvidence.TimestampFresh = $false
+    Write-JsonFixture $badCollectorPath $badCollector
     '{"schemaVersion":1,"schemaVersion":2}' | Set-Content -LiteralPath $duplicateCleanupPath -Encoding UTF8
     Write-JsonFixture $baselinePath ([pscustomobject]@{ GraphPathCount = 22; SnapshotCount = 44; Snapshots = @([pscustomobject]@{ Key = 'same' }) })
     Write-JsonFixture $postPath ([pscustomobject]@{ GraphPathCount = 22; SnapshotCount = 44; Snapshots = @([pscustomobject]@{ Key = 'same' }) })
@@ -183,8 +207,30 @@ try {
     Assert-True ($LASTEXITCODE -eq 0) 'complete attestation fixture must pass.'
     $good = Get-Content -LiteralPath $goodOutputPath -Raw | ConvertFrom-Json
     Assert-True ([bool]$good.Gate.EvidenceReadyForIndependentReview) 'complete fixture must be review-ready.'
-    Assert-True (@($good.Checks).Count -eq 16) 'attestation must emit all sixteen checks as an array.'
+    Assert-True (@($good.Checks).Count -eq 18) 'attestation must emit all eighteen checks as an array.'
     Assert-True ($good.SourceHashes.Count -eq 14) 'attestation must hash every source file and verifier script.'
+
+    $badCollectorArguments = $commonArguments.Clone()
+    $badCollectorArguments[$badCollectorArguments.IndexOf('-CollectorPath') + 1] = $badCollectorPath
+    $badCollectorArguments += @('-OutputPath', $badCollectorOutputPath, '-FailOnIncomplete')
+    & powershell.exe @badCollectorArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'stale caller-token evidence must fail closed with exit 2.'
+    $badCollectorReport = Get-Content -LiteralPath $badCollectorOutputPath -Raw | ConvertFrom-Json
+    $callerFreshnessCheck = $badCollectorReport.Checks | Where-Object { $_.Name -eq 'collector-caller-freshness-correlation' }
+    Assert-True (-not [bool]$callerFreshnessCheck.Passed) 'stale caller-token evidence must fail its freshness/correlation check.'
+
+    $badServiceCollector = Get-Content -LiteralPath $collectorPath -Raw | ConvertFrom-Json
+    $badServiceCollector.HMailServerService.ProcessReadError = 'synthetic process read failure'
+    $badServiceCollector.HMailServerService.ReadError = 'synthetic process read failure'
+    Write-JsonFixture $badServiceCollectorPath $badServiceCollector
+    $badServiceArguments = $commonArguments.Clone()
+    $badServiceArguments[$badServiceArguments.IndexOf('-CollectorPath') + 1] = $badServiceCollectorPath
+    $badServiceArguments += @('-OutputPath', $badServiceCollectorOutputPath, '-FailOnIncomplete')
+    & powershell.exe @badServiceArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'process read errors must fail closed with exit 2.'
+    $badServiceReport = Get-Content -LiteralPath $badServiceCollectorOutputPath -Raw | ConvertFrom-Json
+    $serviceReadCheck = $badServiceReport.Checks | Where-Object { $_.Name -eq 'collector-service-read-fail-closed' }
+    Assert-True (-not [bool]$serviceReadCheck.Passed) 'process read errors must fail their fail-closed check.'
 
     $bad = $matrix | ConvertTo-Json -Depth 20 | ConvertFrom-Json
     $badNonPool = $bad.tests | Where-Object { $_.name -eq 'genuine-nonpool-desktop-process' }

@@ -321,6 +321,50 @@ $collectorScriptSourcePresent = @($sourceHashes | Where-Object {
     }).Count -eq 1
 $collectorService = if (Has-Property $collector 'HMailServerService') { $collector.HMailServerService } else { $null }
 $cleanupService = if (Has-Property $cleanup 'hMailService') { $cleanup.hMailService } else { $null }
+$attestationMaxCallerAgeSeconds = 300
+$collectorCollectedUtc = $null
+$callerObservedUtc = $null
+$collectorTimestampsParseable = $false
+$collectorCallerAgeSeconds = $null
+try {
+    if ((Has-Property $collector 'CollectedUtc') -and (Has-Property $collector.CallerTokenEvidence 'ObservedUtc')) {
+        $collectorCollectedUtc = [DateTimeOffset]::Parse(
+            [string]$collector.CollectedUtc,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal).ToUniversalTime()
+        $callerObservedUtc = [DateTimeOffset]::Parse(
+            [string]$collector.CallerTokenEvidence.ObservedUtc,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal).ToUniversalTime()
+        $collectorCallerAgeSeconds = ($collectorCollectedUtc - $callerObservedUtc).TotalSeconds
+        $collectorTimestampsParseable = $true
+    }
+}
+catch {
+    $collectorTimestampsParseable = $false
+}
+$collectorCallerCorrelationBound = $null -ne $collector -and
+    (Has-Property $collector 'CollectorInvocationId') -and
+    (Has-Property $collector.CallerTokenEvidence 'CorrelationId') -and
+    -not [string]::IsNullOrWhiteSpace([string]$collector.CollectorInvocationId) -and
+    [string]::Equals([string]$collector.CollectorInvocationId, [string]$collector.CallerTokenEvidence.CorrelationId, [StringComparison]::Ordinal)
+$collectorCallerFreshAndCorrelated = $collectorTimestampsParseable -and
+    (Has-Property $collector 'CallerEvidenceMaxAgeSeconds') -and
+    [int]$collector.CallerEvidenceMaxAgeSeconds -eq $attestationMaxCallerAgeSeconds -and
+    (Has-Property $collector.CallerTokenEvidence 'TimestampParseable') -and
+    [bool]$collector.CallerTokenEvidence.TimestampParseable -and
+    (Has-Property $collector.CallerTokenEvidence 'TimestampFresh') -and
+    [bool]$collector.CallerTokenEvidence.TimestampFresh -and
+    (Has-Property $collector.CallerTokenEvidence 'CorrelationMatchesCollectorInvocation') -and
+    [bool]$collector.CallerTokenEvidence.CorrelationMatchesCollectorInvocation -and
+    $collectorCallerCorrelationBound -and
+    $collectorCallerAgeSeconds -ge -30 -and
+    $collectorCallerAgeSeconds -le $attestationMaxCallerAgeSeconds
+$collectorProcessReadFailClosed = $null -ne $collectorService -and
+    (Has-Property $collectorService 'ProcessReadError') -and
+    [string]::IsNullOrWhiteSpace([string]$collectorService.ProcessReadError) -and
+    (Has-Property $collectorService 'ReadError') -and
+    [string]::IsNullOrWhiteSpace([string]$collectorService.ReadError)
 $collectorServiceStateBound = $null -ne $collectorService -and
     [string]::Equals([string]$collectorService.Name, 'hMailServer', [StringComparison]::OrdinalIgnoreCase) -and
     [bool]$collectorService.Present -and
@@ -328,6 +372,7 @@ $collectorServiceStateBound = $null -ne $collectorService -and
     [string]::Equals([string]$collectorService.StartTypeName, 'Disabled', [StringComparison]::OrdinalIgnoreCase) -and
     [bool]$collectorService.ProcessPresent -eq $false -and
     [bool]$collector.Gate.HMailServerServiceSafe -and
+    $collectorProcessReadFailClosed -and
     $null -ne $cleanupService -and
     [string]::Equals([string]$cleanupService.Name, [string]$collectorService.Name, [StringComparison]::OrdinalIgnoreCase) -and
     [int]$cleanupService.Status -eq [int]$collectorService.Status -and
@@ -359,7 +404,9 @@ Add-Check 'collector-caller-token' (
     [bool]$collector.CallerTokenEvidence.Valid -and
     [bool]$collector.Gate.CallerTokenMatchesWorkerSid -and
     [bool]$collector.Gate.DedicatedPoolCandidate) 'The elevated collector links the caller SID to the dedicated IIS pool.'
+Add-Check 'collector-caller-freshness-correlation' $collectorCallerFreshAndCorrelated 'Caller-token evidence is fresh, parseable, and correlated to this collector invocation.'
 Add-Check 'collector-service-state' $collectorServiceStateBound 'The collector and cleanup evidence bind the exact hMailServer service to Stopped/Disabled state with no process.'
+Add-Check 'collector-service-read-fail-closed' $collectorProcessReadFailClosed 'Service and process enumeration errors cannot be represented as a false absent-process result.'
 Add-Check 'cleanup-verified' (
     [bool]$cleanup.productionApplicationTouched -eq $false -and
     [bool]$cleanup.servicePresent -eq $false -and

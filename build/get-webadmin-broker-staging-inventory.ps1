@@ -8,6 +8,11 @@ param(
 
     [string]$CallerTokenEvidencePath,
 
+    [string]$CollectorInvocationId,
+
+    [ValidateRange(1, 3600)]
+    [int]$CallerEvidenceMaxAgeSeconds = 300,
+
     [string]$OutputPath,
 
     [switch]$FailOnIncomplete
@@ -249,7 +254,10 @@ function Get-IisInventory {
 function Get-CallerTokenEvidence {
     param(
         [string]$Path,
-        [string[]]$ExpectedWorkerSids
+        [string[]]$ExpectedWorkerSids,
+        [string]$ExpectedCollectorInvocationId,
+        [DateTimeOffset]$NowUtc,
+        [int]$MaxAgeSeconds
     )
 
     if ([string]::IsNullOrWhiteSpace($Path)) {
@@ -259,8 +267,14 @@ function Get-CallerTokenEvidence {
             Reason = 'No caller-token evidence file was supplied.'
             ProbeVersion = $null
             ObservedUtc = $null
+            ObservedAgeSeconds = $null
+            TimestampParseable = $false
+            TimestampFresh = $false
             Transport = $null
             CallerSid = $null
+            CorrelationId = $null
+            CollectorInvocationId = $ExpectedCollectorInvocationId
+            CorrelationMatchesCollectorInvocation = $false
             ImpersonationSucceeded = $false
             MatchesWorkerSid = $false
         }
@@ -273,8 +287,14 @@ function Get-CallerTokenEvidence {
             Reason = "Caller-token evidence file was not found: $Path"
             ProbeVersion = $null
             ObservedUtc = $null
+            ObservedAgeSeconds = $null
+            TimestampParseable = $false
+            TimestampFresh = $false
             Transport = $null
             CallerSid = $null
+            CorrelationId = $null
+            CollectorInvocationId = $ExpectedCollectorInvocationId
+            CorrelationMatchesCollectorInvocation = $false
             ImpersonationSucceeded = $false
             MatchesWorkerSid = $false
         }
@@ -286,21 +306,52 @@ function Get-CallerTokenEvidence {
         $observedUtc = [string]$evidence.observedUtc
         $transport = [string]$evidence.transport
         $callerSid = [string]$evidence.callerSid
+        $correlationId = [string]$evidence.correlationId
         $impersonationProperty = $evidence.PSObject.Properties['impersonationSucceeded']
         $impersonationSucceeded = $null -ne $impersonationProperty -and $impersonationProperty.Value -is [bool] -and $impersonationProperty.Value
-        $hasRequiredMetadata = -not [string]::IsNullOrWhiteSpace($probeVersion) -and -not [string]::IsNullOrWhiteSpace($observedUtc)
+        $observedTimestamp = $null
+        $observedAgeSeconds = $null
+        $timestampParseable = $false
+        $timestampFresh = $false
+        try {
+            $observedTimestamp = [DateTimeOffset]::Parse(
+                $observedUtc,
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
+            $observedTimestamp = $observedTimestamp.ToUniversalTime()
+            $observedAgeSeconds = ($NowUtc.ToUniversalTime() - $observedTimestamp).TotalSeconds
+            $timestampParseable = $true
+            $timestampFresh = $observedAgeSeconds -ge -30 -and $observedAgeSeconds -le $MaxAgeSeconds
+        }
+        catch {
+            $timestampParseable = $false
+        }
+
+        $hasRequiredMetadata = -not [string]::IsNullOrWhiteSpace($probeVersion) -and
+            -not [string]::IsNullOrWhiteSpace($observedUtc) -and
+            -not [string]::IsNullOrWhiteSpace($correlationId)
         $transportIsLocal = [string]::Equals($transport, 'local', [System.StringComparison]::OrdinalIgnoreCase)
         $matchesWorkerSid = $ExpectedWorkerSids -contains $callerSid
-        $valid = $hasRequiredMetadata -and $transportIsLocal -and $impersonationSucceeded -and $matchesWorkerSid
+        $correlationMatchesCollectorInvocation = -not [string]::IsNullOrWhiteSpace($ExpectedCollectorInvocationId) -and
+            [string]::Equals($correlationId, $ExpectedCollectorInvocationId, [System.StringComparison]::Ordinal)
+        $valid = $hasRequiredMetadata -and $timestampParseable -and $timestampFresh -and
+            $transportIsLocal -and $impersonationSucceeded -and $matchesWorkerSid -and
+            $correlationMatchesCollectorInvocation
 
         return [pscustomobject]@{
             Present = $true
             Valid = $valid
-            Reason = if ($valid) { $null } else { 'Evidence must include probe metadata, local transport, a Boolean successful impersonation result, and the selected worker SID.' }
+            Reason = if ($valid) { $null } else { 'Evidence must include probe metadata, a parseable fresh timestamp, the collector invocation correlation, local transport, a Boolean successful impersonation result, and the selected worker SID.' }
             ProbeVersion = $probeVersion
             ObservedUtc = $observedUtc
+            ObservedAgeSeconds = if ($null -eq $observedAgeSeconds) { $null } else { [Math]::Round($observedAgeSeconds, 3) }
+            TimestampParseable = $timestampParseable
+            TimestampFresh = $timestampFresh
             Transport = $transport
             CallerSid = $callerSid
+            CorrelationId = $correlationId
+            CollectorInvocationId = $ExpectedCollectorInvocationId
+            CorrelationMatchesCollectorInvocation = $correlationMatchesCollectorInvocation
             ImpersonationSucceeded = $impersonationSucceeded
             MatchesWorkerSid = $matchesWorkerSid
         }
@@ -312,8 +363,14 @@ function Get-CallerTokenEvidence {
             Reason = "Caller-token evidence could not be read: $($_.Exception.Message)"
             ProbeVersion = $null
             ObservedUtc = $null
+            ObservedAgeSeconds = $null
+            TimestampParseable = $false
+            TimestampFresh = $false
             Transport = $null
             CallerSid = $null
+            CorrelationId = $null
+            CollectorInvocationId = $ExpectedCollectorInvocationId
+            CorrelationMatchesCollectorInvocation = $false
             ImpersonationSucceeded = $false
             MatchesWorkerSid = $false
         }
@@ -322,34 +379,47 @@ function Get-CallerTokenEvidence {
 
 function Get-HMailServerServiceEvidence {
     $service = $null
+    $serviceReadError = $null
+    $processes = @()
+    $processReadError = $null
+
     try {
-        $service = Get-Service -Name 'hMailServer' -ErrorAction SilentlyContinue
-        $processes = @(Get-Process -Name 'hMailServer' -ErrorAction SilentlyContinue)
-        return [pscustomobject]@{
-            Name = 'hMailServer'
-            Present = $null -ne $service
-            Status = if ($null -ne $service) { [int]$service.Status } else { $null }
-            StatusName = if ($null -ne $service) { [string]$service.Status } else { $null }
-            StartType = if ($null -ne $service) { [int]$service.StartType } else { $null }
-            StartTypeName = if ($null -ne $service) { [string]$service.StartType } else { $null }
-            ProcessPresent = $processes.Count -gt 0
-            ProcessIds = @($processes | ForEach-Object { [int]$_.Id })
-            ReadError = $null
-        }
+        $service = Get-Service -Name 'hMailServer' -ErrorAction Stop
     }
     catch {
-        return [pscustomobject]@{
-            Name = 'hMailServer'
-            Present = $null -ne $service
-            Status = if ($null -ne $service) { [int]$service.Status } else { $null }
-            StatusName = if ($null -ne $service) { [string]$service.Status } else { $null }
-            StartType = if ($null -ne $service) { [int]$service.StartType } else { $null }
-            StartTypeName = if ($null -ne $service) { [string]$service.StartType } else { $null }
-            ProcessPresent = $null
-            ProcessIds = @()
-            ReadError = $_.Exception.Message
+        if ([string]$_.CategoryInfo.Category -ne 'ObjectNotFound') {
+            $serviceReadError = $_.Exception.Message
         }
     }
+
+    try {
+        $processes = @(Get-Process -Name 'hMailServer' -ErrorAction Stop)
+    }
+    catch {
+        if ([string]$_.CategoryInfo.Category -ne 'ObjectNotFound') {
+            $processReadError = $_.Exception.Message
+        }
+    }
+
+    $readErrors = @(@($serviceReadError, $processReadError) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    return [pscustomobject]@{
+        Name = 'hMailServer'
+        Present = $null -ne $service
+        Status = if ($null -ne $service) { [int]$service.Status } else { $null }
+        StatusName = if ($null -ne $service) { [string]$service.Status } else { $null }
+        StartType = if ($null -ne $service) { [int]$service.StartType } else { $null }
+        StartTypeName = if ($null -ne $service) { [string]$service.StartType } else { $null }
+        ProcessPresent = if ($null -eq $processReadError) { $processes.Count -gt 0 } else { $null }
+        ProcessIds = if ($null -eq $processReadError) { @($processes | ForEach-Object { [int]$_.Id }) } else { @() }
+        ServiceReadError = $serviceReadError
+        ProcessReadError = $processReadError
+        ReadError = if ($readErrors.Count -eq 0) { $null } else { $readErrors -join '; ' }
+    }
+}
+
+$collectorStartedUtc = [DateTimeOffset]::UtcNow
+if ([string]::IsNullOrWhiteSpace($CollectorInvocationId)) {
+    $CollectorInvocationId = [Guid]::NewGuid().ToString('N')
 }
 
 $registryEvidence = @(
@@ -359,7 +429,7 @@ $registryEvidence = @(
 $iisEvidence = Get-IisInventory -RequestedWebAdminPath $WebAdminPath
 $hMailServerService = Get-HMailServerServiceEvidence
 $workerSids = @($iisEvidence.Pools | ForEach-Object { $_.WorkerSid } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
-$callerEvidence = Get-CallerTokenEvidence -Path $CallerTokenEvidencePath -ExpectedWorkerSids $workerSids
+$callerEvidence = Get-CallerTokenEvidence -Path $CallerTokenEvidencePath -ExpectedWorkerSids $workerSids -ExpectedCollectorInvocationId $CollectorInvocationId -NowUtc $collectorStartedUtc -MaxAgeSeconds $CallerEvidenceMaxAgeSeconds
 $webAdminPathExists = Test-Path -LiteralPath $WebAdminPath -PathType Container
 $hasExistingApplicationAppId = @($registryEvidence | Where-Object { $_.ApplicationAppId.Present }).Count -gt 0
 $hasDedicatedPoolCandidate = @($iisEvidence.Pools | Where-Object { $_.DedicatedPoolCandidate -and $_.WorkerSid }).Count -eq 1
@@ -370,12 +440,15 @@ $hMailServerServiceSafe = $hMailServerService.Present -and
     [string]::Equals([string]$hMailServerService.Name, 'hMailServer', [StringComparison]::OrdinalIgnoreCase) -and
     [string]::Equals([string]$hMailServerService.StatusName, 'Stopped', [StringComparison]::OrdinalIgnoreCase) -and
     [string]::Equals([string]$hMailServerService.StartTypeName, 'Disabled', [StringComparison]::OrdinalIgnoreCase) -and
-    $hMailServerService.ProcessPresent -eq $false
+    $hMailServerService.ProcessPresent -eq $false -and
+    [string]::IsNullOrWhiteSpace([string]$hMailServerService.ReadError)
 $stagingEvidenceComplete = $webAdminPathExists -and $hasExistingApplicationAppId -and $hasDedicatedPoolCandidate -and $callerEvidence.Valid -and $hMailServerServiceSafe
 
 $report = [pscustomobject]@{
     SchemaVersion = 1
-    CollectedUtc = [DateTime]::UtcNow.ToString('o')
+    CollectedUtc = $collectorStartedUtc.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    CollectorInvocationId = $CollectorInvocationId
+    CallerEvidenceMaxAgeSeconds = $CallerEvidenceMaxAgeSeconds
     ComputerName = $env:COMPUTERNAME
     RequestedWebAdminPath = ConvertTo-NormalizedPath $WebAdminPath
     WebAdminPathExists = $webAdminPathExists
