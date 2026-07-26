@@ -405,6 +405,67 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_UsesInjectedBoundaryWithSmtpCallerAndRemoteAddress()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "secret");
+        await using var stream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nQUIT\r\n");
+        var boundary = new CapturingClientAwareAuthenticationService(
+            ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(77, "user@example.test")));
+        var session = new SmtpSession(
+            new SmtpSessionOptions(),
+            accountAuthenticator: new FakeAccountAuthenticator(),
+            clientAwareAuthenticationService: boundary);
+
+        await session.RunAsync(
+            stream,
+            startTlsStreamProvider: null,
+            connectionContext: new SmtpSessionConnectionContext(
+                ClientIPAddress: "203.0.113.33",
+                ClientPort: 2525,
+                SessionId: 48),
+            cancellationToken: CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "235 Authentication successful\r\n");
+        Assert.IsNotNull(boundary.LastRequest);
+        Assert.AreEqual("user@example.test", boundary.LastRequest.Username);
+        Assert.AreEqual("secret", boundary.LastRequest.Password);
+        Assert.AreEqual(IPAddress.Parse("203.0.113.33"), boundary.LastRequest.ClientAddress);
+        Assert.AreEqual(ClientAuthenticationCaller.Smtp, boundary.LastRequest.Caller);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_UsesInjectedFailureAndDisconnectsForSmtp()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "wrong");
+        await using var stream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nNOOP\r\n");
+        var boundary = new CapturingClientAwareAuthenticationService(
+            ImapAuthenticationResult.Failure("Injected authentication failure."),
+            disconnect: true);
+        var session = new SmtpSession(
+            new SmtpSessionOptions(),
+            accountAuthenticator: new FakeAccountAuthenticator(),
+            clientAwareAuthenticationService: boundary);
+
+        await session.RunAsync(
+            stream,
+            startTlsStreamProvider: null,
+            connectionContext: new SmtpSessionConnectionContext(
+                ClientIPAddress: "203.0.113.36",
+                ClientPort: 2525,
+                SessionId: 50),
+            cancellationToken: CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "535 Authentication failed\r\n");
+        Assert.IsFalse(output.Contains("235 Authentication successful\r\n", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("250 OK\r\n", StringComparison.Ordinal));
+        Assert.IsNotNull(boundary.LastRequest);
+        Assert.AreEqual(ClientAuthenticationCaller.Smtp, boundary.LastRequest.Caller);
+    }
+
+    [TestMethod]
     public async Task RunAsync_RunsOnClientLogonAfterSuccessfulAuth()
     {
         var authToken = EncodeAuthPlain("user@example.test", "secret");

@@ -108,6 +108,66 @@ public sealed class Pop3SessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_UsesInjectedBoundaryWithPop3CallerAndRemoteAddress()
+    {
+        var store = new FakePop3MailboxStore(Array.Empty<StoredMessage>());
+        var boundary = new CapturingClientAwareAuthenticationService(
+            ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(77, "user@example.test")));
+        await using var stream = new DuplexMemoryStream(
+            "USER user@example.test\r\nPASS secret\r\nQUIT\r\n");
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            store,
+            clientAwareAuthenticationService: boundary);
+
+        await session.RunAsync(
+            stream,
+            new Pop3SessionConnectionContext(
+                ClientIPAddress: "203.0.113.32",
+                ClientPort: 1110,
+                SessionId: 47),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "+OK Mailbox locked and ready\r\n");
+        Assert.IsNotNull(boundary.LastRequest);
+        Assert.AreEqual("user@example.test", boundary.LastRequest.Username);
+        Assert.AreEqual("secret", boundary.LastRequest.Password);
+        Assert.AreEqual(IPAddress.Parse("203.0.113.32"), boundary.LastRequest.ClientAddress);
+        Assert.AreEqual(ClientAuthenticationCaller.Pop3, boundary.LastRequest.Caller);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_UsesInjectedFailureAndDisconnectsForPop3()
+    {
+        var store = new FakePop3MailboxStore(Array.Empty<StoredMessage>());
+        var boundary = new CapturingClientAwareAuthenticationService(
+            ImapAuthenticationResult.Failure("Injected authentication failure."),
+            disconnect: true);
+        await using var stream = new DuplexMemoryStream(
+            "USER user@example.test\r\nPASS wrong\r\nSTAT\r\n");
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            store,
+            clientAwareAuthenticationService: boundary);
+
+        await session.RunAsync(
+            stream,
+            new Pop3SessionConnectionContext(
+                ClientIPAddress: "203.0.113.35",
+                ClientPort: 1110,
+                SessionId: 49),
+            CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "-ERR Injected authentication failure.\r\n");
+        Assert.IsFalse(output.Contains("+OK Mailbox locked and ready\r\n", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("+OK 0 messages\r\n", StringComparison.Ordinal));
+        Assert.AreEqual(0, store.ListCallCount);
+        Assert.IsNotNull(boundary.LastRequest);
+        Assert.AreEqual(ClientAuthenticationCaller.Pop3, boundary.LastRequest.Caller);
+    }
+
+    [TestMethod]
     public async Task RunAsync_RunsOnClientLogonAfterSuccessfulPass()
     {
         var store = new FakePop3MailboxStore(Array.Empty<StoredMessage>());

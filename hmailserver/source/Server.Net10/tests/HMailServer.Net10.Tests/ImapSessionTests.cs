@@ -746,6 +746,59 @@ public sealed class ImapSessionTests
         StringAssert.Contains(output, "* BAD Protocol line ended without CRLF terminator.\r\n");
     }
 
+    [TestMethod]
+    public async Task RunAsync_UsesInjectedBoundaryWithImapCallerAndRemoteAddress()
+    {
+        var boundary = new CapturingClientAwareAuthenticationService(
+            ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(77, "user@example.test")));
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN user@example.test secret\r\nA002 LOGOUT\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            new FakeMailboxStore(),
+            clientAwareAuthenticationService: boundary);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(ClientIPAddress: "203.0.113.31"),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 OK LOGIN completed\r\n");
+        Assert.IsNotNull(boundary.LastRequest);
+        Assert.AreEqual("user@example.test", boundary.LastRequest.Username);
+        Assert.AreEqual("secret", boundary.LastRequest.Password);
+        Assert.AreEqual(IPAddress.Parse("203.0.113.31"), boundary.LastRequest.ClientAddress);
+        Assert.AreEqual(ClientAuthenticationCaller.Imap, boundary.LastRequest.Caller);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_UsesInjectedFailureAndDisconnectsForImap()
+    {
+        var boundary = new CapturingClientAwareAuthenticationService(
+            ImapAuthenticationResult.Failure("Injected authentication failure."),
+            disconnect: true);
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN user@example.test wrong\r\nA002 NOOP\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            new FakeMailboxStore(),
+            clientAwareAuthenticationService: boundary);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(ClientIPAddress: "203.0.113.34"),
+            CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "A001 NO Injected authentication failure.\r\n");
+        Assert.IsFalse(output.Contains("A001 OK LOGIN completed\r\n", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("A002 OK NOOP completed\r\n", StringComparison.Ordinal));
+        Assert.IsNotNull(boundary.LastRequest);
+        Assert.AreEqual(ClientAuthenticationCaller.Imap, boundary.LastRequest.Caller);
+    }
+
     private static string EncodeSaslPlain(
         string authorizationId,
         string authenticationId,
@@ -770,7 +823,8 @@ public sealed class ImapSessionTests
         IImapRecentFlagStore? recentFlagStore = null,
         ImapSessionOptions? options = null,
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
-        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null)
+        IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null,
+        IClientAwareAuthenticationService? clientAwareAuthenticationService = null)
     {
         var executor = new ImapSearchExecutor(searchIndex);
         var handler = new ImapSearchCommandHandler(new ImapSearchCommandParser(), executor);
@@ -824,7 +878,8 @@ public sealed class ImapSessionTests
             accountAuthenticator: authenticator,
             mailboxStore: mailboxStore,
             eventScriptExecutor: eventScriptExecutor,
-            autoBanLogonFailureRecorder: autoBanLogonFailureRecorder);
+            autoBanLogonFailureRecorder: autoBanLogonFailureRecorder,
+            clientAwareAuthenticationService: clientAwareAuthenticationService);
     }
 
     private sealed class CapturingSearchIndex : IMessageSearchIndex
