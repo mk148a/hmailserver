@@ -38,6 +38,54 @@ public sealed class SmtpTcpListenerTests
     }
 
     [TestMethod]
+    public async Task RunAsync_PropagatesLoopbackAddressToSmtpAuthenticationBoundary()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var boundary = new CapturingClientAwareAuthenticationService(
+            ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(77, "user@example.test")));
+        var listener = CreateListener(
+            maxConcurrentConnections: 10,
+            clientAwareAuthenticationService: boundary);
+        var runTask = listener.RunAsync(cts.Token);
+
+        try
+        {
+            var endpoint = await listener.Started.WaitAsync(cts.Token);
+
+            using var client = new TcpClient();
+            await client.ConnectAsync(endpoint.Address, endpoint.Port, cts.Token);
+            await using var stream = client.GetStream();
+            using var reader = CreateReader(stream);
+            await using var writer = CreateWriter(stream);
+
+            Assert.AreEqual("220 hMailServer .NET 10 ESMTP ready", await ReadLineAsync(reader, cts.Token));
+            await WriteLineAsync(writer, "EHLO client.example", cts.Token);
+            Assert.AreEqual("250-mx.example.test", await ReadLineAsync(reader, cts.Token));
+            Assert.AreEqual("250-SIZE 20971520", await ReadLineAsync(reader, cts.Token));
+            Assert.AreEqual("250-AUTH PLAIN LOGIN", await ReadLineAsync(reader, cts.Token));
+            Assert.AreEqual("250 HELP", await ReadLineAsync(reader, cts.Token));
+
+            var authToken = Convert.ToBase64String(
+                Encoding.UTF8.GetBytes(string.Concat('\0', "user@example.test", '\0', "secret")));
+            await WriteLineAsync(writer, $"AUTH PLAIN {authToken}", cts.Token);
+
+            Assert.AreEqual("235 Authentication successful", await ReadLineAsync(reader, cts.Token));
+            Assert.IsNotNull(boundary.LastRequest);
+            Assert.AreEqual(IPAddress.Loopback, boundary.LastRequest.ClientAddress);
+            Assert.AreEqual(ClientAuthenticationCaller.Smtp, boundary.LastRequest.Caller);
+            Assert.AreEqual("user@example.test", boundary.LastRequest.Username);
+            Assert.AreEqual("secret", boundary.LastRequest.Password);
+
+            await WriteLineAsync(writer, "QUIT", cts.Token);
+            Assert.AreEqual("221 mx.example.test closing connection", await ReadLineAsync(reader, cts.Token));
+        }
+        finally
+        {
+            await StopListenerAsync(runTask, cts);
+        }
+    }
+
+    [TestMethod]
     public async Task RunAsync_Replies421WhenConnectionLimitIsReached()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -109,9 +157,16 @@ public sealed class SmtpTcpListenerTests
 
     private static SmtpTcpListener CreateListener(
         int maxConcurrentConnections,
-        ISmtpEventScriptExecutor? eventScriptExecutor = null)
+        ISmtpEventScriptExecutor? eventScriptExecutor = null,
+        IClientAwareAuthenticationService? clientAwareAuthenticationService = null)
     {
-        var session = new SmtpSession(new SmtpSessionOptions { ServerName = "mx.example.test" });
+        IImapAccountAuthenticator? accountAuthenticator = clientAwareAuthenticationService is null
+            ? null
+            : new FakeAccountAuthenticator();
+        var session = new SmtpSession(
+            new SmtpSessionOptions { ServerName = "mx.example.test" },
+            accountAuthenticator: accountAuthenticator,
+            clientAwareAuthenticationService: clientAwareAuthenticationService);
         return new SmtpTcpListener(
             session,
             new PlainSmtpConnectionStreamFactory(),
@@ -167,5 +222,22 @@ public sealed class SmtpTcpListenerTests
             SmtpEventScriptExecutionRequest request,
             CancellationToken cancellationToken) =>
             _execute(request);
+    }
+
+    private sealed class FakeAccountAuthenticator : IImapAccountAuthenticator
+    {
+        public ValueTask<ImapAuthenticationResult> AuthenticateAsync(
+            string username,
+            string password,
+            CancellationToken cancellationToken)
+        {
+            if (username == "user@example.test" && password == "secret")
+            {
+                return ValueTask.FromResult(
+                    ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(77, username)));
+            }
+
+            return ValueTask.FromResult(ImapAuthenticationResult.Failure("Invalid user name or password."));
+        }
     }
 }

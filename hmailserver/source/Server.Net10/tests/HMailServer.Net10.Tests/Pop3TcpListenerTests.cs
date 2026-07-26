@@ -42,6 +42,48 @@ public sealed class Pop3TcpListenerTests
     }
 
     [TestMethod]
+    public async Task RunAsync_PropagatesLoopbackAddressToPop3AuthenticationBoundary()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var boundary = new CapturingClientAwareAuthenticationService(
+            ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(77, "user@example.test")));
+        var listener = CreateListener(
+            maxConcurrentConnections: 10,
+            clientAwareAuthenticationService: boundary);
+        var runTask = listener.RunAsync(cts.Token);
+
+        try
+        {
+            var endpoint = await listener.Started.WaitAsync(cts.Token);
+
+            using var client = new TcpClient();
+            await client.ConnectAsync(endpoint.Address, endpoint.Port, cts.Token);
+            await using var stream = client.GetStream();
+            using var reader = CreateReader(stream);
+            await using var writer = CreateWriter(stream);
+
+            Assert.AreEqual("+OK hMailServer .NET 10 POP3 ready", await ReadLineAsync(reader, cts.Token));
+            await WriteLineAsync(writer, "USER user@example.test", cts.Token);
+            Assert.AreEqual("+OK User accepted", await ReadLineAsync(reader, cts.Token));
+            await WriteLineAsync(writer, "PASS secret", cts.Token);
+
+            Assert.AreEqual("+OK Mailbox locked and ready", await ReadLineAsync(reader, cts.Token));
+            Assert.IsNotNull(boundary.LastRequest);
+            Assert.AreEqual(IPAddress.Loopback, boundary.LastRequest.ClientAddress);
+            Assert.AreEqual(ClientAuthenticationCaller.Pop3, boundary.LastRequest.Caller);
+            Assert.AreEqual("user@example.test", boundary.LastRequest.Username);
+            Assert.AreEqual("secret", boundary.LastRequest.Password);
+
+            await WriteLineAsync(writer, "QUIT", cts.Token);
+            Assert.AreEqual("+OK hMailServer POP3 server signing off", await ReadLineAsync(reader, cts.Token));
+        }
+        finally
+        {
+            await StopListenerAsync(runTask, cts);
+        }
+    }
+
+    [TestMethod]
     public async Task RunAsync_RepliesErrWhenConnectionLimitIsReached()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -148,12 +190,14 @@ public sealed class Pop3TcpListenerTests
     private static Pop3TcpListener CreateListener(
         int maxConcurrentConnections,
         IPop3ConnectionStreamFactory? streamFactory = null,
-        ISmtpEventScriptExecutor? eventScriptExecutor = null)
+        ISmtpEventScriptExecutor? eventScriptExecutor = null,
+        IClientAwareAuthenticationService? clientAwareAuthenticationService = null)
     {
         var message = Encoding.ASCII.GetBytes("Subject: one\r\n\r\nBody\r\n");
         var session = new Pop3Session(
             new FakeAccountAuthenticator(),
-            new FakePop3MailboxStore(new StoredMessage(101, "101", message)));
+            new FakePop3MailboxStore(new StoredMessage(101, "101", message)),
+            clientAwareAuthenticationService: clientAwareAuthenticationService);
         return new Pop3TcpListener(
             session,
             streamFactory ?? new PlainPop3ConnectionStreamFactory(),
