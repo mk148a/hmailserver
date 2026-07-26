@@ -133,11 +133,13 @@ Run it only on a dedicated non-production IIS staging host after an independentl
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\get-webadmin-broker-staging-inventory.ps1 `
   -WebAdminPath 'C:\hMailServer57-Test\PHPWebAdmin' `
   -CallerTokenEvidencePath 'C:\evidence\webadmin-caller-token.json' `
+  -CollectorInvocationId '<caller-probe-correlation-id>' `
+  -CallerEvidenceMaxAgeSeconds 300 `
   -OutputPath 'C:\evidence\webadmin-broker-inventory.json' `
   -FailOnIncomplete
 ```
 
-The caller-token evidence must contain only non-secret fields: `probeVersion`, `observedUtc`, `transport` with value `local`, `impersonationSucceeded` with value `true`, and `callerSid`. The collector checks that the caller SID equals the discovered worker SID, records all mappings sharing that application pool, and reports `EvidenceCollectedSecurityReviewRequired` only when the WebAdmin path, existing Application AppID, one dedicated-pool candidate, and the caller evidence are present. It always reports `ReadyForBrokerRegistration = false`; the broker-only AppID ACL and method-level caller-SID code still need dedicated review. `-FailOnIncomplete` exits `2` for incomplete evidence.
+The caller-token evidence must contain only non-secret fields: `probeVersion`, `observedUtc`, `transport` with value `local`, `impersonationSucceeded` with value `true`, `callerSid`, and a non-empty `correlationId`. The caller probe and collector orchestration must pass the same correlation as `-CollectorInvocationId`; the collector requires a parseable observation no more than 300 seconds old and no more than 30 seconds in the future. It checks that the caller SID equals the discovered worker SID, records all mappings sharing that application pool, and reports `EvidenceCollectedSecurityReviewRequired` only when the WebAdmin path, existing Application AppID, one dedicated-pool candidate, fresh correlated caller evidence, and the hMailServer service/process read gate are present. Service and process enumeration errors are recorded and fail closed; an absent process is accepted only when enumeration returns the expected not-found result. It always reports `ReadyForBrokerRegistration = false`; the broker-only AppID ACL and method-level caller-SID code still need dedicated review. `-FailOnIncomplete` exits `2` for incomplete evidence.
 
 Legacy implementation scope:
 
