@@ -58,6 +58,8 @@ public sealed class AccountsComContractTests
         var sizeError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Size);
         var quotaUsedError = Assert.ThrowsExactly<COMException>(() => _ = new Account().QuotaUsed);
         var lastLogonError = Assert.ThrowsExactly<COMException>(() => _ = new Account().LastLogonTime);
+        var validatePasswordError = Assert.ThrowsExactly<COMException>(
+            () => new Account().ValidatePassword("candidate-password"));
 
         Assert.AreEqual(EAccessDenied, accountsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, refreshError.ErrorCode);
@@ -68,6 +70,7 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(EAccessDenied, sizeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, quotaUsedError.ErrorCode);
         Assert.AreEqual(EAccessDenied, lastLogonError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, validatePasswordError.ErrorCode);
     }
 
     [TestMethod]
@@ -169,6 +172,8 @@ public sealed class AccountsComContractTests
         var pendingCoreScalarMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].MaxSize = 4096);
         var pendingDeliveryScalarMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].ForwardEnabled = false);
         var pendingSensitiveRead = Assert.ThrowsExactly<COMException>(() => _ = accounts[0].Password);
+        var pendingPasswordValidation = Assert.ThrowsExactly<COMException>(
+            () => accounts[0].ValidatePassword("candidate-password"));
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badAddress.ErrorCode);
@@ -180,6 +185,7 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(ENotImplemented, pendingCoreScalarMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDeliveryScalarMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSensitiveRead.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingPasswordValidation.ErrorCode);
     }
 
     [TestMethod]
