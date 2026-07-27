@@ -107,3 +107,7 @@ ClamAV and SpamAssassin scanner-test requests must use a POST form containing th
 Confirm that a server administrator can test a scanner at a local IPv4 literal and at a hostname resolving to a local IPv4 address, with the resolved literal passed to the existing COM test method and a valid decimal port in the POST body.
 Confirm that a remote, unresolved, IPv6-only, array-valued, query-only, non-decimal, zero, or greater-than-65535 Hostname/Port input returns HTTP 400 with a body of 0 and does not invoke TestClamAVScanner or TestSpamAssassinConnection.
 Confirm that ClamWin and External antivirus tests, saved scanner settings, normal SMTP scanner connections, and direct COM scanner tests retain their existing behavior.
+
+Performance settings save and message-indexing cache clear must use a POST form containing page=performance, action, the existing settings fields where applicable, and csrftoken.
+Confirm that a GET request to index.php?page=performance&action=ClearMessageIndexingCache returns without invoking MessageIndexing.Clear.
+Confirm that a POST with action, settings fields, or csrftoken supplied only in the query string does not mutate performance settings or clear the message-indexing cache; valid POST-body values retain the existing server-admin behavior.

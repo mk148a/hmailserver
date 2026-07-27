@@ -8,27 +8,29 @@ if (hmailGetAdminLevel() != 2)
 $obSettings	= $obBaseApp->Settings();
 $obCache    = $obSettings->Cache();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 if($action == "save")
 {
-	$obCache->Enabled		            = hmailGetVar("cacheenabled",0);
-	$obCache->DomainCacheTTL         = hmailGetVar("cachedomainttl",0); 
-	$obCache->AccountCacheTTL		   = hmailGetVar("cacheaccountttl",0);
+	hmailRequirePostCsrfToken();
+	$obCache->Enabled		            = hmailGetPostVar("cacheenabled",0);
+	$obCache->DomainCacheTTL         = hmailGetPostVar("cachedomainttl",0);
+	$obCache->AccountCacheTTL		   = hmailGetPostVar("cacheaccountttl",0);
 	
-   $obCache->AliasCacheTTL            = hmailGetVar("cachealiasttl",0);
-   $obCache->DistributionListCacheTTL = hmailGetVar("cachedistributionlistttl",0);
+   $obCache->AliasCacheTTL            = hmailGetPostVar("cachealiasttl",0);
+   $obCache->DistributionListCacheTTL = hmailGetPostVar("cachedistributionlistttl",0);
 	
-	$obSettings->TCPIPThreads        = hmailGetVar("tcpipthreads", 0);
-	$obSettings->MaxDeliveryThreads  = hmailGetVar("maxdeliverythreads", 0);
-	$obSettings->MaxAsynchronousThreads = hmailGetVar("MaxAsynchronousThreads", 0);
-   $obSettings->WorkerThreadPriority = hmailGetVar("workerthreadpriority", 0);
+	$obSettings->TCPIPThreads        = hmailGetPostVar("tcpipthreads", 0);
+	$obSettings->MaxDeliveryThreads  = hmailGetPostVar("maxdeliverythreads", 0);
+	$obSettings->MaxAsynchronousThreads = hmailGetPostVar("MaxAsynchronousThreads", 0);
+   $obSettings->WorkerThreadPriority = hmailGetPostVar("workerthreadpriority", 0);
    
    
-   $obSettings->MessageIndexing->Enabled = hmailGetVar("MessageIndexingEnabled", 0);
+   $obSettings->MessageIndexing->Enabled = hmailGetPostVar("MessageIndexingEnabled", 0);
 }
 else if ($action == "ClearMessageIndexingCache")
 {
+   hmailRequirePostCsrfToken();
    $obSettings->MessageIndexing->Clear();
 }
 
