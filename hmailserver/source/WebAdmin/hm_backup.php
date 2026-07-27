@@ -8,18 +8,20 @@ if (hmailGetAdminLevel() != 2)
 $obSettings	= $obBaseApp->Settings();
 $obBackup    = $obSettings->Backup();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 if($action == "save")
 {
-	$obBackup->Destination = hmailGetVar("backupdestination",0);
-	$obBackup->BackupSettings = hmailGetVar("backupsettings",0);
-	$obBackup->BackupDomains = hmailGetVar("backupdomains",0);
-	$obBackup->BackupMessages = hmailGetVar("backupmessages",0);
-	$obBackup->CompressDestinationFiles = hmailGetVar("backupcompress",0);
+	hmailRequirePostCsrfToken();
+	$obBackup->Destination = hmailGetPostVar("backupdestination",0);
+	$obBackup->BackupSettings = hmailGetPostVar("backupsettings",0);
+	$obBackup->BackupDomains = hmailGetPostVar("backupdomains",0);
+	$obBackup->BackupMessages = hmailGetPostVar("backupmessages",0);
+	$obBackup->CompressDestinationFiles = hmailGetPostVar("backupcompress",0);
 }
 elseif ($action == "startbackup")
 {
+	hmailRequirePostCsrfToken();
    $obBaseApp->BackupManager->StartBackup();  
 }
 
@@ -107,4 +109,3 @@ $backupcompresschecked = hmailCheckedIf1($backupcompress);
          </form>
       </div>
    </div>
-        
