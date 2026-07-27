@@ -7,23 +7,24 @@ if (hmailGetAdminLevel() != 2)
 
 $obSettings	= $obBaseApp->Settings();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 if($action == "save")
 {
-	$obSettings->WelcomeIMAP= hmailGetVar("welcomeimap",0);
-	$obSettings->MaxIMAPConnections = hmailGetVar("MaxIMAPConnections",0);
+	hmailRequirePostCsrfToken();
+	$obSettings->WelcomeIMAP= hmailGetPostVar("welcomeimap",0);
+	$obSettings->MaxIMAPConnections = hmailGetPostVar("MaxIMAPConnections",0);
 	
-	$obSettings->IMAPSortEnabled  = hmailGetVar("IMAPSortEnabled",0);
-	$obSettings->IMAPQuotaEnabled = hmailGetVar("IMAPQuotaEnabled",0);
-	$obSettings->IMAPIdleEnabled  = hmailGetVar("IMAPIdleEnabled",0);
-	$obSettings->IMAPACLEnabled  = hmailGetVar("IMAPACLEnabled",0);
+	$obSettings->IMAPSortEnabled  = hmailGetPostVar("IMAPSortEnabled",0);
+	$obSettings->IMAPQuotaEnabled = hmailGetPostVar("IMAPQuotaEnabled",0);
+	$obSettings->IMAPIdleEnabled  = hmailGetPostVar("IMAPIdleEnabled",0);
+	$obSettings->IMAPACLEnabled  = hmailGetPostVar("IMAPACLEnabled",0);
     
-    $obSettings->IMAPSASLPlainEnabled  = hmailGetVar("IMAPSASLPlainEnabled",0);
-    $obSettings->IMAPSASLInitialResponseEnabled  = hmailGetVar("IMAPSASLInitialResponseEnabled",0);
-    $obSettings->IMAPMasterUser  = hmailGetVar("IMAPMasterUser","");
+    $obSettings->IMAPSASLPlainEnabled  = hmailGetPostVar("IMAPSASLPlainEnabled",0);
+    $obSettings->IMAPSASLInitialResponseEnabled  = hmailGetPostVar("IMAPSASLInitialResponseEnabled",0);
+    $obSettings->IMAPMasterUser  = hmailGetPostVar("IMAPMasterUser","");
    
-    $obSettings->IMAPHierarchyDelimiter = hmailGetVar("IMAPHierarchyDelimiter","");
+    $obSettings->IMAPHierarchyDelimiter = hmailGetPostVar("IMAPHierarchyDelimiter","");
 }
 
 $welcomeimap = $obSettings->WelcomeIMAP;     

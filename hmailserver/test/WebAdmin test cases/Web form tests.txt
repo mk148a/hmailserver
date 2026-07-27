@@ -147,3 +147,7 @@ Confirm that a POST with action, TLS fields, or csrftoken supplied only in the q
 POP3 settings save must use a POST form containing page=pop3, action=save, maxpop3connections, welcomepop3, and csrftoken.
 Confirm that a GET request to index.php?page=pop3&action=save does not change POP3 settings.
 Confirm that a POST with action, POP3 fields, or csrftoken supplied only in the query string does not change POP3 settings; a valid server-admin POST preserves the existing MaxPOP3Connections and WelcomePOP3 mapping.
+
+IMAP settings save must use a POST form containing page=imap, action=save, the existing IMAP fields, and csrftoken.
+Confirm that a GET request to index.php?page=imap&action=save does not change IMAP settings.
+Confirm that a POST with action, IMAP fields, or csrftoken supplied only in the query string does not change IMAP settings; a valid server-admin POST preserves the existing IMAP Settings field mapping and hierarchy-delimiter behavior.
