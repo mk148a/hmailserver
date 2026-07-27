@@ -10,8 +10,9 @@ public static class HMailServerServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddHostedService<ComLocalServerHostedService>();
+        services.AddSingleton<ServerReadinessSignal>();
         services.AddHostedService<ServerBootstrapper>();
+        services.AddHostedService<ComLocalServerHostedService>();
         services.AddHostedService<BackupTaskHostedService>();
         services.AddHostedService<MessageSearchBackfillHostedService>();
         services.AddHostedService<DeliveryQueueProcessorHostedService>();

@@ -21,8 +21,8 @@ public sealed class ProductionHostedServiceRegistrationTests
                 .ToArray();
             var expectedTypes = new List<Type>
             {
-                GetServiceType("ComLocalServerHostedService"),
                 typeof(ServerBootstrapper),
+                GetServiceType("ComLocalServerHostedService"),
                 typeof(BackupTaskHostedService),
                 typeof(MessageSearchBackfillHostedService),
                 typeof(DeliveryQueueProcessorHostedService),

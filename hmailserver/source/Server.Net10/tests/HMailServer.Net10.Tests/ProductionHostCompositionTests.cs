@@ -35,8 +35,8 @@ public sealed class ProductionHostCompositionTests
 
             var expectedNames = new List<string>
             {
-                "ComLocalServerHostedService",
                 nameof(ServerBootstrapper),
+                "ComLocalServerHostedService",
                 nameof(BackupTaskHostedService),
                 nameof(MessageSearchBackfillHostedService),
                 nameof(DeliveryQueueProcessorHostedService),
@@ -58,5 +58,42 @@ public sealed class ProductionHostCompositionTests
                     .ApplicationStarted.IsCancellationRequested);
             Assert.IsFalse(Directory.Exists(dataDirectory));
         }
+    }
+
+    [TestMethod]
+    public async Task ComLocalServerHostedService_WaitsForReadinessBeforeStartingCom()
+    {
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-com-readiness-{Guid.NewGuid():N}");
+        var initializationFile = Path.Combine(dataDirectory, "hMailServer.ini");
+
+        var composition = HMailServer.Service.Host.Build(
+            [
+                "--ConnectionStrings:hMailServer=Server=127.0.0.1;Database=NeverOpened;Integrated Security=False;User Id=never;Password=never;TrustServerCertificate=True",
+                $"--DataDirectory={dataDirectory}",
+                $"--InitializationFile={initializationFile}",
+                "--Imap:Enabled=false",
+                "--Pop3:Enabled=false",
+                "--Smtp:Enabled=false",
+                "--ExternalFetch:Enabled=false"
+            ]);
+
+        using var host = composition.Host;
+        var readiness = host.Services.GetRequiredService<ServerReadinessSignal>();
+        var comService = host.Services
+            .GetServices<Hosting.IHostedService>()
+            .Single(service => service.GetType().Name == "ComLocalServerHostedService");
+        using var cancellation = new CancellationTokenSource();
+
+        var startTask = comService.StartAsync(cancellation.Token);
+
+        Assert.IsFalse(startTask.IsCompleted);
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(() => startTask);
+        Assert.IsFalse(readiness.WaitAsync(CancellationToken.None).IsCompleted);
+        Assert.IsFalse(Directory.Exists(dataDirectory));
     }
 }

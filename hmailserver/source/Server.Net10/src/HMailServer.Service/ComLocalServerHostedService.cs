@@ -8,8 +8,10 @@ namespace HMailServer.Service;
 internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
 {
     private readonly ComLocalServerHost _host;
+    private readonly ServerReadinessSignal _serverReadinessSignal;
 
     public ComLocalServerHostedService(
+        ServerReadinessSignal serverReadinessSignal,
         IServerAdministratorAuthenticationProvider authenticationProvider,
         ILegacyBlowfishCipher legacyBlowfishCipher,
         ILocalHostRuntime localHostRuntime,
@@ -20,6 +22,7 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
         IEmailAllAccountsRuntime emailAllAccountsRuntime,
         IImportMessageFromFileRuntime importMessageFromFileRuntime)
     {
+        ArgumentNullException.ThrowIfNull(serverReadinessSignal);
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         ArgumentNullException.ThrowIfNull(legacyBlowfishCipher);
         ArgumentNullException.ThrowIfNull(localHostRuntime);
@@ -30,6 +33,7 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
         ArgumentNullException.ThrowIfNull(emailAllAccountsRuntime);
         ArgumentNullException.ThrowIfNull(importMessageFromFileRuntime);
 
+        _serverReadinessSignal = serverReadinessSignal;
         _host = new ComLocalServerHost(
             new ComLocalServerRegistration(
                 typeof(Application).GUID,
@@ -299,11 +303,12 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                 static () => new MessageIndexing()));
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        await _serverReadinessSignal
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
         _host.Start();
-        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
