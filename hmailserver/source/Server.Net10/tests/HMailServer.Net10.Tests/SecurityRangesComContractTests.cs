@@ -106,6 +106,7 @@ public sealed class SecurityRangesComContractTests
         var rangesRefreshError = Assert.ThrowsExactly<COMException>(new SecurityRanges().Refresh);
         var rangesIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new SecurityRanges().Delete(0));
         var rangesDeleteByIdError = Assert.ThrowsExactly<COMException>(() => new SecurityRanges().DeleteByDBID(10));
+        var rangesSetDefaultError = Assert.ThrowsExactly<COMException>(new SecurityRanges().SetDefault);
         var rangeError = Assert.ThrowsExactly<COMException>(() => _ = new SecurityRange().Priority);
         var rangeSaveError = Assert.ThrowsExactly<COMException>(new SecurityRange().Save);
         var rangeDeleteError = Assert.ThrowsExactly<COMException>(() => new SecurityRange().Delete());
@@ -115,6 +116,7 @@ public sealed class SecurityRangesComContractTests
         Assert.AreEqual(EAccessDenied, rangesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangesIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangesDeleteByIdError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, rangesSetDefaultError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangeSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangeDeleteError.ErrorCode);
@@ -668,6 +670,89 @@ public sealed class SecurityRangesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_SecurityRangesSetDefaultUsesLegacySequenceAndExactDefaults()
+    {
+        var isServerAdministrator = true;
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, 1, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, 2, false, new DateTime(2001, 1, 1)),
+                Snapshot(30, "Expired", "10.0.0.1", "10.0.0.2", 30, 4, true, new DateTime(2026, 7, 27))
+            })
+        {
+            TrackOperations = true
+        };
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: () => isServerAdministrator);
+        var ranges = settings.SecurityRanges;
+        store.Operations.Clear();
+        isServerAdministrator = false;
+
+        ranges.SetDefault();
+
+        CollectionAssert.AreEqual(
+            new[] { "Refresh", "Delete:20", "Delete:10", "Delete:30", "Insert:My computer", "Insert:Internet", "Refresh" },
+            store.Operations);
+        Assert.AreEqual(2, store.InsertedRanges.Count);
+        Assert.AreEqual(
+            Snapshot(0, "My computer", "127.0.0.1", "127.0.0.1", 30, 71627, false, new DateTime(2001, 1, 1)),
+            store.InsertedRanges[0]);
+        Assert.AreEqual(
+            Snapshot(0, "Internet", "0.0.0.0", "255.255.255.255", 10, 96203, false, new DateTime(2001, 1, 1)),
+            store.InsertedRanges[1]);
+        Assert.AreEqual(2, ranges.Count);
+        AssertDefaultRange(
+            ranges[0],
+            store.GetPersistedId("My computer"),
+            "My computer",
+            "127.0.0.1",
+            "127.0.0.1",
+            30,
+            71627,
+            new DateTime(2001, 1, 1));
+        AssertDefaultRange(
+            ranges[1],
+            store.GetPersistedId("Internet"),
+            "Internet",
+            "0.0.0.0",
+            "255.255.255.255",
+            10,
+            96203,
+            new DateTime(2001, 1, 1));
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangesSetDefaultMapsFailureAndRetainsSnapshot()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, AllOptions, false, new DateTime(2001, 1, 1))
+            })
+        {
+            TrackOperations = true,
+            FailInsert = true
+        };
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+        store.Operations.Clear();
+
+        var error = Assert.ThrowsExactly<COMException>(ranges.SetDefault);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        CollectionAssert.AreEqual(
+            new[] { "Refresh", "Delete:20", "Delete:10", "Insert:My computer" },
+            store.Operations);
+        Assert.AreEqual(2, ranges.Count);
+        Assert.AreEqual("LAN", ranges[0].Name);
+        Assert.AreEqual("Internet", ranges[1].Name);
+        Assert.AreEqual(2, store.ReadCount);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
@@ -840,6 +925,42 @@ public sealed class SecurityRangesComContractTests
         Assert.IsFalse(range.IsForwardingRelay);
     }
 
+    private static void AssertDefaultRange(
+        IInterfaceSecurityRange range,
+        int id,
+        string name,
+        string lowerIp,
+        string upperIp,
+        int priority,
+        int options,
+        DateTime expiresTime)
+    {
+        Assert.AreEqual(id, range.ID);
+        Assert.AreEqual(name, range.Name);
+        Assert.AreEqual(lowerIp, range.LowerIP);
+        Assert.AreEqual(upperIp, range.UpperIP);
+        Assert.AreEqual(priority, range.Priority);
+        Assert.AreEqual((options & AllowSmtp) != 0, range.AllowSMTPConnections);
+        Assert.AreEqual((options & AllowPop3) != 0, range.AllowPOP3Connections);
+        Assert.AreEqual((options & AllowImap) != 0, range.AllowIMAPConnections);
+        Assert.AreEqual((options & RelayLocalToLocal) != 0, range.AllowDeliveryFromLocalToLocal);
+        Assert.AreEqual((options & RelayLocalToRemote) != 0, range.AllowDeliveryFromLocalToRemote);
+        Assert.AreEqual((options & RelayRemoteToLocal) != 0, range.AllowDeliveryFromRemoteToLocal);
+        Assert.AreEqual((options & RelayRemoteToRemote) != 0, range.AllowDeliveryFromRemoteToRemote);
+        Assert.AreEqual((options & SpamProtection) != 0, range.EnableSpamProtection);
+        Assert.AreEqual((options & VirusProtection) != 0, range.EnableAntiVirus);
+        Assert.AreEqual((options & SmtpAuthLocalToLocal) != 0, range.RequireSMTPAuthLocalToLocal);
+        Assert.AreEqual((options & SmtpAuthLocalToExternal) != 0, range.RequireSMTPAuthLocalToExternal);
+        Assert.AreEqual((options & SmtpAuthExternalToLocal) != 0, range.RequireSMTPAuthExternalToLocal);
+        Assert.AreEqual((options & SmtpAuthExternalToExternal) != 0, range.RequireSMTPAuthExternalToExternal);
+        Assert.AreEqual((options & RequireTlsForAuth) != 0, range.RequireSSLTLSForAuth);
+        Assert.IsFalse(range.Expires);
+        Assert.AreEqual(expiresTime, range.ExpiresTime);
+        Assert.IsFalse(range.RequireAuthForDeliveryToLocal);
+        Assert.IsFalse(range.RequireAuthForDeliveryToRemote);
+        Assert.IsFalse(range.IsForwardingRelay);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -874,9 +995,20 @@ public sealed class SecurityRangesComContractTests
 
         public bool FailSave { get; set; }
 
+        public bool FailInsert { get; set; }
+
+        public bool TrackOperations { get; set; }
+
         public List<int> DeletedIds { get; } = [];
 
         public List<SecurityRangeAdministrationSnapshot> SavedRanges { get; } = [];
+
+        public List<SecurityRangeAdministrationSnapshot> InsertedRanges { get; } = [];
+
+        public List<string> Operations { get; } = [];
+
+        public int GetPersistedId(string name) =>
+            _ranges.Single(range => string.Equals(range.Name, name, StringComparison.Ordinal)).Id;
 
         public void Replace(IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges)
         {
@@ -887,6 +1019,11 @@ public sealed class SecurityRangesComContractTests
             CancellationToken cancellationToken)
         {
             ReadCount++;
+            if (TrackOperations)
+            {
+                Operations.Add("Refresh");
+            }
+
             return ValueTask.FromResult<IReadOnlyList<SecurityRangeAdministrationSnapshot>>(
                 _ranges.OrderBy(static range => range.Expires)
                     .ThenByDescending(static range => range.Priority)
@@ -896,8 +1033,24 @@ public sealed class SecurityRangesComContractTests
 
         public ValueTask<int> InsertSecurityRangeAsync(
             SecurityRangeAdministrationSnapshot range,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(100);
+            CancellationToken cancellationToken)
+        {
+            if (TrackOperations)
+            {
+                Operations.Add($"Insert:{range.Name}");
+                InsertedRanges.Add(range);
+                if (FailInsert)
+                {
+                    throw new InvalidOperationException("Simulated insert failure.");
+                }
+
+                var inserted = range with { Id = 100 + InsertedRanges.Count };
+                _ranges = _ranges.Concat([inserted]).ToArray();
+                return ValueTask.FromResult(inserted.Id);
+            }
+
+            return ValueTask.FromResult(100);
+        }
 
         public ValueTask UpdateSecurityRangeAsync(
             SecurityRangeAdministrationSnapshot range,
@@ -920,9 +1073,19 @@ public sealed class SecurityRangesComContractTests
             CancellationToken cancellationToken)
         {
             DeletedIds.Add(databaseId);
+            if (TrackOperations)
+            {
+                Operations.Add($"Delete:{databaseId}");
+            }
+
             if (FailDelete)
             {
                 throw new InvalidOperationException("Simulated delete failure.");
+            }
+
+            if (TrackOperations)
+            {
+                _ranges = _ranges.Where(range => range.Id != databaseId).ToArray();
             }
 
             return ValueTask.CompletedTask;

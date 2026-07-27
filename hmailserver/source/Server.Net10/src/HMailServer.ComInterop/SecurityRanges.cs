@@ -457,7 +457,53 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
             isServerAdministrator: _isServerAdministrator);
     }
 
-    public void SetDefault() => Unavailable();
+    public void SetDefault()
+    {
+        _ = GetRanges();
+        if (_reload is null || _deleteById is null || _insert is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            Refresh();
+            foreach (var range in GetRanges())
+            {
+                _deleteById(range.Id);
+            }
+
+            _ = _insert(
+                new SecurityRangeAdministrationSnapshot(
+                    Id: 0,
+                    Name: "My computer",
+                    LowerIp: "127.0.0.1",
+                    UpperIp: "127.0.0.1",
+                    Priority: 30,
+                    Options: 71627,
+                    Expires: false,
+                    ExpiresTime: new DateTime(2001, 1, 1)));
+            _ = _insert(
+                new SecurityRangeAdministrationSnapshot(
+                    Id: 0,
+                    Name: "Internet",
+                    LowerIp: "0.0.0.0",
+                    UpperIp: "255.255.255.255",
+                    Priority: 10,
+                    Options: 96203,
+                    Expires: false,
+                    ExpiresTime: new DateTime(2001, 1, 1)));
+
+            Refresh();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to reset the security ranges to their default values.",
+                EFail);
+        }
+    }
 
     private SecurityRangeAdministrationSnapshot SaveRange(SecurityRangeAdministrationSnapshot range)
     {
