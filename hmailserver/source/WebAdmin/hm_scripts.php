@@ -8,13 +8,14 @@ if (hmailGetAdminLevel() != 2)
 $obSettings	= $obBaseApp->Settings();
 $obScripting    = $obSettings->Scripting();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 if($action == "save")
 {
-	$obScripting->Enabled = hmailGetVar("scriptingenabled",0);
+	hmailRequirePostCsrfToken();
+	$obScripting->Enabled = hmailGetPostVar("scriptingenabled",0);
 	
-	$langauge = hmailGetVar("scriptinglanguage",0);
+	$langauge = hmailGetPostVar("scriptinglanguage",0);
 	
 	if ($langauge != "VBScript" && $langauge != "JScript")
 	{
@@ -22,15 +23,17 @@ if($action == "save")
 		die;
 	}
 	
-	$obScripting->Language = hmailGetVar("scriptinglanguage",0);
+	$obScripting->Language = hmailGetPostVar("scriptinglanguage",0);
 
 }
 elseif ($action == "checksyntax")
 {
+	hmailRequirePostCsrfToken();
    $syntax_result = $obScripting->CheckSyntax();
 }
 elseif ($action == "reloadscripts")
 {
+	hmailRequirePostCsrfToken();
    $obScripting->Reload();
 }
 
