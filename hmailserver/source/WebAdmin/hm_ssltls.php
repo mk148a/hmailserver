@@ -7,21 +7,22 @@ if (hmailGetAdminLevel() != 2)
 
 $obSettings	= $obBaseApp->Settings();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 if($action == "save")
 {
-	$obSettings->VerifyRemoteSslCertificate= hmailGetVar("VerifyRemoteSslCertificate",0);
-	$obSettings->SslCipherList = hmailGetVar("SslCipherList", "");
+	hmailRequirePostCsrfToken();
+	$obSettings->VerifyRemoteSslCertificate= hmailGetPostVar("VerifyRemoteSslCertificate",0);
+	$obSettings->SslCipherList = hmailGetPostVar("SslCipherList", "");
 	
-	$obSettings->TlsVersion10Enabled = hmailGetVar("TlsVersion10Enabled", 0);
-	$obSettings->TlsVersion11Enabled = hmailGetVar("TlsVersion11Enabled", 0);
-	$obSettings->TlsVersion12Enabled = hmailGetVar("TlsVersion12Enabled", 0);
-	$obSettings->TlsVersion13Enabled = hmailGetVar("TlsVersion13Enabled", 0);
+	$obSettings->TlsVersion10Enabled = hmailGetPostVar("TlsVersion10Enabled", 0);
+	$obSettings->TlsVersion11Enabled = hmailGetPostVar("TlsVersion11Enabled", 0);
+	$obSettings->TlsVersion12Enabled = hmailGetPostVar("TlsVersion12Enabled", 0);
+	$obSettings->TlsVersion13Enabled = hmailGetPostVar("TlsVersion13Enabled", 0);
 
-	$obSettings->TlsOptionPreferServerCiphersEnabled = hmailGetVar("TlsOptionPreferServerCiphersEnabled", 0);
-	if ((hmailGetVar("TlsVersion12Enabled", 0) > 0 || hmailGetVar("TlsVersion13Enabled", 0) > 0) && hmailGetVar("TlsOptionPreferServerCiphersEnabled", 0) > 0) {
-		$obSettings->TlsOptionPrioritizeChaChaEnabled = hmailGetVar("TlsOptionPrioritizeChaChaEnabled", 0);
+	$obSettings->TlsOptionPreferServerCiphersEnabled = hmailGetPostVar("TlsOptionPreferServerCiphersEnabled", 0);
+	if ((hmailGetPostVar("TlsVersion12Enabled", 0) > 0 || hmailGetPostVar("TlsVersion13Enabled", 0) > 0) && hmailGetPostVar("TlsOptionPreferServerCiphersEnabled", 0) > 0) {
+		$obSettings->TlsOptionPrioritizeChaChaEnabled = hmailGetPostVar("TlsOptionPrioritizeChaChaEnabled", 0);
 	}
 	else {
 		$obSettings->TlsOptionPrioritizeChaChaEnabled = 0;

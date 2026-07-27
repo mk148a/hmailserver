@@ -139,3 +139,7 @@ Confirm that a POST with action, LocalDomainName, or csrftoken supplied only in 
 Status server control must use a POST form containing page=status, action=control, controlaction, and csrftoken.
 Confirm that a GET request to index.php?page=status&action=control&controlaction=1 or controlaction=0 does not start or stop the server.
 Confirm that a POST with action, controlaction, or csrftoken supplied only in the query string does not start or stop the server; a valid server-admin POST preserves the existing Start/Stop behavior.
+
+SSL/TLS settings save must use a POST form containing page=ssltls, action=save, the existing TLS fields, and csrftoken.
+Confirm that a GET request to index.php?page=ssltls&action=save does not change TLS settings.
+Confirm that a POST with action, TLS fields, or csrftoken supplied only in the query string does not change TLS settings; a valid server-admin POST preserves the existing Settings TLS field mapping and conditional ChaCha behavior.
