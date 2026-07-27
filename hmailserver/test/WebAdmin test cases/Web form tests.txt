@@ -135,3 +135,7 @@ Confirm that a POST with action, script fields, or csrftoken supplied only in th
 Diagnostics performTests must use a POST form containing page=diagnostics, action=performTests, LocalDomainName, and csrftoken.
 Confirm that a GET request to index.php?page=diagnostics&action=performTests returns without running diagnostics.
 Confirm that a POST with action, LocalDomainName, or csrftoken supplied only in the query string does not run diagnostics; a valid server-admin POST preserves the existing diagnostic test set and diagnostics/network behavior.
+
+Status server control must use a POST form containing page=status, action=control, controlaction, and csrftoken.
+Confirm that a GET request to index.php?page=status&action=control&controlaction=1 or controlaction=0 does not start or stop the server.
+Confirm that a POST with action, controlaction, or csrftoken supplied only in the query string does not start or stop the server; a valid server-admin POST preserves the existing Start/Stop behavior.

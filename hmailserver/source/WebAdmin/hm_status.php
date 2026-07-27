@@ -11,7 +11,7 @@ define("STIMAP", 5);
 	
 $obStatus      = $obBaseApp->Status();
 $serverstate	= $obBaseApp->ServerState();
-$action  		= hmailGetVar("action","");
+$action  		= hmailGetPostVar("action","");
 
 $statusstarttime = $obStatus->StartTime();
 $statusprocessedmessages = $obStatus->ProcessedMessages();
@@ -24,7 +24,8 @@ $sessions_imap = $obStatus->SessionCount(STIMAP);
 
 if ($action == "control")
 {
-   $controlaction = hmailGetVar("controlaction","");
+   hmailRequirePostCsrfToken();
+   $controlaction = hmailGetPostVar("controlaction","");
    
    if ($controlaction == "1")
       $obBaseApp->Start();
@@ -232,4 +233,3 @@ switch($serverstate)
          
    </div>   
 </div>
-       
