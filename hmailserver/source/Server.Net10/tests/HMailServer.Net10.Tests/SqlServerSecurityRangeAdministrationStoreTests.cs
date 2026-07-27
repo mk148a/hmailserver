@@ -49,4 +49,16 @@ public sealed class SqlServerSecurityRangeAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteSecurityRangeByIdSql_UsesParameterizedLegacyRangeIdPredicate()
+    {
+        var sql = SqlServerSecurityRangeAdministrationStore.DeleteSecurityRangeByIdSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_securityranges");
+        StringAssert.Contains(sql, "WHERE rangeid = @id");
+        Assert.IsFalse(sql.Contains("@id +", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

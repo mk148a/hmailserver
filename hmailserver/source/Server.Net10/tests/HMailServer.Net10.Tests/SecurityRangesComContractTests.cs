@@ -103,11 +103,13 @@ public sealed class SecurityRangesComContractTests
     {
         var rangesError = Assert.ThrowsExactly<COMException>(() => _ = new SecurityRanges().Count);
         var rangesRefreshError = Assert.ThrowsExactly<COMException>(new SecurityRanges().Refresh);
+        var rangesDeleteError = Assert.ThrowsExactly<COMException>(() => new SecurityRanges().DeleteByDBID(10));
         var rangeError = Assert.ThrowsExactly<COMException>(() => _ = new SecurityRange().Priority);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().SecurityRanges);
 
         Assert.AreEqual(EAccessDenied, rangesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangesRefreshError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, rangesDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -249,6 +251,53 @@ public sealed class SecurityRangesComContractTests
         Assert.AreEqual(10, ranges[0].ID);
         Assert.AreEqual(30, ranges[1].ID);
         Assert.AreEqual("LAN", ranges.get_ItemByDBID(30).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangesDeleteByDBIDScopesStoreCallAndNoOpsForUnknownOrRepeatedIds()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, AllOptions, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+
+        ranges.DeleteByDBID(30);
+        ranges.DeleteByDBID(20);
+        ranges.DeleteByDBID(20);
+
+        CollectionAssert.AreEqual(new[] { 20 }, store.DeletedIds);
+        Assert.AreEqual(1, ranges.Count);
+        Assert.AreEqual(10, ranges[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangesDeleteByDBIDMapsFailureAndRetainsSnapshot()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, AllOptions, false, new DateTime(2001, 1, 1))
+            })
+        {
+            FailDelete = true
+        };
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+
+        var error = Assert.ThrowsExactly<COMException>(() => ranges.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 10 }, store.DeletedIds);
+        Assert.AreEqual(2, ranges.Count);
+        Assert.AreEqual("Internet", ranges.get_ItemByDBID(10).Name);
+        Assert.AreEqual("LAN", ranges.get_ItemByDBID(20).Name);
     }
 
     [TestMethod]
@@ -466,6 +515,10 @@ public sealed class SecurityRangesComContractTests
 
         public int ReadCount { get; private set; }
 
+        public bool FailDelete { get; set; }
+
+        public List<int> DeletedIds { get; } = [];
+
         public void Replace(IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges)
         {
             _ranges = ranges;
@@ -486,5 +539,18 @@ public sealed class SecurityRangesComContractTests
             SecurityRangeAdministrationSnapshot range,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(100);
+
+        public ValueTask DeleteSecurityRangeByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken)
+        {
+            DeletedIds.Add(databaseId);
+            if (FailDelete)
+            {
+                throw new InvalidOperationException("Simulated delete failure.");
+            }
+
+            return ValueTask.CompletedTask;
+        }
     }
 }

@@ -267,6 +267,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
 
     private SecurityRangeAdministrationSnapshot[]? _ranges;
     private readonly Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? _reload;
+    private readonly Action<int>? _deleteById;
     private readonly Func<SecurityRangeAdministrationSnapshot, int>? _insert;
     private readonly Func<bool>? _isServerAdministrator;
 
@@ -277,11 +278,13 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
     private SecurityRanges(
         IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges,
         Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? reload,
+        Action<int>? deleteById,
         Func<SecurityRangeAdministrationSnapshot, int>? insert,
         Func<bool>? isServerAdministrator)
     {
         _ranges = ranges.ToArray();
         _reload = reload;
+        _deleteById = deleteById;
         _insert = insert;
         _isServerAdministrator = isServerAdministrator;
     }
@@ -291,11 +294,12 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
     internal static SecurityRanges CreateAuthorized(
         IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges,
         Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? reload = null,
+        Action<int>? deleteById = null,
         Func<SecurityRangeAdministrationSnapshot, int>? insert = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(ranges);
-        return new SecurityRanges(ranges, reload, insert, isServerAdministrator);
+        return new SecurityRanges(ranges, reload, deleteById, insert, isServerAdministrator);
     }
 
     public IInterfaceSecurityRange this[int index]
@@ -333,7 +337,34 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
 
     public void Delete(int index) => Unavailable();
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var ranges = GetRanges();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (!ranges.Any(range => range.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            _deleteById(databaseId);
+            Volatile.Write(
+                ref _ranges,
+                ranges.Where(range => range.Id != databaseId).ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the security range from the database.",
+                EFail);
+        }
+    }
 
     public void Refresh()
     {
@@ -658,7 +689,14 @@ public static class SecurityRangeAdministrationRuntimeHost
         return SecurityRanges.CreateAuthorized(
             LoadRanges(),
             LoadRanges,
+            DeleteRangeById,
             InsertRange,
             isServerAdministrator);
+
+        void DeleteRangeById(int databaseId) => store
+            .DeleteSecurityRangeByIdAsync(databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
     }
 }

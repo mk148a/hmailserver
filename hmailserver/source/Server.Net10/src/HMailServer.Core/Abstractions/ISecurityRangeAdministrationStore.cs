@@ -8,4 +8,8 @@ public interface ISecurityRangeAdministrationStore
     ValueTask<int> InsertSecurityRangeAsync(
         SecurityRangeAdministrationSnapshot range,
         CancellationToken cancellationToken);
+
+    ValueTask DeleteSecurityRangeByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken);
 }

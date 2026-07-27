@@ -31,6 +31,11 @@ OUTPUT INSERTED.rangeid
 VALUES (@name, @priority, @lowerIp1, @lowerIp2, @upperIp1, @upperIp2, @options, @expires, @expiresTime);
 """;
 
+    public const string DeleteSecurityRangeByIdSql = """
+DELETE FROM hm_securityranges
+WHERE rangeid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerSecurityRangeAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -105,6 +110,16 @@ VALUES (@name, @priority, @lowerIp1, @lowerIp2, @upperIp1, @upperIp2, @options, 
 
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask DeleteSecurityRangeByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteSecurityRangeByIdSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = databaseId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static string FormatLegacyAddress(long address1, long? address2)
