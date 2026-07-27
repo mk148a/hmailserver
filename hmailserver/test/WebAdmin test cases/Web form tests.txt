@@ -123,3 +123,7 @@ Confirm that a POST with action, auto-ban fields, or csrftoken supplied only in 
 Greylisting settings save must use a POST form containing page=greylisting, action=save, the existing greylisting fields, and csrftoken.
 Confirm that a GET request to index.php?page=greylisting&action=save returns without changing greylisting settings.
 Confirm that a POST with action, greylisting fields, or csrftoken supplied only in the query string does not change greylisting settings; valid POST-body values retain the existing server-admin settings behavior and anti-spam runtime semantics.
+
+Logging settings save must use a POST form containing page=logging, action=save, the existing logging fields, and csrftoken.
+Confirm that a GET request to index.php?page=logging&action=save returns without changing logging settings.
+Confirm that a POST with action, logging fields, or csrftoken supplied only in the query string does not change logging settings; valid POST-body values retain the existing server-admin logging behavior.

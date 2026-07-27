@@ -8,19 +8,20 @@ if (hmailGetAdminLevel() != 2)
 $obSettings	= $obBaseApp->Settings();
 $obLogging	= $obSettings->Logging();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 if($action == "save")
 {
-	$obLogging->Enabled		   = hmailGetVar("logenabled",0);
-	$obLogging->LogApplication = hmailGetVar("logapplication",0); 
-	$obLogging->LogSMTP		   = hmailGetVar("logsmtp",0);
-	$obLogging->LogPOP3	   	= hmailGetVar("logpop3",0);
-	$obLogging->LogIMAP	   	= hmailGetVar("logimap",0);
-	$obLogging->LogTCPIP	      = hmailGetVar("logtcpip",0);
-	$obLogging->LogDebug	      = hmailGetVar("logdebug",0);
-	$obLogging->AwstatsEnabled  	= hmailGetVar("logawstats",0);
-    $obLogging->KeepFilesOpen = hmailGetVar("KeepFilesOpen",0);
+	hmailRequirePostCsrfToken();
+	$obLogging->Enabled		   = hmailGetPostVar("logenabled",0);
+	$obLogging->LogApplication = hmailGetPostVar("logapplication",0);
+	$obLogging->LogSMTP		   = hmailGetPostVar("logsmtp",0);
+	$obLogging->LogPOP3	   	= hmailGetPostVar("logpop3",0);
+	$obLogging->LogIMAP	   	= hmailGetPostVar("logimap",0);
+	$obLogging->LogTCPIP	      = hmailGetPostVar("logtcpip",0);
+	$obLogging->LogDebug	      = hmailGetPostVar("logdebug",0);
+	$obLogging->AwstatsEnabled  	= hmailGetPostVar("logawstats",0);
+    $obLogging->KeepFilesOpen = hmailGetPostVar("KeepFilesOpen",0);
 }
 
 $logenabled= $obLogging->Enabled;
