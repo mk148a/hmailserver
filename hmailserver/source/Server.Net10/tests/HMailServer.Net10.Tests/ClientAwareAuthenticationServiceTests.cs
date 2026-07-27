@@ -106,6 +106,26 @@ public sealed class ClientAwareAuthenticationServiceTests
     }
 
     [TestMethod]
+    public async Task RecorderCancellationIsPropagated()
+    {
+        var authenticator = new FakeAuthenticator(ImapAuthenticationResult.Failure("Invalid user name or password."));
+        var recorder = new CapturingRecorder(
+            new OperationCanceledException("store canceled"));
+        var service = new ClientAwareAuthenticationService(authenticator, recorder);
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
+            () => service.AuthenticateAsync(
+                new ClientAuthenticationRequest(
+                    "user@example.test",
+                    "wrong",
+                    IPAddress.Parse("203.0.113.19"),
+                    ClientAuthenticationCaller.Imap),
+                CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, recorder.CallCount);
+    }
+
+    [TestMethod]
     public async Task SuccessfulFlagWithoutAccountStillRecordsFailure()
     {
         var authenticator = new FakeAuthenticator(new ImapAuthenticationResult(
