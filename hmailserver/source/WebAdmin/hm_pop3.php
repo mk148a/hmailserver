@@ -7,12 +7,13 @@ if (hmailGetAdminLevel() != 2)
 
 $obSettings	= $obBaseApp->Settings();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 if($action == "save")
 {
-	$obSettings->MaxPOP3Connections= hmailGetVar("maxpop3connections",0);
-	$obSettings->WelcomePOP3= hmailGetVar("welcomepop3",0);
+	hmailRequirePostCsrfToken();
+	$obSettings->MaxPOP3Connections= hmailGetPostVar("maxpop3connections",0);
+	$obSettings->WelcomePOP3= hmailGetPostVar("welcomepop3",0);
 }
 
 $maxpop3connections = $obSettings->MaxPOP3Connections;     
