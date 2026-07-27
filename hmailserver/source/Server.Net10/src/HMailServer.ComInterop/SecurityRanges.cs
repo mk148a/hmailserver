@@ -344,7 +344,35 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
                 isServerAdministrator: _isServerAdministrator);
     }
 
-    public void Delete(int index) => Unavailable();
+    public void Delete(int index)
+    {
+        var ranges = GetRanges();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (index < 0 || index >= ranges.Count)
+        {
+            return;
+        }
+
+        try
+        {
+            _deleteById(ranges[index].Id);
+            var remaining = ranges
+                .Where((_, candidateIndex) => candidateIndex != index)
+                .ToArray();
+            Volatile.Write(ref _ranges, remaining);
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the security range from the database.",
+                EFail);
+        }
+    }
 
     public void DeleteByDBID(int databaseId)
     {

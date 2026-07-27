@@ -103,14 +103,16 @@ public sealed class SecurityRangesComContractTests
     {
         var rangesError = Assert.ThrowsExactly<COMException>(() => _ = new SecurityRanges().Count);
         var rangesRefreshError = Assert.ThrowsExactly<COMException>(new SecurityRanges().Refresh);
-        var rangesDeleteError = Assert.ThrowsExactly<COMException>(() => new SecurityRanges().DeleteByDBID(10));
+        var rangesIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new SecurityRanges().Delete(0));
+        var rangesDeleteByIdError = Assert.ThrowsExactly<COMException>(() => new SecurityRanges().DeleteByDBID(10));
         var rangeError = Assert.ThrowsExactly<COMException>(() => _ = new SecurityRange().Priority);
         var rangeDeleteError = Assert.ThrowsExactly<COMException>(() => new SecurityRange().Delete());
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().SecurityRanges);
 
         Assert.AreEqual(EAccessDenied, rangesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangesRefreshError.ErrorCode);
-        Assert.AreEqual(EAccessDenied, rangesDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, rangesIndexDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, rangesDeleteByIdError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangeDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
@@ -386,6 +388,56 @@ public sealed class SecurityRangesComContractTests
         CollectionAssert.AreEqual(new[] { 20 }, store.DeletedIds);
         Assert.AreEqual(1, ranges.Count);
         Assert.AreEqual(10, ranges[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangesDeleteByIndexUsesOwningSnapshotAndNoOpsInvalidIndexes()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(30, "Loopback", "127.0.0.1", "127.0.0.1", 30, AllOptions, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+
+        ranges.Delete(1);
+        ranges.Delete(-1);
+        ranges.Delete(2);
+        ranges.Delete(1);
+        ranges.Delete(0);
+        ranges.Delete(0);
+
+        CollectionAssert.AreEqual(new[] { 20, 10, 30 }, store.DeletedIds);
+        Assert.AreEqual(0, ranges.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangesDeleteByIndexMapsFailureAndRetainsSnapshot()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, AllOptions, false, new DateTime(2001, 1, 1))
+            })
+        {
+            FailDelete = true
+        };
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+
+        var error = Assert.ThrowsExactly<COMException>(() => ranges.Delete(0));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 20 }, store.DeletedIds);
+        Assert.AreEqual(2, ranges.Count);
+        Assert.AreEqual(20, ranges[0].ID);
+        Assert.AreEqual(10, ranges[1].ID);
     }
 
     [TestMethod]
