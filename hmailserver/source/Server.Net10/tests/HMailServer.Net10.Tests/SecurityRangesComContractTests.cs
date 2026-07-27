@@ -10,6 +10,7 @@ public sealed class SecurityRangesComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -106,6 +107,7 @@ public sealed class SecurityRangesComContractTests
         var rangesIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new SecurityRanges().Delete(0));
         var rangesDeleteByIdError = Assert.ThrowsExactly<COMException>(() => new SecurityRanges().DeleteByDBID(10));
         var rangeError = Assert.ThrowsExactly<COMException>(() => _ = new SecurityRange().Priority);
+        var rangeSaveError = Assert.ThrowsExactly<COMException>(new SecurityRange().Save);
         var rangeDeleteError = Assert.ThrowsExactly<COMException>(() => new SecurityRange().Delete());
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().SecurityRanges);
 
@@ -114,6 +116,7 @@ public sealed class SecurityRangesComContractTests
         Assert.AreEqual(EAccessDenied, rangesIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangesDeleteByIdError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangeError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, rangeSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangeDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
@@ -255,6 +258,193 @@ public sealed class SecurityRangesComContractTests
         Assert.AreEqual(10, ranges[0].ID);
         Assert.AreEqual(30, ranges[1].ID);
         Assert.AreEqual("LAN", ranges.get_ItemByDBID(30).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ExistingSecurityRangeSaveUpdatesStoreAndOwningSnapshot()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, 0, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, AllowSmtp, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+        var range = ranges.get_ItemByDBID(10);
+
+        range.Name = "Updated";
+        range.LowerIP = "10.0.0.1";
+        range.UpperIP = "10.0.0.255";
+        range.Priority = 40;
+        range.AllowSMTPConnections = true;
+        range.AllowPOP3Connections = true;
+        range.AllowIMAPConnections = true;
+        range.EnableSpamProtection = true;
+        range.Expires = true;
+        range.ExpiresTime = new DateTime(2026, 7, 27, 1, 2, 3);
+
+        range.Save();
+
+        Assert.AreEqual(1, store.SavedRanges.Count);
+        var saved = store.SavedRanges[0];
+        Assert.AreEqual(10, saved.Id);
+        Assert.AreEqual("Updated", saved.Name);
+        Assert.AreEqual("10.0.0.1", saved.LowerIp);
+        Assert.AreEqual("10.0.0.255", saved.UpperIp);
+        Assert.AreEqual(40, saved.Priority);
+        Assert.AreEqual(AllowSmtp | AllowPop3 | AllowImap | SpamProtection, saved.Options);
+        Assert.IsTrue(saved.Expires);
+        Assert.AreEqual(new DateTime(2026, 7, 27, 1, 2, 3), saved.ExpiresTime);
+
+        var updated = ranges.get_ItemByDBID(10);
+        Assert.AreEqual("Updated", updated.Name);
+        Assert.AreEqual("10.0.0.1", updated.LowerIP);
+        Assert.AreEqual("10.0.0.255", updated.UpperIP);
+        Assert.AreEqual(40, updated.Priority);
+        Assert.IsTrue(updated.AllowSMTPConnections);
+        Assert.IsTrue(updated.AllowPOP3Connections);
+        Assert.IsTrue(updated.AllowIMAPConnections);
+        Assert.IsTrue(updated.EnableSpamProtection);
+        Assert.IsTrue(updated.Expires);
+        Assert.AreEqual(new DateTime(2026, 7, 27, 1, 2, 3), updated.ExpiresTime);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ExistingSecurityRangeSaveUsesIndexDbidAndNameLookups()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, 0, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, 0, false, new DateTime(2001, 1, 1)),
+                Snapshot(30, "Loopback", "127.0.0.1", "127.0.0.1", 30, 0, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+
+        var indexRange = ranges[0];
+        indexRange.Name = "Index updated";
+        indexRange.Save();
+
+        var databaseIdRange = ranges.get_ItemByDBID(20);
+        databaseIdRange.Name = "DBID updated";
+        databaseIdRange.Save();
+
+        var nameRange = ranges.get_ItemByName("Internet");
+        nameRange.Name = "Name updated";
+        nameRange.Save();
+
+        CollectionAssert.AreEqual(new[] { 30, 20, 10 }, store.SavedRanges.Select(range => range.Id).ToArray());
+        Assert.AreEqual("Name updated", ranges.get_ItemByDBID(10).Name);
+        Assert.AreEqual("DBID updated", ranges.get_ItemByDBID(20).Name);
+        Assert.AreEqual("Index updated", ranges.get_ItemByDBID(30).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ExistingSecurityRangeSaveMapsFailureAndRetainsOwningSnapshot()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, 0, false, new DateTime(2001, 1, 1))
+            })
+        {
+            FailSave = true
+        };
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+        var range = ranges[0];
+        range.Name = "Updated";
+
+        var error = Assert.ThrowsExactly<COMException>(range.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, store.SavedRanges.Count);
+        Assert.AreEqual("Updated", range.Name);
+        Assert.AreEqual("Internet", ranges.get_ItemByDBID(10).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ExistingSecurityRangeSaveRejectsDuplicateNamesBeforeStore()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, 0, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, 0, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+        var range = ranges.get_ItemByDBID(10);
+        range.Name = "lan";
+
+        var error = Assert.ThrowsExactly<COMException>(range.Save);
+
+        Assert.AreEqual(ELegacyComError, error.ErrorCode);
+        Assert.AreEqual(0, store.SavedRanges.Count);
+        Assert.AreEqual("Internet", ranges.get_ItemByDBID(10).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ExistingSecurityRangeSaveRejectsMixedAndReversedRanges()
+    {
+        var mixedStore = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, 0, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(mixedStore);
+        IInterfaceSettings mixedSettings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var mixedRange = mixedSettings.SecurityRanges[0];
+        mixedRange.LowerIP = "::1";
+
+        var mixedError = Assert.ThrowsExactly<COMException>(mixedRange.Save);
+
+        Assert.AreEqual(ELegacyComError, mixedError.ErrorCode);
+        Assert.AreEqual(0, mixedStore.SavedRanges.Count);
+
+        var reversedStore = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "10.0.0.1", "10.0.0.255", 10, 0, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(reversedStore);
+        IInterfaceSettings reversedSettings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var reversedRange = reversedSettings.SecurityRanges[0];
+        reversedRange.UpperIP = "10.0.0.0";
+
+        var reversedError = Assert.ThrowsExactly<COMException>(reversedRange.Save);
+
+        Assert.AreEqual(ELegacyComError, reversedError.ErrorCode);
+        Assert.AreEqual(0, reversedStore.SavedRanges.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ExistingSecurityRangeSaveRechecksServerAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, 0, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: () => isServerAdministrator);
+        var ranges = settings.SecurityRanges;
+        var range = ranges[0];
+        range.Name = "Updated";
+        isServerAdministrator = false;
+
+        var error = Assert.ThrowsExactly<COMException>(range.Save);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, store.SavedRanges.Count);
+        Assert.AreEqual("Internet", ranges.get_ItemByDBID(10).Name);
     }
 
     [TestMethod]
@@ -682,7 +872,11 @@ public sealed class SecurityRangesComContractTests
 
         public bool FailDelete { get; set; }
 
+        public bool FailSave { get; set; }
+
         public List<int> DeletedIds { get; } = [];
+
+        public List<SecurityRangeAdministrationSnapshot> SavedRanges { get; } = [];
 
         public void Replace(IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges)
         {
@@ -704,6 +898,22 @@ public sealed class SecurityRangesComContractTests
             SecurityRangeAdministrationSnapshot range,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(100);
+
+        public ValueTask UpdateSecurityRangeAsync(
+            SecurityRangeAdministrationSnapshot range,
+            CancellationToken cancellationToken)
+        {
+            SavedRanges.Add(range);
+            if (FailSave)
+            {
+                throw new InvalidOperationException("Simulated save failure.");
+            }
+
+            _ranges = _ranges
+                .Select(existing => existing.Id == range.Id ? range : existing)
+                .ToArray();
+            return ValueTask.CompletedTask;
+        }
 
         public ValueTask DeleteSecurityRangeByIdAsync(
             int databaseId,

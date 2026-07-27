@@ -31,6 +31,20 @@ OUTPUT INSERTED.rangeid
 VALUES (@name, @priority, @lowerIp1, @lowerIp2, @upperIp1, @upperIp2, @options, @expires, @expiresTime);
 """;
 
+    public const string UpdateSecurityRangeSql = """
+UPDATE hm_securityranges
+SET rangename = @name,
+    rangepriorityid = @priority,
+    rangelowerip1 = @lowerIp1,
+    rangelowerip2 = @lowerIp2,
+    rangeupperip1 = @upperIp1,
+    rangeupperip2 = @upperIp2,
+    rangeoptions = @options,
+    rangeexpires = @expires,
+    rangeexpirestime = @expiresTime
+WHERE rangeid = @id;
+""";
+
     public const string DeleteSecurityRangeByIdSql = """
 DELETE FROM hm_securityranges
 WHERE rangeid = @id;
@@ -110,6 +124,35 @@ WHERE rangeid = @id;
 
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask UpdateSecurityRangeAsync(
+        SecurityRangeAdministrationSnapshot range,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(range);
+
+        var name = NormalizeName(range.Name);
+        if (name.Length == 0)
+        {
+            throw new InvalidOperationException("The name cannot be empty.");
+        }
+
+        var lowerIp = ParseLegacyAddress(range.LowerIp);
+        var upperIp = ParseLegacyAddress(range.UpperIp);
+        ValidateRange(lowerIp, upperIp);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateSecurityRangeSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = range.Id;
+        command.Parameters.Add("@name", SqlDbType.NVarChar, 100).Value = name;
+        command.Parameters.Add("@priority", SqlDbType.Int).Value = range.Priority;
+        AddLegacyAddressParameters(command, "@lowerIp1", "@lowerIp2", lowerIp);
+        AddLegacyAddressParameters(command, "@upperIp1", "@upperIp2", upperIp);
+        command.Parameters.Add("@options", SqlDbType.Int).Value = range.Options;
+        command.Parameters.Add("@expires", SqlDbType.TinyInt).Value = range.Expires ? 1 : 0;
+        command.Parameters.Add("@expiresTime", SqlDbType.DateTime).Value = NormalizeExpiresTime(range.ExpiresTime);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask DeleteSecurityRangeByIdAsync(

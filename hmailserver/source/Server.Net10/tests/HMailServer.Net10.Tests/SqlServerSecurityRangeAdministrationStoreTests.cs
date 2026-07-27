@@ -51,6 +51,26 @@ public sealed class SqlServerSecurityRangeAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateSecurityRangeSql_UsesParameterizedLegacyRangeIdAndAllMutableColumns()
+    {
+        var sql = SqlServerSecurityRangeAdministrationStore.UpdateSecurityRangeSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_securityranges");
+        StringAssert.Contains(sql, "rangename = @name");
+        StringAssert.Contains(sql, "rangepriorityid = @priority");
+        StringAssert.Contains(sql, "rangelowerip1 = @lowerIp1");
+        StringAssert.Contains(sql, "rangelowerip2 = @lowerIp2");
+        StringAssert.Contains(sql, "rangeupperip1 = @upperIp1");
+        StringAssert.Contains(sql, "rangeupperip2 = @upperIp2");
+        StringAssert.Contains(sql, "rangeoptions = @options");
+        StringAssert.Contains(sql, "rangeexpires = @expires");
+        StringAssert.Contains(sql, "rangeexpirestime = @expiresTime");
+        StringAssert.Contains(sql, "WHERE rangeid = @id");
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void DeleteSecurityRangeByIdSql_UsesParameterizedLegacyRangeIdPredicate()
     {
         var sql = SqlServerSecurityRangeAdministrationStore.DeleteSecurityRangeByIdSql;

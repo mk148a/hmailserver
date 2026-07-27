@@ -9,6 +9,10 @@ public interface ISecurityRangeAdministrationStore
         SecurityRangeAdministrationSnapshot range,
         CancellationToken cancellationToken);
 
+    ValueTask UpdateSecurityRangeAsync(
+        SecurityRangeAdministrationSnapshot range,
+        CancellationToken cancellationToken);
+
     ValueTask DeleteSecurityRangeByIdAsync(
         int databaseId,
         CancellationToken cancellationToken);

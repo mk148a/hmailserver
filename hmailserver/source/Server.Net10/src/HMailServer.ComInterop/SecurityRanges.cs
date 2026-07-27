@@ -263,11 +263,13 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private SecurityRangeAdministrationSnapshot[]? _ranges;
     private readonly Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? _reload;
     private readonly Action<int>? _deleteById;
+    private readonly Action<SecurityRangeAdministrationSnapshot>? _save;
     private readonly Func<SecurityRangeAdministrationSnapshot, int>? _insert;
     private readonly Func<bool>? _isServerAdministrator;
 
@@ -279,12 +281,14 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
         IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges,
         Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? reload,
         Action<int>? deleteById,
+        Action<SecurityRangeAdministrationSnapshot>? save,
         Func<SecurityRangeAdministrationSnapshot, int>? insert,
         Func<bool>? isServerAdministrator)
     {
         _ranges = ranges.ToArray();
         _reload = reload;
         _deleteById = deleteById;
+        _save = save;
         _insert = insert;
         _isServerAdministrator = isServerAdministrator;
     }
@@ -295,11 +299,12 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
         IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges,
         Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? reload = null,
         Action<int>? deleteById = null,
+        Action<SecurityRangeAdministrationSnapshot>? save = null,
         Func<SecurityRangeAdministrationSnapshot, int>? insert = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(ranges);
-        return new SecurityRanges(ranges, reload, deleteById, insert, isServerAdministrator);
+        return new SecurityRanges(ranges, reload, deleteById, save, insert, isServerAdministrator);
     }
 
     public IInterfaceSecurityRange this[int index]
@@ -314,6 +319,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
 
             return SecurityRange.CreateAuthorized(
                 ranges[index],
+                save: _save is null ? null : SaveRange,
                 delete: DeleteByDBID,
                 isServerAdministrator: _isServerAdministrator);
         }
@@ -327,6 +333,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
             ? throw new COMException("No security range with the specified database identifier exists.", DispEBadIndex)
             : SecurityRange.CreateAuthorized(
                 match,
+                save: _save is null ? null : SaveRange,
                 delete: DeleteByDBID,
                 isServerAdministrator: _isServerAdministrator);
     }
@@ -340,6 +347,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
             ? throw new COMException("No security range with the specified name exists.", DispEBadIndex)
             : SecurityRange.CreateAuthorized(
                 match,
+                save: _save is null ? null : SaveRange,
                 delete: DeleteByDBID,
                 isServerAdministrator: _isServerAdministrator);
     }
@@ -454,23 +462,92 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
     private SecurityRangeAdministrationSnapshot SaveRange(SecurityRangeAdministrationSnapshot range)
     {
         var ranges = GetRanges();
-        if (range.Id != 0 || _insert is null)
+        if (range.Id == 0 && _insert is null)
         {
             Unavailable();
             return range;
         }
 
+        if (range.Id != 0 && _save is null)
+        {
+            Unavailable();
+            return range;
+        }
+
+        if (range.Id != 0)
+        {
+            ValidateExistingRange(range, ranges);
+        }
+
         try
         {
-            var insertedRange = range with { Id = _insert(range) };
-            Volatile.Write(ref _ranges, ranges.Concat([insertedRange]).ToArray());
-            return insertedRange;
+            if (range.Id == 0)
+            {
+                var insertedRange = range with { Id = _insert!(range) };
+                Volatile.Write(ref _ranges, ranges.Concat([insertedRange]).ToArray());
+                return insertedRange;
+            }
+
+            _save!(range);
+            Volatile.Write(
+                ref _ranges,
+                ranges
+                    .Select(existing => existing.Id == range.Id ? range : existing)
+                    .ToArray());
+            return range;
         }
         catch (Exception)
         {
             throw new COMException(
                 "It was not possible to save the security range to the database.",
                 EFail);
+        }
+    }
+
+    private static void ValidateExistingRange(
+        SecurityRangeAdministrationSnapshot range,
+        IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges)
+    {
+        if (string.IsNullOrEmpty(range.Name))
+        {
+            throw new COMException("The name cannot be empty.", ELegacyComError);
+        }
+
+        if (ranges.Any(
+                existing => existing.Id != range.Id
+                    && string.Equals(existing.Name, range.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new COMException("There is already an IP range with this name.", ELegacyComError);
+        }
+
+        if (!IPAddress.TryParse(range.LowerIp, out var lowerIp)
+            || !IPAddress.TryParse(range.UpperIp, out var upperIp))
+        {
+            throw new COMException("The IP range addresses must be valid.", ELegacyComError);
+        }
+
+        var lowerBytes = lowerIp.GetAddressBytes();
+        var upperBytes = upperIp.GetAddressBytes();
+        if (lowerBytes.Length != upperBytes.Length)
+        {
+            throw new COMException(
+                "The lower IP address and upper IP address must be of the same IP version type.",
+                ELegacyComError);
+        }
+
+        for (var index = 0; index < lowerBytes.Length; index++)
+        {
+            if (lowerBytes[index] < upperBytes[index])
+            {
+                return;
+            }
+
+            if (lowerBytes[index] > upperBytes[index])
+            {
+                throw new COMException(
+                    "The lower IP address must be lower or the same as the upper IP address.",
+                    ELegacyComError);
+            }
         }
     }
 
@@ -738,10 +815,17 @@ public static class SecurityRangeAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        void SaveRange(SecurityRangeAdministrationSnapshot range) => store
+            .UpdateSecurityRangeAsync(range, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return SecurityRanges.CreateAuthorized(
             LoadRanges(),
             LoadRanges,
             DeleteRangeById,
+            SaveRange,
             InsertRange,
             isServerAdministrator);
 
