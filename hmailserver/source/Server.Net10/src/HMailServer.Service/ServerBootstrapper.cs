@@ -46,8 +46,8 @@ public sealed class ServerBootstrapper : BackgroundService
                 throw new InvalidOperationException("The hMailServer message search Full-Text index is not ready. Apply Upgrade5708to6000MSSQL.sql first.");
             }
 
-            _serverReadinessSignal.SetReady();
-            _logger.LogInformation("hMailServer .NET 10 bootstrap completed. IMAP session engine and background indexer are ready.");
+            _serverReadinessSignal.SetBootstrapComplete();
+            _logger.LogInformation("hMailServer .NET 10 bootstrap checks completed. IMAP session engine and background indexer are ready.");
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

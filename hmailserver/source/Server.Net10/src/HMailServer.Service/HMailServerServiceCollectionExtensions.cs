@@ -1,4 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using HMailServer.Protocols.Imap;
+using HMailServer.Protocols.Pop3;
+using HMailServer.Protocols.Smtp;
 
 namespace HMailServer.Service;
 
@@ -12,7 +15,6 @@ public static class HMailServerServiceCollectionExtensions
 
         services.AddSingleton<ServerReadinessSignal>();
         services.AddHostedService<ServerBootstrapper>();
-        services.AddHostedService<ComLocalServerHostedService>();
         services.AddHostedService<BackupTaskHostedService>();
         services.AddHostedService<MessageSearchBackfillHostedService>();
         services.AddHostedService<DeliveryQueueProcessorHostedService>();
@@ -24,6 +26,28 @@ public static class HMailServerServiceCollectionExtensions
         services.AddHostedService<ImapTcpListenerHostedService>();
         services.AddHostedService<Pop3TcpListenerHostedService>();
         services.AddHostedService<SmtpTcpListenerHostedService>();
+        services.AddSingleton<IReadOnlyList<Task>>(provider =>
+        {
+            var listenerStartupTasks = new List<Task>(capacity: 3);
+            if (provider.GetRequiredService<ImapTcpListenerOptions>().Enabled)
+            {
+                listenerStartupTasks.Add(provider.GetRequiredService<ImapTcpListener>().Started);
+            }
+
+            if (provider.GetRequiredService<Pop3TcpListenerOptions>().Enabled)
+            {
+                listenerStartupTasks.Add(provider.GetRequiredService<Pop3TcpListener>().Started);
+            }
+
+            if (provider.GetRequiredService<SmtpTcpListenerOptions>().Enabled)
+            {
+                listenerStartupTasks.Add(provider.GetRequiredService<SmtpTcpListener>().Started);
+            }
+
+            return listenerStartupTasks;
+        });
+        services.AddHostedService<ServerStartupCoordinator>();
+        services.AddHostedService<ComLocalServerHostedService>();
 
         return services;
     }

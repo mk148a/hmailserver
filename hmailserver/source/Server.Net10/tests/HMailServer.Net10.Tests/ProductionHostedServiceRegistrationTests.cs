@@ -22,7 +22,6 @@ public sealed class ProductionHostedServiceRegistrationTests
             var expectedTypes = new List<Type>
             {
                 typeof(ServerBootstrapper),
-                GetServiceType("ComLocalServerHostedService"),
                 typeof(BackupTaskHostedService),
                 typeof(MessageSearchBackfillHostedService),
                 typeof(DeliveryQueueProcessorHostedService),
@@ -35,6 +34,8 @@ public sealed class ProductionHostedServiceRegistrationTests
             expectedTypes.Add(typeof(ImapTcpListenerHostedService));
             expectedTypes.Add(typeof(Pop3TcpListenerHostedService));
             expectedTypes.Add(typeof(SmtpTcpListenerHostedService));
+            expectedTypes.Add(typeof(ServerStartupCoordinator));
+            expectedTypes.Add(GetServiceType("ComLocalServerHostedService"));
 
             CollectionAssert.AreEqual(
                 expectedTypes,

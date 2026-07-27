@@ -36,7 +36,6 @@ public sealed class ProductionHostCompositionTests
             var expectedNames = new List<string>
             {
                 nameof(ServerBootstrapper),
-                "ComLocalServerHostedService",
                 nameof(BackupTaskHostedService),
                 nameof(MessageSearchBackfillHostedService),
                 nameof(DeliveryQueueProcessorHostedService),
@@ -49,6 +48,8 @@ public sealed class ProductionHostCompositionTests
             expectedNames.Add(nameof(ImapTcpListenerHostedService));
             expectedNames.Add(nameof(Pop3TcpListenerHostedService));
             expectedNames.Add(nameof(SmtpTcpListenerHostedService));
+            expectedNames.Add(nameof(ServerStartupCoordinator));
+            expectedNames.Add("ComLocalServerHostedService");
 
             CollectionAssert.AreEqual(
                 expectedNames,

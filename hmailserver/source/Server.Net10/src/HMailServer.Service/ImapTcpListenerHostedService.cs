@@ -8,30 +8,46 @@ public sealed class ImapTcpListenerHostedService : BackgroundService
 {
     private readonly ImapTcpListener _listener;
     private readonly ImapTcpListenerOptions _options;
+    private readonly ServerReadinessSignal _serverReadinessSignal;
     private readonly ILogger<ImapTcpListenerHostedService> _logger;
 
     public ImapTcpListenerHostedService(
         ImapTcpListener listener,
         ImapTcpListenerOptions options,
+        ServerReadinessSignal serverReadinessSignal,
         ILogger<ImapTcpListenerHostedService> logger)
     {
         _listener = listener;
         _options = options;
+        _serverReadinessSignal = serverReadinessSignal;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_options.Enabled)
+        try
         {
-            _logger.LogInformation("IMAP TCP listener is disabled. Set Imap:Enabled=true after authentication/session mapping is configured.");
-            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken).ConfigureAwait(false);
-            return;
-        }
+            if (!_options.Enabled)
+            {
+                _logger.LogInformation("IMAP TCP listener is disabled. Set Imap:Enabled=true after authentication/session mapping is configured.");
+                await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken).ConfigureAwait(false);
+                return;
+            }
 
-        var runTask = _listener.RunAsync(stoppingToken);
-        var endpoint = await _listener.Started.WaitAsync(stoppingToken).ConfigureAwait(false);
-        _logger.LogInformation("IMAP TCP listener is accepting connections on {Endpoint}.", endpoint);
-        await runTask.ConfigureAwait(false);
+            var runTask = _listener.RunAsync(stoppingToken);
+            var endpoint = await _listener.Started.WaitAsync(stoppingToken).ConfigureAwait(false);
+            _logger.LogInformation("IMAP TCP listener is accepting connections on {Endpoint}.", endpoint);
+            await runTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            _serverReadinessSignal.SetCanceled(stoppingToken);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _serverReadinessSignal.SetFailure(exception);
+            throw;
+        }
     }
 }
