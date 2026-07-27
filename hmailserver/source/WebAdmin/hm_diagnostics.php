@@ -7,13 +7,14 @@ if (hmailGetAdminLevel() != 2)
 
 $obDiagnostics	= $obBaseApp->Diagnostics();
 
-$action = hmailGetVar("action", "");
+$action = hmailGetPostVar("action", "");
 
 $resultString = "";
 
 if($action == "performTests")
 {
-	$obDiagnostics->LocalDomainName = hmailGetVar("LocalDomainName", "");
+	hmailRequirePostCsrfToken();
+	$obDiagnostics->LocalDomainName = hmailGetPostVar("LocalDomainName", "");
    
    $obResults = $obDiagnostics->PerformTests();
    
@@ -105,4 +106,3 @@ if($action == "performTests")
       </div>
       
    </div>
-        

@@ -131,3 +131,7 @@ Confirm that a POST with action, logging fields, or csrftoken supplied only in t
 Script settings save, syntax checking, and script reload must use POST forms containing page=scripts, the selected action, existing script fields where applicable, and csrftoken.
 Confirm that GET requests to index.php?page=scripts&action=save, action=checksyntax, or action=reloadscripts return without changing settings, checking syntax, or reloading scripts.
 Confirm that a POST with action, script fields, or csrftoken supplied only in the query string does not mutate or execute a script action; valid POST-body values retain the existing server-admin scripting behavior.
+
+Diagnostics performTests must use a POST form containing page=diagnostics, action=performTests, LocalDomainName, and csrftoken.
+Confirm that a GET request to index.php?page=diagnostics&action=performTests returns without running diagnostics.
+Confirm that a POST with action, LocalDomainName, or csrftoken supplied only in the query string does not run diagnostics; a valid server-admin POST preserves the existing diagnostic test set and diagnostics/network behavior.
