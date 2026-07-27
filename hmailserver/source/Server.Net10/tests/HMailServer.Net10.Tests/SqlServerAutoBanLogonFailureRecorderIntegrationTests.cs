@@ -95,6 +95,47 @@ public sealed class SqlServerAutoBanLogonFailureRecorderIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RecordFailureAsync_SerializesConcurrentFailuresPerIp()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+
+        var databaseName = $"hmailserver_net10_autoban_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+
+            var recorder = new SqlServerAutoBanLogonFailureRecorder(
+                new SqlServerConnectionFactory(testConnectionString));
+            var clientAddress = IPAddress.Parse("198.51.100.28");
+
+            var results = await Task.WhenAll(
+                Enumerable.Range(0, 3)
+                    .Select(_ => recorder
+                        .RecordFailureAsync(clientAddress, "concurrent@example.test", CancellationToken.None)
+                        .AsTask()))
+                .ConfigureAwait(false);
+
+            CollectionAssert.AreEquivalent(new[] { 1, 2, 3 }, results.Select(result => result.FailureCount).ToArray());
+            Assert.AreEqual(1, results.Count(result => result.Disconnect));
+            Assert.AreEqual(1, results.Count(result => result.RangeCreated));
+            Assert.AreEqual(0, await CountFailuresAsync(testConnectionString, clientAddress).ConfigureAwait(false));
+            Assert.AreEqual(
+                1,
+                await CountAutoBanRangesAsync(testConnectionString, clientAddress).ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string GetApprovedConnectionStringOrInconclusive()
     {
         var rawConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -177,6 +218,9 @@ CREATE TABLE dbo.hm_logon_failures
     failuretime datetime NOT NULL
 );
 
+CREATE NONCLUSTERED INDEX idx_hm_logon_failures_ipaddress
+    ON dbo.hm_logon_failures (ipaddress1, ipaddress2);
+
 CREATE TABLE dbo.hm_securityranges
 (
     rangeid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
@@ -238,6 +282,27 @@ WHERE ipaddress1 = @IpAddress1
 """, connection);
         command.Parameters.AddWithValue("@IpAddress1", ToIpv4Value(clientAddress));
         return Convert.ToInt64(await command.ExecuteScalarAsync().ConfigureAwait(false));
+    }
+
+    private static async Task<long> CountAutoBanRangesAsync(string connectionString, IPAddress clientAddress)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand("""
+SELECT COUNT_BIG(*)
+FROM dbo.hm_securityranges
+WHERE rangepriorityid = 100
+  AND rangelowerip1 = @IpAddress1
+  AND rangelowerip2 IS NULL
+  AND rangeupperip1 = @IpAddress1
+  AND rangeupperip2 IS NULL
+  AND rangeoptions = 0
+  AND rangeexpires = 1;
+""", connection);
+        command.Parameters.AddWithValue("@IpAddress1", ToIpv4Value(clientAddress));
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync().ConfigureAwait(false),
+            System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static async Task<AutoBanRangeSnapshot?> ReadRangeAsync(

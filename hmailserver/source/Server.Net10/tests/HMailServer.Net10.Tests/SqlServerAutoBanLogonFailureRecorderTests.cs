@@ -23,6 +23,7 @@ public sealed class SqlServerAutoBanLogonFailureRecorderTests
             "AutoBanMinutes");
 
         StringAssert.Contains(SqlServerAutoBanLogonFailureRecorder.CountFailuresSql, "hm_logon_failures");
+        StringAssert.Contains(SqlServerAutoBanLogonFailureRecorder.CountFailuresSql, "WITH (UPDLOCK, HOLDLOCK)");
         StringAssert.Contains(SqlServerAutoBanLogonFailureRecorder.CountFailuresSql, "ipaddress1 = @IpAddress1");
         StringAssert.Contains(SqlServerAutoBanLogonFailureRecorder.CountFailuresSql, "ipaddress2 IS NULL");
         StringAssert.Contains(SqlServerAutoBanLogonFailureRecorder.InsertFailureSql, "SYSUTCDATETIME()");

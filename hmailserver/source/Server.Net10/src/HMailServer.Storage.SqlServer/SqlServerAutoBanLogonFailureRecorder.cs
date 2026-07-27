@@ -20,7 +20,7 @@ WHERE settingname IN (
 
     public const string CountFailuresSql = """
 SELECT CONVERT(int, COUNT_BIG(*))
-FROM hm_logon_failures
+FROM hm_logon_failures WITH (UPDLOCK, HOLDLOCK)
 WHERE ipaddress1 = @IpAddress1
   AND ((@IpAddress2 IS NULL AND ipaddress2 IS NULL) OR ipaddress2 = @IpAddress2);
 """;
