@@ -171,6 +171,99 @@ public sealed class SecurityRangesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_AddStagesNewRangeAndAppendsOnlyAfterInsert()
+    {
+        SecurityRangeAdministrationSnapshot? inserted = null;
+        IInterfaceSecurityRanges ranges = SecurityRanges.CreateAuthorized(
+            new[]
+            {
+                Snapshot(
+                    id: 10,
+                    name: "Existing",
+                    lowerIp: "127.0.0.1",
+                    upperIp: "127.0.0.1",
+                    priority: 20,
+                    options: AllowSmtp,
+                    expires: false,
+                    expiresTime: new DateTime(2001, 1, 1))
+            },
+            insert: range =>
+            {
+                inserted = range;
+                return 30;
+            },
+            isServerAdministrator: static () => true);
+
+        var pending = ranges.Add();
+
+        Assert.AreEqual(0, pending.ID);
+        Assert.AreEqual("0.0.0.0", pending.LowerIP);
+        Assert.AreEqual("0.0.0.0", pending.UpperIP);
+        Assert.AreEqual(0, pending.Priority);
+        Assert.IsFalse(pending.Expires);
+        Assert.AreEqual(new DateTime(2001, 1, 1), pending.ExpiresTime);
+
+        pending.Name = "LAN";
+        pending.LowerIP = "192.168.1.1";
+        pending.LowerIP = "not-an-ip";
+        pending.UpperIP = "192.168.1.254";
+        pending.UpperIP = "300.300.300.300";
+        pending.Priority = 40;
+        pending.AllowSMTPConnections = true;
+        pending.AllowPOP3Connections = true;
+        pending.AllowIMAPConnections = true;
+        pending.AllowDeliveryFromLocalToLocal = true;
+        pending.AllowDeliveryFromLocalToRemote = true;
+        pending.AllowDeliveryFromRemoteToLocal = true;
+        pending.AllowDeliveryFromRemoteToRemote = true;
+        pending.EnableSpamProtection = true;
+        pending.EnableAntiVirus = true;
+        pending.RequireSMTPAuthLocalToLocal = true;
+        pending.RequireSMTPAuthLocalToExternal = true;
+        pending.RequireSMTPAuthExternalToLocal = true;
+        pending.RequireSMTPAuthExternalToExternal = true;
+        pending.RequireSSLTLSForAuth = true;
+        pending.Expires = true;
+        pending.ExpiresTime = new DateTime(2026, 7, 27, 1, 2, 3);
+        pending.RequireAuthForDeliveryToLocal = true;
+        pending.RequireAuthForDeliveryToRemote = true;
+        pending.IsForwardingRelay = true;
+
+        Assert.AreEqual("192.168.1.1", pending.LowerIP);
+        Assert.AreEqual("192.168.1.254", pending.UpperIP);
+
+        pending.Save();
+
+        Assert.IsNotNull(inserted);
+        Assert.AreEqual(0, inserted!.Id);
+        Assert.AreEqual("LAN", inserted.Name);
+        Assert.AreEqual("192.168.1.1", inserted.LowerIp);
+        Assert.AreEqual("192.168.1.254", inserted.UpperIp);
+        Assert.AreEqual(40, inserted.Priority);
+        Assert.AreEqual(AllOptions, inserted.Options);
+        Assert.IsTrue(inserted.Expires);
+        Assert.AreEqual(new DateTime(2026, 7, 27, 1, 2, 3), inserted.ExpiresTime);
+
+        Assert.AreEqual(30, pending.ID);
+        Assert.AreEqual(2, ranges.Count);
+        Assert.AreEqual(10, ranges[0].ID);
+        Assert.AreEqual(30, ranges[1].ID);
+        Assert.AreEqual("LAN", ranges.get_ItemByDBID(30).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangesRequiresServerAdministrator()
+    {
+        SecurityRangeAdministrationRuntimeHost.Configure(
+            new MutableSecurityRangeAdministrationStore(Array.Empty<SecurityRangeAdministrationSnapshot>()));
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => false);
+
+        var error = Assert.ThrowsExactly<COMException>(() => _ = settings.SecurityRanges);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
@@ -388,5 +481,10 @@ public sealed class SecurityRangesComContractTests
                     .ThenBy(static range => range.Name, StringComparer.OrdinalIgnoreCase)
                     .ToArray());
         }
+
+        public ValueTask<int> InsertSecurityRangeAsync(
+            SecurityRangeAdministrationSnapshot range,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(100);
     }
 }

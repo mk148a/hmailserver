@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Globalization;
+using System.Net;
 using HMailServer.Core.Abstractions;
 
 namespace HMailServer.ComInterop;
@@ -265,6 +267,8 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
 
     private SecurityRangeAdministrationSnapshot[]? _ranges;
     private readonly Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? _reload;
+    private readonly Func<SecurityRangeAdministrationSnapshot, int>? _insert;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public SecurityRanges()
     {
@@ -272,20 +276,26 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
 
     private SecurityRanges(
         IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges,
-        Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? reload,
+        Func<SecurityRangeAdministrationSnapshot, int>? insert,
+        Func<bool>? isServerAdministrator)
     {
         _ranges = ranges.ToArray();
         _reload = reload;
+        _insert = insert;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int Count => GetRanges().Count;
 
     internal static SecurityRanges CreateAuthorized(
         IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges,
-        Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<SecurityRangeAdministrationSnapshot>>? reload = null,
+        Func<SecurityRangeAdministrationSnapshot, int>? insert = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(ranges);
-        return new SecurityRanges(ranges, reload);
+        return new SecurityRanges(ranges, reload, insert, isServerAdministrator);
     }
 
     public IInterfaceSecurityRange this[int index]
@@ -348,9 +358,52 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
         }
     }
 
-    public IInterfaceSecurityRange Add() => Unavailable<IInterfaceSecurityRange>();
+    public IInterfaceSecurityRange Add()
+    {
+        _ = GetRanges();
+        if (_insert is null)
+        {
+            return Unavailable<IInterfaceSecurityRange>();
+        }
+
+        return SecurityRange.CreateAuthorized(
+            new SecurityRangeAdministrationSnapshot(
+                Id: 0,
+                Name: string.Empty,
+                LowerIp: "0.0.0.0",
+                UpperIp: "0.0.0.0",
+                Priority: 0,
+                Options: 0,
+                Expires: false,
+                ExpiresTime: new DateTime(2001, 1, 1)),
+            save: SaveRange,
+            isServerAdministrator: _isServerAdministrator);
+    }
 
     public void SetDefault() => Unavailable();
+
+    private SecurityRangeAdministrationSnapshot SaveRange(SecurityRangeAdministrationSnapshot range)
+    {
+        var ranges = GetRanges();
+        if (range.Id != 0 || _insert is null)
+        {
+            Unavailable();
+            return range;
+        }
+
+        try
+        {
+            var insertedRange = range with { Id = _insert(range) };
+            Volatile.Write(ref _ranges, ranges.Concat([insertedRange]).ToArray());
+            return insertedRange;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the security range to the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<SecurityRangeAdministrationSnapshot> GetRanges()
     {
@@ -402,68 +455,101 @@ public sealed class SecurityRange : IInterfaceSecurityRange
     private const int SmtpAuthExternalToExternal = 65536;
     private const int RequireTlsForAuth = 131072;
 
-    private readonly SecurityRangeAdministrationSnapshot? _range;
+    private SecurityRangeAdministrationSnapshot? _range;
+    private readonly Func<SecurityRangeAdministrationSnapshot, SecurityRangeAdministrationSnapshot>? _save;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public SecurityRange()
     {
     }
 
-    private SecurityRange(SecurityRangeAdministrationSnapshot range)
+    private SecurityRange(
+        SecurityRangeAdministrationSnapshot range,
+        Func<SecurityRangeAdministrationSnapshot, SecurityRangeAdministrationSnapshot>? save,
+        Func<bool>? isServerAdministrator)
     {
         _range = range;
+        _save = save;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int ID => Snapshot.Id;
 
-    public string LowerIP { get => Snapshot.LowerIp; set => Unavailable(); }
+    public string LowerIP
+    {
+        get => Snapshot.LowerIp;
+        set => Mutate(snapshot => snapshot with { LowerIp = KeepLegacyAddress(snapshot.LowerIp, value) });
+    }
 
-    public string UpperIP { get => Snapshot.UpperIp; set => Unavailable(); }
+    public string UpperIP
+    {
+        get => Snapshot.UpperIp;
+        set => Mutate(snapshot => snapshot with { UpperIp = KeepLegacyAddress(snapshot.UpperIp, value) });
+    }
 
-    public bool AllowSMTPConnections { get => HasOption(AllowSmtp); set => Unavailable(); }
+    public bool AllowSMTPConnections { get => HasOption(AllowSmtp); set => SetOption(AllowSmtp, value); }
 
-    public bool AllowPOP3Connections { get => HasOption(AllowPop3); set => Unavailable(); }
+    public bool AllowPOP3Connections { get => HasOption(AllowPop3); set => SetOption(AllowPop3, value); }
 
-    public int Priority { get => Snapshot.Priority; set => Unavailable(); }
+    public int Priority { get => Snapshot.Priority; set => Mutate(snapshot => snapshot with { Priority = value }); }
 
-    public bool AllowIMAPConnections { get => HasOption(AllowImap); set => Unavailable(); }
+    public bool AllowIMAPConnections { get => HasOption(AllowImap); set => SetOption(AllowImap, value); }
 
-    public string Name { get => Snapshot.Name; set => Unavailable(); }
+    public string Name { get => Snapshot.Name; set => Mutate(snapshot => snapshot with { Name = value ?? string.Empty }); }
 
-    public bool RequireAuthForDeliveryToLocal { get => false; set => Unavailable(); }
+    public bool RequireAuthForDeliveryToLocal { get => false; set => Mutate(static snapshot => snapshot); }
 
-    public bool RequireAuthForDeliveryToRemote { get => false; set => Unavailable(); }
+    public bool RequireAuthForDeliveryToRemote { get => false; set => Mutate(static snapshot => snapshot); }
 
-    public bool AllowDeliveryFromLocalToLocal { get => HasOption(RelayLocalToLocal); set => Unavailable(); }
+    public bool AllowDeliveryFromLocalToLocal { get => HasOption(RelayLocalToLocal); set => SetOption(RelayLocalToLocal, value); }
 
-    public bool AllowDeliveryFromLocalToRemote { get => HasOption(RelayLocalToRemote); set => Unavailable(); }
+    public bool AllowDeliveryFromLocalToRemote { get => HasOption(RelayLocalToRemote); set => SetOption(RelayLocalToRemote, value); }
 
-    public bool AllowDeliveryFromRemoteToLocal { get => HasOption(RelayRemoteToLocal); set => Unavailable(); }
+    public bool AllowDeliveryFromRemoteToLocal { get => HasOption(RelayRemoteToLocal); set => SetOption(RelayRemoteToLocal, value); }
 
-    public bool AllowDeliveryFromRemoteToRemote { get => HasOption(RelayRemoteToRemote); set => Unavailable(); }
+    public bool AllowDeliveryFromRemoteToRemote { get => HasOption(RelayRemoteToRemote); set => SetOption(RelayRemoteToRemote, value); }
 
-    public bool EnableSpamProtection { get => HasOption(SpamProtection); set => Unavailable(); }
+    public bool EnableSpamProtection { get => HasOption(SpamProtection); set => SetOption(SpamProtection, value); }
 
-    public bool IsForwardingRelay { get => false; set => Unavailable(); }
+    public bool IsForwardingRelay { get => false; set => Mutate(static snapshot => snapshot); }
 
-    public bool EnableAntiVirus { get => HasOption(VirusProtection); set => Unavailable(); }
+    public bool EnableAntiVirus { get => HasOption(VirusProtection); set => SetOption(VirusProtection, value); }
 
-    public bool Expires { get => Snapshot.Expires; set => Unavailable(); }
+    public bool Expires { get => Snapshot.Expires; set => Mutate(snapshot => snapshot with { Expires = value }); }
 
-    public object ExpiresTime { get => Snapshot.ExpiresTime; set => Unavailable(); }
+    public object ExpiresTime
+    {
+        get => Snapshot.ExpiresTime;
+        set => Mutate(snapshot => snapshot with { ExpiresTime = NormalizeExpiresTime(value) });
+    }
 
-    public bool RequireSMTPAuthLocalToLocal { get => HasOption(SmtpAuthLocalToLocal); set => Unavailable(); }
+    public bool RequireSMTPAuthLocalToLocal { get => HasOption(SmtpAuthLocalToLocal); set => SetOption(SmtpAuthLocalToLocal, value); }
 
-    public bool RequireSMTPAuthLocalToExternal { get => HasOption(SmtpAuthLocalToExternal); set => Unavailable(); }
+    public bool RequireSMTPAuthLocalToExternal { get => HasOption(SmtpAuthLocalToExternal); set => SetOption(SmtpAuthLocalToExternal, value); }
 
-    public bool RequireSMTPAuthExternalToLocal { get => HasOption(SmtpAuthExternalToLocal); set => Unavailable(); }
+    public bool RequireSMTPAuthExternalToLocal { get => HasOption(SmtpAuthExternalToLocal); set => SetOption(SmtpAuthExternalToLocal, value); }
 
-    public bool RequireSMTPAuthExternalToExternal { get => HasOption(SmtpAuthExternalToExternal); set => Unavailable(); }
+    public bool RequireSMTPAuthExternalToExternal { get => HasOption(SmtpAuthExternalToExternal); set => SetOption(SmtpAuthExternalToExternal, value); }
 
-    public bool RequireSSLTLSForAuth { get => HasOption(RequireTlsForAuth); set => Unavailable(); }
+    public bool RequireSSLTLSForAuth { get => HasOption(RequireTlsForAuth); set => SetOption(RequireTlsForAuth, value); }
 
-    internal static SecurityRange CreateAuthorized(SecurityRangeAdministrationSnapshot range) => new(range);
+    internal static SecurityRange CreateAuthorized(
+        SecurityRangeAdministrationSnapshot range,
+        Func<SecurityRangeAdministrationSnapshot, SecurityRangeAdministrationSnapshot>? save = null,
+        Func<bool>? isServerAdministrator = null) =>
+        new(range, save, isServerAdministrator);
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        EnsureServerAdministrator();
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _range = _save(Snapshot);
+    }
 
     public void Delete() => Unavailable();
 
@@ -473,6 +559,60 @@ public sealed class SecurityRange : IInterfaceSecurityRange
             EAccessDenied);
 
     private bool HasOption(int option) => (Snapshot.Options & option) == option;
+
+    private void SetOption(int option, bool enabled)
+    {
+        Mutate(snapshot => snapshot with
+        {
+            Options = enabled
+                ? snapshot.Options | option
+                : snapshot.Options & ~option
+        });
+    }
+
+    private void Mutate(Func<SecurityRangeAdministrationSnapshot, SecurityRangeAdministrationSnapshot> mutation)
+    {
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _range = mutation(Snapshot);
+    }
+
+    private static string KeepLegacyAddress(string current, string? value)
+    {
+        return IPAddress.TryParse(value ?? string.Empty, out var parsed)
+            ? parsed.ToString()
+            : current;
+    }
+
+    private static DateTime NormalizeExpiresTime(object? value)
+    {
+        if (value is DateTime dateTime)
+        {
+            return dateTime;
+        }
+
+        return DateTime.TryParse(
+                Convert.ToString(value, CultureInfo.InvariantCulture),
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AllowWhiteSpaces,
+                out var parsed)
+            ? parsed
+            : new DateTime(2001, 1, 1);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "SecurityRange access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private void Unavailable()
     {
@@ -496,7 +636,7 @@ public static class SecurityRangeAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static SecurityRanges CreateAuthorizedAdapter()
+    internal static SecurityRanges CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -509,6 +649,16 @@ public static class SecurityRangeAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return SecurityRanges.CreateAuthorized(LoadRanges(), LoadRanges);
+        int InsertRange(SecurityRangeAdministrationSnapshot range) => store
+            .InsertSecurityRangeAsync(range, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return SecurityRanges.CreateAuthorized(
+            LoadRanges(),
+            LoadRanges,
+            InsertRange,
+            isServerAdministrator);
     }
 }
