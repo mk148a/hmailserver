@@ -82,7 +82,7 @@ Ana nedenler:
 
 ## Current Next Slice
 
-The current smallest safe production-gate slice is a bounded SEC-14 audit of `hmailserver/source/WebAdmin/hm_autoban.php` `save` action for POST-only handling and CSRF-token placement. The performance and backup mutation slices are complete in `7c7ca1049` and `7338030e6`; focused source coverage is `2/2` and full Net10 is `1249` with `3` opt-in skips. SEC-18 remains at the collector/attester freshness gate: the permanent broker, DCOM ACL writes, `hMailServer.Application` activation, PHP session cutover, and existing Application identity remain blocked. Backup archive/XML creation remains deferred until this higher-priority WebAdmin security gate clears or is explicitly re-prioritized.
+The current smallest safe production-gate slice is a bounded SEC-14 audit of `hmailserver/source/WebAdmin/hm_logging.php` `save` action for POST-only handling and CSRF-token placement. The performance, backup, auto-ban, and greylisting mutation slices are complete in `7c7ca1049`, `7338030e6`, `a5384ae1b`, and `28a830f5f`; focused source coverage is `3/3` and full Net10 is `1251` with `3` opt-in skips. SEC-18 remains at the collector/attester freshness gate: the permanent broker, DCOM ACL writes, `hMailServer.Application` activation, PHP session cutover, and existing Application identity remain blocked. Backup archive/XML creation and diagnostics/network egress hardening remain deferred until the higher-priority WebAdmin security gate clears or is explicitly re-prioritized.
 
 ### Historical SEC-18 context
 
@@ -878,6 +878,13 @@ Terminal/log incelemesi:
 - Focused `WebAdminBackupPostOnlySourceTests` passes `1/1`; combined focused WebAdmin source coverage is `2/2`; full Net10 passes `1249` with `3` opt-in skips. The manual checklist covers GET start, query-only action/field/token, valid POST, and server-admin/asynchronous behavior. PHP CLI lint was unavailable because PHP is not installed on this host.
 - No COM identity, direct-activation boundary, authenticated Settings boundary, asynchronous backup runtime, archive/XML path, production service, database, data directory, or SEC-18 staging state changed. Residual SEC-14 risk remains in other less-visible WebAdmin mutations.
 
+## SEC-14 WebAdmin Greylisting Mutation Hardening (2026-07-27)
+
+- Code/test commit `28a830f5f` hardens `hmailserver/source/WebAdmin/hm_greylisting.php`: `action` and all greylisting fields now come from the POST body, and `save` requires `hmailRequirePostCsrfToken()` before mutation. Normal `GET page=greylisting` rendering remains unchanged; the existing server-admin gate, anti-spam settings, and legacy day-to-hour conversion remain unchanged.
+- Legacy references: `hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:265-385,1121-1184` and `hmailserver/source/Server/hMailServer/hMailServer.h:19556-19744`. WebAdmin references: `hmailserver/source/WebAdmin/index.php:47-50`, `hmailserver/source/WebAdmin/include/functions.php:411-439`, and `hmailserver/source/WebAdmin/hm_greylisting.php:8-24`.
+- Focused `WebAdminGreyListingPostOnlySourceTests` passes `1/1`; combined focused WebAdmin source coverage is `3/3`; full Net10 passes `1251` with `3` opt-in skips. The manual checklist covers GET save, query-only action/field/token, valid POST, and server-admin/anti-spam behavior. PHP CLI lint was unavailable because PHP is not installed on this host.
+- No COM identity, direct-activation boundary, authenticated Settings boundary, anti-spam/SMTP runtime, production service, database, data directory, or SEC-18 staging state changed. Residual SEC-14 risk remains in other less-visible WebAdmin mutations.
+
 ## Yeni Thread Icin Baslangic Talimati
 
 1. Repo kokune gec: `<repo-root>`.
@@ -889,5 +896,5 @@ Terminal/log incelemesi:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\check-net10-prereqs.ps1 -RequireMsBuild
 ```
 
-5. Current Next Slice olarak `hmailserver/source/WebAdmin/hm_autoban.php` icindeki `save` action'ini SEC-14 kapsaminda POST-only ve CSRF-token placement acisindan audit/harden et; direct activation denial, installed IID/vtable/DISPID shape, authenticated Settings boundary, SMTP/auto-ban behavior, backup archive/XML execution ve service/DB/data-directory state'i koru. `7c7ca1049` ile `hm_performance.php`, `7338030e6` ile `hm_backup.php` action/field okumalari POST body'ye alindi ve branch'lerde `hmailRequirePostCsrfToken()` zorunlu kilindi; combined focused source test 2/2, full Net10 1249 pass, 3 opt-in skip. PHP CLI bu hostta kurulu degil. SEC-18 permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation ve PHP session cutover halen RED/block ediliyor.
+5. Current Next Slice olarak `hmailserver/source/WebAdmin/hm_logging.php` icindeki `save` action'ini SEC-14 kapsaminda POST-only ve CSRF-token placement acisindan audit/harden et; direct activation denial, installed IID/vtable/DISPID shape, authenticated Settings boundary, SMTP/anti-spam/auto-ban behavior, diagnostics/network egress, backup archive/XML execution ve service/DB/data-directory state'i koru. `7c7ca1049` ile `hm_performance.php`, `7338030e6` ile `hm_backup.php`, `a5384ae1b` ile `hm_autoban.php`, `28a830f5f` ile `hm_greylisting.php` action/field okumalari POST body'ye alindi ve branch'lerde `hmailRequirePostCsrfToken()` zorunlu kilindi; combined focused source test 3/3, full Net10 1251 pass, 3 opt-in skip. PHP CLI bu hostta kurulu degil. SEC-18 permanent broker registration, DCOM ACL yazimi, `hMailServer.Application` activation ve PHP session cutover halen RED/block ediliyor.
 6. Kucuk kod/test commit'i yap, sonra README/backlog/handoff dokumanlarini ayri committe guncelle; kullanici ozellikle istemedikce push yapma.
