@@ -119,3 +119,7 @@ Confirm that a POST with action, backup fields, or csrftoken supplied only in th
 Auto-ban settings save must use a POST form containing page=autoban, action=save, the existing auto-ban fields, and csrftoken.
 Confirm that a GET request to index.php?page=autoban&action=save returns without changing auto-ban settings.
 Confirm that a POST with action, auto-ban fields, or csrftoken supplied only in the query string does not change auto-ban settings; valid POST-body values retain the existing server-admin settings behavior and auto-ban runtime semantics.
+
+Greylisting settings save must use a POST form containing page=greylisting, action=save, the existing greylisting fields, and csrftoken.
+Confirm that a GET request to index.php?page=greylisting&action=save returns without changing greylisting settings.
+Confirm that a POST with action, greylisting fields, or csrftoken supplied only in the query string does not change greylisting settings; valid POST-body values retain the existing server-admin settings behavior and anti-spam runtime semantics.

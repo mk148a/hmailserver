@@ -5,20 +5,21 @@ if (!defined('IN_WEBADMIN'))
 if (hmailGetAdminLevel() != ADMIN_SERVER)
 	hmailHackingAttemp();
 
-$action	   = hmailGetVar("action","");   
+$action	   = hmailGetPostVar("action","");
    
 $obSettings	= $obBaseApp->Settings();
 $antiSpamSettings = $obSettings->AntiSpam;
 
 if($action == "save")
 {
-	$antiSpamSettings->GreyListingEnabled = hmailGetVar("greylistingenabled", 0);
-	$antiSpamSettings->GreyListingInitialDelay = hmailGetVar("greylistinginitialdelay", 0);
-	$antiSpamSettings->GreyListingInitialDelete = hmailGetVar("greylistinginitialdelete", 0) * 24;
-	$antiSpamSettings->GreyListingFinalDelete = hmailGetVar("greylistingfinaldelete", 0) * 24;
+	hmailRequirePostCsrfToken();
+	$antiSpamSettings->GreyListingEnabled = hmailGetPostVar("greylistingenabled", 0);
+	$antiSpamSettings->GreyListingInitialDelay = hmailGetPostVar("greylistinginitialdelay", 0);
+	$antiSpamSettings->GreyListingInitialDelete = hmailGetPostVar("greylistinginitialdelete", 0) * 24;
+	$antiSpamSettings->GreyListingFinalDelete = hmailGetPostVar("greylistingfinaldelete", 0) * 24;
 
-   $antiSpamSettings->BypassGreylistingOnSPFSuccess = hmailGetVar("BypassGreylistingOnSPFSuccess", 0); 
-   $antiSpamSettings->BypassGreylistingOnMailFromMX = hmailGetVar("BypassGreylistingOnMailFromMX", 0); 
+   $antiSpamSettings->BypassGreylistingOnSPFSuccess = hmailGetPostVar("BypassGreylistingOnSPFSuccess", 0);
+   $antiSpamSettings->BypassGreylistingOnMailFromMX = hmailGetPostVar("BypassGreylistingOnMailFromMX", 0);
 	
 }
 
