@@ -105,12 +105,14 @@ public sealed class SecurityRangesComContractTests
         var rangesRefreshError = Assert.ThrowsExactly<COMException>(new SecurityRanges().Refresh);
         var rangesDeleteError = Assert.ThrowsExactly<COMException>(() => new SecurityRanges().DeleteByDBID(10));
         var rangeError = Assert.ThrowsExactly<COMException>(() => _ = new SecurityRange().Priority);
+        var rangeDeleteError = Assert.ThrowsExactly<COMException>(() => new SecurityRange().Delete());
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().SecurityRanges);
 
         Assert.AreEqual(EAccessDenied, rangesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangesDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rangeError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, rangeDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -251,6 +253,117 @@ public sealed class SecurityRangesComContractTests
         Assert.AreEqual(10, ranges[0].ID);
         Assert.AreEqual(30, ranges[1].ID);
         Assert.AreEqual("LAN", ranges.get_ItemByDBID(30).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangeDeleteUsesOwningCollectionForAllItemLookups()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(30, "Loopback", "127.0.0.1", "127.0.0.1", 30, AllOptions, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+
+        ranges[0].Delete();
+        ranges.get_ItemByDBID(20).Delete();
+        ranges.get_ItemByName("internet").Delete();
+
+        CollectionAssert.AreEqual(new[] { 30, 20, 10 }, store.DeletedIds);
+        Assert.AreEqual(0, ranges.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangeDeleteMapsFailureAndRetainsOwningSnapshot()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, AllOptions, false, new DateTime(2001, 1, 1))
+            })
+        {
+            FailDelete = true
+        };
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+
+        var error = Assert.ThrowsExactly<COMException>(() => ranges.get_ItemByDBID(10).Delete());
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 10 }, store.DeletedIds);
+        Assert.AreEqual(2, ranges.Count);
+        Assert.AreEqual("Internet", ranges.get_ItemByDBID(10).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangeDeleteIsNoOpForRepeatedStaleItem()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1)),
+                Snapshot(20, "LAN", "192.168.1.1", "192.168.1.254", 20, AllOptions, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+        var item = ranges.get_ItemByDBID(10);
+
+        item.Delete();
+        item.Delete();
+
+        CollectionAssert.AreEqual(new[] { 10 }, store.DeletedIds);
+        Assert.AreEqual(1, ranges.Count);
+        Assert.AreEqual(20, ranges[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangeDeleteOnUnsavedAddIsNoOp()
+    {
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ranges = settings.SecurityRanges;
+        var item = ranges.Add();
+
+        Assert.AreEqual(0, item.ID);
+        item.Delete();
+
+        CollectionAssert.AreEqual(Array.Empty<int>(), store.DeletedIds);
+        Assert.AreEqual(1, ranges.Count);
+        Assert.AreEqual(10, ranges[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SecurityRangeDeleteRechecksServerAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: () => isServerAdministrator);
+        var ranges = settings.SecurityRanges;
+        var item = ranges[0];
+        isServerAdministrator = false;
+
+        var error = Assert.ThrowsExactly<COMException>(() => item.Delete());
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        CollectionAssert.AreEqual(Array.Empty<int>(), store.DeletedIds);
+        Assert.AreEqual(1, ranges.Count);
     }
 
     [TestMethod]

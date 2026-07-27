@@ -312,7 +312,10 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
                 throw new COMException("Security range index was outside the collection.", DispEBadIndex);
             }
 
-            return SecurityRange.CreateAuthorized(ranges[index]);
+            return SecurityRange.CreateAuthorized(
+                ranges[index],
+                delete: DeleteByDBID,
+                isServerAdministrator: _isServerAdministrator);
         }
     }
 
@@ -322,7 +325,10 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
 
         return match is null
             ? throw new COMException("No security range with the specified database identifier exists.", DispEBadIndex)
-            : SecurityRange.CreateAuthorized(match);
+            : SecurityRange.CreateAuthorized(
+                match,
+                delete: DeleteByDBID,
+                isServerAdministrator: _isServerAdministrator);
     }
 
     public IInterfaceSecurityRange get_ItemByName(string itemName)
@@ -332,7 +338,10 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
 
         return match is null
             ? throw new COMException("No security range with the specified name exists.", DispEBadIndex)
-            : SecurityRange.CreateAuthorized(match);
+            : SecurityRange.CreateAuthorized(
+                match,
+                delete: DeleteByDBID,
+                isServerAdministrator: _isServerAdministrator);
     }
 
     public void Delete(int index) => Unavailable();
@@ -408,6 +417,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
                 Expires: false,
                 ExpiresTime: new DateTime(2001, 1, 1)),
             save: SaveRange,
+            delete: DeleteByDBID,
             isServerAdministrator: _isServerAdministrator);
     }
 
@@ -488,6 +498,7 @@ public sealed class SecurityRange : IInterfaceSecurityRange
 
     private SecurityRangeAdministrationSnapshot? _range;
     private readonly Func<SecurityRangeAdministrationSnapshot, SecurityRangeAdministrationSnapshot>? _save;
+    private readonly Action<int>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
 
     public SecurityRange()
@@ -497,10 +508,12 @@ public sealed class SecurityRange : IInterfaceSecurityRange
     private SecurityRange(
         SecurityRangeAdministrationSnapshot range,
         Func<SecurityRangeAdministrationSnapshot, SecurityRangeAdministrationSnapshot>? save,
+        Action<int>? delete,
         Func<bool>? isServerAdministrator)
     {
         _range = range;
         _save = save;
+        _delete = delete;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -567,8 +580,9 @@ public sealed class SecurityRange : IInterfaceSecurityRange
     internal static SecurityRange CreateAuthorized(
         SecurityRangeAdministrationSnapshot range,
         Func<SecurityRangeAdministrationSnapshot, SecurityRangeAdministrationSnapshot>? save = null,
+        Action<int>? delete = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(range, save, isServerAdministrator);
+        new(range, save, delete, isServerAdministrator);
 
     public void Save()
     {
@@ -582,7 +596,17 @@ public sealed class SecurityRange : IInterfaceSecurityRange
         _range = _save(Snapshot);
     }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(Snapshot.Id);
+    }
 
     private SecurityRangeAdministrationSnapshot Snapshot =>
         _range ?? throw new COMException(
