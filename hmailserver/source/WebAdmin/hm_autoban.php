@@ -7,14 +7,15 @@ if (hmailGetAdminLevel() != ADMIN_SERVER)
 
 $obSettings	= $obBaseApp->Settings();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 if($action == "save")
 {
-	$obSettings->AutoBanOnLogonFailure= hmailGetVar("AutoBanOnLogonFailure",0);
-   $obSettings->MaxInvalidLogonAttempts= hmailGetVar("MaxInvalidLogonAttempts",0);
-   $obSettings->MaxInvalidLogonAttemptsWithin= hmailGetVar("MaxInvalidLogonAttemptsWithin",0);
-   $obSettings->AutoBanMinutes= hmailGetVar("AutoBanMinutes",0);
+	hmailRequirePostCsrfToken();
+	$obSettings->AutoBanOnLogonFailure= hmailGetPostVar("AutoBanOnLogonFailure",0);
+   $obSettings->MaxInvalidLogonAttempts= hmailGetPostVar("MaxInvalidLogonAttempts",0);
+   $obSettings->MaxInvalidLogonAttemptsWithin= hmailGetPostVar("MaxInvalidLogonAttemptsWithin",0);
+   $obSettings->AutoBanMinutes= hmailGetPostVar("AutoBanMinutes",0);
 	
 }
 

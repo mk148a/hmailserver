@@ -115,3 +115,7 @@ Confirm that a POST with action, settings fields, or csrftoken supplied only in 
 Backup settings save and backup start must use POST forms containing page=backup, the selected action, existing backup fields where applicable, and csrftoken.
 Confirm that a GET request to index.php?page=backup&action=startbackup returns without invoking BackupManager.StartBackup.
 Confirm that a POST with action, backup fields, or csrftoken supplied only in the query string does not mutate backup settings or start a backup; valid POST-body values retain the existing server-admin and asynchronous BackupManager behavior.
+
+Auto-ban settings save must use a POST form containing page=autoban, action=save, the existing auto-ban fields, and csrftoken.
+Confirm that a GET request to index.php?page=autoban&action=save returns without changing auto-ban settings.
+Confirm that a POST with action, auto-ban fields, or csrftoken supplied only in the query string does not change auto-ban settings; valid POST-body values retain the existing server-admin settings behavior and auto-ban runtime semantics.
