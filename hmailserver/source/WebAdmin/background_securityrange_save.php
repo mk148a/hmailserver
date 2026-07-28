@@ -4,9 +4,11 @@
 
    if (hmailGetAdminLevel() != ADMIN_SERVER)
    	hmailHackingAttemp(); // The user is not server administrator.
+
+   hmailRequirePostCsrfToken();
    
-   $action	            = hmailGetVar("action","");
-   $securityrangeid	   = hmailGetVar("securityrangeid","");
+   $action	            = hmailGetPostVar("action","");
+   $securityrangeid	   = hmailGetPostVar("securityrangeid","");
    
    if ($action == "edit")
       $obSecurityRange     = $obBaseApp->Settings->SecurityRanges->ItemByDBID($securityrangeid);
@@ -14,34 +16,33 @@
       $obSecurityRange     = $obBaseApp->Settings->SecurityRanges->Add();
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $obBaseApp->Settings->SecurityRanges->DeleteByDBID($securityrangeid);
       header("Location: index.php?page=securityranges");
    }
       
    // Fetch form
-   $securityrangename		= hmailGetVar("securityrangename","");
-   $securityrangepriority	= hmailGetVar("securityrangepriority","0");
-   $securityrangelowerip	= hmailGetVar("securityrangelowerip","0");
-   $securityrangeupperip	= hmailGetVar("securityrangeupperip","0");
+   $securityrangename		= hmailGetPostVar("securityrangename","");
+   $securityrangepriority	= hmailGetPostVar("securityrangepriority","0");
+   $securityrangelowerip	= hmailGetPostVar("securityrangelowerip","0");
+   $securityrangeupperip	= hmailGetPostVar("securityrangeupperip","0");
    
-   $allowsmtpconnections	= hmailGetVar("allowsmtpconnections","0");
-   $allowpop3connections	= hmailGetVar("allowpop3connections","0");
-   $allowimapconnections	= hmailGetVar("allowimapconnections","0");
+   $allowsmtpconnections	= hmailGetPostVar("allowsmtpconnections","0");
+   $allowpop3connections	= hmailGetPostVar("allowpop3connections","0");
+   $allowimapconnections	= hmailGetPostVar("allowimapconnections","0");
    
-   $allowlocaltolocal		= hmailGetVar("allowlocaltolocal","0");
-   $allowlocaltoremote		= hmailGetVar("allowlocaltoremote","0");
-   $allowremotetolocal		= hmailGetVar("allowremotetolocal","0");
-   $allowremotetoremote		= hmailGetVar("allowremotetoremote","0");
+   $allowlocaltolocal		= hmailGetPostVar("allowlocaltolocal","0");
+   $allowlocaltoremote		= hmailGetPostVar("allowlocaltoremote","0");
+   $allowremotetolocal		= hmailGetPostVar("allowremotetolocal","0");
+   $allowremotetoremote		= hmailGetPostVar("allowremotetoremote","0");
 
-   $enablespamprotection	= hmailGetVar("enablespamprotection","0");
-   $EnableAntiVirus         = hmailGetVar("EnableAntiVirus","0");
+   $enablespamprotection	= hmailGetPostVar("enablespamprotection","0");
+   $EnableAntiVirus         = hmailGetPostVar("EnableAntiVirus","0");
    
-   $IsForwardingRelay	   = hmailGetVar("IsForwardingRelay","0");
-   $RequireSSLTLSForAuth   = hmailGetVar("RequireSSLTLSForAuth","0");
+   $IsForwardingRelay	   = hmailGetPostVar("IsForwardingRelay","0");
+   $RequireSSLTLSForAuth   = hmailGetPostVar("RequireSSLTLSForAuth","0");
    
-   $Expires	   = hmailGetVar("Expires",0);
-   $ExpiresTime	   = hmailGetVar("ExpiresTime","");
+   $Expires	   = hmailGetPostVar("Expires",0);
+   $ExpiresTime	   = hmailGetPostVar("ExpiresTime","");
    
    // Save the changes
    $obSecurityRange->Name = $securityrangename;
@@ -58,10 +59,10 @@
    $obSecurityRange->AllowDeliveryFromRemoteToLocal = $allowremotetolocal;
    $obSecurityRange->AllowDeliveryFromRemoteToRemote = $allowremotetoremote;
 
-   $obSecurityRange->RequireSMTPAuthLocalToLocal = hmailGetVar("RequireSMTPAuthLocalToLocal", 0);
-   $obSecurityRange->RequireSMTPAuthLocalToExternal = hmailGetVar("RequireSMTPAuthLocalToExternal", 0);
-   $obSecurityRange->RequireSMTPAuthExternalToLocal = hmailGetVar("RequireSMTPAuthExternalToLocal", 0);
-   $obSecurityRange->RequireSMTPAuthExternalToExternal = hmailGetVar("RequireSMTPAuthExternalToExternal", 0);
+   $obSecurityRange->RequireSMTPAuthLocalToLocal = hmailGetPostVar("RequireSMTPAuthLocalToLocal", 0);
+   $obSecurityRange->RequireSMTPAuthLocalToExternal = hmailGetPostVar("RequireSMTPAuthLocalToExternal", 0);
+   $obSecurityRange->RequireSMTPAuthExternalToLocal = hmailGetPostVar("RequireSMTPAuthExternalToLocal", 0);
+   $obSecurityRange->RequireSMTPAuthExternalToExternal = hmailGetPostVar("RequireSMTPAuthExternalToExternal", 0);
 
    $obSecurityRange->EnableSpamProtection = $enablespamprotection;
    $obSecurityRange->EnableAntiVirus = $EnableAntiVirus;
