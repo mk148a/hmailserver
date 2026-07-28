@@ -2,14 +2,16 @@
    if (!defined('IN_WEBADMIN'))
       exit();
 
-   $distributionlistid 	= hmailGetVar("distributionlistid",0);
-   $recipientid	      = hmailGetVar("recipientid",0);
-   $domainid	         = hmailGetVar("domainid",0,true);
-   $action	            = hmailGetVar("action","");
-   $recipientaddress    = hmailGetVar("recipientaddress","");
-   
    if (hmailGetAdminLevel() == 0)
       hmailHackingAttemp();
+
+   hmailRequirePostCsrfToken();
+
+   $distributionlistid 	= hmailGetPostVar("distributionlistid",0);
+   $recipientid	      = hmailGetPostVar("recipientid",0);
+   $domainid	         = hmailGetPostVar("domainid",0,true);
+   $action	            = hmailGetPostVar("action","");
+   $recipientaddress    = hmailGetPostVar("recipientaddress","");
    
    if (hmailGetAdminLevel() == 1 && $domainid != hmailGetDomainID())
    	hmailHackingAttemp(); // Domain admin but not for this domain.
@@ -23,7 +25,6 @@
       $obRecipient = $obList->Recipients->Add();
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $obRecipient = $obList->Recipients->ItemByDBID($recipientid);
       $obRecipient->Delete();
       
