@@ -5,12 +5,14 @@
    if (hmailGetAdminLevel() != 2)
       hmailHackingAttemp(); // Server admin required
 
-   $tcpipportid 	= hmailGetVar("tcpipportid",0);
-   $protocol	   = hmailGetVar("protocol",0);
-   $portnumber	   = hmailGetVar("portnumber",0);
-   $action	      = hmailGetVar("action","");
-   $ConnectionSecurity	      = hmailGetVar("ConnectionSecurity","0");
-   $SSLCertificateID	      = hmailGetVar("SSLCertificateID","0");
+   hmailRequirePostCsrfToken();
+
+   $tcpipportid 	= hmailGetPostVar("tcpipportid",0);
+   $protocol	   = hmailGetPostVar("protocol",0);
+   $portnumber	   = hmailGetPostVar("portnumber",0);
+   $action	      = hmailGetPostVar("action","");
+   $ConnectionSecurity	      = hmailGetPostVar("ConnectionSecurity","0");
+   $SSLCertificateID	      = hmailGetPostVar("SSLCertificateID","0");
    
    $obSettings   = $obBaseApp->Settings();
    $obTCPIPPorts  = $obSettings->TCPIPPorts;
@@ -21,7 +23,6 @@
       $obTCPIPPort = $obTCPIPPorts->Add();
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $obTCPIPPorts->DeleteByDBID($tcpipportid);
       header("Location: index.php?page=tcpipports");
       exit();
@@ -31,7 +32,7 @@
    $obTCPIPPort->PortNumber = $portnumber;
    $obTCPIPPort->ConnectionSecurity = $ConnectionSecurity;
    $obTCPIPPort->SSLCertificateID = $SSLCertificateID;
-   $obTCPIPPort->Address = hmailGetVar("Address","0");
+   $obTCPIPPort->Address = hmailGetPostVar("Address","0");
    
    $obTCPIPPort->Save();
    
