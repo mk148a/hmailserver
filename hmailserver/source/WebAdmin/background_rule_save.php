@@ -3,13 +3,15 @@
    if (!defined('IN_WEBADMIN'))
       exit();
 
-   $action	   = hmailGetVar("action","");
-   $domainid   = hmailGetVar("domainid", 0, true);
-   $accountid  = hmailGetVar("accountid", 0, true);
-   $ruleid     = hmailGetVar("ruleid", 0);
-   $criteriaid = hmailGetVar("criteriaid", 0);
-   $actionid   = hmailGetVar("actionid", 0);
-   $savetype   = hmailGetVar("savetype", 0);
+   hmailRequirePostCsrfToken();
+
+   $action	   = hmailGetPostVar("action","");
+   $domainid   = hmailGetPostVar("domainid", 0, true);
+   $accountid  = hmailGetPostVar("accountid", 0, true);
+   $ruleid     = hmailGetPostVar("ruleid", 0);
+   $criteriaid = hmailGetPostVar("criteriaid", 0);
+   $actionid   = hmailGetPostVar("actionid", 0);
+   $savetype   = hmailGetPostVar("savetype", 0);
       
    if (!GetHasRuleAccess($domainid, $accountid))
    	hmailHackingAttemp();
@@ -18,9 +20,6 @@
       
    $rule_link = "index.php?page=rule&action=edit&domainid=$domainid&accountid=$accountid&ruleid=$ruleid";
 
-   if ($action == "delete" && ($savetype == "rule" || $savetype == "criteria" || $savetype == "action"))
-      hmailRequirePost();
-   
    if ($action == "add" && $savetype == "rule")
    {
       if ($domainid == 0)
@@ -70,11 +69,11 @@
          $criteria = $rule->Criterias->Add();
       }
    
-      $criteria->UsePredefined = hmailGetVar("UsePredefined", 0);
-      $criteria->PredefinedField = hmailGetVar("PredefinedField", 0);
-      $criteria->MatchType = hmailGetVar("MatchType", 0);
-      $criteria->MatchValue = hmailGetVar("MatchValue", 0);
-      $criteria->HeaderField = hmailGetVar("HeaderField", 0);
+      $criteria->UsePredefined = hmailGetPostVar("UsePredefined", 0);
+      $criteria->PredefinedField = hmailGetPostVar("PredefinedField", 0);
+      $criteria->MatchType = hmailGetPostVar("MatchType", 0);
+      $criteria->MatchValue = hmailGetPostVar("MatchValue", 0);
+      $criteria->HeaderField = hmailGetPostVar("HeaderField", 0);
       
       $criteria->Save();
       
@@ -91,7 +90,7 @@
       else if ($action == "add")
          $actionObj = $rule->Actions->Add();
    
-      $type = hmailGetVar("Type", 0);
+      $type = hmailGetPostVar("Type", 0);
       
       if (hmailGetAdminLevel() != ADMIN_SERVER)
       {
@@ -106,25 +105,25 @@
          }  
       }
    
-      $actionObj->To = hmailGetVar("To", "");
-      $actionObj->IMAPFolder = hmailGetVar("IMAPFolder", "");
-      $actionObj->ScriptFunction = hmailGetVar("ScriptFunction", "");
-      $actionObj->FromName = hmailGetVar("FromName", "");
-      $actionObj->FromAddress = hmailGetVar("FromAddress", "");
-      $actionObj->Subject = hmailGetVar("Subject", "");
-      $actionObj->Body = hmailGetVar("Body", "");
-      $actionObj->HeaderName = hmailGetVar("HeaderName", "");
+      $actionObj->To = hmailGetPostVar("To", "");
+      $actionObj->IMAPFolder = hmailGetPostVar("IMAPFolder", "");
+      $actionObj->ScriptFunction = hmailGetPostVar("ScriptFunction", "");
+      $actionObj->FromName = hmailGetPostVar("FromName", "");
+      $actionObj->FromAddress = hmailGetPostVar("FromAddress", "");
+      $actionObj->Subject = hmailGetPostVar("Subject", "");
+      $actionObj->Body = hmailGetPostVar("Body", "");
+      $actionObj->HeaderName = hmailGetPostVar("HeaderName", "");
       
-      $replyabortspamflagged = hmailGetVar("replyabortspamflagged", "0");
-      $forwardabortspamflagged = hmailGetVar("forwardabortspamflagged", "0");
+      $replyabortspamflagged = hmailGetPostVar("replyabortspamflagged", "0");
+      $forwardabortspamflagged = hmailGetPostVar("forwardabortspamflagged", "0");
       
 	  switch ($type)
 	  {
 		case eRASetHeaderValue:
-			$actionObj->Value = hmailGetVar("Value", "");
+			$actionObj->Value = hmailGetPostVar("Value", "");
 			break;
 		case eRABindToAddress:
-			$actionObj->Value = hmailGetVar("BindToAddress", "");
+			$actionObj->Value = hmailGetPostVar("BindToAddress", "");
 			break;
 		case eRAForwardEmail:
 			$actionObj->AbortSpamFlagged = $forwardabortspamflagged == 1;
@@ -145,9 +144,9 @@
    }
    else if ($savetype == "rule")
    {
-      $rule->Name = hmailGetVar("Name", "");
-      $rule->Active = hmailGetVar("Active", "") == "1";
-      $rule->UseAND = hmailGetVar("UseAND", "") == "1";
+      $rule->Name = hmailGetPostVar("Name", "");
+      $rule->Active = hmailGetPostVar("Active", "") == "1";
+      $rule->UseAND = hmailGetPostVar("UseAND", "") == "1";
       $rule->Save();
       
       $ruleid = $rule->ID;
