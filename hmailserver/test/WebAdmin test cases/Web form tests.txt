@@ -155,3 +155,6 @@ Confirm that a POST with action, IMAP fields, or csrftoken supplied only in the 
 SMTP settings save must use a POST form containing page=smtp, action=save, the existing SMTP fields, and csrftoken.
 Confirm that a GET request to index.php?page=smtp&action=save does not change SMTP settings.
 Confirm that a POST with action, SMTP fields, or csrftoken supplied only in the query string does not change SMTP settings; a valid server-admin POST preserves the existing SMTP Settings field mapping, AllowMailFromNull inversion, SMTPConnectionSecurity mapping, and non-empty relayer-password update behavior.
+SMTP AntiVirus settings save must use a POST form containing page=smtp_antivirus, action=save, the existing AntiVirus fields, and csrftoken.
+Confirm that a GET request to index.php?page=smtp_antivirus&action=save does not change AntiVirus settings.
+Confirm that a POST with action, AntiVirus fields, or csrftoken supplied only in the query string does not change AntiVirus settings; a valid server-admin POST preserves the existing AntiVirus field mapping, scanner-test behavior, and blocked-attachment deletion behavior.

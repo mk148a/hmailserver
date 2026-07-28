@@ -8,30 +8,31 @@ if (hmailGetAdminLevel() != 2)
 $obSettings	= $obBaseApp->Settings();
 $obAntivirus	= $obSettings->AntiVirus();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 $str_delete = $obLanguage->String("Remove");
 
 if($action == "save")
 {
-	$obAntivirus->Action            = hmailGetVar("avaction",0);
-	$obAntivirus->NotifySender      = hmailGetVar("avnotifysender",0);
-	$obAntivirus->NotifyReceiver    = hmailGetVar("avnotifyreceiver",0);
-	$obAntivirus->MaximumMessageSize = hmailGetVar("MaximumMessageSize",0);
+	hmailRequirePostCsrfToken();
+	$obAntivirus->Action            = hmailGetPostVar("avaction",0);
+	$obAntivirus->NotifySender      = hmailGetPostVar("avnotifysender",0);
+	$obAntivirus->NotifyReceiver    = hmailGetPostVar("avnotifyreceiver",0);
+	$obAntivirus->MaximumMessageSize = hmailGetPostVar("MaximumMessageSize",0);
    
-	$obAntivirus->ClamWinEnabled    = hmailGetVar("clamwinenabled",0);
-	$obAntivirus->ClamWinExecutable = hmailGetVar("clamwinexecutable",0);
-	$obAntivirus->ClamWinDBFolder   = hmailGetVar("clamwindbfolder",0);
+	$obAntivirus->ClamWinEnabled    = hmailGetPostVar("clamwinenabled",0);
+	$obAntivirus->ClamWinExecutable = hmailGetPostVar("clamwinexecutable",0);
+	$obAntivirus->ClamWinDBFolder   = hmailGetPostVar("clamwindbfolder",0);
 	
-	$obAntivirus->ClamAVEnabled    = hmailGetVar("ClamAVEnabled",0);
-	$obAntivirus->ClamAVHost = hmailGetVar("ClamAVHost","");
-	$obAntivirus->ClamAVPort   = hmailGetVar("ClamAVPort","");
+	$obAntivirus->ClamAVEnabled    = hmailGetPostVar("ClamAVEnabled",0);
+	$obAntivirus->ClamAVHost = hmailGetPostVar("ClamAVHost","");
+	$obAntivirus->ClamAVPort   = hmailGetPostVar("ClamAVPort","");
 	
-	$obAntivirus->CustomScannerEnabled    = hmailGetVar("customscannerenabled",0);
-	$obAntivirus->CustomScannerExecutable = hmailGetVar("customscannerexecutable",0);
-	$obAntivirus->CustomScannerReturnValue = hmailGetVar("customscannerreturnvalue",0);	
+	$obAntivirus->CustomScannerEnabled    = hmailGetPostVar("customscannerenabled",0);
+	$obAntivirus->CustomScannerExecutable = hmailGetPostVar("customscannerexecutable",0);
+	$obAntivirus->CustomScannerReturnValue = hmailGetPostVar("customscannerreturnvalue",0);
 	
-   $obAntivirus->EnableAttachmentBlocking = hmailGetVar("EnableAttachmentBlocking",0);	
+   $obAntivirus->EnableAttachmentBlocking = hmailGetPostVar("EnableAttachmentBlocking",0);
 }
 
 
