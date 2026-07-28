@@ -4,9 +4,11 @@
 
    if (hmailGetAdminLevel() != ADMIN_SERVER)
    	hmailHackingAttemp(); // The user is not server administrator.
+
+   hmailRequirePostCsrfToken();
    
-   $action	            = hmailGetVar("action","");
-   $relayid	   = hmailGetVar("relayid",0);
+   $action	            = hmailGetPostVar("action","");
+   $relayid	   = hmailGetPostVar("relayid",0);
    
    if ($action == "edit")
       $obIncomingRelay     = $obBaseApp->Settings->IncomingRelays->ItemByDBID($relayid);
@@ -14,15 +16,14 @@
       $obIncomingRelay     = $obBaseApp->Settings->IncomingRelays->Add();
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $obBaseApp->Settings->IncomingRelays->DeleteByDBID($relayid);
       header("Location: index.php?page=incomingrelays");
    }
       
    // Fetch form
-   $relayname		         = hmailGetVar("relayname","0");
-   $relaylowerip	         = hmailGetVar("relaylowerip","0");
-   $relayupperip	         = hmailGetVar("relayupperip","0");
+   $relayname		         = hmailGetPostVar("relayname","0");
+   $relaylowerip	         = hmailGetPostVar("relaylowerip","0");
+   $relayupperip	         = hmailGetPostVar("relayupperip","0");
 
    // Save the changes
    $obIncomingRelay->Name = $relayname;
