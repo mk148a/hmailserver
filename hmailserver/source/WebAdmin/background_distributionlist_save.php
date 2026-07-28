@@ -3,12 +3,14 @@
    if (!defined('IN_WEBADMIN'))
       exit();
    
-   $domainid	= hmailGetVar("domainid",0,true);
-   $distributionlistid 	= hmailGetVar("distributionlistid",0);
-   $action	   = hmailGetVar("action","");
-   
    if (hmailGetAdminLevel() == 0)
       hmailHackingAttemp();
+
+   hmailRequirePostCsrfToken();
+
+   $domainid	= hmailGetPostVar("domainid",0,true);
+   $distributionlistid 	= hmailGetPostVar("distributionlistid",0);
+   $action	   = hmailGetPostVar("action","");
    
    if (hmailGetAdminLevel() == 1 && $domainid != hmailGetDomainID())
    	hmailHackingAttemp(); // Domain admin but not for this domain.
@@ -33,7 +35,6 @@
       $obList = $obDomain->DistributionLists->Add();  
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $obDomain->DistributionLists->DeleteByDBID($distributionlistid);  
       header("Location: index.php?page=distributionlists&domainid=$domainid");
       exit();
@@ -41,11 +42,11 @@
    
    $domainname = $obDomain->Name;
    	
-   $listaddress  = hmailGetVar("listaddress","");
-   $listactive   = hmailGetVar("listactive","0");
-   $listrequiresmtpauth  = hmailGetVar("listrequiresmtpauth","0");
-   $RequireSenderAddress  = hmailGetVar("RequireSenderAddress","");
-   $Mode  = hmailGetVar("Mode","");
+   $listaddress  = hmailGetPostVar("listaddress","");
+   $listactive   = hmailGetPostVar("listactive","0");
+   $listrequiresmtpauth  = hmailGetPostVar("listrequiresmtpauth","0");
+   $RequireSenderAddress  = hmailGetPostVar("RequireSenderAddress","");
+   $Mode  = hmailGetPostVar("Mode","");
    
    
    $obList->Address = $listaddress . "@" . $domainname;
