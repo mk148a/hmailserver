@@ -953,6 +953,19 @@ Terminal/log incelemesi:
 - Code/test commit `9740cbc62` hardens `hmailserver/source/WebAdmin/hm_mirror.php`: `action` and `mirroremailaddress` use `hmailGetPostVar()`, and the `save` branch calls `hmailRequirePostCsrfToken()` before the existing COM-backed Settings write. `WebAdminMirrorPostOnlySourceTests.MirrorSaveUsesPostBodyAndRequiresPostCsrf` passes `1/1`; combined focused WebAdmin source coverage is `14/14`; full Net10 passes `1262` with `3` opt-in skips. PHP CLI is unavailable, so PHP lint was not run. The manual checklist covers GET save, query-only action/field/token, valid POST behavior, `MirrorEMailAddress` mapping, and SMTP delivery-mirroring preservation.
 - Normal GET rendering, the Mirror field mapping, the server-administrator Settings boundary, direct activation denial, installed COM identity/vtable/DISPID shape, SMTP delivery behavior, live reconfiguration, service/database/data-directory state, and SEC-18 staging state remain unchanged. Next bounded slice: audit `hmailserver/source/WebAdmin/background_servermessage_save.php` for POST-only handling while preserving the existing server-message text Save behavior; keep broader background handler hardening and unrelated Settings mutation out of scope.
 
+## SEC-14 WebAdmin ServerMessage Mutation Hardening (2026-07-28)
+
+- Legacy parity was confirmed in `InterfaceSettings::get_ServerMessages` (`hmailserver/source/Server/COM/InterfaceSettings.cpp:1161-1185`), `InterfaceServerMessages::LoadSettings` and `get_ItemByDBID` (`hmailserver/source/Server/COM/InterfaceServerMessages.cpp:13-21,91-117`), and `InterfaceServerMessage::put_Text`/`Save` (`hmailserver/source/Server/COM/InterfaceServerMessage.cpp:13-35,87-101`). The installed collection/item IIDs, DISPIDs, and vtable order remain those in `hmailserver/source/Server/hMailServer/hMailServer.idl:2324-2348`; server-admin Settings access remains enforced by the legacy `get_ServerMessages` boundary.
+- Code/test commit `7d8321bc8` hardens `background_servermessage_save.php`: the handler requires POST plus POST-body CSRF, reads `messageid`, `messagename`, and `messagetext` through `hmailGetPostVar()`, and preserves the legacy name-integrity check, `ServerMessage.Text` assignment, `Save()`, and redirect. `hm_servermessage.php` posts the existing message name as a hidden field so the existing guard remains effective. Focused `WebAdminServerMessagePostOnlySourceTests`, `ServerMessagesComContractTests`, and `SqlServerServerMessageAdministrationStoreTests` pass `11/11`; full Net10 passes `1263` with `3` opt-in skips. PHP CLI is unavailable.
+- No COM identity, direct activation boundary, authenticated Settings boundary, delivery-template execution, live reconfiguration, SMTP behavior, service, database, Data directory, or SEC-18 staging state changed. The next smallest remaining WebAdmin mutation is `hmailserver/source/WebAdmin/background_domain_name_save.php`; broader background handlers remain open.
+
+## SEC-18 Current Evidence (2026-07-28)
+
+- The fresh collector output `artifacts/sec18-staging/staging-inventory-20260728-nonpool-current.json` is incomplete because the current medium-integrity shell cannot read IIS mappings and no fresh caller-token evidence exists. The temporary probe is absent, hMailServer is `Stopped`/`Disabled`, and the diagnosis is recorded in `artifacts/sec18-staging/SEC18-nonpool-denial-current-20260728.md`.
+- `hmail_security_reviewer` and `hmail_reality_checker` both returned **RED**. Permanent broker registration, DCOM ACL changes, `hMailServer.Application` activation, and PHP session cutover remain blocked until an elevated isolated authorized/non-pool matrix provides fresh exact stage/HRESULT, immutable counter/correlation, cleanup, and independent-review evidence.
+
+The current sections supersede the older next-slice and SEC-18 status notes below.
+
 ## Yeni Thread Icin Baslangic Talimati
 
 1. Repo kokune gec: `<repo-root>`.
