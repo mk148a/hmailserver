@@ -6,17 +6,19 @@
    if (hmailGetAdminLevel() != 2)
    	  hmailHackingAttemp(); // Domain admin but not for this domain.
 
+   hmailRequirePostCsrfToken();
+
    $obSettings = $obBaseApp->Settings;
    $obRoutes	= $obSettings->Routes;
    
-   $routeid 	= hmailGetVar("routeid",0);
-   $routeaddressid	= hmailGetVar("routeaddressid",0);
-   $action	   = hmailGetVar("action","");
+   $routeid 	= hmailGetPostVar("routeid",0);
+   $routeaddressid	= hmailGetPostVar("routeaddressid",0);
+   $action	   = hmailGetPostVar("action","");
 
    $obRoute       = $obRoutes->ItemByDBID($routeid);
    $obAddresses	= $obRoute->Addresses;
    
-   $routeaddress = hmailGetVar("routeaddress","");
+   $routeaddress = hmailGetPostVar("routeaddress","");
    
    if ($action == "edit")
       $obAddress = $obAddresses->ItemByDBID($routeaddressid);
@@ -24,7 +26,6 @@
       $obAddress = $obAddresses->Add();
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $obAddresses->DeleteByDBID($routeaddressid);
       header("Location: index.php?page=route_addresses&routeid=$routeid");
       exit();
