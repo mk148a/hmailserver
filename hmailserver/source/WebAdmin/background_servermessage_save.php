@@ -4,10 +4,12 @@
 
    if (hmailGetAdminLevel() != ADMIN_SERVER)
    	hmailHackingAttemp(); // The user is not server administrator.
+
+   hmailRequirePostCsrfToken();
    
-   $messageid	      = hmailGetVar("messageid",0);
-   $messagename	   = hmailGetVar("messagename",0);
-   $messagetext	   = hmailGetVar("messagetext",0);
+   $messageid	      = hmailGetPostVar("messageid",0);
+   $messagename	   = hmailGetPostVar("messagename",0);
+   $messagetext	   = hmailGetPostVar("messagetext",0);
    
    $obServerMessage     = $obBaseApp->Settings->ServerMessages->ItemByDBID($messageid);
    

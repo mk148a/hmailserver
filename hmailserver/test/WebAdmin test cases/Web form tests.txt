@@ -164,3 +164,6 @@ Confirm that a POST with action, AntiSpam fields, or csrftoken supplied only in 
 SMTP Mirror settings save must use a POST form containing page=mirror, action=save, mirroremailaddress, and csrftoken.
 Confirm that a GET request to index.php?page=mirror&action=save does not change the Mirror e-mail address.
 Confirm that a POST with action, mirroremailaddress, or csrftoken supplied only in the query string does not change the Mirror e-mail address; a valid server-admin POST preserves the existing MirrorEMailAddress mapping and SMTP delivery mirroring behavior.
+Server message text save must use a POST form containing page=background_servermessage_save, messageid, messagename, messagetext, and csrftoken.
+Confirm that a GET request to index.php?page=background_servermessage_save&messageid=...&messagename=...&messagetext=... does not change the server message text.
+Confirm that a POST with messageid, messagename, messagetext, or csrftoken supplied only in the query string does not change the server message text; a valid server-admin POST preserves the existing ServerMessage.Text mapping and Save behavior.

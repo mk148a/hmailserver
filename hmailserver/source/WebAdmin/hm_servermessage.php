@@ -21,6 +21,7 @@ $messagetext	= $obServerMessage->Text;
       PrintHiddenCsrfToken();
       PrintHidden("page", "background_servermessage_save");
       PrintHidden("messageid", "$messageid");
+      PrintHidden("messagename", "$messagename");
    ?>
 	
    <div class="tabber">
