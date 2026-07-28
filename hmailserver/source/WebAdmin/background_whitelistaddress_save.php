@@ -4,9 +4,11 @@
 
    if (hmailGetAdminLevel() != 2)
    	hmailHackingAttemp(); // Only server admins can change this.
+
+   hmailRequirePostCsrfToken();
    
-   $ID 		= hmailGetVar("ID",0);
-   $action	      = hmailGetVar("action","");
+   $ID 		= hmailGetPostVar("ID",0);
+   $action	      = hmailGetPostVar("action","");
    
    $obWhiteListAddresses	= $obBaseApp->Settings()->AntiSpam()->WhiteListAddresses;
 
@@ -16,16 +18,15 @@
       $obAddress = $obWhiteListAddresses->Add();  
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $obWhiteListAddresses->DeleteByDBID($ID);  
       header("Location: index.php?page=whitelistaddresses");
       exit();
    }
       
-   $LowerIPAddress = hmailGetVar("LowerIPAddress",0);
-   $UpperIPAddress = hmailGetVar("UpperIPAddress",0);
-   $EmailAddress   = hmailGetVar("EmailAddress",0);
-   $Description    = hmailGetVar("Description",0);
+   $LowerIPAddress = hmailGetPostVar("LowerIPAddress",0);
+   $UpperIPAddress = hmailGetPostVar("UpperIPAddress",0);
+   $EmailAddress   = hmailGetPostVar("EmailAddress",0);
+   $Description    = hmailGetPostVar("Description",0);
    
    if ($LowerIPAddress == "")
       $LowerIPAddress = "0.0.0.0";
