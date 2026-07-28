@@ -4,11 +4,13 @@
 
    if (hmailGetAdminLevel() != ADMIN_SERVER)
    	hmailHackingAttemp(); // Only server can change these settings.      
-      
-   $domainid	= hmailGetVar("domainid",0,true);
-   $aliasid	   = hmailGetVar("aliasid",0);
-   $action	   = hmailGetVar("action","");
-   $aliasname  = hmailGetVar("aliasname","");
+
+   hmailRequirePostCsrfToken();
+
+   $domainid	= hmailGetPostVar("domainid",0,true);
+   $aliasid	   = hmailGetPostVar("aliasid",0);
+   $action	   = hmailGetPostVar("action","");
+   $aliasname  = hmailGetPostVar("aliasname","");
 
    $obDomain	= $obBaseApp->Domains->ItemByDBID($domainid);
     
@@ -20,7 +22,6 @@
    }
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $obDomain->DomainAliases->DeleteByDBID($aliasid);
    }
    

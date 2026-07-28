@@ -28,6 +28,10 @@ Domain alias deletion must use a POST form containing page=background_domain_nam
 Confirm that a GET request to background_domain_name_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the domain alias.
 Confirm that a non-server-admin POST cannot delete a domain alias, while a valid server-admin POST deletes the selected alias and returns to its domain.
 
+Domain alias add must use a POST form containing page=background_domain_name_save, action=add, domainid, aliasname, and csrftoken.
+Confirm that a GET request to background_domain_name_save with action=add and a valid CSRF token returns HTTP 405 without creating the domain alias.
+Confirm that a valid server-admin POST preserves the existing DomainAliases Add, AliasName, Save, and redirect behavior.
+
 Route deletion must use a POST form containing page=background_route_save, action=delete, routeid, and csrftoken.
 Confirm that a GET request to background_route_save with action=delete and a valid CSRF token returns HTTP 405 without deleting the route.
 Confirm that a non-server-admin POST cannot delete a route, while a valid server-admin POST deletes the selected route and returns to the route list.
