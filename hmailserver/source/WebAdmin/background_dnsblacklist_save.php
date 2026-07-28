@@ -4,14 +4,16 @@
 
    if (hmailGetAdminLevel() != ADMIN_SERVER)
    	hmailHackingAttemp(); // The user is not server administrator.
+
+   hmailRequirePostCsrfToken();
    
-   $action	   = hmailGetVar("action","");
-   $id	      = hmailGetVar("id",0);
-   $Active	      = hmailGetVar("Active",0);
-   $DNSHost	      = hmailGetVar("DNSHost","");
-   $ExpectedResult= hmailGetVar("ExpectedResult","");
-   $RejectMessage	= hmailGetVar("RejectMessage","");
-   $Score	      = hmailGetVar("Score",0);
+	$action	   = hmailGetPostVar("action","");
+   $id	      = hmailGetPostVar("id",0);
+   $Active	      = hmailGetPostVar("Active",0);
+   $DNSHost	      = hmailGetPostVar("DNSHost","");
+   $ExpectedResult= hmailGetPostVar("ExpectedResult","");
+	$RejectMessage	= hmailGetPostVar("RejectMessage","");
+   $Score	      = hmailGetPostVar("Score",0);
    
    $dnsBlackLists = $obBaseApp->Settings->AntiSpam->DNSBlackLists;
    
@@ -21,7 +23,6 @@
       $dnsBlackList     = $dnsBlackLists->Add();
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $dnsBlackLists->DeleteByDBID($id);
       header("Location: index.php?page=dnsblacklists");
    }
