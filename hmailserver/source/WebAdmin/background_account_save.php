@@ -3,9 +3,11 @@
    if (!defined('IN_WEBADMIN'))
       exit();
 
-   $domainid	= hmailGetVar("domainid",0,true);
-   $accountid	= hmailGetVar("accountid",0,true);
-   $action	   = hmailGetVar("action","");
+   hmailRequirePostCsrfToken();
+
+   $domainid	= hmailGetPostVar("domainid",0,true);
+   $accountid	= hmailGetPostVar("accountid",0,true);
+   $action	   = hmailGetPostVar("action","");
    
    $obDomain	= $obBaseApp->Domains->ItemByDBID($domainid);
    
@@ -15,33 +17,33 @@
    if (hmailGetAdminLevel() == 1 && $domainid != hmailGetDomainID())
    	hmailHackingAttemp(); // Domain admin but not for this domain.
    	
-   $accountpassword  = hmailGetVar("accountpassword","");
-   $accountmaxsize   = hmailGetVar("accountmaxsize","0");
-   $accountaddress   = hmailGetVar("accountaddress","") . "@". $obDomain->Name;
-   $accountactive    = hmailGetVar("accountactive","0");
-   $accountadminlevel  = hmailGetVar("accountadminlevel","0");
-   $PersonFirstName  = hmailGetVar("PersonFirstName","0");
-   $PersonLastName   = hmailGetVar("PersonLastName","0");
+   $accountpassword  = hmailGetPostVar("accountpassword","");
+   $accountmaxsize   = hmailGetPostVar("accountmaxsize","0");
+   $accountaddress   = hmailGetPostVar("accountaddress","") . "@". $obDomain->Name;
+   $accountactive    = hmailGetPostVar("accountactive","0");
+   $accountadminlevel  = hmailGetPostVar("accountadminlevel","0");
+   $PersonFirstName  = hmailGetPostVar("PersonFirstName","0");
+   $PersonLastName   = hmailGetPostVar("PersonLastName","0");
    
-   $vacationmessageon  = hmailGetVar("vacationmessageon","");
-   $vacationsubject   = hmailGetVar("vacationsubject","0");
-   $vacationmessage   =   hmailGetVar("vacationmessage","");
-   $vacationmessageexpires   =   hmailGetVar("vacationmessageexpires","0");
-   $vacationmessageexpiresdate   =   hmailGetVar("vacationmessageexpiresdate","2001-01-01");
-   $vacationmessageabortspamflagged = hmailGetVar("vacationmessageabortspamflagged","0");
+   $vacationmessageon  = hmailGetPostVar("vacationmessageon","");
+   $vacationsubject   = hmailGetPostVar("vacationsubject","0");
+   $vacationmessage   =   hmailGetPostVar("vacationmessage","");
+   $vacationmessageexpires   =   hmailGetPostVar("vacationmessageexpires","0");
+   $vacationmessageexpiresdate   =   hmailGetPostVar("vacationmessageexpiresdate","2001-01-01");
+   $vacationmessageabortspamflagged = hmailGetPostVar("vacationmessageabortspamflagged","0");
    
-   $forwardenabled  = hmailGetVar("forwardenabled","0");
-   $forwardaddress   = hmailGetVar("forwardaddress","");
-   $forwardkeeporiginal   =   hmailGetVar("forwardkeeporiginal","0");
-   $forwardabortspamflagged = hmailGetVar("forwardabortspamflagged","0");
+   $forwardenabled  = hmailGetPostVar("forwardenabled","0");
+   $forwardaddress   = hmailGetPostVar("forwardaddress","");
+   $forwardkeeporiginal   =   hmailGetPostVar("forwardkeeporiginal","0");
+   $forwardabortspamflagged = hmailGetPostVar("forwardabortspamflagged","0");
    
-   $adenabled   = hmailGetVar("adenabled","");
-   $addomain    = hmailGetVar("addomain","0");
-   $adusername  =   hmailGetVar("adusername","");
+   $adenabled   = hmailGetPostVar("adenabled","");
+   $addomain    = hmailGetPostVar("addomain","0");
+   $adusername  =   hmailGetPostVar("adusername","");
   
-   $SignatureEnabled     = hmailGetVar("SignatureEnabled","0");
-   $SignatureHTML        = hmailGetVar("SignatureHTML","");
-   $SignaturePlainText   =   hmailGetVar("SignaturePlainText","0");
+   $SignatureEnabled     = hmailGetPostVar("SignatureEnabled","0");
+   $SignatureHTML        = hmailGetPostVar("SignatureHTML","");
+   $SignaturePlainText   =   hmailGetPostVar("SignaturePlainText","0");
 
   
    if ($action == "edit")
@@ -50,7 +52,6 @@
       $obAccount = $obDomain->Accounts->Add();  
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $obAccount = $obDomain->Accounts->DeleteByDBID($accountid);  
       header("Location: index.php?page=accounts&domainid=$domainid");
       exit();
