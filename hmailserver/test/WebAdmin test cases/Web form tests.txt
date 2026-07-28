@@ -151,3 +151,7 @@ Confirm that a POST with action, POP3 fields, or csrftoken supplied only in the 
 IMAP settings save must use a POST form containing page=imap, action=save, the existing IMAP fields, and csrftoken.
 Confirm that a GET request to index.php?page=imap&action=save does not change IMAP settings.
 Confirm that a POST with action, IMAP fields, or csrftoken supplied only in the query string does not change IMAP settings; a valid server-admin POST preserves the existing IMAP Settings field mapping and hierarchy-delimiter behavior.
+
+SMTP settings save must use a POST form containing page=smtp, action=save, the existing SMTP fields, and csrftoken.
+Confirm that a GET request to index.php?page=smtp&action=save does not change SMTP settings.
+Confirm that a POST with action, SMTP fields, or csrftoken supplied only in the query string does not change SMTP settings; a valid server-admin POST preserves the existing SMTP Settings field mapping, AllowMailFromNull inversion, SMTPConnectionSecurity mapping, and non-empty relayer-password update behavior.

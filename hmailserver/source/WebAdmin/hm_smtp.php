@@ -7,51 +7,52 @@ if (hmailGetAdminLevel() != 2)
 
 $obSettings	= $obBaseApp->Settings();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 if($action == "save")
 {
+	hmailRequirePostCsrfToken();
 	// General
-	$obSettings->MaxSMTPConnections = hmailGetVar("maxsmtpconnections",0);
-	$obSettings->WelcomeSMTP 	    = hmailGetVar("welcomesmtp",0);
+	$obSettings->MaxSMTPConnections = hmailGetPostVar("maxsmtpconnections",0);
+	$obSettings->WelcomeSMTP 	    = hmailGetPostVar("welcomesmtp",0);
 
 
 	// Delivery of email
-	$obSettings->SMTPNoOfTries= hmailGetVar("smtpnooftries",0);
-	$obSettings->SMTPMinutesBetweenTry= hmailGetVar("smtpminutesbetweentry",0);
-	$obSettings->HostName= hmailGetVar("HostName", "");
+	$obSettings->SMTPNoOfTries= hmailGetPostVar("smtpnooftries",0);
+	$obSettings->SMTPMinutesBetweenTry= hmailGetPostVar("smtpminutesbetweentry",0);
+	$obSettings->HostName= hmailGetPostVar("HostName", "");
    
    
-    $obSettings->SMTPRelayer= hmailGetVar("smtprelayer",0);
-	$obSettings->SMTPRelayerPort= hmailGetVar("smtprelayerport",0);
-    $obSettings->SMTPRelayerRequiresAuthentication = hmailGetVar("SMTPRelayerRequiresAuthentication",0);
-    $obSettings->SMTPRelayerUsername = hmailGetVar("SMTPRelayerUsername","");
-    $obSettings->SMTPRelayerConnectionSecurity = hmailGetVar("SMTPRelayerConnectionSecurity","0");
+    $obSettings->SMTPRelayer= hmailGetPostVar("smtprelayer",0);
+	$obSettings->SMTPRelayerPort= hmailGetPostVar("smtprelayerport",0);
+    $obSettings->SMTPRelayerRequiresAuthentication = hmailGetPostVar("SMTPRelayerRequiresAuthentication",0);
+    $obSettings->SMTPRelayerUsername = hmailGetPostVar("SMTPRelayerUsername","");
+    $obSettings->SMTPRelayerConnectionSecurity = hmailGetPostVar("SMTPRelayerConnectionSecurity","0");
 	  
-    if (hmailGetVar("SMTPRelayerPassword","") != "")
-      $obSettings->SetSMTPRelayerPassword(hmailGetVar("SMTPRelayerPassword",""));
+    if (hmailGetPostVar("SMTPRelayerPassword","") != "")
+      $obSettings->SetSMTPRelayerPassword(hmailGetPostVar("SMTPRelayerPassword",""));
    
 	
-	$obSettings->RuleLoopLimit = hmailGetVar("smtprulelooplimit",0);
+	$obSettings->RuleLoopLimit = hmailGetPostVar("smtprulelooplimit",0);
 	
-	$obSettings->MaxMessageSize = hmailGetVar("maxmessagesize",0);
+	$obSettings->MaxMessageSize = hmailGetPostVar("maxmessagesize",0);
 	
-	$obSettings->SMTPDeliveryBindToIP = hmailGetVar("smtpdeliverybindtoip", "");
-	$obSettings->MaxSMTPRecipientsInBatch = hmailGetVar("maxsmtprecipientsinbatch", "0");
+	$obSettings->SMTPDeliveryBindToIP = hmailGetPostVar("smtpdeliverybindtoip", "");
+	$obSettings->MaxSMTPRecipientsInBatch = hmailGetPostVar("maxsmtprecipientsinbatch", "0");
 	
 	// RFC compliance
-	$obSettings->AllowSMTPAuthPlain = hmailGetVar("AllowSMTPAuthPlain",0);
-	$obSettings->DenyMailFromNull = hmailGetVar("AllowMailFromNull",0) == "0";
-	$obSettings->AllowIncorrectLineEndings = hmailGetVar("AllowIncorrectLineEndings",0);
-	$obSettings->DisconnectInvalidClients = hmailGetVar("DisconnectInvalidClients",0);
-	$obSettings->MaxNumberOfInvalidCommands = hmailGetVar("MaxNumberOfInvalidCommands",0);
+	$obSettings->AllowSMTPAuthPlain = hmailGetPostVar("AllowSMTPAuthPlain",0);
+	$obSettings->DenyMailFromNull = hmailGetPostVar("AllowMailFromNull",0) == "0";
+	$obSettings->AllowIncorrectLineEndings = hmailGetPostVar("AllowIncorrectLineEndings",0);
+	$obSettings->DisconnectInvalidClients = hmailGetPostVar("DisconnectInvalidClients",0);
+	$obSettings->MaxNumberOfInvalidCommands = hmailGetPostVar("MaxNumberOfInvalidCommands",0);
 	   
-    $obSettings->AddDeliveredToHeader = hmailGetVar("AddDeliveredToHeader",0);
+    $obSettings->AddDeliveredToHeader = hmailGetPostVar("AddDeliveredToHeader",0);
 	
-	$obSettings->MaxNumberOfMXHosts = hmailGetVar("MaxNumberOfMXHosts", 15);
+	$obSettings->MaxNumberOfMXHosts = hmailGetPostVar("MaxNumberOfMXHosts", 15);
 	
 	// Advanced
-	$obSettings->SMTPConnectionSecurity = hmailGetVar("SMTPConnectionSecurity", 0) ? CONNECTION_SECURITY_STARTTLSOPTIONAL : CONNECTION_SECURITY_NONE;
+	$obSettings->SMTPConnectionSecurity = hmailGetPostVar("SMTPConnectionSecurity", 0) ? CONNECTION_SECURITY_STARTTLSOPTIONAL : CONNECTION_SECURITY_NONE;
 }
 
 // General
