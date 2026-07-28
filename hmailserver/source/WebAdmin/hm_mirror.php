@@ -7,10 +7,13 @@ if (hmailGetAdminLevel() != 2)
 
 $obSettings	= $obBaseApp->Settings();
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 if($action == "save")
-	$obSettings->MirrorEMailAddress= hmailGetVar("mirroremailaddress",0);
+{
+	hmailRequirePostCsrfToken();
+	$obSettings->MirrorEMailAddress= hmailGetPostVar("mirroremailaddress",0);
+}
 
 $mirroremailaddress = $obSettings->MirrorEMailAddress;      
 ?>
