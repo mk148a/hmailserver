@@ -3,17 +3,19 @@
    if (!defined('IN_WEBADMIN'))
       exit();
 
-   $domainid	= hmailGetVar("domainid",0,true);
-   $aliasid 	= hmailGetVar("aliasid",0);
-   $action	   = hmailGetVar("action","");
-   
-   $obDomain	= $obBaseApp->Domains->ItemByDBID($domainid);
-   
    if (hmailGetAdminLevel() == 0)
       hmailHackingAttemp();
+
+   hmailRequirePostCsrfToken();
+
+   $domainid	= hmailGetPostVar("domainid",0,true);
+   $aliasid 	= hmailGetPostVar("aliasid",0);
+   $action	   = hmailGetPostVar("action","");
    
    if (hmailGetAdminLevel() == 1 && $domainid != hmailGetDomainID())
    	hmailHackingAttemp(); // Domain admin but not for this domain.
+
+   $obDomain	= $obBaseApp->Domains->ItemByDBID($domainid);
 
    if ($action == "add")
    {
@@ -33,7 +35,6 @@
       $obAlias = $obDomain->Aliases->Add();  
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $obDomain->Aliases->DeleteByDBID($aliasid);  
       header("Location: index.php?page=aliases&domainid=$domainid");
       exit();
@@ -41,9 +42,9 @@
    
    $domainname = $obDomain->Name;
    	
-   $aliasname    = hmailGetVar("aliasname","");
-   $aliasvalue   = hmailGetVar("aliasvalue","");
-   $aliasactive  = hmailGetVar("aliasactive","0");
+   $aliasname    = hmailGetPostVar("aliasname","");
+   $aliasvalue   = hmailGetPostVar("aliasvalue","");
+   $aliasactive  = hmailGetPostVar("aliasactive","0");
    
    $obAlias->Name = $aliasname . "@" . $domainname;
    $obAlias->Value = $aliasvalue;
