@@ -4,13 +4,15 @@
 
    if (hmailGetAdminLevel() != ADMIN_SERVER)
    	hmailHackingAttemp(); // The user is not server administrator.
+
+   hmailRequirePostCsrfToken();
    
-   $action	   = hmailGetVar("action","");
-   $id	      = hmailGetVar("id",0);
+   $action	   = hmailGetPostVar("action","");
+   $id	      = hmailGetPostVar("id",0);
    
-   $Name	      = hmailGetVar("Name",0);
-   $CertificateFile	      = hmailGetVar("CertificateFile","");
-   $PrivateKeyFile= hmailGetVar("PrivateKeyFile","");
+   $Name	      = hmailGetPostVar("Name",0);
+   $CertificateFile	      = hmailGetPostVar("CertificateFile","");
+   $PrivateKeyFile= hmailGetPostVar("PrivateKeyFile","");
    
    $sslCertificates = $obBaseApp->Settings->SSLCertificates;
    
@@ -20,7 +22,6 @@
       $sslCertificate     = $sslCertificates->Add();
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $sslCertificates->DeleteByDBID($id);
       header("Location: index.php?page=sslcertificates");
    }
