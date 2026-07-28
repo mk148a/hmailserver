@@ -4,13 +4,15 @@
 
    if (hmailGetAdminLevel() != ADMIN_SERVER)
    	hmailHackingAttemp(); // The user is not server administrator.
+
+   hmailRequirePostCsrfToken();
    
-   $action	   = hmailGetVar("action","");
-   $id	      = hmailGetVar("id",0);
-   $Active	      = hmailGetVar("Active",0);
-   $DNSHost	      = hmailGetVar("DNSHost","");
-   $RejectMessage	= hmailGetVar("RejectMessage","");
-   $Score	      = hmailGetVar("Score",0);
+   $action	   = hmailGetPostVar("action","");
+   $id	      = hmailGetPostVar("id",0);
+   $Active	      = hmailGetPostVar("Active",0);
+   $DNSHost	      = hmailGetPostVar("DNSHost","");
+   $RejectMessage	= hmailGetPostVar("RejectMessage","");
+   $Score	      = hmailGetPostVar("Score",0);
    
    $surblServers = $obBaseApp->Settings->AntiSpam->SURBLServers;
    
@@ -20,7 +22,6 @@
       $surblServer     = $surblServers->Add();
    elseif ($action == "delete")
    {
-      hmailRequirePost();
       $surblServers->DeleteByDBID($id);
       header("Location: index.php?page=surblservers");
    }
