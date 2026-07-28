@@ -161,3 +161,6 @@ Confirm that a POST with action, AntiVirus fields, or csrftoken supplied only in
 SMTP AntiSpam settings save must use a POST form containing page=smtp_antispam, action=save, the existing AntiSpam fields, and csrftoken.
 Confirm that a GET request to index.php?page=smtp_antispam&action=save does not change AntiSpam settings.
 Confirm that a POST with action, AntiSpam fields, or csrftoken supplied only in the query string does not change AntiSpam settings; a valid server-admin POST preserves the existing AntiSpam field mapping, SpamAssassin test behavior, and SMTP spam-policy behavior.
+SMTP Mirror settings save must use a POST form containing page=mirror, action=save, mirroremailaddress, and csrftoken.
+Confirm that a GET request to index.php?page=mirror&action=save does not change the Mirror e-mail address.
+Confirm that a POST with action, mirroremailaddress, or csrftoken supplied only in the query string does not change the Mirror e-mail address; a valid server-admin POST preserves the existing MirrorEMailAddress mapping and SMTP delivery mirroring behavior.
