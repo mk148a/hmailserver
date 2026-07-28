@@ -8,38 +8,40 @@ if (hmailGetAdminLevel() != 2)
 $obSettings	= $obBaseApp->Settings();
 $obAntiSpam	= $obSettings->AntiSpam;
 
-$action	   = hmailGetVar("action","");
+$action	   = hmailGetPostVar("action","");
 
 $antiSpamSettings = $obSettings->AntiSpam;
 
 if($action == "save")
 {
-   $antiSpamSettings->SpamMarkThreshold = hmailGetVar("SpamMarkThreshold",0);
-   $antiSpamSettings->SpamDeleteThreshold = hmailGetVar("SpamDeleteThreshold",0);
+   hmailRequirePostCsrfToken();
 
-   $antiSpamSettings->SpamAssassinEnabled = hmailGetVar("SpamAssassinEnabled", 0);
-   $antiSpamSettings->SpamAssassinHost = hmailGetVar("SpamAssassinHost", 0);
-   $antiSpamSettings->SpamAssassinPort = hmailGetVar("SpamAssassinPort", 0);
-   $antiSpamSettings->SpamAssassinMergeScore = hmailGetVar("SpamAssassinMergeScore", 0);
-   $antiSpamSettings->SpamAssassinScore = hmailGetVar("SpamAssassinScore", 0);
+   $antiSpamSettings->SpamMarkThreshold = hmailGetPostVar("SpamMarkThreshold",0);
+   $antiSpamSettings->SpamDeleteThreshold = hmailGetPostVar("SpamDeleteThreshold",0);
 
-   $antiSpamSettings->UseSPF= hmailGetVar("usespf",0);
-   $antiSpamSettings->UseSPFScore = hmailGetVar("usespfscore",0);
-   $antiSpamSettings->UseMXChecks= hmailGetVar("usemxchecks",0);
-   $antiSpamSettings->UseMXChecksScore = hmailGetVar("usemxchecksscore",0);
-   $antiSpamSettings->CheckHostInHelo = hmailGetVar("checkhostinhelo", 0);
-   $antiSpamSettings->CheckHostInHeloScore = hmailGetVar("checkhostinheloscore", 0);
-   $antiSpamSettings->CheckPTR = hmailGetVar("checkptr", 0);
-   $antiSpamSettings->CheckPTRScore = hmailGetVar("checkptrscore", 0);
+   $antiSpamSettings->SpamAssassinEnabled = hmailGetPostVar("SpamAssassinEnabled", 0);
+   $antiSpamSettings->SpamAssassinHost = hmailGetPostVar("SpamAssassinHost", 0);
+   $antiSpamSettings->SpamAssassinPort = hmailGetPostVar("SpamAssassinPort", 0);
+   $antiSpamSettings->SpamAssassinMergeScore = hmailGetPostVar("SpamAssassinMergeScore", 0);
+   $antiSpamSettings->SpamAssassinScore = hmailGetPostVar("SpamAssassinScore", 0);
 
-   $antiSpamSettings->AddHeaderSpam = hmailGetVar("AddHeaderSpam", 0);
-   $antiSpamSettings->AddHeaderReason = hmailGetVar("AddHeaderReason", 0);
-   $antiSpamSettings->PrependSubject = hmailGetVar("PrependSubject", 0);
-   $antiSpamSettings->PrependSubjectText = hmailGetVar("PrependSubjectText", "");
-   $antiSpamSettings->MaximumMessageSize = hmailGetVar("MaximumMessageSize", 0);
+   $antiSpamSettings->UseSPF= hmailGetPostVar("usespf",0);
+   $antiSpamSettings->UseSPFScore = hmailGetPostVar("usespfscore",0);
+   $antiSpamSettings->UseMXChecks= hmailGetPostVar("usemxchecks",0);
+   $antiSpamSettings->UseMXChecksScore = hmailGetPostVar("usemxchecksscore",0);
+   $antiSpamSettings->CheckHostInHelo = hmailGetPostVar("checkhostinhelo", 0);
+   $antiSpamSettings->CheckHostInHeloScore = hmailGetPostVar("checkhostinheloscore", 0);
+   $antiSpamSettings->CheckPTR = hmailGetPostVar("checkptr", 0);
+   $antiSpamSettings->CheckPTRScore = hmailGetPostVar("checkptrscore", 0);
 
-   $antiSpamSettings->DKIMVerificationEnabled = hmailGetVar("DKIMVerificationEnabled", 0);
-   $antiSpamSettings->DKIMVerificationFailureScore = hmailGetVar("DKIMVerificationFailureScore", 0);
+   $antiSpamSettings->AddHeaderSpam = hmailGetPostVar("AddHeaderSpam", 0);
+   $antiSpamSettings->AddHeaderReason = hmailGetPostVar("AddHeaderReason", 0);
+   $antiSpamSettings->PrependSubject = hmailGetPostVar("PrependSubject", 0);
+   $antiSpamSettings->PrependSubjectText = hmailGetPostVar("PrependSubjectText", "");
+   $antiSpamSettings->MaximumMessageSize = hmailGetPostVar("MaximumMessageSize", 0);
+
+   $antiSpamSettings->DKIMVerificationEnabled = hmailGetPostVar("DKIMVerificationEnabled", 0);
+   $antiSpamSettings->DKIMVerificationFailureScore = hmailGetPostVar("DKIMVerificationFailureScore", 0);
 }
 
 $SpamMarkThreshold = $antiSpamSettings->SpamMarkThreshold;
