@@ -7,15 +7,14 @@
 
    if (hmailGetAdminLevel() != ADMIN_SERVER)
    	hmailHackingAttemp(); // Only server can change these settings.      
-      
-   $id	            = hmailGetVar("id",0);
-   $wildcard	      = hmailGetVar("wildcard","");
-   $description	   = hmailGetVar("description","");
-   
-   $action	   = hmailGetVar("action","");
 
-   if ($action == "delete")
-      hmailRequirePost();
+   hmailRequirePostCsrfToken();
+      
+   $id	            = hmailGetPostVar("id",0);
+   $wildcard	      = hmailGetPostVar("wildcard","");
+   $description	   = hmailGetPostVar("description","");
+   
+   $action	   = hmailGetPostVar("action","");
   
    $obSettings	= $obBaseApp->Settings();
    $obAntivirus	= $obSettings->AntiVirus();
