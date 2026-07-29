@@ -317,7 +317,7 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     public ComRulePredefinedField PredefinedField
     {
         get => (ComRulePredefinedField)Snapshot.PredefinedField;
-        set => Unavailable();
+        set => Mutate(snapshot => snapshot with { PredefinedField = (int)value });
     }
 
     public ComRuleMatchType MatchType
