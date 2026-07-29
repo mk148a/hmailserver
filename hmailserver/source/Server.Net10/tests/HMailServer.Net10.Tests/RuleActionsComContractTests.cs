@@ -242,10 +242,12 @@ public sealed class RuleActionsComContractTests
                     Snapshot(200, 10, ComRuleActionType.SetHeaderValue, 1),
                     Snapshot(300, 10, ComRuleActionType.SendUsingRoute, 2)
                 };
-            });
+            },
+            save: _ => { });
 
         Assert.AreEqual(1, actions.Count);
         Assert.AreEqual(ComRuleActionType.Reply, actions[0].Type);
+        var staleAction = actions[0];
 
         actions.Refresh();
 
@@ -254,6 +256,10 @@ public sealed class RuleActionsComContractTests
         AssertAction(actions[0], 200, 10, ComRuleActionType.SetHeaderValue);
         Assert.AreEqual(ComRuleActionType.SendUsingRoute, actions.get_ItemByDBID(300).Type);
         AssertError(DispEBadIndex, () => _ = actions.get_ItemByDBID(100));
+
+        staleAction.Subject = "Stale mutation";
+        AssertError(DispEBadIndex, () => _ = actions.get_ItemByDBID(100));
+        Assert.AreEqual(2, actions.Count);
 
         failReload = true;
         AssertError(EFail, actions.Refresh);
@@ -466,6 +472,9 @@ public sealed class RuleActionsComContractTests
             store.DeletedActions);
         Assert.AreEqual(0, actions.Count);
         AssertError(DispEBadIndex, () => _ = actions.get_ItemByDBID(100));
+
+        indexItem.Subject = "Stale mutation";
+        Assert.AreEqual(0, actions.Count);
     }
 
     [TestMethod]
@@ -491,6 +500,52 @@ public sealed class RuleActionsComContractTests
             new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) },
             store.SavedActions);
         CollectionAssert.AreEqual(new[] { 10 }, store.SavedOwningRuleIds);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_ExistingLookupsShareParentSnapshotAndSaveRetry()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) })
+        {
+            FailSave = true
+        };
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var actions = rules[0].Actions;
+        var indexItem = actions[0];
+        var dbidItem = actions.get_ItemByDBID(100);
+        const string subject = "Shared subject";
+
+        indexItem.RuleID = 20;
+        dbidItem.Subject = subject;
+
+        Assert.AreEqual(20, indexItem.RuleID);
+        Assert.AreEqual(20, dbidItem.RuleID);
+        Assert.AreEqual(20, actions[0].RuleID);
+        Assert.AreEqual(subject, indexItem.Subject);
+        Assert.AreEqual(subject, dbidItem.Subject);
+        Assert.AreEqual(subject, actions.get_ItemByDBID(100).Subject);
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(dbidItem.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, store.SavedActions.Count);
+        Assert.AreEqual(10, store.SavedOwningRuleIds[0]);
+        Assert.AreEqual(20, store.SavedActions[0].RuleId);
+        Assert.AreEqual(subject, store.SavedActions[0].Subject);
+        Assert.AreEqual(20, actions[0].RuleID);
+        Assert.AreEqual(subject, actions[0].Subject);
+
+        store.FailSave = false;
+        indexItem.Save();
+
+        Assert.AreEqual(2, store.SavedActions.Count);
+        CollectionAssert.AreEqual(new[] { 10, 10 }, store.SavedOwningRuleIds);
+        Assert.AreEqual(20, store.SavedActions[1].RuleId);
+        Assert.AreEqual(subject, store.SavedActions[1].Subject);
+        Assert.AreEqual(store.SavedActions[0], store.SavedActions[1]);
     }
 
     [TestMethod]

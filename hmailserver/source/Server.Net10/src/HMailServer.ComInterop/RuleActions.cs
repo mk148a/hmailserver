@@ -101,6 +101,18 @@ public interface IInterfaceRuleAction
     }
 }
 
+[ComVisible(false)]
+internal sealed class RuleActionAdministrationEntry
+{
+    public RuleActionAdministrationEntry(RuleActionAdministrationSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        Snapshot = snapshot;
+    }
+
+    public RuleActionAdministrationSnapshot Snapshot { get; set; }
+}
+
 [ComVisible(true)]
 [Guid("32A21952-5421-4A6C-835A-41050D0493C1")]
 [ProgId("hMailServer.RuleActions.1")]
@@ -113,7 +125,7 @@ public sealed class RuleActions : IInterfaceRuleActions
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private RuleActionAdministrationSnapshot[]? _actions;
+    private RuleActionAdministrationEntry[]? _actions;
     private readonly Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? _reload;
     private readonly Action<int>? _deleteById;
     private readonly Action<RuleActionAdministrationSnapshot>? _save;
@@ -130,7 +142,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         Action<RuleActionAdministrationSnapshot>? save,
         Func<bool>? isServerAdministrator)
     {
-        _actions = actions.ToArray();
+        _actions = actions.Select(static action => new RuleActionAdministrationEntry(action)).ToArray();
         _reload = reload;
         _deleteById = deleteById;
         _save = save;
@@ -150,7 +162,7 @@ public sealed class RuleActions : IInterfaceRuleActions
             var action = actions[index];
             return RuleAction.CreateAuthorized(
                 action,
-                () => DeleteByDBID(action.Id),
+                () => DeleteByDBID(action.Snapshot.Id),
                 _save is null ? null : SaveAction,
                 _isServerAdministrator);
         }
@@ -158,7 +170,7 @@ public sealed class RuleActions : IInterfaceRuleActions
 
     public IInterfaceRuleAction get_ItemByDBID(int databaseId)
     {
-        var match = GetActions().FirstOrDefault(action => action.Id == databaseId);
+        var match = GetActions().FirstOrDefault(action => action.Snapshot.Id == databaseId);
 
         return match is null
             ? throw new COMException(
@@ -166,7 +178,7 @@ public sealed class RuleActions : IInterfaceRuleActions
                 DispEBadIndex)
             : RuleAction.CreateAuthorized(
                 match,
-                () => DeleteByDBID(match.Id),
+                () => DeleteByDBID(match.Snapshot.Id),
                 _save is null ? null : SaveAction,
                 _isServerAdministrator);
     }
@@ -184,7 +196,7 @@ public sealed class RuleActions : IInterfaceRuleActions
             return;
         }
 
-        if (!actions.Any(action => action.Id == databaseId))
+        if (!actions.Any(action => action.Snapshot.Id == databaseId))
         {
             return;
         }
@@ -194,7 +206,7 @@ public sealed class RuleActions : IInterfaceRuleActions
             _deleteById(databaseId);
             Volatile.Write(
                 ref _actions,
-                actions.Where(action => action.Id != databaseId).ToArray());
+                actions.Where(action => action.Snapshot.Id != databaseId).ToArray());
         }
         catch (Exception)
         {
@@ -217,7 +229,9 @@ public sealed class RuleActions : IInterfaceRuleActions
         {
             var actions = _reload();
             ArgumentNullException.ThrowIfNull(actions);
-            Volatile.Write(ref _actions, actions.ToArray());
+            Volatile.Write(
+                ref _actions,
+                actions.Select(static action => new RuleActionAdministrationEntry(action)).ToArray());
         }
         catch (Exception)
         {
@@ -244,7 +258,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         var action = actions[index];
         try
         {
-            _deleteById(action.Id);
+            _deleteById(action.Snapshot.Id);
             var remaining = actions
                 .Where((_, candidateIndex) => candidateIndex != index)
                 .ToArray();
@@ -280,7 +294,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         _save(action);
     }
 
-    private IReadOnlyList<RuleActionAdministrationSnapshot> GetActions()
+    private IReadOnlyList<RuleActionAdministrationEntry> GetActions()
     {
         return Volatile.Read(ref _actions)
             ?? throw new COMException(
@@ -316,7 +330,7 @@ public sealed class RuleAction : IInterfaceRuleAction
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private RuleActionAdministrationSnapshot? _action;
+    private readonly RuleActionAdministrationEntry? _entry;
     private readonly Action? _delete;
     private readonly Action<RuleActionAdministrationSnapshot>? _save;
     private readonly Func<bool>? _isServerAdministrator;
@@ -326,12 +340,12 @@ public sealed class RuleAction : IInterfaceRuleAction
     }
 
     private RuleAction(
-        RuleActionAdministrationSnapshot action,
+        RuleActionAdministrationEntry entry,
         Action? delete,
         Action<RuleActionAdministrationSnapshot>? save,
         Func<bool>? isServerAdministrator)
     {
-        _action = action;
+        _entry = entry;
         _delete = delete;
         _save = save;
         _isServerAdministrator = isServerAdministrator;
@@ -434,11 +448,11 @@ public sealed class RuleAction : IInterfaceRuleAction
     }
 
     internal static RuleAction CreateAuthorized(
-        RuleActionAdministrationSnapshot action,
+        RuleActionAdministrationEntry entry,
         Action? delete = null,
         Action<RuleActionAdministrationSnapshot>? save = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(action, delete, save, isServerAdministrator);
+        new(entry, delete, save, isServerAdministrator);
 
     private void Mutate(Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot> mutation)
     {
@@ -448,7 +462,7 @@ public sealed class RuleAction : IInterfaceRuleAction
             return;
         }
 
-        _action = mutation(Snapshot);
+        _entry!.Snapshot = mutation(Snapshot);
     }
 
     private void EnsureServerAdministrator()
@@ -462,7 +476,7 @@ public sealed class RuleAction : IInterfaceRuleAction
     }
 
     private RuleActionAdministrationSnapshot Snapshot =>
-        _action ?? throw new COMException(
+        _entry?.Snapshot ?? throw new COMException(
             "RuleAction access requires an authenticated server administrator.",
             EAccessDenied);
 
