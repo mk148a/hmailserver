@@ -12,6 +12,7 @@ public interface IRuleActionAdministrationStore
         CancellationToken cancellationToken);
 
     ValueTask SaveRuleActionAsync(
+        int owningRuleId,
         RuleActionAdministrationSnapshot action,
         CancellationToken cancellationToken);
 }

@@ -53,7 +53,7 @@ SET actionruleid = @RuleId,
     actionvalue = @Value,
     actionrouteid = @RouteId,
     actionabortspamflagged = @AbortSpamFlagged
-WHERE actionruleid = @RuleId
+WHERE actionruleid = @OwningRuleId
   AND actionid = @ActionId;
 """;
 
@@ -115,12 +115,14 @@ WHERE actionruleid = @RuleId
     }
 
     public async ValueTask SaveRuleActionAsync(
+        int owningRuleId,
         RuleActionAdministrationSnapshot action,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(action);
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(SaveRuleActionSql, connection);
+        command.Parameters.Add("@OwningRuleId", SqlDbType.Int).Value = owningRuleId;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = action.RuleId;
         command.Parameters.Add("@ActionId", SqlDbType.Int).Value = action.Id;
         command.Parameters.Add("@Type", SqlDbType.TinyInt).Value = action.Type;
@@ -137,7 +139,12 @@ WHERE actionruleid = @RuleId
         command.Parameters.Add("@Value", SqlDbType.NVarChar, 255).Value = action.Value;
         command.Parameters.Add("@RouteId", SqlDbType.Int).Value = action.RouteId;
         command.Parameters.Add("@AbortSpamFlagged", SqlDbType.TinyInt).Value = action.AbortSpamFlagged ? 1 : 0;
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        if (affectedRows != 1)
+        {
+            throw new InvalidOperationException(
+                $"Saving rule action {action.Id} for owning rule {owningRuleId} affected {affectedRows} rows instead of exactly one.");
+        }
     }
 
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>

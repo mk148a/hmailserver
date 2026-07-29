@@ -107,6 +107,7 @@ public sealed class RuleActionsComContractTests
         var actionsDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().DeleteByDBID(100));
         var actionsIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().Delete(0));
         var actionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleAction().Type);
+        var actionRuleIdError = Assert.ThrowsExactly<COMException>(() => new RuleAction().RuleID = 42);
         var actionSubjectError = Assert.ThrowsExactly<COMException>(
             () => new RuleAction().Subject = "Detached");
         var actionBodyError = Assert.ThrowsExactly<COMException>(
@@ -147,6 +148,7 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionsDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionsIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionRuleIdError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSubjectError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionBodyError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionFromNameError.ErrorCode);
@@ -488,6 +490,83 @@ public sealed class RuleActionsComContractTests
         CollectionAssert.AreEqual(
             new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) },
             store.SavedActions);
+        CollectionAssert.AreEqual(new[] { 10 }, store.SavedOwningRuleIds);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_RuleIdSetterStagesRawValuesAndSaveUsesImmutableOwningRuleScope()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+
+        foreach (var ruleId in new[] { 20, 0, -1, 999 })
+        {
+            action.RuleID = ruleId;
+            Assert.AreEqual(ruleId, action.RuleID);
+            action.Save();
+        }
+
+        CollectionAssert.AreEqual(new[] { 10, 10, 10, 10 }, store.SavedOwningRuleIds);
+        CollectionAssert.AreEqual(
+            new[] { 20, 0, -1, 999 },
+            store.SavedActions.Select(static action => action.RuleId).ToArray());
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_ForeignActionIsNotContainedByOwningCollection()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1),
+                Snapshot(200, 20, ComRuleActionType.DeleteEmail, 1)
+            });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var actions = rules[0].Actions;
+
+        AssertError(DispEBadIndex, () => _ = actions.get_ItemByDBID(200));
+        Assert.AreEqual(0, store.SavedActions.Count);
+        Assert.AreEqual(0, store.SavedOwningRuleIds.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_ZeroRowSaveFailureMapsToEFailAndAllowsRetry() =>
+        AssertNonSingleRowSaveFailure(0);
+
+    [TestMethod]
+    public void AuthorizedRuleAction_MultiRowSaveFailureMapsToEFailAndAllowsRetry() =>
+        AssertNonSingleRowSaveFailure(2);
+
+    private static void AssertNonSingleRowSaveFailure(int affectedRows)
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) })
+        {
+            SaveAffectedRows = affectedRows
+        };
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var action = rules[0].Actions[0];
+        action.RuleID = 20;
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(action.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(20, action.RuleID);
+        CollectionAssert.AreEqual(new[] { 10 }, store.SavedOwningRuleIds);
+
+        store.SaveAffectedRows = 1;
+        action.Save();
+
+        CollectionAssert.AreEqual(new[] { 10, 10 }, store.SavedOwningRuleIds);
+        Assert.AreEqual(20, store.SavedActions[1].RuleId);
     }
 
     [TestMethod]
@@ -1333,6 +1412,10 @@ public sealed class RuleActionsComContractTests
 
         public bool FailSave { get; set; }
 
+        public int SaveAffectedRows { get; set; } = 1;
+
+        public List<int> SavedOwningRuleIds { get; } = [];
+
         public List<(int RuleId, int DatabaseId)> DeletedActions { get; } = [];
 
         public List<RuleActionAdministrationSnapshot> SavedActions { get; } = [];
@@ -1368,13 +1451,16 @@ public sealed class RuleActionsComContractTests
         }
 
         public ValueTask SaveRuleActionAsync(
+            int owningRuleId,
             RuleActionAdministrationSnapshot action,
             CancellationToken cancellationToken)
         {
+            SavedOwningRuleIds.Add(owningRuleId);
             SavedActions.Add(action);
-            if (FailSave)
+            if (FailSave || SaveAffectedRows != 1)
             {
-                throw new InvalidOperationException("Simulated store failure.");
+                throw new InvalidOperationException(
+                    $"Simulated store failure affecting {SaveAffectedRows} rows.");
             }
 
             return ValueTask.CompletedTask;

@@ -339,7 +339,7 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public int ID => Snapshot.Id;
 
-    public int RuleID { get => Snapshot.RuleId; set => Unavailable(); }
+    public int RuleID { get => Snapshot.RuleId; set => Mutate(snapshot => snapshot with { RuleId = value }); }
 
     public ComRuleActionType Type
     {
@@ -508,7 +508,7 @@ public static class RuleActionAdministrationRuntimeHost
             .GetResult();
 
         void SaveAction(RuleActionAdministrationSnapshot action) => store
-            .SaveRuleActionAsync(action, CancellationToken.None)
+            .SaveRuleActionAsync(ruleId, action, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();

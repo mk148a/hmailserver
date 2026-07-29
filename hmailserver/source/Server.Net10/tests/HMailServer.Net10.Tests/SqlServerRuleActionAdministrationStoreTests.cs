@@ -67,8 +67,10 @@ public sealed class SqlServerRuleActionAdministrationStoreTests
             StringAssert.Contains(sql, column);
         }
 
-        StringAssert.Contains(sql, "WHERE actionruleid = @RuleId");
+        StringAssert.Contains(sql, "SET actionruleid = @RuleId");
+        StringAssert.Contains(sql, "WHERE actionruleid = @OwningRuleId");
         StringAssert.Contains(sql, "AND actionid = @ActionId");
+        Assert.IsFalse(sql.Contains("WHERE actionruleid = @RuleId", StringComparison.Ordinal));
         Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
