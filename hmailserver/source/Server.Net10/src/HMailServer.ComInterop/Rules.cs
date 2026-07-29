@@ -96,8 +96,7 @@ public sealed class Rules : IInterfaceRules
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private RuleAdministrationGeneration? _generation;
-    private readonly Func<IReadOnlyList<RuleAdministrationSnapshot>>? _reload;
+    private readonly RuleAdministrationState? _state;
 
     public Rules()
     {
@@ -107,9 +106,10 @@ public sealed class Rules : IInterfaceRules
         IReadOnlyList<RuleAdministrationSnapshot> rules,
         Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload)
     {
-        _generation = new RuleAdministrationGeneration(rules);
-        _reload = reload;
+        _state = RuleAdministrationState.CreateLoaded(rules, reload);
     }
+
+    private Rules(RuleAdministrationState state) => _state = state;
 
     public int Count => GetRules().Count;
 
@@ -119,6 +119,12 @@ public sealed class Rules : IInterfaceRules
     {
         ArgumentNullException.ThrowIfNull(rules);
         return new Rules(rules, reload);
+    }
+
+    internal static Rules CreateAuthorized(RuleAdministrationState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return new Rules(state);
     }
 
     public IInterfaceRule this[int index]
@@ -152,8 +158,9 @@ public sealed class Rules : IInterfaceRules
 
     public void Refresh()
     {
-        _ = GetRules();
-        if (_reload is null)
+        var state = GetState();
+        _ = state.GetGeneration();
+        if (!state.CanRefresh)
         {
             Unavailable();
             return;
@@ -161,9 +168,7 @@ public sealed class Rules : IInterfaceRules
 
         try
         {
-            var rules = _reload();
-            ArgumentNullException.ThrowIfNull(rules);
-            Volatile.Write(ref _generation, new RuleAdministrationGeneration(rules));
+            state.Refresh();
         }
         catch (Exception)
         {
@@ -175,13 +180,15 @@ public sealed class Rules : IInterfaceRules
 
     private RuleAdministrationGeneration GetGeneration()
     {
-        return Volatile.Read(ref _generation)
-            ?? throw new COMException(
-                "Rules access requires an authenticated server administrator.",
-                EAccessDenied);
+        return GetState().GetGeneration();
     }
 
     private IReadOnlyList<RuleAdministrationSnapshot> GetRules() => GetGeneration().Rules;
+
+    private RuleAdministrationState GetState() =>
+        _state ?? throw new COMException(
+            "Rules access requires an authenticated server administrator.",
+            EAccessDenied);
 
     private T Unavailable<T>()
     {
@@ -307,6 +314,69 @@ internal sealed class RuleAdministrationGeneration
 }
 
 [ComVisible(false)]
+internal sealed class RuleAdministrationState
+{
+    private readonly object _gate = new();
+    private readonly Func<IReadOnlyList<RuleAdministrationSnapshot>>? _load;
+    private readonly Func<IReadOnlyList<RuleAdministrationSnapshot>>? _reload;
+    private RuleAdministrationGeneration? _generation;
+
+    private RuleAdministrationState(
+        Func<IReadOnlyList<RuleAdministrationSnapshot>> load,
+        IReadOnlyList<RuleAdministrationSnapshot>? rules,
+        Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload)
+    {
+        _load = load;
+        _reload = reload;
+        _generation = rules is null ? null : new RuleAdministrationGeneration(rules);
+    }
+
+    internal bool CanRefresh => _reload is not null;
+
+    internal static RuleAdministrationState CreateLazy(
+        Func<IReadOnlyList<RuleAdministrationSnapshot>> load) =>
+        new(load, null, load);
+
+    internal static RuleAdministrationState CreateLoaded(
+        IReadOnlyList<RuleAdministrationSnapshot> rules,
+        Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        return new(reload ?? (() => rules), rules, reload);
+    }
+
+    internal RuleAdministrationGeneration GetGeneration()
+    {
+        var generation = Volatile.Read(ref _generation);
+        if (generation is not null)
+        {
+            return generation;
+        }
+
+        lock (_gate)
+        {
+            generation = _generation;
+            if (generation is null)
+            {
+                var rules = _load!();
+                ArgumentNullException.ThrowIfNull(rules);
+                generation = new RuleAdministrationGeneration(rules);
+                Volatile.Write(ref _generation, generation);
+            }
+
+            return generation;
+        }
+    }
+
+    internal void Refresh()
+    {
+        var rules = _reload!();
+        ArgumentNullException.ThrowIfNull(rules);
+        Volatile.Write(ref _generation, new RuleAdministrationGeneration(rules));
+    }
+}
+
+[ComVisible(false)]
 public static class RuleAdministrationRuntimeHost
 {
     private const int CoENotInitialized = unchecked((int)0x800401F0);
@@ -327,11 +397,30 @@ public static class RuleAdministrationRuntimeHost
                 CoENotInitialized);
 
         IReadOnlyList<RuleAdministrationSnapshot> LoadRules() => store
+            .GetRulesAsync(accountId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return Rules.CreateAuthorized(LoadRules(), LoadRules);
+    }
+
+    internal static RuleAdministrationState CreateAuthorizedState(int accountId)
+    {
+        IReadOnlyList<RuleAdministrationSnapshot> LoadRules()
+        {
+            var store = Volatile.Read(ref _store)
+                ?? throw new COMException(
+                    "The hMailServer rule administration runtime has not been initialized.",
+                    CoENotInitialized);
+
+            return store
                 .GetRulesAsync(accountId, CancellationToken.None)
                 .AsTask()
                 .GetAwaiter()
                 .GetResult();
+        }
 
-        return Rules.CreateAuthorized(LoadRules(), LoadRules);
+        return RuleAdministrationState.CreateLazy(LoadRules);
     }
 }

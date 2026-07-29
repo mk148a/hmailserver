@@ -58,6 +58,7 @@ public sealed class AccountsComContractTests
         var sizeError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Size);
         var quotaUsedError = Assert.ThrowsExactly<COMException>(() => _ = new Account().QuotaUsed);
         var lastLogonError = Assert.ThrowsExactly<COMException>(() => _ = new Account().LastLogonTime);
+        var rulesError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Rules);
         var validatePasswordError = Assert.ThrowsExactly<COMException>(
             () => new Account().ValidatePassword("candidate-password"));
 
@@ -70,6 +71,7 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(EAccessDenied, sizeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, quotaUsedError.ErrorCode);
         Assert.AreEqual(EAccessDenied, lastLogonError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, rulesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, validatePasswordError.ErrorCode);
     }
 
@@ -217,6 +219,46 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(2, store.ReadCount);
     }
 
+    [TestMethod]
+    public void AccountWrappersFromOneSnapshotShareRulesAndRefreshCreatesNewState()
+    {
+        var account = new AccountAdministrationSnapshot(10, 100, "old@example.test", true, 0);
+        var refreshedAccount = new AccountAdministrationSnapshot(10, 100, "new@example.test", true, 0);
+        var failRefresh = false;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[] { account },
+            () => failRefresh
+                ? throw new InvalidOperationException("store failed")
+                : new[] { refreshedAccount });
+        var rulesStore = new MutableRuleAdministrationStore(
+            new[] { new RuleAdministrationSnapshot(1, 10, "initial", true, true, 1) });
+        RuleAdministrationRuntimeHost.Configure(rulesStore);
+
+        var oldAccount = accounts[0];
+        var sameAccount = accounts.get_ItemByDBID(10);
+        var oldRules = oldAccount.Rules;
+        var sameRules = sameAccount.Rules;
+
+        Assert.AreNotSame(oldAccount, sameAccount);
+        Assert.AreNotSame(oldRules, sameRules);
+        Assert.AreEqual(1, rulesStore.ReadCount);
+
+        rulesStore.Rules = [new RuleAdministrationSnapshot(2, 10, "shared refresh", true, true, 1)];
+        sameRules.Refresh();
+        Assert.AreEqual("shared refresh", oldRules[0].Name);
+        Assert.AreEqual(2, rulesStore.ReadCount);
+
+        rulesStore.Rules = [new RuleAdministrationSnapshot(3, 10, "new snapshot", true, true, 1)];
+        accounts.Refresh();
+
+        var newAccount = accounts[0];
+        var newRules = newAccount.Rules;
+        Assert.AreEqual("new@example.test", newAccount.Address);
+        Assert.AreEqual("new snapshot", newRules[0].Name);
+        Assert.AreEqual("shared refresh", oldRules[0].Name);
+        Assert.AreEqual(3, rulesStore.ReadCount);
+    }
+
     private static void AssertAccount(
         IInterfaceAccount account,
         int id,
@@ -287,5 +329,22 @@ public sealed class AccountsComContractTests
             int accountId,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(Accounts.FirstOrDefault(account => account.Id == accountId));
+    }
+
+    private sealed class MutableRuleAdministrationStore(IReadOnlyList<RuleAdministrationSnapshot> rules)
+        : IRuleAdministrationStore
+    {
+        public IReadOnlyList<RuleAdministrationSnapshot> Rules { get; set; } = rules;
+
+        public int ReadCount { get; private set; }
+
+        public ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetRulesAsync(
+            int accountId,
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
+                Rules.Where(rule => rule.AccountId == accountId).OrderBy(rule => rule.SortOrder).ToArray());
+        }
     }
 }

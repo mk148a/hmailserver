@@ -15,6 +15,7 @@ public sealed class Account : IInterfaceAccount
 
     private readonly bool _attached;
     private readonly AccountAdministrationSnapshot? _administrationSnapshot;
+    private readonly RuleAdministrationState? _rulesState;
     private bool _active;
     private string _activeDirectoryDomain = string.Empty;
     private string _address = string.Empty;
@@ -45,17 +46,21 @@ public sealed class Account : IInterfaceAccount
     {
     }
 
-    private Account(string address, ComAdminLevel adminLevel)
+    private Account(string address, ComAdminLevel adminLevel, RuleAdministrationState rulesState)
     {
         _attached = true;
         _address = address;
         _adminLevel = adminLevel;
+        _rulesState = rulesState;
     }
 
-    private Account(AccountAdministrationSnapshot administrationSnapshot)
+    private Account(
+        AccountAdministrationSnapshot administrationSnapshot,
+        RuleAdministrationState rulesState)
     {
         _attached = true;
         _administrationSnapshot = administrationSnapshot;
+        _rulesState = rulesState;
     }
 
     public bool Active
@@ -134,9 +139,13 @@ public sealed class Account : IInterfaceAccount
         {
             EnsureAttached();
 
-            return _administrationSnapshot is { } account
-                ? RuleAdministrationRuntimeHost.CreateAuthorizedAdapter(account.Id)
-                : NotImplemented<IInterfaceRules>();
+            if (_rulesState is null)
+            {
+                return NotImplemented<IInterfaceRules>();
+            }
+
+            _ = _rulesState.GetGeneration();
+            return HMailServer.ComInterop.Rules.CreateAuthorized(_rulesState);
         }
     }
 
@@ -181,9 +190,18 @@ public sealed class Account : IInterfaceAccount
     public bool ForwardAbortSpamFlagged { get => _administrationSnapshot?.ForwardAbortSpamFlagged ?? Read(_forwardAbortSpamFlagged); set => Write(() => _forwardAbortSpamFlagged = value); }
 
     internal static Account CreateServerAdministrator() =>
-        new("Administrator", ComAdminLevel.ServerAdministrator);
+        new(
+            "Administrator",
+            ComAdminLevel.ServerAdministrator,
+            RuleAdministrationRuntimeHost.CreateAuthorizedState(0));
 
-    internal static Account CreateAuthorized(AccountAdministrationSnapshot account) => new(account);
+    internal static Account CreateAuthorized(AccountAdministrationSnapshot account) =>
+        new(account, RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id));
+
+    internal static Account CreateAuthorized(
+        AccountAdministrationSnapshot account,
+        RuleAdministrationState rulesState) =>
+        new(account, rulesState);
 
     public void Save() => NotImplemented();
 

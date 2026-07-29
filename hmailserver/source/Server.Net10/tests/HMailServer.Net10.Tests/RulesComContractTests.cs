@@ -129,7 +129,7 @@ public sealed class RulesComContractTests
     }
 
     [TestMethod]
-    public void AccountRules_UsesConfiguredRuntimeForSelectedAccount()
+    public void AccountRules_ReturnFreshFacadesOverSharedState()
     {
         var store = new MutableRuleAdministrationStore(
             new[]
@@ -141,20 +141,43 @@ public sealed class RulesComContractTests
         var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
 
         var rules = account.Rules;
+        var secondRules = account.Rules;
 
         Assert.AreEqual(1, rules.Count);
         Assert.AreEqual("First rule", rules[0].Name);
+        Assert.AreNotSame(rules, secondRules);
+        Assert.AreEqual(1, store.ReadCount);
 
         store.Rules =
         [
             new RuleAdministrationSnapshot(30, 100, "Updated rule", false, false, 1),
             new RuleAdministrationSnapshot(40, 200, "Still outside rule", true, true, 1)
         ];
-        rules.Refresh();
+        secondRules.Refresh();
 
         Assert.AreEqual(1, rules.Count);
         Assert.AreEqual("Updated rule", rules[0].Name);
         Assert.AreEqual(2, store.ReadCount);
+    }
+
+    [TestMethod]
+    public void AuthenticatedAdministratorAccountRules_LoadGlobalRules()
+    {
+        var store = new MutableRuleAdministrationStore(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 0, "Global rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 100, "Account rule", true, true, 1)
+            });
+        RuleAdministrationRuntimeHost.Configure(store);
+
+        var account = Account.CreateServerAdministrator();
+        var rules = account.Rules;
+
+        Assert.AreEqual(1, rules.Count);
+        Assert.AreEqual(0, rules[0].AccountID);
+        Assert.AreEqual("Global rule", rules[0].Name);
+        Assert.AreEqual(1, store.ReadCount);
     }
 
     private static void AssertRule(

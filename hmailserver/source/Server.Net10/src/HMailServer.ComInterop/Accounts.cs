@@ -49,7 +49,7 @@ public sealed class Accounts : IInterfaceAccounts
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private AccountAdministrationSnapshot[]? _accounts;
+    private AccountAdministrationEntry[]? _accounts;
     private readonly Func<IReadOnlyList<AccountAdministrationSnapshot>>? _reload;
 
     public Accounts()
@@ -60,7 +60,7 @@ public sealed class Accounts : IInterfaceAccounts
         IReadOnlyList<AccountAdministrationSnapshot> accounts,
         Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload)
     {
-        _accounts = accounts.ToArray();
+        _accounts = CreateEntries(accounts);
         _reload = reload;
     }
 
@@ -84,7 +84,7 @@ public sealed class Accounts : IInterfaceAccounts
                 throw new COMException("Account index was outside the collection.", DispEBadIndex);
             }
 
-            return Account.CreateAuthorized(accounts[index]);
+            return Account.CreateAuthorized(accounts[index].Snapshot, accounts[index].RulesState);
         }
     }
 
@@ -105,7 +105,7 @@ public sealed class Accounts : IInterfaceAccounts
         {
             var accounts = _reload();
             ArgumentNullException.ThrowIfNull(accounts);
-            Volatile.Write(ref _accounts, accounts.ToArray());
+            Volatile.Write(ref _accounts, CreateEntries(accounts));
         }
         catch (Exception)
         {
@@ -117,30 +117,42 @@ public sealed class Accounts : IInterfaceAccounts
 
     public IInterfaceAccount get_ItemByDBID(int databaseId)
     {
-        var match = GetAccounts().FirstOrDefault(account => account.Id == databaseId);
+        var match = GetAccounts().FirstOrDefault(account => account.Snapshot.Id == databaseId);
 
         return match is null
             ? throw new COMException("No account with the specified database identifier exists.", DispEBadIndex)
-            : Account.CreateAuthorized(match);
+            : Account.CreateAuthorized(match.Snapshot, match.RulesState);
     }
 
     public IInterfaceAccount get_ItemByAddress(string address)
     {
         var match = GetAccounts()
-            .FirstOrDefault(account => account.Address.Equals(address, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(account => account.Snapshot.Address.Equals(address, StringComparison.OrdinalIgnoreCase));
 
         return match is null
             ? throw new COMException("No account with the specified address exists.", DispEBadIndex)
-            : Account.CreateAuthorized(match);
+            : Account.CreateAuthorized(match.Snapshot, match.RulesState);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    private IReadOnlyList<AccountAdministrationSnapshot> GetAccounts()
+    private IReadOnlyList<AccountAdministrationEntry> GetAccounts()
     {
         return Volatile.Read(ref _accounts)
             ?? throw new COMException("Accounts access requires an authenticated server administrator.", EAccessDenied);
     }
+
+    private static AccountAdministrationEntry[] CreateEntries(
+        IReadOnlyList<AccountAdministrationSnapshot> accounts) =>
+        accounts
+            .Select(account => new AccountAdministrationEntry(
+                account,
+                RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id)))
+            .ToArray();
+
+    private sealed record AccountAdministrationEntry(
+        AccountAdministrationSnapshot Snapshot,
+        RuleAdministrationState RulesState);
 
     private T Unavailable<T>()
     {
