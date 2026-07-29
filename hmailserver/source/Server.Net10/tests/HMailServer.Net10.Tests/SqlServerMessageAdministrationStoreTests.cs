@@ -6,15 +6,17 @@ namespace HMailServer.Net10.Tests;
 public sealed class SqlServerMessageAdministrationStoreTests
 {
     [TestMethod]
-    public void GetAccountMessagesSql_ReadsOnlyDeliveredMessagesForSelectedAccount()
+    public void GetAccountMessagesSql_ReadsAllMessagesForSelectedAccountInUidOrder()
     {
         var sql = SqlServerMessageAdministrationStore.GetAccountMessagesSql;
 
         AssertMessageProjection(sql);
         StringAssert.Contains(sql, "FROM hm_messages");
         StringAssert.Contains(sql, "messageaccountid = @AccountID");
-        StringAssert.Contains(sql, "messagetype = 2");
-        StringAssert.Contains(sql, "ORDER BY messageid ASC");
+        Assert.IsFalse(sql.Contains("messagetype = 2", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("messagefolderid = @FolderID", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(sql, "ORDER BY messageuid ASC;");
+        Assert.IsFalse(sql.Contains("ORDER BY messageid ASC", StringComparison.OrdinalIgnoreCase));
         AssertNoOutOfScopeMessageAccess(sql);
     }
 

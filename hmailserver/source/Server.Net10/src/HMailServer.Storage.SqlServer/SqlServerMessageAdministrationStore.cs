@@ -22,8 +22,7 @@ SELECT
     messageuid
 FROM hm_messages
 WHERE messageaccountid = @AccountID
-  AND messagetype = 2
-ORDER BY messageid ASC;
+ORDER BY messageuid ASC;
 """;
 
     public const string GetFolderMessagesSql = """
