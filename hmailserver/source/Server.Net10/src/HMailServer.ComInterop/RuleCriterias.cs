@@ -310,7 +310,7 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
 
     public int RuleID { get => Snapshot.RuleId; set => Unavailable(); }
 
-    public string MatchValue { get => Snapshot.MatchValue; set => Unavailable(); }
+    public string MatchValue { get => Snapshot.MatchValue; set => Mutate(snapshot => snapshot with { MatchValue = value }); }
 
     public bool UsePredefined { get => Snapshot.UsePredefined; set => Unavailable(); }
 
