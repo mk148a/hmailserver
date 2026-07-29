@@ -259,6 +259,41 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(3, rulesStore.ReadCount);
     }
 
+    [TestMethod]
+    public void AccountMessages_RefreshPublishesNewStateAndOldWrappersRetainTheirSnapshot()
+    {
+        var messageStore = new MutableMessageAdministrationStore(
+            new[] { MessageSnapshot(1000, "old.eml") });
+        MessageAdministrationRuntimeHost.Configure(messageStore);
+
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[] { new AccountAdministrationSnapshot(10, 100, "old@example.test", true, 0) },
+            () => new[] { new AccountAdministrationSnapshot(10, 100, "new@example.test", true, 0) });
+
+        var oldAccount = accounts[0];
+        var oldMessages = oldAccount.Messages;
+        var sameEntryAccount = accounts.get_ItemByDBID(10);
+        var sameEntryMessages = sameEntryAccount.Messages;
+
+        Assert.AreNotSame(oldAccount, sameEntryAccount);
+        Assert.AreNotSame(oldMessages, sameEntryMessages);
+        Assert.AreEqual("old.eml", oldMessages[0].Filename);
+        Assert.AreEqual("old.eml", sameEntryMessages[0].Filename);
+        Assert.AreEqual(1, messageStore.AccountReadCount);
+
+        messageStore.Messages = new[] { MessageSnapshot(2000, "new.eml") };
+        accounts.Refresh();
+
+        var newAccount = accounts[0];
+        var newMessages = newAccount.Messages;
+
+        Assert.AreNotSame(oldAccount, newAccount);
+        Assert.AreNotSame(oldMessages, newMessages);
+        Assert.AreEqual("old.eml", oldAccount.Messages[0].Filename);
+        Assert.AreEqual("new.eml", newMessages[0].Filename);
+        Assert.AreEqual(2, messageStore.AccountReadCount);
+    }
+
     private static void AssertAccount(
         IInterfaceAccount account,
         int id,
@@ -291,6 +326,9 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(personFirstName, account.PersonFirstName);
         Assert.AreEqual(personLastName, account.PersonLastName);
     }
+
+    private static MessageAdministrationSnapshot MessageSnapshot(long id, string fileName) =>
+        new(id, 10, 50, fileName, 2, "sender@example.test", 1024, 0, 1, new DateTime(2026, 7, 1), id);
 
     private static void AssertAccountDeliveryDetailScalars(IInterfaceAccount account)
     {
@@ -346,5 +384,27 @@ public sealed class AccountsComContractTests
             return ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
                 Rules.Where(rule => rule.AccountId == accountId).OrderBy(rule => rule.SortOrder).ToArray());
         }
+    }
+
+    private sealed class MutableMessageAdministrationStore(IReadOnlyList<MessageAdministrationSnapshot> messages)
+        : IMessageAdministrationStore
+    {
+        public IReadOnlyList<MessageAdministrationSnapshot> Messages { get; set; } = messages;
+
+        public int AccountReadCount { get; private set; }
+
+        public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetAccountMessagesAsync(
+            int accountId,
+            CancellationToken cancellationToken)
+        {
+            AccountReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(
+                Messages.Where(message => message.AccountId == accountId).OrderBy(message => message.Id).ToArray());
+        }
+
+        public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesAsync(
+            int folderId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(Array.Empty<MessageAdministrationSnapshot>());
     }
 }

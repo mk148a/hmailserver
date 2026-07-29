@@ -84,7 +84,10 @@ public sealed class Accounts : IInterfaceAccounts
                 throw new COMException("Account index was outside the collection.", DispEBadIndex);
             }
 
-            return Account.CreateAuthorized(accounts[index].Snapshot, accounts[index].RulesState);
+            return Account.CreateAuthorized(
+                accounts[index].Snapshot,
+                accounts[index].RulesState,
+                accounts[index].MessagesState);
         }
     }
 
@@ -121,7 +124,7 @@ public sealed class Accounts : IInterfaceAccounts
 
         return match is null
             ? throw new COMException("No account with the specified database identifier exists.", DispEBadIndex)
-            : Account.CreateAuthorized(match.Snapshot, match.RulesState);
+            : Account.CreateAuthorized(match.Snapshot, match.RulesState, match.MessagesState);
     }
 
     public IInterfaceAccount get_ItemByAddress(string address)
@@ -131,7 +134,7 @@ public sealed class Accounts : IInterfaceAccounts
 
         return match is null
             ? throw new COMException("No account with the specified address exists.", DispEBadIndex)
-            : Account.CreateAuthorized(match.Snapshot, match.RulesState);
+            : Account.CreateAuthorized(match.Snapshot, match.RulesState, match.MessagesState);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
@@ -147,12 +150,14 @@ public sealed class Accounts : IInterfaceAccounts
         accounts
             .Select(account => new AccountAdministrationEntry(
                 account,
-                RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id)))
+                RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
+                MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id)))
             .ToArray();
 
     private sealed record AccountAdministrationEntry(
         AccountAdministrationSnapshot Snapshot,
-        RuleAdministrationState RulesState);
+        RuleAdministrationState RulesState,
+        AccountMessageAdministrationState MessagesState);
 
     private T Unavailable<T>()
     {

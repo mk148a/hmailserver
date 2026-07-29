@@ -593,6 +593,39 @@ internal sealed class MessageContentSnapshot
 }
 
 [ComVisible(false)]
+internal sealed class AccountMessageAdministrationState(int accountId)
+{
+    private readonly object _sync = new();
+    private IReadOnlyList<MessageAdministrationSnapshot>? _messages;
+
+    internal int AccountId { get; } = accountId;
+
+    internal IReadOnlyList<MessageAdministrationSnapshot> GetOrLoad(
+        Func<IReadOnlyList<MessageAdministrationSnapshot>> loader)
+    {
+        var messages = Volatile.Read(ref _messages);
+        if (messages is not null)
+        {
+            return messages;
+        }
+
+        lock (_sync)
+        {
+            messages = _messages;
+            if (messages is null)
+            {
+                messages = loader();
+                ArgumentNullException.ThrowIfNull(messages);
+                messages = messages.ToArray();
+                Volatile.Write(ref _messages, messages);
+            }
+
+            return messages;
+        }
+    }
+}
+
+[ComVisible(false)]
 public static class MessageAdministrationRuntimeHost
 {
     private const int CoENotInitialized = unchecked((int)0x800401F0);
@@ -609,18 +642,21 @@ public static class MessageAdministrationRuntimeHost
         Volatile.Write(ref _contentSource, contentSource);
     }
 
-    internal static Messages CreateAuthorizedAccountAdapter(int accountId)
+    internal static AccountMessageAdministrationState CreateAuthorizedAccountState(int accountId) =>
+        new(accountId);
+
+    internal static Messages CreateAuthorizedAccountAdapter(AccountMessageAdministrationState state)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
                 "The hMailServer message administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var messages = store
-            .GetAccountMessagesAsync(accountId, CancellationToken.None)
+        var messages = state.GetOrLoad(() => store
+            .GetAccountMessagesAsync(state.AccountId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
-            .GetResult();
+            .GetResult());
 
         return Messages.CreateAuthorized(messages, Volatile.Read(ref _contentSource));
     }

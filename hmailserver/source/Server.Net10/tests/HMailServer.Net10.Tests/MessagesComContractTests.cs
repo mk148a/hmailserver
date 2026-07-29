@@ -334,18 +334,21 @@ Body
     [TestMethod]
     public void AccountMessages_UsesConfiguredRuntimeForSelectedAccount()
     {
-        MessageAdministrationRuntimeHost.Configure(
-            new FixedMessageAdministrationStore(
-                new[]
-                {
-                    Snapshot(1000, 100, 50, "account.eml", 2, "sender@example.test", 2048, 0, 1, Date(2026, 7, 1), 10),
-                    Snapshot(2000, 200, 60, "outside.eml", 2, "outside@example.test", 2048, 0, 1, Date(2026, 7, 1), 20)
-                }));
+        var store = new FixedMessageAdministrationStore(
+            new[]
+            {
+                Snapshot(1000, 100, 50, "account.eml", 2, "sender@example.test", 2048, 0, 1, Date(2026, 7, 1), 10),
+                Snapshot(2000, 200, 60, "outside.eml", 2, "outside@example.test", 2048, 0, 1, Date(2026, 7, 1), 20)
+            });
+        MessageAdministrationRuntimeHost.Configure(store);
         var account = Account.CreateAuthorized(
             new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
 
         var messages = account.Messages;
+        var repeatedMessages = account.Messages;
 
+        Assert.AreNotSame(messages, repeatedMessages);
+        Assert.AreEqual(1, store.AccountReadCount);
         Assert.AreEqual(1, messages.Count);
         Assert.AreEqual(1000L, messages[0].ID);
         Assert.AreEqual("account.eml", messages[0].Filename);
@@ -434,11 +437,16 @@ Body
     private sealed class FixedMessageAdministrationStore(IReadOnlyList<MessageAdministrationSnapshot> messages)
         : IMessageAdministrationStore
     {
+        public int AccountReadCount { get; private set; }
+
         public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetAccountMessagesAsync(
             int accountId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(
+            CancellationToken cancellationToken)
+        {
+            AccountReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(
                 messages.Where(message => message.AccountId == accountId).OrderBy(message => message.Id).ToArray());
+        }
 
         public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesAsync(
             int folderId,

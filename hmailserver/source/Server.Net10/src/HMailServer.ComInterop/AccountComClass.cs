@@ -15,6 +15,7 @@ public sealed class Account : IInterfaceAccount
 
     private readonly bool _attached;
     private readonly AccountAdministrationSnapshot? _administrationSnapshot;
+    private readonly AccountMessageAdministrationState? _messagesState;
     private readonly RuleAdministrationState? _rulesState;
     private bool _active;
     private string _activeDirectoryDomain = string.Empty;
@@ -56,10 +57,12 @@ public sealed class Account : IInterfaceAccount
 
     private Account(
         AccountAdministrationSnapshot administrationSnapshot,
-        RuleAdministrationState rulesState)
+        RuleAdministrationState rulesState,
+        AccountMessageAdministrationState messagesState)
     {
         _attached = true;
         _administrationSnapshot = administrationSnapshot;
+        _messagesState = messagesState;
         _rulesState = rulesState;
     }
 
@@ -99,8 +102,8 @@ public sealed class Account : IInterfaceAccount
         {
             EnsureAttached();
 
-            return _administrationSnapshot is { } account
-                ? MessageAdministrationRuntimeHost.CreateAuthorizedAccountAdapter(account.Id)
+            return _messagesState is { } messagesState
+                ? MessageAdministrationRuntimeHost.CreateAuthorizedAccountAdapter(messagesState)
                 : NotImplemented<IInterfaceMessages>();
         }
     }
@@ -196,12 +199,21 @@ public sealed class Account : IInterfaceAccount
             RuleAdministrationRuntimeHost.CreateAuthorizedState(0));
 
     internal static Account CreateAuthorized(AccountAdministrationSnapshot account) =>
-        new(account, RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id));
+        new(
+            account,
+            RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
+            MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id));
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
         RuleAdministrationState rulesState) =>
-        new(account, rulesState);
+        new(account, rulesState, MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id));
+
+    internal static Account CreateAuthorized(
+        AccountAdministrationSnapshot account,
+        RuleAdministrationState rulesState,
+        AccountMessageAdministrationState messagesState) =>
+        new(account, rulesState, messagesState);
 
     public void Save() => NotImplemented();
 
