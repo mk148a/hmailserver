@@ -323,7 +323,7 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     public ComRuleMatchType MatchType
     {
         get => (ComRuleMatchType)Snapshot.MatchType;
-        set => Unavailable();
+        set => Mutate(snapshot => snapshot with { MatchType = (int)value });
     }
 
     public string HeaderField { get => Snapshot.HeaderField; set => Mutate(snapshot => snapshot with { HeaderField = value }); }

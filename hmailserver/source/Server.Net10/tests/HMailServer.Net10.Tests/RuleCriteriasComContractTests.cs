@@ -101,6 +101,8 @@ public sealed class RuleCriteriasComContractTests
         var criterionUsePredefinedError = Assert.ThrowsExactly<COMException>(() => new RuleCriteria().UsePredefined = false);
         var criterionPredefinedFieldError = Assert.ThrowsExactly<COMException>(
             () => new RuleCriteria().PredefinedField = ComRulePredefinedField.Body);
+        var criterionMatchTypeError = Assert.ThrowsExactly<COMException>(
+            () => new RuleCriteria().MatchType = ComRuleMatchType.NotEquals);
         var criterionHeaderFieldError = Assert.ThrowsExactly<COMException>(() => new RuleCriteria().HeaderField = "X-Detached");
         var criterionSaveError = Assert.ThrowsExactly<COMException>(new RuleCriteria().Save);
         var criterionDeleteError = Assert.ThrowsExactly<COMException>(new RuleCriteria().Delete);
@@ -113,6 +115,7 @@ public sealed class RuleCriteriasComContractTests
         Assert.AreEqual(EAccessDenied, criterionMatchValueError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionUsePredefinedError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionPredefinedFieldError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, criterionMatchTypeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionHeaderFieldError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionDeleteError.ErrorCode);
@@ -465,6 +468,46 @@ public sealed class RuleCriteriasComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleCriteria_MatchTypeStagesRawValueAndSavePreservesExistingRow()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, "X-Header"),
+                Snapshot(200, 20, "foreign", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Foreign")
+            });
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+
+        var criterion = rules[0].Criterias[0];
+        var rawMatchType = (ComRuleMatchType)12345;
+
+        criterion.MatchType = rawMatchType;
+
+        Assert.AreEqual(rawMatchType, criterion.MatchType);
+        Assert.AreEqual(100, criterion.ID);
+        Assert.AreEqual(10, criterion.RuleID);
+        Assert.AreEqual(0, store.SavedCriteria.Count);
+
+        criterion.Save();
+
+        Assert.AreEqual(1, store.SavedCriteria.Count);
+        var saved = store.SavedCriteria[0];
+        Assert.AreEqual(100, saved.Id);
+        Assert.AreEqual(10, saved.RuleId);
+        Assert.AreEqual("first", saved.MatchValue);
+        Assert.IsTrue(saved.UsePredefined);
+        Assert.AreEqual((int)ComRulePredefinedField.Subject, saved.PredefinedField);
+        Assert.AreEqual(12345, saved.MatchType);
+        Assert.AreEqual("X-Header", saved.HeaderField);
+    }
+
+    [TestMethod]
     public void AuthorizedRuleCriteria_UsePredefinedStagesWithoutStoreCallAndSavePreservesExistingRow()
     {
         var store = new MutableRuleCriteriaAdministrationStore(
@@ -673,6 +716,40 @@ public sealed class RuleCriteriasComContractTests
         Assert.AreEqual(100, store.SavedCriteria[1].Id);
         Assert.AreEqual(10, store.SavedCriteria[1].RuleId);
         Assert.AreEqual(retryMatchValue, store.SavedCriteria[1].MatchValue);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleCriteria_MatchTypeSaveFailureRetainsStagedValueForRetry()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, "X-Header")
+            })
+        {
+            FailSave = true
+        };
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var criterion = rules[0].Criterias[0];
+        var rawMatchType = (ComRuleMatchType)12345;
+        criterion.MatchType = rawMatchType;
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(criterion.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, store.SavedCriteria.Count);
+        Assert.AreEqual(rawMatchType, criterion.MatchType);
+        Assert.AreEqual(12345, store.SavedCriteria[0].MatchType);
+
+        store.FailSave = false;
+        criterion.Save();
+
+        Assert.AreEqual(2, store.SavedCriteria.Count);
+        Assert.AreEqual(100, store.SavedCriteria[1].Id);
+        Assert.AreEqual(10, store.SavedCriteria[1].RuleId);
+        Assert.AreEqual(12345, store.SavedCriteria[1].MatchType);
     }
 
     [TestMethod]
