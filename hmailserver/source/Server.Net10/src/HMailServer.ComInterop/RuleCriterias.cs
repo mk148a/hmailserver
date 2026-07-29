@@ -308,7 +308,7 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
 
     public int ID => Snapshot.Id;
 
-    public int RuleID { get => Snapshot.RuleId; set => Unavailable(); }
+    public int RuleID { get => Snapshot.RuleId; set => Mutate(snapshot => snapshot with { RuleId = value }); }
 
     public string MatchValue { get => Snapshot.MatchValue; set => Mutate(snapshot => snapshot with { MatchValue = value }); }
 

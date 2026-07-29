@@ -163,6 +163,7 @@ public sealed class RuleCriteriasComContractTests
         var pendingRefresh = Assert.ThrowsExactly<COMException>(criteria.Refresh);
         var pendingDelete = Assert.ThrowsExactly<COMException>(() => criteria.Delete(0));
         var pendingMatchValue = Assert.ThrowsExactly<COMException>(() => criteria[0].MatchValue = "changed");
+        var pendingRuleId = Assert.ThrowsExactly<COMException>(() => criteria[0].RuleID = 20);
         var pendingUsePredefined = Assert.ThrowsExactly<COMException>(() => criteria[0].UsePredefined = false);
         var pendingPredefinedField = Assert.ThrowsExactly<COMException>(
             () => criteria[0].PredefinedField = ComRulePredefinedField.Body);
@@ -180,6 +181,7 @@ public sealed class RuleCriteriasComContractTests
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMatchValue.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingRuleId.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingUsePredefined.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingPredefinedField.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMatchType.ErrorCode);
@@ -437,23 +439,75 @@ public sealed class RuleCriteriasComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedRuleCriteria_RuleIdSetterRemainsNotImplementedAndDoesNotStageMutation()
+    [DataRow(20)]
+    [DataRow(0)]
+    [DataRow(-1)]
+    [DataRow(999)]
+    public void AuthorizedRuleCriteria_RuleIdSetterStagesRawValueAndSavesUsingImmutableOwningRuleScope(int rawRuleId)
     {
         var store = new MutableRuleCriteriaAdministrationStore(
             new[]
             {
-                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty)
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, "X-Header"),
+                Snapshot(200, 20, "foreign", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Foreign")
             });
         RuleCriteriaAdministrationRuntimeHost.Configure(store);
         var rules = Rules.CreateAuthorized(
-            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
-        var criterion = rules[0].Criterias[0];
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+        var criteria = rules[0].Criterias;
+        var criterion = criteria[0];
 
-        var error = Assert.ThrowsExactly<COMException>(() => criterion.RuleID = 20);
+        criterion.RuleID = rawRuleId;
 
-        Assert.AreEqual(ENotImplemented, error.ErrorCode);
-        Assert.AreEqual(10, criterion.RuleID);
+        Assert.AreEqual(rawRuleId, criterion.RuleID);
         Assert.AreEqual(0, store.SavedCriteria.Count);
+        Assert.AreEqual(0, store.SavedOwningRuleIds.Count);
+        AssertCriterion(
+            criterion,
+            100,
+            rawRuleId,
+            "first",
+            true,
+            ComRulePredefinedField.Subject,
+            ComRuleMatchType.Contains,
+            "X-Header");
+
+        criterion.Save();
+
+        Assert.AreEqual(1, store.SavedCriteria.Count);
+        Assert.AreEqual(1, store.SavedOwningRuleIds.Count);
+        Assert.AreEqual(10, store.SavedOwningRuleIds[0]);
+        Assert.AreEqual(1, criteria.Count);
+        AssertCriterion(
+            criteria[0],
+            100,
+            10,
+            "first",
+            true,
+            ComRulePredefinedField.Subject,
+            ComRuleMatchType.Contains,
+            "X-Header");
+        AssertCriterion(
+            criterion,
+            100,
+            rawRuleId,
+            "first",
+            true,
+            ComRulePredefinedField.Subject,
+            ComRuleMatchType.Contains,
+            "X-Header");
+        Assert.AreEqual(100, store.SavedCriteria[0].Id);
+        Assert.AreEqual(rawRuleId, store.SavedCriteria[0].RuleId);
+        Assert.AreEqual("first", store.SavedCriteria[0].MatchValue);
+        Assert.IsTrue(store.SavedCriteria[0].UsePredefined);
+        Assert.AreEqual((int)ComRulePredefinedField.Subject, store.SavedCriteria[0].PredefinedField);
+        Assert.AreEqual((int)ComRuleMatchType.Contains, store.SavedCriteria[0].MatchType);
+        Assert.AreEqual("X-Header", store.SavedCriteria[0].HeaderField);
+        Assert.AreEqual(0, store.DeletedCriteria.Count);
     }
 
     [TestMethod]
