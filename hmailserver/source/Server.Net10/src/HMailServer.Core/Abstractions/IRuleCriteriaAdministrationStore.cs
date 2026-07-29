@@ -12,6 +12,7 @@ public interface IRuleCriteriaAdministrationStore
         CancellationToken cancellationToken);
 
     ValueTask SaveRuleCriteriaAsync(
+        int owningRuleId,
         RuleCriteriaAdministrationSnapshot criterion,
         CancellationToken cancellationToken);
 }

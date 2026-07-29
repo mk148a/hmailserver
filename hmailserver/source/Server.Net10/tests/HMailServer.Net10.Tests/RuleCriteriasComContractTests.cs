@@ -97,6 +97,7 @@ public sealed class RuleCriteriasComContractTests
         var criteriaDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleCriterias().DeleteByDBID(100));
         var criteriaIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleCriterias().Delete(0));
         var criterionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleCriteria().MatchValue);
+        var criterionRuleIdError = Assert.ThrowsExactly<COMException>(() => new RuleCriteria().RuleID = 42);
         var criterionMatchValueError = Assert.ThrowsExactly<COMException>(() => new RuleCriteria().MatchValue = "X-Detached");
         var criterionUsePredefinedError = Assert.ThrowsExactly<COMException>(() => new RuleCriteria().UsePredefined = false);
         var criterionPredefinedFieldError = Assert.ThrowsExactly<COMException>(
@@ -112,6 +113,7 @@ public sealed class RuleCriteriasComContractTests
         Assert.AreEqual(EAccessDenied, criteriaDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criteriaIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, criterionRuleIdError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionMatchValueError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionUsePredefinedError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionPredefinedFieldError.ErrorCode);
@@ -427,10 +429,31 @@ public sealed class RuleCriteriasComContractTests
         criterion.Save();
 
         Assert.AreEqual(1, store.SavedCriteria.Count);
+        Assert.AreEqual(10, store.SavedOwningRuleIds[0]);
         Assert.AreEqual(100, store.SavedCriteria[0].Id);
         Assert.AreEqual(10, store.SavedCriteria[0].RuleId);
         Assert.AreEqual("first", store.SavedCriteria[0].MatchValue);
         Assert.AreEqual(rawHeaderField, store.SavedCriteria[0].HeaderField);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleCriteria_RuleIdSetterRemainsNotImplementedAndDoesNotStageMutation()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty)
+            });
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var criterion = rules[0].Criterias[0];
+
+        var error = Assert.ThrowsExactly<COMException>(() => criterion.RuleID = 20);
+
+        Assert.AreEqual(ENotImplemented, error.ErrorCode);
+        Assert.AreEqual(10, criterion.RuleID);
+        Assert.AreEqual(0, store.SavedCriteria.Count);
     }
 
     [TestMethod]
@@ -980,6 +1003,8 @@ public sealed class RuleCriteriasComContractTests
 
         public List<RuleCriteriaAdministrationSnapshot> SavedCriteria { get; } = [];
 
+        public List<int> SavedOwningRuleIds { get; } = [];
+
         public bool FailDelete { get; set; }
 
         public bool FailSave { get; set; }
@@ -1018,9 +1043,11 @@ public sealed class RuleCriteriasComContractTests
         }
 
         public ValueTask SaveRuleCriteriaAsync(
+            int owningRuleId,
             RuleCriteriaAdministrationSnapshot criterion,
             CancellationToken cancellationToken)
         {
+            SavedOwningRuleIds.Add(owningRuleId);
             SavedCriteria.Add(criterion);
             if (FailSave)
             {

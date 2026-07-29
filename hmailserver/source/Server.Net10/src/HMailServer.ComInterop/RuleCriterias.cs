@@ -428,7 +428,7 @@ public static class RuleCriteriaAdministrationRuntimeHost
             .GetResult();
 
         void SaveCriterion(RuleCriteriaAdministrationSnapshot criterion) => store
-            .SaveRuleCriteriaAsync(criterion, CancellationToken.None)
+            .SaveRuleCriteriaAsync(ruleId, criterion, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();

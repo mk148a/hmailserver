@@ -48,13 +48,15 @@ public sealed class SqlServerRuleCriteriaAdministrationStoreTests
         var sql = SqlServerRuleCriteriaAdministrationStore.SaveRuleCriteriaSql;
 
         StringAssert.Contains(sql, "UPDATE hm_rule_criterias");
-        StringAssert.Contains(sql, "criteriaruleid = @RuleId");
+        StringAssert.Contains(sql, "SET criteriaruleid = @RuleId");
+        StringAssert.Contains(sql, "WHERE criteriaruleid = @OwningRuleId");
         StringAssert.Contains(sql, "criteriausepredefined = @UsePredefined");
         StringAssert.Contains(sql, "criteriapredefinedfield = @PredefinedField");
         StringAssert.Contains(sql, "criteriaheadername = @HeaderField");
         StringAssert.Contains(sql, "criteriamatchtype = @MatchType");
         StringAssert.Contains(sql, "criteriamatchvalue = @MatchValue");
         StringAssert.Contains(sql, "AND criteriaid = @CriteriaId");
+        Assert.IsFalse(sql.Contains("WHERE criteriaruleid = @RuleId", StringComparison.Ordinal));
         Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));

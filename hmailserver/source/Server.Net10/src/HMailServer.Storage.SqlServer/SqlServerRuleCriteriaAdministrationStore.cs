@@ -35,7 +35,7 @@ SET criteriaruleid = @RuleId,
     criteriaheadername = @HeaderField,
     criteriamatchtype = @MatchType,
     criteriamatchvalue = @MatchValue
-WHERE criteriaruleid = @RuleId
+WHERE criteriaruleid = @OwningRuleId
   AND criteriaid = @CriteriaId;
 """;
 
@@ -88,12 +88,14 @@ WHERE criteriaruleid = @RuleId
     }
 
     public async ValueTask SaveRuleCriteriaAsync(
+        int owningRuleId,
         RuleCriteriaAdministrationSnapshot criterion,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(criterion);
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(SaveRuleCriteriaSql, connection);
+        command.Parameters.Add("@OwningRuleId", SqlDbType.Int).Value = owningRuleId;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = criterion.RuleId;
         command.Parameters.Add("@CriteriaId", SqlDbType.Int).Value = criterion.Id;
         command.Parameters.Add("@UsePredefined", SqlDbType.TinyInt).Value = criterion.UsePredefined ? 1 : 0;
@@ -101,7 +103,12 @@ WHERE criteriaruleid = @RuleId
         command.Parameters.Add("@HeaderField", SqlDbType.NVarChar, 255).Value = criterion.HeaderField;
         command.Parameters.Add("@MatchType", SqlDbType.TinyInt).Value = criterion.MatchType;
         command.Parameters.Add("@MatchValue", SqlDbType.NVarChar, 255).Value = criterion.MatchValue;
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        if (affectedRows != 1)
+        {
+            throw new InvalidOperationException(
+                $"Saving rule criterion {criterion.Id} for owning rule {owningRuleId} affected {affectedRows} rows instead of exactly one.");
+        }
     }
 
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
