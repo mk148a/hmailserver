@@ -96,7 +96,7 @@ public sealed class Rules : IInterfaceRules
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private RuleAdministrationSnapshot[]? _rules;
+    private RuleAdministrationGeneration? _generation;
     private readonly Func<IReadOnlyList<RuleAdministrationSnapshot>>? _reload;
 
     public Rules()
@@ -107,7 +107,7 @@ public sealed class Rules : IInterfaceRules
         IReadOnlyList<RuleAdministrationSnapshot> rules,
         Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload)
     {
-        _rules = rules.ToArray();
+        _generation = new RuleAdministrationGeneration(rules);
         _reload = reload;
     }
 
@@ -125,23 +125,25 @@ public sealed class Rules : IInterfaceRules
     {
         get
         {
-            var rules = GetRules();
+            var generation = GetGeneration();
+            var rules = generation.Rules;
             if (index < 0 || index >= rules.Count)
             {
                 throw new COMException("Rule index was outside the collection.", DispEBadIndex);
             }
 
-            return Rule.CreateAuthorized(rules[index]);
+            return Rule.CreateAuthorized(rules[index], generation);
         }
     }
 
     public IInterfaceRule get_ItemByDBID(int databaseId)
     {
-        var match = GetRules().FirstOrDefault(rule => rule.Id == databaseId);
+        var generation = GetGeneration();
+        var match = generation.Rules.FirstOrDefault(rule => rule.Id == databaseId);
 
         return match is null
             ? throw new COMException("No rule with the specified database identifier exists.", DispEBadIndex)
-            : Rule.CreateAuthorized(match);
+            : Rule.CreateAuthorized(match, generation);
     }
 
     public IInterfaceRule Add() => Unavailable<IInterfaceRule>();
@@ -161,7 +163,7 @@ public sealed class Rules : IInterfaceRules
         {
             var rules = _reload();
             ArgumentNullException.ThrowIfNull(rules);
-            Volatile.Write(ref _rules, rules.ToArray());
+            Volatile.Write(ref _generation, new RuleAdministrationGeneration(rules));
         }
         catch (Exception)
         {
@@ -171,13 +173,15 @@ public sealed class Rules : IInterfaceRules
         }
     }
 
-    private IReadOnlyList<RuleAdministrationSnapshot> GetRules()
+    private RuleAdministrationGeneration GetGeneration()
     {
-        return Volatile.Read(ref _rules)
+        return Volatile.Read(ref _generation)
             ?? throw new COMException(
                 "Rules access requires an authenticated server administrator.",
                 EAccessDenied);
     }
+
+    private IReadOnlyList<RuleAdministrationSnapshot> GetRules() => GetGeneration().Rules;
 
     private T Unavailable<T>()
     {
@@ -207,14 +211,16 @@ public sealed class Rule : IInterfaceRule
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly RuleAdministrationSnapshot? _rule;
+    private readonly RuleAdministrationGeneration? _generation;
 
     public Rule()
     {
     }
 
-    private Rule(RuleAdministrationSnapshot rule)
+    private Rule(RuleAdministrationSnapshot rule, RuleAdministrationGeneration generation)
     {
         _rule = rule;
+        _generation = generation;
     }
 
     public int ID => Snapshot.Id;
@@ -231,9 +237,15 @@ public sealed class Rule : IInterfaceRule
         RuleCriteriaAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
     public IInterfaceRuleActions Actions =>
-        RuleActionAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+        RuleActionAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _generation);
 
-    internal static Rule CreateAuthorized(RuleAdministrationSnapshot rule) => new(rule);
+    internal static Rule CreateAuthorized(RuleAdministrationSnapshot rule) =>
+        new(rule, new RuleAdministrationGeneration(new[] { rule }));
+
+    internal static Rule CreateAuthorized(
+        RuleAdministrationSnapshot rule,
+        RuleAdministrationGeneration generation) =>
+        new(rule, generation);
 
     public void Save() => Unavailable();
 
@@ -262,6 +274,35 @@ public sealed class Rule : IInterfaceRule
         throw new COMException(
             "This Rule member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
+    }
+}
+
+[ComVisible(false)]
+internal sealed class RuleAdministrationGeneration
+{
+    private readonly object _actionStateGate = new();
+    private readonly Dictionary<int, RuleActionAdministrationState> _actionStates = [];
+
+    internal RuleAdministrationGeneration(IReadOnlyList<RuleAdministrationSnapshot> rules)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        Rules = rules.ToArray();
+    }
+
+    internal IReadOnlyList<RuleAdministrationSnapshot> Rules { get; }
+
+    internal RuleActionAdministrationState GetActionState(int ruleId)
+    {
+        lock (_actionStateGate)
+        {
+            if (!_actionStates.TryGetValue(ruleId, out var state))
+            {
+                state = new RuleActionAdministrationState();
+                _actionStates.Add(ruleId, state);
+            }
+
+            return state;
+        }
     }
 }
 

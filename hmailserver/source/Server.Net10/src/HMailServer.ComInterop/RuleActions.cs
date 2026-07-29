@@ -113,6 +113,67 @@ internal sealed class RuleActionAdministrationEntry
     public RuleActionAdministrationSnapshot Snapshot { get; set; }
 }
 
+[ComVisible(false)]
+internal sealed class RuleActionAdministrationState
+{
+    private readonly object _gate = new();
+    private RuleActionAdministrationEntry[]? _actions;
+
+    internal RuleActionAdministrationState()
+    {
+    }
+
+    internal RuleActionAdministrationState(IReadOnlyList<RuleActionAdministrationSnapshot> actions)
+    {
+        Replace(actions);
+    }
+
+    internal void Initialize(Func<IReadOnlyList<RuleActionAdministrationSnapshot>> load)
+    {
+        ArgumentNullException.ThrowIfNull(load);
+        if (Volatile.Read(ref _actions) is not null)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (Volatile.Read(ref _actions) is null)
+            {
+                Replace(load());
+            }
+        }
+    }
+
+    internal IReadOnlyList<RuleActionAdministrationEntry> GetActions() =>
+        Volatile.Read(ref _actions)
+        ?? throw new InvalidOperationException("Rule action state has not been initialized.");
+
+    internal void Replace(IReadOnlyList<RuleActionAdministrationSnapshot> actions)
+    {
+        ArgumentNullException.ThrowIfNull(actions);
+        Volatile.Write(
+            ref _actions,
+            actions.Select(static action => new RuleActionAdministrationEntry(action)).ToArray());
+    }
+
+    internal void RemoveByDBID(int databaseId)
+    {
+        var actions = GetActions();
+        Volatile.Write(
+            ref _actions,
+            actions.Where(action => action.Snapshot.Id != databaseId).ToArray());
+    }
+
+    internal void RemoveAt(int index)
+    {
+        var actions = GetActions();
+        Volatile.Write(
+            ref _actions,
+            actions.Where((_, candidateIndex) => candidateIndex != index).ToArray());
+    }
+}
+
 [ComVisible(true)]
 [Guid("32A21952-5421-4A6C-835A-41050D0493C1")]
 [ProgId("hMailServer.RuleActions.1")]
@@ -125,7 +186,7 @@ public sealed class RuleActions : IInterfaceRuleActions
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private RuleActionAdministrationEntry[]? _actions;
+    private readonly RuleActionAdministrationState? _state;
     private readonly Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? _reload;
     private readonly Action<int>? _deleteById;
     private readonly Action<RuleActionAdministrationSnapshot>? _save;
@@ -141,8 +202,23 @@ public sealed class RuleActions : IInterfaceRuleActions
         Action<int>? deleteById,
         Action<RuleActionAdministrationSnapshot>? save,
         Func<bool>? isServerAdministrator)
+        : this(
+            new RuleActionAdministrationState(actions),
+            reload,
+            deleteById,
+            save,
+            isServerAdministrator)
     {
-        _actions = actions.Select(static action => new RuleActionAdministrationEntry(action)).ToArray();
+    }
+
+    private RuleActions(
+        RuleActionAdministrationState state,
+        Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload,
+        Action<int>? deleteById,
+        Action<RuleActionAdministrationSnapshot>? save,
+        Func<bool>? isServerAdministrator)
+    {
+        _state = state;
         _reload = reload;
         _deleteById = deleteById;
         _save = save;
@@ -204,9 +280,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         try
         {
             _deleteById(databaseId);
-            Volatile.Write(
-                ref _actions,
-                actions.Where(action => action.Snapshot.Id != databaseId).ToArray());
+            _state!.RemoveByDBID(databaseId);
         }
         catch (Exception)
         {
@@ -229,9 +303,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         {
             var actions = _reload();
             ArgumentNullException.ThrowIfNull(actions);
-            Volatile.Write(
-                ref _actions,
-                actions.Select(static action => new RuleActionAdministrationEntry(action)).ToArray());
+            _state!.Replace(actions);
         }
         catch (Exception)
         {
@@ -259,10 +331,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         try
         {
             _deleteById(action.Snapshot.Id);
-            var remaining = actions
-                .Where((_, candidateIndex) => candidateIndex != index)
-                .ToArray();
-            Volatile.Write(ref _actions, remaining);
+            _state!.RemoveAt(index);
         }
         catch (Exception)
         {
@@ -283,6 +352,17 @@ public sealed class RuleActions : IInterfaceRuleActions
         return new RuleActions(actions, reload, deleteById, save, isServerAdministrator);
     }
 
+    internal static RuleActions CreateAuthorized(
+        RuleActionAdministrationState state,
+        Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload = null,
+        Action<int>? deleteById = null,
+        Action<RuleActionAdministrationSnapshot>? save = null,
+        Func<bool>? isServerAdministrator = null)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return new RuleActions(state, reload, deleteById, save, isServerAdministrator);
+    }
+
     private void SaveAction(RuleActionAdministrationSnapshot action)
     {
         if (_save is null)
@@ -296,7 +376,7 @@ public sealed class RuleActions : IInterfaceRuleActions
 
     private IReadOnlyList<RuleActionAdministrationEntry> GetActions()
     {
-        return Volatile.Read(ref _actions)
+        return _state?.GetActions()
             ?? throw new COMException(
                 "RuleActions access requires an authenticated server administrator.",
                 EAccessDenied);
@@ -502,7 +582,9 @@ public static class RuleActionAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static RuleActions CreateAuthorizedAdapter(int ruleId)
+    internal static RuleActions CreateAuthorizedAdapter(
+        int ruleId,
+        RuleAdministrationGeneration? generation = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -527,8 +609,20 @@ public static class RuleActionAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        if (generation is null)
+        {
+            return RuleActions.CreateAuthorized(
+                LoadActions(),
+                LoadActions,
+                DeleteActionById,
+                SaveAction,
+                isServerAdministrator: static () => true);
+        }
+
+        var state = generation.GetActionState(ruleId);
+        state.Initialize(LoadActions);
         return RuleActions.CreateAuthorized(
-            LoadActions(),
+            state,
             LoadActions,
             DeleteActionById,
             SaveAction,

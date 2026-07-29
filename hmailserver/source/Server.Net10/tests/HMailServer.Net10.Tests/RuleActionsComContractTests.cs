@@ -315,6 +315,98 @@ public sealed class RuleActionsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRule_RepeatedActionsReturnsFreshFacadesWithSharedActionState()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var rule = rules[0];
+        var firstActions = rule.Actions;
+        var secondActions = rule.Actions;
+
+        Assert.AreNotSame(firstActions, secondActions);
+        firstActions[0].Subject = "Shared subject";
+
+        Assert.AreEqual("Shared subject", secondActions[0].Subject);
+        Assert.AreEqual(1, store.ReadCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedRules_DistinctRuleWrappersShareActionStateWithinOneGeneration()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var firstActions = rules[0].Actions;
+        var secondActions = rules.get_ItemByDBID(10).Actions;
+
+        Assert.AreNotSame(firstActions, secondActions);
+        firstActions[0].Body = "Shared body";
+
+        Assert.AreEqual("Shared body", secondActions[0].Body);
+        Assert.AreEqual(1, store.ReadCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleActions_RefreshReplacesSharedStateAndLeavesChildWrappersStale()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var firstActions = rules[0].Actions;
+        var secondActions = rules[0].Actions;
+        var staleAction = firstActions[0];
+        staleAction.Subject = "Old staged subject";
+
+        store.Replace(new[] { Snapshot(200, 10, ComRuleActionType.SetHeaderValue, 1) });
+        secondActions.Refresh();
+
+        Assert.AreEqual(200, firstActions[0].ID);
+        Assert.AreEqual(200, secondActions[0].ID);
+        Assert.AreEqual("Old staged subject", staleAction.Subject);
+        Assert.AreEqual(100, staleAction.ID);
+        Assert.AreEqual(2, store.ReadCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedRules_RefreshCreatesNewGenerationAndRetainsOldRuleActionState()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var refreshedRules = new[]
+        {
+            new RuleAdministrationSnapshot(10, 1000, "Refreshed rule", true, true, 1)
+        };
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) },
+            () => refreshedRules);
+        var oldRule = rules[0];
+        var oldActions = oldRule.Actions;
+        var oldAction = oldActions[0];
+
+        store.Replace(new[] { Snapshot(200, 10, ComRuleActionType.SetHeaderValue, 1) });
+        rules.Refresh();
+
+        var newRule = rules[0];
+        var newActions = newRule.Actions;
+
+        Assert.AreNotSame(oldRule, newRule);
+        Assert.AreEqual("First rule", oldRule.Name);
+        Assert.AreEqual(100, oldActions[0].ID);
+        Assert.AreEqual(100, oldAction.ID);
+        Assert.AreEqual("Refreshed rule", newRule.Name);
+        Assert.AreEqual(200, newActions[0].ID);
+        Assert.AreEqual(2, store.ReadCount);
+    }
+
+    [TestMethod]
     public void AuthorizedRule_DeleteByIndexDeletesOnlySelectedActionAndNoOpsForInvalidIndices()
     {
         var store = new MutableRuleActionAdministrationStore(
