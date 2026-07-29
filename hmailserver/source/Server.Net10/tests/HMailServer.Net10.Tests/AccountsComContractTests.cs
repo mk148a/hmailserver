@@ -59,6 +59,7 @@ public sealed class AccountsComContractTests
         var quotaUsedError = Assert.ThrowsExactly<COMException>(() => _ = new Account().QuotaUsed);
         var lastLogonError = Assert.ThrowsExactly<COMException>(() => _ = new Account().LastLogonTime);
         var rulesError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Rules);
+        var imapFoldersError = Assert.ThrowsExactly<COMException>(() => _ = new Account().IMAPFolders);
         var validatePasswordError = Assert.ThrowsExactly<COMException>(
             () => new Account().ValidatePassword("candidate-password"));
 
@@ -72,6 +73,7 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(EAccessDenied, quotaUsedError.ErrorCode);
         Assert.AreEqual(EAccessDenied, lastLogonError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rulesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, imapFoldersError.ErrorCode);
         Assert.AreEqual(EAccessDenied, validatePasswordError.ErrorCode);
     }
 
@@ -294,6 +296,48 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(2, messageStore.AccountReadCount);
     }
 
+    [TestMethod]
+    public void AccountImapFolders_RefreshRetainsLegacyAccountScopedStateForOldAndNewWrappers()
+    {
+        var folderStore = new MutableImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(100, 10, -1, "Old", true, 1, "2026-07-01 01:02:03")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(folderStore);
+
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[] { new AccountAdministrationSnapshot(10, 100, "old@example.test", true, 0) },
+            () => new[] { new AccountAdministrationSnapshot(10, 100, "new@example.test", true, 0) });
+
+        var oldAccount = accounts[0];
+        var oldFolders = oldAccount.IMAPFolders;
+        var sameEntryAccount = accounts.get_ItemByDBID(10);
+        var sameEntryFolders = sameEntryAccount.IMAPFolders;
+
+        Assert.AreNotSame(oldAccount, sameEntryAccount);
+        Assert.AreNotSame(oldFolders, sameEntryFolders);
+        Assert.AreEqual("Old", oldFolders[0].Name);
+        Assert.AreEqual("Old", sameEntryFolders[0].Name);
+        Assert.AreEqual(1, folderStore.ReadCount);
+
+        folderStore.Folders =
+        [
+            new ImapFolderAdministrationSnapshot(200, 10, -1, "New", true, 2, "2026-07-02 01:02:03")
+        ];
+        accounts.Refresh();
+
+        var newAccount = accounts[0];
+        var newFolders = newAccount.IMAPFolders;
+
+        Assert.AreNotSame(oldAccount, newAccount);
+        Assert.AreNotSame(oldFolders, newFolders);
+        Assert.AreEqual("Old", oldAccount.IMAPFolders[0].Name);
+        Assert.AreEqual("Old", sameEntryFolders[0].Name);
+        Assert.AreEqual("Old", newFolders[0].Name);
+        Assert.AreEqual(1, folderStore.ReadCount);
+    }
+
     private static void AssertAccount(
         IInterfaceAccount account,
         int id,
@@ -406,5 +450,45 @@ public sealed class AccountsComContractTests
             int folderId,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(Array.Empty<MessageAdministrationSnapshot>());
+    }
+
+    private sealed class MutableImapFolderAdministrationStore(
+        IReadOnlyList<ImapFolderAdministrationSnapshot> folders) : IImapFolderAdministrationStore
+    {
+        public IReadOnlyList<ImapFolderAdministrationSnapshot> Folders { get; set; } = folders;
+
+        public int ReadCount { get; private set; }
+
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetFoldersForAccountAsync(
+            int accountId,
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                Folders.Where(folder => folder.AccountId == accountId).OrderBy(folder => folder.Id).ToArray());
+        }
+
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetRootFoldersAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                Folders.Where(folder => folder.AccountId == accountId && folder.ParentId == -1)
+                    .OrderBy(folder => folder.Id)
+                    .ToArray());
+
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetChildFoldersAsync(
+            int parentFolderId,
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                Folders.Where(folder => folder.AccountId == accountId && folder.ParentId == parentFolderId)
+                    .OrderBy(folder => folder.Id)
+                    .ToArray());
+
+        public ValueTask<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> GetFolderPermissionsAsync(
+            int folderId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>(
+                Array.Empty<ImapFolderPermissionAdministrationSnapshot>());
     }
 }

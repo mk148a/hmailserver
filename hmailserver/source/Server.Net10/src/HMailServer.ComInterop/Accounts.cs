@@ -87,7 +87,8 @@ public sealed class Accounts : IInterfaceAccounts
             return Account.CreateAuthorized(
                 accounts[index].Snapshot,
                 accounts[index].RulesState,
-                accounts[index].MessagesState);
+                accounts[index].MessagesState,
+                accounts[index].ImapFoldersState);
         }
     }
 
@@ -124,7 +125,11 @@ public sealed class Accounts : IInterfaceAccounts
 
         return match is null
             ? throw new COMException("No account with the specified database identifier exists.", DispEBadIndex)
-            : Account.CreateAuthorized(match.Snapshot, match.RulesState, match.MessagesState);
+            : Account.CreateAuthorized(
+                match.Snapshot,
+                match.RulesState,
+                match.MessagesState,
+                match.ImapFoldersState);
     }
 
     public IInterfaceAccount get_ItemByAddress(string address)
@@ -134,7 +139,11 @@ public sealed class Accounts : IInterfaceAccounts
 
         return match is null
             ? throw new COMException("No account with the specified address exists.", DispEBadIndex)
-            : Account.CreateAuthorized(match.Snapshot, match.RulesState, match.MessagesState);
+            : Account.CreateAuthorized(
+                match.Snapshot,
+                match.RulesState,
+                match.MessagesState,
+                match.ImapFoldersState);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
@@ -151,13 +160,15 @@ public sealed class Accounts : IInterfaceAccounts
             .Select(account => new AccountAdministrationEntry(
                 account,
                 RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
-                MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id)))
+                MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id),
+                ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id)))
             .ToArray();
 
     private sealed record AccountAdministrationEntry(
         AccountAdministrationSnapshot Snapshot,
         RuleAdministrationState RulesState,
-        AccountMessageAdministrationState MessagesState);
+        AccountMessageAdministrationState MessagesState,
+        ImapFolderAdministrationState ImapFoldersState);
 
     private T Unavailable<T>()
     {

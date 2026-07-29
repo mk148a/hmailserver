@@ -6,6 +6,19 @@ namespace HMailServer.Net10.Tests;
 public sealed class SqlServerImapFolderAdministrationStoreTests
 {
     [TestMethod]
+    public void GetFoldersForAccountSql_UsesLegacyAccountScopeAndIdOrderingWithoutRootFilter()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.GetFoldersForAccountSql;
+
+        AssertFolderProjection(sql);
+        StringAssert.Contains(sql, "FROM hm_imapfolders");
+        StringAssert.Contains(sql, "folderaccountid = @AccountID");
+        Assert.IsFalse(sql.Contains("folderparentid =", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(sql, "ORDER BY folderid ASC");
+        AssertNoOutOfScopeFolderAccess(sql);
+    }
+
+    [TestMethod]
     public void GetRootFoldersSql_UsesLegacyFolderTableAccountAndRootFiltersAndIdOrdering()
     {
         var sql = SqlServerImapFolderAdministrationStore.GetRootFoldersSql;

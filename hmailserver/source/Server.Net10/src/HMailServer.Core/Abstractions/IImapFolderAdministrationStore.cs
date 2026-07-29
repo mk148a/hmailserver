@@ -2,6 +2,10 @@ namespace HMailServer.Core.Abstractions;
 
 public interface IImapFolderAdministrationStore
 {
+    ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetFoldersForAccountAsync(
+        int accountId,
+        CancellationToken cancellationToken);
+
     ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetRootFoldersAsync(
         int accountId,
         CancellationToken cancellationToken);

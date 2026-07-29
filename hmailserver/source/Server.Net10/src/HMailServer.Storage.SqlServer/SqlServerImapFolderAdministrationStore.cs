@@ -7,6 +7,20 @@ namespace HMailServer.Storage.SqlServer;
 
 public sealed class SqlServerImapFolderAdministrationStore : IImapFolderAdministrationStore
 {
+    public const string GetFoldersForAccountSql = """
+SELECT
+    folderid,
+    folderaccountid,
+    folderparentid,
+    foldername,
+    folderissubscribed,
+    foldercurrentuid,
+    CONVERT(varchar(19), foldercreationtime, 120) AS foldercreationtime
+FROM hm_imapfolders
+WHERE folderaccountid = @AccountID
+ORDER BY folderid ASC;
+""";
+
     public const string GetRootFoldersSql = """
 SELECT
     folderid,
@@ -56,6 +70,17 @@ ORDER BY aclid ASC;
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    public async ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetFoldersForAccountAsync(
+        int accountId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(GetFoldersForAccountSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+
+        return await ReadFoldersAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetRootFoldersAsync(

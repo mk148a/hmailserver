@@ -15,6 +15,7 @@ public sealed class Account : IInterfaceAccount
 
     private readonly bool _attached;
     private readonly AccountAdministrationSnapshot? _administrationSnapshot;
+    private readonly ImapFolderAdministrationState? _imapFoldersState;
     private readonly AccountMessageAdministrationState? _messagesState;
     private readonly RuleAdministrationState? _rulesState;
     private bool _active;
@@ -58,10 +59,12 @@ public sealed class Account : IInterfaceAccount
     private Account(
         AccountAdministrationSnapshot administrationSnapshot,
         RuleAdministrationState rulesState,
-        AccountMessageAdministrationState messagesState)
+        AccountMessageAdministrationState messagesState,
+        ImapFolderAdministrationState imapFoldersState)
     {
         _attached = true;
         _administrationSnapshot = administrationSnapshot;
+        _imapFoldersState = imapFoldersState;
         _messagesState = messagesState;
         _rulesState = rulesState;
     }
@@ -158,8 +161,8 @@ public sealed class Account : IInterfaceAccount
         {
             EnsureAttached();
 
-            return _administrationSnapshot is { } account
-                ? ImapFolderAdministrationRuntimeHost.CreateAuthorizedAdapter(account.Id)
+            return _administrationSnapshot is { } account && _imapFoldersState is { } foldersState
+                ? HMailServer.ComInterop.IMAPFolders.CreateAuthorized(foldersState, account.Id, -1)
                 : NotImplemented<IInterfaceIMAPFolders>();
         }
     }
@@ -202,18 +205,34 @@ public sealed class Account : IInterfaceAccount
         new(
             account,
             RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
-            MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id));
+            MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id),
+            ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id));
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
         RuleAdministrationState rulesState) =>
-        new(account, rulesState, MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id));
+        new(
+            account,
+            rulesState,
+            MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id),
+            ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id));
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
         RuleAdministrationState rulesState,
         AccountMessageAdministrationState messagesState) =>
-        new(account, rulesState, messagesState);
+        new(
+            account,
+            rulesState,
+            messagesState,
+            ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id));
+
+    internal static Account CreateAuthorized(
+        AccountAdministrationSnapshot account,
+        RuleAdministrationState rulesState,
+        AccountMessageAdministrationState messagesState,
+        ImapFolderAdministrationState imapFoldersState) =>
+        new(account, rulesState, messagesState, imapFoldersState);
 
     public void Save() => NotImplemented();
 

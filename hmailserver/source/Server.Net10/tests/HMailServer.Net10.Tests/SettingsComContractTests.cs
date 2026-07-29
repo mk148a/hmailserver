@@ -735,6 +735,14 @@ public sealed class SettingsComContractTests
     private sealed class FixedImapFolderAdministrationStore(
         IReadOnlyList<ImapFolderAdministrationSnapshot> folders) : IImapFolderAdministrationStore
     {
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetFoldersForAccountAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                folders.Where(folder => folder.AccountId == accountId)
+                    .OrderBy(folder => folder.Id)
+                    .ToArray());
+
         public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetRootFoldersAsync(
             int accountId,
             CancellationToken cancellationToken) =>

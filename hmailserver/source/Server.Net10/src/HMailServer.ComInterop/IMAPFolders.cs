@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Collections.Concurrent;
 using HMailServer.Core.Abstractions;
 
 namespace HMailServer.ComInterop;
@@ -91,6 +92,9 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly IReadOnlyList<ImapFolderAdministrationSnapshot>? _folders;
+    private readonly ImapFolderAdministrationState? _state;
+    private readonly int _accountId;
+    private readonly int _parentFolderId;
 
     public IMAPFolders()
     {
@@ -99,6 +103,16 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
     private IMAPFolders(IReadOnlyList<ImapFolderAdministrationSnapshot> folders)
     {
         _folders = folders.ToArray();
+    }
+
+    private IMAPFolders(
+        ImapFolderAdministrationState state,
+        int accountId,
+        int parentFolderId)
+    {
+        _state = state;
+        _accountId = accountId;
+        _parentFolderId = parentFolderId;
     }
 
     public int Count => GetFolders().Count;
@@ -119,7 +133,9 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
                 throw new COMException("IMAP folder index was outside the collection.", DispEBadIndex);
             }
 
-            return IMAPFolder.CreateAuthorized(folders[index]);
+            return _state is { } state
+                ? IMAPFolder.CreateAuthorized(folders[index], state)
+                : IMAPFolder.CreateAuthorized(folders[index]);
         }
     }
 
@@ -131,7 +147,9 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
             ? throw new COMException(
                 "No IMAP folder with the specified database identifier exists.",
                 DispEBadIndex)
-            : IMAPFolder.CreateAuthorized(match);
+            : _state is { } state
+                ? IMAPFolder.CreateAuthorized(match, state)
+                : IMAPFolder.CreateAuthorized(match);
     }
 
     public IInterfaceIMAPFolder get_ItemByName(string name)
@@ -142,7 +160,9 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
 
         return match is null
             ? throw new COMException("No IMAP folder with the specified name exists.", DispEBadIndex)
-            : IMAPFolder.CreateAuthorized(match);
+            : _state is { } state
+                ? IMAPFolder.CreateAuthorized(match, state)
+                : IMAPFolder.CreateAuthorized(match);
     }
 
     public IInterfaceIMAPFolder Add(string name) => Unavailable<IInterfaceIMAPFolder>();
@@ -151,6 +171,13 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
 
     private IReadOnlyList<ImapFolderAdministrationSnapshot> GetFolders()
     {
+        if (_state is { } state)
+        {
+            return state.GetFolders()
+                .Where(folder => folder.AccountId == _accountId && folder.ParentId == _parentFolderId)
+                .ToArray();
+        }
+
         return _folders
             ?? throw new COMException(
                 "IMAPFolders access requires an authenticated server administrator.",
@@ -172,6 +199,12 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
             "This IMAPFolders member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
     }
+
+    internal static IMAPFolders CreateAuthorized(
+        ImapFolderAdministrationState state,
+        int accountId,
+        int parentFolderId) =>
+        new(state, accountId, parentFolderId);
 }
 
 [ComVisible(true)]
@@ -186,14 +219,18 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly ImapFolderAdministrationSnapshot? _folder;
+    private readonly ImapFolderAdministrationState? _foldersState;
 
     public IMAPFolder()
     {
     }
 
-    private IMAPFolder(ImapFolderAdministrationSnapshot folder)
+    private IMAPFolder(
+        ImapFolderAdministrationSnapshot folder,
+        ImapFolderAdministrationState? foldersState = null)
     {
         _folder = folder;
+        _foldersState = foldersState;
     }
 
     public int ID => Snapshot.Id;
@@ -205,7 +242,9 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
     public IInterfaceMessages Messages => MessageAdministrationRuntimeHost.CreateAuthorizedFolderAdapter(Snapshot.Id);
 
     public IInterfaceIMAPFolders SubFolders =>
-        ImapFolderAdministrationRuntimeHost.CreateAuthorizedChildAdapter(Snapshot.Id, Snapshot.AccountId);
+        _foldersState is { } state
+            ? IMAPFolders.CreateAuthorized(state, Snapshot.AccountId, Snapshot.Id)
+            : ImapFolderAdministrationRuntimeHost.CreateAuthorizedChildAdapter(Snapshot.Id, Snapshot.AccountId);
 
     public int ParentID => Snapshot.ParentId;
 
@@ -230,6 +269,11 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
     public string CreationTime => Snapshot.CreationTime;
 
     internal static IMAPFolder CreateAuthorized(ImapFolderAdministrationSnapshot folder) => new(folder);
+
+    internal static IMAPFolder CreateAuthorized(
+        ImapFolderAdministrationSnapshot folder,
+        ImapFolderAdministrationState state) =>
+        new(folder, state);
 
     public void Save() => Unavailable();
 
@@ -258,17 +302,58 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 }
 
 [ComVisible(false)]
+internal sealed class ImapFolderAdministrationState
+{
+    private readonly Lazy<IReadOnlyList<ImapFolderAdministrationSnapshot>> _folders;
+
+    public ImapFolderAdministrationState(Func<IReadOnlyList<ImapFolderAdministrationSnapshot>> load)
+    {
+        ArgumentNullException.ThrowIfNull(load);
+        _folders = new(
+            () =>
+            {
+                var folders = load();
+                ArgumentNullException.ThrowIfNull(folders);
+                return folders.ToArray();
+            },
+            LazyThreadSafetyMode.ExecutionAndPublication);
+    }
+
+    public IReadOnlyList<ImapFolderAdministrationSnapshot> GetFolders() => _folders.Value;
+}
+
+[ComVisible(false)]
 public static class ImapFolderAdministrationRuntimeHost
 {
     private const int CoENotInitialized = unchecked((int)0x800401F0);
 
     private static IImapFolderAdministrationStore? _store;
+    private static readonly ConcurrentDictionary<int, ImapFolderAdministrationState> _states = new();
 
     public static void Configure(IImapFolderAdministrationStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
         Volatile.Write(ref _store, store);
+        _states.Clear();
     }
+
+    internal static ImapFolderAdministrationState CreateAuthorizedState(int accountId) =>
+        _states.GetOrAdd(accountId, CreateState);
+
+    private static ImapFolderAdministrationState CreateState(int accountId) =>
+        new(() =>
+        {
+            var store = Volatile.Read(ref _store)
+                ?? throw new COMException(
+                    "The hMailServer IMAP folder administration runtime has not been initialized.",
+                    CoENotInitialized);
+
+            return store
+                .GetFoldersForAccountAsync(accountId, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+        });
 
     internal static IMAPFolders CreateAuthorizedAdapter(int accountId)
     {
