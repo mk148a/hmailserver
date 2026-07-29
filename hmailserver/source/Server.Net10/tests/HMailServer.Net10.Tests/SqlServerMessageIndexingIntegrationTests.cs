@@ -1321,8 +1321,10 @@ ORDER BY messageid;
             var outsideRuleCriterion = Assert.ThrowsExactly<COMException>(
                 () => _ = firstRuleCriteria.get_ItemByDBID(3000));
             Assert.AreEqual(unchecked((int)0x8002000B), outsideRuleCriterion.ErrorCode);
-            var pendingRuleCriterionSave = Assert.ThrowsExactly<COMException>(firstRuleCriteria[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingRuleCriterionSave.ErrorCode);
+            var savedRuleCriterion = firstRuleCriteria[0];
+            savedRuleCriterion.HeaderField = "X-Saved-Header";
+            savedRuleCriterion.Save();
+            Assert.AreEqual("X-Saved-Header", savedRuleCriterion.HeaderField);
 
             await using (var connection = new SqlConnection(testConnectionString))
             {

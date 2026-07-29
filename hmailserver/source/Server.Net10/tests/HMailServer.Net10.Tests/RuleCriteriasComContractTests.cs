@@ -97,6 +97,7 @@ public sealed class RuleCriteriasComContractTests
         var criteriaDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleCriterias().DeleteByDBID(100));
         var criteriaIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleCriterias().Delete(0));
         var criterionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleCriteria().MatchValue);
+        var criterionHeaderFieldError = Assert.ThrowsExactly<COMException>(() => new RuleCriteria().HeaderField = "X-Detached");
         var criterionSaveError = Assert.ThrowsExactly<COMException>(new RuleCriteria().Save);
         var criterionDeleteError = Assert.ThrowsExactly<COMException>(new RuleCriteria().Delete);
 
@@ -105,6 +106,7 @@ public sealed class RuleCriteriasComContractTests
         Assert.AreEqual(EAccessDenied, criteriaDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criteriaIndexDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, criterionHeaderFieldError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, criterionDeleteError.ErrorCode);
         Assert.AreEqual(0, store.ReadCount);
@@ -154,6 +156,8 @@ public sealed class RuleCriteriasComContractTests
             () => criteria[0].PredefinedField = ComRulePredefinedField.Body);
         var pendingMatchType = Assert.ThrowsExactly<COMException>(
             () => criteria[0].MatchType = ComRuleMatchType.NotEquals);
+        var pendingHeaderField = Assert.ThrowsExactly<COMException>(
+            () => criteria[0].HeaderField = "X-ReadOnly");
         var pendingSave = Assert.ThrowsExactly<COMException>(criteria[0].Save);
         var pendingItemDelete = Assert.ThrowsExactly<COMException>(criteria[0].Delete);
 
@@ -167,6 +171,7 @@ public sealed class RuleCriteriasComContractTests
         Assert.AreEqual(ENotImplemented, pendingUsePredefined.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingPredefinedField.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMatchType.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingHeaderField.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSave.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingItemDelete.ErrorCode);
     }
@@ -385,7 +390,7 @@ public sealed class RuleCriteriasComContractTests
     }
 
     [TestMethod]
-    public void AuthorizedRuleCriteria_SaveUsesOwningRuleScopeAndPersistsSnapshot()
+    public void AuthorizedRuleCriteria_HeaderFieldStagesRawValueAndSaveUsesOwningRuleScope()
     {
         var store = new MutableRuleCriteriaAdministrationStore(
             new[]
@@ -401,12 +406,21 @@ public sealed class RuleCriteriasComContractTests
                 new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
             });
 
-        rules[0].Criterias[0].Save();
+        var criterion = rules[0].Criterias[0];
+        const string rawHeaderField = " X-Raw-Header\t";
+
+        criterion.HeaderField = rawHeaderField;
+
+        Assert.AreEqual(rawHeaderField, criterion.HeaderField);
+        Assert.AreEqual(0, store.SavedCriteria.Count);
+
+        criterion.Save();
 
         Assert.AreEqual(1, store.SavedCriteria.Count);
         Assert.AreEqual(100, store.SavedCriteria[0].Id);
         Assert.AreEqual(10, store.SavedCriteria[0].RuleId);
         Assert.AreEqual("first", store.SavedCriteria[0].MatchValue);
+        Assert.AreEqual(rawHeaderField, store.SavedCriteria[0].HeaderField);
     }
 
     [TestMethod]
@@ -424,17 +438,21 @@ public sealed class RuleCriteriasComContractTests
         var rules = Rules.CreateAuthorized(
             new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
         var criterion = rules[0].Criterias[0];
+        const string retryHeaderField = "X-Retry-Header";
+        criterion.HeaderField = retryHeaderField;
 
         var saveFailure = Assert.ThrowsExactly<COMException>(criterion.Save);
 
         Assert.AreEqual(EFail, saveFailure.ErrorCode);
         Assert.AreEqual(1, store.SavedCriteria.Count);
         Assert.AreEqual(100, criterion.ID);
+        Assert.AreEqual(retryHeaderField, criterion.HeaderField);
 
         store.FailSave = false;
         criterion.Save();
 
         Assert.AreEqual(2, store.SavedCriteria.Count);
+        Assert.AreEqual(retryHeaderField, store.SavedCriteria[1].HeaderField);
     }
 
     [TestMethod]

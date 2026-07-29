@@ -126,7 +126,7 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
             return RuleCriteria.CreateAuthorized(
                 criterion,
                 () => DeleteByDBID(criterion.Id),
-                () => SaveCriterion(criterion));
+                _save is null ? null : SaveCriterion);
         }
     }
 
@@ -141,7 +141,7 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
             : RuleCriteria.CreateAuthorized(
                 match,
                 () => DeleteByDBID(match.Id),
-                () => SaveCriterion(match));
+                _save is null ? null : SaveCriterion);
     }
 
     public int Count => GetCriteria().Count;
@@ -288,9 +288,9 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly RuleCriteriaAdministrationSnapshot? _criterion;
+    private RuleCriteriaAdministrationSnapshot? _criterion;
     private readonly Action? _delete;
-    private readonly Action? _save;
+    private readonly Action<RuleCriteriaAdministrationSnapshot>? _save;
 
     public RuleCriteria()
     {
@@ -299,7 +299,7 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     private RuleCriteria(
         RuleCriteriaAdministrationSnapshot criterion,
         Action? delete,
-        Action? save)
+        Action<RuleCriteriaAdministrationSnapshot>? save)
     {
         _criterion = criterion;
         _delete = delete;
@@ -326,7 +326,7 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
         set => Unavailable();
     }
 
-    public string HeaderField { get => Snapshot.HeaderField; set => Unavailable(); }
+    public string HeaderField { get => Snapshot.HeaderField; set => Mutate(snapshot => snapshot with { HeaderField = value }); }
 
     public void Save()
     {
@@ -339,7 +339,7 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
 
         try
         {
-            _save();
+            _save(Snapshot);
         }
         catch (COMException)
         {
@@ -368,7 +368,18 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     internal static RuleCriteria CreateAuthorized(
         RuleCriteriaAdministrationSnapshot criterion,
         Action? delete = null,
-        Action? save = null) => new(criterion, delete, save);
+        Action<RuleCriteriaAdministrationSnapshot>? save = null) => new(criterion, delete, save);
+
+    private void Mutate(Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot> mutation)
+    {
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _criterion = mutation(Snapshot);
+    }
 
     private RuleCriteriaAdministrationSnapshot Snapshot =>
         _criterion ?? throw new COMException(
