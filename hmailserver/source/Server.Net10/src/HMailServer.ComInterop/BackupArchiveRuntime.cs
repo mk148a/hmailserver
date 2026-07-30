@@ -129,6 +129,7 @@ public sealed class SevenZipBackupArchiveRuntime
                     payload?.Domains,
                     payload?.DomainAliases,
                     payload?.Accounts,
+                    payload?.BackupAccounts,
                     payload?.Aliases,
                     payload?.DistributionLists,
                     payload?.DistributionListRecipients);
@@ -325,6 +326,7 @@ public sealed class SevenZipBackupArchiveRuntime
         IReadOnlyList<DomainAdministrationSnapshot>? domains,
         IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases,
         IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? accounts,
+        IReadOnlyDictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>? backupAccounts,
         IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? normalAliases,
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? distributionLists,
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients)
@@ -380,18 +382,37 @@ public sealed class SevenZipBackupArchiveRuntime
                 writer.WriteEndElement();
             }
 
-            if (accounts is not null
-                && accounts.TryGetValue(domain.Id, out var domainAccounts)
-                && domainAccounts.Count > 0)
+            IReadOnlyList<AccountAdministrationSnapshot>? domainAccounts = null;
+            var hasDomainAccounts = accounts is not null
+                && accounts.TryGetValue(domain.Id, out domainAccounts);
+            IReadOnlyList<AccountBackupAdministrationSnapshot>? selectedBackupAccounts = null;
+            var hasBackupDomainAccounts = backupAccounts is not null
+                && backupAccounts.TryGetValue(domain.Id, out selectedBackupAccounts);
+            if ((hasDomainAccounts && domainAccounts!.Count > 0)
+                || (hasBackupDomainAccounts && selectedBackupAccounts!.Count > 0))
             {
                 writer.WriteStartElement("Accounts");
-                foreach (var account in domainAccounts)
+                var domainAccountsForXml = hasDomainAccounts
+                    ? domainAccounts!
+                    : selectedBackupAccounts!.Select(static account => account.Account).ToArray();
+                foreach (var account in domainAccountsForXml)
                 {
+                    var backupAccount = hasBackupDomainAccounts
+                        ? selectedBackupAccounts!.FirstOrDefault(
+                            candidate => candidate.Account.Id == account.Id)
+                        : null;
                     writer.WriteStartElement("Account");
                     writer.WriteAttributeString("Name", account.Address);
                     writer.WriteAttributeString("PersonFirstName", account.PersonFirstName);
                     writer.WriteAttributeString("PersonLastName", account.PersonLastName);
                     writer.WriteAttributeString("Active", (account.Active ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                    if (backupAccount is not null)
+                    {
+                        writer.WriteAttributeString("Password", backupAccount.Password);
+                        writer.WriteAttributeString(
+                            "PasswordEncryption",
+                            backupAccount.PasswordEncryption.ToString(CultureInfo.InvariantCulture));
+                    }
                     writer.WriteAttributeString("MaxAccountSize", account.MaxSize.ToString(CultureInfo.InvariantCulture));
                     writer.WriteAttributeString("ADUsername", account.ActiveDirectoryUsername);
                     writer.WriteAttributeString("ADDomain", account.ActiveDirectoryDomain);
@@ -565,7 +586,8 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? Accounts = null,
     IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? Aliases = null,
     IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? DistributionLists = null,
-    IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? DistributionListRecipients = null);
+    IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? DistributionListRecipients = null,
+    IReadOnlyDictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>? BackupAccounts = null);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
@@ -574,6 +596,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IDomainAdministrationStore _domainStore;
     private readonly IDomainAliasAdministrationStore _domainAliasStore;
     private readonly IAccountAdministrationStore _accountStore;
+    private readonly IBackupAccountAdministrationStore? _backupAccountStore;
     private readonly IAliasAdministrationStore _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore? _distributionListRecipientStore;
@@ -602,7 +625,8 @@ public sealed class BackupXmlPayloadRuntime
         IAccountAdministrationStore accountStore,
         IAliasAdministrationStore aliasStore,
         IDistributionListAdministrationStore? distributionListStore,
-        IDistributionListRecipientAdministrationStore? distributionListRecipientStore)
+        IDistributionListRecipientAdministrationStore? distributionListRecipientStore,
+        IBackupAccountAdministrationStore? backupAccountStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -613,6 +637,7 @@ public sealed class BackupXmlPayloadRuntime
         _domainStore = domainStore;
         _domainAliasStore = domainAliasStore;
         _accountStore = accountStore;
+        _backupAccountStore = backupAccountStore;
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _distributionListRecipientStore = distributionListRecipientStore;
@@ -637,6 +662,7 @@ public sealed class BackupXmlPayloadRuntime
             : null;
         IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases = null;
         IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? accounts = null;
+        IReadOnlyDictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>? backupAccounts = null;
         IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? aliases = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? distributionLists = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients = null;
@@ -644,6 +670,9 @@ public sealed class BackupXmlPayloadRuntime
         {
             var aliasesByDomainId = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
             var accountsByDomainId = new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>();
+            var backupAccountsByDomainId = _backupAccountStore is null
+                ? null
+                : new Dictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>();
             var normalAliasesByDomainId = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
             var distributionListsByDomainId = _distributionListStore is null
                 ? null
@@ -659,7 +688,18 @@ public sealed class BackupXmlPayloadRuntime
                         .ConfigureAwait(false);
                 }
 
-                if (!accountsByDomainId.ContainsKey(domain.Id))
+                if (backupAccountsByDomainId is not null
+                    && !backupAccountsByDomainId.ContainsKey(domain.Id))
+                {
+                    var domainBackupAccounts = await _backupAccountStore!
+                        .GetBackupAccountsAsync(domain.Id, cancellationToken)
+                        .ConfigureAwait(false);
+                    backupAccountsByDomainId[domain.Id] = domainBackupAccounts;
+                    accountsByDomainId[domain.Id] = domainBackupAccounts
+                        .Select(static account => account.Account)
+                        .ToArray();
+                }
+                else if (!accountsByDomainId.ContainsKey(domain.Id))
                 {
                     accountsByDomainId[domain.Id] = await _accountStore
                         .GetAccountsAsync(domain.Id, cancellationToken)
@@ -692,6 +732,7 @@ public sealed class BackupXmlPayloadRuntime
 
             domainAliases = aliasesByDomainId;
             accounts = accountsByDomainId;
+            backupAccounts = backupAccountsByDomainId;
             aliases = normalAliasesByDomainId;
             distributionLists = distributionListsByDomainId;
 
@@ -717,6 +758,7 @@ public sealed class BackupXmlPayloadRuntime
             accounts,
             aliases,
             distributionLists,
-            distributionListRecipients);
+            distributionListRecipients,
+            backupAccounts);
     }
 }

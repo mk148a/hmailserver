@@ -5,7 +5,9 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerAccountAdministrationStore : IAccountAdministrationStore
+public sealed class SqlServerAccountAdministrationStore :
+    IAccountAdministrationStore,
+    IBackupAccountAdministrationStore
 {
     public const string GetAccountsSql = """
 SELECT
@@ -80,6 +82,45 @@ FROM hm_accounts
 WHERE accountid = @AccountID;
 """;
 
+    public const string GetBackupAccountsSql = """
+SELECT
+    accountid,
+    accountdomainid,
+    accountaddress,
+    accountactive,
+    accountpassword,
+    accountpwencryption,
+    accountadminlevel,
+    accountisad,
+    accountaddomain,
+    accountadusername,
+    accountmaxsize,
+    (
+        SELECT COALESCE(SUM(CAST(messagesize AS bigint)), 0)
+        FROM hm_messages
+        WHERE messageaccountid = hm_accounts.accountid
+    ) AS accountsizebytes,
+    accountlastlogontime,
+    accountpersonfirstname,
+    accountpersonlastname,
+    accountvacationmessageon,
+    accountvacationmessage,
+    accountvacationsubject,
+    accountvacationexpires,
+    CONVERT(varchar(10), accountvacationexpiredate, 23) AS accountvacationexpiredate,
+    accountvacationabortspamflagged,
+    accountforwardenabled,
+    accountforwardaddress,
+    accountforwardkeeporiginal,
+    accountforwardabortspamflagged,
+    accountenablesignature,
+    CONVERT(nvarchar(max), accountsignatureplaintext) AS accountsignatureplaintext,
+    CONVERT(nvarchar(max), accountsignaturehtml) AS accountsignaturehtml
+FROM hm_accounts
+WHERE accountdomainid = @DomainID
+ORDER BY accountaddress ASC;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerAccountAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -110,6 +151,17 @@ WHERE accountid = @AccountID;
         return (await ReadAccountsAsync(command, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
     }
 
+    public async ValueTask<IReadOnlyList<AccountBackupAdministrationSnapshot>> GetBackupAccountsAsync(
+        int domainId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(GetBackupAccountsSql, connection);
+        command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
+
+        return await ReadBackupAccountsAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
     private static async ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> ReadAccountsAsync(
         SqlCommand command,
         CancellationToken cancellationToken)
@@ -121,40 +173,67 @@ WHERE accountid = @AccountID;
         var accounts = new List<AccountAdministrationSnapshot>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var maxSize = reader.GetInt32(8);
-            var sizeBytes = Convert.ToInt64(reader.GetValue(9), CultureInfo.InvariantCulture);
-            accounts.Add(
-                new AccountAdministrationSnapshot(
-                    Id: reader.GetInt32(0),
-                    DomainId: reader.GetInt32(1),
-                    Address: reader.GetString(2),
-                    Active: Convert.ToInt32(reader.GetValue(3), CultureInfo.InvariantCulture) != 0,
-                    AdminLevel: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture),
-                    IsActiveDirectoryAccount: ReadLegacyBoolean(reader, 5),
-                    ActiveDirectoryDomain: reader.GetString(6),
-                    ActiveDirectoryUsername: reader.GetString(7),
-                    MaxSize: maxSize,
-                    Size: CalculateLegacySizeMb(sizeBytes),
-                    QuotaUsed: CalculateLegacyQuotaUsed(sizeBytes, maxSize),
-                    LastLogonTime: reader.GetDateTime(10),
-                    PersonFirstName: reader.GetString(11),
-                    PersonLastName: reader.GetString(12),
-                    VacationMessageIsOn: ReadLegacyBoolean(reader, 13),
-                    VacationMessage: reader.GetString(14),
-                    VacationSubject: reader.GetString(15),
-                    VacationMessageExpires: ReadLegacyBoolean(reader, 16),
-                    VacationMessageExpiresDate: reader.GetString(17),
-                    VacationMessageAbortSpamFlagged: ReadLegacyBoolean(reader, 18),
-                    ForwardEnabled: ReadLegacyBoolean(reader, 19),
-                    ForwardAddress: reader.GetString(20),
-                    ForwardKeepOriginal: ReadLegacyBoolean(reader, 21),
-                    ForwardAbortSpamFlagged: ReadLegacyBoolean(reader, 22),
-                    SignatureEnabled: ReadLegacyBoolean(reader, 23),
-                    SignaturePlainText: reader.GetString(24),
-                    SignatureHtml: reader.GetString(25)));
+            accounts.Add(ReadAccountSnapshot(reader, adminLevelOrdinal: 4));
         }
 
         return accounts;
+    }
+
+    private static async ValueTask<IReadOnlyList<AccountBackupAdministrationSnapshot>> ReadBackupAccountsAsync(
+        SqlCommand command,
+        CancellationToken cancellationToken)
+    {
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+
+        var accounts = new List<AccountBackupAdministrationSnapshot>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            accounts.Add(
+                new AccountBackupAdministrationSnapshot(
+                    Account: ReadAccountSnapshot(reader, adminLevelOrdinal: 6),
+                    Password: reader.GetString(4),
+                    PasswordEncryption: Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture)));
+        }
+
+        return accounts;
+    }
+
+    private static AccountAdministrationSnapshot ReadAccountSnapshot(
+        SqlDataReader reader,
+        int adminLevelOrdinal)
+    {
+        var maxSize = reader.GetInt32(adminLevelOrdinal + 4);
+        var sizeBytes = Convert.ToInt64(reader.GetValue(adminLevelOrdinal + 5), CultureInfo.InvariantCulture);
+        return new AccountAdministrationSnapshot(
+            Id: reader.GetInt32(0),
+            DomainId: reader.GetInt32(1),
+            Address: reader.GetString(2),
+            Active: Convert.ToInt32(reader.GetValue(3), CultureInfo.InvariantCulture) != 0,
+            AdminLevel: Convert.ToInt32(reader.GetValue(adminLevelOrdinal), CultureInfo.InvariantCulture),
+            IsActiveDirectoryAccount: ReadLegacyBoolean(reader, adminLevelOrdinal + 1),
+            ActiveDirectoryDomain: reader.GetString(adminLevelOrdinal + 2),
+            ActiveDirectoryUsername: reader.GetString(adminLevelOrdinal + 3),
+            MaxSize: maxSize,
+            Size: CalculateLegacySizeMb(sizeBytes),
+            QuotaUsed: CalculateLegacyQuotaUsed(sizeBytes, maxSize),
+            LastLogonTime: reader.GetDateTime(adminLevelOrdinal + 6),
+            PersonFirstName: reader.GetString(adminLevelOrdinal + 7),
+            PersonLastName: reader.GetString(adminLevelOrdinal + 8),
+            VacationMessageIsOn: ReadLegacyBoolean(reader, adminLevelOrdinal + 9),
+            VacationMessage: reader.GetString(adminLevelOrdinal + 10),
+            VacationSubject: reader.GetString(adminLevelOrdinal + 11),
+            VacationMessageExpires: ReadLegacyBoolean(reader, adminLevelOrdinal + 12),
+            VacationMessageExpiresDate: reader.GetString(adminLevelOrdinal + 13),
+            VacationMessageAbortSpamFlagged: ReadLegacyBoolean(reader, adminLevelOrdinal + 14),
+            ForwardEnabled: ReadLegacyBoolean(reader, adminLevelOrdinal + 15),
+            ForwardAddress: reader.GetString(adminLevelOrdinal + 16),
+            ForwardKeepOriginal: ReadLegacyBoolean(reader, adminLevelOrdinal + 17),
+            ForwardAbortSpamFlagged: ReadLegacyBoolean(reader, adminLevelOrdinal + 18),
+            SignatureEnabled: ReadLegacyBoolean(reader, adminLevelOrdinal + 19),
+            SignaturePlainText: reader.GetString(adminLevelOrdinal + 20),
+            SignatureHtml: reader.GetString(adminLevelOrdinal + 21));
     }
 
     private static float CalculateLegacySizeMb(long sizeBytes) =>

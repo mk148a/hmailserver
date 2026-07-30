@@ -25,6 +25,16 @@ public sealed class SqlServerAccountAdministrationStoreTests
         Assert.IsFalse(sql.Contains("ORDER BY", StringComparison.OrdinalIgnoreCase));
     }
 
+    [TestMethod]
+    public void GetBackupAccountsSql_UsesDedicatedCredentialProjectionAndDomainFilter()
+    {
+        var sql = SqlServerAccountAdministrationStore.GetBackupAccountsSql;
+
+        AssertBackupAccountProjection(sql);
+        StringAssert.Contains(sql, "WHERE accountdomainid = @DomainID");
+        StringAssert.Contains(sql, "ORDER BY accountaddress ASC");
+    }
+
     private static void AssertLegacyAccountProjection(string sql)
     {
         StringAssert.Contains(sql, "accountid");
@@ -62,6 +72,37 @@ public sealed class SqlServerAccountAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("accountpassword", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("messagefilename", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void AssertBackupAccountProjection(string sql)
+    {
+        AssertLegacyAccountProjectionWithoutSecrets(sql);
+        StringAssert.Contains(sql, "accountpassword");
+        StringAssert.Contains(sql, "accountpwencryption");
+        Assert.IsTrue(
+            sql.IndexOf("accountactive", StringComparison.OrdinalIgnoreCase)
+                < sql.IndexOf("accountpassword", StringComparison.OrdinalIgnoreCase));
+        Assert.IsTrue(
+            sql.IndexOf("accountpassword", StringComparison.OrdinalIgnoreCase)
+                < sql.IndexOf("accountpwencryption", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void AssertLegacyAccountProjectionWithoutSecrets(string sql)
+    {
+        StringAssert.Contains(sql, "accountid");
+        StringAssert.Contains(sql, "accountdomainid");
+        StringAssert.Contains(sql, "accountaddress");
+        StringAssert.Contains(sql, "accountactive");
+        StringAssert.Contains(sql, "accountadminlevel");
+        StringAssert.Contains(sql, "FROM hm_accounts");
+        StringAssert.Contains(sql, "FROM hm_messages");
+        StringAssert.Contains(sql, "SUM(CAST(messagesize AS bigint))");
+        StringAssert.Contains(sql, "messageaccountid = hm_accounts.accountid");
+        Assert.IsFalse(sql.Contains(" JOIN ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("messagefilename", StringComparison.OrdinalIgnoreCase));
     }
 }

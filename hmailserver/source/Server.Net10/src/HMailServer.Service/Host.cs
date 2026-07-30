@@ -906,7 +906,11 @@ public static class Host
     builder.Services.AddSingleton<IGreyListingTripletAdministrationStore, SqlServerGreyListingTripletAdministrationStore>();
     builder.Services.AddSingleton<IWhiteListAddressAdministrationStore, SqlServerWhiteListAddressAdministrationStore>();
     builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
-    builder.Services.AddSingleton<IAccountAdministrationStore, SqlServerAccountAdministrationStore>();
+    builder.Services.AddSingleton<SqlServerAccountAdministrationStore>();
+    builder.Services.AddSingleton<IAccountAdministrationStore>(
+        serviceProvider => serviceProvider.GetRequiredService<SqlServerAccountAdministrationStore>());
+    builder.Services.AddSingleton<IBackupAccountAdministrationStore>(
+        serviceProvider => serviceProvider.GetRequiredService<SqlServerAccountAdministrationStore>());
     builder.Services.AddSingleton<IMessageAdministrationStore, SqlServerMessageAdministrationStore>();
     builder.Services.AddSingleton<IMessageAdministrationContentSource, SqlServerMessageAdministrationContentSource>();
     builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAccountAdministrationStore>();

@@ -375,6 +375,21 @@ public sealed class BackupArchiveRuntimeTests
                             SignatureHtml: "<p>Html & \" '</p>")
                     }
                 },
+                BackupAccounts: new Dictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>
+                {
+                    [10] = new[]
+                    {
+                        new AccountBackupAdministrationSnapshot(
+                            new AccountAdministrationSnapshot(
+                                Id: 1,
+                                DomainId: 10,
+                                Address: "account<&\"'@example.test",
+                                Active: true,
+                                AdminLevel: 2),
+                            Password: "Password<&\"'",
+                            PasswordEncryption: 2)
+                    }
+                },
                 Aliases: new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>
                 {
                     [10] = new[]
@@ -427,7 +442,7 @@ public sealed class BackupArchiveRuntimeTests
         CollectionAssert.AreEqual(
             new[]
             {
-                "Name", "PersonFirstName", "PersonLastName", "Active", "MaxAccountSize",
+                "Name", "PersonFirstName", "PersonLastName", "Active", "Password", "PasswordEncryption", "MaxAccountSize",
                 "ADUsername", "ADDomain", "ADActive", "VacationMessageOn", "VacationMessage",
                 "VacationSubject", "VacationExpires", "VacationExpireDate", "VacationAbortSpamFlagged",
                 "AdminLevel", "ForwardEnabled", "ForwardAddress", "ForwardKeepOriginal",
@@ -436,10 +451,11 @@ public sealed class BackupArchiveRuntimeTests
             },
             account.Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
         Assert.AreEqual("2026-07-30 14:15:16", account.Attribute("LastLogonTime")?.Value);
-        Assert.IsNull(account.Attribute("Password"));
-        Assert.IsNull(account.Attribute("PasswordEncryption"));
+        Assert.AreEqual("Password<&\"'", account.Attribute("Password")?.Value);
+        Assert.AreEqual("2", account.Attribute("PasswordEncryption")?.Value);
         Assert.AreEqual("account<&\"'@example.test", account.Attribute("Name")?.Value);
         Assert.IsTrue(xml.Contains("Name=\"account&lt;&amp;&quot;'@example.test\"", StringComparison.Ordinal));
+        Assert.IsTrue(xml.Contains("Password=\"Password&lt;&amp;&quot;'\"", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -468,10 +484,10 @@ public sealed class BackupArchiveRuntimeTests
             .Elements("Domain")
             .ToArray();
         Assert.IsNull(domainElements[0].Element("Accounts"));
-        Assert.AreEqual("account@example.test", domainElements[1]
-            .Element("Accounts")!
-            .Element("Account")!
-            .Attribute("Name")?.Value);
+        var account = domainElements[1].Element("Accounts")!.Element("Account")!;
+        Assert.AreEqual("account@example.test", account.Attribute("Name")?.Value);
+        Assert.IsNull(account.Attribute("Password"));
+        Assert.IsNull(account.Attribute("PasswordEncryption"));
     }
 
     [TestMethod]
@@ -783,6 +799,73 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public async Task PayloadRuntimeUsesDedicatedBackupAccountStoreForAccountsAndCredentials()
+    {
+        var domains = new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) };
+        var ordinaryAccountStore = new RecordingAccountAdministrationStore(
+            new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>());
+        var backupAccountStore = new RecordingBackupAccountAdministrationStore(
+            new Dictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>
+            {
+                [10] = new[]
+                {
+                    new AccountBackupAdministrationSnapshot(
+                        new AccountAdministrationSnapshot(1, 10, "account@alpha.example", true, 0),
+                        "secret<&\"'",
+                        1)
+                }
+            });
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(domains),
+            new RecordingDomainAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>()),
+            ordinaryAccountStore,
+            new RecordingAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
+            distributionListStore: null,
+            distributionListRecipientStore: null,
+            backupAccountStore: backupAccountStore);
+
+        var payload = await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence(
+                Destination: "backup",
+                BackupOptions: 2,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(Array.Empty<int>(), ordinaryAccountStore.RequestedDomainIds.ToArray());
+        CollectionAssert.AreEqual(new[] { 10 }, backupAccountStore.RequestedDomainIds.ToArray());
+        Assert.IsNotNull(payload.BackupAccounts);
+        Assert.AreEqual("secret<&\"'", payload.BackupAccounts[10][0].Password);
+        Assert.AreEqual(1, payload.BackupAccounts[10][0].PasswordEncryption);
+        Assert.AreEqual("account@alpha.example", payload.Accounts![10][0].Address);
+
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(2, "10.0.0-B0", payload);
+        var account = XDocument.Parse(xml)
+            .Root!
+            .Element("Domains")!
+            .Element("Domain")!
+            .Element("Accounts")!
+            .Element("Account")!;
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Name", "PersonFirstName", "PersonLastName", "Active", "Password", "PasswordEncryption",
+                "MaxAccountSize", "ADUsername", "ADDomain", "ADActive", "VacationMessageOn", "VacationMessage",
+                "VacationSubject", "VacationExpires", "VacationExpireDate", "VacationAbortSpamFlagged", "AdminLevel",
+                "ForwardEnabled", "ForwardAddress", "ForwardKeepOriginal", "ForwardAbortSpamFlagged", "EnableSignature",
+                "SignaturePlainText", "SignatureHTML", "LastLogonTime"
+            },
+            account.Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("secret<&\"'", account.Attribute("Password")?.Value);
+        Assert.AreEqual("1", account.Attribute("PasswordEncryption")?.Value);
+        Assert.IsTrue(xml.Contains("Password=\"secret&lt;&amp;&quot;'\"", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task PayloadRuntimeDoesNotLoadAliasesWhenDomainsAreNotSelected()
     {
         var aliasStore = new RecordingDomainAliasAdministrationStore(
@@ -906,6 +989,25 @@ public sealed class BackupArchiveRuntimeTests
                 accounts.Values
                     .SelectMany(static domainAccounts => domainAccounts)
                     .FirstOrDefault(account => account.Id == accountId));
+    }
+
+    private sealed class RecordingBackupAccountAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>> accounts)
+        : IBackupAccountAdministrationStore
+    {
+        public List<int> RequestedDomainIds { get; } = new();
+
+        public ValueTask<IReadOnlyList<AccountBackupAdministrationSnapshot>> GetBackupAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken)
+        {
+            RequestedDomainIds.Add(domainId);
+            return ValueTask.FromResult(
+                accounts.TryGetValue(domainId, out var domainAccounts)
+                    ? domainAccounts
+                    : Array.Empty<AccountBackupAdministrationSnapshot>());
+        }
+
     }
 
     private sealed class RecordingDistributionListAdministrationStore(
