@@ -9,7 +9,7 @@ namespace HMailServer.ComInterop;
 
 /// <summary>
 /// Creates the bounded legacy archive and modeled scalar settings/domain metadata.
-/// Message payloads, credentials, nested domain children, and data-directory
+/// Message payloads, fetch secrets, nested domain children, and data-directory
 /// staging remain fenced.
 /// </summary>
 [ComVisible(false)]
@@ -130,6 +130,7 @@ public sealed class SevenZipBackupArchiveRuntime
                     payload?.DomainAliases,
                     payload?.Accounts,
                     payload?.BackupAccounts,
+                    payload?.FetchAccounts,
                     payload?.Aliases,
                     payload?.DistributionLists,
                     payload?.DistributionListRecipients);
@@ -327,6 +328,7 @@ public sealed class SevenZipBackupArchiveRuntime
         IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases,
         IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? accounts,
         IReadOnlyDictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>? backupAccounts,
+        IReadOnlyDictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>? fetchAccounts,
         IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? normalAliases,
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? distributionLists,
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients)
@@ -432,6 +434,34 @@ public sealed class SevenZipBackupArchiveRuntime
                     writer.WriteAttributeString("SignaturePlainText", account.SignaturePlainText);
                     writer.WriteAttributeString("SignatureHTML", account.SignatureHtml);
                     writer.WriteAttributeString("LastLogonTime", account.LastLogonTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+                    if (fetchAccounts is not null
+                        && fetchAccounts.TryGetValue(account.Id, out var accountFetchAccounts)
+                        && accountFetchAccounts.Count > 0)
+                    {
+                        writer.WriteStartElement("FetchAccounts");
+                        foreach (var fetchAccount in accountFetchAccounts)
+                        {
+                            writer.WriteStartElement("FetchAccount");
+                            writer.WriteAttributeString("Name", fetchAccount.Name);
+                            writer.WriteAttributeString("ServerAddress", fetchAccount.ServerAddress);
+                            writer.WriteAttributeString("ServerType", fetchAccount.ServerType.ToString(CultureInfo.InvariantCulture));
+                            writer.WriteAttributeString("Port", fetchAccount.Port.ToString(CultureInfo.InvariantCulture));
+                            writer.WriteAttributeString("Username", fetchAccount.Username);
+                            writer.WriteAttributeString("Minutes", fetchAccount.MinutesBetweenFetch.ToString(CultureInfo.InvariantCulture));
+                            writer.WriteAttributeString("DaysToKeep", fetchAccount.DaysToKeepMessages.ToString(CultureInfo.InvariantCulture));
+                            writer.WriteAttributeString("Active", (fetchAccount.Enabled ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                            writer.WriteAttributeString("MIMERecipientHeaders", fetchAccount.MimeRecipientHeaders);
+                            writer.WriteAttributeString("ProcessMIMERecipients", (fetchAccount.ProcessMimeRecipients ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                            writer.WriteAttributeString("ProcessMIMEDate", (fetchAccount.ProcessMimeDate ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                            writer.WriteAttributeString("UseAntiSpam", (fetchAccount.UseAntiSpam ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                            writer.WriteAttributeString("UseAntiVirus", (fetchAccount.UseAntiVirus ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                            writer.WriteAttributeString("EnableRouteRecipients", (fetchAccount.EnableRouteRecipients ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                            writer.WriteAttributeString("ConnectionSecurity", fetchAccount.ConnectionSecurity.ToString(CultureInfo.InvariantCulture));
+                            writer.WriteEndElement();
+                        }
+
+                        writer.WriteEndElement();
+                    }
                     writer.WriteEndElement();
                 }
 
@@ -587,7 +617,8 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? Aliases = null,
     IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? DistributionLists = null,
     IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? DistributionListRecipients = null,
-    IReadOnlyDictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>? BackupAccounts = null);
+    IReadOnlyDictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>? BackupAccounts = null,
+    IReadOnlyDictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>? FetchAccounts = null);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
@@ -597,6 +628,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IDomainAliasAdministrationStore _domainAliasStore;
     private readonly IAccountAdministrationStore _accountStore;
     private readonly IBackupAccountAdministrationStore? _backupAccountStore;
+    private readonly IFetchAccountAdministrationStore? _fetchAccountStore;
     private readonly IAliasAdministrationStore _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore? _distributionListRecipientStore;
@@ -614,7 +646,9 @@ public sealed class BackupXmlPayloadRuntime
             accountStore,
             aliasStore,
             distributionListStore: null,
-            distributionListRecipientStore: null)
+            distributionListRecipientStore: null,
+            backupAccountStore: null,
+            fetchAccountStore: null)
     {
     }
 
@@ -626,7 +660,8 @@ public sealed class BackupXmlPayloadRuntime
         IAliasAdministrationStore aliasStore,
         IDistributionListAdministrationStore? distributionListStore,
         IDistributionListRecipientAdministrationStore? distributionListRecipientStore,
-        IBackupAccountAdministrationStore? backupAccountStore = null)
+        IBackupAccountAdministrationStore? backupAccountStore = null,
+        IFetchAccountAdministrationStore? fetchAccountStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -638,6 +673,7 @@ public sealed class BackupXmlPayloadRuntime
         _domainAliasStore = domainAliasStore;
         _accountStore = accountStore;
         _backupAccountStore = backupAccountStore;
+        _fetchAccountStore = fetchAccountStore;
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _distributionListRecipientStore = distributionListRecipientStore;
@@ -663,6 +699,7 @@ public sealed class BackupXmlPayloadRuntime
         IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases = null;
         IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? accounts = null;
         IReadOnlyDictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>? backupAccounts = null;
+        IReadOnlyDictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>? fetchAccounts = null;
         IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? aliases = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? distributionLists = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients = null;
@@ -673,6 +710,9 @@ public sealed class BackupXmlPayloadRuntime
             var backupAccountsByDomainId = _backupAccountStore is null
                 ? null
                 : new Dictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>();
+            var fetchAccountsByAccountId = _fetchAccountStore is null
+                ? null
+                : new Dictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>();
             var normalAliasesByDomainId = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
             var distributionListsByDomainId = _distributionListStore is null
                 ? null
@@ -706,6 +746,19 @@ public sealed class BackupXmlPayloadRuntime
                         .ConfigureAwait(false);
                 }
 
+                if (fetchAccountsByAccountId is not null)
+                {
+                    foreach (var account in accountsByDomainId[domain.Id])
+                    {
+                        if (!fetchAccountsByAccountId.ContainsKey(account.Id))
+                        {
+                            fetchAccountsByAccountId[account.Id] = await _fetchAccountStore!
+                                .GetFetchAccountsAsync(account.Id, cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                    }
+                }
+
                 if (!normalAliasesByDomainId.ContainsKey(domain.Id))
                 {
                     normalAliasesByDomainId[domain.Id] = await _aliasStore
@@ -733,6 +786,7 @@ public sealed class BackupXmlPayloadRuntime
             domainAliases = aliasesByDomainId;
             accounts = accountsByDomainId;
             backupAccounts = backupAccountsByDomainId;
+            fetchAccounts = fetchAccountsByAccountId;
             aliases = normalAliasesByDomainId;
             distributionLists = distributionListsByDomainId;
 
@@ -759,6 +813,7 @@ public sealed class BackupXmlPayloadRuntime
             aliases,
             distributionLists,
             distributionListRecipients,
-            backupAccounts);
+            backupAccounts,
+            fetchAccounts);
     }
 }
