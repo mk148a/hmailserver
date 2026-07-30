@@ -54,7 +54,8 @@ BackupManagerRuntimeHost.Configure(
             payloadProvider: new BackupXmlPayloadRuntime(
                 host.Services.GetRequiredService<ISettingsAdministrationStore>(),
                 host.Services.GetRequiredService<IDomainAdministrationStore>(),
-                host.Services.GetRequiredService<IDomainAliasAdministrationStore>())
+                host.Services.GetRequiredService<IDomainAliasAdministrationStore>(),
+                host.Services.GetRequiredService<IAccountAdministrationStore>())
                 .GetPayloadAsync)
             .CreateAsync));
 MessageIndexingRuntimeHost.Configure(

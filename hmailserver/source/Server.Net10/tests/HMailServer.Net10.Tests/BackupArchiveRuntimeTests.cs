@@ -331,6 +331,114 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlWritesLegacyOrderedAccountScalarsAndEscapesValues()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            2,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: new[] { new DomainAdministrationSnapshot(10, "example.test", true) },
+                DomainAliases: new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>
+                {
+                    [10] = new[] { new DomainAliasAdministrationSnapshot(1, 10, "alias.example.test") }
+                },
+                Accounts: new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+                {
+                    [10] = new[]
+                    {
+                        new AccountAdministrationSnapshot(
+                            Id: 1,
+                            DomainId: 10,
+                            Address: "account<&\"'@example.test",
+                            Active: true,
+                            AdminLevel: 2,
+                            IsActiveDirectoryAccount: true,
+                            ActiveDirectoryDomain: "ad<&\"'",
+                            ActiveDirectoryUsername: "user<&\"'",
+                            MaxSize: 512,
+                            LastLogonTime: new DateTime(2026, 7, 30, 14, 15, 16),
+                            PersonFirstName: "First<&\"'",
+                            PersonLastName: "Last<&\"'",
+                            VacationMessageIsOn: true,
+                            VacationMessage: "Vacation<&\"'",
+                            VacationSubject: "Subject<&\"'",
+                            VacationMessageExpires: true,
+                            VacationMessageExpiresDate: "2026-08-01",
+                            VacationMessageAbortSpamFlagged: true,
+                            ForwardEnabled: true,
+                            ForwardAddress: "forward<&\"'@example.test",
+                            ForwardKeepOriginal: true,
+                            ForwardAbortSpamFlagged: true,
+                            SignatureEnabled: true,
+                            SignaturePlainText: "Plain<&\"'",
+                            SignatureHtml: "<p>Html & \" '</p>")
+                    }
+                }));
+
+        var account = XDocument.Parse(xml)
+            .Root!
+            .Element("Domains")!
+            .Element("Domain")!
+            .Element("Accounts")!
+            .Element("Account")!;
+        var domain = account.Parent!.Parent!;
+
+        CollectionAssert.AreEqual(
+            new[] { "DomainAliases", "Accounts" },
+            domain.Elements().Select(static element => element.Name.LocalName).ToArray());
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Name", "PersonFirstName", "PersonLastName", "Active", "MaxAccountSize",
+                "ADUsername", "ADDomain", "ADActive", "VacationMessageOn", "VacationMessage",
+                "VacationSubject", "VacationExpires", "VacationExpireDate", "VacationAbortSpamFlagged",
+                "AdminLevel", "ForwardEnabled", "ForwardAddress", "ForwardKeepOriginal",
+                "ForwardAbortSpamFlagged", "EnableSignature", "SignaturePlainText", "SignatureHTML",
+                "LastLogonTime"
+            },
+            account.Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("2026-07-30 14:15:16", account.Attribute("LastLogonTime")?.Value);
+        Assert.IsNull(account.Attribute("Password"));
+        Assert.IsNull(account.Attribute("PasswordEncryption"));
+        Assert.AreEqual("account<&\"'@example.test", account.Attribute("Name")?.Value);
+        Assert.IsTrue(xml.Contains("Name=\"account&lt;&amp;&quot;'@example.test\"", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void MetadataXmlOmitsEmptyAccountContainers()
+    {
+        var domains = new[]
+        {
+            new DomainAdministrationSnapshot(10, "alpha.example", true),
+            new DomainAdministrationSnapshot(20, "beta.example", true)
+        };
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            2,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: domains,
+                Accounts: new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+                {
+                    [10] = Array.Empty<AccountAdministrationSnapshot>(),
+                    [20] = new[] { new AccountAdministrationSnapshot(1, 20, "account@example.test", true, 0) }
+                }));
+
+        var domainElements = XDocument.Parse(xml)
+            .Root!
+            .Element("Domains")!
+            .Elements("Domain")
+            .ToArray();
+        Assert.IsNull(domainElements[0].Element("Accounts"));
+        Assert.AreEqual("account@example.test", domainElements[1]
+            .Element("Accounts")!
+            .Element("Account")!
+            .Attribute("Name")?.Value);
+    }
+
+    [TestMethod]
     public async Task PayloadRuntimeLoadsAliasesOnceForEachSelectedDomainId()
     {
         var domains = new[]
@@ -348,7 +456,9 @@ public sealed class BackupArchiveRuntimeTests
         var runtime = new BackupXmlPayloadRuntime(
             new FixedSettingsAdministrationStore(),
             new FixedDomainAdministrationStore(domains),
-            aliasStore);
+            aliasStore,
+            new RecordingAccountAdministrationStore(
+                new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>()));
 
         var payload = await runtime.GetPayloadAsync(
             new BackupStartPlanEvidence(
@@ -369,14 +479,56 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public async Task PayloadRuntimeLoadsAccountsOnceForEachSelectedDomainId()
+    {
+        var domains = new[]
+        {
+            new DomainAdministrationSnapshot(10, "alpha.example", true),
+            new DomainAdministrationSnapshot(20, "beta.example", true),
+            new DomainAdministrationSnapshot(10, "alpha-duplicate.example", true)
+        };
+        var accountStore = new RecordingAccountAdministrationStore(
+            new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+            {
+                [10] = new[] { new AccountAdministrationSnapshot(1, 10, "first@alpha.example", true, 0) },
+                [20] = Array.Empty<AccountAdministrationSnapshot>()
+            });
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(domains),
+            new RecordingDomainAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>()),
+            accountStore);
+
+        var payload = await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence(
+                Destination: "backup",
+                BackupOptions: 2,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(new[] { 10, 20 }, accountStore.RequestedDomainIds.ToArray());
+        Assert.IsNotNull(payload.Accounts);
+        CollectionAssert.AreEqual(
+            new[] { "first@alpha.example" },
+            payload.Accounts[10].Select(static account => account.Address).ToArray());
+        Assert.AreEqual(0, payload.Accounts[20].Count);
+    }
+
+    [TestMethod]
     public async Task PayloadRuntimeDoesNotLoadAliasesWhenDomainsAreNotSelected()
     {
         var aliasStore = new RecordingDomainAliasAdministrationStore(
             new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>());
+        var accountStore = new RecordingAccountAdministrationStore(
+            new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>());
         var runtime = new BackupXmlPayloadRuntime(
             new FixedSettingsAdministrationStore(),
             new FixedDomainAdministrationStore(Array.Empty<DomainAdministrationSnapshot>()),
-            aliasStore);
+            aliasStore,
+            accountStore);
 
         var payload = await runtime.GetPayloadAsync(
             new BackupStartPlanEvidence(
@@ -388,8 +540,10 @@ public sealed class BackupArchiveRuntimeTests
             CancellationToken.None);
 
         CollectionAssert.AreEqual(Array.Empty<int>(), aliasStore.RequestedDomainIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<int>(), accountStore.RequestedDomainIds.ToArray());
         Assert.IsNull(payload.Domains);
         Assert.IsNull(payload.DomainAliases);
+        Assert.IsNull(payload.Accounts);
     }
 
     private sealed class FixedSettingsAdministrationStore : ISettingsAdministrationStore
@@ -428,5 +582,31 @@ public sealed class BackupArchiveRuntimeTests
                     ? domainAliases
                     : Array.Empty<DomainAliasAdministrationSnapshot>());
         }
+    }
+
+    private sealed class RecordingAccountAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>> accounts)
+        : IAccountAdministrationStore
+    {
+        public List<int> RequestedDomainIds { get; } = new();
+
+        public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken)
+        {
+            RequestedDomainIds.Add(domainId);
+            return ValueTask.FromResult(
+                accounts.TryGetValue(domainId, out var domainAccounts)
+                    ? domainAccounts
+                    : Array.Empty<AccountAdministrationSnapshot>());
+        }
+
+        public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(
+                accounts.Values
+                    .SelectMany(static domainAccounts => domainAccounts)
+                    .FirstOrDefault(account => account.Id == accountId));
     }
 }

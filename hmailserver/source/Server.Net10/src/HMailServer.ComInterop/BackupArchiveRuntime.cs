@@ -124,7 +124,7 @@ public sealed class SevenZipBackupArchiveRuntime
             writer.WriteEndElement();
             if ((backupOptions & BackupStartPlan.BackupDomainsFlag) != 0)
             {
-                WriteDomains(writer, payload?.Domains, payload?.DomainAliases);
+                WriteDomains(writer, payload?.Domains, payload?.DomainAliases, payload?.Accounts);
             }
 
             if ((backupOptions & BackupStartPlan.BackupSettingsFlag) != 0)
@@ -316,7 +316,8 @@ public sealed class SevenZipBackupArchiveRuntime
     private static void WriteDomains(
         XmlWriter writer,
         IReadOnlyList<DomainAdministrationSnapshot>? domains,
-        IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases)
+        IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases,
+        IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? accounts)
     {
         if (domains is null)
         {
@@ -363,6 +364,43 @@ public sealed class SevenZipBackupArchiveRuntime
                 {
                     writer.WriteStartElement("DomainAlias");
                     writer.WriteAttributeString("Name", alias.AliasName);
+                    writer.WriteEndElement();
+                }
+
+                writer.WriteEndElement();
+            }
+
+            if (accounts is not null
+                && accounts.TryGetValue(domain.Id, out var domainAccounts)
+                && domainAccounts.Count > 0)
+            {
+                writer.WriteStartElement("Accounts");
+                foreach (var account in domainAccounts)
+                {
+                    writer.WriteStartElement("Account");
+                    writer.WriteAttributeString("Name", account.Address);
+                    writer.WriteAttributeString("PersonFirstName", account.PersonFirstName);
+                    writer.WriteAttributeString("PersonLastName", account.PersonLastName);
+                    writer.WriteAttributeString("Active", (account.Active ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("MaxAccountSize", account.MaxSize.ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("ADUsername", account.ActiveDirectoryUsername);
+                    writer.WriteAttributeString("ADDomain", account.ActiveDirectoryDomain);
+                    writer.WriteAttributeString("ADActive", (account.IsActiveDirectoryAccount ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("VacationMessageOn", (account.VacationMessageIsOn ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("VacationMessage", account.VacationMessage);
+                    writer.WriteAttributeString("VacationSubject", account.VacationSubject);
+                    writer.WriteAttributeString("VacationExpires", (account.VacationMessageExpires ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("VacationExpireDate", account.VacationMessageExpiresDate);
+                    writer.WriteAttributeString("VacationAbortSpamFlagged", (account.VacationMessageAbortSpamFlagged ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("AdminLevel", account.AdminLevel.ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("ForwardEnabled", (account.ForwardEnabled ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("ForwardAddress", account.ForwardAddress);
+                    writer.WriteAttributeString("ForwardKeepOriginal", (account.ForwardKeepOriginal ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("ForwardAbortSpamFlagged", (account.ForwardAbortSpamFlagged ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("EnableSignature", (account.SignatureEnabled ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+                    writer.WriteAttributeString("SignaturePlainText", account.SignaturePlainText);
+                    writer.WriteAttributeString("SignatureHTML", account.SignatureHtml);
+                    writer.WriteAttributeString("LastLogonTime", account.LastLogonTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
                     writer.WriteEndElement();
                 }
 
@@ -453,7 +491,8 @@ public sealed record BackupArchiveXmlPayload(
     SettingsAdministrationSnapshot? Settings,
     IReadOnlyList<DomainAdministrationSnapshot>? Domains,
     IReadOnlyList<BackupSettingsPropertySnapshot>? SettingsProperties = null,
-    IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? DomainAliases = null);
+    IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? DomainAliases = null,
+    IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? Accounts = null);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
@@ -461,18 +500,22 @@ public sealed class BackupXmlPayloadRuntime
     private readonly ISettingsAdministrationStore _settingsStore;
     private readonly IDomainAdministrationStore _domainStore;
     private readonly IDomainAliasAdministrationStore _domainAliasStore;
+    private readonly IAccountAdministrationStore _accountStore;
 
     public BackupXmlPayloadRuntime(
         ISettingsAdministrationStore settingsStore,
         IDomainAdministrationStore domainStore,
-        IDomainAliasAdministrationStore domainAliasStore)
+        IDomainAliasAdministrationStore domainAliasStore,
+        IAccountAdministrationStore accountStore)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
         ArgumentNullException.ThrowIfNull(domainAliasStore);
+        ArgumentNullException.ThrowIfNull(accountStore);
         _settingsStore = settingsStore;
         _domainStore = domainStore;
         _domainAliasStore = domainAliasStore;
+        _accountStore = accountStore;
     }
 
     public async ValueTask<BackupArchiveXmlPayload> GetPayloadAsync(
@@ -493,9 +536,11 @@ public sealed class BackupXmlPayloadRuntime
             ? await _domainStore.GetDomainsAsync(cancellationToken).ConfigureAwait(false)
             : null;
         IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases = null;
+        IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? accounts = null;
         if (domains is not null)
         {
             var aliasesByDomainId = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
+            var accountsByDomainId = new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>();
             foreach (var domain in domains)
             {
                 if (!aliasesByDomainId.ContainsKey(domain.Id))
@@ -504,11 +549,19 @@ public sealed class BackupXmlPayloadRuntime
                         .GetDomainAliasesAsync(domain.Id, cancellationToken)
                         .ConfigureAwait(false);
                 }
+
+                if (!accountsByDomainId.ContainsKey(domain.Id))
+                {
+                    accountsByDomainId[domain.Id] = await _accountStore
+                        .GetAccountsAsync(domain.Id, cancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
 
             domainAliases = aliasesByDomainId;
+            accounts = accountsByDomainId;
         }
 
-        return new BackupArchiveXmlPayload(settings, domains, settingsProperties, domainAliases);
+        return new BackupArchiveXmlPayload(settings, domains, settingsProperties, domainAliases, accounts);
     }
 }
