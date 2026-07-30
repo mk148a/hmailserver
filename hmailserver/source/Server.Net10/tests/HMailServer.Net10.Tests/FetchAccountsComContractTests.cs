@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class FetchAccountsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -318,6 +319,36 @@ public sealed class FetchAccountsComContractTests
         Assert.AreEqual(2, store.ReadCount);
     }
 
+    [TestMethod]
+    public void AuthorizedDownloadNow_UsesOwningParentAndSelectedFetchAccountIds()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+
+        account.FetchAccounts[0].DownloadNow();
+
+        Assert.AreEqual(100, store.RetryAccountId);
+        Assert.AreEqual(10, store.RetryFetchAccountId);
+    }
+
+    [TestMethod]
+    public void AuthorizedDownloadNow_MapsStoreFailureToComFailure()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") })
+        {
+            FailRetryNow = true
+        };
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+
+        var failure = Assert.ThrowsExactly<COMException>(() => account.FetchAccounts[0].DownloadNow());
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+    }
+
     private static FetchAccountAdministrationSnapshot CreateSnapshot(
         int id,
         int accountId,
@@ -412,6 +443,12 @@ public sealed class FetchAccountsComContractTests
 
         public int ReadCount { get; private set; }
 
+        public int? RetryAccountId { get; private set; }
+
+        public int? RetryFetchAccountId { get; private set; }
+
+        public bool FailRetryNow { get; set; }
+
         public ValueTask<IReadOnlyList<FetchAccountAdministrationSnapshot>> GetFetchAccountsAsync(
             int accountId,
             CancellationToken cancellationToken)
@@ -419,6 +456,21 @@ public sealed class FetchAccountsComContractTests
             ReadCount++;
             return ValueTask.FromResult<IReadOnlyList<FetchAccountAdministrationSnapshot>>(
                 Accounts.Where(account => account.AccountId == accountId).ToArray());
+        }
+
+        public ValueTask SetRetryNowAsync(
+            int accountId,
+            int fetchAccountId,
+            CancellationToken cancellationToken)
+        {
+            if (FailRetryNow)
+            {
+                throw new InvalidOperationException("store failed");
+            }
+
+            RetryAccountId = accountId;
+            RetryFetchAccountId = fetchAccountId;
+            return ValueTask.CompletedTask;
         }
     }
 }

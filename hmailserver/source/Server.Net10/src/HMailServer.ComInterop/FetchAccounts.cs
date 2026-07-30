@@ -179,6 +179,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
 
     private FetchAccountAdministrationSnapshot[]? _accounts;
     private readonly Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? _reload;
+    private readonly Func<int, int, ValueTask>? _retryNow;
 
     public FetchAccounts()
     {
@@ -186,20 +187,23 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
 
     private FetchAccounts(
         IReadOnlyList<FetchAccountAdministrationSnapshot> accounts,
-        Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? reload,
+        Func<int, int, ValueTask>? retryNow)
     {
         _accounts = accounts.ToArray();
         _reload = reload;
+        _retryNow = retryNow;
     }
 
     public int Count => GetAccounts().Count;
 
     internal static FetchAccounts CreateAuthorized(
         IReadOnlyList<FetchAccountAdministrationSnapshot> accounts,
-        Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? reload = null,
+        Func<int, int, ValueTask>? retryNow = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
-        return new FetchAccounts(accounts, reload);
+        return new FetchAccounts(accounts, reload, retryNow);
     }
 
     public IInterfaceFetchAccount get_ItemByDBID(int databaseId)
@@ -208,7 +212,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
 
         return match is null
             ? throw new COMException("No fetch account with the specified database identifier exists.", DispEBadIndex)
-            : FetchAccount.CreateAuthorized(match);
+            : FetchAccount.CreateAuthorized(match, _retryNow);
     }
 
     public IInterfaceFetchAccount this[int index]
@@ -221,7 +225,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
                 throw new COMException("Fetch account index was outside the collection.", DispEBadIndex);
             }
 
-            return FetchAccount.CreateAuthorized(accounts[index]);
+            return FetchAccount.CreateAuthorized(accounts[index], _retryNow);
         }
     }
 
@@ -287,17 +291,22 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
 public sealed class FetchAccount : IInterfaceFetchAccount
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly FetchAccountAdministrationSnapshot? _account;
+    private readonly Func<int, int, ValueTask>? _retryNow;
 
     public FetchAccount()
     {
     }
 
-    private FetchAccount(FetchAccountAdministrationSnapshot account)
+    private FetchAccount(
+        FetchAccountAdministrationSnapshot account,
+        Func<int, int, ValueTask>? retryNow)
     {
         _account = account;
+        _retryNow = retryNow;
     }
 
     public int ID => Snapshot.Id;
@@ -346,11 +355,32 @@ public sealed class FetchAccount : IInterfaceFetchAccount
 
     public string MIMERecipientHeaders { get => Snapshot.MimeRecipientHeaders; set => Unavailable(); }
 
-    internal static FetchAccount CreateAuthorized(FetchAccountAdministrationSnapshot account) => new(account);
+    internal static FetchAccount CreateAuthorized(
+        FetchAccountAdministrationSnapshot account,
+        Func<int, int, ValueTask>? retryNow = null) => new(account, retryNow);
 
     public void Save() => Unavailable();
 
-    public void DownloadNow() => Unavailable();
+    public void DownloadNow()
+    {
+        var account = Snapshot;
+        if (_retryNow is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _retryNow(account.AccountId, account.Id).GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to schedule the fetch account for immediate download.",
+                EFail);
+        }
+    }
 
     public void Delete() => Unavailable();
 
@@ -402,6 +432,9 @@ public static class FetchAccountAdministrationRuntimeHost
                 .GetAwaiter()
                 .GetResult();
 
-        return FetchAccounts.CreateAuthorized(LoadFetchAccounts(), LoadFetchAccounts);
+        ValueTask RetryNow(int owningAccountId, int fetchAccountId) => store
+            .SetRetryNowAsync(owningAccountId, fetchAccountId, CancellationToken.None);
+
+        return FetchAccounts.CreateAuthorized(LoadFetchAccounts(), LoadFetchAccounts, RetryNow);
     }
 }

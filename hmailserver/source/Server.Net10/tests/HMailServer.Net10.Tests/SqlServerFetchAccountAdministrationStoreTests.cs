@@ -76,4 +76,16 @@ public sealed class SqlServerFetchAccountAdministrationStoreTests
             previousIndex = index;
         }
     }
+
+    [TestMethod]
+    public void SetRetryNowSql_UsesParentAndFetchAccountOwnershipFiltersAndGetDate()
+    {
+        var sql = SqlServerFetchAccountAdministrationStore.SetRetryNowSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_fetchaccounts");
+        StringAssert.Contains(sql, "SET fanexttry = GETDATE()");
+        StringAssert.Contains(sql, "WHERE faid = @FetchAccountID");
+        StringAssert.Contains(sql, "AND faaccountid = @AccountID");
+        Assert.IsFalse(sql.Contains("@FAID", StringComparison.OrdinalIgnoreCase));
+    }
 }

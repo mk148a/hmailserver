@@ -33,6 +33,13 @@ WHERE faaccountid = @AccountID
 ORDER BY faid ASC;
 """;
 
+    public const string SetRetryNowSql = """
+UPDATE hm_fetchaccounts
+SET fanexttry = GETDATE()
+WHERE faid = @FetchAccountID
+  AND faaccountid = @AccountID;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerFetchAccountAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -79,6 +86,18 @@ ORDER BY faid ASC;
         }
 
         return accounts;
+    }
+
+    public async ValueTask SetRetryNowAsync(
+        int accountId,
+        int fetchAccountId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(SetRetryNowSql, connection);
+        command.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
