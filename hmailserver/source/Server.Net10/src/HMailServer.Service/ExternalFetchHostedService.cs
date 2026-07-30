@@ -1,3 +1,4 @@
+using HMailServer.Core.Abstractions;
 using HMailServer.Protocols.Pop3;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,17 +10,20 @@ public sealed class ExternalFetchHostedService : BackgroundService
     private readonly ExternalFetchHostedServiceOptions _hostedOptions;
     private readonly ExternalFetchProcessorOptions _processorOptions;
     private readonly ExternalFetchProcessor _processor;
+    private readonly IExternalFetchWakeSignal _wakeSignal;
     private readonly ILogger<ExternalFetchHostedService> _logger;
 
     public ExternalFetchHostedService(
         ExternalFetchHostedServiceOptions hostedOptions,
         ExternalFetchProcessorOptions processorOptions,
         ExternalFetchProcessor processor,
+        IExternalFetchWakeSignal wakeSignal,
         ILogger<ExternalFetchHostedService> logger)
     {
         _hostedOptions = hostedOptions;
         _processorOptions = processorOptions;
         _processor = processor;
+        _wakeSignal = wakeSignal;
         _logger = logger;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(hostedOptions.PollInterval.Ticks, 0);
     }
@@ -48,7 +52,9 @@ public sealed class ExternalFetchHostedService : BackgroundService
                 result.DeferredInactiveAccounts;
             if (processed == 0)
             {
-                await Task.Delay(_hostedOptions.PollInterval, stoppingToken).ConfigureAwait(false);
+                await _wakeSignal
+                    .WaitAsync(_hostedOptions.PollInterval, stoppingToken)
+                    .ConfigureAwait(false);
                 continue;
             }
 

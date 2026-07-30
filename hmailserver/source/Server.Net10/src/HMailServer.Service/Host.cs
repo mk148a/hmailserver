@@ -793,6 +793,9 @@ public static class Host
     builder.Services.AddSingleton<DeliveryQueueWakeSignal>();
     builder.Services.AddSingleton<IDeliveryQueueWakeSignal>(static serviceProvider =>
         serviceProvider.GetRequiredService<DeliveryQueueWakeSignal>());
+    builder.Services.AddSingleton<ExternalFetchWakeSignal>();
+    builder.Services.AddSingleton<IExternalFetchWakeSignal>(static serviceProvider =>
+        serviceProvider.GetRequiredService<ExternalFetchWakeSignal>());
     builder.Services.AddSingleton(deliveryStatusMaintenanceOptions);
     builder.Services.AddSingleton<SqlServerDeliveryQueueStatusMaintenanceStore>();
     if (deliveryStatusSqlEnabled)

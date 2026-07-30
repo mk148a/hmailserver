@@ -1,3 +1,4 @@
+using HMailServer.Core.Abstractions;
 using HMailServer.Service;
 using Microsoft.Extensions.DependencyInjection;
 using Hosting = Microsoft.Extensions.Hosting;
@@ -57,6 +58,9 @@ public sealed class ProductionHostCompositionTests
             Assert.IsFalse(
                 host.Services.GetRequiredService<Hosting.IHostApplicationLifetime>()
                     .ApplicationStarted.IsCancellationRequested);
+            Assert.IsFalse(ReferenceEquals(
+                host.Services.GetRequiredService<IDeliveryQueueWakeSignal>(),
+                host.Services.GetRequiredService<IExternalFetchWakeSignal>()));
             Assert.IsFalse(Directory.Exists(dataDirectory));
         }
     }

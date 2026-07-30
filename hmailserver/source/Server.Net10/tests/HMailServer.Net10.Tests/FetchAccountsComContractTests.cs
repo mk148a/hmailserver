@@ -324,13 +324,15 @@ public sealed class FetchAccountsComContractTests
     {
         var store = new MutableFetchAccountAdministrationStore(
             new[] { CreateSnapshot(10, 100, "External POP3") });
-        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var wakeSignal = new RecordingExternalFetchWakeSignal();
+        FetchAccountAdministrationRuntimeHost.Configure(store, wakeSignal);
         var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
 
         account.FetchAccounts[0].DownloadNow();
 
         Assert.AreEqual(100, store.RetryAccountId);
         Assert.AreEqual(10, store.RetryFetchAccountId);
+        Assert.AreEqual(1, wakeSignal.SignalCount);
     }
 
     [TestMethod]
@@ -341,12 +343,14 @@ public sealed class FetchAccountsComContractTests
         {
             FailRetryNow = true
         };
-        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var wakeSignal = new RecordingExternalFetchWakeSignal();
+        FetchAccountAdministrationRuntimeHost.Configure(store, wakeSignal);
         var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
 
         var failure = Assert.ThrowsExactly<COMException>(() => account.FetchAccounts[0].DownloadNow());
 
         Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(0, wakeSignal.SignalCount);
     }
 
     private static FetchAccountAdministrationSnapshot CreateSnapshot(
@@ -472,5 +476,17 @@ public sealed class FetchAccountsComContractTests
             RetryFetchAccountId = fetchAccountId;
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class RecordingExternalFetchWakeSignal : IExternalFetchWakeSignal
+    {
+        public int SignalCount { get; private set; }
+
+        public void Signal() => SignalCount++;
+
+        public ValueTask<bool> WaitAsync(
+            TimeSpan timeout,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(false);
     }
 }

@@ -15,7 +15,8 @@ public sealed class SqlServerExternalFetchAccountStoreTests
         StringAssert.Contains(sql, "FROM hm_fetchaccounts AS fa WITH (UPDLOCK, READPAST, ROWLOCK)");
         StringAssert.Contains(sql, "faactive <> 0");
         StringAssert.Contains(sql, "falocked = 0");
-        StringAssert.Contains(sql, "fanexttry <= SYSUTCDATETIME()");
+        StringAssert.Contains(sql, "fanexttry <= GETDATE()");
+        Assert.IsFalse(sql.Contains("SYSUTCDATETIME()", StringComparison.OrdinalIgnoreCase));
         StringAssert.Contains(sql, "FROM hm_accounts AS a");
         StringAssert.Contains(sql, "accountactive <> 0");
         StringAssert.Contains(sql, "INNER JOIN hm_domains AS d");
@@ -37,7 +38,10 @@ public sealed class SqlServerExternalFetchAccountStoreTests
         StringAssert.Contains(SqlServerExternalFetchAccountStore.CompleteSql, "falocked = 0");
         StringAssert.Contains(
             SqlServerExternalFetchAccountStore.CompleteSql,
-            "fanexttry = DATEADD(minute, faminutes, SYSUTCDATETIME())");
+            "fanexttry = DATEADD(minute, faminutes, GETDATE())");
+        Assert.IsFalse(SqlServerExternalFetchAccountStore.CompleteSql.Contains(
+            "SYSUTCDATETIME()",
+            StringComparison.OrdinalIgnoreCase));
         StringAssert.Contains(SqlServerExternalFetchAccountStore.CompleteSql, "WHERE faid = @FetchAccountId");
         StringAssert.Contains(SqlServerExternalFetchAccountStore.CompleteSql, "AND falocked = 1");
 
@@ -45,6 +49,11 @@ public sealed class SqlServerExternalFetchAccountStoreTests
         StringAssert.Contains(SqlServerExternalFetchAccountStore.ResetLocksSql, "WHERE falocked <> 0");
         StringAssert.Contains(SqlServerExternalFetchAccountStore.DeferInactiveAccountsSql, "NOT EXISTS");
         StringAssert.Contains(SqlServerExternalFetchAccountStore.DeferInactiveAccountsSql, "DATEADD(minute, fa.faminutes");
+        StringAssert.Contains(SqlServerExternalFetchAccountStore.DeferInactiveAccountsSql, "DATEADD(minute, fa.faminutes, GETDATE())");
+        StringAssert.Contains(SqlServerExternalFetchAccountStore.DeferInactiveAccountsSql, "fa.fanexttry <= GETDATE()");
+        Assert.IsFalse(SqlServerExternalFetchAccountStore.DeferInactiveAccountsSql.Contains(
+            "SYSUTCDATETIME()",
+            StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]

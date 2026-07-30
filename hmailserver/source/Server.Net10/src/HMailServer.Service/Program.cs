@@ -102,7 +102,8 @@ MessageAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IMessageAdministrationStore>(),
     host.Services.GetRequiredService<IMessageAdministrationContentSource>());
 FetchAccountAdministrationRuntimeHost.Configure(
-    host.Services.GetRequiredService<IFetchAccountAdministrationStore>());
+    host.Services.GetRequiredService<IFetchAccountAdministrationStore>(),
+    host.Services.GetRequiredService<IExternalFetchWakeSignal>());
 RuleAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IRuleAdministrationStore>());
 RuleCriteriaAdministrationRuntimeHost.Configure(

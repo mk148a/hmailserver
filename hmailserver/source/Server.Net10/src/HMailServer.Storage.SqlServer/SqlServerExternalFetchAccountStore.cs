@@ -18,7 +18,7 @@ public sealed class SqlServerExternalFetchAccountStore : IExternalFetchAccountSt
     WHERE
         fa.faactive <> 0
         AND fa.falocked = 0
-        AND fa.fanexttry <= SYSUTCDATETIME()
+        AND fa.fanexttry <= GETDATE()
         AND EXISTS
         (
             SELECT 1
@@ -65,12 +65,12 @@ WHERE
 
     public const string DeferInactiveAccountsSql = """
 UPDATE fa
-SET fanexttry = DATEADD(minute, fa.faminutes, SYSUTCDATETIME())
+SET fanexttry = DATEADD(minute, fa.faminutes, GETDATE())
 FROM hm_fetchaccounts AS fa
 WHERE
     fa.faactive <> 0
     AND fa.falocked = 0
-    AND fa.fanexttry <= SYSUTCDATETIME()
+    AND fa.fanexttry <= GETDATE()
     AND NOT EXISTS
     (
         SELECT 1
@@ -89,7 +89,7 @@ SELECT @@ROWCOUNT;
 UPDATE hm_fetchaccounts
 SET
     falocked = 0,
-    fanexttry = DATEADD(minute, faminutes, SYSUTCDATETIME())
+    fanexttry = DATEADD(minute, faminutes, GETDATE())
 WHERE faid = @FetchAccountId
   AND falocked = 1;
 

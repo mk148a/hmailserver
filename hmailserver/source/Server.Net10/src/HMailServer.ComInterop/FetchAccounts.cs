@@ -412,11 +412,15 @@ public static class FetchAccountAdministrationRuntimeHost
     private const int CoENotInitialized = unchecked((int)0x800401F0);
 
     private static IFetchAccountAdministrationStore? _store;
+    private static IExternalFetchWakeSignal? _wakeSignal;
 
-    public static void Configure(IFetchAccountAdministrationStore store)
+    public static void Configure(
+        IFetchAccountAdministrationStore store,
+        IExternalFetchWakeSignal? wakeSignal = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         Volatile.Write(ref _store, store);
+        Volatile.Write(ref _wakeSignal, wakeSignal);
     }
 
     internal static FetchAccounts CreateAuthorizedAdapter(int accountId)
@@ -432,8 +436,15 @@ public static class FetchAccountAdministrationRuntimeHost
                 .GetAwaiter()
                 .GetResult();
 
-        ValueTask RetryNow(int owningAccountId, int fetchAccountId) => store
-            .SetRetryNowAsync(owningAccountId, fetchAccountId, CancellationToken.None);
+        var wakeSignal = Volatile.Read(ref _wakeSignal);
+
+        async ValueTask RetryNow(int owningAccountId, int fetchAccountId)
+        {
+            await store
+                .SetRetryNowAsync(owningAccountId, fetchAccountId, CancellationToken.None)
+                .ConfigureAwait(false);
+            wakeSignal?.Signal();
+        }
 
         return FetchAccounts.CreateAuthorized(LoadFetchAccounts(), LoadFetchAccounts, RetryNow);
     }
