@@ -41,7 +41,9 @@ BackupManagerRuntimeHost.Configure(
             host.Services.GetRequiredService<ISettingsAdministrationStore>(),
             host.Services.GetRequiredService<IBackupPreflightAdministrationStore>(),
             dataDirectory,
-            backupMessagesDbOnly)
+            backupMessagesDbOnly,
+            backupSettingsPropertyStore:
+                host.Services.GetRequiredService<IBackupSettingsPropertyStore>())
             .GetEvidenceAsync,
         new SevenZipBackupArchiveRuntime(
             Path.Combine(AppContext.BaseDirectory, "7za.exe"),

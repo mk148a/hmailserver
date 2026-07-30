@@ -4,7 +4,9 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerSettingsAdministrationStore : ISettingsAdministrationStore
+public sealed class SqlServerSettingsAdministrationStore :
+    ISettingsAdministrationStore,
+    IBackupSettingsPropertyStore
 {
     public const string GetSettingsSql = """
 SELECT
@@ -232,6 +234,12 @@ WHERE settingname IN
 
     private readonly SqlServerConnectionFactory _connectionFactory;
 
+    public const string GetBackupSettingsPropertiesSql = """
+SELECT settingname, settinginteger, settingstring
+FROM hm_settings
+WHERE settingname <> N'smtprelayerpassword'
+""";
+
     public SqlServerSettingsAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
@@ -361,5 +369,30 @@ WHERE settingname IN
             AccountCacheTtl: reader.GetInt32(105),
             AliasCacheTtl: reader.GetInt32(106),
             DistributionListCacheTtl: reader.GetInt32(107));
+    }
+
+    public async ValueTask<IReadOnlyList<BackupSettingsPropertySnapshot>>
+        GetBackupSettingsPropertiesAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await using var command = new SqlCommand(GetBackupSettingsPropertiesSql, connection);
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+
+        var properties = new List<BackupSettingsPropertySnapshot>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            properties.Add(new BackupSettingsPropertySnapshot(
+                Name: reader.GetString(0),
+                LongValue: reader.GetInt32(1),
+                StringValue: reader.GetString(2)));
+        }
+
+        properties.Sort(static (left, right) =>
+            StringComparer.Ordinal.Compare(left.Name, right.Name));
+        return properties;
     }
 }

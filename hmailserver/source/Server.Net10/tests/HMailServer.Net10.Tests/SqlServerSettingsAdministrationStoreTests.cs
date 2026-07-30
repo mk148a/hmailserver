@@ -151,4 +151,18 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         Assert.IsFalse(sql.Contains("process", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("xp_", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void GetBackupSettingsPropertiesSqlReadsRawRowsWithoutTheCredential()
+    {
+        var sql = SqlServerSettingsAdministrationStore.GetBackupSettingsPropertiesSql;
+
+        StringAssert.Contains(sql, "SELECT settingname, settinginteger, settingstring");
+        StringAssert.Contains(sql, "FROM hm_settings");
+        StringAssert.Contains(sql, "settingname <> N'smtprelayerpassword'");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

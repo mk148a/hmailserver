@@ -6,4 +6,5 @@ public sealed record BackupStartPlanEvidence(
     bool BackupMessagesDbOnly,
     bool AllMessageFilesInDataDirectory,
     bool DestinationExists,
-    SettingsAdministrationSnapshot? Settings = null);
+    SettingsAdministrationSnapshot? Settings = null,
+    IReadOnlyList<BackupSettingsPropertySnapshot>? BackupSettingsProperties = null);

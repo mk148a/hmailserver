@@ -1,5 +1,6 @@
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
+using System.Xml.Linq;
 
 namespace HMailServer.Net10.Tests;
 
@@ -126,6 +127,96 @@ public sealed class BackupArchiveRuntimeTests
         StringAssert.Contains(xml, "<Domain");
         StringAssert.Contains(xml, "Name=\"example.test\"");
         Assert.IsFalse(xml.Contains("DataFiles", StringComparison.Ordinal));
+        Assert.IsTrue(
+            xml.IndexOf("<Domains>", StringComparison.Ordinal)
+            < xml.IndexOf("<Properties>", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void MetadataXmlWritesEveryModeledSettingsPropertyInLegacyNameOrderWithoutCredentials()
+    {
+        var settings = new SettingsAdministrationSnapshot(
+            HostName: "mail.example.test",
+            WelcomeSmtp: "smtp & welcome",
+            WelcomePop3: "pop3",
+            WelcomeImap: "imap",
+            MaxSmtpConnections: 11,
+            ServiceSmtp: true,
+            ImapSaslInitialResponseEnabled: true,
+            ImapHierarchyDelimiter: "/",
+            SmtpRelayer: "relay.example.test",
+            SmtpRelayerRequiresAuthentication: true,
+            SmtpRelayerUsername: "relay-user",
+            BackupDestination: @"D:\MailBackup",
+            BackupOptions: 1,
+            AntiVirusClamAvHost: "127.0.0.1",
+            AntiSpamSpamAssassinHost: "127.0.0.1",
+            CacheEnabled: true,
+            DistributionListCacheTtl: 42);
+
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            1,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(settings, Domains: null));
+        var properties = XDocument.Parse(xml)
+            .Root!
+            .Element("Properties")!
+            .Elements()
+            .ToArray();
+
+        Assert.AreEqual(108, properties.Length);
+        CollectionAssert.AreEqual(
+            properties.Select(static property => property.Name.LocalName).ToArray(),
+            properties.Select(static property => property.Name.LocalName)
+                .OrderBy(static name => name, StringComparer.Ordinal)
+                .ToArray());
+        Assert.AreEqual("1", properties.Single(property => property.Name == "protocolsmtp")
+            .Attribute("LongValue")?.Value);
+        Assert.AreEqual(
+            "smtp & welcome",
+            properties.Single(property => property.Name == "welcomesmtp")
+                .Attribute("StringValue")?.Value);
+        Assert.AreEqual(
+            "42",
+            properties.Single(property => property.Name == "distributionlistcachettl")
+                .Attribute("LongValue")?.Value);
+        Assert.IsFalse(xml.Contains("smtprelayerpassword", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void MetadataXmlUsesRawSettingsRowsAndFiltersCredentialBeforeWriting()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            1,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: null,
+                SettingsProperties: new[]
+                {
+                    new BackupSettingsPropertySnapshot("sendstatistics", -7, "a&<\\\"'"),
+                    new BackupSettingsPropertySnapshot("relaymode", 2, string.Empty),
+                    new BackupSettingsPropertySnapshot("MessageIndexing", 1, string.Empty),
+                    new BackupSettingsPropertySnapshot("smtprelayerpassword", 0, "secret")
+                }));
+        var properties = XDocument.Parse(xml)
+            .Root!
+            .Element("Properties")!
+            .Elements()
+            .ToArray();
+
+        CollectionAssert.AreEqual(
+            new[] { "MessageIndexing", "relaymode", "sendstatistics" },
+            properties.Select(static property => property.Name.LocalName).ToArray());
+        Assert.AreEqual(
+            "-7",
+            properties.Single(property => property.Name == "sendstatistics")
+                .Attribute("LongValue")?.Value);
+        Assert.AreEqual(
+            "a&<\\\"'",
+            properties.Single(property => property.Name == "sendstatistics")
+                .Attribute("StringValue")?.Value);
+        Assert.IsFalse(xml.Contains("smtprelayerpassword", StringComparison.Ordinal));
     }
 
     [TestMethod]

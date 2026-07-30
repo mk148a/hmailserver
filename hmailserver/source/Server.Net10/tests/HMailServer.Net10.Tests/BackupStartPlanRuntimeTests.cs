@@ -68,6 +68,34 @@ public sealed class BackupStartPlanRuntimeTests
     }
 
     [TestMethod]
+    public async Task GetEvidenceCarriesRawBackupSettingsPropertiesOnlyWhenSettingsAreSelected()
+    {
+        var settingsStore = new FixedSettingsStore(
+            new SettingsAdministrationSnapshot(
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                BackupDestination: @"D:\MailBackup",
+                BackupOptions: 1));
+        var properties = new[]
+        {
+            new BackupSettingsPropertySnapshot("relaymode", 2, string.Empty)
+        };
+        var runtime = new BackupStartPlanRuntime(
+            settingsStore,
+            new RecordingBackupPreflightStore(allMessageFilesInDataDirectory: true),
+            dataDirectory: @"C:\hMailServer\Data",
+            backupMessagesDbOnly: false,
+            pathExists: _ => true,
+            backupSettingsPropertyStore: new FixedBackupSettingsPropertyStore(properties));
+
+        var evidence = await runtime.GetEvidenceAsync(CancellationToken.None);
+
+        Assert.AreSame(properties, evidence.BackupSettingsProperties);
+    }
+
+    [TestMethod]
     public async Task QueuedTaskFailsThroughLegacyPreflightCallbackBeforeExecution()
     {
         using var queue = new BackupTaskQueue();
@@ -159,6 +187,15 @@ public sealed class BackupStartPlanRuntimeTests
             DataDirectory = dataDirectory;
             return ValueTask.FromResult(allMessageFilesInDataDirectory);
         }
+    }
+
+    private sealed class FixedBackupSettingsPropertyStore(
+        IReadOnlyList<BackupSettingsPropertySnapshot> properties)
+        : IBackupSettingsPropertyStore
+    {
+        public ValueTask<IReadOnlyList<BackupSettingsPropertySnapshot>>
+            GetBackupSettingsPropertiesAsync(CancellationToken cancellationToken) =>
+            ValueTask.FromResult(properties);
     }
 
     private sealed class RecordingBackupArchiveMetadataReader(int options)

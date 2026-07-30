@@ -892,7 +892,11 @@ public static class Host
             applicationVersion,
             initializationFile));
     builder.Services.AddSingleton<IServerStatusAdministrationStore, SqlServerServerStatusAdministrationStore>();
-    builder.Services.AddSingleton<ISettingsAdministrationStore, SqlServerSettingsAdministrationStore>();
+    builder.Services.AddSingleton<SqlServerSettingsAdministrationStore>();
+    builder.Services.AddSingleton<ISettingsAdministrationStore>(serviceProvider =>
+        serviceProvider.GetRequiredService<SqlServerSettingsAdministrationStore>());
+    builder.Services.AddSingleton<IBackupSettingsPropertyStore>(serviceProvider =>
+        serviceProvider.GetRequiredService<SqlServerSettingsAdministrationStore>());
     builder.Services.AddSingleton<IBackupPreflightAdministrationStore, SqlServerBackupPreflightAdministrationStore>();
     builder.Services.AddSingleton<ILogonFailureAdministrationStore, SqlServerLogonFailureAdministrationStore>();
     builder.Services.AddSingleton<IBlockedAttachmentAdministrationStore, SqlServerBlockedAttachmentAdministrationStore>();

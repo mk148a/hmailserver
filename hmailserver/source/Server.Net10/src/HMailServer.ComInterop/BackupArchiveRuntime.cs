@@ -8,8 +8,9 @@ using HMailServer.Core.Abstractions;
 namespace HMailServer.ComInterop;
 
 /// <summary>
-/// Creates the legacy metadata-only backup archive. Payload serialization is
-/// deliberately fenced until the corresponding read-only providers exist.
+/// Creates the bounded legacy archive and modeled scalar settings/domain metadata.
+/// Message payloads, credentials, nested domain children, and data-directory
+/// staging remain fenced.
 /// </summary>
 [ComVisible(false)]
 public sealed class SevenZipBackupArchiveRuntime
@@ -121,14 +122,14 @@ public sealed class SevenZipBackupArchiveRuntime
                 backupOptions.ToString(CultureInfo.InvariantCulture));
             writer.WriteAttributeString("Version", applicationVersion);
             writer.WriteEndElement();
-            if ((backupOptions & BackupStartPlan.BackupSettingsFlag) != 0)
-            {
-                WriteSettings(writer, payload?.Settings);
-            }
-
             if ((backupOptions & BackupStartPlan.BackupDomainsFlag) != 0)
             {
                 WriteDomains(writer, payload?.Domains);
+            }
+
+            if ((backupOptions & BackupStartPlan.BackupSettingsFlag) != 0)
+            {
+                WriteSettings(writer, payload);
             }
 
             writer.WriteEndElement();
@@ -137,36 +138,178 @@ public sealed class SevenZipBackupArchiveRuntime
         return builder.ToString();
     }
 
-    private static void WriteSettings(XmlWriter writer, SettingsAdministrationSnapshot? settings)
+    private static void WriteSettings(
+        XmlWriter writer,
+        BackupArchiveXmlPayload? payload)
+    {
+        if (payload?.SettingsProperties is not null)
+        {
+            WriteRawSettings(writer, payload.SettingsProperties);
+            return;
+        }
+
+        WriteModeledSettings(writer, payload?.Settings);
+    }
+
+    private static void WriteRawSettings(
+        XmlWriter writer,
+        IReadOnlyList<BackupSettingsPropertySnapshot> properties)
+    {
+        var orderedProperties = new List<BackupSettingsPropertySnapshot>();
+        foreach (var property in properties)
+        {
+            if (!string.Equals(
+                    property.Name,
+                    "smtprelayerpassword",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                orderedProperties.Add(property);
+            }
+        }
+
+        orderedProperties.Sort(static (left, right) =>
+            StringComparer.Ordinal.Compare(left.Name, right.Name));
+
+        writer.WriteStartElement("Properties");
+        foreach (var property in orderedProperties)
+        {
+            WriteProperty(writer, property.Name, property.LongValue, property.StringValue);
+        }
+
+        writer.WriteEndElement();
+    }
+
+    private static void WriteModeledSettings(
+        XmlWriter writer,
+        SettingsAdministrationSnapshot? settings)
     {
         if (settings is null)
         {
             throw new InvalidOperationException("Backup settings payload was not supplied.");
         }
 
+        var properties = new (string Name, long LongValue, string StringValue)[]
+        {
+            ("hostname", 0, settings.HostName),
+            ("welcomesmtp", 0, settings.WelcomeSmtp),
+            ("welcomepop3", 0, settings.WelcomePop3),
+            ("welcomeimap", 0, settings.WelcomeImap),
+            ("maxsmtpconnections", settings.MaxSmtpConnections, string.Empty),
+            ("maxpop3connections", settings.MaxPop3Connections, string.Empty),
+            ("maximapconnections", settings.MaxImapConnections, string.Empty),
+            ("maxdelivertythreads", settings.MaxDeliveryThreads, string.Empty),
+            ("protocolsmtp", settings.ServiceSmtp ? 1 : 0, string.Empty),
+            ("protocolpop3", settings.ServicePop3 ? 1 : 0, string.Empty),
+            ("protocolimap", settings.ServiceImap ? 1 : 0, string.Empty),
+            ("smtpnoofretries", settings.SmtpNoOfTries, string.Empty),
+            ("smtpminutesbetweenretries", settings.SmtpMinutesBetweenTry, string.Empty),
+            ("maxmessagesize", settings.MaxMessageSize, string.Empty),
+            ("maxsmtprecipientsinbatch", settings.MaxSmtpRecipientsInBatch, string.Empty),
+            ("disconnectinvalidclients", settings.DisconnectInvalidClients ? 1 : 0, string.Empty),
+            ("maximumincorrectcommands", settings.MaxNumberOfInvalidCommands, string.Empty),
+            ("enableimapsort", settings.ImapSortEnabled ? 1 : 0, string.Empty),
+            ("enableimapquota", settings.ImapQuotaEnabled ? 1 : 0, string.Empty),
+            ("enableimapidle", settings.ImapIdleEnabled ? 1 : 0, string.Empty),
+            ("enableimapacl", settings.ImapAclEnabled ? 1 : 0, string.Empty),
+            ("EnableImapSASLPlain", settings.ImapSaslPlainEnabled ? 1 : 0, string.Empty),
+            ("EnableImapSASLInitialResponse", settings.ImapSaslInitialResponseEnabled ? 1 : 0, string.Empty),
+            ("imappublicfoldername", 0, settings.ImapPublicFolderName),
+            ("IMAPHierarchyDelimiter", 0, settings.ImapHierarchyDelimiter),
+            ("authallowplaintext", settings.AllowSmtpAuthPlain ? 1 : 0, string.Empty),
+            ("allowmailfromnull", settings.AllowMailFromNull ? 1 : 0, string.Empty),
+            ("smtpallowincorrectlineendings", settings.AllowIncorrectLineEndings ? 1 : 0, string.Empty),
+            ("adddeliveredtoheader", settings.AddDeliveredToHeader ? 1 : 0, string.Empty),
+            ("mirroremailaddress", 0, settings.MirrorEmailAddress),
+            ("defaultdomain", 0, settings.DefaultDomain),
+            ("smtpdeliverybindtoip", 0, settings.SmtpDeliveryBindToIp),
+            ("rulelooplimit", settings.RuleLoopLimit, string.Empty),
+            ("workerthreadpriority", settings.WorkerThreadPriority, string.Empty),
+            ("tcpipthreads", settings.TcpIpThreads, string.Empty),
+            ("MaxNumberOfMXHosts", settings.MaxNumberOfMxHosts, string.Empty),
+            ("VerifyRemoteSslCertificate", settings.VerifyRemoteSslCertificate ? 1 : 0, string.Empty),
+            ("SslCipherList", 0, settings.SslCipherList),
+            ("IPv6Preferred", settings.Ipv6PreferredEnabled ? 1 : 0, string.Empty),
+            ("AutoBanOnLogonFailureEnabled", settings.AutoBanOnLogonFailure ? 1 : 0, string.Empty),
+            ("MaxInvalidLogonAttempts", settings.MaxInvalidLogonAttempts, string.Empty),
+            ("LogonAttemptsWithinMinutes", settings.MaxInvalidLogonAttemptsWithin, string.Empty),
+            ("AutoBanMinutes", settings.AutoBanMinutes, string.Empty),
+            ("smtprelayer", 0, settings.SmtpRelayer),
+            ("usesmtprelayerauthentication", settings.SmtpRelayerRequiresAuthentication ? 1 : 0, string.Empty),
+            ("smtprelayerusername", 0, settings.SmtpRelayerUsername),
+            ("smtprelayerport", settings.SmtpRelayerPort, string.Empty),
+            ("smtprelayerconnectionsecurity", settings.SmtpRelayerConnectionSecurity, string.Empty),
+            ("SmtpDeliveryConnectionSecurity", settings.SmtpConnectionSecurity, string.Empty),
+            ("SslVersions", settings.SslVersions, string.Empty),
+            ("TlsOptions", settings.TlsOptions, string.Empty),
+            ("ImapMasterUser", 0, settings.ImapMasterUser),
+            ("MaxNumberOfAsynchronousTasks", settings.MaxAsynchronousThreads, string.Empty),
+            ("logging", settings.LoggingMask, string.Empty),
+            ("logdevice", settings.LogDevice, string.Empty),
+            ("logformat", settings.LogFormat, string.Empty),
+            ("awstatsenabled", settings.AwStatsEnabled ? 1 : 0, string.Empty),
+            ("usescriptserver", settings.UseScriptServer ? 1 : 0, string.Empty),
+            ("scriptlanguage", 0, settings.ScriptLanguage),
+            ("backupdestination", 0, settings.BackupDestination),
+            ("backupoptions", settings.BackupOptions, string.Empty),
+            ("avclamwinenable", settings.AntiVirusClamWinEnabled ? 1 : 0, string.Empty),
+            ("avclamwinexec", 0, settings.AntiVirusClamWinExecutable),
+            ("avclamwindb", 0, settings.AntiVirusClamWinDatabase),
+            ("avaction", settings.AntiVirusAction, string.Empty),
+            ("avnotifyreceiver", settings.AntiVirusNotifyReceiver ? 1 : 0, string.Empty),
+            ("avnotifysender", settings.AntiVirusNotifySender ? 1 : 0, string.Empty),
+            ("usecustomvirusscanner", settings.AntiVirusCustomScannerEnabled ? 1 : 0, string.Empty),
+            ("customvirusscannerexecutable", 0, settings.AntiVirusCustomScannerExecutable),
+            ("customviursscannerreturnvalue", settings.AntiVirusCustomScannerReturnValue, string.Empty),
+            ("avmaxmsgsize", settings.AntiVirusMaximumMessageSize, string.Empty),
+            ("enableattachmentblocking", settings.AntiVirusEnableAttachmentBlocking ? 1 : 0, string.Empty),
+            ("ClamAVEnabled", settings.AntiVirusClamAvEnabled ? 1 : 0, string.Empty),
+            ("ClamAVHost", 0, settings.AntiVirusClamAvHost),
+            ("ClamAVPort", settings.AntiVirusClamAvPort, string.Empty),
+            ("usegreylisting", settings.AntiSpamGreyListingEnabled ? 1 : 0, string.Empty),
+            ("greylistinginitialdelay", settings.AntiSpamGreyListingInitialDelay, string.Empty),
+            ("greylistinginitialdelete", settings.AntiSpamGreyListingInitialDelete, string.Empty),
+            ("greylistingfinaldelete", settings.AntiSpamGreyListingFinalDelete, string.Empty),
+            ("ascheckhostinhelo", settings.AntiSpamCheckHostInHelo ? 1 : 0, string.Empty),
+            ("ascheckhostinheloscore", settings.AntiSpamCheckHostInHeloScore, string.Empty),
+            ("ascheckptr", settings.AntiSpamCheckPtr ? 1 : 0, string.Empty),
+            ("ascheckptrscore", settings.AntiSpamCheckPtrScore, string.Empty),
+            ("antispamaddheaderspam", settings.AntiSpamAddHeaderSpam ? 1 : 0, string.Empty),
+            ("antispamaddheaderreason", settings.AntiSpamAddHeaderReason ? 1 : 0, string.Empty),
+            ("antispamprependsubject", settings.AntiSpamPrependSubject ? 1 : 0, string.Empty),
+            ("antispamprependsubjecttext", 0, settings.AntiSpamPrependSubjectText),
+            ("spammarkthreshold", settings.AntiSpamSpamMarkThreshold, string.Empty),
+            ("spamdeletethreshold", settings.AntiSpamSpamDeleteThreshold, string.Empty),
+            ("usespf", settings.AntiSpamUseSpf ? 1 : 0, string.Empty),
+            ("usespfscore", settings.AntiSpamUseSpfScore, string.Empty),
+            ("usemxchecks", settings.AntiSpamUseMxChecks ? 1 : 0, string.Empty),
+            ("usemxchecksscore", settings.AntiSpamUseMxChecksScore, string.Empty),
+            ("spamassassinenabled", settings.AntiSpamSpamAssassinEnabled ? 1 : 0, string.Empty),
+            ("spamassassinscore", settings.AntiSpamSpamAssassinScore, string.Empty),
+            ("spamassassinmergescore", settings.AntiSpamSpamAssassinMergeScore ? 1 : 0, string.Empty),
+            ("spamassassinhost", 0, settings.AntiSpamSpamAssassinHost),
+            ("spamassassinport", settings.AntiSpamSpamAssassinPort, string.Empty),
+            ("antispammaxsize", settings.AntiSpamMaximumMessageSize, string.Empty),
+            ("ASDKIMVerificationEnabled", settings.AntiSpamDkimVerificationEnabled ? 1 : 0, string.Empty),
+            ("ASDKIMVerificationFailureScore", settings.AntiSpamDkimVerificationFailureScore, string.Empty),
+            ("BypassGreylistingOnSPFSuccess", settings.AntiSpamBypassGreylistingOnSpfSuccess ? 1 : 0, string.Empty),
+            ("BypassGreylistingOnMailFromMX", settings.AntiSpamBypassGreylistingOnMailFromMx ? 1 : 0, string.Empty),
+            ("usecache", settings.CacheEnabled ? 1 : 0, string.Empty),
+            ("domaincachettl", settings.DomainCacheTtl, string.Empty),
+            ("accountcachettl", settings.AccountCacheTtl, string.Empty),
+            ("aliascachettl", settings.AliasCacheTtl, string.Empty),
+            ("distributionlistcachettl", settings.DistributionListCacheTtl, string.Empty)
+        };
+
+        Array.Sort(
+            properties,
+            static (left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name));
+
         writer.WriteStartElement("Properties");
-        WriteProperty(writer, "hostname", stringValue: settings.HostName);
-        WriteProperty(writer, "welcomesmtp", stringValue: settings.WelcomeSmtp);
-        WriteProperty(writer, "welcomepop3", stringValue: settings.WelcomePop3);
-        WriteProperty(writer, "welcomeimap", stringValue: settings.WelcomeImap);
-        WriteProperty(writer, "backupdestination", stringValue: settings.BackupDestination);
-        WriteProperty(writer, "backupoptions", longValue: settings.BackupOptions);
-        WriteProperty(writer, "maxsmtpconnections", longValue: settings.MaxSmtpConnections);
-        WriteProperty(writer, "maxpop3connections", longValue: settings.MaxPop3Connections);
-        WriteProperty(writer, "maximapconnections", longValue: settings.MaxImapConnections);
-        WriteProperty(writer, "maxdelivertythreads", longValue: settings.MaxDeliveryThreads);
-        WriteProperty(writer, "maxmessagesize", longValue: settings.MaxMessageSize);
-        WriteProperty(writer, "maxsmtprecipientsinbatch", longValue: settings.MaxSmtpRecipientsInBatch);
-        WriteProperty(writer, "defaultdomain", stringValue: settings.DefaultDomain);
-        WriteProperty(writer, "smtprelayer", stringValue: settings.SmtpRelayer);
-        WriteProperty(writer, "smtprelayerusername", stringValue: settings.SmtpRelayerUsername);
-        WriteProperty(writer, "smtprelayerport", longValue: settings.SmtpRelayerPort);
-        WriteProperty(writer, "smtprelayerconnectionsecurity", longValue: settings.SmtpRelayerConnectionSecurity);
-        WriteProperty(writer, "usecache", longValue: settings.CacheEnabled ? 1 : 0);
-        WriteProperty(writer, "domaincachettl", longValue: settings.DomainCacheTtl);
-        WriteProperty(writer, "accountcachettl", longValue: settings.AccountCacheTtl);
-        WriteProperty(writer, "aliascachettl", longValue: settings.AliasCacheTtl);
-        WriteProperty(writer, "distributionlistcachettl", longValue: settings.DistributionListCacheTtl);
+        foreach (var property in properties)
+        {
+            WriteProperty(writer, property.Name, property.LongValue, property.StringValue);
+        }
+
         writer.WriteEndElement();
     }
 
@@ -292,7 +435,8 @@ public sealed class SevenZipBackupArchiveRuntime
 [ComVisible(false)]
 public sealed record BackupArchiveXmlPayload(
     SettingsAdministrationSnapshot? Settings,
-    IReadOnlyList<DomainAdministrationSnapshot>? Domains);
+    IReadOnlyList<DomainAdministrationSnapshot>? Domains,
+    IReadOnlyList<BackupSettingsPropertySnapshot>? SettingsProperties = null);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
@@ -320,10 +464,14 @@ public sealed class BackupXmlPayloadRuntime
             ? evidence.Settings
                 ?? await _settingsStore.GetSettingsAsync(cancellationToken).ConfigureAwait(false)
             : null;
+        var settingsProperties =
+            (evidence.BackupOptions & BackupStartPlan.BackupSettingsFlag) != 0
+                ? evidence.BackupSettingsProperties
+                : null;
         var domains = (evidence.BackupOptions & BackupStartPlan.BackupDomainsFlag) != 0
             ? await _domainStore.GetDomainsAsync(cancellationToken).ConfigureAwait(false)
             : null;
 
-        return new BackupArchiveXmlPayload(settings, domains);
+        return new BackupArchiveXmlPayload(settings, domains, settingsProperties);
     }
 }
