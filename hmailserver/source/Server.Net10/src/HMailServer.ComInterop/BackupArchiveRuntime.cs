@@ -124,7 +124,12 @@ public sealed class SevenZipBackupArchiveRuntime
             writer.WriteEndElement();
             if ((backupOptions & BackupStartPlan.BackupDomainsFlag) != 0)
             {
-                WriteDomains(writer, payload?.Domains, payload?.DomainAliases, payload?.Accounts);
+                WriteDomains(
+                    writer,
+                    payload?.Domains,
+                    payload?.DomainAliases,
+                    payload?.Accounts,
+                    payload?.Aliases);
             }
 
             if ((backupOptions & BackupStartPlan.BackupSettingsFlag) != 0)
@@ -317,7 +322,8 @@ public sealed class SevenZipBackupArchiveRuntime
         XmlWriter writer,
         IReadOnlyList<DomainAdministrationSnapshot>? domains,
         IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases,
-        IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? accounts)
+        IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? accounts,
+        IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? normalAliases)
     {
         if (domains is null)
         {
@@ -401,6 +407,25 @@ public sealed class SevenZipBackupArchiveRuntime
                     writer.WriteAttributeString("SignaturePlainText", account.SignaturePlainText);
                     writer.WriteAttributeString("SignatureHTML", account.SignatureHtml);
                     writer.WriteAttributeString("LastLogonTime", account.LastLogonTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+                    writer.WriteEndElement();
+                }
+
+                writer.WriteEndElement();
+            }
+
+            if (normalAliases is not null
+                && normalAliases.TryGetValue(domain.Id, out var domainAliasesSnapshot)
+                && domainAliasesSnapshot.Count > 0)
+            {
+                writer.WriteStartElement("Aliases");
+                foreach (var alias in domainAliasesSnapshot)
+                {
+                    writer.WriteStartElement("Alias");
+                    writer.WriteAttributeString("Name", alias.Name);
+                    writer.WriteAttributeString("Value", alias.Value);
+                    writer.WriteAttributeString(
+                        "Active",
+                        (alias.Active ? 1 : 0).ToString(CultureInfo.InvariantCulture));
                     writer.WriteEndElement();
                 }
 
@@ -492,7 +517,8 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyList<DomainAdministrationSnapshot>? Domains,
     IReadOnlyList<BackupSettingsPropertySnapshot>? SettingsProperties = null,
     IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? DomainAliases = null,
-    IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? Accounts = null);
+    IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? Accounts = null,
+    IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? Aliases = null);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
@@ -501,21 +527,25 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IDomainAdministrationStore _domainStore;
     private readonly IDomainAliasAdministrationStore _domainAliasStore;
     private readonly IAccountAdministrationStore _accountStore;
+    private readonly IAliasAdministrationStore _aliasStore;
 
     public BackupXmlPayloadRuntime(
         ISettingsAdministrationStore settingsStore,
         IDomainAdministrationStore domainStore,
         IDomainAliasAdministrationStore domainAliasStore,
-        IAccountAdministrationStore accountStore)
+        IAccountAdministrationStore accountStore,
+        IAliasAdministrationStore aliasStore)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
         ArgumentNullException.ThrowIfNull(domainAliasStore);
         ArgumentNullException.ThrowIfNull(accountStore);
+        ArgumentNullException.ThrowIfNull(aliasStore);
         _settingsStore = settingsStore;
         _domainStore = domainStore;
         _domainAliasStore = domainAliasStore;
         _accountStore = accountStore;
+        _aliasStore = aliasStore;
     }
 
     public async ValueTask<BackupArchiveXmlPayload> GetPayloadAsync(
@@ -537,10 +567,12 @@ public sealed class BackupXmlPayloadRuntime
             : null;
         IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases = null;
         IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? accounts = null;
+        IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? aliases = null;
         if (domains is not null)
         {
             var aliasesByDomainId = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
             var accountsByDomainId = new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>();
+            var normalAliasesByDomainId = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
             foreach (var domain in domains)
             {
                 if (!aliasesByDomainId.ContainsKey(domain.Id))
@@ -556,12 +588,26 @@ public sealed class BackupXmlPayloadRuntime
                         .GetAccountsAsync(domain.Id, cancellationToken)
                         .ConfigureAwait(false);
                 }
+
+                if (!normalAliasesByDomainId.ContainsKey(domain.Id))
+                {
+                    normalAliasesByDomainId[domain.Id] = await _aliasStore
+                        .GetAliasesAsync(domain.Id, cancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
 
             domainAliases = aliasesByDomainId;
             accounts = accountsByDomainId;
+            aliases = normalAliasesByDomainId;
         }
 
-        return new BackupArchiveXmlPayload(settings, domains, settingsProperties, domainAliases, accounts);
+        return new BackupArchiveXmlPayload(
+            settings,
+            domains,
+            settingsProperties,
+            domainAliases,
+            accounts,
+            aliases);
     }
 }

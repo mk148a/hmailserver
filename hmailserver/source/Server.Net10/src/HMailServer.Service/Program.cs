@@ -55,7 +55,8 @@ BackupManagerRuntimeHost.Configure(
                 host.Services.GetRequiredService<ISettingsAdministrationStore>(),
                 host.Services.GetRequiredService<IDomainAdministrationStore>(),
                 host.Services.GetRequiredService<IDomainAliasAdministrationStore>(),
-                host.Services.GetRequiredService<IAccountAdministrationStore>())
+                host.Services.GetRequiredService<IAccountAdministrationStore>(),
+                host.Services.GetRequiredService<IAliasAdministrationStore>())
                 .GetPayloadAsync)
             .CreateAsync));
 MessageIndexingRuntimeHost.Configure(
