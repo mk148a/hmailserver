@@ -88,4 +88,26 @@ public sealed class SqlServerFetchAccountAdministrationStoreTests
         StringAssert.Contains(sql, "AND faaccountid = @AccountID");
         Assert.IsFalse(sql.Contains("@FAID", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteFetchAccountSql_UsesSelectedFetchAccountAndOwningAccountFilters()
+    {
+        var sql = SqlServerFetchAccountAdministrationStore.DeleteFetchAccountSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_fetchaccounts");
+        StringAssert.Contains(sql, "WHERE faid = @FetchAccountID");
+        StringAssert.Contains(sql, "AND faaccountid = @AccountID");
+        Assert.IsFalse(sql.Contains("@FAID", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void DeleteFetchAccountUidsSql_UsesSelectedFetchAccountFilter()
+    {
+        var sql = SqlServerFetchAccountAdministrationStore.DeleteFetchAccountUidsSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_fetchaccounts_uids");
+        StringAssert.Contains(sql, "WHERE uidfaid = @FetchAccountID");
+        Assert.IsFalse(sql.Contains("@AccountID", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("@UIDFAID", StringComparison.OrdinalIgnoreCase));
+    }
 }

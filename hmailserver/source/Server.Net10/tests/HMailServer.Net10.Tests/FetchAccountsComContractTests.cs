@@ -353,6 +353,54 @@ public sealed class FetchAccountsComContractTests
         Assert.AreEqual(0, wakeSignal.SignalCount);
     }
 
+    [TestMethod]
+    public void AuthorizedDelete_RemovesOnlySelectedItemAndPropagatesOwningAccountId()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[]
+            {
+                CreateSnapshot(10, 100, "Keep POP3"),
+                CreateSnapshot(20, 100, "Delete POP3"),
+                CreateSnapshot(30, 200, "Outside POP3")
+        });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var fetchAccounts = account.FetchAccounts;
+        var selected = fetchAccounts[1];
+
+        selected.Delete();
+        selected.Delete();
+
+        Assert.AreEqual(1, store.DeleteCalls.Count);
+        Assert.AreEqual((100, 20), store.DeleteCalls[0]);
+        Assert.AreEqual(1, fetchAccounts.Count);
+        Assert.AreEqual(10, fetchAccounts[0].ID);
+        Assert.AreEqual("Keep POP3", fetchAccounts[0].Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedDelete_MapsStoreFailureToComFailureAndRetainsSnapshot()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[]
+            {
+                CreateSnapshot(10, 100, "Keep POP3"),
+                CreateSnapshot(20, 100, "Delete POP3")
+            })
+        {
+            FailDelete = true
+        };
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var fetchAccounts = account.FetchAccounts;
+
+        var failure = Assert.ThrowsExactly<COMException>(() => fetchAccounts[1].Delete());
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(2, fetchAccounts.Count);
+        Assert.AreEqual("Delete POP3", fetchAccounts[1].Name);
+    }
+
     private static FetchAccountAdministrationSnapshot CreateSnapshot(
         int id,
         int accountId,
@@ -453,6 +501,10 @@ public sealed class FetchAccountsComContractTests
 
         public bool FailRetryNow { get; set; }
 
+        public bool FailDelete { get; set; }
+
+        public List<(int AccountId, int FetchAccountId)> DeleteCalls { get; } = [];
+
         public ValueTask<IReadOnlyList<FetchAccountAdministrationSnapshot>> GetFetchAccountsAsync(
             int accountId,
             CancellationToken cancellationToken)
@@ -474,6 +526,23 @@ public sealed class FetchAccountsComContractTests
 
             RetryAccountId = accountId;
             RetryFetchAccountId = fetchAccountId;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DeleteFetchAccountAsync(
+            int accountId,
+            int fetchAccountId,
+            CancellationToken cancellationToken)
+        {
+            if (FailDelete)
+            {
+                throw new InvalidOperationException("store failed");
+            }
+
+            DeleteCalls.Add((accountId, fetchAccountId));
+            Accounts = Accounts
+                .Where(account => account.AccountId != accountId || account.Id != fetchAccountId)
+                .ToArray();
             return ValueTask.CompletedTask;
         }
     }

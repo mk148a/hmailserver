@@ -40,6 +40,17 @@ WHERE faid = @FetchAccountID
   AND faaccountid = @AccountID;
 """;
 
+    public const string DeleteFetchAccountSql = """
+DELETE FROM hm_fetchaccounts
+WHERE faid = @FetchAccountID
+  AND faaccountid = @AccountID;
+""";
+
+    public const string DeleteFetchAccountUidsSql = """
+DELETE FROM hm_fetchaccounts_uids
+WHERE uidfaid = @FetchAccountID;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerFetchAccountAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -98,6 +109,27 @@ WHERE faid = @FetchAccountID
         command.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask DeleteFetchAccountAsync(
+        int accountId,
+        int fetchAccountId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var accountCommand = new SqlCommand(DeleteFetchAccountSql, connection);
+        accountCommand.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
+        accountCommand.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        var deletedRows = await accountCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        if (deletedRows != 1)
+        {
+            return;
+        }
+
+        await using var uidCommand = new SqlCommand(DeleteFetchAccountUidsSql, connection);
+        uidCommand.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
+        await uidCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>

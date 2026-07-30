@@ -180,6 +180,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
     private FetchAccountAdministrationSnapshot[]? _accounts;
     private readonly Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? _reload;
     private readonly Func<int, int, ValueTask>? _retryNow;
+    private readonly Func<int, int, ValueTask>? _delete;
 
     public FetchAccounts()
     {
@@ -188,11 +189,13 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
     private FetchAccounts(
         IReadOnlyList<FetchAccountAdministrationSnapshot> accounts,
         Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? reload,
-        Func<int, int, ValueTask>? retryNow)
+        Func<int, int, ValueTask>? retryNow,
+        Func<int, int, ValueTask>? delete)
     {
         _accounts = accounts.ToArray();
         _reload = reload;
         _retryNow = retryNow;
+        _delete = delete;
     }
 
     public int Count => GetAccounts().Count;
@@ -200,10 +203,11 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
     internal static FetchAccounts CreateAuthorized(
         IReadOnlyList<FetchAccountAdministrationSnapshot> accounts,
         Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? reload = null,
-        Func<int, int, ValueTask>? retryNow = null)
+        Func<int, int, ValueTask>? retryNow = null,
+        Func<int, int, ValueTask>? delete = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
-        return new FetchAccounts(accounts, reload, retryNow);
+        return new FetchAccounts(accounts, reload, retryNow, delete);
     }
 
     public IInterfaceFetchAccount get_ItemByDBID(int databaseId)
@@ -212,7 +216,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
 
         return match is null
             ? throw new COMException("No fetch account with the specified database identifier exists.", DispEBadIndex)
-            : FetchAccount.CreateAuthorized(match, _retryNow);
+            : FetchAccount.CreateAuthorized(match, _retryNow, _delete is null ? null : DeleteSelectedAsync);
     }
 
     public IInterfaceFetchAccount this[int index]
@@ -225,8 +229,34 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
                 throw new COMException("Fetch account index was outside the collection.", DispEBadIndex);
             }
 
-            return FetchAccount.CreateAuthorized(accounts[index], _retryNow);
+            return FetchAccount.CreateAuthorized(
+                accounts[index],
+                _retryNow,
+                _delete is null ? null : DeleteSelectedAsync);
         }
+    }
+
+    private async ValueTask DeleteSelectedAsync(int accountId, int fetchAccountId)
+    {
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        var accounts = GetAccounts();
+        if (!accounts.Any(account => account.AccountId == accountId && account.Id == fetchAccountId))
+        {
+            return;
+        }
+
+        await _delete(accountId, fetchAccountId).ConfigureAwait(false);
+
+        Volatile.Write(
+            ref _accounts,
+            accounts
+                .Where(account => account.AccountId != accountId || account.Id != fetchAccountId)
+                .ToArray());
     }
 
     public void Refresh()
@@ -296,6 +326,7 @@ public sealed class FetchAccount : IInterfaceFetchAccount
 
     private readonly FetchAccountAdministrationSnapshot? _account;
     private readonly Func<int, int, ValueTask>? _retryNow;
+    private readonly Func<int, int, ValueTask>? _delete;
 
     public FetchAccount()
     {
@@ -303,10 +334,12 @@ public sealed class FetchAccount : IInterfaceFetchAccount
 
     private FetchAccount(
         FetchAccountAdministrationSnapshot account,
-        Func<int, int, ValueTask>? retryNow)
+        Func<int, int, ValueTask>? retryNow,
+        Func<int, int, ValueTask>? delete)
     {
         _account = account;
         _retryNow = retryNow;
+        _delete = delete;
     }
 
     public int ID => Snapshot.Id;
@@ -357,7 +390,8 @@ public sealed class FetchAccount : IInterfaceFetchAccount
 
     internal static FetchAccount CreateAuthorized(
         FetchAccountAdministrationSnapshot account,
-        Func<int, int, ValueTask>? retryNow = null) => new(account, retryNow);
+        Func<int, int, ValueTask>? retryNow = null,
+        Func<int, int, ValueTask>? delete = null) => new(account, retryNow, delete);
 
     public void Save() => Unavailable();
 
@@ -382,7 +416,26 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         }
     }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        var account = Snapshot;
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _delete(account.AccountId, account.Id).GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the fetch account from the database.",
+                EFail);
+        }
+    }
 
     private FetchAccountAdministrationSnapshot Snapshot =>
         _account ?? throw new COMException(
@@ -446,6 +499,17 @@ public static class FetchAccountAdministrationRuntimeHost
             wakeSignal?.Signal();
         }
 
-        return FetchAccounts.CreateAuthorized(LoadFetchAccounts(), LoadFetchAccounts, RetryNow);
+        async ValueTask DeleteFetchAccount(int owningAccountId, int fetchAccountId)
+        {
+            await store
+                .DeleteFetchAccountAsync(owningAccountId, fetchAccountId, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+
+        return FetchAccounts.CreateAuthorized(
+            LoadFetchAccounts(),
+            LoadFetchAccounts,
+            RetryNow,
+            DeleteFetchAccount);
     }
 }

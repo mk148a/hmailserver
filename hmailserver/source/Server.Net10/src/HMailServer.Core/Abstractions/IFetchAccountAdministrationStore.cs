@@ -10,4 +10,9 @@ public interface IFetchAccountAdministrationStore
         int accountId,
         int fetchAccountId,
         CancellationToken cancellationToken);
+
+    ValueTask DeleteFetchAccountAsync(
+        int accountId,
+        int fetchAccountId,
+        CancellationToken cancellationToken);
 }
