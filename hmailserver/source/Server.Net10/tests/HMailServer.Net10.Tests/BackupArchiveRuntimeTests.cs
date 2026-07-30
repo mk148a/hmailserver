@@ -497,6 +497,97 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlWritesOrderedDistributionListsAndRecipientsAndOmitsEmptyContainers()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            2,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: new[]
+                {
+                    new DomainAdministrationSnapshot(10, "example.test", true),
+                    new DomainAdministrationSnapshot(20, "empty.example.test", true)
+                },
+                DomainAliases: new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>
+                {
+                    [10] = new[] { new DomainAliasAdministrationSnapshot(1, 10, "alias.example.test") }
+                },
+                Accounts: new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+                {
+                    [10] = new[] { new AccountAdministrationSnapshot(2, 10, "account@example.test", true, 0) }
+                },
+                Aliases: new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>
+                {
+                    [10] = new[] { new AliasAdministrationSnapshot(3, 10, "alias@example.test", "target@example.test", true) }
+                },
+                DistributionLists: new Dictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>
+                {
+                    [10] = new[]
+                    {
+                        new DistributionListAdministrationSnapshot(
+                            100,
+                            10,
+                            "list<&\"'@example.test",
+                            true,
+                            true,
+                            "sender<&\"'@example.test",
+                            2),
+                        new DistributionListAdministrationSnapshot(
+                            101,
+                            10,
+                            "empty-list@example.test",
+                            false,
+                            false,
+                            "",
+                            0)
+                    },
+                    [20] = Array.Empty<DistributionListAdministrationSnapshot>()
+                },
+                DistributionListRecipients: new Dictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>
+                {
+                    [100] = new[]
+                    {
+                        new DistributionListRecipientAdministrationSnapshot(200, 100, "recipient<&\"'@example.test")
+                    },
+                    [101] = Array.Empty<DistributionListRecipientAdministrationSnapshot>()
+                }));
+
+        var domains = XDocument.Parse(xml)
+            .Root!
+            .Element("Domains")!
+            .Elements("Domain")
+            .ToArray();
+        var domain = domains[0];
+        CollectionAssert.AreEqual(
+            new[] { "DomainAliases", "Accounts", "Aliases", "DistributionLists" },
+            domain.Elements().Select(static element => element.Name.LocalName).ToArray());
+
+        var lists = domain.Element("DistributionLists")!.Elements("DistributionList").ToArray();
+        CollectionAssert.AreEqual(
+            new[] { "Name", "Active", "RequiresAuth", "RequiresAuthAddress", "ListMode" },
+            lists[0].Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("list<&\"'@example.test", lists[0].Attribute("Name")?.Value);
+        Assert.AreEqual("1", lists[0].Attribute("Active")?.Value);
+        Assert.AreEqual("1", lists[0].Attribute("RequiresAuth")?.Value);
+        Assert.AreEqual("sender<&\"'@example.test", lists[0].Attribute("RequiresAuthAddress")?.Value);
+        Assert.AreEqual("2", lists[0].Attribute("ListMode")?.Value);
+        Assert.IsNull(lists[0].Attribute("ID"));
+        Assert.IsNull(lists[0].Attribute("DomainID"));
+
+        var recipientsContainer = lists[0].Element("DistributionList")!;
+        var recipient = recipientsContainer.Element("Recipient")!;
+        CollectionAssert.AreEqual(
+            new[] { "Name" },
+            recipient.Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("recipient<&\"'@example.test", recipient.Attribute("Name")?.Value);
+        Assert.IsNull(lists[1].Element("DistributionList"));
+        Assert.IsNull(domains[1].Element("DistributionLists"));
+        Assert.IsTrue(xml.Contains("Name=\"list&lt;&amp;&quot;'@example.test\"", StringComparison.Ordinal));
+        Assert.IsTrue(xml.Contains("Name=\"recipient&lt;&amp;&quot;'@example.test\"", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task PayloadRuntimeLoadsAliasesOnceForEachSelectedDomainId()
     {
         var domains = new[]
@@ -589,6 +680,68 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public async Task PayloadRuntimeLoadsDistributionListsAndRecipientsOnceAndScopesPayload()
+    {
+        var domains = new[]
+        {
+            new DomainAdministrationSnapshot(10, "alpha.example", true),
+            new DomainAdministrationSnapshot(20, "beta.example", true),
+            new DomainAdministrationSnapshot(10, "alpha-duplicate.example", true)
+        };
+        var listStore = new RecordingDistributionListAdministrationStore(
+            new Dictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>
+            {
+                [10] = new[]
+                {
+                    new DistributionListAdministrationSnapshot(100, 10, "list1@alpha.example", true, false, "", 0),
+                    new DistributionListAdministrationSnapshot(100, 10, "list1@alpha.example", true, false, "", 0),
+                    new DistributionListAdministrationSnapshot(101, 10, "list2@alpha.example", false, true, "sender@alpha.example", 1)
+                },
+                [20] = Array.Empty<DistributionListAdministrationSnapshot>(),
+                [99] = new[] { new DistributionListAdministrationSnapshot(999, 99, "outside@example.test", true, false, "", 0) }
+            });
+        var recipientStore = new RecordingDistributionListRecipientAdministrationStore(
+            new Dictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>
+            {
+                [100] = new[] { new DistributionListRecipientAdministrationSnapshot(200, 100, "recipient@alpha.example") },
+                [101] = Array.Empty<DistributionListRecipientAdministrationSnapshot>(),
+                [999] = new[] { new DistributionListRecipientAdministrationSnapshot(299, 999, "outside@example.test") }
+            });
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(domains),
+            new RecordingDomainAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>()),
+            new RecordingAccountAdministrationStore(
+                new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>()),
+            new RecordingAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
+            listStore,
+            recipientStore);
+
+        var payload = await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence(
+                Destination: "backup",
+                BackupOptions: 2,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(new[] { 10, 20 }, listStore.RequestedDomainIds.ToArray());
+        CollectionAssert.AreEqual(new[] { 100, 101 }, recipientStore.RequestedListIds.ToArray());
+        Assert.IsNotNull(payload.DistributionLists);
+        CollectionAssert.AreEqual(new[] { 10, 20 }, payload.DistributionLists.Keys.OrderBy(static id => id).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "list1@alpha.example", "list1@alpha.example", "list2@alpha.example" },
+            payload.DistributionLists[10].Select(static list => list.Address).ToArray());
+        Assert.AreEqual(0, payload.DistributionLists[20].Count);
+        Assert.IsNotNull(payload.DistributionListRecipients);
+        CollectionAssert.AreEqual(new[] { 100, 101 }, payload.DistributionListRecipients.Keys.OrderBy(static id => id).ToArray());
+        Assert.IsFalse(payload.DistributionListRecipients.ContainsKey(999));
+    }
+
+    [TestMethod]
     public async Task PayloadRuntimeLoadsAccountsOnceForEachSelectedDomainId()
     {
         var domains = new[]
@@ -638,12 +791,18 @@ public sealed class BackupArchiveRuntimeTests
             new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>());
         var accountStore = new RecordingAccountAdministrationStore(
             new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>());
+        var listStore = new RecordingDistributionListAdministrationStore(
+            new Dictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>());
+        var recipientStore = new RecordingDistributionListRecipientAdministrationStore(
+            new Dictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>());
         var runtime = new BackupXmlPayloadRuntime(
             new FixedSettingsAdministrationStore(),
             new FixedDomainAdministrationStore(Array.Empty<DomainAdministrationSnapshot>()),
             aliasStore,
             accountStore,
-            normalAliasStore);
+            normalAliasStore,
+            listStore,
+            recipientStore);
 
         var payload = await runtime.GetPayloadAsync(
             new BackupStartPlanEvidence(
@@ -657,10 +816,14 @@ public sealed class BackupArchiveRuntimeTests
         CollectionAssert.AreEqual(Array.Empty<int>(), aliasStore.RequestedDomainIds.ToArray());
         CollectionAssert.AreEqual(Array.Empty<int>(), normalAliasStore.RequestedDomainIds.ToArray());
         CollectionAssert.AreEqual(Array.Empty<int>(), accountStore.RequestedDomainIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<int>(), listStore.RequestedDomainIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<int>(), recipientStore.RequestedListIds.ToArray());
         Assert.IsNull(payload.Domains);
         Assert.IsNull(payload.DomainAliases);
         Assert.IsNull(payload.Accounts);
         Assert.IsNull(payload.Aliases);
+        Assert.IsNull(payload.DistributionLists);
+        Assert.IsNull(payload.DistributionListRecipients);
     }
 
     private sealed class FixedSettingsAdministrationStore : ISettingsAdministrationStore
@@ -743,5 +906,41 @@ public sealed class BackupArchiveRuntimeTests
                 accounts.Values
                     .SelectMany(static domainAccounts => domainAccounts)
                     .FirstOrDefault(account => account.Id == accountId));
+    }
+
+    private sealed class RecordingDistributionListAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>> lists)
+        : IDistributionListAdministrationStore
+    {
+        public List<int> RequestedDomainIds { get; } = new();
+
+        public ValueTask<IReadOnlyList<DistributionListAdministrationSnapshot>> GetDistributionListsAsync(
+            int domainId,
+            CancellationToken cancellationToken)
+        {
+            RequestedDomainIds.Add(domainId);
+            return ValueTask.FromResult(
+                lists.TryGetValue(domainId, out var domainLists)
+                    ? domainLists
+                    : Array.Empty<DistributionListAdministrationSnapshot>());
+        }
+    }
+
+    private sealed class RecordingDistributionListRecipientAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> recipients)
+        : IDistributionListRecipientAdministrationStore
+    {
+        public List<int> RequestedListIds { get; } = new();
+
+        public ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
+            int distributionListId,
+            CancellationToken cancellationToken)
+        {
+            RequestedListIds.Add(distributionListId);
+            return ValueTask.FromResult(
+                recipients.TryGetValue(distributionListId, out var listRecipients)
+                    ? listRecipients
+                    : Array.Empty<DistributionListRecipientAdministrationSnapshot>());
+        }
     }
 }
