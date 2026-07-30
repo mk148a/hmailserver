@@ -48,7 +48,8 @@ public sealed class BackupStartPlanRuntime
             BackupOptions: settings.BackupOptions,
             BackupMessagesDbOnly: _backupMessagesDbOnly,
             AllMessageFilesInDataDirectory: allMessageFilesInDataDirectory,
-            DestinationExists: _pathExists(normalizedDestination));
+            DestinationExists: _pathExists(normalizedDestination),
+            Settings: settings);
     }
 
     internal static string NormalizeDestination(string destination) =>

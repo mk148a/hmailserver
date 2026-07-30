@@ -42,7 +42,18 @@ BackupManagerRuntimeHost.Configure(
             host.Services.GetRequiredService<IBackupPreflightAdministrationStore>(),
             dataDirectory,
             backupMessagesDbOnly)
-            .GetEvidenceAsync));
+            .GetEvidenceAsync,
+        new SevenZipBackupArchiveRuntime(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            host.Services
+                .GetRequiredService<IApplicationRuntimeStore>()
+                .GetSnapshot()
+                .Version,
+            payloadProvider: new BackupXmlPayloadRuntime(
+                host.Services.GetRequiredService<ISettingsAdministrationStore>(),
+                host.Services.GetRequiredService<IDomainAdministrationStore>())
+                .GetPayloadAsync)
+            .CreateAsync));
 MessageIndexingRuntimeHost.Configure(
     host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());
 DatabaseAdministrationRuntimeHost.Configure(

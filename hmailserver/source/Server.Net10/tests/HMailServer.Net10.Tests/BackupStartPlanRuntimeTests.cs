@@ -71,6 +71,7 @@ public sealed class BackupStartPlanRuntimeTests
     public async Task QueuedTaskFailsThroughLegacyPreflightCallbackBeforeExecution()
     {
         using var queue = new BackupTaskQueue();
+        var executed = false;
         var runtime = new BackupOperationRuntime(
             queue,
             _ => new ValueTask<BackupStartPlanEvidence>(
@@ -79,7 +80,12 @@ public sealed class BackupStartPlanRuntimeTests
                     BackupOptions: 4,
                     BackupMessagesDbOnly: true,
                     AllMessageFilesInDataDirectory: false,
-                    DestinationExists: true)));
+                    DestinationExists: true)),
+            (_, _) =>
+            {
+                executed = true;
+                return ValueTask.CompletedTask;
+            });
         var manager = BackupManager.CreateAuthorized(
             new RecordingBackupArchiveMetadataReader(0),
             runtime);
@@ -94,6 +100,40 @@ public sealed class BackupStartPlanRuntimeTests
             () => task.ExecuteAsync(CancellationToken.None).AsTask());
 
         Assert.AreEqual("All messages are not located in the data folder.", error.Message);
+        Assert.IsFalse(executed);
+    }
+
+    [TestMethod]
+    public async Task QueuedTaskPassesSuccessfulPlanEvidenceToArchiveRuntime()
+    {
+        using var queue = new BackupTaskQueue();
+        BackupStartPlanEvidence? observed = null;
+        var expected = new BackupStartPlanEvidence(
+            Destination: @"D:\MailBackup",
+            BackupOptions: 8,
+            BackupMessagesDbOnly: false,
+            AllMessageFilesInDataDirectory: true,
+            DestinationExists: true);
+        var runtime = new BackupOperationRuntime(
+            queue,
+            _ => new ValueTask<BackupStartPlanEvidence>(expected),
+            (evidence, _) =>
+            {
+                observed = evidence;
+                return ValueTask.CompletedTask;
+            });
+        var manager = BackupManager.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(0),
+            runtime);
+
+        manager.StartBackup();
+
+        await using var reader = queue.ReadAllAsync(CancellationToken.None).GetAsyncEnumerator();
+        Assert.IsTrue(await reader.MoveNextAsync());
+
+        await reader.Current.ExecuteAsync(CancellationToken.None);
+
+        Assert.AreSame(expected, observed);
     }
 
     private sealed class FixedSettingsStore(SettingsAdministrationSnapshot snapshot)

@@ -11,6 +11,7 @@ internal sealed record BackupStartPlan(
     bool RequiresDataDirectoryCopy,
     string? FailureReason)
 {
+    internal const int BackupSettingsFlag = 1;
     internal const int BackupDomainsFlag = 2;
     internal const int BackupMessagesFlag = 4;
 

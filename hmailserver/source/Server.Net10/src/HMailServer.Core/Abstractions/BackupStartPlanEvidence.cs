@@ -5,4 +5,5 @@ public sealed record BackupStartPlanEvidence(
     int BackupOptions,
     bool BackupMessagesDbOnly,
     bool AllMessageFilesInDataDirectory,
-    bool DestinationExists);
+    bool DestinationExists,
+    SettingsAdministrationSnapshot? Settings = null);

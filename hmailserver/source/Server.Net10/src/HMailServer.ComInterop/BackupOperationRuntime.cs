@@ -86,17 +86,18 @@ internal sealed class BackupOperationCoordinator : IBackupOperationRuntime
 public sealed class BackupOperationRuntime : IBackupOperationRuntime
 {
     private readonly BackupOperationCoordinator _coordinator;
-    private readonly Func<CancellationToken, ValueTask>? _preflightAsync;
+    private readonly Func<CancellationToken, ValueTask<BackupStartPlanEvidence>>? _startPlanEvidence;
+    private readonly Func<BackupStartPlanEvidence, CancellationToken, ValueTask>? _executeBackupAsync;
 
     public BackupOperationRuntime(
         IBackupTaskQueue taskQueue,
-        Func<CancellationToken, ValueTask<BackupStartPlanEvidence>>? startPlanEvidence = null)
+        Func<CancellationToken, ValueTask<BackupStartPlanEvidence>>? startPlanEvidence = null,
+        Func<BackupStartPlanEvidence, CancellationToken, ValueTask>? executeBackupAsync = null)
     {
         ArgumentNullException.ThrowIfNull(taskQueue);
         _coordinator = new(taskQueue.TryEnqueue);
-        _preflightAsync = startPlanEvidence is null
-            ? null
-            : cancellationToken => RunPreflightAsync(startPlanEvidence, cancellationToken);
+        _startPlanEvidence = startPlanEvidence;
+        _executeBackupAsync = executeBackupAsync;
     }
 
     public BackupStartDispatchResult TryStartBackup(Func<BackupTaskRequest> taskFactory)
@@ -104,7 +105,7 @@ public sealed class BackupOperationRuntime : IBackupOperationRuntime
         ArgumentNullException.ThrowIfNull(taskFactory);
 
         return _coordinator.TryStartBackup(
-            _preflightAsync is null
+            _startPlanEvidence is null
                 ? taskFactory
                 : () => WrapTaskWithPreflight(taskFactory()));
     }
@@ -113,10 +114,11 @@ public sealed class BackupOperationRuntime : IBackupOperationRuntime
 
     private BackupTaskRequest WrapTaskWithPreflight(BackupTaskRequest task)
     {
-        var preflightAsync = _preflightAsync!;
+        var startPlanEvidence = _startPlanEvidence!;
         return new BackupTaskRequest(
             cancellationToken => ExecuteWithPreflightAsync(
-                preflightAsync,
+                startPlanEvidence,
+                _executeBackupAsync,
                 task.ExecuteAsync,
                 cancellationToken),
             task.SetStatus,
@@ -125,7 +127,7 @@ public sealed class BackupOperationRuntime : IBackupOperationRuntime
             task.ThreadStopped);
     }
 
-    private static async ValueTask RunPreflightAsync(
+    private static async ValueTask<BackupStartPlanEvidence> RunPreflightAsync(
         Func<CancellationToken, ValueTask<BackupStartPlanEvidence>> getEvidenceAsync,
         CancellationToken cancellationToken)
     {
@@ -141,14 +143,24 @@ public sealed class BackupOperationRuntime : IBackupOperationRuntime
         {
             throw new InvalidOperationException(plan.FailureReason);
         }
+
+        return evidence;
     }
 
     private static async ValueTask ExecuteWithPreflightAsync(
-        Func<CancellationToken, ValueTask> preflightAsync,
+        Func<CancellationToken, ValueTask<BackupStartPlanEvidence>> getEvidenceAsync,
+        Func<BackupStartPlanEvidence, CancellationToken, ValueTask>? executeBackupAsync,
         Func<CancellationToken, ValueTask> executeAsync,
         CancellationToken cancellationToken)
     {
-        await preflightAsync(cancellationToken).ConfigureAwait(false);
+        var evidence = await RunPreflightAsync(getEvidenceAsync, cancellationToken)
+            .ConfigureAwait(false);
+        if (executeBackupAsync is not null)
+        {
+            await executeBackupAsync(evidence, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         await executeAsync(cancellationToken).ConfigureAwait(false);
     }
 }
