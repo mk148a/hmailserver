@@ -271,4 +271,162 @@ public sealed class BackupArchiveRuntimeTests
             Directory.Delete(destination, recursive: true);
         }
     }
+
+    [TestMethod]
+    public void MetadataXmlWritesScopedDomainAliasesInSuppliedOrderAndOmitsEmptyContainers()
+    {
+        var domains = new[]
+        {
+            new DomainAdministrationSnapshot(10, "alpha.example", true),
+            new DomainAdministrationSnapshot(20, "beta.example", true),
+            new DomainAdministrationSnapshot(30, "gamma.example", true)
+        };
+        var aliases = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>
+        {
+            [10] = new[]
+            {
+                new DomainAliasAdministrationSnapshot(20, 10, "first<&\"'alias.example"),
+                new DomainAliasAdministrationSnapshot(10, 10, "second.example")
+            },
+            [20] = new[]
+            {
+                new DomainAliasAdministrationSnapshot(30, 20, "alias.beta.example")
+            },
+            [30] = Array.Empty<DomainAliasAdministrationSnapshot>()
+        };
+
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            2,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: domains,
+                DomainAliases: aliases));
+
+        var domainElements = XDocument.Parse(xml)
+            .Root!
+            .Element("Domains")!
+            .Elements("Domain")
+            .ToArray();
+        var firstDomainAliases = domainElements[0]
+            .Element("DomainAliases")!
+            .Elements("DomainAlias")
+            .ToArray();
+
+        CollectionAssert.AreEqual(
+            new[] { "first<&\"'alias.example", "second.example" },
+            firstDomainAliases.Select(static alias => alias.Attribute("Name")!.Value).ToArray());
+        Assert.AreEqual(1, firstDomainAliases[0].Attributes().Count());
+        Assert.IsNull(firstDomainAliases[0].Attribute("ID"));
+        Assert.IsNull(firstDomainAliases[0].Attribute("DomainID"));
+        CollectionAssert.AreEqual(
+            new[] { "alias.beta.example" },
+            domainElements[1]
+                .Element("DomainAliases")!
+                .Elements("DomainAlias")
+                .Select(static alias => alias.Attribute("Name")!.Value)
+                .ToArray());
+        Assert.IsNull(domainElements[2].Element("DomainAliases"));
+        Assert.IsTrue(xml.Contains("first&lt;&amp;&quot;'alias.example", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task PayloadRuntimeLoadsAliasesOnceForEachSelectedDomainId()
+    {
+        var domains = new[]
+        {
+            new DomainAdministrationSnapshot(10, "alpha.example", true),
+            new DomainAdministrationSnapshot(20, "beta.example", true)
+        };
+        var aliasStore = new RecordingDomainAliasAdministrationStore(
+            new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>
+            {
+                [10] = new[] { new DomainAliasAdministrationSnapshot(1, 10, "alias.alpha.example") },
+                [20] = Array.Empty<DomainAliasAdministrationSnapshot>(),
+                [99] = new[] { new DomainAliasAdministrationSnapshot(2, 99, "not-selected.example") }
+            });
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(domains),
+            aliasStore);
+
+        var payload = await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence(
+                Destination: "backup",
+                BackupOptions: 2,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(new[] { 10, 20 }, aliasStore.RequestedDomainIds.ToArray());
+        Assert.IsNotNull(payload.DomainAliases);
+        Assert.AreEqual(2, payload.DomainAliases.Count);
+        CollectionAssert.AreEqual(
+            new[] { "alias.alpha.example" },
+            payload.DomainAliases[10].Select(static alias => alias.AliasName).ToArray());
+        Assert.AreEqual(0, payload.DomainAliases[20].Count);
+    }
+
+    [TestMethod]
+    public async Task PayloadRuntimeDoesNotLoadAliasesWhenDomainsAreNotSelected()
+    {
+        var aliasStore = new RecordingDomainAliasAdministrationStore(
+            new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>());
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(Array.Empty<DomainAdministrationSnapshot>()),
+            aliasStore);
+
+        var payload = await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence(
+                Destination: "backup",
+                BackupOptions: 1,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(Array.Empty<int>(), aliasStore.RequestedDomainIds.ToArray());
+        Assert.IsNull(payload.Domains);
+        Assert.IsNull(payload.DomainAliases);
+    }
+
+    private sealed class FixedSettingsAdministrationStore : ISettingsAdministrationStore
+    {
+        public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(
+                new SettingsAdministrationSnapshot(
+                    "mail.example.test",
+                    "smtp",
+                    "pop3",
+                    "imap"));
+    }
+
+    private sealed class FixedDomainAdministrationStore(
+        IReadOnlyList<DomainAdministrationSnapshot> domains) : IDomainAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(domains);
+    }
+
+    private sealed class RecordingDomainAliasAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>> aliases)
+        : IDomainAliasAdministrationStore
+    {
+        public List<int> RequestedDomainIds { get; } = new();
+
+        public ValueTask<IReadOnlyList<DomainAliasAdministrationSnapshot>> GetDomainAliasesAsync(
+            int domainId,
+            CancellationToken cancellationToken)
+        {
+            RequestedDomainIds.Add(domainId);
+            return ValueTask.FromResult(
+                aliases.TryGetValue(domainId, out var domainAliases)
+                    ? domainAliases
+                    : Array.Empty<DomainAliasAdministrationSnapshot>());
+        }
+    }
 }

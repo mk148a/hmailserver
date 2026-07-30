@@ -124,7 +124,7 @@ public sealed class SevenZipBackupArchiveRuntime
             writer.WriteEndElement();
             if ((backupOptions & BackupStartPlan.BackupDomainsFlag) != 0)
             {
-                WriteDomains(writer, payload?.Domains);
+                WriteDomains(writer, payload?.Domains, payload?.DomainAliases);
             }
 
             if ((backupOptions & BackupStartPlan.BackupSettingsFlag) != 0)
@@ -315,7 +315,8 @@ public sealed class SevenZipBackupArchiveRuntime
 
     private static void WriteDomains(
         XmlWriter writer,
-        IReadOnlyList<DomainAdministrationSnapshot>? domains)
+        IReadOnlyList<DomainAdministrationSnapshot>? domains,
+        IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases)
     {
         if (domains is null)
         {
@@ -353,6 +354,21 @@ public sealed class SevenZipBackupArchiveRuntime
             writer.WriteAttributeString("LimitationsEnabled", GetLimitations(domain).ToString(CultureInfo.InvariantCulture));
             writer.WriteAttributeString("DKIMSelector", domain.DkimSelector);
             writer.WriteAttributeString("DKIMPrivateKeyFile", domain.DkimPrivateKeyFile);
+            if (domainAliases is not null
+                && domainAliases.TryGetValue(domain.Id, out var aliases)
+                && aliases.Count > 0)
+            {
+                writer.WriteStartElement("DomainAliases");
+                foreach (var alias in aliases)
+                {
+                    writer.WriteStartElement("DomainAlias");
+                    writer.WriteAttributeString("Name", alias.AliasName);
+                    writer.WriteEndElement();
+                }
+
+                writer.WriteEndElement();
+            }
+
             writer.WriteEndElement();
         }
 
@@ -436,22 +452,27 @@ public sealed class SevenZipBackupArchiveRuntime
 public sealed record BackupArchiveXmlPayload(
     SettingsAdministrationSnapshot? Settings,
     IReadOnlyList<DomainAdministrationSnapshot>? Domains,
-    IReadOnlyList<BackupSettingsPropertySnapshot>? SettingsProperties = null);
+    IReadOnlyList<BackupSettingsPropertySnapshot>? SettingsProperties = null,
+    IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? DomainAliases = null);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
 {
     private readonly ISettingsAdministrationStore _settingsStore;
     private readonly IDomainAdministrationStore _domainStore;
+    private readonly IDomainAliasAdministrationStore _domainAliasStore;
 
     public BackupXmlPayloadRuntime(
         ISettingsAdministrationStore settingsStore,
-        IDomainAdministrationStore domainStore)
+        IDomainAdministrationStore domainStore,
+        IDomainAliasAdministrationStore domainAliasStore)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
+        ArgumentNullException.ThrowIfNull(domainAliasStore);
         _settingsStore = settingsStore;
         _domainStore = domainStore;
+        _domainAliasStore = domainAliasStore;
     }
 
     public async ValueTask<BackupArchiveXmlPayload> GetPayloadAsync(
@@ -471,7 +492,23 @@ public sealed class BackupXmlPayloadRuntime
         var domains = (evidence.BackupOptions & BackupStartPlan.BackupDomainsFlag) != 0
             ? await _domainStore.GetDomainsAsync(cancellationToken).ConfigureAwait(false)
             : null;
+        IReadOnlyDictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>? domainAliases = null;
+        if (domains is not null)
+        {
+            var aliasesByDomainId = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
+            foreach (var domain in domains)
+            {
+                if (!aliasesByDomainId.ContainsKey(domain.Id))
+                {
+                    aliasesByDomainId[domain.Id] = await _domainAliasStore
+                        .GetDomainAliasesAsync(domain.Id, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+            }
 
-        return new BackupArchiveXmlPayload(settings, domains, settingsProperties);
+            domainAliases = aliasesByDomainId;
+        }
+
+        return new BackupArchiveXmlPayload(settings, domains, settingsProperties, domainAliases);
     }
 }
