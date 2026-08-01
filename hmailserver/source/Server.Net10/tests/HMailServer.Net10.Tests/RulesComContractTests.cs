@@ -70,6 +70,21 @@ public sealed class RulesComContractTests
     }
 
     [TestMethod]
+    public void DirectActivation_DeleteMembersDenyBeforeCallingConfiguredStore()
+    {
+        var store = new MutableRuleAdministrationStore(
+            new[] { new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1) });
+        RuleAdministrationRuntimeHost.Configure(store);
+
+        var rulesError = Assert.ThrowsExactly<COMException>(() => new Rules().DeleteByDBID(10));
+        var ruleError = Assert.ThrowsExactly<COMException>(new Rule().Delete);
+
+        Assert.AreEqual(EAccessDenied, rulesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, ruleError.ErrorCode);
+        Assert.AreEqual(0, store.DeleteCalls.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var refreshed = new[]
@@ -180,6 +195,77 @@ public sealed class RulesComContractTests
         Assert.AreEqual(1, store.ReadCount);
     }
 
+    [TestMethod]
+    public void AuthorizedRuleDelete_UsesOwningCallbackAndUpdatesAllSharedFacades()
+    {
+        var store = new MutableRuleAdministrationStore(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 100, "Keep rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 100, "Delete rule", false, false, 2),
+                new RuleAdministrationSnapshot(30, 200, "Foreign rule", true, true, 1)
+            });
+        RuleAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var rules = account.Rules;
+        var secondRules = account.Rules;
+        var retained = rules[1];
+
+        retained.Delete();
+        retained.Delete();
+
+        Assert.AreEqual(1, store.DeleteCalls.Count);
+        Assert.AreEqual((100, 20), store.DeleteCalls[0]);
+        Assert.AreEqual(1, rules.Count);
+        Assert.AreEqual(1, secondRules.Count);
+        Assert.AreEqual(10, rules[0].ID);
+        Assert.AreEqual(10, secondRules[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleDelete_UnknownForeignRepeatedAndStaleIdsAreNoOps()
+    {
+        var store = new MutableRuleAdministrationStore(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 100, "Current rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 200, "Foreign rule", true, true, 1)
+            });
+        RuleAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var rules = account.Rules;
+        var stale = rules[0];
+
+        rules.DeleteByDBID(999);
+        rules.DeleteByDBID(20);
+        store.Rules = [new RuleAdministrationSnapshot(30, 100, "Reloaded rule", true, true, 1)];
+        rules.Refresh();
+        stale.Delete();
+
+        Assert.AreEqual(0, store.DeleteCalls.Count);
+        Assert.AreEqual(1, rules.Count);
+        Assert.AreEqual(30, rules[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleDelete_MapsStoreFailureToComFailureAndRetainsSnapshot()
+    {
+        var store = new MutableRuleAdministrationStore(
+            new[] { new RuleAdministrationSnapshot(10, 100, "Retained rule", true, true, 1) })
+        {
+            FailDelete = true
+        };
+        RuleAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var rules = account.Rules;
+
+        var failure = Assert.ThrowsExactly<COMException>(() => rules.DeleteByDBID(10));
+
+        Assert.AreEqual(unchecked((int)0x80004005), failure.ErrorCode);
+        Assert.AreEqual(1, rules.Count);
+        Assert.AreEqual("Retained rule", rules[0].Name);
+    }
+
     private static void AssertRule(
         IInterfaceRule rule,
         int id,
@@ -225,6 +311,10 @@ public sealed class RulesComContractTests
 
         public int ReadCount { get; private set; }
 
+        public bool FailDelete { get; set; }
+
+        public List<(int AccountId, int RuleId)> DeleteCalls { get; } = [];
+
         public ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetRulesAsync(
             int accountId,
             CancellationToken cancellationToken)
@@ -232,6 +322,27 @@ public sealed class RulesComContractTests
             ReadCount++;
             return ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
                 Rules.Where(rule => rule.AccountId == accountId).OrderBy(rule => rule.SortOrder).ToArray());
+        }
+
+        public ValueTask<bool> DeleteRuleAsync(
+            int accountId,
+            int ruleId,
+            CancellationToken cancellationToken)
+        {
+            if (FailDelete)
+            {
+                throw new InvalidOperationException("store failed");
+            }
+
+            var match = Rules.FirstOrDefault(rule => rule.AccountId == accountId && rule.Id == ruleId);
+            if (match is null)
+            {
+                return ValueTask.FromResult(false);
+            }
+
+            DeleteCalls.Add((accountId, ruleId));
+            Rules = Rules.Where(rule => !ReferenceEquals(rule, match)).ToArray();
+            return ValueTask.FromResult(true);
         }
     }
 }

@@ -35,4 +35,35 @@ public sealed class SqlServerRuleAdministrationStoreTests
         Assert.IsFalse(sql.Contains("hm_rule_criterias", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_rule_actions", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteRuleSql_IsOwnerScopedTransactionalAndCleansRuleDependents()
+    {
+        var sql = SqlServerRuleAdministrationStore.DeleteRuleSql;
+
+        StringAssert.Contains(sql, "SET XACT_ABORT ON");
+        StringAssert.Contains(sql, "BEGIN TRANSACTION");
+        StringAssert.Contains(sql, "UPDLOCK, HOLDLOCK");
+        StringAssert.Contains(sql, "WHERE ruleid = @RuleId");
+        StringAssert.Contains(sql, "AND ruleaccountid = @AccountID");
+        StringAssert.Contains(sql, "DELETE FROM hm_rule_actions");
+        StringAssert.Contains(sql, "WHERE actionruleid = @RuleId");
+        StringAssert.Contains(sql, "DELETE FROM hm_rule_criterias");
+        StringAssert.Contains(sql, "WHERE criteriaruleid = @RuleId");
+        StringAssert.Contains(sql, "COMMIT TRANSACTION");
+        StringAssert.Contains(sql, "ROLLBACK TRANSACTION");
+        StringAssert.Contains(sql, "SELECT @Deleted");
+    }
+
+    [TestMethod]
+    public void DeleteRuleAsync_ExposesOwnerAndRuleScopedBooleanStoreContract()
+    {
+        var method = typeof(SqlServerRuleAdministrationStore).GetMethod(nameof(SqlServerRuleAdministrationStore.DeleteRuleAsync));
+
+        Assert.IsNotNull(method);
+        Assert.AreEqual(typeof(ValueTask<bool>), method.ReturnType);
+        CollectionAssert.AreEqual(
+            new[] { typeof(int), typeof(int), typeof(CancellationToken) },
+            method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
+    }
 }
