@@ -519,24 +519,38 @@ internal sealed class BackupRestoreIntegrityRuntime
                     break;
 
                 case "Folders":
-                    if (element.Parent?.Name == "Folder")
-                    {
-                        break;
-                    }
-
-                    if (element.Name != "Folders" || element.Parent?.Name != "Account")
+                    if (element.Name != "Folders"
+                        || (element.Parent?.Name != "Account" && element.Parent?.Name != "Folder"))
                     {
                         return "The domain/account graph is invalid: Folders is in an unexpected location.";
                     }
 
-                    if (element.Parent.Elements("Folders").Skip(1).Any())
+                    if (element.Parent!.Elements("Folders").Skip(1).Any())
                     {
-                        return "The domain/account graph is invalid: Account contains multiple Folders containers.";
+                        return "The domain/account graph is invalid: Folder owner contains multiple Folders containers.";
                     }
 
                     if (element.Elements().Any(static child => child.Name != "Folder"))
                     {
                         return "The domain/account graph is invalid: Folders contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "Messages":
+                    if (element.Name != "Messages" || element.Parent?.Name != "Folder")
+                    {
+                        return "The domain/account graph is invalid: Messages is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("Messages").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Folder contains multiple Messages containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "Message"))
+                    {
+                        return "The domain/account graph is invalid: Messages contains an unexpected child.";
                     }
 
                     break;
@@ -654,6 +668,19 @@ internal sealed class BackupRestoreIntegrityRuntime
                     if (element.Parent?.Name != "Folders")
                     {
                         return "The domain/account graph is invalid: Folder is outside Account/Folders.";
+                    }
+
+                    break;
+
+                case "Message":
+                    if (element.Parent?.Name != "Messages")
+                    {
+                        return "The domain/account graph is invalid: Message is outside Folder/Messages.";
+                    }
+
+                    if (!HasAttributes(element, "CreateTime", "Filename", "FromAddress", "State", "Size", "NoOfRetries", "Flags", "ID", "UID"))
+                    {
+                        return "The domain/account graph is invalid: Message is missing a serialized attribute.";
                     }
 
                     break;
