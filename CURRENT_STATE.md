@@ -1,14 +1,14 @@
 # Current State
 
-- UTC timestamp: 2026-08-01T16:01:03Z
-- Local timestamp: 2026-08-01T19:01:03+03:00
+- UTC timestamp: 2026-08-01T16:07:00Z
+- Local timestamp: 2026-08-01T19:07:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `acf4b286e`
-- Last successfully pushed commit: `4b3433d148aaa920a8853a305783f2b006aed339`
+- Current HEAD: `c029309f4`
+- Last successfully pushed commit: `26b105e0e6f8de50285365b66f16a3009ecde4af`
 - Latest focused-test result: SqlServerImapFolderAdministrationStoreTests `7/7` passed
 - Latest full Net10 result: `1508 passed, 3 skipped`
 - Opt-in tests passed/skipped/blocked: `0/3/0` in the full run; SQL failure-path tests and native registry integration are skipped by opt-in gates
-- Current bounded slice: code/test commit `acf4b286e` adds a transactional SQL dependency-cleanup contract for IMAP folder deletion. It recursively scopes the owning account/parent tree, preserves a root Inbox, removes child folder/message/recipient/search/metadata/ACL rows, and returns message-file descriptors; COM wiring, snapshot mutation, safe file deletion, and AccountSizeCache remain intentionally unimplemented.
+- Current bounded slice: code/test commits `acf4b286e` and `c029309f4` add and owner-scope a transactional SQL dependency-cleanup contract for IMAP folder deletion. It recursively scopes the owning account/parent tree, requires message-account ownership, preserves a root Inbox, removes child folder/message/recipient/search/metadata/ACL rows, and returns message-file descriptors; COM wiring, snapshot mutation, safe file deletion, and AccountSizeCache remain intentionally unimplemented.
 - Completed milestones: Backup metadata parity through accounts, fetch accounts, rules, folders, DB-only messages, compressed message staging, raw message staging, message-only modes, complete option-matrix acceptance coverage, production-wired backup event callbacks, restore metadata consistency validation, domain/account graph validation, message/file correspondence validation, domain child-container validation, direct account child-container validation, FetchAccountUIDs graph validation, RuleCriterias/RuleActions graph validation, folder message/subfolder graph validation, restore dry-run missing-section planning, folder scalar validation, writer folder snapshot validation, read-only restore containment preflight, bounded/cancellable containment traversal, execution-time containment revalidation, restore execution gate contract, read-only Domain/Account identity uniqueness validation, one-pass identity scanning with trailing-space coverage, parent-scoped folder identity validation, explicit SQL/filesystem mutation safety requirements in the dry-run plan, rollback-preserving transaction boundary orchestration, offline synthetic 100k SEARCH/SORT evidence, authenticated IMAP folder traversal coverage, and the storage-side dependency-aware IMAP deletion contract
 - Open production blockers: IMAP folder deletion is not production parity until authorized COM owner/parent wiring, stale/failure handling, safe Data-directory file deletion, AccountSizeCache updates, and live disposable SQL tests exist; ACL mutation, live SQL, rollback, concurrency, and protocol/cache behavior remain open; restore/round-trip/rollback are incomplete; freshness revalidation is not atomically coupled to future extraction/mutation and remains unwired; SEC-18 cutover is not independently GREEN; COM/Admin parity matrix, upgrade rollback, protocol acceptance, performance/soak, and release-artifact gates remain open; the backup manager's no-runtime fallback remains `E_NOTIMPL` outside the production composition
 - Environment-blocked work: Disposable SQL/native registry integration and PHP runtime-dependent checks are opt-in/skipped in the current environment; no production resource may be used
