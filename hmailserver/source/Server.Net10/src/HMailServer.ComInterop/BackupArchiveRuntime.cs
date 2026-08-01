@@ -45,6 +45,10 @@ public sealed class SevenZipBackupArchiveRuntime
 
         var includesMessages =
             (evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0;
+        var includesDomainMessages =
+            (evidence.BackupOptions
+                & (BackupStartPlan.BackupDomainsFlag | BackupStartPlan.BackupMessagesFlag))
+            == (BackupStartPlan.BackupDomainsFlag | BackupStartPlan.BackupMessagesFlag);
         var stagesCompressedMessageData =
             (evidence.BackupOptions
                 & (BackupStartPlan.BackupDomainsFlag
@@ -54,13 +58,18 @@ public sealed class SevenZipBackupArchiveRuntime
                 | BackupStartPlan.BackupMessagesFlag
                 | BackupStartPlan.BackupCompressionFlag)
             && !evidence.BackupMessagesDbOnly;
-        if (includesMessages && !evidence.BackupMessagesDbOnly && !stagesCompressedMessageData)
+        var stagesRawMessageData =
+            includesDomainMessages
+            && (evidence.BackupOptions & BackupStartPlan.BackupCompressionFlag) == 0
+            && !evidence.BackupMessagesDbOnly;
+        var stagesPhysicalMessageData = stagesCompressedMessageData || stagesRawMessageData;
+        if (includesMessages && !evidence.BackupMessagesDbOnly && !stagesPhysicalMessageData)
         {
             throw new NotSupportedException(
-                "Only compressed domain message backup staging is implemented yet.");
+                "Only domain message backup staging is implemented yet.");
         }
 
-        if (stagesCompressedMessageData && string.IsNullOrWhiteSpace(_dataDirectory))
+        if (stagesPhysicalMessageData && string.IsNullOrWhiteSpace(_dataDirectory))
         {
             throw new InvalidOperationException(
                 "The data directory is required for physical message backup staging.");
@@ -92,7 +101,7 @@ public sealed class SevenZipBackupArchiveRuntime
             CultureInfo.InvariantCulture);
         var archivePath = Path.Combine(destination, $"HMBackup {timestamp}.7z");
         var metadataPath = Path.Combine(destination, SevenZipBackupArchiveMetadataReader.MetadataEntryName);
-        var dataBackupPath = stagesCompressedMessageData
+        var dataBackupPath = stagesPhysicalMessageData
             ? Path.Combine(destination, "DataBackup")
             : null;
         var dataBackupCreated = false;
@@ -116,7 +125,7 @@ public sealed class SevenZipBackupArchiveRuntime
                 archivePath,
                 metadataPath,
                 cancellationToken).ConfigureAwait(false);
-            if (dataBackupPath is not null)
+            if (stagesCompressedMessageData && dataBackupPath is not null)
             {
                 await AddDirectoryAsync(
                     archivePath,
@@ -131,7 +140,9 @@ public sealed class SevenZipBackupArchiveRuntime
                 File.Delete(metadataPath);
             }
 
-            if (dataBackupCreated && Directory.Exists(dataBackupPath))
+            if (stagesCompressedMessageData
+                && dataBackupCreated
+                && Directory.Exists(dataBackupPath))
             {
                 Directory.Delete(dataBackupPath, recursive: true);
             }

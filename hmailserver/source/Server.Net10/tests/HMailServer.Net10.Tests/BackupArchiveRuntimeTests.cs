@@ -191,6 +191,68 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public async Task CreatesRawMessageArchiveWithExternalDataBackupDirectory()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
+        var sourceDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-data-{Guid.NewGuid():N}");
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(sourceDirectory);
+        Directory.CreateDirectory(destination);
+        Directory.CreateDirectory(Path.Combine(sourceDirectory, "accounts", "alice"));
+        File.WriteAllText(Path.Combine(sourceDirectory, "server.dat"), "root metadata");
+        File.WriteAllText(
+            Path.Combine(sourceDirectory, "accounts", "alice", "message.eml"),
+            "message body");
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                static () => new DateTime(2026, 7, 30, 4, 5, 10),
+                payloadProvider: static (_, _) => ValueTask.FromResult(
+                    new BackupArchiveXmlPayload(
+                        Settings: null,
+                        Domains: Array.Empty<DomainAdministrationSnapshot>())),
+                dataDirectory: sourceDirectory);
+            await runtime.CreateAsync(
+                new BackupStartPlanEvidence(
+                    Destination: destination,
+                    BackupOptions: BackupStartPlan.BackupDomainsFlag
+                        | BackupStartPlan.BackupMessagesFlag,
+                    BackupMessagesDbOnly: false,
+                    AllMessageFilesInDataDirectory: true,
+                    DestinationExists: true),
+                CancellationToken.None);
+
+            var archivePath = Path.Combine(destination, "HMBackup 2026-07-30 040510.7z");
+            var dataBackupPath = Path.Combine(destination, "DataBackup");
+            Assert.IsTrue(File.Exists(archivePath), archivePath);
+            Assert.IsTrue(Directory.Exists(dataBackupPath));
+            Assert.IsTrue(
+                File.Exists(Path.Combine(dataBackupPath, "accounts", "alice", "message.eml")));
+            Assert.IsFalse(File.Exists(Path.Combine(dataBackupPath, "server.dat")));
+
+            var metadata = XDocument.Parse(await ReadMetadataXmlAsync(sevenZipPath, archivePath));
+            var dataFiles = metadata.Root!.Element("BackupInformation")!.Element("DataFiles")!;
+            Assert.AreEqual("Raw", dataFiles.Attribute("Format")?.Value);
+            Assert.AreEqual("DataBackup", dataFiles.Attribute("FolderName")?.Value);
+            Assert.IsNull(dataFiles.Attribute("Size"));
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+            Directory.Delete(sourceDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task RejectsCompressedMessageBackupWithoutDataDirectory()
     {
         var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
