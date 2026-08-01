@@ -70,6 +70,28 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
+    public void UnauthenticatedAndDirectActivation_DoNotDispatchBackupEvents()
+    {
+        var dispatcher = new RecordingBackupEventDispatcher();
+        BackupEventDispatcherRuntimeHost.Configure(dispatcher);
+
+        try
+        {
+            var manager = new BackupManagerComClass();
+            var application = new Application();
+
+            _ = Assert.ThrowsExactly<COMException>(manager.StartBackup);
+            _ = Assert.ThrowsExactly<COMException>(() => _ = application.BackupManager);
+
+            Assert.AreEqual(0, dispatcher.Events.Count);
+        }
+        finally
+        {
+            BackupEventDispatcherRuntimeHost.ResetForTests();
+        }
+    }
+
+    [TestMethod]
     public void AuthorizedBackupManager_LoadsMetadataThroughInjectedReaderAndKeepsStartPending()
     {
         var path = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}.xml");
@@ -182,6 +204,24 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedStartBackup_DuplicateStartDispatchesFailureReason()
+    {
+        var dispatcher = new RecordingBackupEventDispatcher();
+        var coordinator = new BackupOperationCoordinator(_ => true);
+        var manager = BackupManagerComClass.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(0),
+            coordinator,
+            dispatcher);
+
+        manager.StartBackup();
+        manager.StartBackup();
+
+        CollectionAssert.AreEqual(
+            new[] { "failed:Backup or restore operation is already started" },
+            dispatcher.Events.ToArray());
+    }
+
+    [TestMethod]
     public void AuthorizedStartBackup_ResetsStateWhenMaintenanceQueueIsUnavailable()
     {
         var enqueueCount = 0;
@@ -200,6 +240,23 @@ public sealed class BackupManagerComContractTests
 
         Assert.AreEqual(2, enqueueCount);
         Assert.IsFalse(coordinator.IsRunning);
+    }
+
+    [TestMethod]
+    public void AuthorizedStartBackup_QueueUnavailableDispatchesFailureReason()
+    {
+        var dispatcher = new RecordingBackupEventDispatcher();
+        var coordinator = new BackupOperationCoordinator(_ => false);
+        var manager = BackupManagerComClass.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(0),
+            coordinator,
+            dispatcher);
+
+        manager.StartBackup();
+
+        CollectionAssert.AreEqual(
+            new[] { "failed:Backup operation failed because random work queue did not exist." },
+            dispatcher.Events.ToArray());
     }
 
     [TestMethod]
@@ -237,9 +294,11 @@ public sealed class BackupManagerComContractTests
     {
         using var queue = new BackupTaskQueue();
         var runtime = new BackupOperationRuntime(queue);
+        var dispatcher = new RecordingBackupEventDispatcher();
         var manager = BackupManagerComClass.CreateAuthorized(
             new RecordingBackupArchiveMetadataReader(0),
-            runtime);
+            runtime,
+            dispatcher);
 
         manager.StartBackup();
 
@@ -257,6 +316,13 @@ public sealed class BackupManagerComContractTests
         StringAssert.Contains(
             manager.GetStatus(),
             "Backup started\r\nLoading backup settings....\r\nBACKUP ERROR: Backup execution is not implemented.\r\nBackup completed successfully\r\n");
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "failed:Backup execution is not implemented.",
+                "completed"
+            },
+            dispatcher.Events.ToArray());
     }
 
     [TestMethod]
@@ -296,5 +362,14 @@ public sealed class BackupManagerComContractTests
             ArchivePath = archivePath;
             return options;
         }
+    }
+
+    private sealed class RecordingBackupEventDispatcher : IBackupEventDispatcher
+    {
+        public List<string> Events { get; } = [];
+
+        public void OnBackupCompleted() => Events.Add("completed");
+
+        public void OnBackupFailed(string reason) => Events.Add("failed:" + reason);
     }
 }

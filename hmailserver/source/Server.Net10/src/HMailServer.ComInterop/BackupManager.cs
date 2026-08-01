@@ -31,17 +31,21 @@ public sealed class BackupManager : IInterfaceBackupManager
 
     private readonly IBackupArchiveMetadataReader? _metadataReader;
     private readonly IBackupOperationRuntime? _operationRuntime;
+    private readonly IBackupEventDispatcher _eventDispatcher;
 
     public BackupManager()
     {
+        _eventDispatcher = BackupEventDispatcherRuntimeHost.Runtime ?? NoopBackupEventDispatcher.Instance;
     }
 
     private BackupManager(
         IBackupArchiveMetadataReader metadataReader,
-        IBackupOperationRuntime? operationRuntime)
+        IBackupOperationRuntime? operationRuntime,
+        IBackupEventDispatcher eventDispatcher)
     {
         _metadataReader = metadataReader;
         _operationRuntime = operationRuntime;
+        _eventDispatcher = eventDispatcher;
     }
 
     public void StartBackup()
@@ -73,10 +77,12 @@ public sealed class BackupManager : IInterfaceBackupManager
 
     internal static BackupManager CreateAuthorized(
         IBackupArchiveMetadataReader? metadataReader = null,
-        IBackupOperationRuntime? operationRuntime = null) =>
+        IBackupOperationRuntime? operationRuntime = null,
+        IBackupEventDispatcher? eventDispatcher = null) =>
         new(
             metadataReader ?? SevenZipBackupArchiveMetadataReader.CreateDefault(),
-            operationRuntime ?? BackupManagerRuntimeHost.Runtime);
+            operationRuntime ?? BackupManagerRuntimeHost.Runtime,
+            eventDispatcher ?? BackupEventDispatcherRuntimeHost.Runtime ?? NoopBackupEventDispatcher.Instance);
 
     internal void OnThreadStopped() => _operationRuntime?.OnThreadStopped();
 
@@ -134,13 +140,59 @@ public sealed class BackupManager : IInterfaceBackupManager
         }
     }
 
-    private void OnBackupFailed(string reason) => SetStatus("BACKUP ERROR: " + reason);
+    private void OnBackupFailed(string reason)
+    {
+        SetStatus("BACKUP ERROR: " + reason);
+        _eventDispatcher.OnBackupFailed(reason);
+    }
 
-    private void OnBackupCompleted() => SetStatus("Backup completed successfully");
+    private void OnBackupCompleted()
+    {
+        SetStatus("Backup completed successfully");
+        _eventDispatcher.OnBackupCompleted();
+    }
 
     private static COMException NotImplemented() => new(
         "This BackupManager member is not implemented by the .NET 10 rewrite yet.",
         ENotImplemented);
+}
+
+[ComVisible(false)]
+internal interface IBackupEventDispatcher
+{
+    void OnBackupCompleted();
+
+    void OnBackupFailed(string reason);
+}
+
+[ComVisible(false)]
+internal sealed class NoopBackupEventDispatcher : IBackupEventDispatcher
+{
+    internal static readonly NoopBackupEventDispatcher Instance = new();
+
+    public void OnBackupCompleted()
+    {
+    }
+
+    public void OnBackupFailed(string reason)
+    {
+    }
+}
+
+[ComVisible(false)]
+internal static class BackupEventDispatcherRuntimeHost
+{
+    private static IBackupEventDispatcher? _runtime;
+
+    internal static IBackupEventDispatcher? Runtime => Volatile.Read(ref _runtime);
+
+    internal static void Configure(IBackupEventDispatcher dispatcher)
+    {
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        Volatile.Write(ref _runtime, dispatcher);
+    }
+
+    internal static void ResetForTests() => Volatile.Write(ref _runtime, null);
 }
 
 [ComVisible(false)]
