@@ -256,61 +256,155 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
         const string sql = """
 CREATE TABLE dbo.hm_accounts
 (
-    accountid int NOT NULL PRIMARY KEY,
-    accountaddress nvarchar(255) NOT NULL
+    accountid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+    accountdomainid int NOT NULL,
+    accountadminlevel tinyint NOT NULL,
+    accountaddress nvarchar(255) NOT NULL UNIQUE,
+    accountpassword nvarchar(255) NOT NULL,
+    accountactive int NOT NULL,
+    accountisad int NOT NULL,
+    accountaddomain nvarchar(255) NOT NULL,
+    accountadusername nvarchar(255) NOT NULL,
+    accountmaxsize int NOT NULL,
+    accountvacationmessageon tinyint NOT NULL,
+    accountvacationmessage nvarchar(1000) NOT NULL,
+    accountvacationsubject nvarchar(200) NOT NULL,
+    accountpwencryption tinyint NOT NULL,
+    accountforwardenabled tinyint NOT NULL,
+    accountforwardaddress nvarchar(255) NOT NULL,
+    accountforwardkeeporiginal tinyint NOT NULL,
+    accountenablesignature tinyint NOT NULL,
+    accountsignatureplaintext nvarchar(max) NOT NULL,
+    accountsignaturehtml nvarchar(max) NOT NULL,
+    accountlastlogontime datetime NOT NULL,
+    accountvacationexpires tinyint NOT NULL,
+    accountvacationexpiredate datetime NOT NULL,
+    accountpersonfirstname nvarchar(60) NOT NULL,
+    accountpersonlastname nvarchar(60) NOT NULL,
+    accountvacationabortspamflagged tinyint NOT NULL,
+    accountforwardabortspamflagged tinyint NOT NULL
 );
 
 CREATE TABLE dbo.hm_imapfolders
 (
-    folderid int NOT NULL PRIMARY KEY,
+    folderid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
     folderaccountid int NOT NULL,
     folderparentid int NOT NULL,
     foldername nvarchar(255) NOT NULL,
     folderissubscribed tinyint NOT NULL,
     foldercreationtime datetime NOT NULL,
-    foldercurrentuid bigint NOT NULL
+    foldercurrentuid bigint NOT NULL,
+    CONSTRAINT hm_imapfolders_unique UNIQUE (folderaccountid, folderparentid, foldername)
 );
+CREATE INDEX idx_hm_imapfolders_folderaccountid ON dbo.hm_imapfolders (folderaccountid);
 
 CREATE TABLE dbo.hm_messages
 (
-    messageid bigint NOT NULL PRIMARY KEY,
+    messageid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
     messageaccountid int NOT NULL,
     messagefolderid int NOT NULL,
     messagefilename nvarchar(255) NOT NULL,
-    messagetype tinyint NOT NULL
+    messagetype tinyint NOT NULL,
+    messagefrom nvarchar(255) NOT NULL,
+    messagesize bigint NOT NULL,
+    messagecurnooftries int NOT NULL,
+    messagenexttrytime datetime NOT NULL,
+    messageflags tinyint NOT NULL,
+    messagecreatetime datetime NOT NULL,
+    messagelocked tinyint NOT NULL,
+    messageuid bigint NOT NULL
 );
+CREATE INDEX idx_hm_messages ON dbo.hm_messages (messageaccountid, messagefolderid);
+CREATE INDEX idx_hm_messages_type ON dbo.hm_messages (messagetype);
 
 CREATE TABLE dbo.hm_messagerecipients
 (
     recipientid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
-    recipientmessageid bigint NOT NULL
+    recipientmessageid bigint NOT NULL,
+    recipientaddress nvarchar(255) NOT NULL,
+    recipientlocalaccountid int NOT NULL,
+    recipientoriginaladdress nvarchar(255) NOT NULL
 );
+CREATE INDEX idx_hm_messagerecipients_recipientmessageid
+    ON dbo.hm_messagerecipients (recipientmessageid);
 
 CREATE TABLE dbo.hm_message_metadata
 (
     metadata_id bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
-    metadata_messageid bigint NOT NULL
+    metadata_accountid int NOT NULL,
+    metadata_folderid int NOT NULL,
+    metadata_messageid bigint NOT NULL,
+    metadata_dateutc datetime NULL,
+    metadata_from nvarchar(255) NOT NULL,
+    metadata_subject nvarchar(255) NOT NULL,
+    metadata_to nvarchar(255) NOT NULL,
+    metadata_cc nvarchar(255) NOT NULL,
+    CONSTRAINT hm_message_metadata_unique UNIQUE (metadata_accountid, metadata_folderid, metadata_messageid)
 );
+CREATE INDEX idx_message_metadata_id ON dbo.hm_message_metadata (metadata_messageid);
 
 CREATE TABLE dbo.hm_acl
 (
     aclid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
-    aclsharefolderid bigint NOT NULL
+    aclsharefolderid bigint NOT NULL,
+    aclpermissiontype tinyint NOT NULL,
+    aclpermissiongroupid bigint NOT NULL,
+    aclpermissionaccountid bigint NOT NULL,
+    aclvalue bigint NOT NULL,
+    CONSTRAINT hm_acl_unique UNIQUE (aclsharefolderid, aclpermissiontype, aclpermissiongroupid, aclpermissionaccountid)
 );
 
 CREATE TABLE dbo.hm_message_search_queue
 (
-    messageid bigint NOT NULL PRIMARY KEY
+    messageid bigint NOT NULL PRIMARY KEY,
+    queuedutc datetime2(3) NOT NULL,
+    attempts int NOT NULL,
+    lastattemptutc datetime2(3) NULL,
+    nextattemptutc datetime2(3) NULL,
+    searchleaseowner nvarchar(128) NULL,
+    searchleaseexpiresutc datetime2(3) NULL,
+    lasterror nvarchar(1024) NULL
 );
+CREATE INDEX idx_hm_message_search_queue_lease
+    ON dbo.hm_message_search_queue (nextattemptutc, searchleaseexpiresutc, attempts, queuedutc);
 
 CREATE TABLE dbo.hm_message_search_documents
 (
-    messageid bigint NOT NULL PRIMARY KEY
+    messageid bigint NOT NULL PRIMARY KEY,
+    messageaccountid int NOT NULL,
+    messagefolderid int NOT NULL,
+    messageuid bigint NOT NULL,
+    messageinternaldateutc datetime2(3) NOT NULL,
+    messagesize bigint NOT NULL,
+    messageflags tinyint NOT NULL,
+    search_header nvarchar(max) NOT NULL,
+    search_body nvarchar(max) NOT NULL,
+    search_combined nvarchar(max) NOT NULL,
+    updatedutc datetime2(3) NOT NULL
 );
+CREATE INDEX idx_hm_message_search_documents_folder_uid
+    ON dbo.hm_message_search_documents (messageaccountid, messagefolderid, messageuid);
 
-INSERT INTO dbo.hm_accounts (accountid, accountaddress)
-VALUES (10, N'owner@example.test'), (20, N'other@example.test');
+SET IDENTITY_INSERT dbo.hm_accounts ON;
+INSERT INTO dbo.hm_accounts
+    (accountid, accountdomainid, accountadminlevel, accountaddress, accountpassword,
+     accountactive, accountisad, accountaddomain, accountadusername, accountmaxsize,
+     accountvacationmessageon, accountvacationmessage, accountvacationsubject,
+     accountpwencryption, accountforwardenabled, accountforwardaddress,
+     accountforwardkeeporiginal, accountenablesignature, accountsignatureplaintext,
+     accountsignaturehtml, accountlastlogontime, accountvacationexpires,
+     accountvacationexpiredate, accountpersonfirstname, accountpersonlastname,
+     accountvacationabortspamflagged, accountforwardabortspamflagged)
+VALUES
+    (10, 1, 0, N'owner@example.test', N'', 1, 0, N'', N'', 0, 0, N'', N'', 0, 0, N'',
+     0, 0, N'', N'', CONVERT(datetime, '2026-08-01T00:00:00', 126), 0,
+     CONVERT(datetime, '2026-08-01T00:00:00', 126), N'', N'', 0, 0),
+    (20, 1, 0, N'other@example.test', N'', 1, 0, N'', N'', 0, 0, N'', N'', 0, 0, N'',
+     0, 0, N'', N'', CONVERT(datetime, '2026-08-01T00:00:00', 126), 0,
+     CONVERT(datetime, '2026-08-01T00:00:00', 126), N'', N'', 0, 0);
+SET IDENTITY_INSERT dbo.hm_accounts OFF;
 
+SET IDENTITY_INSERT dbo.hm_imapfolders ON;
 INSERT INTO dbo.hm_imapfolders
     (folderid, folderaccountid, folderparentid, foldername, folderissubscribed,
      foldercreationtime, foldercurrentuid)
@@ -319,30 +413,63 @@ VALUES
     (200, 10, 100, N'Child', 1, CONVERT(datetime, '2026-08-01T00:01:00', 126), 7),
     (300, 10, 200, N'Nested', 1, CONVERT(datetime, '2026-08-01T00:02:00', 126), 3),
     (400, 20, -1, N'Inbox', 1, CONVERT(datetime, '2026-08-01T00:00:00', 126), 5);
+SET IDENTITY_INSERT dbo.hm_imapfolders OFF;
 
+SET IDENTITY_INSERT dbo.hm_messages ON;
 INSERT INTO dbo.hm_messages
-    (messageid, messageaccountid, messagefolderid, messagefilename, messagetype)
+    (messageid, messageaccountid, messagefolderid, messagefilename, messagetype, messagefrom,
+     messagesize, messagecurnooftries, messagenexttrytime, messageflags, messagecreatetime,
+     messagelocked, messageuid)
 VALUES
-    (1001, 10, 200, N'child-owned.eml', 1),
-    (1002, 10, 300, N'nested-owned.eml', 1),
-    (1003, 10, 200, N'delivered-owned.eml', 2),
-    (2001, 20, 200, N'child-cross-account.eml', 1),
-    (2002, 20, 300, N'nested-cross-account.eml', 1);
+    (1001, 10, 200, N'child-owned.eml', 1, N'from@example.test', 10, 0, CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, 1),
+    (1002, 10, 300, N'nested-owned.eml', 1, N'from@example.test', 20, 0, CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, 2),
+    (1003, 10, 200, N'delivered-owned.eml', 2, N'from@example.test', 30, 0, CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, 3),
+    (2001, 20, 200, N'child-cross-account.eml', 1, N'from@example.test', 40, 0, CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, 4),
+    (2002, 20, 300, N'nested-cross-account.eml', 1, N'from@example.test', 50, 0, CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, 5);
+SET IDENTITY_INSERT dbo.hm_messages OFF;
 
-INSERT INTO dbo.hm_messagerecipients (recipientmessageid)
-VALUES (1001), (1002), (1003), (2001), (2002);
+INSERT INTO dbo.hm_messagerecipients
+    (recipientmessageid, recipientaddress, recipientlocalaccountid, recipientoriginaladdress)
+VALUES
+    (1001, N'recipient@example.test', 10, N'recipient@example.test'),
+    (1002, N'recipient@example.test', 10, N'recipient@example.test'),
+    (1003, N'recipient@example.test', 10, N'recipient@example.test'),
+    (2001, N'recipient@example.test', 20, N'recipient@example.test'),
+    (2002, N'recipient@example.test', 20, N'recipient@example.test');
 
-INSERT INTO dbo.hm_message_metadata (metadata_messageid)
-VALUES (1001), (1002), (1003), (2001), (2002);
+INSERT INTO dbo.hm_message_metadata
+    (metadata_accountid, metadata_folderid, metadata_messageid, metadata_dateutc,
+     metadata_from, metadata_subject, metadata_to, metadata_cc)
+VALUES
+    (10, 200, 1001, NULL, N'from@example.test', N'subject', N'to@example.test', N''),
+    (10, 300, 1002, NULL, N'from@example.test', N'subject', N'to@example.test', N''),
+    (10, 200, 1003, NULL, N'from@example.test', N'subject', N'to@example.test', N''),
+    (20, 200, 2001, NULL, N'from@example.test', N'subject', N'to@example.test', N''),
+    (20, 300, 2002, NULL, N'from@example.test', N'subject', N'to@example.test', N'');
 
-INSERT INTO dbo.hm_message_search_queue (messageid)
-VALUES (1001), (1002), (1003), (2001), (2002);
+INSERT INTO dbo.hm_message_search_queue
+    (messageid, queuedutc, attempts)
+VALUES
+    (1001, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 0),
+    (1002, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 0),
+    (1003, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 0),
+    (2001, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 0),
+    (2002, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 0);
 
-INSERT INTO dbo.hm_message_search_documents (messageid)
-VALUES (1001), (1002), (1003), (2001), (2002);
+INSERT INTO dbo.hm_message_search_documents
+    (messageid, messageaccountid, messagefolderid, messageuid, messageinternaldateutc,
+     messagesize, messageflags, search_header, search_body, search_combined, updatedutc)
+VALUES
+    (1001, 10, 200, 1, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 10, 0, N'', N'', N'', CONVERT(datetime2(3), '2026-08-01T00:00:00', 126)),
+    (1002, 10, 300, 2, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 20, 0, N'', N'', N'', CONVERT(datetime2(3), '2026-08-01T00:00:00', 126)),
+    (1003, 10, 200, 3, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 30, 0, N'', N'', N'', CONVERT(datetime2(3), '2026-08-01T00:00:00', 126)),
+    (2001, 20, 200, 4, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 40, 0, N'', N'', N'', CONVERT(datetime2(3), '2026-08-01T00:00:00', 126)),
+    (2002, 20, 300, 5, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 50, 0, N'', N'', N'', CONVERT(datetime2(3), '2026-08-01T00:00:00', 126));
 
-INSERT INTO dbo.hm_acl (aclsharefolderid)
-VALUES (100), (200), (300), (400);
+INSERT INTO dbo.hm_acl
+    (aclsharefolderid, aclpermissiontype, aclpermissiongroupid, aclpermissionaccountid, aclvalue)
+VALUES
+    (100, 0, 0, 10, 1), (200, 0, 0, 10, 1), (300, 0, 0, 10, 1), (400, 0, 0, 20, 1);
 """;
 
         await using var connection = new SqlConnection(connectionString);
