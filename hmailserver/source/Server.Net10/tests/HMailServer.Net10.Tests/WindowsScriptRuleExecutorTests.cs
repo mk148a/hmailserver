@@ -13,6 +13,53 @@ namespace HMailServer.Net10.Tests;
 public sealed class WindowsScriptRuleExecutorTests
 {
     [TestMethod]
+    public void Execute_BackupEventsPreservesLegacyHandlerNamesAndArguments()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        var completedMarker = Path.Combine(eventDirectory, "completed.txt");
+        var failedMarker = Path.Combine(eventDirectory, "failed.txt");
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                $"""
+Sub OnBackupCompleted()
+   Dim fso
+   Set fso = CreateObject("Scripting.FileSystemObject")
+   fso.CreateTextFile("{completedMarker}", True, False).Close
+End Sub
+
+Sub OnBackupFailed(reason)
+   Dim fso, output
+   Set fso = CreateObject("Scripting.FileSystemObject")
+   Set output = fso.CreateTextFile("{failedMarker}", True, False)
+   output.Write reason
+   output.Close
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var completed = executor.Execute(
+                new BackupEventScriptExecutionRequest("OnBackupCompleted"),
+                CancellationToken.None);
+            var failed = executor.Execute(
+                new BackupEventScriptExecutionRequest("OnBackupFailed", "archive failed"),
+                CancellationToken.None);
+
+            Assert.IsTrue(completed.Accepted, completed.FailureResponse);
+            Assert.IsTrue(failed.Accepted, failed.FailureResponse);
+            Assert.IsTrue(File.Exists(completedMarker));
+            Assert.AreEqual("archive failed", File.ReadAllText(failedMarker));
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Reload_SubsequentInvocationObservesUpdatedConfiguredScriptFile()
     {
         var cscript = GetCscriptPathOrInconclusive();

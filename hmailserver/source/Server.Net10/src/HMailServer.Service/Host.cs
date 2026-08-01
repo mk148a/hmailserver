@@ -645,6 +645,7 @@ public static class Host
         builder.Services.AddSingleton<IExternalAccountDownloadScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
         builder.Services.AddSingleton<IClientPasswordValidationScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
         builder.Services.AddSingleton<IErrorEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
+        builder.Services.AddSingleton<IBackupEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
         builder.Services.AddSingleton<ILoggerProvider, ScriptErrorLoggerProvider>();
     }
     if (clamAvEnabled)

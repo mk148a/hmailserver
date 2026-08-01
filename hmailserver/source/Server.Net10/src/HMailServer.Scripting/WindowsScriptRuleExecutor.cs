@@ -13,7 +13,8 @@ public sealed partial class WindowsScriptRuleExecutor :
     IDeliveryEventScriptExecutor,
     IExternalAccountDownloadScriptExecutor,
     IClientPasswordValidationScriptExecutor,
-    IErrorEventScriptExecutor
+    IErrorEventScriptExecutor,
+    IBackupEventScriptExecutor
 {
     private const int MaxMessageCopyOperations = 100;
     private readonly WindowsScriptRuleExecutorOptions _options;
@@ -130,6 +131,30 @@ public sealed partial class WindowsScriptRuleExecutor :
             result.ResultValue,
             result.ResultParameter,
             result.MessageData);
+    }
+
+    public SmtpRuleScriptExecutionResult Execute(
+        BackupEventScriptExecutionRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return ExecuteCore(
+            new ScriptExecutionSpec(
+                request.EventName,
+                MailFrom: string.Empty,
+                Recipients: Array.Empty<SmtpResolvedRecipient>(),
+                MessageData: null,
+                Client: null,
+                Invocation: ScriptInvocation.OptionalBackupEvent,
+                ArgumentShape: string.IsNullOrEmpty(request.FailureReason)
+                    ? ScriptArgumentShape.NoArguments
+                    : ScriptArgumentShape.BackupFailureReason,
+                DeliveryRecipientAddress: string.Empty,
+                DeliveryErrorMessage: string.Empty,
+                MessageMetadata: CreateDefaultMessageMetadata(),
+                BackupFailureReason: request.FailureReason),
+            cancellationToken);
     }
 
     private static ExternalAccountDownloadScriptExecutionResult ToExternalAccountDownloadResult(
@@ -321,7 +346,8 @@ public sealed partial class WindowsScriptRuleExecutor :
                         spec.ExternalAccountRemoteUid,
                         hasMessage,
                         spec.DeliveryRecipientAddress,
-                        spec.DeliveryErrorMessage)
+                        spec.DeliveryErrorMessage,
+                        spec.BackupFailureReason)
                     : CreateJScriptRunner(
                         scriptPath,
                         spec.FunctionName,
@@ -340,7 +366,8 @@ public sealed partial class WindowsScriptRuleExecutor :
                         spec.ExternalAccountRemoteUid,
                         hasMessage,
                         spec.DeliveryRecipientAddress,
-                        spec.DeliveryErrorMessage),
+                        spec.DeliveryErrorMessage,
+                        spec.BackupFailureReason),
                 Encoding.Unicode);
 
             var processResult = RunScript(runnerPath, cancellationToken);
@@ -1163,7 +1190,8 @@ hMailServerRuleStatusFile.Close();
         string externalAccountRemoteUid,
         bool hasMessage,
         string deliveryRecipientAddress,
-        string deliveryErrorMessage)
+        string deliveryErrorMessage,
+        string backupFailureReason)
     {
         var isDeliveryEvent = invocation == ScriptInvocation.OptionalDeliveryEvent ? "1" : "0";
         var hasMessageFlag = hasMessage ? "1" : "0";
@@ -2310,6 +2338,9 @@ Result.Value = 0
 Result.Parameter = 0
 Result.Message = ""
 
+Dim hMailServerBackupFailureReason
+hMailServerBackupFailureReason = "{{EscapeVbScript(backupFailureReason)}}"
+
 {{CreateVbScriptInvocation(functionName, invocation, argumentShape)}}
 
 Dim hMailServerRuleStatusFileSystem, hMailServerRuleStatusFile
@@ -2362,7 +2393,8 @@ hMailServerRuleStatusFile.Close
         string externalAccountRemoteUid,
         bool hasMessage,
         string deliveryRecipientAddress,
-        string deliveryErrorMessage)
+        string deliveryErrorMessage,
+        string backupFailureReason)
     {
         var isDeliveryEvent = invocation == ScriptInvocation.OptionalDeliveryEvent ? "1" : "0";
         var hasMessageFlag = hasMessage ? "1" : "0";
@@ -3072,6 +3104,8 @@ var Result = {
 var hMailServerRuleScriptFile = hMailServerRuleFileSystem.OpenTextFile("{{EscapeJScript(scriptPath)}}", 1, false);
 eval(hMailServerRuleScriptFile.ReadAll());
 hMailServerRuleScriptFile.Close();
+var hMailServerBackupFailureReason = "{{EscapeJScript(backupFailureReason)}}";
+
 {{CreateJScriptInvocation(functionName, invocation, argumentShape)}}
 var hMailServerRuleStatusFile = hMailServerRuleFileSystem.CreateTextFile("{{EscapeJScript(statusPath)}}", true, false);
 if ("{{isDeliveryEvent}}" === "1" && "{{hasMessageFlag}}" === "1" && Result.Value === 1) {
@@ -3245,7 +3279,33 @@ hMailServerRuleStatusFile.Close();
         string functionName,
         ScriptInvocation invocation,
         ScriptArgumentShape argumentShape) =>
-        invocation == ScriptInvocation.RuleFunction
+        invocation == ScriptInvocation.OptionalBackupEvent
+            ? argumentShape == ScriptArgumentShape.NoArguments
+                ? string.Join(
+                    Environment.NewLine,
+                    "Dim hMailServerEventHandler",
+                    "On Error Resume Next",
+                    $"Set hMailServerEventHandler = GetRef(\"{EscapeVbScript(functionName)}\")",
+                    "If Err.Number <> 0 Then",
+                    "   Err.Clear",
+                    "   On Error GoTo 0",
+                    "Else",
+                    "   On Error GoTo 0",
+                    "   Call hMailServerEventHandler()",
+                    "End If")
+                : string.Join(
+                    Environment.NewLine,
+                    "Dim hMailServerEventHandler",
+                    "On Error Resume Next",
+                    $"Set hMailServerEventHandler = GetRef(\"{EscapeVbScript(functionName)}\")",
+                    "If Err.Number <> 0 Then",
+                    "   Err.Clear",
+                    "   On Error GoTo 0",
+                    "Else",
+                    "   On Error GoTo 0",
+                    "   Call hMailServerEventHandler(hMailServerBackupFailureReason)",
+                    "End If")
+            : invocation == ScriptInvocation.RuleFunction
             ? $"Call {functionName}(HMAILSERVER_MESSAGE)"
             : string.Join(
                 Environment.NewLine,
@@ -3271,6 +3331,18 @@ if (typeof {{functionName}} !== "function") {
   throw new Error("Script function not found: {{EscapeJScript(functionName)}}");
 }
 {{functionName}}(HMAILSERVER_MESSAGE);
+"""
+            : argumentShape == ScriptArgumentShape.NoArguments
+                ? $$"""
+if (typeof {{functionName}} === "function") {
+  {{functionName}}();
+}
+"""
+            : argumentShape == ScriptArgumentShape.BackupFailureReason
+                ? $$"""
+if (typeof {{functionName}} === "function") {
+  {{functionName}}(hMailServerBackupFailureReason);
+}
 """
             : argumentShape == ScriptArgumentShape.ClientOnly
                 ? $$"""
@@ -3505,7 +3577,8 @@ if (typeof {{functionName}} === "function") {
         RuleFunction,
         OptionalSmtpEvent,
         OptionalDeliveryEvent,
-        OptionalExternalAccountDownload
+        OptionalExternalAccountDownload,
+        OptionalBackupEvent
     }
 
     private enum ScriptArgumentShape
@@ -3514,7 +3587,9 @@ if (typeof {{functionName}} === "function") {
         ClientAndMessage,
         MessageOnly,
         MessageRecipientAndError,
-        FetchAccountMessageAndUid
+        FetchAccountMessageAndUid,
+        NoArguments,
+        BackupFailureReason
     }
 
     private sealed record ScriptExecutionSpec(
@@ -3529,7 +3604,8 @@ if (typeof {{functionName}} === "function") {
         string DeliveryErrorMessage,
         ScriptMessageMetadata MessageMetadata,
         ExternalFetchAccountLease? FetchAccount = null,
-        string ExternalAccountRemoteUid = "");
+        string ExternalAccountRemoteUid = "",
+        string BackupFailureReason = "");
 
     private sealed record ScriptMessageMetadata(
         long Id,

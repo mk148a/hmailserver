@@ -70,6 +70,10 @@ BackupManagerRuntimeHost.Configure(
                 .GetPayloadAsync,
             dataDirectory: dataDirectory)
             .CreateAsync));
+if (host.Services.GetService<IBackupEventScriptExecutor>() is { } backupEventExecutor)
+{
+    BackupEventDispatcherRuntimeHost.Configure(backupEventExecutor);
+}
 MessageIndexingRuntimeHost.Configure(
     host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());
 DatabaseAdministrationRuntimeHost.Configure(

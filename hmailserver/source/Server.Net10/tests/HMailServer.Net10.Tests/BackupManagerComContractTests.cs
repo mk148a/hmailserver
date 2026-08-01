@@ -260,6 +260,36 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
+    public void ScriptBackupEventDispatcher_PreservesLegacyEventNamesAndFailureReason()
+    {
+        var executor = new RecordingBackupEventScriptExecutor();
+        var dispatcher = new ScriptBackupEventDispatcher(executor);
+
+        dispatcher.OnBackupCompleted();
+        dispatcher.OnBackupFailed("could not write archive");
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "OnBackupCompleted:",
+                "OnBackupFailed:could not write archive"
+            },
+            executor.Events.ToArray());
+    }
+
+    [TestMethod]
+    public void ScriptBackupEventDispatcher_ReportsRejectedScriptExecution()
+    {
+        var dispatcher = new ScriptBackupEventDispatcher(
+            new RejectingBackupEventScriptExecutor("script process failed"));
+
+        var error = Assert.ThrowsExactly<InvalidOperationException>(
+            dispatcher.OnBackupCompleted);
+
+        Assert.AreEqual("script process failed", error.Message);
+    }
+
+    [TestMethod]
     public void AuthenticatedApplication_UsesConfiguredBackupOperationRuntime()
     {
         var enqueueCount = 0;
@@ -371,5 +401,27 @@ public sealed class BackupManagerComContractTests
         public void OnBackupCompleted() => Events.Add("completed");
 
         public void OnBackupFailed(string reason) => Events.Add("failed:" + reason);
+    }
+
+    private sealed class RecordingBackupEventScriptExecutor : IBackupEventScriptExecutor
+    {
+        public List<string> Events { get; } = [];
+
+        public SmtpRuleScriptExecutionResult Execute(
+            BackupEventScriptExecutionRequest request,
+            CancellationToken cancellationToken)
+        {
+            Events.Add(request.EventName + ":" + request.FailureReason);
+            return SmtpRuleScriptExecutionResult.Continue();
+        }
+    }
+
+    private sealed class RejectingBackupEventScriptExecutor(string message)
+        : IBackupEventScriptExecutor
+    {
+        public SmtpRuleScriptExecutionResult Execute(
+            BackupEventScriptExecutionRequest request,
+            CancellationToken cancellationToken) =>
+            SmtpRuleScriptExecutionResult.Failure(message);
     }
 }

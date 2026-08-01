@@ -143,13 +143,27 @@ public sealed class BackupManager : IInterfaceBackupManager
     private void OnBackupFailed(string reason)
     {
         SetStatus("BACKUP ERROR: " + reason);
-        _eventDispatcher.OnBackupFailed(reason);
+        DispatchEvent(static (dispatcher, value) => dispatcher.OnBackupFailed(value), reason);
     }
 
     private void OnBackupCompleted()
     {
         SetStatus("Backup completed successfully");
-        _eventDispatcher.OnBackupCompleted();
+        DispatchEvent(static (dispatcher, _) => dispatcher.OnBackupCompleted(), string.Empty);
+    }
+
+    private void DispatchEvent(
+        Action<IBackupEventDispatcher, string> dispatch,
+        string value)
+    {
+        try
+        {
+            dispatch(_eventDispatcher, value);
+        }
+        catch (Exception exception)
+        {
+            SetStatus("BACKUP EVENT ERROR: " + exception.Message);
+        }
     }
 
     private static COMException NotImplemented() => new(
@@ -180,11 +194,17 @@ internal sealed class NoopBackupEventDispatcher : IBackupEventDispatcher
 }
 
 [ComVisible(false)]
-internal static class BackupEventDispatcherRuntimeHost
+public static class BackupEventDispatcherRuntimeHost
 {
     private static IBackupEventDispatcher? _runtime;
 
     internal static IBackupEventDispatcher? Runtime => Volatile.Read(ref _runtime);
+
+    public static void Configure(IBackupEventScriptExecutor executor)
+    {
+        ArgumentNullException.ThrowIfNull(executor);
+        Volatile.Write(ref _runtime, new ScriptBackupEventDispatcher(executor));
+    }
 
     internal static void Configure(IBackupEventDispatcher dispatcher)
     {
@@ -193,6 +213,33 @@ internal static class BackupEventDispatcherRuntimeHost
     }
 
     internal static void ResetForTests() => Volatile.Write(ref _runtime, null);
+}
+
+[ComVisible(false)]
+internal sealed class ScriptBackupEventDispatcher : IBackupEventDispatcher
+{
+    private readonly IBackupEventScriptExecutor _executor;
+
+    internal ScriptBackupEventDispatcher(IBackupEventScriptExecutor executor)
+    {
+        _executor = executor;
+    }
+
+    public void OnBackupCompleted() => Execute("OnBackupCompleted");
+
+    public void OnBackupFailed(string reason) => Execute("OnBackupFailed", reason);
+
+    private void Execute(string eventName, string failureReason = "")
+    {
+        var result = _executor.Execute(
+            new BackupEventScriptExecutionRequest(eventName, failureReason),
+            CancellationToken.None);
+        if (!result.Accepted)
+        {
+            throw new InvalidOperationException(
+                result.FailureResponse ?? "Backup event script execution failed.");
+        }
+    }
 }
 
 [ComVisible(false)]
