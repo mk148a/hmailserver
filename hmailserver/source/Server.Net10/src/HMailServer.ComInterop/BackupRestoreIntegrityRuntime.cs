@@ -481,10 +481,108 @@ internal sealed class BackupRestoreIntegrityRuntime
                     }
 
                     break;
+
+                case "DomainAliases":
+                    if (element.Name != "DomainAliases" || element.Parent?.Name != "Domain")
+                    {
+                        return "The domain/account graph is invalid: DomainAliases is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("DomainAliases").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Domain contains multiple DomainAliases containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "DomainAlias"))
+                    {
+                        return "The domain/account graph is invalid: DomainAliases contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "Aliases":
+                    if (element.Name != "Aliases" || element.Parent?.Name != "Domain")
+                    {
+                        return "The domain/account graph is invalid: Aliases is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("Aliases").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Domain contains multiple Aliases containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "Alias"))
+                    {
+                        return "The domain/account graph is invalid: Aliases contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "DistributionLists":
+                    if (element.Name != "DistributionLists" || element.Parent?.Name != "Domain")
+                    {
+                        return "The domain/account graph is invalid: DistributionLists is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("DistributionLists").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Domain contains multiple DistributionLists containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "DistributionList"))
+                    {
+                        return "The domain/account graph is invalid: DistributionLists contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "DomainAlias":
+                    if (element.Parent?.Name != "DomainAliases")
+                    {
+                        return "The domain/account graph is invalid: DomainAlias is outside Domain/DomainAliases.";
+                    }
+
+                    if (element.Attribute("Name") is null)
+                    {
+                        return "The domain/account graph is invalid: DomainAlias requires a Name attribute.";
+                    }
+
+                    break;
+
+                case "Alias":
+                    if (element.Parent?.Name != "Aliases")
+                    {
+                        return "The domain/account graph is invalid: Alias is outside Domain/Aliases.";
+                    }
+
+                    if (!HasAttributes(element, "Name", "Value", "Active"))
+                    {
+                        return "The domain/account graph is invalid: Alias is missing a serialized attribute.";
+                    }
+
+                    break;
+
+                case "DistributionList":
+                    if (element.Parent?.Name != "DistributionLists")
+                    {
+                        return "The domain/account graph is invalid: DistributionList is outside Domain/DistributionLists.";
+                    }
+
+                    if (!HasAttributes(element, "Name", "Active", "RequiresAuth", "RequiresAuthAddress", "ListMode"))
+                    {
+                        return "The domain/account graph is invalid: DistributionList is missing a serialized attribute.";
+                    }
+
+                    break;
             }
         }
 
         return null;
+
+        static bool HasAttributes(XElement element, params string[] names)
+        {
+            return names.All(name => element.Attribute(name) is not null);
+        }
     }
 
     private ProcessStartInfo CreateStartInfo(

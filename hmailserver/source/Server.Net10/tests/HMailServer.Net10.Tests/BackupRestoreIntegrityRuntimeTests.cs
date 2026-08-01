@@ -57,6 +57,101 @@ public sealed class BackupRestoreIntegrityRuntimeTests
     }
 
     [TestMethod]
+    public async Task InspectAsync_AcceptsPopulatedDomainChildContainersAndUnknownDomainChild()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DomainAliases><DomainAlias Name=\"alias.example.com\" /></DomainAliases><Aliases><Alias Name=\"info@example.com\" Value=\"alice@example.com\" Active=\"1\" /></Aliases><DistributionLists><DistributionList Name=\"list@example.com\" Active=\"1\" RequiresAuth=\"0\" RequiresAuthAddress=\"\" ListMode=\"0\" /></DistributionLists><LegacyDomainChild /></Domain></Domains></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_AcceptsExplicitlyEmptyDomainChildContainers()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DomainAliases /><Aliases /><DistributionLists /></Domain></Domains></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+    }
+
+    [TestMethod]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><DomainAliases><DomainAlias Name=\"alias.example.com\" /></DomainAliases><Domains><Domain Name=\"example.com\" /></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DomainAliases /><DomainAliases /></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Aliases /><Aliases /></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DistributionLists /><DistributionLists /></Domain></Domains></Backup>")]
+    public async Task InspectAsync_RejectsMisplacedOrDuplicateDomainChildContainers(string metadataXml)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(metadataXml, includeNestedDataBackup: false);
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, metadataXml);
+        StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+    }
+
+    [TestMethod]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DomainAliases><Alias /></DomainAliases></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Aliases><DomainAlias /></Aliases></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DistributionLists><Alias /></DistributionLists></Domain></Domains></Backup>")]
+    public async Task InspectAsync_RejectsWrongDomainChildContainerChildren(string metadataXml)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(metadataXml, includeNestedDataBackup: false);
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, metadataXml);
+        StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+    }
+
+    [TestMethod]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DomainAliases><DomainAlias /></DomainAliases></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Aliases><Alias Value=\"alice@example.com\" Active=\"1\" /></Aliases></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Aliases><Alias Name=\"info@example.com\" Active=\"1\" /></Aliases></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Aliases><Alias Name=\"info@example.com\" Value=\"alice@example.com\" /></Aliases></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DistributionLists><DistributionList Active=\"1\" RequiresAuth=\"0\" RequiresAuthAddress=\"\" ListMode=\"0\" /></DistributionLists></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DistributionLists><DistributionList Name=\"list@example.com\" RequiresAuth=\"0\" RequiresAuthAddress=\"\" ListMode=\"0\" /></DistributionLists></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DistributionLists><DistributionList Name=\"list@example.com\" Active=\"1\" RequiresAuthAddress=\"\" ListMode=\"0\" /></DistributionLists></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DistributionLists><DistributionList Name=\"list@example.com\" Active=\"1\" RequiresAuth=\"0\" ListMode=\"0\" /></DistributionLists></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DistributionLists><DistributionList Name=\"list@example.com\" Active=\"1\" RequiresAuth=\"0\" RequiresAuthAddress=\"\" /></DistributionLists></Domain></Domains></Backup>")]
+    public async Task InspectAsync_RejectsMissingDomainChildScalarAttributes(string metadataXml)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(metadataXml, includeNestedDataBackup: false);
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, metadataXml);
+        StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+    }
+
+    [TestMethod]
     public async Task InspectAsync_RejectsMalformedLegacyDomainAccountGraph()
     {
         if (!OperatingSystem.IsWindows())
