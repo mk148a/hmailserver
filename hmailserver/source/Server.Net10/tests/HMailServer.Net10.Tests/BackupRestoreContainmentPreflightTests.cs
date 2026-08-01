@@ -160,6 +160,25 @@ public sealed class BackupRestoreContainmentPreflightTests
         Assert.IsFalse(plan.RequiresIsolatedExtraction);
     }
 
+    [TestMethod]
+    public void Plan_CancelsTreeTraversalWithoutMutation()
+    {
+        using var fixture = new TemporaryPaths();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var plan = BackupRestoreContainmentPreflight.Plan(
+            CreateEvidence("7z", rawDataBackupPath: null, fixture.ArchivePath),
+            fixture.TargetPath,
+            fixture.RollbackPath,
+            cancellation.Token);
+
+        Assert.IsFalse(plan.IsSafe);
+        StringAssert.Contains(plan.FailureReason!, "canceled");
+        Assert.IsTrue(Directory.Exists(fixture.TargetPath));
+        Assert.IsFalse(File.Exists(fixture.RollbackPath));
+    }
+
     private sealed class TemporaryPaths : IDisposable
     {
         internal TemporaryPaths(bool createSource = false)

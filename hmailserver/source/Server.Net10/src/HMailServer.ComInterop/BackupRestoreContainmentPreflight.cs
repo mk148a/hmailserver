@@ -5,10 +5,13 @@ namespace HMailServer.ComInterop;
 [ComVisible(false)]
 internal static class BackupRestoreContainmentPreflight
 {
+    private const int MaximumScannedEntries = 100_000;
+
     internal static BackupRestoreContainmentPlan Plan(
         BackupRestoreIntegrityEvidence evidence,
         string targetDataDirectoryPath,
-        string rollbackArtifactPath)
+        string rollbackArtifactPath,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(evidence);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetDataDirectoryPath);
@@ -116,12 +119,35 @@ internal static class BackupRestoreContainmentPreflight
         {
             failureReason = "The restore source, target, archive, and rollback paths overlap.";
         }
-        else if (HasReparsePointInTree(archivePath)
-            || (sourcePath is not null && HasReparsePointInTree(sourcePath))
-            || HasReparsePointInTree(targetPath)
-            || HasReparsePoint(rollbackPath))
+        else
         {
-            failureReason = "The restore preflight path traverses a reparse point.";
+            var scannedEntries = 0;
+            var scanResult = ScanTree(
+                archivePath,
+                cancellationToken,
+                ref scannedEntries);
+            if (scanResult == TreeScanResult.Clear && sourcePath is not null)
+            {
+                scanResult = ScanTree(sourcePath, cancellationToken, ref scannedEntries);
+            }
+
+            if (scanResult == TreeScanResult.Clear)
+            {
+                scanResult = ScanTree(targetPath, cancellationToken, ref scannedEntries);
+            }
+
+            if (scanResult == TreeScanResult.Clear && HasReparsePoint(rollbackPath))
+            {
+                scanResult = TreeScanResult.ReparsePoint;
+            }
+
+            failureReason = scanResult switch
+            {
+                TreeScanResult.Clear => null,
+                TreeScanResult.Canceled => "The restore preflight traversal was canceled.",
+                TreeScanResult.LimitExceeded => "The restore preflight traversal exceeded its entry limit.",
+                _ => "The restore preflight path traverses a reparse point or inaccessible path."
+            };
         }
 
         return new BackupRestoreContainmentPlan(
@@ -221,43 +247,79 @@ internal static class BackupRestoreContainmentPreflight
         }
     }
 
-    private static bool HasReparsePointInTree(string path)
+    private static TreeScanResult ScanTree(
+        string path,
+        CancellationToken cancellationToken,
+        ref int scannedEntries)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return TreeScanResult.Canceled;
+        }
+
+        if (++scannedEntries > MaximumScannedEntries)
+        {
+            return TreeScanResult.LimitExceeded;
+        }
+
         if (HasReparsePoint(path))
         {
-            return true;
+            return TreeScanResult.ReparsePoint;
         }
 
         if (!Directory.Exists(path))
         {
-            return false;
+            return TreeScanResult.Clear;
         }
 
         try
         {
             foreach (var entry in Directory.EnumerateFileSystemEntries(path))
             {
-                if (HasReparsePoint(entry))
+                if (cancellationToken.IsCancellationRequested)
                 {
-                    return true;
+                    return TreeScanResult.Canceled;
                 }
 
-                if (Directory.Exists(entry) && HasReparsePointInTree(entry))
+                if (++scannedEntries > MaximumScannedEntries)
                 {
-                    return true;
+                    return TreeScanResult.LimitExceeded;
+                }
+
+                if (HasReparsePoint(entry))
+                {
+                    return TreeScanResult.ReparsePoint;
+                }
+
+                if (Directory.Exists(entry))
+                {
+                    var childResult = ScanTree(entry, cancellationToken, ref scannedEntries);
+                    if (childResult != TreeScanResult.Clear)
+                    {
+                        return childResult;
+                    }
                 }
             }
         }
         catch (IOException)
         {
-            return true;
+            return TreeScanResult.Inaccessible;
         }
         catch (UnauthorizedAccessException)
         {
-            return true;
+            return TreeScanResult.Inaccessible;
         }
 
-        return false;
+        return TreeScanResult.Clear;
+    }
+
+    private enum TreeScanResult
+    {
+        Clear,
+        ReparsePoint,
+        Inaccessible,
+        Canceled,
+        LimitExceeded
     }
 
     private static bool IsFileSystemRoot(string path) =>
