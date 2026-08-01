@@ -26,6 +26,13 @@ internal static class BackupRestoreDryRunPlanner
         var restoreSettings = HasFlag(requestedRestoreOptions, BackupStartPlan.BackupSettingsFlag);
         var restoreDomains = HasFlag(requestedRestoreOptions, BackupStartPlan.BackupDomainsFlag);
         var restoreMessages = HasFlag(requestedRestoreOptions, BackupStartPlan.BackupMessagesFlag);
+        var knownRequestedOptions = requestedRestoreOptions
+            & (BackupStartPlan.BackupSettingsFlag
+                | BackupStartPlan.BackupDomainsFlag
+                | BackupStartPlan.BackupMessagesFlag);
+        var missingRestoreOptions = mode.HasValue
+            ? knownRequestedOptions & ~mode.Value
+            : knownRequestedOptions;
         var steps = ImmutableArray.CreateBuilder<string>();
         var warnings = ImmutableArray.CreateBuilder<string>();
         string? failureReason = null;
@@ -36,6 +43,22 @@ internal static class BackupRestoreDryRunPlanner
         }
         else
         {
+            AddMissingOptionWarning(
+                missingRestoreOptions,
+                BackupStartPlan.BackupSettingsFlag,
+                "RestoreSettings",
+                warnings);
+            AddMissingOptionWarning(
+                missingRestoreOptions,
+                BackupStartPlan.BackupDomainsFlag,
+                "RestoreDomains",
+                warnings);
+            AddMissingOptionWarning(
+                missingRestoreOptions,
+                BackupStartPlan.BackupMessagesFlag,
+                "RestoreMessages",
+                warnings);
+
             if (restoreMessages && !restoreDomains)
             {
                 warnings.Add(
@@ -87,7 +110,20 @@ internal static class BackupRestoreDryRunPlanner
             ContainsMessages: containsMessages,
             DataFilesFormat: evidence.DataFilesFormat,
             RawDataBackupPath: evidence.RawDataBackupPath,
-            BackupMessagesDbOnly: evidence.BackupMessagesDbOnly);
+            BackupMessagesDbOnly: evidence.BackupMessagesDbOnly,
+            MissingRestoreOptions: missingRestoreOptions);
+    }
+
+    private static void AddMissingOptionWarning(
+        int missingRestoreOptions,
+        int flag,
+        string optionName,
+        ImmutableArray<string>.Builder warnings)
+    {
+        if ((missingRestoreOptions & flag) != 0)
+        {
+            warnings.Add($"{optionName} was requested but the backup does not contain that section.");
+        }
     }
 
     private static bool HasFlag(int? value, int flag) =>
@@ -112,7 +148,8 @@ internal sealed record BackupRestoreDryRunPlan(
     bool ContainsMessages,
     string? DataFilesFormat,
     string? RawDataBackupPath,
-    bool BackupMessagesDbOnly)
+    bool BackupMessagesDbOnly,
+    int MissingRestoreOptions)
 {
     internal bool WouldMutate => false;
     internal string ArchivePath => Evidence.ArchivePath;

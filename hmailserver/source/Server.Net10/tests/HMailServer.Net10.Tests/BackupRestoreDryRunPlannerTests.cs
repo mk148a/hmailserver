@@ -37,6 +37,7 @@ public sealed class BackupRestoreDryRunPlannerTests
             plan.Steps.ToArray());
         Assert.IsNull(plan.FailureReason);
         Assert.IsFalse(plan.WouldMutate);
+        Assert.AreEqual(0, plan.MissingRestoreOptions);
     }
 
     [TestMethod]
@@ -68,6 +69,22 @@ public sealed class BackupRestoreDryRunPlannerTests
                 BackupRestoreDryRunPlanner.ReinitializeStep
             },
             plan.Steps.ToArray());
+    }
+
+    [TestMethod]
+    public void Plan_WarnsWhenRequestedSectionsAreAbsentFromBackup()
+    {
+        var plan = BackupRestoreDryRunPlanner.Plan(
+            CreateEvidence(mode: 1, dataFilesFormat: null, rawDataBackupPath: null),
+            requestedRestoreOptions: 7);
+
+        Assert.AreEqual(
+            BackupStartPlan.BackupDomainsFlag | BackupStartPlan.BackupMessagesFlag,
+            plan.MissingRestoreOptions);
+        Assert.AreEqual(2, plan.Warnings.Length);
+        StringAssert.Contains(plan.Warnings[0], "RestoreDomains");
+        StringAssert.Contains(plan.Warnings[1], "RestoreMessages");
+        Assert.IsFalse(plan.WouldMutate);
     }
 
     [TestMethod]
