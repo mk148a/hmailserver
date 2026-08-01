@@ -179,6 +179,26 @@ public sealed class BackupRestoreContainmentPreflightTests
         Assert.IsFalse(File.Exists(fixture.RollbackPath));
     }
 
+    [TestMethod]
+    public void Revalidate_RejectsArchiveChangesAfterInitialPlan()
+    {
+        using var fixture = new TemporaryPaths();
+        var evidence = CreateEvidence("7z", rawDataBackupPath: null, fixture.ArchivePath);
+        var initialPlan = BackupRestoreContainmentPreflight.Plan(
+            evidence,
+            fixture.TargetPath,
+            fixture.RollbackPath);
+        Assert.IsTrue(initialPlan.IsSafe, initialPlan.FailureReason);
+
+        File.Delete(fixture.ArchivePath);
+        var revalidatedPlan = BackupRestoreContainmentPreflight.Revalidate(initialPlan, evidence);
+
+        Assert.IsFalse(revalidatedPlan.IsSafe);
+        StringAssert.Contains(revalidatedPlan.FailureReason!, "archive file does not exist");
+        Assert.IsTrue(Directory.Exists(fixture.TargetPath));
+        Assert.IsFalse(File.Exists(fixture.RollbackPath));
+    }
+
     private sealed class TemporaryPaths : IDisposable
     {
         internal TemporaryPaths(bool createSource = false)

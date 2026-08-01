@@ -160,6 +160,32 @@ internal static class BackupRestoreContainmentPreflight
             RequiresIsolatedExtraction: requiresIsolatedExtraction);
     }
 
+    internal static BackupRestoreContainmentPlan Revalidate(
+        BackupRestoreContainmentPlan previousPlan,
+        BackupRestoreIntegrityEvidence evidence,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(previousPlan);
+        ArgumentNullException.ThrowIfNull(evidence);
+
+        var currentPlan = Plan(
+            evidence,
+            previousPlan.TargetDataDirectoryPath,
+            previousPlan.RollbackArtifactPath,
+            cancellationToken);
+        if (!string.Equals(currentPlan.ArchivePath, previousPlan.ArchivePath, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(currentPlan.SourcePath, previousPlan.SourcePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return currentPlan with
+            {
+                IsSafe = false,
+                FailureReason = "The restore preflight paths changed after the initial plan."
+            };
+        }
+
+        return currentPlan;
+    }
+
     private static bool PathsOverlap(string firstPath, string secondPath)
     {
         var first = NormalizeForComparison(firstPath);
