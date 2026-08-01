@@ -37,6 +37,182 @@ public sealed class BackupRestoreIntegrityRuntimeTests
     }
 
     [TestMethod]
+    public async Task InspectAsync_RequiresCompressedMessageFilesAtLegacyGuidBucketPath()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        const string filename = "{0123456789abcdef0123456789abcdef}.eml";
+        var metadata = CreateMessageBackupMetadata(filename, mode: 14);
+        using var fixture = await ArchiveFixture.CreateAsync(
+            metadata,
+            includeNestedDataBackup: false,
+            dataBackupFiles: new[] { $"example.com/alice/01/{filename}" });
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+        Assert.IsTrue(evidence.MessageFilesValidated);
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_RejectsMissingCompressedMessageFile()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        const string filename = "{0123456789abcdef0123456789abcdef}.eml";
+        using var fixture = await ArchiveFixture.CreateAsync(
+            CreateMessageBackupMetadata(filename, mode: 14),
+            includeNestedDataBackup: false,
+            dataBackupFiles: new[] { "example.com/alice/01/other.eml" });
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid);
+        StringAssert.Contains(evidence.FailureReason!, "compressed message file is missing");
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_ValidatesRawMessageFileCorrespondence()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        const string filename = "message.eml";
+        using var fixture = await ArchiveFixture.CreateAsync(
+            CreateMessageBackupMetadata(filename, mode: 6, format: "Raw"),
+            includeNestedDataBackup: false,
+            createRawSibling: false,
+            rawDataBackupFiles: new[] { "example.com/alice/es/message.eml" });
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+        Assert.IsTrue(evidence.MessageFilesValidated);
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_RejectsMissingRawMessageFile()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            CreateMessageBackupMetadata("message.eml", mode: 6, format: "Raw"),
+            includeNestedDataBackup: false,
+            createRawSibling: false,
+            rawDataBackupFiles: new[] { "example.com/alice/es/other.eml" });
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid);
+        StringAssert.Contains(evidence.FailureReason!, "raw message file is missing");
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_RejectsMessageFilenameTraversal()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            CreateMessageBackupMetadata("..\\escape.eml", mode: 14),
+            includeNestedDataBackup: false,
+            dataBackupFiles: new[] { "example.com/alice/es/escape.eml" });
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid);
+        StringAssert.Contains(evidence.FailureReason!, "safe file name");
+    }
+
+    [TestMethod]
+    [DataRow("message.eml.")]
+    [DataRow("message.eml ")]
+    [DataRow("CON.txt")]
+    [DataRow("NUL")]
+    [DataRow("name:stream.eml")]
+    public async Task InspectAsync_RejectsWindowsUnsafeMessageFilenames(string filename)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            CreateMessageBackupMetadata(filename, mode: 14),
+            includeNestedDataBackup: false,
+            dataBackupFiles: new[] { "example.com/alice/es/other.eml" });
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid);
+        StringAssert.Contains(evidence.FailureReason!, "safe file name");
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_AllowsDbOnlyMessageMetadataWithoutPhysicalFiles()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        const string filename = "{0123456789abcdef0123456789abcdef}.eml";
+        using var fixture = await ArchiveFixture.CreateAsync(
+            CreateMessageBackupMetadata(filename, mode: 14),
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(
+            fixture.ArchivePath,
+            CancellationToken.None,
+            backupMessagesDbOnly: true);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+        Assert.IsTrue(evidence.MessageFilesValidated);
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_AllowsDbOnlyRawMessageMetadataWithoutPhysicalFiles()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            CreateMessageBackupMetadata("message.eml", mode: 6, format: "Raw"),
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(
+            fixture.ArchivePath,
+            CancellationToken.None,
+            backupMessagesDbOnly: true);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+        Assert.IsTrue(evidence.MessageFilesValidated);
+    }
+
+    private static string CreateMessageBackupMetadata(string filename, int mode, string format = "7z")
+    {
+        var folderName = string.Equals(format, "Raw", StringComparison.OrdinalIgnoreCase)
+            ? " FolderName=\"DataBackup\""
+            : string.Empty;
+        return $"<Backup><BackupInformation Mode=\"{mode}\"><DataFiles Format=\"{format}\"{folderName} /></BackupInformation><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\" Subscribed=\"1\" CreateTime=\"2026-08-01 00:00:00\" CurrentUID=\"1\"><Messages><Message CreateTime=\"2026-08-01 00:00:00\" Filename=\"{filename}\" FromAddress=\"sender@example.com\" State=\"1\" Size=\"10\" NoOfRetries=\"0\" Flags=\"0\" ID=\"1\" UID=\"1\" /></Messages></Folder></Folders></Account></Accounts></Domain></Domains></Backup>";
+    }
+
+    [TestMethod]
     public async Task InspectAsync_AcceptsLegacyDomainAccountGraphWithoutMutation()
     {
         if (!OperatingSystem.IsWindows())
@@ -790,7 +966,9 @@ public sealed class BackupRestoreIntegrityRuntimeTests
             bool includeNestedDataBackup,
             bool createRawSibling = false,
             bool createRawFile = false,
-            bool createCompressedFile = false)
+            bool createCompressedFile = false,
+            IReadOnlyList<string>? dataBackupFiles = null,
+            IReadOnlyList<string>? rawDataBackupFiles = null)
         {
             var directory = Path.Combine(Path.GetTempPath(), $"hmailserver-restore-{Guid.NewGuid():N}");
             var source = Path.Combine(directory, "source");
@@ -813,6 +991,16 @@ public sealed class BackupRestoreIntegrityRuntimeTests
                 File.WriteAllText(messagePath, "message");
             }
 
+            foreach (var relativeFile in dataBackupFiles ?? Array.Empty<string>())
+            {
+                var messagePath = Path.Combine(
+                    new[] { source, "DataBackup" }
+                        .Concat(relativeFile.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries))
+                        .ToArray());
+                Directory.CreateDirectory(Path.GetDirectoryName(messagePath)!);
+                File.WriteAllText(messagePath, "message");
+            }
+
             if (createRawSibling)
             {
                 Directory.CreateDirectory(Path.Combine(directory, "DataBackup", "accounts"));
@@ -821,6 +1009,16 @@ public sealed class BackupRestoreIntegrityRuntimeTests
             else if (createRawFile)
             {
                 File.WriteAllText(Path.Combine(directory, "DataBackup"), "not a directory");
+            }
+
+            foreach (var relativeFile in rawDataBackupFiles ?? Array.Empty<string>())
+            {
+                var messagePath = Path.Combine(
+                    new[] { directory, "DataBackup" }
+                        .Concat(relativeFile.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries))
+                        .ToArray());
+                Directory.CreateDirectory(Path.GetDirectoryName(messagePath)!);
+                File.WriteAllText(messagePath, "message");
             }
 
             if (createCompressedFile)
@@ -834,7 +1032,7 @@ public sealed class BackupRestoreIntegrityRuntimeTests
                 arguments.Add(SevenZipBackupArchiveMetadataReader.MetadataEntryName);
             }
 
-            if (includeNestedDataBackup || createCompressedFile)
+            if (includeNestedDataBackup || createCompressedFile || (dataBackupFiles?.Count > 0))
             {
                 arguments.Add("DataBackup");
             }

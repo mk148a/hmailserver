@@ -184,7 +184,14 @@ internal sealed class BackupRestoreIntegrityRuntime
                 return evidence.Invalid("The compressed payload contains an entry outside DataBackup.");
             }
 
-            return evidence with { IsValid = true };
+            var messageFileFailure = ValidateMessageFileGraph(
+                metadata.Root,
+                entries,
+                rawDataBackupPath: null,
+                checkPhysicalFiles: !backupMessagesDbOnly);
+            return messageFileFailure is null
+                ? evidence with { IsValid = true, MessageFilesValidated = true }
+                : evidence.Invalid(messageFileFailure);
         }
 
         if (string.Equals(metadata.DataFilesFormat, "Raw", StringComparison.OrdinalIgnoreCase))
@@ -199,11 +206,19 @@ internal sealed class BackupRestoreIntegrityRuntime
                 return evidence.Invalid(failureReason!);
             }
 
-            return evidence with
-            {
-                IsValid = true,
-                RawDataBackupPath = rawDataBackupPath
-            };
+            var messageFileFailure = ValidateMessageFileGraph(
+                metadata.Root,
+                entries: Array.Empty<string>(),
+                rawDataBackupPath: rawDataBackupPath,
+                checkPhysicalFiles: !backupMessagesDbOnly);
+            return messageFileFailure is null
+                ? evidence with
+                {
+                    IsValid = true,
+                    MessageFilesValidated = true,
+                    RawDataBackupPath = rawDataBackupPath
+                }
+                : evidence.Invalid(messageFileFailure);
         }
 
         return evidence.Invalid("The backup DataFiles format is not supported.");
@@ -321,6 +336,183 @@ internal sealed class BackupRestoreIntegrityRuntime
         return null;
     }
 
+    private static string? ValidateMessageFileGraph(
+        XElement root,
+        IReadOnlyList<string> entries,
+        string? rawDataBackupPath,
+        bool checkPhysicalFiles)
+    {
+        foreach (var message in root.Descendants("Message").Where(static message => message.Ancestors("Account").Any()))
+        {
+            var filename = message.Attribute("Filename")?.Value;
+            if (!IsSafeMessageFilename(filename))
+            {
+                return "The message/file graph is invalid: Message Filename is not a safe file name.";
+            }
+
+            var account = message.Ancestors("Account").FirstOrDefault();
+            var domain = account?.Ancestors("Domain").FirstOrDefault();
+            if (account is null || domain is null
+                || !TryBuildLegacyMessageRelativePath(
+                    domain.Attribute("Name")?.Value,
+                    account.Attribute("Name")?.Value,
+                    filename!,
+                    out var relativePath))
+            {
+                return "The message/file graph is invalid: Message owner path cannot be resolved.";
+            }
+
+            if (!checkPhysicalFiles)
+            {
+                continue;
+            }
+
+            if (rawDataBackupPath is not null)
+            {
+                var rawPath = Path.GetFullPath(Path.Combine(
+                    new[] { rawDataBackupPath }
+                        .Concat(relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries).Skip(1))
+                        .ToArray()));
+                if (!IsUnderDirectory(rawPath, rawDataBackupPath))
+                {
+                    return "The message/file graph is invalid: Referenced raw message file is missing.";
+                }
+
+                if (HasReparsePointOnPath(rawPath, rawDataBackupPath))
+                {
+                    return "The message/file graph is invalid: Referenced raw message file uses a reparse point.";
+                }
+
+                if (!File.Exists(rawPath))
+                {
+                    return "The message/file graph is invalid: Referenced raw message file is missing.";
+                }
+            }
+            else if (!entries.Any(entry => string.Equals(
+                         NormalizeArchiveEntry(entry).TrimEnd('/'),
+                         relativePath,
+                         StringComparison.OrdinalIgnoreCase)))
+            {
+                return "The message/file graph is invalid: Referenced compressed message file is missing.";
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsSafeMessageFilename(string? filename) =>
+        !string.IsNullOrWhiteSpace(filename)
+        && !Path.IsPathRooted(filename)
+        && filename is not "." and not ".."
+        && !filename.Contains(':')
+        && filename.IndexOfAny(new[] { '/', '\\' }) < 0
+        && !filename.EndsWith(".", StringComparison.Ordinal)
+        && !filename.EndsWith(" ", StringComparison.Ordinal)
+        && !IsWindowsDeviceName(filename);
+
+    private static bool TryBuildLegacyMessageRelativePath(
+        string? domainName,
+        string? accountAddress,
+        string filename,
+        out string relativePath)
+    {
+        relativePath = string.Empty;
+        if (!IsSafePathSegment(domainName) || string.IsNullOrWhiteSpace(accountAddress))
+        {
+            return false;
+        }
+
+        var separator = accountAddress.LastIndexOf('@');
+        if (separator <= 0 || separator == accountAddress.Length - 1)
+        {
+            return false;
+        }
+
+        var accountDomain = accountAddress[(separator + 1)..];
+        var accountName = accountAddress[..separator];
+        if (!string.Equals(accountDomain, domainName, StringComparison.OrdinalIgnoreCase)
+            || !IsSafePathSegment(accountName))
+        {
+            return false;
+        }
+
+        var guidBucket = filename.Length > 1
+            ? filename.Substring(1, Math.Min(2, filename.Length - 1))
+            : string.Empty;
+        if (!string.IsNullOrEmpty(guidBucket) && !IsSafePathSegment(guidBucket))
+        {
+            return false;
+        }
+
+        relativePath = string.Join(
+            '/',
+            new[] { DataBackupFolderName, domainName, accountName, guidBucket, filename }
+                .Where(static segment => !string.IsNullOrEmpty(segment)));
+        return true;
+    }
+
+    private static bool IsSafePathSegment(string? value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && value is not "." and not ".."
+        && !Path.IsPathRooted(value)
+        && !value.Contains(':')
+        && value.IndexOfAny(new[] { '/', '\\' }) < 0
+        && !value.EndsWith(".", StringComparison.Ordinal)
+        && !value.EndsWith(" ", StringComparison.Ordinal)
+        && !IsWindowsDeviceName(value);
+
+    private static bool IsWindowsDeviceName(string value)
+    {
+        var name = value.Split('.')[0].ToUpperInvariant();
+        return name is "CON" or "PRN" or "AUX" or "NUL"
+            || (name.Length == 4
+                && (name.StartsWith("COM", StringComparison.Ordinal)
+                    || name.StartsWith("LPT", StringComparison.Ordinal))
+                && name[3] is >= '1' and <= '9');
+    }
+
+    private static bool HasReparsePointOnPath(string path, string root)
+    {
+        var normalizedRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
+        var current = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        try
+        {
+            while (current is not null)
+            {
+                if ((current.Attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    return true;
+                }
+
+                if (string.Equals(current.FullName.TrimEnd(Path.DirectorySeparatorChar), normalizedRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                current = current.Parent;
+            }
+
+            return File.Exists(path)
+                && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+
+    private static bool IsUnderDirectory(string path, string directory)
+    {
+        var relative = Path.GetRelativePath(Path.GetFullPath(directory), Path.GetFullPath(path));
+        return !Path.IsPathRooted(relative)
+            && relative is not ("." or "..")
+            && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+    }
+
     private static bool IsDataBackupEntry(string entry)
     {
         var normalized = NormalizeArchiveEntry(entry).TrimEnd('/');
@@ -407,6 +599,7 @@ internal sealed class BackupRestoreIntegrityRuntime
             ? ValidateDomainAccountGraph(root)
             : null;
         return new BackupRestoreMetadata(
+            root,
             mode,
             dataFiles is not null,
             dataFiles?.Attribute("Format")?.Value,
@@ -947,6 +1140,7 @@ internal sealed class BackupRestoreIntegrityRuntime
     }
 
     private sealed record BackupRestoreMetadata(
+        XElement Root,
         int BackupOptions,
         bool DataFilesPresent,
         string? DataFilesFormat,
@@ -971,6 +1165,7 @@ internal sealed record BackupRestoreIntegrityEvidence(string ArchivePath)
     internal bool DataFilesPresent { get; init; }
     internal string? DataFilesFormat { get; init; }
     internal string? RawFolderName { get; init; }
+    internal bool MessageFilesValidated { get; init; }
     internal string? RawDataBackupPath { get; init; }
     internal IReadOnlyList<string> ArchiveEntries { get; init; } =
         Array.Empty<string>();
