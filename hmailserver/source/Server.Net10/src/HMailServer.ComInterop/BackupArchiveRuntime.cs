@@ -137,7 +137,9 @@ public sealed class SevenZipBackupArchiveRuntime
                     payload?.BackupFetchAccounts,
                     payload?.Rules,
                     payload?.RuleCriterias,
-                    payload?.RuleActions);
+                    payload?.RuleActions,
+                    payload?.Folders,
+                    includeFolderMetadata: (backupOptions & BackupStartPlan.BackupMessagesFlag) != 0);
             }
 
             if ((backupOptions & BackupStartPlan.BackupSettingsFlag) != 0)
@@ -339,7 +341,9 @@ public sealed class SevenZipBackupArchiveRuntime
         IReadOnlyDictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>? backupFetchAccounts,
         IReadOnlyDictionary<int, IReadOnlyList<RuleAdministrationSnapshot>>? rules,
         IReadOnlyDictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? ruleCriterias,
-        IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>? ruleActions)
+        IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>? ruleActions,
+        IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? folders,
+        bool includeFolderMetadata)
     {
         if (domains is null)
         {
@@ -507,6 +511,7 @@ public sealed class SevenZipBackupArchiveRuntime
                         rules,
                         ruleCriterias,
                         ruleActions);
+                    WriteFolders(writer, account.Id, folders, includeFolderMetadata);
                     writer.WriteEndElement();
                 }
 
@@ -573,6 +578,34 @@ public sealed class SevenZipBackupArchiveRuntime
                 writer.WriteEndElement();
             }
 
+            writer.WriteEndElement();
+        }
+
+        writer.WriteEndElement();
+    }
+
+    private static void WriteFolders(
+        XmlWriter writer,
+        int accountId,
+        IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? folders,
+        bool includeFolderMetadata)
+    {
+        if (!includeFolderMetadata
+            || folders is null
+            || !folders.TryGetValue(accountId, out var accountFolders)
+            || accountFolders.Count == 0)
+        {
+            return;
+        }
+
+        writer.WriteStartElement("Folders");
+        foreach (var folder in accountFolders)
+        {
+            writer.WriteStartElement("Folder");
+            WriteLegacyAttribute(writer, "Name", folder.Name);
+            WriteLegacyAttribute(writer, "Subscribed", (folder.Subscribed ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "CreateTime", folder.CreationTime);
+            WriteLegacyAttribute(writer, "CurrentUID", folder.CurrentUid.ToString(CultureInfo.InvariantCulture));
             writer.WriteEndElement();
         }
 
@@ -756,7 +789,8 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyDictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>? BackupFetchAccounts = null,
     IReadOnlyDictionary<int, IReadOnlyList<RuleAdministrationSnapshot>>? Rules = null,
     IReadOnlyDictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? RuleCriterias = null,
-    IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>? RuleActions = null);
+    IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>? RuleActions = null,
+    IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? Folders = null);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
@@ -771,6 +805,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IBackupRuleAdministrationStore? _backupRuleStore;
     private readonly IRuleCriteriaAdministrationStore? _ruleCriteriaStore;
     private readonly IRuleActionAdministrationStore? _ruleActionStore;
+    private readonly IImapFolderAdministrationStore? _folderStore;
     private readonly IAliasAdministrationStore _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore? _distributionListRecipientStore;
@@ -794,7 +829,8 @@ public sealed class BackupXmlPayloadRuntime
             backupFetchAccountStore: null,
             backupRuleStore: null,
             ruleCriteriaStore: null,
-            ruleActionStore: null)
+            ruleActionStore: null,
+            folderStore: null)
     {
     }
 
@@ -811,7 +847,8 @@ public sealed class BackupXmlPayloadRuntime
         IBackupFetchAccountAdministrationStore? backupFetchAccountStore = null,
         IBackupRuleAdministrationStore? backupRuleStore = null,
         IRuleCriteriaAdministrationStore? ruleCriteriaStore = null,
-        IRuleActionAdministrationStore? ruleActionStore = null)
+        IRuleActionAdministrationStore? ruleActionStore = null,
+        IImapFolderAdministrationStore? folderStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -828,6 +865,7 @@ public sealed class BackupXmlPayloadRuntime
         _backupRuleStore = backupRuleStore;
         _ruleCriteriaStore = ruleCriteriaStore;
         _ruleActionStore = ruleActionStore;
+        _folderStore = folderStore;
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _distributionListRecipientStore = distributionListRecipientStore;
@@ -858,6 +896,7 @@ public sealed class BackupXmlPayloadRuntime
         IReadOnlyDictionary<int, IReadOnlyList<RuleAdministrationSnapshot>>? rules = null;
         IReadOnlyDictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? ruleCriterias = null;
         IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>? ruleActions = null;
+        IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? folders = null;
         IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? aliases = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? distributionLists = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients = null;
@@ -883,6 +922,10 @@ public sealed class BackupXmlPayloadRuntime
             var ruleActionsByRuleId = _ruleActionStore is null
                 ? null
                 : new Dictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>();
+            var foldersByAccountId = _folderStore is null
+                || (evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) == 0
+                ? null
+                : new Dictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>();
             var normalAliasesByDomainId = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
             var distributionListsByDomainId = _distributionListStore is null
                 ? null
@@ -975,6 +1018,19 @@ public sealed class BackupXmlPayloadRuntime
                     }
                 }
 
+                if (foldersByAccountId is not null)
+                {
+                    foreach (var account in accountsByDomainId[domain.Id])
+                    {
+                        if (!foldersByAccountId.ContainsKey(account.Id))
+                        {
+                            foldersByAccountId[account.Id] = await _folderStore!
+                                .GetRootFoldersAsync(account.Id, cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                    }
+                }
+
                 if (!normalAliasesByDomainId.ContainsKey(domain.Id))
                 {
                     normalAliasesByDomainId[domain.Id] = await _aliasStore
@@ -1007,6 +1063,7 @@ public sealed class BackupXmlPayloadRuntime
             rules = rulesByAccountId;
             ruleCriterias = ruleCriteriasByRuleId;
             ruleActions = ruleActionsByRuleId;
+            folders = foldersByAccountId;
             aliases = normalAliasesByDomainId;
             distributionLists = distributionListsByDomainId;
 
@@ -1038,6 +1095,7 @@ public sealed class BackupXmlPayloadRuntime
             backupFetchAccounts,
             rules,
             ruleCriterias,
-            ruleActions);
+            ruleActions,
+            folders);
     }
 }
