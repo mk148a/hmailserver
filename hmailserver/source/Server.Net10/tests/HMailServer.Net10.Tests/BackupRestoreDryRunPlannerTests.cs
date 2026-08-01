@@ -132,6 +132,23 @@ public sealed class BackupRestoreDryRunPlannerTests
         Assert.AreEqual(evidence, plan.Evidence);
     }
 
+    [TestMethod]
+    public void Plan_RejectsInvalidDomainAccountGraphBeforeRestoreSteps()
+    {
+        var evidence = CreateEvidence(mode: 2, dataFilesFormat: null, rawDataBackupPath: null) with
+        {
+            IsValid = false,
+            FailureReason = "The domain/account graph is invalid: Account is outside Domain/Accounts."
+        };
+
+        var plan = BackupRestoreDryRunPlanner.Plan(evidence, requestedRestoreOptions: 2);
+
+        Assert.AreEqual(evidence.FailureReason, plan.FailureReason);
+        Assert.IsFalse(plan.EvidenceIsValid);
+        Assert.IsFalse(plan.WouldMutate);
+        Assert.IsEmpty(plan.Steps);
+    }
+
     private static BackupRestoreIntegrityEvidence CreateEvidence(
         int mode,
         string? dataFilesFormat,

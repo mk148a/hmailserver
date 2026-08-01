@@ -142,6 +142,11 @@ internal sealed class BackupRestoreIntegrityRuntime
             return evidence.Invalid("The DataFiles format is inconsistent with the backup compression mode.");
         }
 
+        if (metadata.DomainAccountGraphFailureReason is not null)
+        {
+            return evidence.Invalid(metadata.DomainAccountGraphFailureReason);
+        }
+
         if (metadata.DataFilesFormat is null)
         {
             return ValidateArchiveShape(evidence, metadata.DataFilesFormat);
@@ -398,11 +403,88 @@ internal sealed class BackupRestoreIntegrityRuntime
         }
 
         var dataFiles = backupInformation.Element("DataFiles");
+        var domainAccountGraphFailureReason = (mode & BackupStartPlan.BackupDomainsFlag) != 0
+            ? ValidateDomainAccountGraph(root)
+            : null;
         return new BackupRestoreMetadata(
             mode,
             dataFiles is not null,
             dataFiles?.Attribute("Format")?.Value,
-            dataFiles?.Attribute("FolderName")?.Value);
+            dataFiles?.Attribute("FolderName")?.Value,
+            domainAccountGraphFailureReason);
+    }
+
+    private static string? ValidateDomainAccountGraph(XElement root)
+    {
+        foreach (var element in root.DescendantsAndSelf())
+        {
+            switch (element.Name.LocalName)
+            {
+                case "Domains":
+                    if (element.Name != "Domains" || element.Parent != root)
+                    {
+                        return "The domain/account graph is invalid: Domains must be directly under Backup.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "Domain"))
+                    {
+                        return "The domain/account graph is invalid: Domains contains an unexpected child.";
+                    }
+
+                    if (root.Elements("Domains").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Backup contains multiple Domains containers.";
+                    }
+
+                    break;
+
+                case "Domain":
+                    if (element.Name != "Domain" || element.Parent?.Name != "Domains")
+                    {
+                        return "The domain/account graph is invalid: Domain is in an unexpected location.";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(element.Attribute("Name")?.Value))
+                    {
+                        return "The domain/account graph is invalid: Domain requires a Name attribute.";
+                    }
+
+                    if (element.Elements("Accounts").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Domain contains multiple Accounts containers.";
+                    }
+
+                    break;
+
+                case "Accounts":
+                    if (element.Name != "Accounts" || element.Parent?.Name != "Domain")
+                    {
+                        return "The domain/account graph is invalid: Accounts is in an unexpected location.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "Account"))
+                    {
+                        return "The domain/account graph is invalid: Accounts contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "Account":
+                    if (element.Name != "Account" || element.Parent?.Name != "Accounts")
+                    {
+                        return "The domain/account graph is invalid: Account is outside Domain/Accounts.";
+                    }
+
+                    if (string.IsNullOrWhiteSpace(element.Attribute("Name")?.Value))
+                    {
+                        return "The domain/account graph is invalid: Account requires a Name attribute.";
+                    }
+
+                    break;
+            }
+        }
+
+        return null;
     }
 
     private ProcessStartInfo CreateStartInfo(
@@ -527,7 +609,8 @@ internal sealed class BackupRestoreIntegrityRuntime
         int BackupOptions,
         bool DataFilesPresent,
         string? DataFilesFormat,
-        string? RawFolderName);
+        string? RawFolderName,
+        string? DomainAccountGraphFailureReason);
 
     private sealed record SevenZipCommandResult(
         int ExitCode,

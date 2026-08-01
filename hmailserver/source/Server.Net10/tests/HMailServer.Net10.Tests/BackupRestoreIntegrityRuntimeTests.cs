@@ -16,7 +16,7 @@ public sealed class BackupRestoreIntegrityRuntimeTests
         }
 
         using var fixture = await ArchiveFixture.CreateAsync(
-            "<Backup><BackupInformation Mode=\"14\"><DataFiles Format=\"7z\" Size=\"0\" /></BackupInformation></Backup>",
+            "<Backup><BackupInformation Mode=\"14\"><DataFiles Format=\"7z\" Size=\"0\" /></BackupInformation><Domains><Domain Name=\"example.com\" /></Domains></Backup>",
             includeNestedDataBackup: true);
         var before = fixture.Snapshot();
 
@@ -34,6 +34,53 @@ public sealed class BackupRestoreIntegrityRuntimeTests
                     "DataBackup/accounts/alice/message.eml",
                     StringComparison.OrdinalIgnoreCase)));
         CollectionAssert.AreEqual(before, fixture.Snapshot());
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_AcceptsLegacyDomainAccountGraphWithoutMutation()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DomainAliases><DomainAlias Name=\"alias.example.com\" /></DomainAliases><Accounts><Account Name=\"alice@example.com\" /></Accounts></Domain></Domains></Backup>",
+            includeNestedDataBackup: false);
+        var before = fixture.Snapshot();
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+        Assert.AreEqual(2, evidence.BackupOptions);
+        CollectionAssert.AreEqual(before, fixture.Snapshot());
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_RejectsMalformedLegacyDomainAccountGraph()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var metadata = new[]
+        {
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain><Accounts><Account Name=\"alice@example.com\" /></Accounts></Domain></Domains></Backup>",
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account /></Accounts></Domain></Domains></Backup>",
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Account Name=\"alice@example.com\" /></Domain></Domains></Backup>",
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Domain Name=\"nested.example.com\" /></Accounts></Domain></Domains></Backup>",
+            "<Backup><BackupInformation Mode=\"2\" /><Accounts><Account Name=\"alice@example.com\" /></Accounts></Backup>"
+        };
+
+        foreach (var xml in metadata)
+        {
+            using var fixture = await ArchiveFixture.CreateAsync(xml, includeNestedDataBackup: false);
+            var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+            Assert.IsFalse(evidence.IsValid, xml);
+            StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+        }
     }
 
     [TestMethod]
@@ -92,7 +139,7 @@ public sealed class BackupRestoreIntegrityRuntimeTests
         }
 
         using var fixture = await ArchiveFixture.CreateAsync(
-            "<Backup><BackupInformation Mode=\"14\"><DataFiles Format=\"7z\" /></BackupInformation></Backup>",
+            "<Backup><BackupInformation Mode=\"14\"><DataFiles Format=\"7z\" /></BackupInformation><Domains><Domain Name=\"example.com\" /></Domains></Backup>",
             includeNestedDataBackup: false);
 
         var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
@@ -158,7 +205,7 @@ public sealed class BackupRestoreIntegrityRuntimeTests
         }
 
         using var fixture = await ArchiveFixture.CreateAsync(
-            "<Backup><BackupInformation Mode=\"14\"><DataFiles Format=\"7z\" /></BackupInformation></Backup>",
+            "<Backup><BackupInformation Mode=\"14\"><DataFiles Format=\"7z\" /></BackupInformation><Domains><Domain Name=\"example.com\" /></Domains></Backup>",
             includeNestedDataBackup: false,
             createCompressedFile: true);
 
@@ -177,7 +224,7 @@ public sealed class BackupRestoreIntegrityRuntimeTests
         }
 
         using var fixture = await ArchiveFixture.CreateAsync(
-            "<Backup><BackupInformation Mode=\"6\"><DataFiles Format=\"Raw\" FolderName=\"DataBackup\" /></BackupInformation></Backup>",
+            "<Backup><BackupInformation Mode=\"6\"><DataFiles Format=\"Raw\" FolderName=\"DataBackup\" /></BackupInformation><Domains><Domain Name=\"example.com\" /></Domains></Backup>",
             includeNestedDataBackup: false,
             createRawSibling: true);
         var before = fixture.Snapshot();
