@@ -338,6 +338,47 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(1, folderStore.ReadCount);
     }
 
+    [TestMethod]
+    public void AuthenticatedApplication_TraversesAccountImapSubFoldersWithSharedAccountScopedState()
+    {
+        var folderStore = new MutableImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(100, 10, -1, "Projects", true, 1, "2026-07-01 01:02:03"),
+                new ImapFolderAdministrationSnapshot(101, 10, 100, "2026", true, 2, "2026-07-01 01:02:04"),
+                new ImapFolderAdministrationSnapshot(200, 20, -1, "OtherAccountOnly", true, 1, "2026-07-01 01:02:05")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(folderStore);
+        AccountAdministrationRuntimeHost.Configure(new FixedAccountAdministrationStore(
+            new[]
+            {
+                new AccountAdministrationSnapshot(10, 100, "target@example.test", true, 0),
+                new AccountAdministrationSnapshot(20, 100, "other@example.test", true, 0)
+            }));
+        DomainAdministrationRuntimeHost.Configure(new FixedDomainAdministrationStore(
+            new[] { new DomainAdministrationSnapshot(100, "example.test", true) }));
+
+        var application = new Application(new FixedAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        var accounts = application.Domains[0].Accounts;
+        var target = accounts.get_ItemByAddress("TARGET@EXAMPLE.TEST");
+        var targetRoot = target.IMAPFolders.get_ItemByName("Projects");
+        var targetChild = targetRoot.SubFolders.get_ItemByName("2026");
+
+        var freshAccounts = application.Domains[0].Accounts;
+        var freshTarget = freshAccounts.get_ItemByAddress("target@example.test");
+        var freshChild = freshTarget.IMAPFolders.get_ItemByName("Projects").SubFolders[0];
+
+        Assert.AreNotSame(target, freshTarget);
+        Assert.AreEqual(1, target.IMAPFolders.Count);
+        Assert.AreEqual(101, targetChild.ID);
+        Assert.AreEqual("2026", targetChild.Name);
+        Assert.AreEqual(101, freshChild.ID);
+        Assert.AreEqual("2026", freshChild.Name);
+        Assert.AreEqual(1, folderStore.ReadCount);
+    }
+
     private static void AssertAccount(
         IInterfaceAccount account,
         int id,
@@ -411,6 +452,36 @@ public sealed class AccountsComContractTests
             int accountId,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(Accounts.FirstOrDefault(account => account.Id == accountId));
+    }
+
+    private sealed class FixedAccountAdministrationStore(IReadOnlyList<AccountAdministrationSnapshot> accounts)
+        : IAccountAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
+                accounts.Where(account => account.DomainId == domainId).ToArray());
+
+        public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(accounts.FirstOrDefault(account => account.Id == accountId));
+    }
+
+    private sealed class FixedDomainAdministrationStore(IReadOnlyList<DomainAdministrationSnapshot> domains)
+        : IDomainAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
+            CancellationToken cancellationToken) => ValueTask.FromResult(domains);
+    }
+
+    private sealed class FixedAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            username.Equals("Administrator", StringComparison.OrdinalIgnoreCase)
+            && attemptedPassword == password;
     }
 
     private sealed class MutableRuleAdministrationStore(IReadOnlyList<RuleAdministrationSnapshot> rules)
