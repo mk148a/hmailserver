@@ -99,7 +99,7 @@ public sealed class BackupRestoreIntegrityRuntimeTests
         }
 
         using var fixture = await ArchiveFixture.CreateAsync(
-            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\"><FetchAccountUIDs><UID UID=\"message-1\" Date=\"2026-08-01\" /></FetchAccountUIDs></FetchAccount></FetchAccounts><Rules><Rule Name=\"rule\"><RuleCriterias><Criteria MatchString=\"alice\" FieldType=\"1\" MatchType=\"2\" HeaderField=\"Subject\" UsePredefinedField=\"1\" /></RuleCriterias><RuleActions><Action Type=\"1\" Subject=\"subject\" Body=\"body\" FromAddress=\"from@example.com\" FromName=\"Sender\" IMAPFolder=\"Inbox\" FileName=\"reply.eml\" To=\"to@example.com\" ScriptFunction=\"OnAcceptMessage\" SortOrder=\"1\" Header=\"X-Test\" Value=\"value\" RouteID=\"0\" AbortSpamFlagged=\"0\" /></RuleActions></Rule></Rules><Folders><Folder Name=\"Inbox\"><Messages><Message CreateTime=\"2026-08-01 00:00:00\" Filename=\"message.eml\" FromAddress=\"sender@example.com\" State=\"1\" Size=\"10\" NoOfRetries=\"0\" Flags=\"0\" ID=\"1\" UID=\"1\" /></Messages><Folders><Folder Name=\"Nested\"><Messages /></Folder></Folders></Folder></Folders></Account></Accounts></Domain></Domains></Backup>",
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\"><FetchAccountUIDs><UID UID=\"message-1\" Date=\"2026-08-01\" /></FetchAccountUIDs></FetchAccount></FetchAccounts><Rules><Rule Name=\"rule\"><RuleCriterias><Criteria MatchString=\"alice\" FieldType=\"1\" MatchType=\"2\" HeaderField=\"Subject\" UsePredefinedField=\"1\" /></RuleCriterias><RuleActions><Action Type=\"1\" Subject=\"subject\" Body=\"body\" FromAddress=\"from@example.com\" FromName=\"Sender\" IMAPFolder=\"Inbox\" FileName=\"reply.eml\" To=\"to@example.com\" ScriptFunction=\"OnAcceptMessage\" SortOrder=\"1\" Header=\"X-Test\" Value=\"value\" RouteID=\"0\" AbortSpamFlagged=\"0\" /></RuleActions></Rule></Rules><Folders><Folder Name=\"Inbox\" Subscribed=\"1\" CreateTime=\"2026-08-01 00:00:00\" CurrentUID=\"1\"><Messages><Message CreateTime=\"2026-08-01 00:00:00\" Filename=\"message.eml\" FromAddress=\"sender@example.com\" State=\"1\" Size=\"10\" NoOfRetries=\"0\" Flags=\"0\" ID=\"1\" UID=\"1\" /></Messages><Folders><Folder Name=\"Nested\" Subscribed=\"0\" CreateTime=\"2026-08-01 00:00:00\" CurrentUID=\"0\"><Messages /></Folder></Folders></Folder></Folders></Account></Accounts></Domain></Domains></Backup>",
             includeNestedDataBackup: false);
 
         var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
@@ -187,7 +187,7 @@ public sealed class BackupRestoreIntegrityRuntimeTests
         }
 
         using var fixture = await ArchiveFixture.CreateAsync(
-            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\"><Messages /><Folders /></Folder></Folders></Account></Accounts></Domain></Domains></Backup>",
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\" Subscribed=\"1\" CreateTime=\"2026-08-01 00:00:00\" CurrentUID=\"1\"><Messages /><Folders /></Folder></Folders></Account></Accounts></Domain></Domains></Backup>",
             includeNestedDataBackup: false);
 
         var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
@@ -219,6 +219,25 @@ public sealed class BackupRestoreIntegrityRuntimeTests
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\"><Messages><Message Filename=\"message.eml\" FromAddress=\"sender@example.com\" State=\"1\" Size=\"10\" NoOfRetries=\"0\" Flags=\"0\" ID=\"1\" UID=\"1\" /></Messages></Folder></Folders></Account></Accounts></Domain></Domains></Backup>")]
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\"><Messages><Message CreateTime=\"2026-08-01 00:00:00\" Filename=\"message.eml\" FromAddress=\"sender@example.com\" State=\"1\" Size=\"10\" NoOfRetries=\"0\" Flags=\"0\" ID=\"1\" /></Messages></Folder></Folders></Account></Accounts></Domain></Domains></Backup>")]
     public async Task InspectAsync_RejectsMissingMessageAttributes(string metadataXml)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(metadataXml, includeNestedDataBackup: false);
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, metadataXml);
+        StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+    }
+
+    [TestMethod]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Subscribed=\"1\" CreateTime=\"2026-08-01 00:00:00\" CurrentUID=\"1\" /></Folders></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\" CreateTime=\"2026-08-01 00:00:00\" CurrentUID=\"1\" /></Folders></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\" Subscribed=\"1\" CurrentUID=\"1\" /></Folders></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\" Subscribed=\"1\" CreateTime=\"2026-08-01 00:00:00\" /></Folders></Account></Accounts></Domain></Domains></Backup>")]
+    public async Task InspectAsync_RejectsMissingFolderAttributes(string metadataXml)
     {
         if (!OperatingSystem.IsWindows())
         {

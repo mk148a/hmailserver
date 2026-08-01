@@ -670,6 +670,11 @@ internal sealed class BackupRestoreIntegrityRuntime
                         return "The domain/account graph is invalid: Folder is outside Account/Folders.";
                     }
 
+                    if (!HasAttributes(element, "Name", "Subscribed", "CreateTime", "CurrentUID"))
+                    {
+                        return "The domain/account graph is invalid: Folder is missing a serialized attribute.";
+                    }
+
                     break;
 
                 case "Message":
