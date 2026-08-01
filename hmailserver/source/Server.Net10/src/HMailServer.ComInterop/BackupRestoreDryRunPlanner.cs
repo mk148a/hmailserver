@@ -152,6 +152,14 @@ internal sealed record BackupRestoreDryRunPlan(
     int MissingRestoreOptions)
 {
     internal bool WouldMutate => false;
+    internal bool RequiresSqlTransaction => EvidenceIsValid
+        && Steps.Any(static step =>
+            step is BackupRestoreDryRunPlanner.LoadDomainsAndChildrenStep
+                or BackupRestoreDryRunPlanner.LoadSettingsStep);
+    internal bool RequiresSqlRollback => RequiresSqlTransaction;
+    internal bool RequiresFilesystemStaging => EvidenceIsValid
+        && Steps.Contains(BackupRestoreDryRunPlanner.RestoreDataDirectoryStep);
+    internal bool RequiresFilesystemRollback => RequiresFilesystemStaging;
     internal string ArchivePath => Evidence.ArchivePath;
     internal bool EvidenceIsValid => Evidence.IsValid;
     internal bool ArchiveTestPassed => Evidence.ArchiveTestPassed;

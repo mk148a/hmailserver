@@ -37,6 +37,10 @@ public sealed class BackupRestoreDryRunPlannerTests
             plan.Steps.ToArray());
         Assert.IsNull(plan.FailureReason);
         Assert.IsFalse(plan.WouldMutate);
+        Assert.IsTrue(plan.RequiresSqlTransaction);
+        Assert.IsTrue(plan.RequiresSqlRollback);
+        Assert.IsTrue(plan.RequiresFilesystemStaging);
+        Assert.IsTrue(plan.RequiresFilesystemRollback);
         Assert.AreEqual(0, plan.MissingRestoreOptions);
     }
 
@@ -110,6 +114,10 @@ public sealed class BackupRestoreDryRunPlannerTests
         Assert.IsFalse(plan.Steps.Contains(BackupRestoreDryRunPlanner.DropDomainsStep));
         Assert.IsFalse(plan.Steps.Contains(BackupRestoreDryRunPlanner.DropPublicFoldersStep));
         Assert.IsFalse(plan.Steps.Contains(BackupRestoreDryRunPlanner.RestoreDataDirectoryStep));
+        Assert.IsTrue(plan.RequiresSqlTransaction);
+        Assert.IsTrue(plan.RequiresSqlRollback);
+        Assert.IsFalse(plan.RequiresFilesystemStaging);
+        Assert.IsFalse(plan.RequiresFilesystemRollback);
     }
 
     [TestMethod]
@@ -146,6 +154,10 @@ public sealed class BackupRestoreDryRunPlannerTests
         Assert.AreEqual("invalid evidence", plan.FailureReason);
         Assert.IsFalse(plan.WouldMutate);
         Assert.IsEmpty(plan.Steps);
+        Assert.IsFalse(plan.RequiresSqlTransaction);
+        Assert.IsFalse(plan.RequiresSqlRollback);
+        Assert.IsFalse(plan.RequiresFilesystemStaging);
+        Assert.IsFalse(plan.RequiresFilesystemRollback);
         Assert.AreEqual(evidence, plan.Evidence);
     }
 
