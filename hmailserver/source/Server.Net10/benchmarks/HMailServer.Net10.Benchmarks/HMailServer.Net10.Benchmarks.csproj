@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>HMailServer.Net10.Benchmarks</AssemblyName>
+    <RootNamespace>HMailServer.Net10.Benchmarks</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\HMailServer.Core\HMailServer.Core.csproj" />
+  </ItemGroup>
+</Project>
