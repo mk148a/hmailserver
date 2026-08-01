@@ -2,6 +2,10 @@
 
 This backlog tracks the remaining production-parity work for the side-by-side .NET 10 rewrite. Keep it current as each slice lands.
 
+## Current Next Slice (2026-08-01)
+
+The domain child-container integrity slice is complete in code/test commit `8849a498d`, following `2f4448c36`. Legacy `Domain::XMLStore`/`XMLLoadSubItems`, `DomainAlias`, `Alias`, `DistributionList`, and `Collection<T,P>` behavior was confirmed in `hmailserver/source/Server/Common/BO/Domain.cpp:103-149`, `DomainAlias.cpp:26-33`, `Alias.cpp:28-37`, `DistributionList.cpp:32-45`, and `Collection.h:61-82`. The read-only backup validator now checks `DomainAliases`, `Aliases`, and `DistributionLists` placement, duplicate containers, expected item names, and serialized scalar presence; explicit empty containers remain valid and unknown non-target Domain children remain tolerated. Focused restore integrity/planner tests pass `40/40`; full Net10 passes `1416` with `3` opt-in tests skipped. Next: account child-container graph validation, beginning with the legacy `Account::XMLLoadSubItems` collection placement and scalar contract. Restore mutation, SQL writes, data-directory replacement, rollback, COM activation, and the backup ScriptServer adapter remain open.
+
 ## Consolidated Security Review Triage (2026-06-28)
 
 The 2026-06-13 review of commit `1909af082da83d608c2cffb98f6f33caaff4a65d` and the maintainer-supplied 2026-06-27 compiled inventory were merged and exact duplicates removed. The newer inventory adds no unique finding beyond the 21 records already tracked below. Status and severity are classified from the current source tree rather than copied from report labels without verification.
