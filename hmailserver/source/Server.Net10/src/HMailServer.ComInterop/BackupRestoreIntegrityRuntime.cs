@@ -416,6 +416,8 @@ internal sealed class BackupRestoreIntegrityRuntime
 
     private static string? ValidateDomainAccountGraph(XElement root)
     {
+        var domainNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var accountNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var element in root.DescendantsAndSelf())
         {
             switch (element.Name.LocalName)
@@ -436,11 +438,6 @@ internal sealed class BackupRestoreIntegrityRuntime
                         return "The domain/account graph is invalid: Backup contains multiple Domains containers.";
                     }
 
-                    if (HasDuplicateIdentityNames(element.Elements("Domain")))
-                    {
-                        return "The domain/account graph is invalid: Domains contains duplicate Domain Name siblings.";
-                    }
-
                     break;
 
                 case "Domain":
@@ -452,6 +449,11 @@ internal sealed class BackupRestoreIntegrityRuntime
                     if (string.IsNullOrWhiteSpace(element.Attribute("Name")?.Value))
                     {
                         return "The domain/account graph is invalid: Domain requires a Name attribute.";
+                    }
+
+                    if (!domainNames.Add(NormalizeIdentityName(element.Attribute("Name")!.Value)))
+                    {
+                        return "The domain/account graph is invalid: Domains contains duplicate Domain Name values.";
                     }
 
                     if (element.Elements("Accounts").Skip(1).Any())
@@ -472,12 +474,6 @@ internal sealed class BackupRestoreIntegrityRuntime
                         return "The domain/account graph is invalid: Accounts contains an unexpected child.";
                     }
 
-                    if (HasDuplicateIdentityNames(
-                            root.Descendants("Accounts").SelectMany(static accounts => accounts.Elements("Account"))))
-                    {
-                        return "The domain/account graph is invalid: Accounts contains duplicate Account Name values.";
-                    }
-
                     break;
 
                 case "Account":
@@ -489,6 +485,11 @@ internal sealed class BackupRestoreIntegrityRuntime
                     if (string.IsNullOrWhiteSpace(element.Attribute("Name")?.Value))
                     {
                         return "The domain/account graph is invalid: Account requires a Name attribute.";
+                    }
+
+                    if (!accountNames.Add(NormalizeIdentityName(element.Attribute("Name")!.Value)))
+                    {
+                        return "The domain/account graph is invalid: Accounts contains duplicate Account Name values.";
                     }
 
                     break;
@@ -803,20 +804,7 @@ internal sealed class BackupRestoreIntegrityRuntime
             return names.All(name => element.Attribute(name) is not null);
         }
 
-        static bool HasDuplicateIdentityNames(IEnumerable<XElement> elements)
-        {
-            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var element in elements)
-            {
-                var name = element.Attribute("Name")?.Value;
-                if (!string.IsNullOrWhiteSpace(name) && !names.Add(name))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
+        static string NormalizeIdentityName(string value) => value.TrimEnd(' ');
     }
 
     private ProcessStartInfo CreateStartInfo(
