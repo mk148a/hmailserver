@@ -126,6 +126,101 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public async Task CreatesCompressedMessageArchiveWithStagedDataDirectory()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
+        var sourceDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-data-{Guid.NewGuid():N}");
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(sourceDirectory);
+        Directory.CreateDirectory(destination);
+        Directory.CreateDirectory(Path.Combine(sourceDirectory, "accounts", "alice"));
+        File.WriteAllText(Path.Combine(sourceDirectory, "server.dat"), "root metadata");
+        File.WriteAllText(
+            Path.Combine(sourceDirectory, "accounts", "alice", "message.eml"),
+            "message body");
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                static () => new DateTime(2026, 7, 30, 4, 5, 9),
+                payloadProvider: static (_, _) => ValueTask.FromResult(
+                    new BackupArchiveXmlPayload(
+                        Settings: null,
+                        Domains: Array.Empty<DomainAdministrationSnapshot>())),
+                dataDirectory: sourceDirectory);
+            await runtime.CreateAsync(
+                new BackupStartPlanEvidence(
+                    Destination: destination,
+                    BackupOptions: BackupStartPlan.BackupDomainsFlag
+                        | BackupStartPlan.BackupMessagesFlag
+                        | BackupStartPlan.BackupCompressionFlag,
+                    BackupMessagesDbOnly: false,
+                    AllMessageFilesInDataDirectory: true,
+                    DestinationExists: true),
+                CancellationToken.None);
+
+            var archivePath = Path.Combine(destination, "HMBackup 2026-07-30 040509.7z");
+            Assert.IsTrue(File.Exists(archivePath), archivePath);
+            Assert.IsFalse(Directory.Exists(Path.Combine(destination, "DataBackup")));
+            Assert.IsTrue(File.Exists(Path.Combine(sourceDirectory, "server.dat")));
+
+            var extracted = Path.Combine(destination, "extracted");
+            await ExtractArchiveAsync(sevenZipPath, archivePath, extracted);
+            Assert.IsTrue(
+                File.Exists(Path.Combine(extracted, "DataBackup", "accounts", "alice", "message.eml")));
+            Assert.IsFalse(File.Exists(Path.Combine(extracted, "DataBackup", "server.dat")));
+
+            var metadata = XDocument.Parse(await ReadMetadataXmlAsync(sevenZipPath, archivePath));
+            var dataFiles = metadata.Root!.Element("BackupInformation")!.Element("DataFiles")!;
+            Assert.AreEqual("7z", dataFiles.Attribute("Format")?.Value);
+            Assert.AreEqual("0", dataFiles.Attribute("Size")?.Value);
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+            Directory.Delete(sourceDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task RejectsCompressedMessageBackupWithoutDataDirectory()
+    {
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(destination);
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                Path.Combine(destination, "missing-7za.exe"),
+                "10.0.0-B0");
+            var evidence = new BackupStartPlanEvidence(
+                Destination: destination,
+                BackupOptions: BackupStartPlan.BackupDomainsFlag
+                    | BackupStartPlan.BackupMessagesFlag
+                    | BackupStartPlan.BackupCompressionFlag,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true);
+
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => runtime.CreateAsync(evidence, CancellationToken.None).AsTask());
+            CollectionAssert.AreEqual(Array.Empty<string>(), Directory.GetFiles(destination));
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void MetadataXmlWritesLegacyRawDataFilesMetadataWithoutCompression()
     {
         var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
@@ -2129,6 +2224,37 @@ public sealed class BackupArchiveRuntimeTests
             process.ExitCode is 0 or 1,
             $"7za metadata extraction failed: {error}");
         return output;
+    }
+
+    private static async Task ExtractArchiveAsync(
+        string sevenZipPath,
+        string archivePath,
+        string destination)
+    {
+        Directory.CreateDirectory(destination);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = sevenZipPath,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add("x");
+        startInfo.ArgumentList.Add(archivePath);
+        startInfo.ArgumentList.Add("-o" + destination);
+        startInfo.ArgumentList.Add("-y");
+
+        using var process = Process.Start(startInfo);
+        Assert.IsNotNull(process);
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        var output = await outputTask;
+        var error = await errorTask;
+        Assert.IsTrue(
+            process.ExitCode is 0 or 1,
+            $"7za archive extraction failed: {output}\n{error}");
     }
 
     private static FetchAccountAdministrationSnapshot CreateFetchAccountSnapshot(

@@ -67,7 +67,8 @@ BackupManagerRuntimeHost.Configure(
                 ruleActionStore: host.Services.GetRequiredService<IRuleActionAdministrationStore>(),
                 folderStore: host.Services.GetRequiredService<IImapFolderAdministrationStore>(),
                 messageStore: host.Services.GetRequiredService<IMessageAdministrationStore>())
-                .GetPayloadAsync)
+                .GetPayloadAsync,
+            dataDirectory: dataDirectory)
             .CreateAsync));
 MessageIndexingRuntimeHost.Configure(
     host.Services.GetRequiredService<StoreBackedMessageIndexingRuntime>());

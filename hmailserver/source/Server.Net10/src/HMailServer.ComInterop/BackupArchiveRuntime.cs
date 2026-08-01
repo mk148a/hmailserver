@@ -9,8 +9,7 @@ namespace HMailServer.ComInterop;
 
 /// <summary>
 /// Creates the bounded legacy archive and modeled scalar settings/domain metadata.
-/// Physical message contents, remaining nested domain children, and
-/// data-directory staging remain fenced.
+/// Remaining nested domain children and restore remain fenced.
 /// </summary>
 [ComVisible(false)]
 public sealed class SevenZipBackupArchiveRuntime
@@ -19,12 +18,14 @@ public sealed class SevenZipBackupArchiveRuntime
     private readonly string _applicationVersion;
     private readonly Func<DateTime> _localNow;
     private readonly Func<BackupStartPlanEvidence, CancellationToken, ValueTask<BackupArchiveXmlPayload>>? _payloadProvider;
+    private readonly string? _dataDirectory;
 
     public SevenZipBackupArchiveRuntime(
         string sevenZipExecutablePath,
         string applicationVersion,
         Func<DateTime>? localNow = null,
-        Func<BackupStartPlanEvidence, CancellationToken, ValueTask<BackupArchiveXmlPayload>>? payloadProvider = null)
+        Func<BackupStartPlanEvidence, CancellationToken, ValueTask<BackupArchiveXmlPayload>>? payloadProvider = null,
+        string? dataDirectory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentNullException.ThrowIfNull(applicationVersion);
@@ -33,6 +34,7 @@ public sealed class SevenZipBackupArchiveRuntime
         _applicationVersion = applicationVersion;
         _localNow = localNow ?? (static () => DateTime.Now);
         _payloadProvider = payloadProvider;
+        _dataDirectory = dataDirectory;
     }
 
     public async ValueTask CreateAsync(
@@ -41,11 +43,27 @@ public sealed class SevenZipBackupArchiveRuntime
     {
         ArgumentNullException.ThrowIfNull(evidence);
 
-        if ((evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0
-            && !evidence.BackupMessagesDbOnly)
+        var includesMessages =
+            (evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0;
+        var stagesCompressedMessageData =
+            (evidence.BackupOptions
+                & (BackupStartPlan.BackupDomainsFlag
+                    | BackupStartPlan.BackupMessagesFlag
+                    | BackupStartPlan.BackupCompressionFlag))
+            == (BackupStartPlan.BackupDomainsFlag
+                | BackupStartPlan.BackupMessagesFlag
+                | BackupStartPlan.BackupCompressionFlag)
+            && !evidence.BackupMessagesDbOnly;
+        if (includesMessages && !evidence.BackupMessagesDbOnly && !stagesCompressedMessageData)
         {
             throw new NotSupportedException(
-                "Physical message backup staging is not implemented yet.");
+                "Only compressed domain message backup staging is implemented yet.");
+        }
+
+        if (stagesCompressedMessageData && string.IsNullOrWhiteSpace(_dataDirectory))
+        {
+            throw new InvalidOperationException(
+                "The data directory is required for physical message backup staging.");
         }
 
         BackupArchiveXmlPayload? payload = null;
@@ -74,9 +92,20 @@ public sealed class SevenZipBackupArchiveRuntime
             CultureInfo.InvariantCulture);
         var archivePath = Path.Combine(destination, $"HMBackup {timestamp}.7z");
         var metadataPath = Path.Combine(destination, SevenZipBackupArchiveMetadataReader.MetadataEntryName);
+        var dataBackupPath = stagesCompressedMessageData
+            ? Path.Combine(destination, "DataBackup")
+            : null;
+        var dataBackupCreated = false;
 
         try
         {
+            if (dataBackupPath is not null)
+            {
+                EnsureDataBackupPathIsSafe(_dataDirectory!, dataBackupPath);
+                dataBackupCreated = true;
+                StageDataDirectory(_dataDirectory!, dataBackupPath);
+            }
+
             var metadata = CreateMetadataXml(evidence.BackupOptions, _applicationVersion, payload);
             await File.WriteAllTextAsync(
                 metadataPath,
@@ -87,12 +116,85 @@ public sealed class SevenZipBackupArchiveRuntime
                 archivePath,
                 metadataPath,
                 cancellationToken).ConfigureAwait(false);
+            if (dataBackupPath is not null)
+            {
+                await AddDirectoryAsync(
+                    archivePath,
+                    dataBackupPath,
+                    cancellationToken).ConfigureAwait(false);
+            }
         }
         finally
         {
             if (File.Exists(metadataPath))
             {
                 File.Delete(metadataPath);
+            }
+
+            if (dataBackupCreated && Directory.Exists(dataBackupPath))
+            {
+                Directory.Delete(dataBackupPath, recursive: true);
+            }
+        }
+    }
+
+    private static void EnsureDataBackupPathIsSafe(
+        string dataDirectory,
+        string dataBackupPath)
+    {
+        if (Directory.Exists(dataBackupPath) || File.Exists(dataBackupPath))
+        {
+            throw new InvalidOperationException(
+                "The backup DataBackup staging path already exists: " + dataBackupPath);
+        }
+
+        var sourcePath = Path.GetFullPath(dataDirectory);
+        var stagingPath = Path.GetFullPath(dataBackupPath);
+        var relativePath = Path.GetRelativePath(sourcePath, stagingPath);
+        if (relativePath == "."
+            || (!Path.IsPathRooted(relativePath)
+                && !relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                && !string.Equals(relativePath, "..", StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                "The backup DataBackup staging path must be outside the data directory.");
+        }
+    }
+
+    private static void StageDataDirectory(
+        string sourceDirectory,
+        string dataBackupPath)
+    {
+        if (!Directory.Exists(sourceDirectory))
+        {
+            throw new InvalidOperationException(
+                "The configured data directory is not accessible: " + sourceDirectory);
+        }
+
+        CopyDirectory(sourceDirectory, dataBackupPath);
+        foreach (var file in Directory.EnumerateFiles(dataBackupPath))
+        {
+            File.Delete(file);
+        }
+    }
+
+    private static void CopyDirectory(
+        string sourceDirectory,
+        string destinationDirectory)
+    {
+        Directory.CreateDirectory(destinationDirectory);
+        foreach (var entry in Directory.EnumerateFileSystemEntries(sourceDirectory))
+        {
+            var destinationPath = Path.Combine(
+                destinationDirectory,
+                Path.GetFileName(entry));
+            if (Directory.Exists(entry))
+            {
+                CopyDirectory(entry, destinationPath);
+            }
+            else
+            {
+                File.Copy(entry, destinationPath);
             }
         }
     }
@@ -818,6 +920,27 @@ public sealed class SevenZipBackupArchiveRuntime
         string archivePath,
         string metadataPath,
         CancellationToken cancellationToken)
+        => await AddToArchiveAsync(
+            archivePath,
+            metadataPath,
+            recurse: false,
+            cancellationToken).ConfigureAwait(false);
+
+    private async ValueTask AddDirectoryAsync(
+        string archivePath,
+        string dataBackupPath,
+        CancellationToken cancellationToken)
+        => await AddToArchiveAsync(
+            archivePath,
+            dataBackupPath + Path.DirectorySeparatorChar,
+            recurse: true,
+            cancellationToken).ConfigureAwait(false);
+
+    private async ValueTask AddToArchiveAsync(
+        string archivePath,
+        string inputPath,
+        bool recurse,
+        CancellationToken cancellationToken)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -829,7 +952,12 @@ public sealed class SevenZipBackupArchiveRuntime
         };
         startInfo.ArgumentList.Add("a");
         startInfo.ArgumentList.Add(archivePath);
-        startInfo.ArgumentList.Add(metadataPath);
+        startInfo.ArgumentList.Add(inputPath);
+        if (recurse)
+        {
+            startInfo.ArgumentList.Add("-r");
+        }
+
         startInfo.ArgumentList.Add("-t7z");
         startInfo.ArgumentList.Add("-mmt");
         startInfo.ArgumentList.Add("-mx1");
