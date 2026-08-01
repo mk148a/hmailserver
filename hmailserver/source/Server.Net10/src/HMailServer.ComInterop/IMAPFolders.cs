@@ -258,6 +258,7 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
     private ImapFolderAdministrationSnapshot? _folder;
     private readonly ImapFolderAdministrationState? _foldersState;
     private string? _stagedName;
+    private bool? _stagedSubscribed;
 
     public IMAPFolder()
     {
@@ -289,7 +290,21 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
         }
     }
 
-    public bool Subscribed { get => Snapshot.Subscribed; set => Unavailable(); }
+    public bool Subscribed
+    {
+        get => _stagedSubscribed ?? Snapshot.Subscribed;
+        set
+        {
+            _ = Snapshot;
+            if (_foldersState is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            _stagedSubscribed = value;
+        }
+    }
 
     public IInterfaceMessages Messages => MessageAdministrationRuntimeHost.CreateAuthorizedFolderAdapter(Snapshot.Id);
 
@@ -336,7 +351,11 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
             return;
         }
 
-        var updated = snapshot with { Name = _stagedName ?? snapshot.Name };
+        var updated = snapshot with
+        {
+            Name = _stagedName ?? snapshot.Name,
+            Subscribed = _stagedSubscribed ?? snapshot.Subscribed
+        };
         var saved = ImapFolderAdministrationRuntimeHost.UpdateAuthorized(updated)
             .GetAwaiter()
             .GetResult();
@@ -349,6 +368,7 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
         _folder = updated;
         _stagedName = null;
+        _stagedSubscribed = null;
     }
 
     public void Delete() => Unavailable();

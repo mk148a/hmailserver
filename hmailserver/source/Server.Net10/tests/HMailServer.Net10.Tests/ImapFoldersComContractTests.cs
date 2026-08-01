@@ -65,6 +65,7 @@ public sealed class ImapFoldersComContractTests
         var addError = Assert.ThrowsExactly<COMException>(() => new IMAPFolders().Add("New"));
         var folderError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolder().Name);
         var folderSetterError = Assert.ThrowsExactly<COMException>(() => new IMAPFolder().Name = "New");
+        var folderSubscribedSetterError = Assert.ThrowsExactly<COMException>(() => new IMAPFolder().Subscribed = false);
         var folderSaveError = Assert.ThrowsExactly<COMException>(() => new IMAPFolder().Save());
         var accountFoldersError = Assert.ThrowsExactly<COMException>(() => _ = new Account().IMAPFolders);
 
@@ -72,6 +73,7 @@ public sealed class ImapFoldersComContractTests
         Assert.AreEqual(EAccessDenied, addError.ErrorCode);
         Assert.AreEqual(EAccessDenied, folderError.ErrorCode);
         Assert.AreEqual(EAccessDenied, folderSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, folderSubscribedSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, folderSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, accountFoldersError.ErrorCode);
     }
@@ -119,6 +121,7 @@ public sealed class ImapFoldersComContractTests
         var pendingAdd = Assert.ThrowsExactly<COMException>(() => folders.Add("New"));
         var pendingDelete = Assert.ThrowsExactly<COMException>(() => folders.DeleteByDBID(10));
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => folders[0].Name = "changed");
+        var pendingSubscribedMutation = Assert.ThrowsExactly<COMException>(() => folders[0].Subscribed = false);
         var messages = folders[0].Messages;
         var pendingPermissions = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Permissions);
 
@@ -128,6 +131,7 @@ public sealed class ImapFoldersComContractTests
         Assert.AreEqual(ENotImplemented, pendingAdd.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingSubscribedMutation.ErrorCode);
         Assert.AreEqual(0, messages.Count);
         Assert.AreEqual(ELegacyComError, pendingPermissions.ErrorCode);
     }
@@ -268,6 +272,31 @@ public sealed class ImapFoldersComContractTests
 
         Assert.AreEqual(ELegacyComError, error.ErrorCode);
         Assert.AreEqual("Inbox", account.IMAPFolders.get_ItemByDBID(10).Name);
+        Assert.AreEqual(1, account.IMAPFolders.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedImapFolder_SubscribedStagesAndSaveReplacesSharedSnapshot()
+    {
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-06-27 01:02:03")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var folder = account.IMAPFolders.get_ItemByDBID(10);
+
+        folder.Subscribed = false;
+
+        Assert.IsFalse(folder.Subscribed);
+        Assert.AreEqual(0, store.UpdateCount);
+        folder.Save();
+
+        Assert.AreEqual(1, store.UpdateCount);
+        Assert.IsFalse(store.LastUpdatedFolder!.Subscribed);
+        Assert.IsFalse(account.IMAPFolders.get_ItemByDBID(10).Subscribed);
         Assert.AreEqual(1, account.IMAPFolders.Count);
     }
 
