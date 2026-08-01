@@ -153,7 +153,8 @@ FROM hm_messages AS messages WITH (UPDLOCK, HOLDLOCK)
 INNER JOIN @Folders AS folders
     ON folders.folderid = messages.messagefolderid
 LEFT JOIN hm_accounts AS accounts
-    ON accounts.accountid = messages.messageaccountid;
+    ON accounts.accountid = messages.messageaccountid
+WHERE messages.messageaccountid = @AccountID;
 
 DELETE recipients
 FROM hm_messagerecipients AS recipients
