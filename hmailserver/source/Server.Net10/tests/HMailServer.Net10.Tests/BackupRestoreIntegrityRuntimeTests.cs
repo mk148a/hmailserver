@@ -57,6 +57,64 @@ public sealed class BackupRestoreIntegrityRuntimeTests
     }
 
     [TestMethod]
+    [DataRow("example.com", "example.com")]
+    [DataRow("example.com", "EXAMPLE.COM")]
+    public async Task InspectAsync_RejectsDuplicateDomainNameSiblings(string firstName, string secondName)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            $"<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"{firstName}\" /><Domain Name=\"{secondName}\" /></Domains></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, evidence.FailureReason);
+        StringAssert.Contains(evidence.FailureReason!, "duplicate Domain Name");
+    }
+
+    [TestMethod]
+    [DataRow("alice@example.com", "alice@example.com")]
+    [DataRow("alice@example.com", "ALICE@EXAMPLE.COM")]
+    public async Task InspectAsync_RejectsDuplicateAccountNameSiblings(string firstName, string secondName)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            $"<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"{firstName}\" /><Account Name=\"{secondName}\" /></Accounts></Domain></Domains></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, evidence.FailureReason);
+        StringAssert.Contains(evidence.FailureReason!, "duplicate Account Name");
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_RejectsDuplicateAccountNameAcrossDomains()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\" /></Accounts></Domain><Domain Name=\"other.example\"><Accounts><Account Name=\"alice@example.com\" /></Accounts></Domain></Domains></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, evidence.FailureReason);
+        StringAssert.Contains(evidence.FailureReason!, "duplicate Account Name");
+    }
+
+    [TestMethod]
     public async Task InspectAsync_AcceptsPopulatedDomainChildContainersAndUnknownDomainChild()
     {
         if (!OperatingSystem.IsWindows())

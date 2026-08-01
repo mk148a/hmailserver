@@ -436,6 +436,11 @@ internal sealed class BackupRestoreIntegrityRuntime
                         return "The domain/account graph is invalid: Backup contains multiple Domains containers.";
                     }
 
+                    if (HasDuplicateIdentityNames(element.Elements("Domain")))
+                    {
+                        return "The domain/account graph is invalid: Domains contains duplicate Domain Name siblings.";
+                    }
+
                     break;
 
                 case "Domain":
@@ -465,6 +470,12 @@ internal sealed class BackupRestoreIntegrityRuntime
                     if (element.Elements().Any(static child => child.Name != "Account"))
                     {
                         return "The domain/account graph is invalid: Accounts contains an unexpected child.";
+                    }
+
+                    if (HasDuplicateIdentityNames(
+                            root.Descendants("Accounts").SelectMany(static accounts => accounts.Elements("Account"))))
+                    {
+                        return "The domain/account graph is invalid: Accounts contains duplicate Account Name values.";
                     }
 
                     break;
@@ -790,6 +801,21 @@ internal sealed class BackupRestoreIntegrityRuntime
         static bool HasAttributes(XElement element, params string[] names)
         {
             return names.All(name => element.Attribute(name) is not null);
+        }
+
+        static bool HasDuplicateIdentityNames(IEnumerable<XElement> elements)
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var element in elements)
+            {
+                var name = element.Attribute("Name")?.Value;
+                if (!string.IsNullOrWhiteSpace(name) && !names.Add(name))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 
