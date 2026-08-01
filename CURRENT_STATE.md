@@ -1,16 +1,16 @@
 # Current State
 
-- UTC timestamp: 2026-08-01T16:08:00Z
-- Local timestamp: 2026-08-01T19:08:00+03:00
+- UTC timestamp: 2026-08-01T15:48:15Z
+- Local timestamp: 2026-08-01T18:48:15+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `1d28200a1`
-- Last successfully pushed commit: `1d28200a1b81823d7b3d16ae4f98da2becdd1b26`
-- Latest focused-test result: IMAPFolders COM/SQL tests `19/19` passed
-- Latest full Net10 result: `1506 passed, 3 skipped`
+- Current HEAD: `1e5ced107` (code/test); documentation commit pending
+- Last successfully pushed commit: `b64465c015cb92cfdc27a58fe05946e4ed40a3d3`
+- Latest focused-test result: Accounts/IMAPFolders/SQL tests `43/43` passed
+- Latest full Net10 result: `1507 passed, 3 skipped`
 - Opt-in tests passed/skipped/blocked: `0/3/0` in the full run; SQL failure-path tests and native registry integration are skipped by opt-in gates
-- Current bounded slice: authenticated existing-row `IMAPFolder.Subscribed` staging through the owning `Save` path completed in `8e3bf68d8`; staged-only behavior, shared snapshot replacement, failure preservation, and direct activation denial are covered
+- Current bounded slice: authenticated `Application -> Domains -> Accounts.ItemByAddress -> Account.IMAPFolders -> SubFolders` traversal coverage completed in `1e5ced107`; account isolation, one shared folder-store read, and fresh-adapter visibility are covered without production behavior changes
 - Completed milestones: Backup metadata parity through accounts, fetch accounts, rules, folders, DB-only messages, compressed message staging, raw message staging, message-only modes, complete option-matrix acceptance coverage, production-wired backup event callbacks, restore metadata consistency validation, domain/account graph validation, message/file correspondence validation, domain child-container validation, direct account child-container validation, FetchAccountUIDs graph validation, RuleCriterias/RuleActions graph validation, folder message/subfolder graph validation, restore dry-run missing-section planning, folder scalar validation, writer folder snapshot validation, read-only restore containment preflight, bounded/cancellable containment traversal, execution-time containment revalidation, restore execution gate contract, read-only Domain/Account identity uniqueness validation, one-pass identity scanning with trailing-space coverage, parent-scoped folder identity validation, explicit SQL/filesystem mutation safety requirements in the dry-run plan, rollback-preserving transaction boundary orchestration, and offline synthetic 100k SEARCH/SORT evidence
-- Open production blockers: existing-folder deletion, ACL mutation, live SQL, rollback, concurrency, and protocol/cache behavior remain open; restore/round-trip/rollback are incomplete; freshness revalidation is not atomically coupled to future extraction/mutation and remains unwired; SEC-18 cutover is not independently GREEN; COM/Admin parity matrix, upgrade rollback, protocol acceptance, performance/soak, and release-artifact gates remain open; the backup manager's no-runtime fallback remains `E_NOTIMPL` outside the production composition
+- Open production blockers: existing-folder deletion requires recursive child/message/metadata/ACL/file cleanup, root-Inbox preservation, and a transactional dependency-aware store before COM wiring; ACL mutation, live SQL, rollback, concurrency, and protocol/cache behavior remain open; restore/round-trip/rollback are incomplete; freshness revalidation is not atomically coupled to future extraction/mutation and remains unwired; SEC-18 cutover is not independently GREEN; COM/Admin parity matrix, upgrade rollback, protocol acceptance, performance/soak, and release-artifact gates remain open; the backup manager's no-runtime fallback remains `E_NOTIMPL` outside the production composition
 - Environment-blocked work: Disposable SQL/native registry integration and PHP runtime-dependent checks are opt-in/skipped in the current environment; no production resource may be used
 - Protected/do-not-touch areas: `AGENTS.md` dirty changes; untracked `artifacts/sec18-staging/`; untracked generated `hmailserver/source/Server.Net10.zip`; production service, database, Data directory, WebAdmin, installed Application COM identity, DCOM ACLs, registry, firewall, and public ports
-- Next three independent slices: authenticated parent-scoped existing-folder deletion parity; isolated disposable SQL restore transaction harness/wiring when approved; isolated backup/restore round-trip acceptance harness
+- Next three independent slices: dependency-aware IMAP folder deletion runtime and focused cleanup tests; isolated disposable SQL restore transaction harness/wiring when approved; fresh SEC-18 authorized/non-pool evidence matrix when the isolated staging prerequisites are available
