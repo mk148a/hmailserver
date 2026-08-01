@@ -91,6 +91,77 @@ public sealed class BackupRestoreIntegrityRuntimeTests
     }
 
     [TestMethod]
+    public async Task InspectAsync_AcceptsAccountChildContainersAndNestedFolders()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\" /></FetchAccounts><Rules><Rule Name=\"rule\" /></Rules><Folders><Folder Name=\"Inbox\"><Folders><Folder Name=\"Nested\" /></Folders></Folder></Folders></Account></Accounts></Domain></Domains></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_AcceptsExplicitlyEmptyAccountChildContainers()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts /><Rules /><Folders /></Account></Accounts></Domain></Domains></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+    }
+
+    [TestMethod]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><FetchAccounts /></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts /><FetchAccounts /></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules /><Rules /></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders /><Folders /></Account></Accounts></Domain></Domains></Backup>")]
+    public async Task InspectAsync_RejectsMisplacedOrDuplicateAccountChildContainers(string metadataXml)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(metadataXml, includeNestedDataBackup: false);
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, metadataXml);
+        StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+    }
+
+    [TestMethod]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><Rule /></FetchAccounts></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules><FetchAccount /></Rules></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Alias /></Folders></Account></Accounts></Domain></Domains></Backup>")]
+    public async Task InspectAsync_RejectsWrongAccountChildContainerChildren(string metadataXml)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(metadataXml, includeNestedDataBackup: false);
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, metadataXml);
+        StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+    }
+
+    [TestMethod]
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><DomainAliases><DomainAlias Name=\"alias.example.com\" /></DomainAliases><Domains><Domain Name=\"example.com\" /></Domains></Backup>")]
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><DomainAliases /><DomainAliases /></Domain></Domains></Backup>")]
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Aliases /><Aliases /></Domain></Domains></Backup>")]

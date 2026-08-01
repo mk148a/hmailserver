@@ -482,6 +482,89 @@ internal sealed class BackupRestoreIntegrityRuntime
 
                     break;
 
+                case "FetchAccounts":
+                    if (element.Name != "FetchAccounts" || element.Parent?.Name != "Account")
+                    {
+                        return "The domain/account graph is invalid: FetchAccounts is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("FetchAccounts").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Account contains multiple FetchAccounts containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "FetchAccount"))
+                    {
+                        return "The domain/account graph is invalid: FetchAccounts contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "Rules":
+                    if (element.Name != "Rules" || element.Parent?.Name != "Account")
+                    {
+                        return "The domain/account graph is invalid: Rules is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("Rules").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Account contains multiple Rules containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "Rule"))
+                    {
+                        return "The domain/account graph is invalid: Rules contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "Folders":
+                    if (element.Parent?.Name == "Folder")
+                    {
+                        break;
+                    }
+
+                    if (element.Name != "Folders" || element.Parent?.Name != "Account")
+                    {
+                        return "The domain/account graph is invalid: Folders is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("Folders").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Account contains multiple Folders containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "Folder"))
+                    {
+                        return "The domain/account graph is invalid: Folders contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "FetchAccount":
+                    if (element.Parent?.Name != "FetchAccounts")
+                    {
+                        return "The domain/account graph is invalid: FetchAccount is outside Account/FetchAccounts.";
+                    }
+
+                    break;
+
+                case "Rule":
+                    if (element.Parent?.Name != "Rules")
+                    {
+                        return "The domain/account graph is invalid: Rule is outside Account/Rules.";
+                    }
+
+                    break;
+
+                case "Folder":
+                    if (element.Parent?.Name != "Folders")
+                    {
+                        return "The domain/account graph is invalid: Folder is outside Account/Folders.";
+                    }
+
+                    break;
+
                 case "DomainAliases":
                     if (element.Name != "DomainAliases" || element.Parent?.Name != "Domain")
                     {
