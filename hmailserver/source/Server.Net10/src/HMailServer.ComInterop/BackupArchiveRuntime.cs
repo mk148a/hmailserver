@@ -598,14 +598,43 @@ public sealed class SevenZipBackupArchiveRuntime
             return;
         }
 
-        writer.WriteStartElement("Folders");
-        foreach (var folder in accountFolders)
+        var foldersByParentId = accountFolders
+            .GroupBy(static folder => folder.ParentId)
+            .ToDictionary(static group => group.Key, static group => group.ToArray());
+        if (!foldersByParentId.TryGetValue(-1, out var rootFolders)
+            || rootFolders.Length == 0)
         {
-            writer.WriteStartElement("Folder");
-            WriteLegacyAttribute(writer, "Name", folder.Name);
-            WriteLegacyAttribute(writer, "Subscribed", (folder.Subscribed ? 1 : 0).ToString(CultureInfo.InvariantCulture));
-            WriteLegacyAttribute(writer, "CreateTime", folder.CreationTime);
-            WriteLegacyAttribute(writer, "CurrentUID", folder.CurrentUid.ToString(CultureInfo.InvariantCulture));
+            return;
+        }
+
+        writer.WriteStartElement("Folders");
+        foreach (var folder in rootFolders)
+        {
+            WriteFolder(writer, folder, foldersByParentId);
+        }
+
+        writer.WriteEndElement();
+    }
+
+    private static void WriteFolder(
+        XmlWriter writer,
+        ImapFolderAdministrationSnapshot folder,
+        IReadOnlyDictionary<int, ImapFolderAdministrationSnapshot[]> foldersByParentId)
+    {
+        writer.WriteStartElement("Folder");
+        WriteLegacyAttribute(writer, "Name", folder.Name);
+        WriteLegacyAttribute(writer, "Subscribed", (folder.Subscribed ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+        WriteLegacyAttribute(writer, "CreateTime", folder.CreationTime);
+        WriteLegacyAttribute(writer, "CurrentUID", folder.CurrentUid.ToString(CultureInfo.InvariantCulture));
+        if (foldersByParentId.TryGetValue(folder.Id, out var childFolders)
+            && childFolders.Length > 0)
+        {
+            writer.WriteStartElement("Folders");
+            foreach (var childFolder in childFolders)
+            {
+                WriteFolder(writer, childFolder, foldersByParentId);
+            }
+
             writer.WriteEndElement();
         }
 
@@ -1025,7 +1054,7 @@ public sealed class BackupXmlPayloadRuntime
                         if (!foldersByAccountId.ContainsKey(account.Id))
                         {
                             foldersByAccountId[account.Id] = await _folderStore!
-                                .GetRootFoldersAsync(account.Id, cancellationToken)
+                                .GetFoldersForAccountAsync(account.Id, cancellationToken)
                                 .ConfigureAwait(false);
                         }
                     }

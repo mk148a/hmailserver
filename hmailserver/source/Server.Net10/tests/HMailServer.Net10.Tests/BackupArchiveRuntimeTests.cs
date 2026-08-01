@@ -712,7 +712,23 @@ public sealed class BackupArchiveRuntimeTests
                             "second",
                             false,
                             7,
-                            "2026-07-30 02:03:04")
+                            "2026-07-30 02:03:04"),
+                        new ImapFolderAdministrationSnapshot(
+                            303,
+                            20,
+                            301,
+                            "child",
+                            true,
+                            11,
+                            "2026-07-30 03:04:05"),
+                        new ImapFolderAdministrationSnapshot(
+                            304,
+                            20,
+                            303,
+                            "grandchild",
+                            false,
+                            12,
+                            "2026-07-30 04:05:06")
                     }
                 }));
 
@@ -735,6 +751,12 @@ public sealed class BackupArchiveRuntimeTests
         Assert.AreEqual("2026-07-30 01:02:03", folders[0].Attribute("CreateTime")?.Value);
         Assert.AreEqual("42", folders[0].Attribute("CurrentUID")?.Value);
         Assert.AreEqual("0", folders[1].Attribute("Subscribed")?.Value);
+        Assert.AreEqual("child", folders[0].Element("Folders")!.Element("Folder")!.Attribute("Name")?.Value);
+        Assert.AreEqual(
+            "grandchild",
+            folders[0].Element("Folders")!.Element("Folder")!.Element("Folders")!
+                .Element("Folder")!.Attribute("Name")?.Value);
+        Assert.IsNull(folders[1].Element("Folders"));
         Assert.IsTrue(xml.Contains("Name=\"root&lt;&amp;&quot;&apos; &gt;\"", StringComparison.Ordinal));
     }
 
@@ -781,12 +803,16 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
-    public async Task PayloadRuntimeLoadsRootFoldersOnceForSelectedAccountsOnlyWhenMessagesAreSelected()
+    public async Task PayloadRuntimeLoadsAllFoldersOnceForSelectedAccountsOnlyWhenMessagesAreSelected()
     {
         var folderStore = new RecordingImapFolderAdministrationStore(
             new Dictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>
             {
-                [1] = new[] { new ImapFolderAdministrationSnapshot(101, 1, -1, "one", true, 1, "2026-07-30 01:02:03") },
+                [1] = new[]
+                {
+                    new ImapFolderAdministrationSnapshot(101, 1, -1, "one", true, 1, "2026-07-30 01:02:03"),
+                    new ImapFolderAdministrationSnapshot(103, 1, 101, "one-child", false, 3, "2026-07-30 01:02:04")
+                },
                 [2] = new[] { new ImapFolderAdministrationSnapshot(102, 2, -1, "two", false, 2, "2026-07-30 01:02:04") },
                 [99] = new[] { new ImapFolderAdministrationSnapshot(199, 99, -1, "outside", true, 9, "2026-07-30 01:02:05") }
             });
@@ -822,9 +848,11 @@ public sealed class BackupArchiveRuntimeTests
                 DestinationExists: true),
             CancellationToken.None);
 
-        CollectionAssert.AreEqual(new[] { 1, 2 }, folderStore.RequestedRootAccountIds.ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 2 }, folderStore.RequestedAccountIds.ToArray());
         Assert.IsNotNull(payload.Folders);
         CollectionAssert.AreEquivalent(new[] { 1, 2 }, payload.Folders!.Keys.ToArray());
+        Assert.AreEqual(2, payload.Folders[1].Count);
+        Assert.AreEqual(101, payload.Folders[1][1].ParentId);
 
         var noMessagesFolderStore = new RecordingImapFolderAdministrationStore(
             new Dictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>());
@@ -851,7 +879,7 @@ public sealed class BackupArchiveRuntimeTests
                 DestinationExists: true),
             CancellationToken.None);
 
-        CollectionAssert.AreEqual(Array.Empty<int>(), noMessagesFolderStore.RequestedRootAccountIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<int>(), noMessagesFolderStore.RequestedAccountIds.ToArray());
         Assert.IsNull(noMessagesPayload.Folders);
     }
 
@@ -1710,21 +1738,24 @@ public sealed class BackupArchiveRuntimeTests
         IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>> folders)
         : IImapFolderAdministrationStore
     {
-        public List<int> RequestedRootAccountIds { get; } = new();
+        public List<int> RequestedAccountIds { get; } = new();
 
         public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetFoldersForAccountAsync(
             int accountId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
-                folders.TryGetValue(accountId, out var accountFolders)
-                    ? accountFolders
-                    : Array.Empty<ImapFolderAdministrationSnapshot>());
+            CancellationToken cancellationToken)
+        {
+            RequestedAccountIds.Add(accountId);
+            return ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                    folders.TryGetValue(accountId, out var accountFolders)
+                        ? accountFolders
+                        : Array.Empty<ImapFolderAdministrationSnapshot>());
+        }
 
         public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetRootFoldersAsync(
             int accountId,
             CancellationToken cancellationToken)
         {
-            RequestedRootAccountIds.Add(accountId);
+            RequestedAccountIds.Add(accountId);
             return ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
                 folders.TryGetValue(accountId, out var accountFolders)
                     ? accountFolders
