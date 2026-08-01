@@ -186,6 +186,58 @@ internal static class BackupRestoreContainmentPreflight
         return currentPlan;
     }
 
+    internal static async ValueTask<BackupRestoreContainmentPlan> RevalidateAsync(
+        BackupRestoreContainmentPlan previousPlan,
+        BackupRestoreIntegrityEvidence initialEvidence,
+        BackupRestoreIntegrityRuntime integrityRuntime,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(previousPlan);
+        ArgumentNullException.ThrowIfNull(initialEvidence);
+        ArgumentNullException.ThrowIfNull(integrityRuntime);
+
+        BackupRestoreIntegrityEvidence freshEvidence;
+        try
+        {
+            freshEvidence = await integrityRuntime.InspectAsync(
+                    previousPlan.ArchivePath,
+                    cancellationToken,
+                    initialEvidence.BackupMessagesDbOnly)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return previousPlan with
+            {
+                IsSafe = false,
+                FailureReason = "The restore integrity revalidation was canceled."
+            };
+        }
+
+        if (!freshEvidence.IsValid)
+        {
+            return previousPlan with
+            {
+                IsSafe = false,
+                FailureReason = freshEvidence.FailureReason
+                    ?? "The fresh restore integrity evidence is invalid."
+            };
+        }
+
+        var containsMessages = freshEvidence.BackupOptions is int backupOptions
+            && (backupOptions & BackupStartPlan.BackupMessagesFlag) != 0;
+        if (containsMessages && !freshEvidence.MessageFilesValidated)
+        {
+            return previousPlan with
+            {
+                IsSafe = false,
+                FailureReason = "The fresh restore integrity evidence did not validate message files."
+            };
+        }
+
+        return Revalidate(previousPlan, freshEvidence, cancellationToken);
+    }
+
     private static bool PathsOverlap(string firstPath, string secondPath)
     {
         var first = NormalizeForComparison(firstPath);

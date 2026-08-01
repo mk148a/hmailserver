@@ -204,6 +204,99 @@ public sealed class BackupRestoreIntegrityRuntimeTests
         Assert.IsTrue(evidence.MessageFilesValidated);
     }
 
+    [TestMethod]
+    public async Task RevalidateAsync_RejectsDeletedRawMessageFileUsingFreshEvidence()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            CreateMessageBackupMetadata("message.eml", mode: 6, format: "Raw"),
+            includeNestedDataBackup: false,
+            createRawSibling: false,
+            rawDataBackupFiles: new[] { "example.com/alice/es/message.eml" });
+        var initialEvidence = await fixture.Runtime.InspectAsync(
+            fixture.ArchivePath,
+            CancellationToken.None);
+        Assert.IsTrue(initialEvidence.IsValid, initialEvidence.FailureReason);
+
+        var targetPath = Directory.CreateDirectory(
+            Path.Combine(fixture.DirectoryPath, "target-data")).FullName;
+        var rollbackPath = Path.Combine(fixture.DirectoryPath, "rollback", "state.zip");
+        Directory.CreateDirectory(Path.GetDirectoryName(rollbackPath)!);
+        var initialPlan = BackupRestoreContainmentPreflight.Plan(
+            initialEvidence,
+            targetPath,
+            rollbackPath);
+        Assert.IsTrue(initialPlan.IsSafe, initialPlan.FailureReason);
+
+        File.Delete(Path.Combine(
+            initialEvidence.RawDataBackupPath!,
+            "example.com",
+            "alice",
+            "es",
+            "message.eml"));
+
+        var revalidatedPlan = await BackupRestoreContainmentPreflight.RevalidateAsync(
+            initialPlan,
+            initialEvidence,
+            fixture.Runtime,
+            CancellationToken.None);
+
+        Assert.IsFalse(revalidatedPlan.IsSafe);
+        StringAssert.Contains(revalidatedPlan.FailureReason!, "raw message file is missing");
+        Assert.IsTrue(Directory.Exists(targetPath));
+        Assert.IsFalse(File.Exists(rollbackPath));
+    }
+
+    [TestMethod]
+    public async Task RevalidateAsync_RejectsChangedCompressedMessageGraphAtSameArchivePath()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        const string filename = "{0123456789abcdef0123456789abcdef}.eml";
+        using var fixture = await ArchiveFixture.CreateAsync(
+            CreateMessageBackupMetadata(filename, mode: 14),
+            includeNestedDataBackup: false,
+            dataBackupFiles: new[] { $"example.com/alice/01/{filename}" });
+        var initialEvidence = await fixture.Runtime.InspectAsync(
+            fixture.ArchivePath,
+            CancellationToken.None);
+        Assert.IsTrue(initialEvidence.IsValid, initialEvidence.FailureReason);
+
+        var targetPath = Directory.CreateDirectory(
+            Path.Combine(fixture.DirectoryPath, "target-data")).FullName;
+        var rollbackPath = Path.Combine(fixture.DirectoryPath, "rollback", "state.zip");
+        Directory.CreateDirectory(Path.GetDirectoryName(rollbackPath)!);
+        var initialPlan = BackupRestoreContainmentPreflight.Plan(
+            initialEvidence,
+            targetPath,
+            rollbackPath);
+        Assert.IsTrue(initialPlan.IsSafe, initialPlan.FailureReason);
+
+        using var replacement = await ArchiveFixture.CreateAsync(
+            CreateMessageBackupMetadata(filename, mode: 14),
+            includeNestedDataBackup: false,
+            dataBackupFiles: new[] { "example.com/alice/01/other.eml" });
+        File.Copy(replacement.ArchivePath, fixture.ArchivePath, overwrite: true);
+
+        var revalidatedPlan = await BackupRestoreContainmentPreflight.RevalidateAsync(
+            initialPlan,
+            initialEvidence,
+            fixture.Runtime,
+            CancellationToken.None);
+
+        Assert.IsFalse(revalidatedPlan.IsSafe);
+        StringAssert.Contains(revalidatedPlan.FailureReason!, "compressed message file is missing");
+        Assert.IsTrue(Directory.Exists(targetPath));
+        Assert.IsFalse(File.Exists(rollbackPath));
+    }
+
     private static string CreateMessageBackupMetadata(string filename, int mode, string format = "7z")
     {
         var folderName = string.Equals(format, "Raw", StringComparison.OrdinalIgnoreCase)
