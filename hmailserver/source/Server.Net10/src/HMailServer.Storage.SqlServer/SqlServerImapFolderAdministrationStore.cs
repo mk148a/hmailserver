@@ -8,6 +8,7 @@ namespace HMailServer.Storage.SqlServer;
 public sealed class SqlServerImapFolderAdministrationStore :
     IImapFolderAdministrationStore,
     IImapFolderPermissionAdministrationStore,
+    IImapFolderPermissionAdministrationMutationStore,
     IImapFolderAdministrationMutationStore,
     IImapFolderAdministrationDeletionStore
 {
@@ -79,6 +80,31 @@ WHERE aclid = @PermissionID
       WHERE folderid = @FolderID
         AND folderaccountid = 0
   );
+""";
+
+    public const string InsertFolderPermissionSql = """
+INSERT INTO hm_acl
+    (aclsharefolderid, aclpermissiontype, aclpermissiongroupid, aclpermissionaccountid, aclvalue)
+SELECT
+    @FolderID, @PermissionType, @PermissionGroupID, @PermissionAccountID, @Value
+WHERE EXISTS
+(
+    SELECT 1
+    FROM hm_imapfolders
+    WHERE folderid = @FolderID
+      AND folderaccountid = 0
+);
+
+IF @@ROWCOUNT = 1
+BEGIN
+    SELECT
+        CONVERT(bigint, SCOPE_IDENTITY()),
+        CONVERT(bigint, @FolderID),
+        CONVERT(int, @PermissionType),
+        CONVERT(bigint, @PermissionGroupID),
+        CONVERT(bigint, @PermissionAccountID),
+        CONVERT(bigint, @Value);
+END;
 """;
 
     public const string InsertFolderSql = """
@@ -319,6 +345,45 @@ ORDER BY messageid;
         command.Parameters.Add("@PermissionID", SqlDbType.Int).Value = permissionId;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<ImapFolderPermissionAdministrationSnapshot?> InsertFolderPermissionAsync(
+        int folderId,
+        int permissionType,
+        int permissionGroupId,
+        int permissionAccountId,
+        int value,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertFolderPermissionSql, connection);
+        command.Parameters.Add("@FolderID", SqlDbType.BigInt).Value = folderId;
+        command.Parameters.Add("@PermissionType", SqlDbType.TinyInt).Value = permissionType;
+        command.Parameters.Add("@PermissionGroupID", SqlDbType.BigInt).Value = permissionGroupId;
+        command.Parameters.Add("@PermissionAccountID", SqlDbType.BigInt).Value = permissionAccountId;
+        command.Parameters.Add("@Value", SqlDbType.BigInt).Value = value;
+
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SingleRow,
+            cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        var id = reader.GetInt64(0);
+        if (id <= 0 || id > int.MaxValue)
+        {
+            throw new InvalidOperationException("The IMAP folder permission insert returned an invalid generated identity.");
+        }
+
+        return new ImapFolderPermissionAdministrationSnapshot(
+            checked((int)id),
+            checked((int)reader.GetInt64(1)),
+            reader.GetInt32(2),
+            checked((int)reader.GetInt64(3)),
+            checked((int)reader.GetInt64(4)),
+            checked((int)reader.GetInt64(5)));
     }
 
     public async ValueTask<ImapFolderAdministrationSnapshot> InsertFolderAsync(

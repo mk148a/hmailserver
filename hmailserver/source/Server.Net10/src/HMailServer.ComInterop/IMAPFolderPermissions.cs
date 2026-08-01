@@ -99,6 +99,7 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
     private readonly Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>? _reload;
     private readonly int _folderId;
     private readonly Func<int, int, ValueTask<bool>>? _delete;
+    private readonly Func<int, int, int, int, ValueTask<ImapFolderPermissionAdministrationSnapshot?>>? _insert;
 
     public IMAPFolderPermissions()
     {
@@ -108,12 +109,14 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
         IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions,
         Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>? reload,
         int folderId = 0,
-        Func<int, int, ValueTask<bool>>? delete = null)
+        Func<int, int, ValueTask<bool>>? delete = null,
+        Func<int, int, int, int, ValueTask<ImapFolderPermissionAdministrationSnapshot?>>? insert = null)
     {
         _permissions = permissions.ToArray();
         _reload = reload;
         _folderId = folderId;
         _delete = delete;
+        _insert = insert;
     }
 
     public int Count => GetPermissions().Count;
@@ -159,7 +162,7 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
 
         return match is null
             ? throw new COMException("No IMAP folder permission with the specified name exists.", DispEBadIndex)
-            : IMAPFolderPermission.CreateAuthorized(match);
+            : IMAPFolderPermission.CreateAuthorized(match, _folderId);
     }
 
     public void Delete(int index)
@@ -220,7 +223,16 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
         }
     }
 
-    public IInterfaceIMAPFolderPermission Add() => Unavailable<IInterfaceIMAPFolderPermission>();
+    public IInterfaceIMAPFolderPermission Add()
+    {
+        _ = GetPermissions();
+        if (_insert is null)
+        {
+            Unavailable();
+        }
+
+        return IMAPFolderPermission.CreateNew(_folderId, _insert!, AppendInserted);
+    }
 
     public void DeleteByDBID(int databaseId)
     {
@@ -293,11 +305,18 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
         int folderId,
         IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions,
         Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> reload,
-        Func<int, int, ValueTask<bool>>? delete)
+        Func<int, int, ValueTask<bool>>? delete,
+        Func<int, int, int, int, ValueTask<ImapFolderPermissionAdministrationSnapshot?>>? insert = null)
     {
         ArgumentNullException.ThrowIfNull(permissions);
         ArgumentNullException.ThrowIfNull(reload);
-        return new IMAPFolderPermissions(permissions, reload, folderId, delete);
+        return new IMAPFolderPermissions(permissions, reload, folderId, delete, insert);
+    }
+
+    private void AppendInserted(ImapFolderPermissionAdministrationSnapshot permission)
+    {
+        var permissions = GetPermissions();
+        Volatile.Write(ref _permissions, permissions.Append(permission).ToArray());
     }
 
     private static string LegacyName(ImapFolderPermissionAdministrationSnapshot permission) =>
@@ -339,9 +358,15 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly ImapFolderPermissionAdministrationSnapshot? _permission;
+    private ImapFolderPermissionAdministrationSnapshot? _permission;
     private readonly int _folderId;
     private readonly Func<int, int, ValueTask>? _delete;
+    private readonly Func<int, int, int, int, ValueTask<ImapFolderPermissionAdministrationSnapshot?>>? _insert;
+    private readonly Action<ImapFolderPermissionAdministrationSnapshot>? _append;
+    private int? _stagedPermissionType;
+    private int? _stagedPermissionGroupId;
+    private int? _stagedPermissionAccountId;
+    private int? _stagedValue;
 
     public IMAPFolderPermission()
     {
@@ -350,11 +375,15 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
     private IMAPFolderPermission(
         ImapFolderPermissionAdministrationSnapshot permission,
         int folderId = 0,
-        Func<int, int, ValueTask>? delete = null)
+        Func<int, int, ValueTask>? delete = null,
+        Func<int, int, int, int, ValueTask<ImapFolderPermissionAdministrationSnapshot?>>? insert = null,
+        Action<ImapFolderPermissionAdministrationSnapshot>? append = null)
     {
         _permission = permission;
         _folderId = folderId;
         _delete = delete;
+        _insert = insert;
+        _append = append;
     }
 
     public int ID => Snapshot.Id;
@@ -363,15 +392,43 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
 
     public ComAclPermissionType PermissionType
     {
-        get => (ComAclPermissionType)Snapshot.PermissionType;
-        set => Unavailable();
+        get => (ComAclPermissionType)(_stagedPermissionType ?? Snapshot.PermissionType);
+        set
+        {
+            EnsureNew();
+            _stagedPermissionType = (int)value;
+        }
     }
 
-    public int PermissionGroupID { get => Snapshot.PermissionGroupId; set => Unavailable(); }
+    public int PermissionGroupID
+    {
+        get => _stagedPermissionGroupId ?? Snapshot.PermissionGroupId;
+        set
+        {
+            EnsureNew();
+            _stagedPermissionGroupId = value;
+        }
+    }
 
-    public int PermissionAccountID { get => Snapshot.PermissionAccountId; set => Unavailable(); }
+    public int PermissionAccountID
+    {
+        get => _stagedPermissionAccountId ?? Snapshot.PermissionAccountId;
+        set
+        {
+            EnsureNew();
+            _stagedPermissionAccountId = value;
+        }
+    }
 
-    public int Value { get => Snapshot.Value; set => Unavailable(); }
+    public int Value
+    {
+        get => _stagedValue ?? Snapshot.Value;
+        set
+        {
+            EnsureNew();
+            _stagedValue = value;
+        }
+    }
 
     public IInterfaceAccount Account =>
         AccountAdministrationRuntimeHost.CreateAuthorizedAccountByIdAdapter(Snapshot.PermissionAccountId);
@@ -379,11 +436,84 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
     public IInterfaceGroup Group =>
         GroupAdministrationRuntimeHost.CreateAuthorizedGroupByIdAdapter(Snapshot.PermissionGroupId);
 
-    public bool get_Permission(ComAclPermission permission) => (Snapshot.Value & (int)permission) != 0;
+    public bool get_Permission(ComAclPermission permission)
+    {
+        var snapshot = Snapshot;
+        if (IsNew)
+        {
+            EnsurePermissionFlag(permission);
+        }
 
-    public void set_Permission(ComAclPermission permission, bool value) => Unavailable();
+        return ((_stagedValue ?? snapshot.Value) & (int)permission) != 0;
+    }
 
-    public void Save() => Unavailable();
+    public void set_Permission(ComAclPermission permission, bool value)
+    {
+        EnsureNew();
+        EnsurePermissionFlag(permission);
+        _stagedValue = value ? Value | (int)permission : Value & ~(int)permission;
+    }
+
+    public void Save()
+    {
+        var permission = Snapshot;
+        if (permission.Id != 0 || _insert is null || _append is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        var permissionType = _stagedPermissionType ?? permission.PermissionType;
+        var permissionGroupId = _stagedPermissionGroupId ?? permission.PermissionGroupId;
+        var permissionAccountId = _stagedPermissionAccountId ?? permission.PermissionAccountId;
+        var value = _stagedValue ?? permission.Value;
+        if (!IsValidHolder(permissionType, permissionGroupId, permissionAccountId))
+        {
+            FailSave();
+        }
+
+        ImapFolderPermissionAdministrationSnapshot? inserted;
+        try
+        {
+            inserted = _insert(permissionType, permissionGroupId, permissionAccountId, value)
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception)
+        {
+            FailSave();
+            return;
+        }
+
+        if (inserted is null
+            || inserted.Id <= 0
+            || inserted.ShareFolderId != _folderId
+            || inserted.PermissionType != permissionType
+            || inserted.PermissionGroupId != permissionGroupId
+            || inserted.PermissionAccountId != permissionAccountId
+            || inserted.Value != value
+            || !IsValidHolder(inserted.PermissionType, inserted.PermissionGroupId, inserted.PermissionAccountId))
+        {
+            FailSave();
+        }
+
+        var validatedInserted = inserted!;
+        try
+        {
+            _append(validatedInserted);
+        }
+        catch (Exception)
+        {
+            FailSave();
+            return;
+        }
+
+        _permission = validatedInserted;
+        _stagedPermissionType = null;
+        _stagedPermissionGroupId = null;
+        _stagedPermissionAccountId = null;
+        _stagedValue = null;
+    }
 
     public void Delete()
     {
@@ -412,9 +542,63 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
 
     internal static IMAPFolderPermission CreateAuthorized(
         ImapFolderPermissionAdministrationSnapshot permission,
+        int folderId) =>
+        new(permission, folderId);
+
+    internal static IMAPFolderPermission CreateAuthorized(
+        ImapFolderPermissionAdministrationSnapshot permission,
         int folderId,
         Func<int, int, ValueTask>? delete) =>
         new(permission, folderId, delete);
+
+    internal static IMAPFolderPermission CreateNew(
+        int folderId,
+        Func<int, int, int, int, ValueTask<ImapFolderPermissionAdministrationSnapshot?>> insert,
+        Action<ImapFolderPermissionAdministrationSnapshot> append) =>
+        new(
+            new ImapFolderPermissionAdministrationSnapshot(
+                0,
+                folderId,
+                (int)ComAclPermissionType.User,
+                0,
+                0,
+                0),
+            folderId,
+            insert: insert,
+            append: append);
+
+    private bool IsNew => Snapshot.Id == 0 && _insert is not null && _append is not null;
+
+    private void EnsureNew()
+    {
+        _ = Snapshot;
+        if (!IsNew)
+        {
+            Unavailable();
+        }
+    }
+
+    private static void EnsurePermissionFlag(ComAclPermission permission)
+    {
+        var value = (int)permission;
+        if (value is not (1 or 2 or 4 or 8 or 16 or 32 or 64 or 128 or 256 or 512 or 1024))
+        {
+            FailSave();
+        }
+    }
+
+    private static bool IsValidHolder(int permissionType, int permissionGroupId, int permissionAccountId) =>
+        permissionType switch
+        {
+            (int)ComAclPermissionType.User => permissionAccountId != 0 && permissionGroupId == 0,
+            (int)ComAclPermissionType.Group => permissionGroupId != 0 && permissionAccountId == 0,
+            (int)ComAclPermissionType.Anyone => permissionGroupId == 0 && permissionAccountId == 0,
+            _ => false
+        };
+
+    private static void FailSave() => throw new COMException(
+        "It was not possible to save the IMAP folder permission.",
+        EFail);
 
     private ImapFolderPermissionAdministrationSnapshot Snapshot =>
         _permission ?? throw new COMException(

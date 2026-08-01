@@ -82,6 +82,31 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
     }
 
     [TestMethod]
+    public void InsertFolderPermissionSql_UsesOwningPublicFolderAndTypedIdentityWithoutCallerShareFolderId()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.InsertFolderPermissionSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_acl");
+        StringAssert.Contains(sql, "aclsharefolderid");
+        StringAssert.Contains(sql, "aclpermissiontype");
+        StringAssert.Contains(sql, "aclpermissiongroupid");
+        StringAssert.Contains(sql, "aclpermissionaccountid");
+        StringAssert.Contains(sql, "aclvalue");
+        StringAssert.Contains(sql, "WHERE folderid = @FolderID");
+        StringAssert.Contains(sql, "folderaccountid = 0");
+        StringAssert.Contains(sql, "SCOPE_IDENTITY");
+        StringAssert.Contains(sql, "CONVERT(bigint");
+        StringAssert.Contains(sql, "@FolderID");
+        StringAssert.Contains(sql, "@PermissionType");
+        StringAssert.Contains(sql, "@PermissionGroupID");
+        StringAssert.Contains(sql, "@PermissionAccountID");
+        StringAssert.Contains(sql, "@Value");
+        Assert.IsFalse(sql.Contains("@ShareFolderID", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("MAX(", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("@@IDENTITY", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void InsertFolderSql_PreservesLegacyFolderColumnsAndGeneratedIdentity()
     {
         var sql = SqlServerImapFolderAdministrationStore.InsertFolderSql;

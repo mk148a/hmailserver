@@ -520,6 +520,34 @@ public static class ImapFolderAdministrationRuntimeHost
             .ConfigureAwait(false);
     }
 
+    internal static async ValueTask<ImapFolderPermissionAdministrationSnapshot?> InsertPermissionAuthorized(
+        int folderId,
+        int permissionType,
+        int permissionGroupId,
+        int permissionAccountId,
+        int value)
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer IMAP folder administration runtime has not been initialized.",
+                CoENotInitialized);
+        if (store is not IImapFolderPermissionAdministrationMutationStore mutationStore)
+        {
+            throw new COMException(
+                "IMAP folder permission insertion is not available in the configured administration store.",
+                unchecked((int)0x80004001));
+        }
+
+        return await mutationStore.InsertFolderPermissionAsync(
+                folderId,
+                permissionType,
+                permissionGroupId,
+                permissionAccountId,
+                value,
+                CancellationToken.None)
+            .ConfigureAwait(false);
+    }
+
     private static ImapFolderAdministrationState CreateState(int accountId) =>
         new(() =>
         {
@@ -584,12 +612,24 @@ public static class ImapFolderAdministrationRuntimeHost
         ValueTask<bool> DeletePermissionAsync(int ownerFolderId, int permissionId) => permissionStore
             ?.DeleteFolderPermissionAsync(ownerFolderId, permissionId, CancellationToken.None)
             ?? ValueTask.FromException<bool>(new NotSupportedException());
+        var permissionMutationStore = store as IImapFolderPermissionAdministrationMutationStore;
+        ValueTask<ImapFolderPermissionAdministrationSnapshot?> InsertPermissionAsync(
+            int permissionType,
+            int permissionGroupId,
+            int permissionAccountId,
+            int value) => InsertPermissionAuthorized(
+                folderId,
+                permissionType,
+                permissionGroupId,
+                permissionAccountId,
+                value);
 
         return IMAPFolderPermissions.CreateAuthorized(
             folderId,
             LoadPermissions(),
             LoadPermissions,
-            permissionStore is null ? null : DeletePermissionAsync);
+            permissionStore is null ? null : DeletePermissionAsync,
+            permissionMutationStore is null ? null : InsertPermissionAsync);
     }
 }
 

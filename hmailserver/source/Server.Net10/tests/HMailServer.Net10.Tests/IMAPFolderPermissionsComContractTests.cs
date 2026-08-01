@@ -91,6 +91,7 @@ public sealed class IMAPFolderPermissionsComContractTests
         var permissionsRefreshError = Assert.ThrowsExactly<COMException>(new IMAPFolderPermissions().Refresh);
         var permissionsDeleteError = Assert.ThrowsExactly<COMException>(() => new IMAPFolderPermissions().Delete(0));
         var permissionsDeleteByDBIDError = Assert.ThrowsExactly<COMException>(() => new IMAPFolderPermissions().DeleteByDBID(10));
+        var permissionsAddError = Assert.ThrowsExactly<COMException>(new IMAPFolderPermissions().Add);
         var permissionError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolderPermission().ID);
         var permissionDeleteError = Assert.ThrowsExactly<COMException>(new IMAPFolderPermission().Delete);
 
@@ -98,6 +99,7 @@ public sealed class IMAPFolderPermissionsComContractTests
         Assert.AreEqual(EAccessDenied, permissionsRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, permissionsDeleteByDBIDError.ErrorCode);
         Assert.AreEqual(EAccessDenied, permissionsDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, permissionsAddError.ErrorCode);
         Assert.AreEqual(EAccessDenied, permissionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, permissionDeleteError.ErrorCode);
     }
@@ -376,6 +378,154 @@ public sealed class IMAPFolderPermissionsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_AddStagesNewPermissionAndAppendsOnlyAfterValidatedSave()
+    {
+        var calls = new List<(int Type, int GroupId, int AccountId, int Value)>();
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            50,
+            Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+            () => Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+            delete: null,
+            insert: (type, groupId, accountId, value) =>
+            {
+                calls.Add((type, groupId, accountId, value));
+                return ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(
+                    new ImapFolderPermissionAdministrationSnapshot(
+                        77,
+                        50,
+                        type,
+                        groupId,
+                        accountId,
+                        value));
+            });
+
+        var added = permissions.Add();
+
+        AssertPermission(added, 0, 50, ComAclPermissionType.User, 0, 0, 0);
+        added.PermissionType = ComAclPermissionType.Group;
+        added.PermissionGroupID = 200;
+        added.Value = 1;
+        added.set_Permission(ComAclPermission.Read, true);
+        added.set_Permission(ComAclPermission.Lookup, false);
+
+        AssertPermission(added, 0, 50, ComAclPermissionType.Group, 200, 0, 2);
+        Assert.AreEqual(0, permissions.Count);
+
+        added.Save();
+
+        CollectionAssert.AreEqual(new[] { (1, 200, 0, 2) }, calls);
+        AssertPermission(added, 77, 50, ComAclPermissionType.Group, 200, 0, 2);
+        Assert.AreEqual(1, permissions.Count);
+        AssertPermission(permissions[0], 77, 50, ComAclPermissionType.Group, 200, 0, 2);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_AddRejectsInvalidHolderBeforeStoreAndRetainsStagedItem()
+    {
+        var insertCount = 0;
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            50,
+            Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+            () => Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+            delete: null,
+            insert: (_, _, _, _) =>
+            {
+                insertCount++;
+                return ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(null);
+            });
+
+        var added = permissions.Add();
+        added.PermissionType = ComAclPermissionType.Anyone;
+        added.PermissionAccountID = 100;
+
+        var error = Assert.ThrowsExactly<COMException>(added.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, insertCount);
+        AssertPermission(added, 0, 50, ComAclPermissionType.Anyone, 0, 100, 0);
+        Assert.AreEqual(0, permissions.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_AddMapsFalseOrExceptionToEFailAndRetainsStagedItem()
+    {
+        foreach (var insert in new Func<int, int, int, int, ValueTask<ImapFolderPermissionAdministrationSnapshot?>>[]
+                 {
+                     static (_, _, _, _) => ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(null),
+                     static (_, _, _, _) => ValueTask.FromException<ImapFolderPermissionAdministrationSnapshot?>(
+                         new InvalidOperationException("Simulated store failure."))
+                 })
+        {
+            IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+                50,
+                Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+                () => Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+                delete: null,
+                insert: insert);
+            var added = permissions.Add();
+            added.PermissionType = ComAclPermissionType.User;
+            added.PermissionAccountID = 100;
+            added.Value = 4;
+
+            var error = Assert.ThrowsExactly<COMException>(added.Save);
+
+            Assert.AreEqual(EFail, error.ErrorCode);
+            AssertPermission(added, 0, 50, ComAclPermissionType.User, 0, 100, 4);
+            Assert.AreEqual(0, permissions.Count);
+        }
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_AddRejectsMalformedReturnedOwnerAndIdentity()
+    {
+        foreach (var returned in new[]
+                 {
+                     new ImapFolderPermissionAdministrationSnapshot(0, 50, 0, 0, 100, 1),
+                     new ImapFolderPermissionAdministrationSnapshot(77, 51, 0, 0, 100, 1),
+                     new ImapFolderPermissionAdministrationSnapshot(77, 50, 1, 0, 100, 1)
+                 })
+        {
+            IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+                50,
+                Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+                () => Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+                delete: null,
+                insert: (_, _, _, _) => ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(returned));
+            var added = permissions.Add();
+            added.PermissionAccountID = 100;
+            added.Value = 1;
+
+            var error = Assert.ThrowsExactly<COMException>(added.Save);
+
+            Assert.AreEqual(EFail, error.ErrorCode);
+            Assert.AreEqual(0, added.ID);
+            Assert.AreEqual(0, permissions.Count);
+        }
+    }
+
+    [TestMethod]
+    public void AuthorizedSettingsPublicFolderPermissions_AddUsesAuthenticatedOwningFolderScope()
+    {
+        var store = new PublicFolderPermissionStore();
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized();
+
+        var permissions = settings.PublicFolders.get_ItemByDBID(50).Permissions;
+        var added = permissions.Add();
+        added.PermissionAccountID = 100;
+        added.Value = (int)ComAclPermission.Read;
+        added.Save();
+
+        Assert.AreEqual(50, store.LastInsertFolderId);
+        Assert.AreEqual(100, store.LastInsertAccountId);
+        Assert.AreEqual(1, permissions.Count);
+        Assert.AreEqual(501, permissions[0].ID);
+
+        var denied = Assert.ThrowsExactly<COMException>(() => _ = new Settings().PublicFolders);
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_ExposesReadOnlyAclPermissionSnapshots()
     {
         AccountAdministrationRuntimeHost.Configure(
@@ -571,6 +721,65 @@ public sealed class IMAPFolderPermissionsComContractTests
         Assert.AreEqual(groupId, permission.PermissionGroupID);
         Assert.AreEqual(accountId, permission.PermissionAccountID);
         Assert.AreEqual(value, permission.Value);
+    }
+
+    private sealed class PublicFolderPermissionStore :
+        IImapFolderAdministrationStore,
+        IImapFolderPermissionAdministrationMutationStore
+    {
+        private readonly ImapFolderAdministrationSnapshot _folder =
+            new(50, 0, -1, "Public", true, 5, "2026-08-01 00:00:00");
+        private IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> _permissions =
+            Array.Empty<ImapFolderPermissionAdministrationSnapshot>();
+
+        public int LastInsertFolderId { get; private set; }
+        public int LastInsertAccountId { get; private set; }
+
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetFoldersForAccountAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                accountId == 0 ? new[] { _folder } : Array.Empty<ImapFolderAdministrationSnapshot>());
+
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetRootFoldersAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                accountId == 0 ? new[] { _folder } : Array.Empty<ImapFolderAdministrationSnapshot>());
+
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetChildFoldersAsync(
+            int parentFolderId,
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(
+                Array.Empty<ImapFolderAdministrationSnapshot>());
+
+        public ValueTask<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> GetFolderPermissionsAsync(
+            int folderId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>(
+                _permissions.Where(permission => permission.ShareFolderId == folderId).ToArray());
+
+        public ValueTask<ImapFolderPermissionAdministrationSnapshot?> InsertFolderPermissionAsync(
+            int folderId,
+            int permissionType,
+            int permissionGroupId,
+            int permissionAccountId,
+            int value,
+            CancellationToken cancellationToken)
+        {
+            LastInsertFolderId = folderId;
+            LastInsertAccountId = permissionAccountId;
+            var inserted = new ImapFolderPermissionAdministrationSnapshot(
+                501,
+                folderId,
+                permissionType,
+                permissionGroupId,
+                permissionAccountId,
+                value);
+            _permissions = _permissions.Append(inserted).ToArray();
+            return ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(inserted);
+        }
     }
 
     private sealed class FixedAccountAdministrationStore(IReadOnlyList<AccountAdministrationSnapshot> accounts)
