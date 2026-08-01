@@ -156,7 +156,40 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
             : IMAPFolderPermission.CreateAuthorized(match);
     }
 
-    public void Delete(int index) => Unavailable();
+    public void Delete(int index)
+    {
+        var permissions = GetPermissions();
+        if (index < 0 || index >= permissions.Count)
+        {
+            return;
+        }
+
+        var selected = permissions[index];
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        bool deleted;
+        try
+        {
+            deleted = _delete(_folderId, selected.Id).GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the IMAP folder permission from the database.",
+                EFail);
+        }
+
+        if (deleted)
+        {
+            Volatile.Write(
+                ref _permissions,
+                permissions.Where(permission => !ReferenceEquals(permission, selected)).ToArray());
+        }
+    }
 
     public void Refresh()
     {
