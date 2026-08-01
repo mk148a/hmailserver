@@ -5,7 +5,7 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerImapFolderAdministrationStore : IImapFolderAdministrationStore
+public sealed class SqlServerImapFolderAdministrationStore : IImapFolderAdministrationStore, IImapFolderAdministrationMutationStore
 {
     public const string GetFoldersForAccountSql = """
 SELECT
@@ -62,6 +62,17 @@ SELECT
 FROM hm_acl
 WHERE aclsharefolderid = @FolderID
 ORDER BY aclid ASC;
+""";
+
+    public const string InsertFolderSql = """
+DECLARE @CreationTime datetime = GETDATE();
+INSERT INTO hm_imapfolders
+    (folderaccountid, folderparentid, foldername, folderissubscribed, foldercurrentuid, foldercreationtime)
+VALUES
+    (@AccountID, @ParentFolderID, @FolderName, @FolderIsSubscribed, 0, @CreationTime);
+SELECT
+    CONVERT(int, SCOPE_IDENTITY()), @AccountID, @ParentFolderID, @FolderName,
+    @FolderIsSubscribed, 0, CONVERT(varchar(19), @CreationTime, 120);
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
@@ -132,6 +143,38 @@ ORDER BY aclid ASC;
         }
 
         return permissions;
+    }
+
+    public async ValueTask<ImapFolderAdministrationSnapshot> InsertFolderAsync(
+        int accountId,
+        int parentFolderId,
+        string encodedName,
+        bool subscribed,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertFolderSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@ParentFolderID", SqlDbType.Int).Value = parentFolderId;
+        command.Parameters.Add("@FolderName", SqlDbType.NVarChar, 255).Value = encodedName;
+        command.Parameters.Add("@FolderIsSubscribed", SqlDbType.Int).Value = subscribed ? 1 : 0;
+
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SingleRow,
+            cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("The IMAP folder insert did not return its generated row.");
+        }
+
+        return new ImapFolderAdministrationSnapshot(
+            reader.GetInt32(0),
+            reader.GetInt32(1),
+            reader.GetInt32(2),
+            reader.GetString(3),
+            Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture) == 1,
+            reader.GetInt32(5),
+            reader.GetString(6));
     }
 
     private static async ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> ReadFoldersAsync(

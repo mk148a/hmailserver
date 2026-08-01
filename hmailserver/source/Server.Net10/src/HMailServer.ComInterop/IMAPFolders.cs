@@ -89,6 +89,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly IReadOnlyList<ImapFolderAdministrationSnapshot>? _folders;
@@ -165,7 +166,43 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
                 : IMAPFolder.CreateAuthorized(match);
     }
 
-    public IInterfaceIMAPFolder Add(string name) => Unavailable<IInterfaceIMAPFolder>();
+    public IInterfaceIMAPFolder Add(string name)
+    {
+        var folders = GetFolders();
+        var encodedName = LegacyModifiedUtf7.Encode(name ?? string.Empty);
+        if (folders.Any(folder =>
+                string.Equals(folder.Name, encodedName, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new COMException("Folder with specified name already exists.", ELegacyComError);
+        }
+
+        if (_state is not { } state)
+        {
+            throw new COMException(
+                "This IMAPFolders member is not implemented by the .NET 10 rewrite yet.",
+                ENotImplemented);
+        }
+
+        var snapshot = ImapFolderAdministrationRuntimeHost.InsertAuthorized(
+                _accountId,
+                _parentFolderId,
+                encodedName,
+                subscribed: _accountId == 0)
+            .GetAwaiter()
+            .GetResult();
+        if (snapshot.Id <= 0
+            || snapshot.AccountId != _accountId
+            || snapshot.ParentId != _parentFolderId
+            || !string.Equals(snapshot.Name, encodedName, StringComparison.Ordinal))
+        {
+            throw new COMException(
+                "IMAP folder insertion returned an object outside the owning collection.",
+                ELegacyComError);
+        }
+
+        state.Append(snapshot);
+        return IMAPFolder.CreateAuthorized(snapshot, state);
+    }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
@@ -304,22 +341,46 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 [ComVisible(false)]
 internal sealed class ImapFolderAdministrationState
 {
-    private readonly Lazy<IReadOnlyList<ImapFolderAdministrationSnapshot>> _folders;
+    private readonly object _sync = new();
+    private readonly Func<IReadOnlyList<ImapFolderAdministrationSnapshot>> _load;
+    private IReadOnlyList<ImapFolderAdministrationSnapshot>? _snapshot;
 
     public ImapFolderAdministrationState(Func<IReadOnlyList<ImapFolderAdministrationSnapshot>> load)
     {
         ArgumentNullException.ThrowIfNull(load);
-        _folders = new(
-            () =>
-            {
-                var folders = load();
-                ArgumentNullException.ThrowIfNull(folders);
-                return folders.ToArray();
-            },
-            LazyThreadSafetyMode.ExecutionAndPublication);
+        _load = load;
     }
 
-    public IReadOnlyList<ImapFolderAdministrationSnapshot> GetFolders() => _folders.Value;
+    public IReadOnlyList<ImapFolderAdministrationSnapshot> GetFolders()
+    {
+        var snapshot = Volatile.Read(ref _snapshot);
+        if (snapshot is not null)
+        {
+            return snapshot;
+        }
+
+        lock (_sync)
+        {
+            snapshot = _snapshot;
+            if (snapshot is null)
+            {
+                snapshot = _load();
+                ArgumentNullException.ThrowIfNull(snapshot);
+                _snapshot = snapshot.ToArray();
+            }
+
+            return _snapshot!;
+        }
+    }
+
+    public void Append(ImapFolderAdministrationSnapshot folder)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+        lock (_sync)
+        {
+            _snapshot = GetFolders().Append(folder).ToArray();
+        }
+    }
 }
 
 [ComVisible(false)]
@@ -339,6 +400,32 @@ public static class ImapFolderAdministrationRuntimeHost
 
     internal static ImapFolderAdministrationState CreateAuthorizedState(int accountId) =>
         _states.GetOrAdd(accountId, CreateState);
+
+    internal static async ValueTask<ImapFolderAdministrationSnapshot> InsertAuthorized(
+        int accountId,
+        int parentFolderId,
+        string encodedName,
+        bool subscribed)
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer IMAP folder administration runtime has not been initialized.",
+                CoENotInitialized);
+        if (store is not IImapFolderAdministrationMutationStore mutationStore)
+        {
+            throw new COMException(
+                "IMAP folder insertion is not available in the configured administration store.",
+                unchecked((int)0x80004001));
+        }
+
+        return await mutationStore.InsertFolderAsync(
+                accountId,
+                parentFolderId,
+                encodedName,
+                subscribed,
+                CancellationToken.None)
+            .ConfigureAwait(false);
+    }
 
     private static ImapFolderAdministrationState CreateState(int accountId) =>
         new(() =>

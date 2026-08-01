@@ -62,10 +62,12 @@ public sealed class ImapFoldersComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var foldersError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolders().Count);
+        var addError = Assert.ThrowsExactly<COMException>(() => new IMAPFolders().Add("New"));
         var folderError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolder().Name);
         var accountFoldersError = Assert.ThrowsExactly<COMException>(() => _ = new Account().IMAPFolders);
 
         Assert.AreEqual(EAccessDenied, foldersError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, addError.ErrorCode);
         Assert.AreEqual(EAccessDenied, folderError.ErrorCode);
         Assert.AreEqual(EAccessDenied, accountFoldersError.ErrorCode);
     }
@@ -176,6 +178,44 @@ public sealed class ImapFoldersComContractTests
 
         Assert.AreEqual(1, folders.Count);
         Assert.AreEqual("Inbox", folders[0].Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedAccountImapFolders_AddInsertsAndAppendsOnlyToOwningSnapshot()
+    {
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-06-27 01:02:03"),
+                new ImapFolderAdministrationSnapshot(30, 200, -1, "Other", true, 1, "2026-06-27 01:02:03")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+
+        var folders = account.IMAPFolders;
+        var added = folders.Add("Projects");
+
+        Assert.AreEqual(2, folders.Count);
+        Assert.AreEqual(101, added.ID);
+        Assert.AreEqual("Projects", added.Name);
+        Assert.AreEqual(-1, added.ParentID);
+        Assert.IsFalse(added.Subscribed);
+        Assert.AreEqual(100, store.LastInsertAccountId);
+        Assert.AreEqual(-1, store.LastInsertParentId);
+        Assert.AreEqual("Projects", store.LastInsertName);
+        Assert.AreEqual(1, store.InsertCount);
+        Assert.AreEqual(101, folders.get_ItemByName("Projects").ID);
+        Assert.AreEqual(101, folders.get_ItemByDBID(101).ID);
+        var duplicateError = Assert.ThrowsExactly<COMException>(() => folders.Add("projects"));
+        Assert.AreEqual(ELegacyComError, duplicateError.ErrorCode);
+        Assert.AreEqual(1, store.InsertCount);
+
+        store.ReturnMisScopedInsert = true;
+        var misScopedError = Assert.ThrowsExactly<COMException>(() => folders.Add("Other"));
+        Assert.AreEqual(ELegacyComError, misScopedError.ErrorCode);
+        Assert.AreEqual(2, store.InsertCount);
+        Assert.AreEqual(2, folders.Count);
     }
 
     [TestMethod]
@@ -335,7 +375,7 @@ public sealed class ImapFoldersComContractTests
 
     private sealed class FixedImapFolderAdministrationStore(
         IReadOnlyList<ImapFolderAdministrationSnapshot> folders,
-        IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>? permissions = null) : IImapFolderAdministrationStore
+        IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>? permissions = null) : IImapFolderAdministrationStore, IImapFolderAdministrationMutationStore
     {
         private IReadOnlyList<ImapFolderAdministrationSnapshot> _folders = folders;
         private IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> _permissions =
@@ -343,6 +383,11 @@ public sealed class ImapFoldersComContractTests
 
         public int PermissionReadCount { get; private set; }
         public int FolderReadCount { get; private set; }
+        public int InsertCount { get; private set; }
+        public int LastInsertAccountId { get; private set; }
+        public int LastInsertParentId { get; private set; }
+        public string? LastInsertName { get; private set; }
+        public bool ReturnMisScopedInsert { get; set; }
 
         public void ReplacePermissions(IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions)
         {
@@ -387,6 +432,29 @@ public sealed class ImapFoldersComContractTests
                     .Where(permission => permission.ShareFolderId == folderId)
                     .OrderBy(permission => permission.Id)
                     .ToArray());
+        }
+
+        public ValueTask<ImapFolderAdministrationSnapshot> InsertFolderAsync(
+            int accountId,
+            int parentFolderId,
+            string encodedName,
+            bool subscribed,
+            CancellationToken cancellationToken)
+        {
+            InsertCount++;
+            LastInsertAccountId = accountId;
+            LastInsertParentId = parentFolderId;
+            LastInsertName = encodedName;
+            var snapshot = new ImapFolderAdministrationSnapshot(
+                101,
+                ReturnMisScopedInsert ? accountId + 1 : accountId,
+                parentFolderId,
+                encodedName,
+                subscribed,
+                0,
+                "2026-08-01 00:00:00");
+            _folders = _folders.Append(snapshot).ToArray();
+            return ValueTask.FromResult(snapshot);
         }
     }
 

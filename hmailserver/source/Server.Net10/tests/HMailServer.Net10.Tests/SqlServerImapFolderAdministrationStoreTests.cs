@@ -65,6 +65,25 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
         Assert.IsFalse(sql.Contains("hm_messages", StringComparison.OrdinalIgnoreCase));
     }
 
+    [TestMethod]
+    public void InsertFolderSql_PreservesLegacyFolderColumnsAndGeneratedIdentity()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.InsertFolderSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_imapfolders");
+        StringAssert.Contains(sql, "folderaccountid");
+        StringAssert.Contains(sql, "folderparentid");
+        StringAssert.Contains(sql, "foldername");
+        StringAssert.Contains(sql, "folderissubscribed");
+        StringAssert.Contains(sql, "foldercurrentuid");
+        StringAssert.Contains(sql, "foldercreationtime");
+        StringAssert.Contains(sql, "SCOPE_IDENTITY");
+        StringAssert.Contains(sql, "@AccountID");
+        StringAssert.Contains(sql, "@ParentFolderID");
+        StringAssert.Contains(sql, "@FolderName");
+        StringAssert.Contains(sql, "@FolderIsSubscribed");
+    }
+
     private static void AssertFolderProjection(string sql)
     {
         StringAssert.Contains(sql, "folderid");
