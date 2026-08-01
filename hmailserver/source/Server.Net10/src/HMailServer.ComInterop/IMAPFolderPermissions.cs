@@ -97,6 +97,8 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
 
     private ImapFolderPermissionAdministrationSnapshot[]? _permissions;
     private readonly Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>? _reload;
+    private readonly int _folderId;
+    private readonly Func<int, int, ValueTask<bool>>? _delete;
 
     public IMAPFolderPermissions()
     {
@@ -104,10 +106,14 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
 
     private IMAPFolderPermissions(
         IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions,
-        Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>? reload,
+        int folderId = 0,
+        Func<int, int, ValueTask<bool>>? delete = null)
     {
         _permissions = permissions.ToArray();
         _reload = reload;
+        _folderId = folderId;
+        _delete = delete;
     }
 
     public int Count => GetPermissions().Count;
@@ -177,7 +183,40 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
 
     public IInterfaceIMAPFolderPermission Add() => Unavailable<IInterfaceIMAPFolderPermission>();
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var permissions = GetPermissions();
+        var selected = permissions.FirstOrDefault(permission => permission.Id == databaseId);
+        if (selected is null)
+        {
+            return;
+        }
+
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        bool deleted;
+        try
+        {
+            deleted = _delete(_folderId, selected.Id).GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the IMAP folder permission from the database.",
+                EFail);
+        }
+
+        if (deleted)
+        {
+            Volatile.Write(
+                ref _permissions,
+                permissions.Where(permission => !ReferenceEquals(permission, selected)).ToArray());
+        }
+    }
 
     internal static IMAPFolderPermissions CreateAuthorized(
         IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions,
@@ -185,6 +224,17 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
     {
         ArgumentNullException.ThrowIfNull(permissions);
         return new IMAPFolderPermissions(permissions, reload);
+    }
+
+    internal static IMAPFolderPermissions CreateAuthorized(
+        int folderId,
+        IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions,
+        Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> reload,
+        Func<int, int, ValueTask<bool>>? delete)
+    {
+        ArgumentNullException.ThrowIfNull(permissions);
+        ArgumentNullException.ThrowIfNull(reload);
+        return new IMAPFolderPermissions(permissions, reload, folderId, delete);
     }
 
     private static string LegacyName(ImapFolderPermissionAdministrationSnapshot permission) =>

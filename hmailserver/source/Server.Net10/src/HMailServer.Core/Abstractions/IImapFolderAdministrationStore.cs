@@ -19,3 +19,11 @@ public interface IImapFolderAdministrationStore
         int folderId,
         CancellationToken cancellationToken);
 }
+
+public interface IImapFolderPermissionAdministrationStore
+{
+    ValueTask<bool> DeleteFolderPermissionAsync(
+        int folderId,
+        int permissionId,
+        CancellationToken cancellationToken);
+}

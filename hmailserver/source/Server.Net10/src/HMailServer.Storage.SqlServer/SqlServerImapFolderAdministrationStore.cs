@@ -7,6 +7,7 @@ namespace HMailServer.Storage.SqlServer;
 
 public sealed class SqlServerImapFolderAdministrationStore :
     IImapFolderAdministrationStore,
+    IImapFolderPermissionAdministrationStore,
     IImapFolderAdministrationMutationStore,
     IImapFolderAdministrationDeletionStore
 {
@@ -65,6 +66,19 @@ SELECT
 FROM hm_acl
 WHERE aclsharefolderid = @FolderID
 ORDER BY aclid ASC;
+""";
+
+    public const string DeleteFolderPermissionSql = """
+DELETE FROM hm_acl
+WHERE aclid = @PermissionID
+  AND aclsharefolderid = @FolderID
+  AND EXISTS
+  (
+      SELECT 1
+      FROM hm_imapfolders
+      WHERE folderid = @FolderID
+        AND folderaccountid = 0
+  );
 """;
 
     public const string InsertFolderSql = """
@@ -292,6 +306,19 @@ ORDER BY messageid;
         }
 
         return permissions;
+    }
+
+    public async ValueTask<bool> DeleteFolderPermissionAsync(
+        int folderId,
+        int permissionId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteFolderPermissionSql, connection);
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        command.Parameters.Add("@PermissionID", SqlDbType.Int).Value = permissionId;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
     public async ValueTask<ImapFolderAdministrationSnapshot> InsertFolderAsync(

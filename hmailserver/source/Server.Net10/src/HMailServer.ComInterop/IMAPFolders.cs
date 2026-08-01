@@ -580,7 +580,16 @@ public static class ImapFolderAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return IMAPFolderPermissions.CreateAuthorized(LoadPermissions(), LoadPermissions);
+        var permissionStore = store as IImapFolderPermissionAdministrationStore;
+        ValueTask<bool> DeletePermissionAsync(int ownerFolderId, int permissionId) => permissionStore
+            ?.DeleteFolderPermissionAsync(ownerFolderId, permissionId, CancellationToken.None)
+            ?? ValueTask.FromException<bool>(new NotSupportedException());
+
+        return IMAPFolderPermissions.CreateAuthorized(
+            folderId,
+            LoadPermissions(),
+            LoadPermissions,
+            permissionStore is null ? null : DeletePermissionAsync);
     }
 }
 

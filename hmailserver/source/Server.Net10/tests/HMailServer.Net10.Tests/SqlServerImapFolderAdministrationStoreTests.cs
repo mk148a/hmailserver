@@ -66,6 +66,22 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
     }
 
     [TestMethod]
+    public void DeleteFolderPermissionSql_UsesPermissionFolderAndPublicFolderScopeParameters()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.DeleteFolderPermissionSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_acl");
+        StringAssert.Contains(sql, "aclid = @PermissionID");
+        StringAssert.Contains(sql, "aclsharefolderid = @FolderID");
+        StringAssert.Contains(sql, "FROM hm_imapfolders");
+        StringAssert.Contains(sql, "folderid = @FolderID");
+        StringAssert.Contains(sql, "folderaccountid = 0");
+        StringAssert.Contains(sql, "@PermissionID");
+        StringAssert.Contains(sql, "@FolderID");
+        Assert.IsFalse(sql.Contains("@AccountID", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void InsertFolderSql_PreservesLegacyFolderColumnsAndGeneratedIdentity()
     {
         var sql = SqlServerImapFolderAdministrationStore.InsertFolderSql;
