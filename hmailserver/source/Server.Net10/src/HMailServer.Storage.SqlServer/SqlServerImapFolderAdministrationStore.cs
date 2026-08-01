@@ -107,6 +107,24 @@ BEGIN
 END;
 """;
 
+    public const string UpdateFolderPermissionSql = """
+UPDATE hm_acl
+SET aclsharefolderid = @FolderID,
+    aclpermissiontype = @PermissionType,
+    aclpermissiongroupid = @PermissionGroupID,
+    aclpermissionaccountid = @PermissionAccountID,
+    aclvalue = @Value
+WHERE aclid = @PermissionID
+  AND aclsharefolderid = @FolderID
+  AND EXISTS
+  (
+      SELECT 1
+      FROM hm_imapfolders
+      WHERE folderid = @FolderID
+        AND folderaccountid = 0
+  );
+""";
+
     public const string InsertFolderSql = """
 DECLARE @CreationTime datetime = GETDATE();
 INSERT INTO hm_imapfolders
@@ -384,6 +402,27 @@ ORDER BY messageid;
             checked((int)reader.GetInt64(3)),
             checked((int)reader.GetInt64(4)),
             checked((int)reader.GetInt64(5)));
+    }
+
+    public async ValueTask<bool> UpdateFolderPermissionAsync(
+        int folderId,
+        int permissionId,
+        int permissionType,
+        int permissionGroupId,
+        int permissionAccountId,
+        int value,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateFolderPermissionSql, connection);
+        command.Parameters.Add("@FolderID", SqlDbType.BigInt).Value = folderId;
+        command.Parameters.Add("@PermissionID", SqlDbType.BigInt).Value = permissionId;
+        command.Parameters.Add("@PermissionType", SqlDbType.TinyInt).Value = permissionType;
+        command.Parameters.Add("@PermissionGroupID", SqlDbType.BigInt).Value = permissionGroupId;
+        command.Parameters.Add("@PermissionAccountID", SqlDbType.BigInt).Value = permissionAccountId;
+        command.Parameters.Add("@Value", SqlDbType.BigInt).Value = value;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
     public async ValueTask<ImapFolderAdministrationSnapshot> InsertFolderAsync(

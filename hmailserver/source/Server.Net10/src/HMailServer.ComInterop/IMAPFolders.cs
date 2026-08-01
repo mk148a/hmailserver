@@ -548,6 +548,36 @@ public static class ImapFolderAdministrationRuntimeHost
             .ConfigureAwait(false);
     }
 
+    internal static async ValueTask<bool> UpdatePermissionAuthorized(
+        int folderId,
+        int permissionId,
+        int permissionType,
+        int permissionGroupId,
+        int permissionAccountId,
+        int value)
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer IMAP folder administration runtime has not been initialized.",
+                CoENotInitialized);
+        if (store is not IImapFolderPermissionAdministrationMutationStore mutationStore)
+        {
+            throw new COMException(
+                "IMAP folder permission updates are not available in the configured administration store.",
+                unchecked((int)0x80004001));
+        }
+
+        return await mutationStore.UpdateFolderPermissionAsync(
+                folderId,
+                permissionId,
+                permissionType,
+                permissionGroupId,
+                permissionAccountId,
+                value,
+                CancellationToken.None)
+            .ConfigureAwait(false);
+    }
+
     private static ImapFolderAdministrationState CreateState(int accountId) =>
         new(() =>
         {
@@ -623,13 +653,26 @@ public static class ImapFolderAdministrationRuntimeHost
                 permissionGroupId,
                 permissionAccountId,
                 value);
+        ValueTask<bool> UpdatePermissionAsync(
+            ImapFolderPermissionAdministrationSnapshot permission,
+            int permissionType,
+            int permissionGroupId,
+            int permissionAccountId,
+            int value) => UpdatePermissionAuthorized(
+                folderId,
+                permission.Id,
+                permissionType,
+                permissionGroupId,
+                permissionAccountId,
+                value);
 
         return IMAPFolderPermissions.CreateAuthorized(
             folderId,
             LoadPermissions(),
             LoadPermissions,
             permissionStore is null ? null : DeletePermissionAsync,
-            permissionMutationStore is null ? null : InsertPermissionAsync);
+            permissionMutationStore is null ? null : InsertPermissionAsync,
+            permissionMutationStore is null ? null : UpdatePermissionAsync);
     }
 }
 

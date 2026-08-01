@@ -107,6 +107,30 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateFolderPermissionSql_UpdatesAllLegacyColumnsWithinAclAndPublicFolderScope()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.UpdateFolderPermissionSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_acl");
+        StringAssert.Contains(sql, "aclsharefolderid = @FolderID");
+        StringAssert.Contains(sql, "aclpermissiontype = @PermissionType");
+        StringAssert.Contains(sql, "aclpermissiongroupid = @PermissionGroupID");
+        StringAssert.Contains(sql, "aclpermissionaccountid = @PermissionAccountID");
+        StringAssert.Contains(sql, "aclvalue = @Value");
+        StringAssert.Contains(sql, "aclid = @PermissionID");
+        StringAssert.Contains(sql, "FROM hm_imapfolders");
+        StringAssert.Contains(sql, "folderid = @FolderID");
+        StringAssert.Contains(sql, "folderaccountid = 0");
+        StringAssert.Contains(sql, "@PermissionID");
+        StringAssert.Contains(sql, "@PermissionType");
+        StringAssert.Contains(sql, "@PermissionGroupID");
+        StringAssert.Contains(sql, "@PermissionAccountID");
+        StringAssert.Contains(sql, "@Value");
+        Assert.IsFalse(sql.Contains("hm_messages", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UpsertAclSql", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void InsertFolderSql_PreservesLegacyFolderColumnsAndGeneratedIdentity()
     {
         var sql = SqlServerImapFolderAdministrationStore.InsertFolderSql;
