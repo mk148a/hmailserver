@@ -51,6 +51,158 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    [DataRow(7, true, false)]
+    [DataRow(15, true, true)]
+    [DataRow(7, false, false)]
+    [DataRow(15, false, true)]
+    public async Task CreatesCompleteBackupOptionMatrixWithLegacyOrderingAndCleanup(
+        int backupOptions,
+        bool messagesDbOnly,
+        bool compressed)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
+        var sourceDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-data-{Guid.NewGuid():N}");
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(sourceDirectory);
+        Directory.CreateDirectory(destination);
+        Directory.CreateDirectory(Path.Combine(sourceDirectory, "accounts", "alice", "nested"));
+        File.WriteAllText(Path.Combine(sourceDirectory, "root.eml"), "root message");
+        File.WriteAllText(
+            Path.Combine(sourceDirectory, "accounts", "alice", "message.eml"),
+            "message body");
+        File.WriteAllText(
+            Path.Combine(sourceDirectory, "accounts", "alice", "nested", "second.eml"),
+            "nested message body");
+
+        var timestamp = new DateTime(
+            2026,
+            8,
+            1,
+            messagesDbOnly ? 1 : 2,
+            compressed ? 1 : 0,
+            0);
+        var archivePath = Path.Combine(
+            destination,
+            $"HMBackup {timestamp:yyyy-MM-dd HHmmss}.7z");
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                () => timestamp,
+                payloadProvider: static (_, _) => ValueTask.FromResult(
+                    new BackupArchiveXmlPayload(
+                        Settings: new SettingsAdministrationSnapshot(
+                            "mail.example.test",
+                            "smtp",
+                            "pop3",
+                            "imap"),
+                        Domains: new[]
+                        {
+                            new DomainAdministrationSnapshot(10, "example.test", true)
+                        })),
+                dataDirectory: sourceDirectory);
+
+            await runtime.CreateAsync(
+                new BackupStartPlanEvidence(
+                    Destination: destination,
+                    BackupOptions: backupOptions,
+                    BackupMessagesDbOnly: messagesDbOnly,
+                    AllMessageFilesInDataDirectory: true,
+                    DestinationExists: true),
+                CancellationToken.None);
+
+            Assert.IsTrue(File.Exists(archivePath), archivePath);
+            Assert.IsFalse(File.Exists(Path.Combine(destination, "hMailServerBackup.xml")));
+
+            var metadata = XDocument.Parse(await ReadMetadataXmlAsync(sevenZipPath, archivePath));
+            var root = metadata.Root!;
+            CollectionAssert.AreEqual(
+                new[] { "BackupInformation", "Domains", "Properties" },
+                root.Elements().Select(element => element.Name.LocalName).ToArray());
+            var information = root.Element("BackupInformation")!;
+            CollectionAssert.AreEqual(
+                new[] { "DataFiles" },
+                information.Elements().Select(element => element.Name.LocalName).ToArray());
+            Assert.AreEqual(backupOptions.ToString(), information.Attribute("Mode")?.Value);
+
+            var dataFiles = information.Element("DataFiles")!;
+            if (compressed)
+            {
+                Assert.AreEqual("7z", dataFiles.Attribute("Format")?.Value);
+                Assert.AreEqual("0", dataFiles.Attribute("Size")?.Value);
+                Assert.IsNull(dataFiles.Attribute("FolderName"));
+            }
+            else
+            {
+                Assert.AreEqual("Raw", dataFiles.Attribute("Format")?.Value);
+                Assert.AreEqual("DataBackup", dataFiles.Attribute("FolderName")?.Value);
+                Assert.IsNull(dataFiles.Attribute("Size"));
+            }
+
+            var archiveEntries = await ReadArchiveEntriesAsync(sevenZipPath, archivePath);
+            Assert.IsTrue(archiveEntries.Contains("hMailServerBackup.xml"));
+            if (messagesDbOnly || !compressed)
+            {
+                CollectionAssert.AreEqual(
+                    new[] { "hMailServerBackup.xml" },
+                    archiveEntries.ToArray());
+            }
+            else
+            {
+                var normalizedEntries = archiveEntries
+                    .Select(entry => entry.Replace('\\', '/'))
+                    .ToArray();
+                StringAssert.Contains(
+                    string.Join("\n", normalizedEntries),
+                    "DataBackup/accounts/alice/nested/second.eml");
+                Assert.IsFalse(
+                    normalizedEntries.Any(entry => entry.EndsWith(
+                        "/root.eml",
+                        StringComparison.OrdinalIgnoreCase)));
+            }
+
+            var dataBackupPath = Path.Combine(destination, "DataBackup");
+            if (messagesDbOnly || compressed)
+            {
+                Assert.IsFalse(Directory.Exists(dataBackupPath));
+            }
+            else
+            {
+                Assert.IsTrue(Directory.Exists(dataBackupPath));
+                Assert.IsFalse(File.Exists(Path.Combine(dataBackupPath, "root.eml")));
+                Assert.IsTrue(
+                    File.Exists(Path.Combine(
+                        dataBackupPath,
+                        "accounts",
+                        "alice",
+                        "nested",
+                        "second.eml")));
+            }
+
+            Assert.IsTrue(File.Exists(Path.Combine(sourceDirectory, "root.eml")));
+            Assert.IsTrue(File.Exists(Path.Combine(
+                sourceDirectory,
+                "accounts",
+                "alice",
+                "nested",
+                "second.eml")));
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+            Directory.Delete(sourceDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task RejectsPayloadOptionsBeforeCreatingAnyFile()
     {
         var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
@@ -2362,6 +2514,40 @@ public sealed class BackupArchiveRuntimeTests
             process.ExitCode is 0 or 1,
             $"7za metadata extraction failed: {error}");
         return output;
+    }
+
+    private static async Task<IReadOnlyList<string>> ReadArchiveEntriesAsync(
+        string sevenZipPath,
+        string archivePath)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = sevenZipPath,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add("l");
+        startInfo.ArgumentList.Add(archivePath);
+        startInfo.ArgumentList.Add("-slt");
+
+        using var process = Process.Start(startInfo);
+        Assert.IsNotNull(process);
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        var output = await outputTask;
+        var error = await errorTask;
+        Assert.AreEqual(0, process.ExitCode, error);
+
+        var paths = output
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+            .Where(line => line.StartsWith("Path = ", StringComparison.Ordinal))
+            .Select(line => line[7..])
+            .ToArray();
+        Assert.IsTrue(paths.Length > 0, output);
+        return paths[1..];
     }
 
     private static async Task ExtractArchiveAsync(
