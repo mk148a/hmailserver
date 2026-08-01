@@ -1,16 +1,16 @@
 # Current State
 
-- UTC timestamp: 2026-08-01T15:32:00Z
-- Local timestamp: 2026-08-01T18:32:00+03:00
+- UTC timestamp: 2026-08-01T16:00:00Z
+- Local timestamp: 2026-08-01T19:00:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `3f64cd731` (code/test); documentation commit pending
+- Current HEAD: `8e3bf68d8` (code/test); documentation commit pending
 - Last successfully pushed commit: `cdd5daedd05c0a457bc134777382e9f67e53d4c9`
-- Latest focused-test result: IMAPFolders COM/SQL tests `18/18` passed
-- Latest full Net10 result: `1505 passed, 3 skipped`
+- Latest focused-test result: IMAPFolders COM/SQL tests `19/19` passed
+- Latest full Net10 result: `1506 passed, 3 skipped`
 - Opt-in tests passed/skipped/blocked: `0/3/0` in the full run; SQL failure-path tests and native registry integration are skipped by opt-in gates
-- Current bounded slice: authenticated existing-row `IMAPFolder.Name` staging and owning `Save` update parity completed in `3f64cd731`; Modified UTF-7, owner-scoped SQL fields, shared snapshot replacement, failure preservation, and direct activation denial are covered
+- Current bounded slice: authenticated existing-row `IMAPFolder.Subscribed` staging through the owning `Save` path completed in `8e3bf68d8`; staged-only behavior, shared snapshot replacement, failure preservation, and direct activation denial are covered
 - Completed milestones: Backup metadata parity through accounts, fetch accounts, rules, folders, DB-only messages, compressed message staging, raw message staging, message-only modes, complete option-matrix acceptance coverage, production-wired backup event callbacks, restore metadata consistency validation, domain/account graph validation, message/file correspondence validation, domain child-container validation, direct account child-container validation, FetchAccountUIDs graph validation, RuleCriterias/RuleActions graph validation, folder message/subfolder graph validation, restore dry-run missing-section planning, folder scalar validation, writer folder snapshot validation, read-only restore containment preflight, bounded/cancellable containment traversal, execution-time containment revalidation, restore execution gate contract, read-only Domain/Account identity uniqueness validation, one-pass identity scanning with trailing-space coverage, parent-scoped folder identity validation, explicit SQL/filesystem mutation safety requirements in the dry-run plan, rollback-preserving transaction boundary orchestration, and offline synthetic 100k SEARCH/SORT evidence
-- Open production blockers: `IMAPFolder.Subscribed` setter, deletion, ACL mutation, live SQL, rollback, concurrency, and protocol/cache behavior remain open; restore/round-trip/rollback are incomplete; freshness revalidation is not atomically coupled to future extraction/mutation and remains unwired; SEC-18 cutover is not independently GREEN; COM/Admin parity matrix, upgrade rollback, protocol acceptance, performance/soak, and release-artifact gates remain open; the backup manager's no-runtime fallback remains `E_NOTIMPL` outside the production composition
+- Open production blockers: existing-folder deletion, ACL mutation, live SQL, rollback, concurrency, and protocol/cache behavior remain open; restore/round-trip/rollback are incomplete; freshness revalidation is not atomically coupled to future extraction/mutation and remains unwired; SEC-18 cutover is not independently GREEN; COM/Admin parity matrix, upgrade rollback, protocol acceptance, performance/soak, and release-artifact gates remain open; the backup manager's no-runtime fallback remains `E_NOTIMPL` outside the production composition
 - Environment-blocked work: Disposable SQL/native registry integration and PHP runtime-dependent checks are opt-in/skipped in the current environment; no production resource may be used
 - Protected/do-not-touch areas: `AGENTS.md` dirty changes; untracked `artifacts/sec18-staging/`; untracked generated `hmailserver/source/Server.Net10.zip`; production service, database, Data directory, WebAdmin, installed Application COM identity, DCOM ACLs, registry, firewall, and public ports
-- Next three independent slices: authenticated existing-row `IMAPFolder.Subscribed` setter through the owning `Save` path; isolated disposable SQL restore transaction harness/wiring when approved; isolated backup/restore round-trip acceptance harness
+- Next three independent slices: authenticated parent-scoped existing-folder deletion parity; isolated disposable SQL restore transaction harness/wiring when approved; isolated backup/restore round-trip acceptance harness
