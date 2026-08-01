@@ -1267,6 +1267,40 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlRejectsDuplicateFolderIdsBeforeWriting()
+    {
+        var error = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            CreateFolderMetadataXml(
+                new ImapFolderAdministrationSnapshot(301, 20, -1, "root", true, 42, "created"),
+                new ImapFolderAdministrationSnapshot(301, 20, -1, "duplicate", false, 7, "created")));
+
+        StringAssert.Contains(error.Message, "duplicate folder ID");
+    }
+
+    [TestMethod]
+    public void MetadataXmlRejectsOrphanedFolderParentBeforeWriting()
+    {
+        var error = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            CreateFolderMetadataXml(
+                new ImapFolderAdministrationSnapshot(301, 20, -1, "root", true, 42, "created"),
+                new ImapFolderAdministrationSnapshot(303, 20, 999, "orphan", false, 7, "created")));
+
+        StringAssert.Contains(error.Message, "orphaned parent ID");
+    }
+
+    [TestMethod]
+    public void MetadataXmlRejectsCyclicFolderParentBeforeWriting()
+    {
+        var error = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            CreateFolderMetadataXml(
+                new ImapFolderAdministrationSnapshot(301, 20, -1, "root", true, 42, "created"),
+                new ImapFolderAdministrationSnapshot(302, 20, 303, "cycle-one", false, 7, "created"),
+                new ImapFolderAdministrationSnapshot(303, 20, 302, "cycle-two", false, 8, "created")));
+
+        StringAssert.Contains(error.Message, "parent cycle");
+    }
+
+    [TestMethod]
     public void MetadataXmlOmitsFolderContainerWhenEmptyOrMessagesAreNotSelected()
     {
         var emptyFoldersXml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
@@ -2491,6 +2525,25 @@ public sealed class BackupArchiveRuntimeTests
             RuleActionAdministrationSnapshot action,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private static string CreateFolderMetadataXml(
+        params ImapFolderAdministrationSnapshot[] folders)
+    {
+        return SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            6,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: new[] { new DomainAdministrationSnapshot(10, "example.test", true) },
+                Accounts: new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+                {
+                    [10] = new[] { new AccountAdministrationSnapshot(20, 10, "account@example.test", true, 0) }
+                },
+                Folders: new Dictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>
+                {
+                    [20] = folders
+                }));
     }
 
     private static async Task<string> ReadMetadataXmlAsync(

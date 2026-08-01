@@ -739,6 +739,7 @@ public sealed class SevenZipBackupArchiveRuntime
             return;
         }
 
+        ValidateFolderSnapshot(accountFolders);
         var foldersByParentId = accountFolders
             .GroupBy(static folder => folder.ParentId)
             .ToDictionary(static group => group.Key, static group => group.ToArray());
@@ -755,6 +756,67 @@ public sealed class SevenZipBackupArchiveRuntime
         }
 
         writer.WriteEndElement();
+    }
+
+    private static void ValidateFolderSnapshot(
+        IReadOnlyList<ImapFolderAdministrationSnapshot> accountFolders)
+    {
+        var foldersById = new Dictionary<int, ImapFolderAdministrationSnapshot>();
+        foreach (var folder in accountFolders)
+        {
+            if (!foldersById.TryAdd(folder.Id, folder))
+            {
+                throw new InvalidOperationException(
+                    "The backup folder snapshot contains a duplicate folder ID: " + folder.Id);
+            }
+        }
+
+        if (!accountFolders.Any(static folder => folder.ParentId == -1))
+        {
+            throw new InvalidOperationException(
+                "The backup folder snapshot does not contain a root folder.");
+        }
+
+        foreach (var folder in accountFolders)
+        {
+            if (folder.ParentId != -1 && !foldersById.ContainsKey(folder.ParentId))
+            {
+                throw new InvalidOperationException(
+                    "The backup folder snapshot contains an orphaned parent ID: "
+                    + folder.ParentId);
+            }
+        }
+
+        var visited = new HashSet<int>();
+        var visiting = new HashSet<int>();
+        foreach (var folder in accountFolders)
+        {
+            VisitFolder(folder.Id);
+        }
+
+        void VisitFolder(int folderId)
+        {
+            if (visited.Contains(folderId))
+            {
+                return;
+            }
+
+            if (!visiting.Add(folderId))
+            {
+                throw new InvalidOperationException(
+                    "The backup folder snapshot contains a parent cycle at folder ID: "
+                    + folderId);
+            }
+
+            var parentId = foldersById[folderId].ParentId;
+            if (parentId != -1)
+            {
+                VisitFolder(parentId);
+            }
+
+            visiting.Remove(folderId);
+            visited.Add(folderId);
+        }
     }
 
     private static void WriteFolder(
