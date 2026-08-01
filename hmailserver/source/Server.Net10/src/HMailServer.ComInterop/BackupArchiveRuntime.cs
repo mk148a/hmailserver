@@ -9,7 +9,7 @@ namespace HMailServer.ComInterop;
 
 /// <summary>
 /// Creates the bounded legacy archive and modeled scalar settings/domain metadata.
-/// Message payloads, fetch secrets, nested domain children, and data-directory
+/// Message payloads, remaining nested domain children, and data-directory
 /// staging remain fenced.
 /// </summary>
 [ComVisible(false)]
@@ -133,7 +133,8 @@ public sealed class SevenZipBackupArchiveRuntime
                     payload?.FetchAccounts,
                     payload?.Aliases,
                     payload?.DistributionLists,
-                    payload?.DistributionListRecipients);
+                    payload?.DistributionListRecipients,
+                    payload?.BackupFetchAccounts);
             }
 
             if ((backupOptions & BackupStartPlan.BackupSettingsFlag) != 0)
@@ -331,7 +332,8 @@ public sealed class SevenZipBackupArchiveRuntime
         IReadOnlyDictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>? fetchAccounts,
         IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? normalAliases,
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? distributionLists,
-        IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients)
+        IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients,
+        IReadOnlyDictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>? backupFetchAccounts)
     {
         if (domains is null)
         {
@@ -434,19 +436,36 @@ public sealed class SevenZipBackupArchiveRuntime
                     writer.WriteAttributeString("SignaturePlainText", account.SignaturePlainText);
                     writer.WriteAttributeString("SignatureHTML", account.SignatureHtml);
                     writer.WriteAttributeString("LastLogonTime", account.LastLogonTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
-                    if (fetchAccounts is not null
-                        && fetchAccounts.TryGetValue(account.Id, out var accountFetchAccounts)
-                        && accountFetchAccounts.Count > 0)
+                    IReadOnlyList<FetchAccountBackupAdministrationSnapshot>? accountBackupFetchAccounts = null;
+                    var hasBackupFetchAccounts = backupFetchAccounts is not null
+                        && backupFetchAccounts.TryGetValue(account.Id, out accountBackupFetchAccounts);
+                    IReadOnlyList<FetchAccountAdministrationSnapshot>? accountFetchAccounts = null;
+                    var hasNormalFetchAccounts = fetchAccounts is not null
+                        && fetchAccounts.TryGetValue(account.Id, out accountFetchAccounts);
+                    var selectedFetchAccounts = hasBackupFetchAccounts
+                        ? accountBackupFetchAccounts!.Select(static fetchAccount => fetchAccount.Account).ToArray()
+                        : hasNormalFetchAccounts
+                            ? accountFetchAccounts!
+                            : Array.Empty<FetchAccountAdministrationSnapshot>();
+                    if (selectedFetchAccounts.Count > 0)
                     {
                         writer.WriteStartElement("FetchAccounts");
-                        foreach (var fetchAccount in accountFetchAccounts)
+                        foreach (var fetchAccount in selectedFetchAccounts)
                         {
+                            var backupFetchAccount = hasBackupFetchAccounts
+                                ? accountBackupFetchAccounts!.First(
+                                    candidate => candidate.Account.Id == fetchAccount.Id)
+                                : null;
                             writer.WriteStartElement("FetchAccount");
                             writer.WriteAttributeString("Name", fetchAccount.Name);
                             writer.WriteAttributeString("ServerAddress", fetchAccount.ServerAddress);
                             writer.WriteAttributeString("ServerType", fetchAccount.ServerType.ToString(CultureInfo.InvariantCulture));
                             writer.WriteAttributeString("Port", fetchAccount.Port.ToString(CultureInfo.InvariantCulture));
                             writer.WriteAttributeString("Username", fetchAccount.Username);
+                            if (backupFetchAccount is not null)
+                            {
+                                writer.WriteAttributeString("Password", backupFetchAccount.Password);
+                            }
                             writer.WriteAttributeString("Minutes", fetchAccount.MinutesBetweenFetch.ToString(CultureInfo.InvariantCulture));
                             writer.WriteAttributeString("DaysToKeep", fetchAccount.DaysToKeepMessages.ToString(CultureInfo.InvariantCulture));
                             writer.WriteAttributeString("Active", (fetchAccount.Enabled ? 1 : 0).ToString(CultureInfo.InvariantCulture));
@@ -457,6 +476,19 @@ public sealed class SevenZipBackupArchiveRuntime
                             writer.WriteAttributeString("UseAntiVirus", (fetchAccount.UseAntiVirus ? 1 : 0).ToString(CultureInfo.InvariantCulture));
                             writer.WriteAttributeString("EnableRouteRecipients", (fetchAccount.EnableRouteRecipients ? 1 : 0).ToString(CultureInfo.InvariantCulture));
                             writer.WriteAttributeString("ConnectionSecurity", fetchAccount.ConnectionSecurity.ToString(CultureInfo.InvariantCulture));
+                            if (backupFetchAccount is not null && backupFetchAccount.Uids.Count > 0)
+                            {
+                                writer.WriteStartElement("FetchAccountUIDs");
+                                foreach (var uid in backupFetchAccount.Uids)
+                                {
+                                    writer.WriteStartElement("UID");
+                                    writer.WriteAttributeString("UID", uid.Value);
+                                    writer.WriteAttributeString("Date", uid.Date);
+                                    writer.WriteEndElement();
+                                }
+
+                                writer.WriteEndElement();
+                            }
                             writer.WriteEndElement();
                         }
 
@@ -618,7 +650,8 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? DistributionLists = null,
     IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? DistributionListRecipients = null,
     IReadOnlyDictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>? BackupAccounts = null,
-    IReadOnlyDictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>? FetchAccounts = null);
+    IReadOnlyDictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>? FetchAccounts = null,
+    IReadOnlyDictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>? BackupFetchAccounts = null);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
@@ -629,6 +662,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IAccountAdministrationStore _accountStore;
     private readonly IBackupAccountAdministrationStore? _backupAccountStore;
     private readonly IFetchAccountAdministrationStore? _fetchAccountStore;
+    private readonly IBackupFetchAccountAdministrationStore? _backupFetchAccountStore;
     private readonly IAliasAdministrationStore _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore? _distributionListRecipientStore;
@@ -648,7 +682,8 @@ public sealed class BackupXmlPayloadRuntime
             distributionListStore: null,
             distributionListRecipientStore: null,
             backupAccountStore: null,
-            fetchAccountStore: null)
+            fetchAccountStore: null,
+            backupFetchAccountStore: null)
     {
     }
 
@@ -661,7 +696,8 @@ public sealed class BackupXmlPayloadRuntime
         IDistributionListAdministrationStore? distributionListStore,
         IDistributionListRecipientAdministrationStore? distributionListRecipientStore,
         IBackupAccountAdministrationStore? backupAccountStore = null,
-        IFetchAccountAdministrationStore? fetchAccountStore = null)
+        IFetchAccountAdministrationStore? fetchAccountStore = null,
+        IBackupFetchAccountAdministrationStore? backupFetchAccountStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -674,6 +710,7 @@ public sealed class BackupXmlPayloadRuntime
         _accountStore = accountStore;
         _backupAccountStore = backupAccountStore;
         _fetchAccountStore = fetchAccountStore;
+        _backupFetchAccountStore = backupFetchAccountStore;
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _distributionListRecipientStore = distributionListRecipientStore;
@@ -700,6 +737,7 @@ public sealed class BackupXmlPayloadRuntime
         IReadOnlyDictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>? accounts = null;
         IReadOnlyDictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>? backupAccounts = null;
         IReadOnlyDictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>? fetchAccounts = null;
+        IReadOnlyDictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>? backupFetchAccounts = null;
         IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? aliases = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? distributionLists = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients = null;
@@ -713,6 +751,9 @@ public sealed class BackupXmlPayloadRuntime
             var fetchAccountsByAccountId = _fetchAccountStore is null
                 ? null
                 : new Dictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>();
+            var backupFetchAccountsByAccountId = _backupFetchAccountStore is null
+                ? null
+                : new Dictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>();
             var normalAliasesByDomainId = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
             var distributionListsByDomainId = _distributionListStore is null
                 ? null
@@ -746,7 +787,19 @@ public sealed class BackupXmlPayloadRuntime
                         .ConfigureAwait(false);
                 }
 
-                if (fetchAccountsByAccountId is not null)
+                if (backupFetchAccountsByAccountId is not null)
+                {
+                    foreach (var account in accountsByDomainId[domain.Id])
+                    {
+                        if (!backupFetchAccountsByAccountId.ContainsKey(account.Id))
+                        {
+                            backupFetchAccountsByAccountId[account.Id] = await _backupFetchAccountStore!
+                                .GetBackupFetchAccountsAsync(account.Id, cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                    }
+                }
+                else if (fetchAccountsByAccountId is not null)
                 {
                     foreach (var account in accountsByDomainId[domain.Id])
                     {
@@ -787,6 +840,7 @@ public sealed class BackupXmlPayloadRuntime
             accounts = accountsByDomainId;
             backupAccounts = backupAccountsByDomainId;
             fetchAccounts = fetchAccountsByAccountId;
+            backupFetchAccounts = backupFetchAccountsByAccountId;
             aliases = normalAliasesByDomainId;
             distributionLists = distributionListsByDomainId;
 
@@ -814,6 +868,7 @@ public sealed class BackupXmlPayloadRuntime
             distributionLists,
             distributionListRecipients,
             backupAccounts,
-            fetchAccounts);
+            fetchAccounts,
+            backupFetchAccounts);
     }
 }

@@ -1012,6 +1012,143 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public async Task PayloadRuntimeUsesDedicatedBackupFetchStoreAndWritesLegacyPasswordAndUidOrder()
+    {
+        var domains = new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) };
+        var ordinaryFetchStore = new RecordingFetchAccountAdministrationStore(
+            new Dictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>
+            {
+                [1] = new[] { CreateFetchAccountSnapshot(99, 1, "ordinary-fetch") }
+            });
+        var backupFetchStore = new RecordingBackupFetchAccountAdministrationStore(
+            new Dictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>
+            {
+                [1] = new[]
+                {
+                    new FetchAccountBackupAdministrationSnapshot(
+                        CreateFetchAccountSnapshot(11, 1, "backup-fetch"),
+                        "a62b3c438efae3db",
+                        new[]
+                        {
+                            new FetchAccountUidBackupAdministrationSnapshot(
+                                "uid<&\"'", "2026-07-30 01:02:03")
+                        })
+                },
+                [2] = Array.Empty<FetchAccountBackupAdministrationSnapshot>()
+            });
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(domains),
+            new RecordingDomainAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>()),
+            new RecordingAccountAdministrationStore(
+                new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+                {
+                    [10] = new[]
+                    {
+                        new AccountAdministrationSnapshot(1, 10, "first@alpha.example", true, 0),
+                        new AccountAdministrationSnapshot(2, 10, "second@alpha.example", true, 0)
+                    }
+                }),
+            new RecordingAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
+            distributionListStore: null,
+            distributionListRecipientStore: null,
+            fetchAccountStore: ordinaryFetchStore,
+            backupFetchAccountStore: backupFetchStore);
+
+        var payload = await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence(
+                Destination: "backup",
+                BackupOptions: 2,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(Array.Empty<int>(), ordinaryFetchStore.RequestedAccountIds.ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 2 }, backupFetchStore.RequestedAccountIds.ToArray());
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(2, "10.0.0-B0", payload);
+        var fetchAccount = XDocument.Parse(xml)
+            .Root!
+            .Element("Domains")!
+            .Element("Domain")!
+            .Element("Accounts")!
+            .Element("Account")!
+            .Element("FetchAccounts")!
+            .Element("FetchAccount")!;
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Name", "ServerAddress", "ServerType", "Port", "Username", "Password", "Minutes",
+                "DaysToKeep", "Active", "MIMERecipientHeaders", "ProcessMIMERecipients", "ProcessMIMEDate",
+                "UseAntiSpam", "UseAntiVirus", "EnableRouteRecipients", "ConnectionSecurity"
+            },
+            fetchAccount.Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("a62b3c438efae3db", fetchAccount.Attribute("Password")?.Value);
+        var uids = fetchAccount.Element("FetchAccountUIDs")!;
+        CollectionAssert.AreEqual(
+            new[] { "UID", "Date" },
+            uids.Elements("UID").Single().Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("uid<&\"'", uids.Element("UID")?.Attribute("UID")?.Value);
+        Assert.AreEqual("2026-07-30 01:02:03", uids.Element("UID")?.Attribute("Date")?.Value);
+        Assert.IsTrue(xml.Contains("UID=\"uid&lt;&amp;&quot;'\"", StringComparison.Ordinal));
+        Assert.IsNull(
+            XDocument.Parse(xml).Root!.Element("Domains")!.Element("Domain")!
+                .Element("Accounts")!.Elements("Account").Skip(1).Single().Element("FetchAccounts"));
+    }
+
+    [TestMethod]
+    public void MetadataXmlOmitsEmptyFetchAccountAndUidContainers()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            2,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+                Accounts: new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+                {
+                    [10] = new[] { new AccountAdministrationSnapshot(1, 10, "account@alpha.example", true, 0) }
+                },
+                BackupFetchAccounts: new Dictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>
+                {
+                    [1] = new[]
+                    {
+                        new FetchAccountBackupAdministrationSnapshot(
+                            CreateFetchAccountSnapshot(11, 1, "fetch"),
+                            string.Empty,
+                            Array.Empty<FetchAccountUidBackupAdministrationSnapshot>())
+                    }
+                }));
+
+        var account = XDocument.Parse(xml).Root!.Element("Domains")!.Element("Domain")!
+            .Element("Accounts")!.Element("Account")!;
+        Assert.IsNull(account.Element("FetchAccountUIDs"));
+        Assert.IsNotNull(account.Element("FetchAccounts"));
+        Assert.AreEqual(string.Empty,
+            account.Element("FetchAccounts")!.Element("FetchAccount")!.Attribute("Password")?.Value);
+
+        var emptyXml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            2,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+                Accounts: new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+                {
+                    [10] = new[] { new AccountAdministrationSnapshot(1, 10, "account@alpha.example", true, 0) }
+                },
+                BackupFetchAccounts: new Dictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>
+                {
+                    [1] = Array.Empty<FetchAccountBackupAdministrationSnapshot>()
+                }));
+        Assert.IsNull(XDocument.Parse(emptyXml).Root!.Element("Domains")!.Element("Domain")!
+            .Element("Accounts")!.Element("Account")!.Element("FetchAccounts"));
+    }
+
+    [TestMethod]
     public async Task PayloadRuntimeDoesNotLoadAliasesWhenDomainsAreNotSelected()
     {
         var aliasStore = new RecordingDomainAliasAdministrationStore(
@@ -1184,6 +1321,24 @@ public sealed class BackupArchiveRuntimeTests
             int fetchAccountId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class RecordingBackupFetchAccountAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>> accounts)
+        : IBackupFetchAccountAdministrationStore
+    {
+        public List<int> RequestedAccountIds { get; } = new();
+
+        public ValueTask<IReadOnlyList<FetchAccountBackupAdministrationSnapshot>> GetBackupFetchAccountsAsync(
+            int accountId,
+            CancellationToken cancellationToken)
+        {
+            RequestedAccountIds.Add(accountId);
+            return ValueTask.FromResult(
+                accounts.TryGetValue(accountId, out var fetchAccounts)
+                    ? fetchAccounts
+                    : Array.Empty<FetchAccountBackupAdministrationSnapshot>());
+        }
     }
 
     private static FetchAccountAdministrationSnapshot CreateFetchAccountSnapshot(

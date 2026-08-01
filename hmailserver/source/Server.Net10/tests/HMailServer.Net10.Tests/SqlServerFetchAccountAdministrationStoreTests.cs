@@ -110,4 +110,32 @@ public sealed class SqlServerFetchAccountAdministrationStoreTests
         Assert.IsFalse(sql.Contains("@AccountID", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("@UIDFAID", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void BackupFetchAccountsSql_ProjectsCiphertextAndScopesByAccountInFaidOrder()
+    {
+        var sql = SqlServerBackupFetchAccountAdministrationStore.GetBackupFetchAccountsSql;
+
+        StringAssert.Contains(sql, "fapassword");
+        StringAssert.Contains(sql, "FROM hm_fetchaccounts");
+        StringAssert.Contains(sql, "WHERE faaccountid = @AccountID");
+        StringAssert.Contains(sql, "ORDER BY faid ASC");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_fetchaccounts_uids", StringComparison.OrdinalIgnoreCase));
+        Assert.IsTrue(
+            sql.IndexOf("fausername", StringComparison.OrdinalIgnoreCase)
+                < sql.IndexOf("fapassword", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void BackupFetchAccountUidsSql_UsesUidFilterAndPreservesReaderOrder()
+    {
+        var sql = SqlServerBackupFetchAccountAdministrationStore.GetBackupFetchAccountUidsSql;
+
+        StringAssert.Contains(sql, "uidvalue");
+        StringAssert.Contains(sql, "CONVERT(varchar(19), uidtime, 120) AS uidtime");
+        StringAssert.Contains(sql, "FROM hm_fetchaccounts_uids");
+        StringAssert.Contains(sql, "WHERE uidfaid = @FetchAccountID");
+        Assert.IsFalse(sql.Contains("ORDER BY", StringComparison.OrdinalIgnoreCase));
+    }
 }
