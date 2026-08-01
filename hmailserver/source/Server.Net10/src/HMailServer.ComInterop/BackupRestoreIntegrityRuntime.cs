@@ -26,12 +26,16 @@ internal sealed class BackupRestoreIntegrityRuntime
 
     internal async ValueTask<BackupRestoreIntegrityEvidence> InspectAsync(
         string archivePath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool backupMessagesDbOnly = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(archivePath);
 
         var fullArchivePath = Path.GetFullPath(archivePath);
-        var evidence = new BackupRestoreIntegrityEvidence(fullArchivePath);
+        var evidence = new BackupRestoreIntegrityEvidence(fullArchivePath)
+        {
+            BackupMessagesDbOnly = backupMessagesDbOnly
+        };
         if (Directory.Exists(fullArchivePath))
         {
             return evidence.Invalid("The restore payload must be a file, not a directory.");
@@ -128,9 +132,20 @@ internal sealed class BackupRestoreIntegrityRuntime
 
         if (string.Equals(metadata.DataFilesFormat, "7z", StringComparison.OrdinalIgnoreCase))
         {
-            if (!directoryEntries.Contains(DataBackupFolderName, StringComparer.OrdinalIgnoreCase))
+            var permitsMissingDataBackup =
+                backupMessagesDbOnly
+                && (metadata.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0;
+            if (!permitsMissingDataBackup
+                && !directoryEntries.Contains(DataBackupFolderName, StringComparer.OrdinalIgnoreCase))
             {
                 return evidence.Invalid("The compressed payload does not contain a DataBackup directory.");
+            }
+
+            if (permitsMissingDataBackup
+                && !directoryEntries.Contains(DataBackupFolderName, StringComparer.OrdinalIgnoreCase)
+                && entries.Any(static entry => IsDataBackupEntry(entry)))
+            {
+                return evidence.Invalid("The DB-only compressed payload must not contain DataBackup entries.");
             }
 
             if (entries.Any(static entry =>
@@ -492,6 +507,7 @@ internal sealed record BackupRestoreIntegrityEvidence(string ArchivePath)
     internal bool MetadataPresent { get; init; }
     internal bool MetadataXmlValid { get; init; }
     internal int? BackupOptions { get; init; }
+    internal bool BackupMessagesDbOnly { get; init; }
     internal string? DataFilesFormat { get; init; }
     internal string? RawFolderName { get; init; }
     internal string? RawDataBackupPath { get; init; }

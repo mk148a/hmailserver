@@ -37,6 +37,29 @@ public sealed class BackupRestoreIntegrityRuntimeTests
     }
 
     [TestMethod]
+    public async Task InspectAsync_AcceptsCompressedDbOnlyMessageMetadataWithoutDataBackup()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"12\"><DataFiles Format=\"7z\" /></BackupInformation></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(
+            fixture.ArchivePath,
+            CancellationToken.None,
+            backupMessagesDbOnly: true);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+        Assert.IsTrue(evidence.BackupMessagesDbOnly);
+        Assert.AreEqual(12, evidence.BackupOptions);
+        Assert.AreEqual("7z", evidence.DataFilesFormat);
+    }
+
+    [TestMethod]
     public async Task InspectAsync_RejectsCompressedMetadataWithoutDataBackup()
     {
         if (!OperatingSystem.IsWindows())
