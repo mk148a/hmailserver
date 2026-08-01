@@ -121,9 +121,26 @@ internal sealed class BackupRestoreIntegrityRuntime
             MetadataPresent = true,
             MetadataXmlValid = true,
             BackupOptions = metadata.BackupOptions,
+            DataFilesPresent = metadata.DataFilesPresent,
             DataFilesFormat = metadata.DataFilesFormat,
             RawFolderName = metadata.RawFolderName
         };
+
+        var containsMessages = (metadata.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0;
+        if (containsMessages != metadata.DataFilesPresent)
+        {
+            return evidence.Invalid(
+                containsMessages
+                    ? "BackupInformation Mode contains BOMessages but DataFiles is missing."
+                    : "DataFiles is present but BackupInformation Mode does not contain BOMessages.");
+        }
+
+        if (metadata.DataFilesPresent
+            && ((metadata.BackupOptions & BackupStartPlan.BackupCompressionFlag) != 0)
+                != string.Equals(metadata.DataFilesFormat, "7z", StringComparison.OrdinalIgnoreCase))
+        {
+            return evidence.Invalid("The DataFiles format is inconsistent with the backup compression mode.");
+        }
 
         if (metadata.DataFilesFormat is null)
         {
@@ -132,20 +149,24 @@ internal sealed class BackupRestoreIntegrityRuntime
 
         if (string.Equals(metadata.DataFilesFormat, "7z", StringComparison.OrdinalIgnoreCase))
         {
+            var containsDomains = (metadata.BackupOptions & BackupStartPlan.BackupDomainsFlag) != 0;
             var permitsMissingDataBackup =
                 backupMessagesDbOnly
                 && (metadata.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0;
+            var containsDataBackup = directoryEntries.Contains(DataBackupFolderName, StringComparer.OrdinalIgnoreCase)
+                || entries.Any(static entry => IsDataBackupEntry(entry));
+            if (containsDataBackup && (backupMessagesDbOnly || !containsDomains))
+            {
+                return evidence.Invalid(
+                    backupMessagesDbOnly
+                        ? "The DB-only compressed payload must not contain DataBackup entries."
+                        : "The compressed DataBackup payload requires BODomains and BOMessages.");
+            }
+
             if (!permitsMissingDataBackup
                 && !directoryEntries.Contains(DataBackupFolderName, StringComparer.OrdinalIgnoreCase))
             {
                 return evidence.Invalid("The compressed payload does not contain a DataBackup directory.");
-            }
-
-            if (permitsMissingDataBackup
-                && !directoryEntries.Contains(DataBackupFolderName, StringComparer.OrdinalIgnoreCase)
-                && entries.Any(static entry => IsDataBackupEntry(entry)))
-            {
-                return evidence.Invalid("The DB-only compressed payload must not contain DataBackup entries.");
             }
 
             if (entries.Any(static entry =>
@@ -166,6 +187,7 @@ internal sealed class BackupRestoreIntegrityRuntime
             if (!TryResolveRawSibling(
                     fullArchivePath,
                     metadata.RawFolderName,
+                    allowMissing: backupMessagesDbOnly,
                     out var rawDataBackupPath,
                     out var failureReason))
             {
@@ -207,6 +229,7 @@ internal sealed class BackupRestoreIntegrityRuntime
     private static bool TryResolveRawSibling(
         string archivePath,
         string? folderName,
+        bool allowMissing,
         out string? rawDataBackupPath,
         out string? failureReason)
     {
@@ -240,8 +263,19 @@ internal sealed class BackupRestoreIntegrityRuntime
             return false;
         }
 
-        if (File.Exists(candidate) || !Directory.Exists(candidate))
+        if (File.Exists(candidate))
         {
+            failureReason = "The Raw DataFiles sibling directory does not exist.";
+            return false;
+        }
+
+        if (!Directory.Exists(candidate))
+        {
+            if (allowMissing)
+            {
+                return true;
+            }
+
             failureReason = "The Raw DataFiles sibling directory does not exist.";
             return false;
         }
@@ -366,6 +400,7 @@ internal sealed class BackupRestoreIntegrityRuntime
         var dataFiles = backupInformation.Element("DataFiles");
         return new BackupRestoreMetadata(
             mode,
+            dataFiles is not null,
             dataFiles?.Attribute("Format")?.Value,
             dataFiles?.Attribute("FolderName")?.Value);
     }
@@ -490,6 +525,7 @@ internal sealed class BackupRestoreIntegrityRuntime
 
     private sealed record BackupRestoreMetadata(
         int BackupOptions,
+        bool DataFilesPresent,
         string? DataFilesFormat,
         string? RawFolderName);
 
@@ -508,6 +544,7 @@ internal sealed record BackupRestoreIntegrityEvidence(string ArchivePath)
     internal bool MetadataXmlValid { get; init; }
     internal int? BackupOptions { get; init; }
     internal bool BackupMessagesDbOnly { get; init; }
+    internal bool DataFilesPresent { get; init; }
     internal string? DataFilesFormat { get; init; }
     internal string? RawFolderName { get; init; }
     internal string? RawDataBackupPath { get; init; }

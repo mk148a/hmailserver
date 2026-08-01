@@ -60,6 +60,30 @@ public sealed class BackupRestoreIntegrityRuntimeTests
     }
 
     [TestMethod]
+    public async Task InspectAsync_AcceptsRawDbOnlyMessageMetadataWithoutDataBackup()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"4\"><DataFiles Format=\"Raw\" FolderName=\"DataBackup\" /></BackupInformation></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(
+            fixture.ArchivePath,
+            CancellationToken.None,
+            backupMessagesDbOnly: true);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+        Assert.IsTrue(evidence.BackupMessagesDbOnly);
+        Assert.AreEqual(4, evidence.BackupOptions);
+        Assert.AreEqual("Raw", evidence.DataFilesFormat);
+        Assert.IsNull(evidence.RawDataBackupPath);
+    }
+
+    [TestMethod]
     public async Task InspectAsync_RejectsCompressedMetadataWithoutDataBackup()
     {
         if (!OperatingSystem.IsWindows())
@@ -75,6 +99,54 @@ public sealed class BackupRestoreIntegrityRuntimeTests
 
         Assert.IsFalse(evidence.IsValid);
         StringAssert.Contains(evidence.FailureReason!, "DataBackup");
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_RejectsModeAndDataFilesMismatches()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var metadata = new[]
+        {
+            (Xml: "<Backup><BackupInformation Mode=\"4\" /></Backup>", Failure: "BOMessages"),
+            (Xml: "<Backup><BackupInformation Mode=\"2\"><DataFiles Format=\"Raw\" FolderName=\"DataBackup\" /></BackupInformation></Backup>", Failure: "BOMessages"),
+            (Xml: "<Backup><BackupInformation Mode=\"12\"><DataFiles Format=\"Raw\" /></BackupInformation></Backup>", Failure: "compression")
+        };
+
+        foreach (var item in metadata)
+        {
+            using var fixture = await ArchiveFixture.CreateAsync(
+                item.Xml,
+                includeNestedDataBackup: false);
+            var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+            Assert.IsFalse(evidence.IsValid, item.Xml);
+            StringAssert.Contains(evidence.FailureReason!, item.Failure);
+        }
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_RejectsCompressedDataBackupForDbOnlyMode()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"12\"><DataFiles Format=\"7z\" /></BackupInformation></Backup>",
+            includeNestedDataBackup: true);
+
+        var evidence = await fixture.Runtime.InspectAsync(
+            fixture.ArchivePath,
+            CancellationToken.None,
+            backupMessagesDbOnly: true);
+
+        Assert.IsFalse(evidence.IsValid);
+        StringAssert.Contains(evidence.FailureReason!, "DB-only");
     }
 
     [TestMethod]
