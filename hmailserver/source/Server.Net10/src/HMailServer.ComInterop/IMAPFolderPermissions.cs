@@ -128,7 +128,10 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
                 throw new COMException("IMAP folder permission index was outside the collection.", DispEBadIndex);
             }
 
-            return IMAPFolderPermission.CreateAuthorized(permissions[index]);
+            return IMAPFolderPermission.CreateAuthorized(
+                permissions[index],
+                _folderId,
+                _delete is null ? null : DeleteSelectedAsync);
         }
     }
 
@@ -140,7 +143,10 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
             ? throw new COMException(
                 "No IMAP folder permission with the specified database identifier exists.",
                 DispEBadIndex)
-            : IMAPFolderPermission.CreateAuthorized(match);
+            : IMAPFolderPermission.CreateAuthorized(
+                match,
+                _folderId,
+                _delete is null ? null : DeleteSelectedAsync);
     }
 
     public IInterfaceIMAPFolderPermission get_ItemByName(string name)
@@ -251,6 +257,30 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
         }
     }
 
+    private async ValueTask DeleteSelectedAsync(int folderId, int permissionId)
+    {
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        var permissions = GetPermissions();
+        if (!permissions.Any(permission => permission.ShareFolderId == folderId && permission.Id == permissionId))
+        {
+            return;
+        }
+
+        if (await _delete(folderId, permissionId).ConfigureAwait(false))
+        {
+            Volatile.Write(
+                ref _permissions,
+                permissions
+                    .Where(permission => permission.ShareFolderId != folderId || permission.Id != permissionId)
+                    .ToArray());
+        }
+    }
+
     internal static IMAPFolderPermissions CreateAuthorized(
         IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions,
         Func<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>? reload = null)
@@ -306,17 +336,25 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
 public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly ImapFolderPermissionAdministrationSnapshot? _permission;
+    private readonly int _folderId;
+    private readonly Func<int, int, ValueTask>? _delete;
 
     public IMAPFolderPermission()
     {
     }
 
-    private IMAPFolderPermission(ImapFolderPermissionAdministrationSnapshot permission)
+    private IMAPFolderPermission(
+        ImapFolderPermissionAdministrationSnapshot permission,
+        int folderId = 0,
+        Func<int, int, ValueTask>? delete = null)
     {
         _permission = permission;
+        _folderId = folderId;
+        _delete = delete;
     }
 
     public int ID => Snapshot.Id;
@@ -347,11 +385,36 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
 
     public void Save() => Unavailable();
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        var permission = Snapshot;
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _delete(_folderId, permission.Id).GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the IMAP folder permission from the database.",
+                EFail);
+        }
+    }
 
     internal static IMAPFolderPermission CreateAuthorized(
         ImapFolderPermissionAdministrationSnapshot permission) =>
         new(permission);
+
+    internal static IMAPFolderPermission CreateAuthorized(
+        ImapFolderPermissionAdministrationSnapshot permission,
+        int folderId,
+        Func<int, int, ValueTask>? delete) =>
+        new(permission, folderId, delete);
 
     private ImapFolderPermissionAdministrationSnapshot Snapshot =>
         _permission ?? throw new COMException(

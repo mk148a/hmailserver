@@ -92,12 +92,14 @@ public sealed class IMAPFolderPermissionsComContractTests
         var permissionsDeleteError = Assert.ThrowsExactly<COMException>(() => new IMAPFolderPermissions().Delete(0));
         var permissionsDeleteByDBIDError = Assert.ThrowsExactly<COMException>(() => new IMAPFolderPermissions().DeleteByDBID(10));
         var permissionError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolderPermission().ID);
+        var permissionDeleteError = Assert.ThrowsExactly<COMException>(new IMAPFolderPermission().Delete);
 
         Assert.AreEqual(EAccessDenied, permissionsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, permissionsRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, permissionsDeleteByDBIDError.ErrorCode);
         Assert.AreEqual(EAccessDenied, permissionsDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, permissionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, permissionDeleteError.ErrorCode);
     }
 
     [TestMethod]
@@ -190,6 +192,105 @@ public sealed class IMAPFolderPermissionsComContractTests
             static (_, _) => ValueTask.FromException<bool>(new InvalidOperationException("Simulated store failure.")));
 
         var error = Assert.ThrowsExactly<COMException>(() => permissions.Delete(0));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, permissions.Count);
+        Assert.AreEqual(10, permissions[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedItem_DeleteUsesOwningFolderAndPermissionIdsAndUpdatesSnapshot()
+    {
+        var calls = new List<(int FolderId, int PermissionId)>();
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            50,
+            new[]
+            {
+                new ImapFolderPermissionAdministrationSnapshot(10, 50, 1, 0, 100, 1),
+                new ImapFolderPermissionAdministrationSnapshot(20, 50, 2, 0, 0, 1)
+            },
+            () => Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+            (folderId, permissionId) =>
+            {
+                calls.Add((folderId, permissionId));
+                return ValueTask.FromResult(true);
+            });
+
+        var selected = permissions[1];
+        selected.Delete();
+        selected.Delete();
+
+        Assert.AreEqual(1, calls.Count);
+        CollectionAssert.AreEqual(new[] { (50, 20) }, calls);
+        Assert.AreEqual(1, permissions.Count);
+        Assert.AreEqual(10, permissions[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedItem_DeleteByDBIDWrapperBecomesNoOpAfterItsSiblingDeletes()
+    {
+        var calls = new List<(int FolderId, int PermissionId)>();
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            50,
+            new[]
+            {
+                new ImapFolderPermissionAdministrationSnapshot(10, 50, 1, 0, 100, 1)
+            },
+            () => Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+            (folderId, permissionId) =>
+            {
+                calls.Add((folderId, permissionId));
+                return ValueTask.FromResult(true);
+            });
+
+        var first = permissions[0];
+        var second = permissions.get_ItemByDBID(10);
+        first.Delete();
+        second.Delete();
+
+        Assert.AreEqual(1, calls.Count);
+        CollectionAssert.AreEqual(new[] { (50, 10) }, calls);
+        Assert.AreEqual(0, permissions.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedItem_DeleteRetainsSnapshotWhenCallbackReturnsFalse()
+    {
+        var calls = new List<(int FolderId, int PermissionId)>();
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            50,
+            new[]
+            {
+                new ImapFolderPermissionAdministrationSnapshot(10, 50, 1, 0, 100, 1)
+            },
+            () => Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+            (folderId, permissionId) =>
+            {
+                calls.Add((folderId, permissionId));
+                return ValueTask.FromResult(false);
+            });
+
+        permissions[0].Delete();
+
+        Assert.AreEqual(1, calls.Count);
+        CollectionAssert.AreEqual(new[] { (50, 10) }, calls);
+        Assert.AreEqual(1, permissions.Count);
+        Assert.AreEqual(10, permissions[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedItem_DeleteMapsCallbackFailureToEFailAndRetainsSnapshot()
+    {
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            50,
+            new[]
+            {
+                new ImapFolderPermissionAdministrationSnapshot(10, 50, 1, 0, 100, 1)
+            },
+            () => Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+            static (_, _) => ValueTask.FromException<bool>(new InvalidOperationException("Simulated store failure.")));
+
+        var error = Assert.ThrowsExactly<COMException>(() => permissions[0].Delete());
 
         Assert.AreEqual(EFail, error.ErrorCode);
         Assert.AreEqual(1, permissions.Count);
