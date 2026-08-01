@@ -61,7 +61,10 @@ BackupManagerRuntimeHost.Configure(
                 host.Services.GetRequiredService<IDistributionListRecipientAdministrationStore>(),
                 backupAccountStore: host.Services.GetRequiredService<IBackupAccountAdministrationStore>(),
                 fetchAccountStore: host.Services.GetRequiredService<IFetchAccountAdministrationStore>(),
-                backupFetchAccountStore: host.Services.GetRequiredService<IBackupFetchAccountAdministrationStore>())
+                backupFetchAccountStore: host.Services.GetRequiredService<IBackupFetchAccountAdministrationStore>(),
+                backupRuleStore: host.Services.GetRequiredService<IBackupRuleAdministrationStore>(),
+                ruleCriteriaStore: host.Services.GetRequiredService<IRuleCriteriaAdministrationStore>(),
+                ruleActionStore: host.Services.GetRequiredService<IRuleActionAdministrationStore>())
                 .GetPayloadAsync)
             .CreateAsync));
 MessageIndexingRuntimeHost.Configure(

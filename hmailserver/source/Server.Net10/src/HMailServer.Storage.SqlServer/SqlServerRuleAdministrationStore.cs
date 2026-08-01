@@ -5,7 +5,7 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerRuleAdministrationStore : IRuleAdministrationStore
+public sealed class SqlServerRuleAdministrationStore : IRuleAdministrationStore, IBackupRuleAdministrationStore
 {
     public const string GetRulesSql = """
 SELECT
@@ -18,6 +18,19 @@ SELECT
 FROM hm_rules
 WHERE ruleaccountid = @AccountID
 ORDER BY rulesortorder ASC, ruleid ASC;
+""";
+
+    public const string GetBackupRulesSql = """
+SELECT
+    ruleid,
+    ruleaccountid,
+    rulename,
+    ruleactive,
+    ruleuseand,
+    rulesortorder
+FROM hm_rules
+WHERE ruleaccountid = @AccountID
+ORDER BY rulesortorder ASC;
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
@@ -34,6 +47,33 @@ ORDER BY rulesortorder ASC, ruleid ASC;
     {
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(GetRulesSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+
+        var rules = new List<RuleAdministrationSnapshot>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rules.Add(
+                new RuleAdministrationSnapshot(
+                    Id: reader.GetInt32(0),
+                    AccountId: reader.GetInt32(1),
+                    Name: reader.GetString(2),
+                    Active: ReadLegacyBoolean(reader, 3),
+                    UseAnd: ReadLegacyBoolean(reader, 4),
+                    SortOrder: reader.GetInt32(5)));
+        }
+
+        return rules;
+    }
+
+    public async ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetBackupRulesAsync(
+        int accountId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(GetBackupRulesSql, connection);
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,

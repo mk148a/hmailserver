@@ -915,7 +915,11 @@ public static class Host
     builder.Services.AddSingleton<IMessageAdministrationContentSource, SqlServerMessageAdministrationContentSource>();
     builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAccountAdministrationStore>();
     builder.Services.AddSingleton<IBackupFetchAccountAdministrationStore, SqlServerBackupFetchAccountAdministrationStore>();
-    builder.Services.AddSingleton<IRuleAdministrationStore, SqlServerRuleAdministrationStore>();
+    builder.Services.AddSingleton<SqlServerRuleAdministrationStore>();
+    builder.Services.AddSingleton<IRuleAdministrationStore>(serviceProvider =>
+        serviceProvider.GetRequiredService<SqlServerRuleAdministrationStore>());
+    builder.Services.AddSingleton<IBackupRuleAdministrationStore>(serviceProvider =>
+        serviceProvider.GetRequiredService<SqlServerRuleAdministrationStore>());
     builder.Services.AddSingleton<IRuleCriteriaAdministrationStore, SqlServerRuleCriteriaAdministrationStore>();
     builder.Services.AddSingleton<IRuleActionAdministrationStore, SqlServerRuleActionAdministrationStore>();
     builder.Services.AddSingleton<IImapFolderAdministrationStore, SqlServerImapFolderAdministrationStore>();

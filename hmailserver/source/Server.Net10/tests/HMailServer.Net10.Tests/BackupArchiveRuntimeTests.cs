@@ -585,6 +585,142 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlWritesLegacyRulesCriteriaAndActionsInOrderAndEscapesValues()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            2,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: new[] { new DomainAdministrationSnapshot(10, "example.test", true) },
+                Accounts: new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+                {
+                    [10] = new[] { new AccountAdministrationSnapshot(20, 10, "account@example.test", true, 0) }
+                },
+                FetchAccounts: new Dictionary<int, IReadOnlyList<FetchAccountAdministrationSnapshot>>
+                {
+                    [20] = new[] { CreateFetchAccountSnapshot(30, 20, "fetch") }
+                },
+                Rules: new Dictionary<int, IReadOnlyList<RuleAdministrationSnapshot>>
+                {
+                    [20] = new[]
+                    {
+                        new RuleAdministrationSnapshot(101, 20, "rule<&\"'", true, false, 2),
+                        new RuleAdministrationSnapshot(102, 20, "second", false, true, 3)
+                    }
+                },
+                RuleCriterias: new Dictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>
+                {
+                    [101] = new[]
+                    {
+                        new RuleCriteriaAdministrationSnapshot(201, 101, "match<&\"'", true, 4, 5, "X-Test<&\"'")
+                    }
+                },
+                RuleActions: new Dictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>
+                {
+                    [101] = new[]
+                    {
+                        new RuleActionAdministrationSnapshot(
+                            301,
+                            101,
+                            7,
+                            "subject<&\"'",
+                            "body<&\"'",
+                            "from-name<&\"'",
+                            "from-address<&\"'",
+                            "file<&\"'",
+                            "to<&\"'",
+                            "folder<&\"'",
+                            "script<&\"'",
+                            "header<&\"'",
+                            "value<&\"'",
+                            12,
+                            true,
+                            1)
+                    }
+                }));
+
+        var account = XDocument.Parse(xml)
+            .Root!
+            .Element("Domains")!
+            .Element("Domain")!
+            .Element("Accounts")!
+            .Element("Account")!;
+        CollectionAssert.AreEqual(
+            new[] { "FetchAccounts", "Rules" },
+            account.Elements().Select(static element => element.Name.LocalName).ToArray());
+
+        var rules = account.Element("Rules")!.Elements("Rule").ToArray();
+        CollectionAssert.AreEqual(
+            new[] { "rule<&\"'", "second" },
+            rules.Select(static rule => rule.Attribute("Name")!.Value).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "Name", "Active", "UseAND", "SortOrder" },
+            rules[0].Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "RuleCriterias", "RuleActions" },
+            rules[0].Elements().Select(static element => element.Name.LocalName).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "MatchString", "FieldType", "MatchType", "HeaderField", "UsePredefinedField" },
+            rules[0].Element("RuleCriterias")!.Element("Criteria")!
+                .Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Type", "Subject", "Body", "FromAddress", "FromName", "IMAPFolder", "FileName", "To",
+                "ScriptFunction", "SortOrder", "Header", "Value", "RouteID", "AbortSpamFlagged"
+            },
+            rules[0].Element("RuleActions")!.Element("Action")!
+                .Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.IsTrue(xml.Contains("Name=\"rule&lt;&amp;&quot;&apos;\"", StringComparison.Ordinal));
+        Assert.IsTrue(xml.Contains("MatchString=\"match&lt;&amp;&quot;&apos;\"", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void MetadataXmlOmitsEmptyRulesCriteriaAndActionContainers()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            2,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: new[] { new DomainAdministrationSnapshot(10, "example.test", true) },
+                Accounts: new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+                {
+                    [10] = new[]
+                    {
+                        new AccountAdministrationSnapshot(20, 10, "with-rule@example.test", true, 0),
+                        new AccountAdministrationSnapshot(21, 10, "without-rule@example.test", true, 0)
+                    }
+                },
+                Rules: new Dictionary<int, IReadOnlyList<RuleAdministrationSnapshot>>
+                {
+                    [20] = new[] { new RuleAdministrationSnapshot(101, 20, "rule", true, true, 1) },
+                    [21] = Array.Empty<RuleAdministrationSnapshot>()
+                },
+                RuleCriterias: new Dictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>
+                {
+                    [101] = Array.Empty<RuleCriteriaAdministrationSnapshot>()
+                },
+                RuleActions: new Dictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>
+                {
+                    [101] = Array.Empty<RuleActionAdministrationSnapshot>()
+                }));
+
+        var accounts = XDocument.Parse(xml)
+            .Root!
+            .Element("Domains")!
+            .Element("Domain")!
+            .Element("Accounts")!
+            .Elements("Account")
+            .ToArray();
+        Assert.IsNotNull(accounts[0].Element("Rules"));
+        Assert.IsNull(accounts[0].Element("Rules")!.Element("Rule")!.Element("RuleCriterias"));
+        Assert.IsNull(accounts[0].Element("Rules")!.Element("Rule")!.Element("RuleActions"));
+        Assert.IsNull(accounts[1].Element("Rules"));
+    }
+
+    [TestMethod]
     public void MetadataXmlOmitsEmptyAliasContainers()
     {
         var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
@@ -1012,6 +1148,123 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public async Task PayloadRuntimeLoadsBackupRulesAndNestedChildrenOnceAndScopesToSelectedAccounts()
+    {
+        var domains = new[]
+        {
+            new DomainAdministrationSnapshot(10, "alpha.example", true),
+            new DomainAdministrationSnapshot(20, "beta.example", true),
+            new DomainAdministrationSnapshot(10, "alpha-duplicate.example", true)
+        };
+        var accountStore = new RecordingAccountAdministrationStore(
+            new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+            {
+                [10] = new[]
+                {
+                    new AccountAdministrationSnapshot(1, 10, "first@alpha.example", true, 0),
+                    new AccountAdministrationSnapshot(2, 10, "second@alpha.example", true, 0)
+                },
+                [20] = new[] { new AccountAdministrationSnapshot(3, 20, "third@beta.example", true, 0) },
+                [99] = new[] { new AccountAdministrationSnapshot(4, 99, "outside@example.test", true, 0) }
+            });
+        var ruleStore = new RecordingBackupRuleAdministrationStore(
+            new Dictionary<int, IReadOnlyList<RuleAdministrationSnapshot>>
+            {
+                [1] = new[]
+                {
+                    new RuleAdministrationSnapshot(11, 1, "first-rule", true, true, 1),
+                    new RuleAdministrationSnapshot(12, 1, "second-rule", false, false, 2)
+                },
+                [2] = Array.Empty<RuleAdministrationSnapshot>(),
+                [3] = new[] { new RuleAdministrationSnapshot(13, 3, "third-rule", true, false, 1) },
+                [4] = new[] { new RuleAdministrationSnapshot(14, 4, "outside-rule", true, true, 1) }
+            });
+        var criteriaStore = new RecordingRuleCriteriaAdministrationStore(
+            new Dictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>
+            {
+                [11] = new[] { new RuleCriteriaAdministrationSnapshot(21, 11, "match", true, 1, 2, "") },
+                [12] = Array.Empty<RuleCriteriaAdministrationSnapshot>(),
+                [13] = Array.Empty<RuleCriteriaAdministrationSnapshot>()
+            });
+        var actionStore = new RecordingRuleActionAdministrationStore(
+            new Dictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>
+            {
+                [11] = new[] { CreateRuleActionSnapshot(31, 11, "first-action") },
+                [12] = Array.Empty<RuleActionAdministrationSnapshot>(),
+                [13] = Array.Empty<RuleActionAdministrationSnapshot>()
+            });
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(domains),
+            new RecordingDomainAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>()),
+            accountStore,
+            new RecordingAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
+            distributionListStore: null,
+            distributionListRecipientStore: null,
+            backupRuleStore: ruleStore,
+            ruleCriteriaStore: criteriaStore,
+            ruleActionStore: actionStore);
+
+        var payload = await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence(
+                Destination: "backup",
+                BackupOptions: 2,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 }, ruleStore.RequestedAccountIds.ToArray());
+        CollectionAssert.AreEqual(new[] { 11, 12, 13 }, criteriaStore.RequestedRuleIds.ToArray());
+        CollectionAssert.AreEqual(new[] { 11, 12, 13 }, actionStore.RequestedRuleIds.ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 }, payload.Rules!.Keys.OrderBy(static id => id).ToArray());
+        Assert.AreEqual("first-rule", payload.Rules[1][0].Name);
+        Assert.IsFalse(payload.Rules.ContainsKey(4));
+        Assert.AreEqual("first-action", payload.RuleActions![11][0].Subject);
+        Assert.AreEqual("match", payload.RuleCriterias![11][0].MatchValue);
+    }
+
+    [TestMethod]
+    public async Task PayloadRuntimeDoesNotLoadRulesWhenDomainsAreNotSelected()
+    {
+        var ruleStore = new RecordingBackupRuleAdministrationStore(
+            new Dictionary<int, IReadOnlyList<RuleAdministrationSnapshot>>());
+        var criteriaStore = new RecordingRuleCriteriaAdministrationStore(
+            new Dictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>());
+        var actionStore = new RecordingRuleActionAdministrationStore(
+            new Dictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>());
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(Array.Empty<DomainAdministrationSnapshot>()),
+            new RecordingDomainAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>()),
+            new RecordingAccountAdministrationStore(
+                new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>()),
+            new RecordingAliasAdministrationStore(
+                new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
+            distributionListStore: null,
+            distributionListRecipientStore: null,
+            backupRuleStore: ruleStore,
+            ruleCriteriaStore: criteriaStore,
+            ruleActionStore: actionStore);
+
+        await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence(
+                Destination: "backup",
+                BackupOptions: 1,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(Array.Empty<int>(), ruleStore.RequestedAccountIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<int>(), criteriaStore.RequestedRuleIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<int>(), actionStore.RequestedRuleIds.ToArray());
+    }
+
+    [TestMethod]
     public async Task PayloadRuntimeUsesDedicatedBackupFetchStoreAndWritesLegacyPasswordAndUidOrder()
     {
         var domains = new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) };
@@ -1341,6 +1594,84 @@ public sealed class BackupArchiveRuntimeTests
         }
     }
 
+    private sealed class RecordingBackupRuleAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<RuleAdministrationSnapshot>> rules)
+        : IBackupRuleAdministrationStore
+    {
+        public List<int> RequestedAccountIds { get; } = new();
+
+        public ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetBackupRulesAsync(
+            int accountId,
+            CancellationToken cancellationToken)
+        {
+            RequestedAccountIds.Add(accountId);
+            return ValueTask.FromResult(
+                rules.TryGetValue(accountId, out var accountRules)
+                    ? accountRules
+                    : Array.Empty<RuleAdministrationSnapshot>());
+        }
+    }
+
+    private sealed class RecordingRuleCriteriaAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>> criteria)
+        : IRuleCriteriaAdministrationStore
+    {
+        public List<int> RequestedRuleIds { get; } = new();
+
+        public ValueTask<IReadOnlyList<RuleCriteriaAdministrationSnapshot>> GetRuleCriteriaAsync(
+            int ruleId,
+            CancellationToken cancellationToken)
+        {
+            RequestedRuleIds.Add(ruleId);
+            return ValueTask.FromResult(
+                criteria.TryGetValue(ruleId, out var ruleCriteria)
+                    ? ruleCriteria
+                    : Array.Empty<RuleCriteriaAdministrationSnapshot>());
+        }
+
+        public ValueTask DeleteRuleCriteriaByIdAsync(
+            int ruleId,
+            int databaseId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask SaveRuleCriteriaAsync(
+            int owningRuleId,
+            RuleCriteriaAdministrationSnapshot criterion,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class RecordingRuleActionAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>> actions)
+        : IRuleActionAdministrationStore
+    {
+        public List<int> RequestedRuleIds { get; } = new();
+
+        public ValueTask<IReadOnlyList<RuleActionAdministrationSnapshot>> GetRuleActionsAsync(
+            int ruleId,
+            CancellationToken cancellationToken)
+        {
+            RequestedRuleIds.Add(ruleId);
+            return ValueTask.FromResult(
+                actions.TryGetValue(ruleId, out var ruleActions)
+                    ? ruleActions
+                    : Array.Empty<RuleActionAdministrationSnapshot>());
+        }
+
+        public ValueTask DeleteRuleActionByIdAsync(
+            int ruleId,
+            int databaseId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask SaveRuleActionAsync(
+            int owningRuleId,
+            RuleActionAdministrationSnapshot action,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
     private static FetchAccountAdministrationSnapshot CreateFetchAccountSnapshot(
         int id,
         int accountId,
@@ -1365,6 +1696,28 @@ public sealed class BackupArchiveRuntimeTests
             MimeRecipientHeaders: "To",
             NextDownloadTime: "2026-07-30 01:02:03",
             IsLocked: false);
+
+    private static RuleActionAdministrationSnapshot CreateRuleActionSnapshot(
+        int id,
+        int ruleId,
+        string subject) =>
+        new(
+            Id: id,
+            RuleId: ruleId,
+            Type: 1,
+            Subject: subject,
+            Body: "body",
+            FromName: "from-name",
+            FromAddress: "from@example.test",
+            Filename: "file",
+            To: "to@example.test",
+            ImapFolder: "INBOX",
+            ScriptFunction: "script",
+            HeaderName: "X-Test",
+            Value: "value",
+            RouteId: 0,
+            AbortSpamFlagged: false,
+            SortOrder: 1);
 
     private sealed class RecordingDistributionListAdministrationStore(
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>> lists)

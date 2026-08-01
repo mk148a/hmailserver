@@ -22,4 +22,17 @@ public sealed class SqlServerRuleAdministrationStoreTests
         Assert.IsFalse(sql.Contains("hm_rule_criterias", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_rule_actions", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void GetBackupRulesSql_PreservesLegacyBackupOrderingWithoutComTieBreaker()
+    {
+        var sql = SqlServerRuleAdministrationStore.GetBackupRulesSql;
+
+        StringAssert.Contains(sql, "FROM hm_rules");
+        StringAssert.Contains(sql, "WHERE ruleaccountid = @AccountID");
+        StringAssert.Contains(sql, "ORDER BY rulesortorder ASC");
+        Assert.IsFalse(sql.Contains("ORDER BY rulesortorder ASC, ruleid ASC", StringComparison.Ordinal));
+        Assert.IsFalse(sql.Contains("hm_rule_criterias", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_rule_actions", StringComparison.OrdinalIgnoreCase));
+    }
 }
