@@ -5,7 +5,10 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerImapFolderAdministrationStore : IImapFolderAdministrationStore, IImapFolderAdministrationMutationStore
+public sealed class SqlServerImapFolderAdministrationStore :
+    IImapFolderAdministrationStore,
+    IImapFolderAdministrationMutationStore,
+    IImapFolderAdministrationDeletionStore
 {
     public const string GetFoldersForAccountSql = """
 SELECT
@@ -84,6 +87,137 @@ SET folderaccountid = @AccountID,
 WHERE folderid = @FolderID
   AND folderaccountid = @AccountID
   AND folderparentid = @ParentFolderID;
+""";
+
+    public const string DeleteFolderSql = """
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+DECLARE @Folders TABLE
+(
+    folderid int NOT NULL PRIMARY KEY,
+    folderparentid int NOT NULL,
+    foldername nvarchar(255) NOT NULL
+);
+
+INSERT INTO @Folders (folderid, folderparentid, foldername)
+SELECT folderid, folderparentid, foldername
+FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)
+WHERE folderid = @FolderID
+  AND folderaccountid = @AccountID
+  AND folderparentid = @ParentFolderID;
+
+;WITH FolderTree AS
+(
+    SELECT folderid, folderparentid, foldername
+    FROM @Folders
+
+    UNION ALL
+
+    SELECT child.folderid, child.folderparentid, child.foldername
+    FROM hm_imapfolders AS child WITH (UPDLOCK, HOLDLOCK)
+    INNER JOIN FolderTree AS parent
+        ON child.folderparentid = parent.folderid
+    WHERE child.folderaccountid = @AccountID
+)
+INSERT INTO @Folders (folderid, folderparentid, foldername)
+SELECT tree.folderid, tree.folderparentid, tree.foldername
+FROM FolderTree AS tree
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM @Folders AS existing
+    WHERE existing.folderid = tree.folderid
+)
+OPTION (MAXRECURSION 32767);
+
+DECLARE @RemovedMessages TABLE
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messagefilename nvarchar(255) NOT NULL,
+    messageaccountid int NOT NULL,
+    messagefolderid int NOT NULL,
+    accountaddress nvarchar(255) NULL,
+    messagetype tinyint NOT NULL
+);
+
+INSERT INTO @RemovedMessages
+    (messageid, messagefilename, messageaccountid, messagefolderid, accountaddress, messagetype)
+SELECT messages.messageid,
+       messages.messagefilename,
+       messages.messageaccountid,
+       messages.messagefolderid,
+       accounts.accountaddress,
+       messages.messagetype
+FROM hm_messages AS messages WITH (UPDLOCK, HOLDLOCK)
+INNER JOIN @Folders AS folders
+    ON folders.folderid = messages.messagefolderid
+LEFT JOIN hm_accounts AS accounts
+    ON accounts.accountid = messages.messageaccountid;
+
+DELETE recipients
+FROM hm_messagerecipients AS recipients
+INNER JOIN @RemovedMessages AS removed
+    ON removed.messageid = recipients.recipientmessageid
+WHERE removed.messagetype <> 2;
+
+DELETE queue
+FROM hm_message_search_queue AS queue
+INNER JOIN @RemovedMessages AS removed
+    ON removed.messageid = queue.messageid;
+
+DELETE documents
+FROM hm_message_search_documents AS documents
+INNER JOIN @RemovedMessages AS removed
+    ON removed.messageid = documents.messageid;
+
+DELETE metadata
+FROM hm_message_metadata AS metadata
+INNER JOIN @RemovedMessages AS removed
+    ON removed.messageid = metadata.metadata_messageid;
+
+DELETE permissions
+FROM hm_acl AS permissions
+INNER JOIN @Folders AS folders
+    ON folders.folderid = permissions.aclsharefolderid;
+
+DELETE messages
+FROM hm_messages AS messages
+INNER JOIN @RemovedMessages AS removed
+    ON removed.messageid = messages.messageid;
+
+DECLARE @RootInbox bit =
+    CASE WHEN EXISTS
+    (
+        SELECT 1
+        FROM @Folders
+        WHERE folderid = @FolderID
+          AND folderparentid = -1
+          AND UPPER(foldername) = N'INBOX'
+    ) THEN 1 ELSE 0 END;
+
+DELETE folders
+FROM hm_imapfolders AS folders
+INNER JOIN @Folders AS selected
+    ON selected.folderid = folders.folderid
+WHERE NOT (folders.folderid = @FolderID AND @RootInbox = 1);
+
+DECLARE @DeletedFolders int;
+SET @DeletedFolders = @@ROWCOUNT;
+
+DECLARE @Succeeded bit =
+    CASE WHEN @RootInbox = 1 OR @DeletedFolders > 0 THEN 1 ELSE 0 END;
+
+IF @Succeeded = 1
+    COMMIT TRANSACTION;
+ELSE
+    ROLLBACK TRANSACTION;
+
+SELECT @Succeeded;
+
+SELECT messagefilename, messageaccountid, messagefolderid, accountaddress, messagetype
+FROM @RemovedMessages
+ORDER BY messageid;
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
@@ -201,6 +335,47 @@ WHERE folderid = @FolderID
         command.Parameters.Add("@FolderIsSubscribed", SqlDbType.Int).Value = folder.Subscribed ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<ImapFolderAdministrationDeletionResult> DeleteFolderAsync(
+        ImapFolderAdministrationSnapshot folder,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteFolderSql, connection);
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folder.Id;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = folder.AccountId;
+        command.Parameters.Add("@ParentFolderID", SqlDbType.Int).Value = folder.ParentId;
+
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return new ImapFolderAdministrationDeletionResult(false, Array.Empty<ImapFolderAdministrationDeletedMessage>());
+        }
+
+        var succeeded = reader.GetBoolean(0);
+        if (!await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return new ImapFolderAdministrationDeletionResult(succeeded, Array.Empty<ImapFolderAdministrationDeletedMessage>());
+        }
+
+        var messages = new List<ImapFolderAdministrationDeletedMessage>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            messages.Add(
+                new ImapFolderAdministrationDeletedMessage(
+                    reader.GetString(0),
+                    reader.GetInt32(1),
+                    reader.GetInt32(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.GetByte(4)));
+        }
+
+        return new ImapFolderAdministrationDeletionResult(succeeded, messages);
     }
 
     private static async ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> ReadFoldersAsync(

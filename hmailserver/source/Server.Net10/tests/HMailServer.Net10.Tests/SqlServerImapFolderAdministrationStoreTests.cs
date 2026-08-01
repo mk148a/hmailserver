@@ -98,6 +98,32 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
         StringAssert.Contains(sql, "WHERE");
     }
 
+    [TestMethod]
+    public void DeleteFolderSql_CleansLegacyDependentsTransactionallyAndPreservesRootInbox()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.DeleteFolderSql;
+
+        StringAssert.Contains(sql, "SET XACT_ABORT ON");
+        StringAssert.Contains(sql, "BEGIN TRANSACTION");
+        StringAssert.Contains(sql, "COMMIT TRANSACTION");
+        StringAssert.Contains(sql, "ROLLBACK TRANSACTION");
+        StringAssert.Contains(sql, "folderid = @FolderID");
+        StringAssert.Contains(sql, "folderaccountid = @AccountID");
+        StringAssert.Contains(sql, "folderparentid = @ParentFolderID");
+        StringAssert.Contains(sql, "WITH (UPDLOCK, HOLDLOCK)");
+        StringAssert.Contains(sql, "MAXRECURSION 32767");
+        StringAssert.Contains(sql, "hm_messagerecipients");
+        StringAssert.Contains(sql, "hm_message_search_queue");
+        StringAssert.Contains(sql, "hm_message_search_documents");
+        StringAssert.Contains(sql, "hm_message_metadata");
+        StringAssert.Contains(sql, "hm_acl");
+        StringAssert.Contains(sql, "hm_accounts");
+        StringAssert.Contains(sql, "folderparentid = -1");
+        StringAssert.Contains(sql, "UPPER(foldername) = N'INBOX'");
+        StringAssert.Contains(sql, "messagefilename");
+        StringAssert.Contains(sql, "accountaddress");
+    }
+
     private static void AssertFolderProjection(string sql)
     {
         StringAssert.Contains(sql, "folderid");
