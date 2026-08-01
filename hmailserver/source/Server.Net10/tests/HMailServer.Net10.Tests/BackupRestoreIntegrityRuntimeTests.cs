@@ -262,6 +262,45 @@ public sealed class BackupRestoreIntegrityRuntimeTests
     }
 
     [TestMethod]
+    [DataRow("Inbox", "INBOX")]
+    [DataRow("Inbox", "Inbox ")]
+    public async Task InspectAsync_RejectsDuplicateFolderNamesWithinOneParent(string firstName, string secondName)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            $"<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"{firstName}\" Subscribed=\"1\" CreateTime=\"2026-08-01 00:00:00\" CurrentUID=\"1\" /><Folder Name=\"{secondName}\" Subscribed=\"0\" CreateTime=\"2026-08-01 00:00:00\" CurrentUID=\"0\" /></Folders></Account></Accounts></Domain></Domains></Backup>",
+            includeNestedDataBackup: false);
+        var before = fixture.Snapshot();
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, evidence.FailureReason);
+        StringAssert.Contains(evidence.FailureReason!, "duplicate Folder Name");
+        CollectionAssert.AreEqual(before, fixture.Snapshot());
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_AcceptsSameFolderNameUnderDifferentParents()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\" Subscribed=\"1\" CreateTime=\"2026-08-01 00:00:00\" CurrentUID=\"1\"><Folders><Folder Name=\"Inbox\" Subscribed=\"0\" CreateTime=\"2026-08-01 00:00:00\" CurrentUID=\"0\" /></Folders></Folder></Folders></Account></Accounts></Domain></Domains></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+    }
+
+    [TestMethod]
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Messages /></Account></Accounts></Domain></Domains></Backup>")]
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\"><Messages /><Messages /></Folder></Folders></Account></Accounts></Domain></Domains></Backup>")]
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Folder Name=\"Inbox\"><Folders /><Folders /></Folder></Folders></Account></Accounts></Domain></Domains></Backup>")]

@@ -547,6 +547,11 @@ internal sealed class BackupRestoreIntegrityRuntime
                         return "The domain/account graph is invalid: Folders contains an unexpected child.";
                     }
 
+                    if (HasDuplicateIdentityNames(element.Elements("Folder")))
+                    {
+                        return "The domain/account graph is invalid: Folders contains duplicate Folder Name values for one parent.";
+                    }
+
                     break;
 
                 case "Messages":
@@ -805,6 +810,22 @@ internal sealed class BackupRestoreIntegrityRuntime
         }
 
         static string NormalizeIdentityName(string value) => value.TrimEnd(' ');
+
+        static bool HasDuplicateIdentityNames(IEnumerable<XElement> elements)
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var element in elements)
+            {
+                var name = element.Attribute("Name")?.Value;
+                if (!string.IsNullOrWhiteSpace(name)
+                    && !names.Add(NormalizeIdentityName(name)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     private ProcessStartInfo CreateStartInfo(
