@@ -4,7 +4,7 @@ This backlog tracks the remaining production-parity work for the side-by-side .N
 
 ## Current Next Slice (2026-08-01)
 
-The dry-run restore planning slice is complete in code/test commit `149dcf027`, following `a512891ba`. Legacy `BackupExecuter::StartRestore` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-333`) orders restore as domain deletion, public-folder deletion, optional data-directory restore, domain load, settings load, and asynchronous reinitialization. The read-only planner now preserves that order and reports missing requested sections through `MissingRestoreOptions` and warnings without mutation. Focused restore integrity/planner tests pass `71/71`; full Net10 passes `1447` with `3` opt-in tests skipped. Next: folder scalar presence validation. Writer orphan/cycle detection, containment/rollback preflight, restore mutation, SQL writes, data-directory replacement, rollback, COM activation, and the backup ScriptServer adapter remain open.
+The folder scalar integrity slice is complete in code/test commit `4bc9bdc89`, following `1c2bf4a6b`. Legacy `IMAPFolder::XMLStore`/`XMLLoad` (`hmailserver/source/Server/Common/BO/IMAPFolder.cpp:123-179`) emits and loads `Name`, `Subscribed`, `CreateTime`, and `CurrentUID`; value/date parsing remains permissive, so the validator checks presence only. Focused restore integrity/planner tests pass `75/75`; full Net10 passes `1451` with `3` opt-in tests skipped. Next: writer-side orphan/cycle/duplicate snapshot validation. Containment/rollback preflight, restore mutation, SQL writes, data-directory replacement, rollback, COM activation, and the backup ScriptServer adapter remain open.
 
 ## Consolidated Security Review Triage (2026-06-28)
 
