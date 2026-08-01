@@ -255,8 +255,9 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
     private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly ImapFolderAdministrationSnapshot? _folder;
+    private ImapFolderAdministrationSnapshot? _folder;
     private readonly ImapFolderAdministrationState? _foldersState;
+    private string? _stagedName;
 
     public IMAPFolder()
     {
@@ -272,7 +273,21 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
     public int ID => Snapshot.Id;
 
-    public string Name { get => LegacyModifiedUtf7.Decode(Snapshot.Name); set => Unavailable(); }
+    public string Name
+    {
+        get => LegacyModifiedUtf7.Decode(_stagedName ?? Snapshot.Name);
+        set
+        {
+            _ = Snapshot;
+            if (_foldersState is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            _stagedName = LegacyModifiedUtf7.Encode(value ?? string.Empty);
+        }
+    }
 
     public bool Subscribed { get => Snapshot.Subscribed; set => Unavailable(); }
 
@@ -312,7 +327,29 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
         ImapFolderAdministrationState state) =>
         new(folder, state);
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        var snapshot = Snapshot;
+        if (_foldersState is not { } state)
+        {
+            Unavailable();
+            return;
+        }
+
+        var updated = snapshot with { Name = _stagedName ?? snapshot.Name };
+        var saved = ImapFolderAdministrationRuntimeHost.UpdateAuthorized(updated)
+            .GetAwaiter()
+            .GetResult();
+        if (!saved || !state.Replace(updated))
+        {
+            throw new COMException(
+                "Failed to save the IMAP folder.",
+                ELegacyComError);
+        }
+
+        _folder = updated;
+        _stagedName = null;
+    }
 
     public void Delete() => Unavailable();
 
@@ -381,6 +418,24 @@ internal sealed class ImapFolderAdministrationState
             _snapshot = GetFolders().Append(folder).ToArray();
         }
     }
+
+    public bool Replace(ImapFolderAdministrationSnapshot folder)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+        lock (_sync)
+        {
+            var folders = GetFolders().ToArray();
+            var index = Array.FindIndex(folders, candidate => candidate.Id == folder.Id);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            folders[index] = folder;
+            _snapshot = folders;
+            return true;
+        }
+    }
 }
 
 [ComVisible(false)]
@@ -424,6 +479,24 @@ public static class ImapFolderAdministrationRuntimeHost
                 encodedName,
                 subscribed,
                 CancellationToken.None)
+            .ConfigureAwait(false);
+    }
+
+    internal static async ValueTask<bool> UpdateAuthorized(
+        ImapFolderAdministrationSnapshot folder)
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer IMAP folder administration runtime has not been initialized.",
+                CoENotInitialized);
+        if (store is not IImapFolderAdministrationMutationStore mutationStore)
+        {
+            throw new COMException(
+                "IMAP folder updates are not available in the configured administration store.",
+                unchecked((int)0x80004001));
+        }
+
+        return await mutationStore.UpdateFolderAsync(folder, CancellationToken.None)
             .ConfigureAwait(false);
     }
 

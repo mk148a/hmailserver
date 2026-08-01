@@ -8,4 +8,8 @@ public interface IImapFolderAdministrationMutationStore
         string encodedName,
         bool subscribed,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateFolderAsync(
+        ImapFolderAdministrationSnapshot folder,
+        CancellationToken cancellationToken);
 }

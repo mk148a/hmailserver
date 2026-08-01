@@ -64,11 +64,15 @@ public sealed class ImapFoldersComContractTests
         var foldersError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolders().Count);
         var addError = Assert.ThrowsExactly<COMException>(() => new IMAPFolders().Add("New"));
         var folderError = Assert.ThrowsExactly<COMException>(() => _ = new IMAPFolder().Name);
+        var folderSetterError = Assert.ThrowsExactly<COMException>(() => new IMAPFolder().Name = "New");
+        var folderSaveError = Assert.ThrowsExactly<COMException>(() => new IMAPFolder().Save());
         var accountFoldersError = Assert.ThrowsExactly<COMException>(() => _ = new Account().IMAPFolders);
 
         Assert.AreEqual(EAccessDenied, foldersError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addError.ErrorCode);
         Assert.AreEqual(EAccessDenied, folderError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, folderSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, folderSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, accountFoldersError.ErrorCode);
     }
 
@@ -216,6 +220,55 @@ public sealed class ImapFoldersComContractTests
         Assert.AreEqual(ELegacyComError, misScopedError.ErrorCode);
         Assert.AreEqual(2, store.InsertCount);
         Assert.AreEqual(2, folders.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedImapFolder_NameStagesUtf7AndSaveReplacesSharedSnapshot()
+    {
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-06-27 01:02:03")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var folder = account.IMAPFolders.get_ItemByDBID(10);
+
+        folder.Name = "TEåäöST";
+
+        Assert.AreEqual("TEåäöST", folder.Name);
+        Assert.AreEqual(0, store.UpdateCount);
+        folder.Save();
+
+        Assert.AreEqual(1, store.UpdateCount);
+        Assert.AreEqual("TE&AOUA5AD2-ST", store.LastUpdatedFolder!.Name);
+        Assert.AreEqual("TEåäöST", account.IMAPFolders.get_ItemByDBID(10).Name);
+        Assert.AreEqual(1, account.IMAPFolders.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedImapFolder_SaveFailureLeavesSharedSnapshotUnchanged()
+    {
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-06-27 01:02:03")
+            })
+        {
+            ReturnUpdateSuccess = false
+        };
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var folder = account.IMAPFolders.get_ItemByDBID(10);
+        folder.Name = "Broken";
+
+        var error = Assert.ThrowsExactly<COMException>(() => folder.Save());
+
+        Assert.AreEqual(ELegacyComError, error.ErrorCode);
+        Assert.AreEqual("Inbox", account.IMAPFolders.get_ItemByDBID(10).Name);
+        Assert.AreEqual(1, account.IMAPFolders.Count);
     }
 
     [TestMethod]
@@ -388,6 +441,9 @@ public sealed class ImapFoldersComContractTests
         public int LastInsertParentId { get; private set; }
         public string? LastInsertName { get; private set; }
         public bool ReturnMisScopedInsert { get; set; }
+        public bool ReturnUpdateSuccess { get; set; } = true;
+        public int UpdateCount { get; private set; }
+        public ImapFolderAdministrationSnapshot? LastUpdatedFolder { get; private set; }
 
         public void ReplacePermissions(IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> permissions)
         {
@@ -455,6 +511,23 @@ public sealed class ImapFoldersComContractTests
                 "2026-08-01 00:00:00");
             _folders = _folders.Append(snapshot).ToArray();
             return ValueTask.FromResult(snapshot);
+        }
+
+        public ValueTask<bool> UpdateFolderAsync(
+            ImapFolderAdministrationSnapshot folder,
+            CancellationToken cancellationToken)
+        {
+            UpdateCount++;
+            LastUpdatedFolder = folder;
+            if (!ReturnUpdateSuccess)
+            {
+                return ValueTask.FromResult(false);
+            }
+
+            _folders = _folders
+                .Select(existing => existing.Id == folder.Id ? folder : existing)
+                .ToArray();
+            return ValueTask.FromResult(true);
         }
     }
 

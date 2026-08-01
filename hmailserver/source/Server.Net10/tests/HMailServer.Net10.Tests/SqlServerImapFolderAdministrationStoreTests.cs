@@ -84,6 +84,20 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
         StringAssert.Contains(sql, "@FolderIsSubscribed");
     }
 
+    [TestMethod]
+    public void UpdateFolderSql_PreservesLegacyFieldsAndOwnerScope()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.UpdateFolderSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_imapfolders");
+        StringAssert.Contains(sql, "folderaccountid = @AccountID");
+        StringAssert.Contains(sql, "folderparentid = @ParentFolderID");
+        StringAssert.Contains(sql, "foldername = @FolderName");
+        StringAssert.Contains(sql, "folderissubscribed = @FolderIsSubscribed");
+        StringAssert.Contains(sql, "folderid = @FolderID");
+        StringAssert.Contains(sql, "WHERE");
+    }
+
     private static void AssertFolderProjection(string sql)
     {
         StringAssert.Contains(sql, "folderid");

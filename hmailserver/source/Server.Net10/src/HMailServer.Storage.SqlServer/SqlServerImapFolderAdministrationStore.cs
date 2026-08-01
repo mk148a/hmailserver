@@ -75,6 +75,17 @@ SELECT
     @FolderIsSubscribed, 0, CONVERT(varchar(19), @CreationTime, 120);
 """;
 
+    public const string UpdateFolderSql = """
+UPDATE hm_imapfolders
+SET folderaccountid = @AccountID,
+    folderparentid = @ParentFolderID,
+    foldername = @FolderName,
+    folderissubscribed = @FolderIsSubscribed
+WHERE folderid = @FolderID
+  AND folderaccountid = @AccountID
+  AND folderparentid = @ParentFolderID;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerImapFolderAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -175,6 +186,21 @@ SELECT
             Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture) == 1,
             reader.GetInt32(5),
             reader.GetString(6));
+    }
+
+    public async ValueTask<bool> UpdateFolderAsync(
+        ImapFolderAdministrationSnapshot folder,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateFolderSql, connection);
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folder.Id;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = folder.AccountId;
+        command.Parameters.Add("@ParentFolderID", SqlDbType.Int).Value = folder.ParentId;
+        command.Parameters.Add("@FolderName", SqlDbType.NVarChar, 255).Value = folder.Name;
+        command.Parameters.Add("@FolderIsSubscribed", SqlDbType.Int).Value = folder.Subscribed ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
     private static async ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> ReadFoldersAsync(
