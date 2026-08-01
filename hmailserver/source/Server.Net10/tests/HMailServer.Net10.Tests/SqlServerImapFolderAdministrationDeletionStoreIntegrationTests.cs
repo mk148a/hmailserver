@@ -16,7 +16,7 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
-    public async Task DeleteFolderAsync_DeletesOwnedTreeAndPreservesInboxWithoutRollbackInjectionCoverage()
+    public async Task DeleteFolderAsync_UsesLegacyMessageAndPublicAclRulesAndPreservesInbox()
     {
         var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
 
@@ -33,7 +33,7 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
                 new SqlServerConnectionFactory(testConnectionString));
 
             // The current store exposes no fault-injection seam for forcing a statement failure.
-            // Residual: rollback behavior remains covered only by the SQL contract test.
+            // Residual: rollback behavior is not exercised by this fixture.
             var wrongOwner = new ImapFolderAdministrationSnapshot(
                 Id: 100,
                 AccountId: 20,
@@ -86,6 +86,14 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
                     "owner@example.test",
                     1),
                 result.DeletedMessages[1]);
+            Assert.AreEqual(
+                new ImapFolderAdministrationDeletedMessage(
+                    "delivered-owned.eml",
+                    10,
+                    200,
+                    "owner@example.test",
+                    2),
+                result.DeletedMessages[2]);
 
             var remainingFolders = await store
                 .GetFoldersForAccountAsync(10, CancellationToken.None)
@@ -101,8 +109,6 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
             foreach (var table in new[]
                      {
                          (Name: "hm_messages", Column: "messageid"),
-                         (Name: "hm_messagerecipients", Column: "recipientmessageid"),
-                         (Name: "hm_message_metadata", Column: "metadata_messageid"),
                          (Name: "hm_message_search_queue", Column: "messageid"),
                          (Name: "hm_message_search_documents", Column: "messageid")
                      })
@@ -113,7 +119,7 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
                         testConnectionString,
                         table.Name,
                         table.Column,
-                        new long[] { 1001, 1002 }).ConfigureAwait(false),
+                        new long[] { 1001, 1002, 1003 }).ConfigureAwait(false),
                     $"Owned rows remain in {table.Name}.");
                 Assert.AreEqual(
                     2L,
@@ -122,11 +128,41 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
                         table.Name,
                         table.Column,
                         new long[] { 2001, 2002 }).ConfigureAwait(false),
-                    $"Cross-account rows were removed from {table.Name}.");
+                    $"Cross-account rows were unexpectedly removed from {table.Name}.");
             }
 
             Assert.AreEqual(
                 0L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_messagerecipients",
+                    "recipientmessageid",
+                    new long[] { 1001, 1002 }).ConfigureAwait(false));
+
+            Assert.AreEqual(
+                2L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_message_metadata",
+                    "metadata_messageid",
+                    new long[] { 1001, 1002 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                0L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_message_metadata",
+                    "metadata_messageid",
+                    new long[] { 1003 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                1L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_messagerecipients",
+                    "recipientmessageid",
+                    new long[] { 1003 }).ConfigureAwait(false));
+
+            Assert.AreEqual(
+                3L,
                 await CountRowsByIdsAsync(
                     testConnectionString,
                     "hm_acl",
@@ -289,20 +325,21 @@ INSERT INTO dbo.hm_messages
 VALUES
     (1001, 10, 200, N'child-owned.eml', 1),
     (1002, 10, 300, N'nested-owned.eml', 1),
+    (1003, 10, 200, N'delivered-owned.eml', 2),
     (2001, 20, 200, N'child-cross-account.eml', 1),
     (2002, 20, 300, N'nested-cross-account.eml', 1);
 
 INSERT INTO dbo.hm_messagerecipients (recipientmessageid)
-VALUES (1001), (1002), (2001), (2002);
+VALUES (1001), (1002), (1003), (2001), (2002);
 
 INSERT INTO dbo.hm_message_metadata (metadata_messageid)
-VALUES (1001), (1002), (2001), (2002);
+VALUES (1001), (1002), (1003), (2001), (2002);
 
 INSERT INTO dbo.hm_message_search_queue (messageid)
-VALUES (1001), (1002), (2001), (2002);
+VALUES (1001), (1002), (1003), (2001), (2002);
 
 INSERT INTO dbo.hm_message_search_documents (messageid)
-VALUES (1001), (1002), (2001), (2002);
+VALUES (1001), (1002), (1003), (2001), (2002);
 
 INSERT INTO dbo.hm_acl (aclsharefolderid)
 VALUES (100), (200), (300), (400);

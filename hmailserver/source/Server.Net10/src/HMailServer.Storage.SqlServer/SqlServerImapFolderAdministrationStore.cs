@@ -96,12 +96,13 @@ BEGIN TRANSACTION;
 DECLARE @Folders TABLE
 (
     folderid int NOT NULL PRIMARY KEY,
+    folderaccountid int NOT NULL,
     folderparentid int NOT NULL,
     foldername nvarchar(255) NOT NULL
 );
 
-INSERT INTO @Folders (folderid, folderparentid, foldername)
-SELECT folderid, folderparentid, foldername
+INSERT INTO @Folders (folderid, folderaccountid, folderparentid, foldername)
+SELECT folderid, folderaccountid, folderparentid, foldername
 FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)
 WHERE folderid = @FolderID
   AND folderaccountid = @AccountID
@@ -109,19 +110,19 @@ WHERE folderid = @FolderID
 
 ;WITH FolderTree AS
 (
-    SELECT folderid, folderparentid, foldername
+    SELECT folderid, folderaccountid, folderparentid, foldername
     FROM @Folders
 
     UNION ALL
 
-    SELECT child.folderid, child.folderparentid, child.foldername
+    SELECT child.folderid, child.folderaccountid, child.folderparentid, child.foldername
     FROM hm_imapfolders AS child WITH (UPDLOCK, HOLDLOCK)
     INNER JOIN FolderTree AS parent
         ON child.folderparentid = parent.folderid
     WHERE child.folderaccountid = @AccountID
 )
-INSERT INTO @Folders (folderid, folderparentid, foldername)
-SELECT tree.folderid, tree.folderparentid, tree.foldername
+INSERT INTO @Folders (folderid, folderaccountid, folderparentid, foldername)
+SELECT tree.folderid, tree.folderaccountid, tree.folderparentid, tree.foldername
 FROM FolderTree AS tree
 WHERE NOT EXISTS
 (
@@ -175,12 +176,14 @@ INNER JOIN @RemovedMessages AS removed
 DELETE metadata
 FROM hm_message_metadata AS metadata
 INNER JOIN @RemovedMessages AS removed
-    ON removed.messageid = metadata.metadata_messageid;
+    ON removed.messageid = metadata.metadata_messageid
+WHERE removed.messagetype = 2;
 
 DELETE permissions
 FROM hm_acl AS permissions
 INNER JOIN @Folders AS folders
-    ON folders.folderid = permissions.aclsharefolderid;
+    ON folders.folderid = permissions.aclsharefolderid
+WHERE folders.folderaccountid = 0;
 
 DELETE messages
 FROM hm_messages AS messages

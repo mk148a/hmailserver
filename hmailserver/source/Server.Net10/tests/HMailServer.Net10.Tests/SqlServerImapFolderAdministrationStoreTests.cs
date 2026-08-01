@@ -116,7 +116,9 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
         StringAssert.Contains(sql, "hm_message_search_queue");
         StringAssert.Contains(sql, "hm_message_search_documents");
         StringAssert.Contains(sql, "hm_message_metadata");
+        StringAssert.Contains(sql, "removed.messagetype = 2");
         StringAssert.Contains(sql, "hm_acl");
+        StringAssert.Contains(sql, "folders.folderaccountid = 0");
         StringAssert.Contains(sql, "hm_accounts");
         StringAssert.Contains(sql, "messages.messageaccountid = @AccountID");
         StringAssert.Contains(sql, "folderparentid = -1");
