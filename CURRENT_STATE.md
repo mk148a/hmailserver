@@ -1,10 +1,10 @@
 # Current State
 
-- UTC timestamp: 2026-08-01T16:00:00Z
-- Local timestamp: 2026-08-01T19:00:00+03:00
+- UTC timestamp: 2026-08-01T16:08:00Z
+- Local timestamp: 2026-08-01T19:08:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `8e3bf68d8` (code/test); documentation commit pending
-- Last successfully pushed commit: `cdd5daedd05c0a457bc134777382e9f67e53d4c9`
+- Current HEAD: `1d28200a1`
+- Last successfully pushed commit: `1d28200a1b81823d7b3d16ae4f98da2becdd1b26`
 - Latest focused-test result: IMAPFolders COM/SQL tests `19/19` passed
 - Latest full Net10 result: `1506 passed, 3 skipped`
 - Opt-in tests passed/skipped/blocked: `0/3/0` in the full run; SQL failure-path tests and native registry integration are skipped by opt-in gates
