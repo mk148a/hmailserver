@@ -14,6 +14,7 @@ internal sealed record BackupStartPlan(
     internal const int BackupSettingsFlag = 1;
     internal const int BackupDomainsFlag = 2;
     internal const int BackupMessagesFlag = 4;
+    internal const int BackupCompressionFlag = 8;
 
     internal bool CanStart => FailureReason is null;
 

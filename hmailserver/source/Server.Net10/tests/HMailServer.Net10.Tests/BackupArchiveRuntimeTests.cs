@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 using System.Xml.Linq;
@@ -63,6 +64,94 @@ public sealed class BackupArchiveRuntimeTests
             var evidence = new BackupStartPlanEvidence(
                 Destination: destination,
                 BackupOptions: 2,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true);
+
+            await Assert.ThrowsExactlyAsync<NotSupportedException>(
+                () => runtime.CreateAsync(evidence, CancellationToken.None).AsTask());
+
+            CollectionAssert.AreEqual(
+                Array.Empty<string>(),
+                Directory.GetFiles(destination));
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task CreatesDbOnlyMessageArchiveWithLegacyDataFilesMetadata()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(destination);
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                static () => new DateTime(2026, 7, 30, 4, 5, 8));
+            await runtime.CreateAsync(
+                new BackupStartPlanEvidence(
+                    Destination: destination,
+                    BackupOptions: BackupStartPlan.BackupMessagesFlag | BackupStartPlan.BackupCompressionFlag,
+                    BackupMessagesDbOnly: true,
+                    AllMessageFilesInDataDirectory: true,
+                    DestinationExists: true),
+                CancellationToken.None);
+
+            var archivePath = Path.Combine(destination, "HMBackup 2026-07-30 040508.7z");
+            Assert.IsTrue(File.Exists(archivePath), archivePath);
+            Assert.IsFalse(Directory.Exists(Path.Combine(destination, "DataBackup")));
+
+            var metadata = XDocument.Parse(await ReadMetadataXmlAsync(sevenZipPath, archivePath));
+            var dataFiles = metadata.Root!.Element("BackupInformation")!.Element("DataFiles")!;
+            Assert.AreEqual("7z", dataFiles.Attribute("Format")?.Value);
+            Assert.AreEqual("0", dataFiles.Attribute("Size")?.Value);
+            Assert.IsNull(dataFiles.Attribute("FolderName"));
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void MetadataXmlWritesLegacyRawDataFilesMetadataWithoutCompression()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            BackupStartPlan.BackupMessagesFlag,
+            "10.0.0-B0");
+
+        var dataFiles = XDocument.Parse(xml).Root!.Element("BackupInformation")!.Element("DataFiles")!;
+        Assert.AreEqual("Raw", dataFiles.Attribute("Format")?.Value);
+        Assert.AreEqual("DataBackup", dataFiles.Attribute("FolderName")?.Value);
+        Assert.IsNull(dataFiles.Attribute("Size"));
+    }
+
+    [TestMethod]
+    public async Task RejectsPhysicalMessageBackupBeforeCreatingAnyFile()
+    {
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(destination);
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                Path.Combine(destination, "missing-7za.exe"),
+                "10.0.0-B0");
+            var evidence = new BackupStartPlanEvidence(
+                Destination: destination,
+                BackupOptions: BackupStartPlan.BackupMessagesFlag | BackupStartPlan.BackupCompressionFlag,
                 BackupMessagesDbOnly: false,
                 AllMessageFilesInDataDirectory: true,
                 DestinationExists: true);
@@ -2017,6 +2106,29 @@ public sealed class BackupArchiveRuntimeTests
             RuleActionAdministrationSnapshot action,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private static async Task<string> ReadMetadataXmlAsync(
+        string sevenZipPath,
+        string archivePath)
+    {
+        using var process = new Process
+        {
+            StartInfo = SevenZipBackupArchiveMetadataReader.CreateStartInfo(
+                sevenZipPath,
+                archivePath)
+        };
+
+        Assert.IsTrue(process.Start());
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        var output = await outputTask;
+        var error = await errorTask;
+        Assert.IsTrue(
+            process.ExitCode is 0 or 1,
+            $"7za metadata extraction failed: {error}");
+        return output;
     }
 
     private static FetchAccountAdministrationSnapshot CreateFetchAccountSnapshot(

@@ -9,8 +9,8 @@ namespace HMailServer.ComInterop;
 
 /// <summary>
 /// Creates the bounded legacy archive and modeled scalar settings/domain metadata.
-/// Message contents, remaining nested domain children, and data-directory
-/// staging remain fenced.
+/// Physical message contents, remaining nested domain children, and
+/// data-directory staging remain fenced.
 /// </summary>
 [ComVisible(false)]
 public sealed class SevenZipBackupArchiveRuntime
@@ -41,10 +41,11 @@ public sealed class SevenZipBackupArchiveRuntime
     {
         ArgumentNullException.ThrowIfNull(evidence);
 
-        if ((evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0)
+        if ((evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0
+            && !evidence.BackupMessagesDbOnly)
         {
             throw new NotSupportedException(
-                "Backup message payload serialization is not implemented yet.");
+                "Physical message backup staging is not implemented yet.");
         }
 
         BackupArchiveXmlPayload? payload = null;
@@ -121,6 +122,11 @@ public sealed class SevenZipBackupArchiveRuntime
                 "Mode",
                 backupOptions.ToString(CultureInfo.InvariantCulture));
             writer.WriteAttributeString("Version", applicationVersion);
+            if ((backupOptions & BackupStartPlan.BackupMessagesFlag) != 0)
+            {
+                WriteDataFiles(writer, backupOptions);
+            }
+
             writer.WriteEndElement();
             if ((backupOptions & BackupStartPlan.BackupDomainsFlag) != 0)
             {
@@ -152,6 +158,23 @@ public sealed class SevenZipBackupArchiveRuntime
         }
 
         return builder.ToString();
+    }
+
+    private static void WriteDataFiles(XmlWriter writer, int backupOptions)
+    {
+        writer.WriteStartElement("DataFiles");
+        if ((backupOptions & BackupStartPlan.BackupCompressionFlag) != 0)
+        {
+            writer.WriteAttributeString("Format", "7z");
+            writer.WriteAttributeString("Size", "0");
+        }
+        else
+        {
+            writer.WriteAttributeString("Format", "Raw");
+            writer.WriteAttributeString("FolderName", "DataBackup");
+        }
+
+        writer.WriteEndElement();
     }
 
     private static void WriteSettings(
