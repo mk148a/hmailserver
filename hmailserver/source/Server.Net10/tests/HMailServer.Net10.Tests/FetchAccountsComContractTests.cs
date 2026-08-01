@@ -251,8 +251,6 @@ public sealed class FetchAccountsComContractTests
         IInterfaceFetchAccounts accounts = FetchAccounts.CreateAuthorized(
             new[] { CreateSnapshot(10, 100, "External POP3") });
 
-        var pendingDelete = Assert.ThrowsExactly<COMException>(() => accounts.Delete(0));
-        var pendingDeleteByDbId = Assert.ThrowsExactly<COMException>(() => accounts.DeleteByDBID(10));
         var pendingServerAddress = Assert.ThrowsExactly<COMException>(() => accounts[0].ServerAddress = "changed.example");
         var pendingPort = Assert.ThrowsExactly<COMException>(() => accounts[0].Port = 110);
         var pendingServerType = Assert.ThrowsExactly<COMException>(() => accounts[0].ServerType = 1);
@@ -277,7 +275,7 @@ public sealed class FetchAccountsComContractTests
 
         foreach (var error in new[]
                  {
-                     pendingDelete, pendingDeleteByDbId, pendingServerAddress, pendingPort, pendingServerType,
+                     pendingServerAddress, pendingPort, pendingServerType,
                      pendingUsername, pendingPasswordWrite, pendingMinutes, pendingDays, pendingAccountId,
                      pendingEnabled, pendingMimeRecipients, pendingMimeDate, pendingUseSsl, pendingSpam,
                      pendingVirus, pendingRoutes, pendingSecurity, pendingHeaders, pendingSave, pendingDownload,
@@ -286,6 +284,47 @@ public sealed class FetchAccountsComContractTests
         {
             Assert.AreEqual(ENotImplemented, error.ErrorCode);
         }
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_DeleteUsesOwningSnapshotAndLegacyMissingItemNoOp()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[]
+            {
+                CreateSnapshot(10, 100, "First POP3"),
+                CreateSnapshot(20, 100, "Second POP3"),
+                CreateSnapshot(30, 200, "Outside POP3")
+            });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var fetchAccounts = account.FetchAccounts;
+
+        fetchAccounts.Delete(1);
+        fetchAccounts.DeleteByDBID(10);
+        fetchAccounts.Delete(-1);
+        fetchAccounts.Delete(10);
+        fetchAccounts.DeleteByDBID(999);
+
+        CollectionAssert.AreEqual(new[] { (100, 20), (100, 10) }, store.DeleteCalls.ToArray());
+        Assert.AreEqual(0, fetchAccounts.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_DeleteFailureRetainsSnapshotAndMapsStoreFailure()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "First POP3") })
+        {
+            FailDelete = true
+        };
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+
+        var failure = Assert.ThrowsExactly<COMException>(() => account.FetchAccounts.Delete(0));
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(1, account.FetchAccounts.Count);
     }
 
     [TestMethod]

@@ -282,9 +282,59 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         }
     }
 
-    public void Delete(int index) => Unavailable();
+    public void Delete(int index)
+    {
+        var accounts = GetAccounts();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+        if (index < 0 || index >= accounts.Count)
+        {
+            return;
+        }
+
+        var selected = accounts[index];
+        try
+        {
+            DeleteSelectedAsync(selected.AccountId, selected.Id).GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the fetch account from the database.",
+                EFail);
+        }
+    }
+
+    public void DeleteByDBID(int databaseId)
+    {
+        var accounts = GetAccounts();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        var selected = accounts.FirstOrDefault(account => account.Id == databaseId);
+        if (selected is null)
+        {
+            return;
+        }
+
+        try
+        {
+            DeleteSelectedAsync(selected.AccountId, selected.Id).GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the fetch account from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceFetchAccount Add() => Unavailable<IInterfaceFetchAccount>();
 
