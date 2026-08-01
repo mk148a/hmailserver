@@ -106,6 +106,7 @@ public sealed class RuleActionsComContractTests
         var actionsRefreshError = Assert.ThrowsExactly<COMException>(new RuleActions().Refresh);
         var actionsDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().DeleteByDBID(100));
         var actionsIndexDeleteError = Assert.ThrowsExactly<COMException>(() => new RuleActions().Delete(0));
+        var actionsAddError = Assert.ThrowsExactly<COMException>(() => new RuleActions().Add());
         var actionError = Assert.ThrowsExactly<COMException>(() => _ = new RuleAction().Type);
         var actionRuleIdError = Assert.ThrowsExactly<COMException>(() => new RuleAction().RuleID = 42);
         var actionSubjectError = Assert.ThrowsExactly<COMException>(
@@ -147,6 +148,7 @@ public sealed class RuleActionsComContractTests
         Assert.AreEqual(EAccessDenied, actionsRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionsDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionsIndexDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, actionsAddError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionRuleIdError.ErrorCode);
         Assert.AreEqual(EAccessDenied, actionSubjectError.ErrorCode);
@@ -217,6 +219,128 @@ public sealed class RuleActionsComContractTests
         {
             AssertError(ENotImplemented, mutation);
         }
+    }
+
+    [TestMethod]
+    public void AuthorizedAdd_NewActionStagesFieldsAssignsOwnerAndPublishesAfterIdentityInsert()
+    {
+        var inserted = new List<(int OwnerRuleId, RuleActionAdministrationSnapshot Action)>();
+        IInterfaceRuleActions actions = RuleActions.CreateAuthorized(
+            [],
+            save: _ => { },
+            owningRuleId: 10,
+            insert: (ownerRuleId, action) =>
+            {
+                inserted.Add((ownerRuleId, action));
+                return 123;
+            });
+
+        var action = actions.Add();
+        action.RuleID = 99;
+        action.Type = ComRuleActionType.Reply;
+        action.Subject = "new subject";
+        action.Body = "new body";
+        action.FromName = "sender";
+        action.FromAddress = "sender@example.test";
+        action.Filename = "message.eml";
+        action.To = "recipient@example.test";
+        action.IMAPFolder = "Archive";
+        action.HeaderName = "X-New";
+        action.Value = "value";
+        action.RouteID = 500;
+        action.AbortSpamFlagged = true;
+
+        Assert.AreEqual(0, action.ID);
+        Assert.AreEqual(0, actions.Count);
+
+        action.Save();
+
+        Assert.AreEqual(123, action.ID);
+        Assert.AreEqual(10, action.RuleID);
+        Assert.AreEqual(1, actions.Count);
+        Assert.AreEqual(123, actions[0].ID);
+        Assert.AreEqual(1, inserted.Count);
+        Assert.AreEqual(10, inserted[0].OwnerRuleId);
+        Assert.AreEqual(10, inserted[0].Action.RuleId);
+        Assert.AreEqual(1, inserted[0].Action.SortOrder);
+        Assert.AreEqual("new subject", inserted[0].Action.Subject);
+        Assert.AreEqual("new body", inserted[0].Action.Body);
+        Assert.AreEqual("sender", inserted[0].Action.FromName);
+        Assert.AreEqual("sender@example.test", inserted[0].Action.FromAddress);
+        Assert.AreEqual("message.eml", inserted[0].Action.Filename);
+        Assert.AreEqual("recipient@example.test", inserted[0].Action.To);
+        Assert.AreEqual("Archive", inserted[0].Action.ImapFolder);
+        Assert.AreEqual("X-New", inserted[0].Action.HeaderName);
+        Assert.AreEqual("value", inserted[0].Action.Value);
+        Assert.AreEqual(500, inserted[0].Action.RouteId);
+        Assert.IsTrue(inserted[0].Action.AbortSpamFlagged);
+    }
+
+    [TestMethod]
+    public void AuthorizedAdd_FailedInsertRetainsUnsavedItemAndAllowsRetry()
+    {
+        var fail = true;
+        var insertCount = 0;
+        IInterfaceRuleActions actions = RuleActions.CreateAuthorized(
+            [],
+            save: _ => { },
+            owningRuleId: 10,
+            insert: (_, _) =>
+            {
+                insertCount++;
+                if (fail)
+                {
+                    throw new InvalidOperationException("Simulated insert failure.");
+                }
+
+                return 124;
+            });
+
+        var action = actions.Add();
+        action.Subject = "retry me";
+
+        var error = Assert.ThrowsExactly<COMException>(action.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, action.ID);
+        Assert.AreEqual("retry me", action.Subject);
+        Assert.AreEqual(0, actions.Count);
+
+        fail = false;
+        action.Save();
+
+        Assert.AreEqual(124, action.ID);
+        Assert.AreEqual(1, actions.Count);
+        Assert.AreEqual(2, insertCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedAdd_ScriptFunctionSaveRechecksServerAdministrator()
+    {
+        var isServerAdministrator = true;
+        var insertCount = 0;
+        IInterfaceRuleActions actions = RuleActions.CreateAuthorized(
+            [],
+            save: _ => { },
+            isServerAdministrator: () => isServerAdministrator,
+            owningRuleId: 10,
+            insert: (_, _) =>
+            {
+                insertCount++;
+                return 125;
+            });
+
+        var action = actions.Add();
+        action.Type = ComRuleActionType.RunScriptFunction;
+        action.ScriptFunction = "HandleMessage";
+        isServerAdministrator = false;
+
+        var error = Assert.ThrowsExactly<COMException>(action.Save);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, insertCount);
+        Assert.AreEqual(0, action.ID);
+        Assert.AreEqual(0, actions.Count);
     }
 
     [TestMethod]

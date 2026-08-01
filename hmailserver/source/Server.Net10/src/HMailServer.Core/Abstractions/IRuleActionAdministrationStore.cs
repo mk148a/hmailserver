@@ -11,6 +11,12 @@ public interface IRuleActionAdministrationStore
         int databaseId,
         CancellationToken cancellationToken);
 
+    ValueTask<int> InsertRuleActionAsync(
+        int owningRuleId,
+        RuleActionAdministrationSnapshot action,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Rule action insertion is not implemented by this store.");
+
     ValueTask SaveRuleActionAsync(
         int owningRuleId,
         RuleActionAdministrationSnapshot action,

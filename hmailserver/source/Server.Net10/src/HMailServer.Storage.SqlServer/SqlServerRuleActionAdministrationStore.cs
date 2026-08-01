@@ -36,6 +36,18 @@ WHERE actionruleid = @RuleId
   AND actionid = @ActionId;
 """;
 
+    public const string InsertRuleActionSql = """
+INSERT INTO hm_rule_actions
+    (actionruleid, actiontype, actionimapfolder, actionsubject, actionfromname,
+     actionfromaddress, actionto, actionbody, actionfilename, actionsortorder,
+     actionscriptfunction, actionheader, actionvalue, actionrouteid, actionabortspamflagged)
+OUTPUT INSERTED.actionid
+VALUES
+    (@RuleId, @Type, @ImapFolder, @Subject, @FromName,
+     @FromAddress, @To, @Body, @Filename, @SortOrder,
+     @ScriptFunction, @HeaderName, @Value, @RouteId, @AbortSpamFlagged);
+""";
+
     public const string SaveRuleActionSql = """
 UPDATE hm_rule_actions
 SET actionruleid = @RuleId,
@@ -114,6 +126,35 @@ WHERE actionruleid = @OwningRuleId
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async ValueTask<int> InsertRuleActionAsync(
+        int owningRuleId,
+        RuleActionAdministrationSnapshot action,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(owningRuleId);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertRuleActionSql, connection);
+        command.Parameters.Add("@RuleId", SqlDbType.Int).Value = owningRuleId;
+        command.Parameters.Add("@Type", SqlDbType.TinyInt).Value = action.Type;
+        command.Parameters.Add("@ImapFolder", SqlDbType.NVarChar, 255).Value = action.ImapFolder;
+        command.Parameters.Add("@Subject", SqlDbType.NVarChar, 255).Value = action.Subject;
+        command.Parameters.Add("@FromName", SqlDbType.NVarChar, 255).Value = action.FromName;
+        command.Parameters.Add("@FromAddress", SqlDbType.NVarChar, 255).Value = action.FromAddress;
+        command.Parameters.Add("@To", SqlDbType.NVarChar, 255).Value = action.To;
+        command.Parameters.Add("@Body", SqlDbType.NVarChar, -1).Value = action.Body;
+        command.Parameters.Add("@Filename", SqlDbType.NVarChar, 255).Value = action.Filename;
+        command.Parameters.Add("@SortOrder", SqlDbType.Int).Value = action.SortOrder;
+        command.Parameters.Add("@ScriptFunction", SqlDbType.NVarChar, 255).Value = action.ScriptFunction;
+        command.Parameters.Add("@HeaderName", SqlDbType.NVarChar, 80).Value = action.HeaderName;
+        command.Parameters.Add("@Value", SqlDbType.NVarChar, 255).Value = action.Value;
+        command.Parameters.Add("@RouteId", SqlDbType.Int).Value = action.RouteId;
+        command.Parameters.Add("@AbortSpamFlagged", SqlDbType.TinyInt).Value = action.AbortSpamFlagged ? 1 : 0;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
     public async ValueTask SaveRuleActionAsync(
         int owningRuleId,
         RuleActionAdministrationSnapshot action,
@@ -123,7 +164,7 @@ WHERE actionruleid = @OwningRuleId
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(SaveRuleActionSql, connection);
         command.Parameters.Add("@OwningRuleId", SqlDbType.Int).Value = owningRuleId;
-        command.Parameters.Add("@RuleId", SqlDbType.Int).Value = action.RuleId;
+        command.Parameters.Add("@RuleId", SqlDbType.Int).Value = owningRuleId;
         command.Parameters.Add("@ActionId", SqlDbType.Int).Value = action.Id;
         command.Parameters.Add("@Type", SqlDbType.TinyInt).Value = action.Type;
         command.Parameters.Add("@ImapFolder", SqlDbType.NVarChar, 255).Value = action.ImapFolder;

@@ -76,4 +76,28 @@ public sealed class SqlServerRuleActionAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void InsertRuleActionSql_UsesGeneratedIdentityAndAllPersistedFields()
+    {
+        var sql = SqlServerRuleActionAdministrationStore.InsertRuleActionSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_rule_actions");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.actionid");
+        StringAssert.Contains(sql, "(@RuleId, @Type, @ImapFolder, @Subject, @FromName");
+        foreach (var column in new[]
+                 {
+                     "actionruleid", "actiontype", "actionimapfolder", "actionsubject", "actionfromname",
+                     "actionfromaddress", "actionto", "actionbody", "actionfilename", "actionsortorder",
+                     "actionscriptfunction", "actionheader", "actionvalue", "actionrouteid",
+                     "actionabortspamflagged"
+                 })
+        {
+            StringAssert.Contains(sql, column);
+        }
+
+        Assert.IsFalse(sql.Contains("MAX(", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("IDENT_CURRENT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("IDENTITY_INSERT", StringComparison.OrdinalIgnoreCase));
+    }
 }
