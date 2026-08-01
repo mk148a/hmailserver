@@ -14,6 +14,8 @@ public sealed class MessageFilePathResolver
         _dataDirectory = options.NormalizedDataDirectory;
     }
 
+    public string DataDirectory => _dataDirectory;
+
     public string? Resolve(
         string messageFileName,
         int accountId,
