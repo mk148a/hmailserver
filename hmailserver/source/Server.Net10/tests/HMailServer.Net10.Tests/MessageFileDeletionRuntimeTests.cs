@@ -58,6 +58,25 @@ public sealed class MessageFileDeletionRuntimeTests
     }
 
     [TestMethod]
+    public void TryDelete_RejectsRootedPathInsideDataDirectoryAndMalformedMetadata()
+    {
+        using var fixture = new TemporaryDataDirectory();
+        var resolver = new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(fixture.Path));
+        var calls = 0;
+        var runtime = new MessageFileDeletionRuntime(resolver, _ =>
+        {
+            calls++;
+            return true;
+        }, TimeSpan.Zero);
+        var rooted = Path.Combine(fixture.Path, "other-account", "victim.eml");
+
+        Assert.IsFalse(runtime.TryDelete(CreateMessage(resolver, rooted, 0, 0, null)));
+        Assert.IsFalse(runtime.TryDelete(CreateMessage(resolver, " ", 0, 0, null)));
+        Assert.IsFalse(runtime.TryDelete(new ImapFolderAdministrationDeletedMessage("bad.eml", 0, 0, null, 3)));
+        Assert.AreEqual(0, calls);
+    }
+
+    [TestMethod]
     public void TryDelete_RetriesFiveTimesAndReportsFailure()
     {
         using var fixture = new TemporaryDataDirectory();
@@ -91,6 +110,29 @@ public sealed class MessageFileDeletionRuntimeTests
 
         Assert.IsFalse(runtime.TryDeleteAll(result));
         Assert.AreEqual(0, calls);
+    }
+
+    [TestMethod]
+    public void TryDeleteAll_AttemptsEveryFileAfterOneDeleteFails()
+    {
+        using var fixture = new TemporaryDataDirectory();
+        var resolver = new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(fixture.Path));
+        var calls = 0;
+        var runtime = new MessageFileDeletionRuntime(resolver, _ =>
+        {
+            calls++;
+            return calls > MessageFileDeletionRuntime.MaxAttempts;
+        }, TimeSpan.Zero);
+        var result = new ImapFolderAdministrationDeletionResult(
+            Succeeded: true,
+            DeletedMessages: new[]
+            {
+                CreateMessage(resolver, "first.eml", 0, 0, null),
+                CreateMessage(resolver, "second.eml", 0, 0, null)
+            });
+
+        Assert.IsFalse(runtime.TryDeleteAll(result));
+        Assert.AreEqual(MessageFileDeletionRuntime.MaxAttempts + 1, calls);
     }
 
     private static ImapFolderAdministrationDeletedMessage CreateMessage(

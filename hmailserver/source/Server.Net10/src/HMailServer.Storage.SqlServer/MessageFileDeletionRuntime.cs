@@ -34,23 +34,30 @@ public sealed class MessageFileDeletionRuntime
             return false;
         }
 
+        var succeeded = true;
         foreach (var message in result.DeletedMessages)
         {
             if (!TryDelete(message))
             {
-                return false;
+                succeeded = false;
             }
         }
 
-        return true;
+        return succeeded;
     }
 
     public bool TryDelete(ImapFolderAdministrationDeletedMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        if (string.IsNullOrWhiteSpace(message.FileName))
+        if (message.FileName.Length == 0)
         {
             return true;
+        }
+
+        if (message.FileName.IndexOfAny(['\\', '/', ':']) >= 0
+            || message.MessageType is < 0 or > 2)
+        {
+            return false;
         }
 
         string? path;
