@@ -99,7 +99,7 @@ public sealed class BackupRestoreIntegrityRuntimeTests
         }
 
         using var fixture = await ArchiveFixture.CreateAsync(
-            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\"><FetchAccountUIDs><UID UID=\"message-1\" Date=\"2026-08-01\" /></FetchAccountUIDs></FetchAccount></FetchAccounts><Rules><Rule Name=\"rule\" /></Rules><Folders><Folder Name=\"Inbox\"><Folders><Folder Name=\"Nested\" /></Folders></Folder></Folders></Account></Accounts></Domain></Domains></Backup>",
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\"><FetchAccountUIDs><UID UID=\"message-1\" Date=\"2026-08-01\" /></FetchAccountUIDs></FetchAccount></FetchAccounts><Rules><Rule Name=\"rule\"><RuleCriterias><Criteria MatchString=\"alice\" FieldType=\"1\" MatchType=\"2\" HeaderField=\"Subject\" UsePredefinedField=\"1\" /></RuleCriterias><RuleActions><Action Type=\"1\" Subject=\"subject\" Body=\"body\" FromAddress=\"from@example.com\" FromName=\"Sender\" IMAPFolder=\"Inbox\" FileName=\"reply.eml\" To=\"to@example.com\" ScriptFunction=\"OnAcceptMessage\" SortOrder=\"1\" Header=\"X-Test\" Value=\"value\" RouteID=\"0\" AbortSpamFlagged=\"0\" /></RuleActions></Rule></Rules><Folders><Folder Name=\"Inbox\"><Folders><Folder Name=\"Nested\" /></Folders></Folder></Folders></Account></Accounts></Domain></Domains></Backup>",
             includeNestedDataBackup: false);
 
         var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
@@ -148,6 +148,60 @@ public sealed class BackupRestoreIntegrityRuntimeTests
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules><FetchAccount /></Rules></Account></Accounts></Domain></Domains></Backup>")]
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Alias /></Folders></Account></Accounts></Domain></Domains></Backup>")]
     public async Task InspectAsync_RejectsWrongAccountChildContainerChildren(string metadataXml)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(metadataXml, includeNestedDataBackup: false);
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, metadataXml);
+        StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_AcceptsExplicitlyEmptyRuleChildContainers()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules><Rule Name=\"rule\"><RuleCriterias /><RuleActions /></Rule></Rules></Account></Accounts></Domain></Domains></Backup>",
+            includeNestedDataBackup: false);
+
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsTrue(evidence.IsValid, evidence.FailureReason);
+    }
+
+    [TestMethod]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><RuleCriterias /></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules><Rule Name=\"rule\"><RuleCriterias /><RuleCriterias /></Rule></Rules></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules><Rule Name=\"rule\"><RuleActions /><RuleActions /></Rule></Rules></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules><Rule Name=\"rule\"><RuleCriterias><Action /></RuleCriterias></Rule></Rules></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules><Rule Name=\"rule\"><RuleActions><Criteria /></RuleActions></Rule></Rules></Account></Accounts></Domain></Domains></Backup>")]
+    public async Task InspectAsync_RejectsMalformedRuleChildGraph(string metadataXml)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(metadataXml, includeNestedDataBackup: false);
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, metadataXml);
+        StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+    }
+
+    [TestMethod]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules><Rule Name=\"rule\"><RuleCriterias><Criteria FieldType=\"1\" MatchType=\"2\" HeaderField=\"Subject\" UsePredefinedField=\"1\" /></RuleCriterias></Rule></Rules></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules><Rule Name=\"rule\"><RuleActions><Action Type=\"1\" Subject=\"subject\" Body=\"body\" FromAddress=\"from@example.com\" FromName=\"Sender\" IMAPFolder=\"Inbox\" FileName=\"reply.eml\" To=\"to@example.com\" ScriptFunction=\"OnAcceptMessage\" SortOrder=\"1\" Header=\"X-Test\" Value=\"value\" RouteID=\"0\" /></RuleActions></Rule></Rules></Account></Accounts></Domain></Domains></Backup>")]
+    public async Task InspectAsync_RejectsMissingRuleChildAttributes(string metadataXml)
     {
         if (!OperatingSystem.IsWindows())
         {

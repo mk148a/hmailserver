@@ -588,6 +588,68 @@ internal sealed class BackupRestoreIntegrityRuntime
 
                     break;
 
+                case "RuleCriterias":
+                    if (element.Name != "RuleCriterias" || element.Parent?.Name != "Rule")
+                    {
+                        return "The domain/account graph is invalid: RuleCriterias is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("RuleCriterias").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Rule contains multiple RuleCriterias containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "Criteria"))
+                    {
+                        return "The domain/account graph is invalid: RuleCriterias contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "RuleActions":
+                    if (element.Name != "RuleActions" || element.Parent?.Name != "Rule")
+                    {
+                        return "The domain/account graph is invalid: RuleActions is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("RuleActions").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Rule contains multiple RuleActions containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "Action"))
+                    {
+                        return "The domain/account graph is invalid: RuleActions contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "Criteria":
+                    if (element.Parent?.Name != "RuleCriterias")
+                    {
+                        return "The domain/account graph is invalid: Criteria is outside Rule/RuleCriterias.";
+                    }
+
+                    if (!HasAttributes(element, "MatchString", "FieldType", "MatchType", "HeaderField", "UsePredefinedField"))
+                    {
+                        return "The domain/account graph is invalid: Criteria is missing a serialized attribute.";
+                    }
+
+                    break;
+
+                case "Action":
+                    if (element.Parent?.Name != "RuleActions")
+                    {
+                        return "The domain/account graph is invalid: Action is outside Rule/RuleActions.";
+                    }
+
+                    if (!HasAttributes(element, "Type", "Subject", "Body", "FromAddress", "FromName", "IMAPFolder", "FileName", "To", "ScriptFunction", "SortOrder", "Header", "Value", "RouteID", "AbortSpamFlagged"))
+                    {
+                        return "The domain/account graph is invalid: Action is missing a serialized attribute.";
+                    }
+
+                    break;
+
                 case "Folder":
                     if (element.Parent?.Name != "Folders")
                     {
