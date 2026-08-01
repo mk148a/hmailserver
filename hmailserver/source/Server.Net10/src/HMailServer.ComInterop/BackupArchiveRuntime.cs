@@ -63,10 +63,12 @@ public sealed class SevenZipBackupArchiveRuntime
             && (evidence.BackupOptions & BackupStartPlan.BackupCompressionFlag) == 0
             && !evidence.BackupMessagesDbOnly;
         var stagesPhysicalMessageData = stagesCompressedMessageData || stagesRawMessageData;
-        if (includesMessages && !evidence.BackupMessagesDbOnly && !stagesPhysicalMessageData)
+        if (includesDomainMessages
+            && !evidence.BackupMessagesDbOnly
+            && !stagesPhysicalMessageData)
         {
             throw new NotSupportedException(
-                "Only domain message backup staging is implemented yet.");
+                "Domain message backup staging is not implemented yet.");
         }
 
         if (stagesPhysicalMessageData && string.IsNullOrWhiteSpace(_dataDirectory))

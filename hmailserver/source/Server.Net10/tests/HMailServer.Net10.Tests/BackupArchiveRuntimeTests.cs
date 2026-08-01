@@ -296,29 +296,105 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
-    public async Task RejectsPhysicalMessageBackupBeforeCreatingAnyFile()
+    public async Task CreatesCompressedMessageOnlyArchiveWithMetadataOnlyPayload()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
         var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
         Directory.CreateDirectory(destination);
+        var unrelatedPath = Path.Combine(destination, "unrelated.txt");
+        File.WriteAllText(unrelatedPath, "unrelated");
 
         try
         {
             var runtime = new SevenZipBackupArchiveRuntime(
-                Path.Combine(destination, "missing-7za.exe"),
-                "10.0.0-B0");
-            var evidence = new BackupStartPlanEvidence(
-                Destination: destination,
-                BackupOptions: BackupStartPlan.BackupMessagesFlag | BackupStartPlan.BackupCompressionFlag,
-                BackupMessagesDbOnly: false,
-                AllMessageFilesInDataDirectory: true,
-                DestinationExists: true);
+                sevenZipPath,
+                "10.0.0-B0",
+                static () => new DateTime(2026, 7, 30, 4, 5, 11));
+            await runtime.CreateAsync(
+                new BackupStartPlanEvidence(
+                    Destination: destination,
+                    BackupOptions: BackupStartPlan.BackupMessagesFlag
+                        | BackupStartPlan.BackupCompressionFlag,
+                    BackupMessagesDbOnly: false,
+                    AllMessageFilesInDataDirectory: true,
+                    DestinationExists: true),
+                CancellationToken.None);
 
-            await Assert.ThrowsExactlyAsync<NotSupportedException>(
-                () => runtime.CreateAsync(evidence, CancellationToken.None).AsTask());
+            var archivePath = Path.Combine(destination, "HMBackup 2026-07-30 040511.7z");
+            Assert.IsTrue(File.Exists(archivePath), archivePath);
+            Assert.IsFalse(Directory.Exists(Path.Combine(destination, "DataBackup")));
+            Assert.IsFalse(File.Exists(Path.Combine(destination, "hMailServerBackup.xml")));
+            Assert.AreEqual("unrelated", File.ReadAllText(unrelatedPath));
 
-            CollectionAssert.AreEqual(
-                Array.Empty<string>(),
-                Directory.GetFiles(destination));
+            var metadata = XDocument.Parse(await ReadMetadataXmlAsync(sevenZipPath, archivePath));
+            var information = metadata.Root!.Element("BackupInformation")!;
+            Assert.AreEqual("12", information.Attribute("Mode")?.Value);
+            var dataFiles = information.Element("DataFiles")!;
+            Assert.AreEqual("7z", dataFiles.Attribute("Format")?.Value);
+            Assert.AreEqual("0", dataFiles.Attribute("Size")?.Value);
+            Assert.IsNull(dataFiles.Attribute("FolderName"));
+            CollectionAssert.AreEquivalent(
+                new[] { Path.GetFileName(archivePath), Path.GetFileName(unrelatedPath) },
+                Directory.GetFiles(destination).Select(Path.GetFileName).ToArray());
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task CreatesRawMessageOnlyArchiveWithMetadataOnlyPayload()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(destination);
+        var unrelatedPath = Path.Combine(destination, "unrelated.txt");
+        File.WriteAllText(unrelatedPath, "unrelated");
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                static () => new DateTime(2026, 7, 30, 4, 5, 12));
+            await runtime.CreateAsync(
+                new BackupStartPlanEvidence(
+                    Destination: destination,
+                    BackupOptions: BackupStartPlan.BackupMessagesFlag,
+                    BackupMessagesDbOnly: false,
+                    AllMessageFilesInDataDirectory: true,
+                    DestinationExists: true),
+                CancellationToken.None);
+
+            var archivePath = Path.Combine(destination, "HMBackup 2026-07-30 040512.7z");
+            Assert.IsTrue(File.Exists(archivePath), archivePath);
+            Assert.IsFalse(Directory.Exists(Path.Combine(destination, "DataBackup")));
+            Assert.IsFalse(File.Exists(Path.Combine(destination, "hMailServerBackup.xml")));
+            Assert.AreEqual("unrelated", File.ReadAllText(unrelatedPath));
+
+            var metadata = XDocument.Parse(await ReadMetadataXmlAsync(sevenZipPath, archivePath));
+            var information = metadata.Root!.Element("BackupInformation")!;
+            Assert.AreEqual("4", information.Attribute("Mode")?.Value);
+            var dataFiles = information.Element("DataFiles")!;
+            Assert.AreEqual("Raw", dataFiles.Attribute("Format")?.Value);
+            Assert.AreEqual("DataBackup", dataFiles.Attribute("FolderName")?.Value);
+            Assert.IsNull(dataFiles.Attribute("Size"));
+            CollectionAssert.AreEquivalent(
+                new[] { Path.GetFileName(archivePath), Path.GetFileName(unrelatedPath) },
+                Directory.GetFiles(destination).Select(Path.GetFileName).ToArray());
         }
         finally
         {
