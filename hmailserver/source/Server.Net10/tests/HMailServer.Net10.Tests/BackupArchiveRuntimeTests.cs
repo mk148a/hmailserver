@@ -730,6 +730,24 @@ public sealed class BackupArchiveRuntimeTests
                             12,
                             "2026-07-30 04:05:06")
                     }
+                },
+                FolderMessages: new Dictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>
+                {
+                    [301] = new[]
+                    {
+                        new MessageAdministrationSnapshot(
+                            Id: 401,
+                            AccountId: 20,
+                            FolderId: 301,
+                            FileName: @"C:\hMailServer\Data\account\message<&""'.eml",
+                            State: 2,
+                            FromAddress: "from<&\"'@example.test",
+                            SizeBytes: 1234,
+                            CurrentNumberOfTries: 3,
+                            Flags: 5,
+                            InternalDate: new DateTime(2026, 7, 30, 5, 6, 7),
+                            Uid: 12)
+                    }
                 }));
 
         var account = XDocument.Parse(xml)
@@ -757,6 +775,20 @@ public sealed class BackupArchiveRuntimeTests
             folders[0].Element("Folders")!.Element("Folder")!.Element("Folders")!
                 .Element("Folder")!.Attribute("Name")?.Value);
         Assert.IsNull(folders[1].Element("Folders"));
+        CollectionAssert.AreEqual(
+            new[] { "Messages", "Folders" },
+            folders[0].Elements().Select(static element => element.Name.LocalName).ToArray());
+        var message = folders[0].Element("Messages")!.Element("Message")!;
+        CollectionAssert.AreEqual(
+            new[] { "CreateTime", "Filename", "FromAddress", "State", "Size", "NoOfRetries", "Flags", "ID", "UID" },
+            message.Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("2026-07-30 05:06:07", message.Attribute("CreateTime")?.Value);
+        Assert.AreEqual("message<&\"'.eml", message.Attribute("Filename")?.Value);
+        Assert.AreEqual("2", message.Attribute("State")?.Value);
+        Assert.AreEqual("1234", message.Attribute("Size")?.Value);
+        Assert.AreEqual("401", message.Attribute("ID")?.Value);
+        Assert.AreEqual("12", message.Attribute("UID")?.Value);
+        Assert.IsTrue(xml.Contains("Filename=\"message&lt;&amp;&quot;&apos;.eml\"", StringComparison.Ordinal));
         Assert.IsTrue(xml.Contains("Name=\"root&lt;&amp;&quot;&apos; &gt;\"", StringComparison.Ordinal));
     }
 
@@ -803,6 +835,33 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlOmitsEmptyMessageContainers()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            6,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: null,
+                Domains: new[] { new DomainAdministrationSnapshot(10, "example.test", true) },
+                Accounts: new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+                {
+                    [10] = new[] { new AccountAdministrationSnapshot(20, 10, "account@example.test", true, 0) }
+                },
+                Folders: new Dictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>
+                {
+                    [20] = new[] { new ImapFolderAdministrationSnapshot(301, 20, -1, "root", true, 42, "2026-07-30 01:02:03") }
+                },
+                FolderMessages: new Dictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>
+                {
+                    [301] = Array.Empty<MessageAdministrationSnapshot>()
+                }));
+
+        var folder = XDocument.Parse(xml).Root!.Element("Domains")!.Element("Domain")!
+            .Element("Accounts")!.Element("Account")!.Element("Folders")!.Element("Folder")!;
+        Assert.IsNull(folder.Element("Messages"));
+    }
+
+    [TestMethod]
     public async Task PayloadRuntimeLoadsAllFoldersOnceForSelectedAccountsOnlyWhenMessagesAreSelected()
     {
         var folderStore = new RecordingImapFolderAdministrationStore(
@@ -815,6 +874,13 @@ public sealed class BackupArchiveRuntimeTests
                 },
                 [2] = new[] { new ImapFolderAdministrationSnapshot(102, 2, -1, "two", false, 2, "2026-07-30 01:02:04") },
                 [99] = new[] { new ImapFolderAdministrationSnapshot(199, 99, -1, "outside", true, 9, "2026-07-30 01:02:05") }
+            });
+        var messageStore = new RecordingMessageAdministrationStore(
+            new Dictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>
+            {
+                [101] = new[] { new MessageAdministrationSnapshot(401, 1, 101, "one.eml", 2, "one@example.test", 10, 0, 1, new DateTime(2026, 7, 30, 1, 2, 3), 1) },
+                [103] = new[] { new MessageAdministrationSnapshot(403, 1, 103, "child.eml", 2, "child@example.test", 20, 0, 2, new DateTime(2026, 7, 30, 1, 2, 4), 2) },
+                [102] = new[] { new MessageAdministrationSnapshot(402, 2, 102, "two.eml", 2, "two@example.test", 30, 0, 3, new DateTime(2026, 7, 30, 1, 2, 5), 3) }
             });
         var runtime = new BackupXmlPayloadRuntime(
             new FixedSettingsAdministrationStore(),
@@ -837,7 +903,8 @@ public sealed class BackupArchiveRuntimeTests
             new RecordingAliasAdministrationStore(new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
             null,
             null,
-            folderStore: folderStore);
+            folderStore: folderStore,
+            messageStore: messageStore);
 
         var payload = await runtime.GetPayloadAsync(
             new BackupStartPlanEvidence(
@@ -853,9 +920,13 @@ public sealed class BackupArchiveRuntimeTests
         CollectionAssert.AreEquivalent(new[] { 1, 2 }, payload.Folders!.Keys.ToArray());
         Assert.AreEqual(2, payload.Folders[1].Count);
         Assert.AreEqual(101, payload.Folders[1][1].ParentId);
+        CollectionAssert.AreEqual(new[] { 101, 103, 102 }, messageStore.RequestedFolderIds.ToArray());
+        Assert.AreEqual(1, payload.FolderMessages![101].Count);
 
         var noMessagesFolderStore = new RecordingImapFolderAdministrationStore(
             new Dictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>());
+        var noMessagesMessageStore = new RecordingMessageAdministrationStore(
+            new Dictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>());
         var noMessagesRuntime = new BackupXmlPayloadRuntime(
             new FixedSettingsAdministrationStore(),
             new FixedDomainAdministrationStore(new[] { new DomainAdministrationSnapshot(10, "example.test", true) }),
@@ -868,7 +939,8 @@ public sealed class BackupArchiveRuntimeTests
             new RecordingAliasAdministrationStore(new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
             null,
             null,
-            folderStore: noMessagesFolderStore);
+            folderStore: noMessagesFolderStore,
+            messageStore: noMessagesMessageStore);
 
         var noMessagesPayload = await noMessagesRuntime.GetPayloadAsync(
             new BackupStartPlanEvidence(
@@ -880,7 +952,9 @@ public sealed class BackupArchiveRuntimeTests
             CancellationToken.None);
 
         CollectionAssert.AreEqual(Array.Empty<int>(), noMessagesFolderStore.RequestedAccountIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<int>(), noMessagesMessageStore.RequestedFolderIds.ToArray());
         Assert.IsNull(noMessagesPayload.Folders);
+        Assert.IsNull(noMessagesPayload.FolderMessages);
     }
 
     [TestMethod]
@@ -1774,6 +1848,30 @@ public sealed class BackupArchiveRuntimeTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>(
                 Array.Empty<ImapFolderPermissionAdministrationSnapshot>());
+    }
+
+    private sealed class RecordingMessageAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>> messages)
+        : IMessageAdministrationStore
+    {
+        public List<int> RequestedFolderIds { get; } = new();
+
+        public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetAccountMessagesAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(
+                Array.Empty<MessageAdministrationSnapshot>());
+
+        public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesAsync(
+            int folderId,
+            CancellationToken cancellationToken)
+        {
+            RequestedFolderIds.Add(folderId);
+            return ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(
+                messages.TryGetValue(folderId, out var folderMessages)
+                    ? folderMessages
+                    : Array.Empty<MessageAdministrationSnapshot>());
+        }
     }
 
     private sealed class RecordingBackupAccountAdministrationStore(

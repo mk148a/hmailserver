@@ -9,7 +9,7 @@ namespace HMailServer.ComInterop;
 
 /// <summary>
 /// Creates the bounded legacy archive and modeled scalar settings/domain metadata.
-/// Message payloads, remaining nested domain children, and data-directory
+/// Message contents, remaining nested domain children, and data-directory
 /// staging remain fenced.
 /// </summary>
 [ComVisible(false)]
@@ -139,6 +139,7 @@ public sealed class SevenZipBackupArchiveRuntime
                     payload?.RuleCriterias,
                     payload?.RuleActions,
                     payload?.Folders,
+                    payload?.FolderMessages,
                     includeFolderMetadata: (backupOptions & BackupStartPlan.BackupMessagesFlag) != 0);
             }
 
@@ -343,6 +344,7 @@ public sealed class SevenZipBackupArchiveRuntime
         IReadOnlyDictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? ruleCriterias,
         IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>? ruleActions,
         IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? folders,
+        IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? folderMessages,
         bool includeFolderMetadata)
     {
         if (domains is null)
@@ -511,7 +513,7 @@ public sealed class SevenZipBackupArchiveRuntime
                         rules,
                         ruleCriterias,
                         ruleActions);
-                    WriteFolders(writer, account.Id, folders, includeFolderMetadata);
+                    WriteFolders(writer, account.Id, folders, folderMessages, includeFolderMetadata);
                     writer.WriteEndElement();
                 }
 
@@ -588,6 +590,7 @@ public sealed class SevenZipBackupArchiveRuntime
         XmlWriter writer,
         int accountId,
         IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? folders,
+        IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? folderMessages,
         bool includeFolderMetadata)
     {
         if (!includeFolderMetadata
@@ -610,7 +613,7 @@ public sealed class SevenZipBackupArchiveRuntime
         writer.WriteStartElement("Folders");
         foreach (var folder in rootFolders)
         {
-            WriteFolder(writer, folder, foldersByParentId);
+            WriteFolder(writer, folder, foldersByParentId, folderMessages);
         }
 
         writer.WriteEndElement();
@@ -619,22 +622,55 @@ public sealed class SevenZipBackupArchiveRuntime
     private static void WriteFolder(
         XmlWriter writer,
         ImapFolderAdministrationSnapshot folder,
-        IReadOnlyDictionary<int, ImapFolderAdministrationSnapshot[]> foldersByParentId)
+        IReadOnlyDictionary<int, ImapFolderAdministrationSnapshot[]> foldersByParentId,
+        IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? folderMessages)
     {
         writer.WriteStartElement("Folder");
         WriteLegacyAttribute(writer, "Name", folder.Name);
         WriteLegacyAttribute(writer, "Subscribed", (folder.Subscribed ? 1 : 0).ToString(CultureInfo.InvariantCulture));
         WriteLegacyAttribute(writer, "CreateTime", folder.CreationTime);
         WriteLegacyAttribute(writer, "CurrentUID", folder.CurrentUid.ToString(CultureInfo.InvariantCulture));
+        WriteMessages(writer, folder.Id, folderMessages);
         if (foldersByParentId.TryGetValue(folder.Id, out var childFolders)
             && childFolders.Length > 0)
         {
             writer.WriteStartElement("Folders");
             foreach (var childFolder in childFolders)
             {
-                WriteFolder(writer, childFolder, foldersByParentId);
+                WriteFolder(writer, childFolder, foldersByParentId, folderMessages);
             }
 
+            writer.WriteEndElement();
+        }
+
+        writer.WriteEndElement();
+    }
+
+    private static void WriteMessages(
+        XmlWriter writer,
+        int folderId,
+        IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? folderMessages)
+    {
+        if (folderMessages is null
+            || !folderMessages.TryGetValue(folderId, out var messages)
+            || messages.Count == 0)
+        {
+            return;
+        }
+
+        writer.WriteStartElement("Messages");
+        foreach (var message in messages)
+        {
+            writer.WriteStartElement("Message");
+            WriteLegacyAttribute(writer, "CreateTime", message.InternalDate.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "Filename", Path.GetFileName(message.FileName));
+            WriteLegacyAttribute(writer, "FromAddress", message.FromAddress);
+            WriteLegacyAttribute(writer, "State", message.State.ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "Size", message.SizeBytes.ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "NoOfRetries", message.CurrentNumberOfTries.ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "Flags", message.Flags.ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "ID", message.Id.ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "UID", message.Uid.ToString(CultureInfo.InvariantCulture));
             writer.WriteEndElement();
         }
 
@@ -819,7 +855,8 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyDictionary<int, IReadOnlyList<RuleAdministrationSnapshot>>? Rules = null,
     IReadOnlyDictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? RuleCriterias = null,
     IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>? RuleActions = null,
-    IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? Folders = null);
+    IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? Folders = null,
+    IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? FolderMessages = null);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
@@ -835,6 +872,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IRuleCriteriaAdministrationStore? _ruleCriteriaStore;
     private readonly IRuleActionAdministrationStore? _ruleActionStore;
     private readonly IImapFolderAdministrationStore? _folderStore;
+    private readonly IMessageAdministrationStore? _messageStore;
     private readonly IAliasAdministrationStore _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore? _distributionListRecipientStore;
@@ -859,7 +897,8 @@ public sealed class BackupXmlPayloadRuntime
             backupRuleStore: null,
             ruleCriteriaStore: null,
             ruleActionStore: null,
-            folderStore: null)
+            folderStore: null,
+            messageStore: null)
     {
     }
 
@@ -877,7 +916,8 @@ public sealed class BackupXmlPayloadRuntime
         IBackupRuleAdministrationStore? backupRuleStore = null,
         IRuleCriteriaAdministrationStore? ruleCriteriaStore = null,
         IRuleActionAdministrationStore? ruleActionStore = null,
-        IImapFolderAdministrationStore? folderStore = null)
+        IImapFolderAdministrationStore? folderStore = null,
+        IMessageAdministrationStore? messageStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -895,6 +935,7 @@ public sealed class BackupXmlPayloadRuntime
         _ruleCriteriaStore = ruleCriteriaStore;
         _ruleActionStore = ruleActionStore;
         _folderStore = folderStore;
+        _messageStore = messageStore;
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _distributionListRecipientStore = distributionListRecipientStore;
@@ -926,6 +967,7 @@ public sealed class BackupXmlPayloadRuntime
         IReadOnlyDictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? ruleCriterias = null;
         IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>? ruleActions = null;
         IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? folders = null;
+        IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? folderMessages = null;
         IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? aliases = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? distributionLists = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients = null;
@@ -955,6 +997,10 @@ public sealed class BackupXmlPayloadRuntime
                 || (evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) == 0
                 ? null
                 : new Dictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>();
+            var folderMessagesByFolderId = _messageStore is null
+                || (evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) == 0
+                ? null
+                : new Dictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>();
             var normalAliasesByDomainId = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
             var distributionListsByDomainId = _distributionListStore is null
                 ? null
@@ -1053,9 +1099,22 @@ public sealed class BackupXmlPayloadRuntime
                     {
                         if (!foldersByAccountId.ContainsKey(account.Id))
                         {
-                            foldersByAccountId[account.Id] = await _folderStore!
+                            var accountFolders = await _folderStore!
                                 .GetFoldersForAccountAsync(account.Id, cancellationToken)
                                 .ConfigureAwait(false);
+                            foldersByAccountId[account.Id] = accountFolders;
+                            if (folderMessagesByFolderId is not null)
+                            {
+                                foreach (var folder in accountFolders)
+                                {
+                                    if (!folderMessagesByFolderId.ContainsKey(folder.Id))
+                                    {
+                                        folderMessagesByFolderId[folder.Id] = await _messageStore!
+                                            .GetFolderMessagesAsync(folder.Id, cancellationToken)
+                                            .ConfigureAwait(false);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1093,6 +1152,7 @@ public sealed class BackupXmlPayloadRuntime
             ruleCriterias = ruleCriteriasByRuleId;
             ruleActions = ruleActionsByRuleId;
             folders = foldersByAccountId;
+            folderMessages = folderMessagesByFolderId;
             aliases = normalAliasesByDomainId;
             distributionLists = distributionListsByDomainId;
 
@@ -1125,6 +1185,7 @@ public sealed class BackupXmlPayloadRuntime
             rules,
             ruleCriterias,
             ruleActions,
-            folders);
+            folders,
+            folderMessages);
     }
 }
