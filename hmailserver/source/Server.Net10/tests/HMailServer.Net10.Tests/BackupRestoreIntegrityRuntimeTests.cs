@@ -99,7 +99,7 @@ public sealed class BackupRestoreIntegrityRuntimeTests
         }
 
         using var fixture = await ArchiveFixture.CreateAsync(
-            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\" /></FetchAccounts><Rules><Rule Name=\"rule\" /></Rules><Folders><Folder Name=\"Inbox\"><Folders><Folder Name=\"Nested\" /></Folders></Folder></Folders></Account></Accounts></Domain></Domains></Backup>",
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\"><FetchAccountUIDs><UID UID=\"message-1\" Date=\"2026-08-01\" /></FetchAccountUIDs></FetchAccount></FetchAccounts><Rules><Rule Name=\"rule\" /></Rules><Folders><Folder Name=\"Inbox\"><Folders><Folder Name=\"Nested\" /></Folders></Folder></Folders></Account></Accounts></Domain></Domains></Backup>",
             includeNestedDataBackup: false);
 
         var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
@@ -116,7 +116,7 @@ public sealed class BackupRestoreIntegrityRuntimeTests
         }
 
         using var fixture = await ArchiveFixture.CreateAsync(
-            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts /><Rules /><Folders /></Account></Accounts></Domain></Domains></Backup>",
+            "<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\"><FetchAccountUIDs /></FetchAccount></FetchAccounts><Rules /><Folders /></Account></Accounts></Domain></Domains></Backup>",
             includeNestedDataBackup: false);
 
         var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
@@ -148,6 +148,41 @@ public sealed class BackupRestoreIntegrityRuntimeTests
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Rules><FetchAccount /></Rules></Account></Accounts></Domain></Domains></Backup>")]
     [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><Folders><Alias /></Folders></Account></Accounts></Domain></Domains></Backup>")]
     public async Task InspectAsync_RejectsWrongAccountChildContainerChildren(string metadataXml)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(metadataXml, includeNestedDataBackup: false);
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, metadataXml);
+        StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+    }
+
+    [TestMethod]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\"><FetchAccountUIDs /><FetchAccountUIDs /></FetchAccount></FetchAccounts></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\"><FetchAccountUIDs><Rule /></FetchAccountUIDs></FetchAccount></FetchAccounts></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccountUIDs /></Account></Accounts></Domain></Domains></Backup>")]
+    public async Task InspectAsync_RejectsMalformedFetchAccountUIDGraph(string metadataXml)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(metadataXml, includeNestedDataBackup: false);
+        var evidence = await fixture.Runtime.InspectAsync(fixture.ArchivePath, CancellationToken.None);
+
+        Assert.IsFalse(evidence.IsValid, metadataXml);
+        StringAssert.Contains(evidence.FailureReason!, "domain/account graph");
+    }
+
+    [TestMethod]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\"><FetchAccountUIDs><UID Date=\"2026-08-01\" /></FetchAccountUIDs></FetchAccount></FetchAccounts></Account></Accounts></Domain></Domains></Backup>")]
+    [DataRow("<Backup><BackupInformation Mode=\"2\" /><Domains><Domain Name=\"example.com\"><Accounts><Account Name=\"alice@example.com\"><FetchAccounts><FetchAccount Name=\"remote\"><FetchAccountUIDs><UID UID=\"message-1\" /></FetchAccountUIDs></FetchAccount></FetchAccounts></Account></Accounts></Domain></Domains></Backup>")]
+    public async Task InspectAsync_RejectsMissingFetchAccountUIDAttributes(string metadataXml)
     {
         if (!OperatingSystem.IsWindows())
         {

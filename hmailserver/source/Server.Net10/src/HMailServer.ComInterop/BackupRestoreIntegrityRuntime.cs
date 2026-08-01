@@ -549,6 +549,37 @@ internal sealed class BackupRestoreIntegrityRuntime
 
                     break;
 
+                case "FetchAccountUIDs":
+                    if (element.Name != "FetchAccountUIDs" || element.Parent?.Name != "FetchAccount")
+                    {
+                        return "The domain/account graph is invalid: FetchAccountUIDs is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("FetchAccountUIDs").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: FetchAccount contains multiple FetchAccountUIDs containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "UID"))
+                    {
+                        return "The domain/account graph is invalid: FetchAccountUIDs contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "UID":
+                    if (element.Parent?.Name != "FetchAccountUIDs")
+                    {
+                        return "The domain/account graph is invalid: UID is outside FetchAccount/FetchAccountUIDs.";
+                    }
+
+                    if (!HasAttributes(element, "UID", "Date"))
+                    {
+                        return "The domain/account graph is invalid: UID is missing a serialized attribute.";
+                    }
+
+                    break;
+
                 case "Rule":
                     if (element.Parent?.Name != "Rules")
                     {
