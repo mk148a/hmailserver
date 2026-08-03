@@ -41,6 +41,22 @@ public sealed class ImapQuotaCommandHandlerTests
     }
 
     [TestMethod]
+    public async Task HandleAsync_ReturnsLegacyEmptyResourceListWhenGetQuotaRootHasNoLimit()
+    {
+        var store = new FakeQuotaStore { ReturnNoLimit = true };
+        var handler = new ImapQuotaCommandHandler(store);
+
+        var response = await handler.HandleAsync(
+            requesterAccountId: 77,
+            tag: "A005",
+            command: "GETQUOTAROOT",
+            arguments: "INBOX",
+            cancellationToken: CancellationToken.None);
+
+        Assert.AreEqual("* QUOTAROOT \"INBOX\" \"\"\r\n* QUOTA \"\" ()\r\nA005 OK GETQUOTAROOT completed\r\n", response);
+    }
+
+    [TestMethod]
     public async Task HandleAsync_ParsesSetQuotaStorageLimit()
     {
         var store = new FakeQuotaStore();
@@ -80,6 +96,8 @@ public sealed class ImapQuotaCommandHandlerTests
 
         public long LastLimitKilobytes { get; private set; }
 
+        public bool ReturnNoLimit { get; init; }
+
         public ValueTask<ImapQuotaResult> GetQuotaAsync(
             int requesterAccountId,
             string quotaRoot,
@@ -90,7 +108,7 @@ public sealed class ImapQuotaCommandHandlerTests
             return ValueTask.FromResult(
                 new ImapQuotaResult(
                     ImapQuotaCommandStatus.Success,
-                    new ImapQuota(quotaRoot, UsedKilobytes: 2048, LimitKilobytes: 10240)));
+                    new ImapQuota(quotaRoot, UsedKilobytes: 2048, LimitKilobytes: ReturnNoLimit ? null : 10240)));
         }
 
         public ValueTask<ImapQuotaRootResult> GetQuotaRootAsync(
@@ -101,7 +119,7 @@ public sealed class ImapQuotaCommandHandlerTests
                 new ImapQuotaRootResult(
                     ImapQuotaCommandStatus.Success,
                     mailboxName,
-                    new ImapQuota(string.Empty, UsedKilobytes: 2048, LimitKilobytes: 10240)));
+                    new ImapQuota(string.Empty, UsedKilobytes: 2048, LimitKilobytes: ReturnNoLimit ? null : 10240)));
 
         public ValueTask<ImapQuotaMutationResult> SetQuotaAsync(
             int requesterAccountId,

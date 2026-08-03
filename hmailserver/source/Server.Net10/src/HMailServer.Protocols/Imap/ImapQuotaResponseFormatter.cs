@@ -32,8 +32,11 @@ public static class ImapQuotaResponseFormatter
             throw new InvalidOperationException("QUOTAROOT response requires quota data.");
         }
 
-        return "* QUOTAROOT " + Quote(result.MailboxName) + " " + Quote(result.Quota.RootName) + "\r\n" +
-            FormatQuota(result.Quota);
+        var quota = result.Quota.LimitKilobytes is null
+            ? "* QUOTA " + Quote(result.Quota.RootName) + " ()\r\n"
+            : FormatQuota(result.Quota);
+
+        return "* QUOTAROOT " + Quote(result.MailboxName) + " " + Quote(result.Quota.RootName) + "\r\n" + quota;
     }
 
     private static string Quote(string value)
