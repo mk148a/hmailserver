@@ -11,6 +11,10 @@ public interface IFetchAccountAdministrationStore
         int fetchAccountId,
         CancellationToken cancellationToken);
 
+    ValueTask<int> InsertFetchAccountAsync(
+        FetchAccountAdministrationDraft account,
+        CancellationToken cancellationToken);
+
     ValueTask DeleteFetchAccountAsync(
         int accountId,
         int fetchAccountId,

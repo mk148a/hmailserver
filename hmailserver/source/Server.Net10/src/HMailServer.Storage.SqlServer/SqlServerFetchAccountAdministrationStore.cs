@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using HMailServer.Core.Abstractions;
+using HMailServer.Security;
 using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
@@ -38,6 +39,54 @@ UPDATE hm_fetchaccounts
 SET fanexttry = GETDATE()
 WHERE faid = @FetchAccountID
   AND faaccountid = @AccountID;
+""";
+
+    public const string InsertFetchAccountSql = """
+INSERT INTO hm_fetchaccounts
+(
+    faactive,
+    faaccountid,
+    faaccountname,
+    faserveraddress,
+    faserverport,
+    faservertype,
+    fausername,
+    fapassword,
+    faminutes,
+    fanexttry,
+    fadaystokeep,
+    falocked,
+    faprocessmimerecipients,
+    faprocessmimedate,
+    faconnectionsecurity,
+    fauseantispam,
+    fauseantivirus,
+    faenablerouterecipients,
+    famimerecipientheaders
+)
+OUTPUT INSERTED.faid
+VALUES
+(
+    @Active,
+    @AccountID,
+    @Name,
+    @ServerAddress,
+    @Port,
+    @ServerType,
+    @Username,
+    @Password,
+    @Minutes,
+    GETDATE(),
+    @DaysToKeep,
+    0,
+    @ProcessMimeRecipients,
+    @ProcessMimeDate,
+    @ConnectionSecurity,
+    @UseAntiSpam,
+    @UseAntiVirus,
+    @EnableRouteRecipients,
+    @MimeRecipientHeaders
+);
 """;
 
     public const string DeleteFetchAccountSql = """
@@ -109,6 +158,36 @@ WHERE uidfaid = @FetchAccountID;
         command.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<int> InsertFetchAccountAsync(
+        FetchAccountAdministrationDraft account,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertFetchAccountSql, connection);
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = account.Enabled ? 1 : 0;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = account.AccountId;
+        command.Parameters.Add("@Name", SqlDbType.NVarChar, 255).Value = account.Name;
+        command.Parameters.Add("@ServerAddress", SqlDbType.NVarChar, 255).Value = account.ServerAddress;
+        command.Parameters.Add("@Port", SqlDbType.Int).Value = account.Port;
+        command.Parameters.Add("@ServerType", SqlDbType.TinyInt).Value = account.ServerType;
+        command.Parameters.Add("@Username", SqlDbType.NVarChar, 255).Value = account.Username;
+        command.Parameters.Add("@Password", SqlDbType.NVarChar, 255).Value = LegacyBlowfishPasswordCipher.Encrypt(account.Password);
+        command.Parameters.Add("@Minutes", SqlDbType.Int).Value = account.MinutesBetweenFetch;
+        command.Parameters.Add("@DaysToKeep", SqlDbType.Int).Value = account.DaysToKeepMessages;
+        command.Parameters.Add("@ProcessMimeRecipients", SqlDbType.TinyInt).Value = account.ProcessMimeRecipients ? 1 : 0;
+        command.Parameters.Add("@ProcessMimeDate", SqlDbType.TinyInt).Value = account.ProcessMimeDate ? 1 : 0;
+        command.Parameters.Add("@ConnectionSecurity", SqlDbType.TinyInt).Value = account.ConnectionSecurity;
+        command.Parameters.Add("@UseAntiSpam", SqlDbType.TinyInt).Value = account.UseAntiSpam ? 1 : 0;
+        command.Parameters.Add("@UseAntiVirus", SqlDbType.TinyInt).Value = account.UseAntiVirus ? 1 : 0;
+        command.Parameters.Add("@EnableRouteRecipients", SqlDbType.TinyInt).Value = account.EnableRouteRecipients ? 1 : 0;
+        command.Parameters.Add("@MimeRecipientHeaders", SqlDbType.NVarChar, 255).Value = account.MimeRecipientHeaders;
+
+        var generatedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(generatedId, CultureInfo.InvariantCulture);
     }
 
     public async ValueTask DeleteFetchAccountAsync(

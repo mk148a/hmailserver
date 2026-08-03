@@ -2424,6 +2424,11 @@ public sealed class BackupArchiveRuntimeTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public ValueTask<int> InsertFetchAccountAsync(
+            FetchAccountAdministrationDraft account,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public ValueTask DeleteFetchAccountAsync(
             int accountId,
             int fetchAccountId,

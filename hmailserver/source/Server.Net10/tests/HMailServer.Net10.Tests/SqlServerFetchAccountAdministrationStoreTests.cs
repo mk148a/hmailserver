@@ -112,6 +112,21 @@ public sealed class SqlServerFetchAccountAdministrationStoreTests
     }
 
     [TestMethod]
+    public void InsertFetchAccountSql_PreservesLegacyColumnsAndGeneratedId()
+    {
+        var sql = SqlServerFetchAccountAdministrationStore.InsertFetchAccountSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_fetchaccounts");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.faid");
+        StringAssert.Contains(sql, "fapassword");
+        StringAssert.Contains(sql, "fanexttry");
+        StringAssert.Contains(sql, "falocked");
+        StringAssert.Contains(sql, "@AccountID");
+        StringAssert.Contains(sql, "@MimeRecipientHeaders");
+        Assert.IsFalse(sql.Contains("+ account", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void BackupFetchAccountsSql_ProjectsCiphertextAndScopesByAccountInFaidOrder()
     {
         var sql = SqlServerBackupFetchAccountAdministrationStore.GetBackupFetchAccountsSql;

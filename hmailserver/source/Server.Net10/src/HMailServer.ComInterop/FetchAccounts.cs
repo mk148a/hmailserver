@@ -181,6 +181,8 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
     private readonly Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? _reload;
     private readonly Func<int, int, ValueTask>? _retryNow;
     private readonly Func<int, int, ValueTask>? _delete;
+    private readonly Func<FetchAccountAdministrationDraft, ValueTask<int>>? _insert;
+    private readonly int _accountId;
 
     public FetchAccounts()
     {
@@ -190,12 +192,16 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         IReadOnlyList<FetchAccountAdministrationSnapshot> accounts,
         Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? reload,
         Func<int, int, ValueTask>? retryNow,
-        Func<int, int, ValueTask>? delete)
+        Func<int, int, ValueTask>? delete,
+        Func<FetchAccountAdministrationDraft, ValueTask<int>>? insert,
+        int accountId)
     {
         _accounts = accounts.ToArray();
         _reload = reload;
         _retryNow = retryNow;
         _delete = delete;
+        _insert = insert;
+        _accountId = accountId;
     }
 
     public int Count => GetAccounts().Count;
@@ -204,10 +210,12 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         IReadOnlyList<FetchAccountAdministrationSnapshot> accounts,
         Func<IReadOnlyList<FetchAccountAdministrationSnapshot>>? reload = null,
         Func<int, int, ValueTask>? retryNow = null,
-        Func<int, int, ValueTask>? delete = null)
+        Func<int, int, ValueTask>? delete = null,
+        Func<FetchAccountAdministrationDraft, ValueTask<int>>? insert = null,
+        int accountId = 0)
     {
         ArgumentNullException.ThrowIfNull(accounts);
-        return new FetchAccounts(accounts, reload, retryNow, delete);
+        return new FetchAccounts(accounts, reload, retryNow, delete, insert, accountId);
     }
 
     public IInterfaceFetchAccount get_ItemByDBID(int databaseId)
@@ -336,7 +344,57 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         }
     }
 
-    public IInterfaceFetchAccount Add() => Unavailable<IInterfaceFetchAccount>();
+    public IInterfaceFetchAccount Add()
+    {
+        _ = GetAccounts();
+        if (_insert is null)
+        {
+            Unavailable();
+        }
+
+        return FetchAccount.CreateAuthorized(
+            new FetchAccountAdministrationDraft(_accountId),
+            InsertSelectedAsync);
+    }
+
+    private async ValueTask<FetchAccountAdministrationSnapshot> InsertSelectedAsync(
+        FetchAccountAdministrationDraft draft)
+    {
+        var insert = _insert ?? throw new COMException(
+            "This FetchAccounts member is not implemented by the .NET 10 rewrite yet.",
+            ENotImplemented);
+
+        var id = await insert(draft).ConfigureAwait(false);
+        if (id <= 0)
+        {
+            throw new InvalidOperationException("The fetch-account store did not return a generated identifier.");
+        }
+
+        var snapshot = new FetchAccountAdministrationSnapshot(
+            Id: id,
+            AccountId: draft.AccountId,
+            Name: draft.Name,
+            ServerAddress: draft.ServerAddress,
+            Port: draft.Port,
+            ServerType: draft.ServerType,
+            Username: draft.Username,
+            MinutesBetweenFetch: draft.MinutesBetweenFetch,
+            DaysToKeepMessages: draft.DaysToKeepMessages,
+            Enabled: draft.Enabled,
+            ProcessMimeRecipients: draft.ProcessMimeRecipients,
+            ProcessMimeDate: draft.ProcessMimeDate,
+            ConnectionSecurity: draft.ConnectionSecurity,
+            UseAntiSpam: draft.UseAntiSpam,
+            UseAntiVirus: draft.UseAntiVirus,
+            EnableRouteRecipients: draft.EnableRouteRecipients,
+            MimeRecipientHeaders: draft.MimeRecipientHeaders,
+            NextDownloadTime: string.Empty,
+            IsLocked: false);
+
+        var accounts = GetAccounts();
+        Volatile.Write(ref _accounts, accounts.Append(snapshot).ToArray());
+        return snapshot;
+    }
 
     private IReadOnlyList<FetchAccountAdministrationSnapshot> GetAccounts()
     {
@@ -374,9 +432,11 @@ public sealed class FetchAccount : IInterfaceFetchAccount
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly FetchAccountAdministrationSnapshot? _account;
+    private FetchAccountAdministrationSnapshot? _account;
+    private FetchAccountAdministrationDraft? _draft;
     private readonly Func<int, int, ValueTask>? _retryNow;
     private readonly Func<int, int, ValueTask>? _delete;
+    private readonly Func<FetchAccountAdministrationDraft, ValueTask<FetchAccountAdministrationSnapshot>>? _insert;
 
     public FetchAccount()
     {
@@ -392,58 +452,97 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         _delete = delete;
     }
 
-    public int ID => Snapshot.Id;
+    private FetchAccount(
+        FetchAccountAdministrationDraft draft,
+        Func<FetchAccountAdministrationDraft, ValueTask<FetchAccountAdministrationSnapshot>> insert)
+    {
+        _draft = draft;
+        _insert = insert;
+    }
 
-    public string Name { get => Snapshot.Name; set => Unavailable(); }
+    public int ID => _draft is { } ? 0 : Snapshot.Id;
 
-    public string ServerAddress { get => Snapshot.ServerAddress; set => Unavailable(); }
+    public string Name { get => _draft?.Name ?? Snapshot.Name; set => Stage(value, static (draft, value) => draft with { Name = value }); }
 
-    public int Port { get => Snapshot.Port; set => Unavailable(); }
+    public string ServerAddress { get => _draft?.ServerAddress ?? Snapshot.ServerAddress; set => Stage(value, static (draft, value) => draft with { ServerAddress = value }); }
 
-    public int ServerType { get => Snapshot.ServerType; set => Unavailable(); }
+    public int Port { get => _draft?.Port ?? Snapshot.Port; set => Stage(value, static (draft, value) => draft with { Port = value }); }
 
-    public string Username { get => Snapshot.Username; set => Unavailable(); }
+    public int ServerType { get => _draft?.ServerType ?? Snapshot.ServerType; set => Stage(value, static (draft, value) => draft with { ServerType = value }); }
 
-    public string Password { get => Unavailable<string>(); set => Unavailable(); }
+    public string Username { get => _draft?.Username ?? Snapshot.Username; set => Stage(value, static (draft, value) => draft with { Username = value }); }
 
-    public int MinutesBetweenFetch { get => Snapshot.MinutesBetweenFetch; set => Unavailable(); }
+    public string Password => _draft?.Password ?? Unavailable<string>();
 
-    public int DaysToKeepMessages { get => Snapshot.DaysToKeepMessages; set => Unavailable(); }
+    string IInterfaceFetchAccount.Password
+    {
+        get => _draft?.Password ?? Unavailable<string>();
+        set => Stage(value, static (draft, value) => draft with { Password = value });
+    }
 
-    public int AccountID { get => Snapshot.AccountId; set => Unavailable(); }
+    public int MinutesBetweenFetch { get => _draft?.MinutesBetweenFetch ?? Snapshot.MinutesBetweenFetch; set => Stage(value, static (draft, value) => draft with { MinutesBetweenFetch = value }); }
 
-    public bool Enabled { get => Snapshot.Enabled; set => Unavailable(); }
+    public int DaysToKeepMessages { get => _draft?.DaysToKeepMessages ?? Snapshot.DaysToKeepMessages; set => Stage(value, static (draft, value) => draft with { DaysToKeepMessages = value }); }
 
-    public bool ProcessMIMERecipients { get => Snapshot.ProcessMimeRecipients; set => Unavailable(); }
+    public int AccountID { get => _draft?.AccountId ?? Snapshot.AccountId; set => Stage(value, static (draft, value) => draft with { AccountId = value }); }
 
-    public bool ProcessMIMEDate { get => Snapshot.ProcessMimeDate; set => Unavailable(); }
+    public bool Enabled { get => _draft?.Enabled ?? Snapshot.Enabled; set => Stage(value, static (draft, value) => draft with { Enabled = value }); }
 
-    public bool UseSSL { get => Snapshot.ConnectionSecurity == (int)ComConnectionSecurity.Tls; set => Unavailable(); }
+    public bool ProcessMIMERecipients { get => _draft?.ProcessMimeRecipients ?? Snapshot.ProcessMimeRecipients; set => Stage(value, static (draft, value) => draft with { ProcessMimeRecipients = value }); }
 
-    public string NextDownloadTime => Snapshot.NextDownloadTime;
+    public bool ProcessMIMEDate { get => _draft?.ProcessMimeDate ?? Snapshot.ProcessMimeDate; set => Stage(value, static (draft, value) => draft with { ProcessMimeDate = value }); }
 
-    public bool UseAntiSpam { get => Snapshot.UseAntiSpam; set => Unavailable(); }
+    public bool UseSSL { get => (_draft?.ConnectionSecurity ?? Snapshot.ConnectionSecurity) == (int)ComConnectionSecurity.Tls; set => Stage(value, static (draft, value) => draft with { ConnectionSecurity = value ? (int)ComConnectionSecurity.Tls : (int)ComConnectionSecurity.None }); }
 
-    public bool UseAntiVirus { get => Snapshot.UseAntiVirus; set => Unavailable(); }
+    public string NextDownloadTime => _draft is { } ? string.Empty : Snapshot.NextDownloadTime;
 
-    public bool EnableRouteRecipients { get => Snapshot.EnableRouteRecipients; set => Unavailable(); }
+    public bool UseAntiSpam { get => _draft?.UseAntiSpam ?? Snapshot.UseAntiSpam; set => Stage(value, static (draft, value) => draft with { UseAntiSpam = value }); }
 
-    public bool IsLocked => Snapshot.IsLocked;
+    public bool UseAntiVirus { get => _draft?.UseAntiVirus ?? Snapshot.UseAntiVirus; set => Stage(value, static (draft, value) => draft with { UseAntiVirus = value }); }
+
+    public bool EnableRouteRecipients { get => _draft?.EnableRouteRecipients ?? Snapshot.EnableRouteRecipients; set => Stage(value, static (draft, value) => draft with { EnableRouteRecipients = value }); }
+
+    public bool IsLocked => _draft is { } ? false : Snapshot.IsLocked;
 
     public ComConnectionSecurity ConnectionSecurity
     {
-        get => (ComConnectionSecurity)Snapshot.ConnectionSecurity;
-        set => Unavailable();
+        get => (ComConnectionSecurity)(_draft?.ConnectionSecurity ?? Snapshot.ConnectionSecurity);
+        set => Stage(value, static (draft, value) => draft with { ConnectionSecurity = (int)value });
     }
 
-    public string MIMERecipientHeaders { get => Snapshot.MimeRecipientHeaders; set => Unavailable(); }
+    public string MIMERecipientHeaders { get => _draft?.MimeRecipientHeaders ?? Snapshot.MimeRecipientHeaders; set => Stage(value, static (draft, value) => draft with { MimeRecipientHeaders = value }); }
 
     internal static FetchAccount CreateAuthorized(
         FetchAccountAdministrationSnapshot account,
         Func<int, int, ValueTask>? retryNow = null,
         Func<int, int, ValueTask>? delete = null) => new(account, retryNow, delete);
 
-    public void Save() => Unavailable();
+    internal static FetchAccount CreateAuthorized(
+        FetchAccountAdministrationDraft draft,
+        Func<FetchAccountAdministrationDraft, ValueTask<FetchAccountAdministrationSnapshot>> insert) =>
+        new(draft, insert);
+
+    public void Save()
+    {
+        var draft = _draft;
+        if (draft is null || _insert is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _account = _insert(draft).GetAwaiter().GetResult();
+            _draft = null;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the fetch account to the database.",
+                EFail);
+        }
+    }
 
     public void DownloadNow()
     {
@@ -491,6 +590,20 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         _account ?? throw new COMException(
             "FetchAccount access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private void Stage<T>(
+        T value,
+        Func<FetchAccountAdministrationDraft, T, FetchAccountAdministrationDraft> update)
+    {
+        var draft = _draft;
+        if (draft is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _draft = update(draft, value);
+    }
 
     private T Unavailable<T>()
     {
@@ -556,10 +669,24 @@ public static class FetchAccountAdministrationRuntimeHost
                 .ConfigureAwait(false);
         }
 
+        async ValueTask<int> InsertFetchAccount(FetchAccountAdministrationDraft draft)
+        {
+            if (draft.AccountId != accountId)
+            {
+                throw new InvalidOperationException("The fetch account draft is outside its owning account.");
+            }
+
+            return await store
+                .InsertFetchAccountAsync(draft, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+
         return FetchAccounts.CreateAuthorized(
             LoadFetchAccounts(),
             LoadFetchAccounts,
             RetryNow,
-            DeleteFetchAccount);
+            DeleteFetchAccount,
+            InsertFetchAccount,
+            accountId);
     }
 }

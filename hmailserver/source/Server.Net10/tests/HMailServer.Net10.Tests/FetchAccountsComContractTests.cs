@@ -440,6 +440,87 @@ public sealed class FetchAccountsComContractTests
         Assert.AreEqual("Delete POP3", fetchAccounts[1].Name);
     }
 
+    [TestMethod]
+    public void AuthorizedAddStagesOwningDraftAndAppendsOnlyAfterInsert()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "Existing POP3") });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var fetchAccounts = account.FetchAccounts;
+        var added = fetchAccounts.Add();
+
+        Assert.AreEqual(0, added.ID);
+        added.Name = "Added POP3";
+        added.ServerAddress = "pop3-added.example.test";
+        added.Port = 995;
+        added.Username = "added-user";
+        added.Password = "added-secret";
+        added.MinutesBetweenFetch = 45;
+        added.DaysToKeepMessages = 7;
+        added.Enabled = false;
+        added.ProcessMIMERecipients = true;
+        added.ProcessMIMEDate = true;
+        added.ConnectionSecurity = ComConnectionSecurity.Tls;
+        added.MIMERecipientHeaders = "To,X-RCPT-TO";
+        added.UseAntiSpam = true;
+        added.UseAntiVirus = true;
+        added.EnableRouteRecipients = true;
+
+        added.Save();
+
+        Assert.AreEqual(1, store.InsertCalls.Count);
+        var draft = store.InsertCalls[0];
+        Assert.AreEqual(100, draft.AccountId);
+        Assert.AreEqual("Added POP3", draft.Name);
+        Assert.AreEqual("pop3-added.example.test", draft.ServerAddress);
+        Assert.AreEqual(995, draft.Port);
+        Assert.AreEqual("added-user", draft.Username);
+        Assert.AreEqual("added-secret", draft.Password);
+        Assert.IsFalse(draft.Enabled);
+        Assert.AreEqual((int)ComConnectionSecurity.Tls, draft.ConnectionSecurity);
+        Assert.AreEqual(2, fetchAccounts.Count);
+        Assert.AreEqual(1000, added.ID);
+        Assert.AreEqual(1000, fetchAccounts.get_ItemByDBID(1000).ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedAddSaveFailureRetainsDraftAndDoesNotPublishSnapshot()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "Existing POP3") })
+        {
+            FailInsert = true
+        };
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var fetchAccounts = account.FetchAccounts;
+        var added = fetchAccounts.Add();
+        added.Name = "Retry POP3";
+
+        var failure = Assert.ThrowsExactly<COMException>(added.Save);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(0, added.ID);
+        Assert.AreEqual("Retry POP3", added.Name);
+        Assert.AreEqual(1, fetchAccounts.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedAddRejectsCrossParentAccountMutationBeforeStore()
+    {
+        var store = new MutableFetchAccountAdministrationStore(Array.Empty<FetchAccountAdministrationSnapshot>());
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var added = account.FetchAccounts.Add();
+        added.AccountID = 200;
+
+        var failure = Assert.ThrowsExactly<COMException>(added.Save);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(0, store.InsertCalls.Count);
+    }
+
     private static FetchAccountAdministrationSnapshot CreateSnapshot(
         int id,
         int accountId,
@@ -542,6 +623,12 @@ public sealed class FetchAccountsComContractTests
 
         public bool FailDelete { get; set; }
 
+        public bool FailInsert { get; set; }
+
+        public int NextFetchAccountId { get; set; } = 1000;
+
+        public List<FetchAccountAdministrationDraft> InsertCalls { get; } = [];
+
         public List<(int AccountId, int FetchAccountId)> DeleteCalls { get; } = [];
 
         public ValueTask<IReadOnlyList<FetchAccountAdministrationSnapshot>> GetFetchAccountsAsync(
@@ -566,6 +653,19 @@ public sealed class FetchAccountsComContractTests
             RetryAccountId = accountId;
             RetryFetchAccountId = fetchAccountId;
             return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<int> InsertFetchAccountAsync(
+            FetchAccountAdministrationDraft account,
+            CancellationToken cancellationToken)
+        {
+            if (FailInsert)
+            {
+                throw new InvalidOperationException("store failed");
+            }
+
+            InsertCalls.Add(account);
+            return ValueTask.FromResult(NextFetchAccountId++);
         }
 
         public ValueTask DeleteFetchAccountAsync(
