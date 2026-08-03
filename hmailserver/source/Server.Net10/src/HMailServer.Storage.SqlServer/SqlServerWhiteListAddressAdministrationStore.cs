@@ -38,6 +38,11 @@ SET whiteloweripaddress1 = @lowerIp1,
 WHERE whiteid = @id;
 """;
 
+    public const string DeleteWhiteListAddressSql = """
+DELETE FROM hm_whitelist
+WHERE whiteid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerWhiteListAddressAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -112,6 +117,16 @@ WHERE whiteid = @id;
         command.Parameters.Add("@emailAddress", SqlDbType.NVarChar, 255).Value = address.EmailAddress;
         command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = address.Description;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<bool> DeleteWhiteListAddressByIdAsync(
+        long databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteWhiteListAddressSql, connection);
+        command.Parameters.Add("@id", SqlDbType.BigInt).Value = databaseId;
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
     internal static string FormatLegacyAddress(long address1, long? address2)

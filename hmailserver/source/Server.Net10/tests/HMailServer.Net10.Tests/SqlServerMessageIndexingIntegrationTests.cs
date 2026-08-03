@@ -4129,6 +4129,11 @@ VALUES
             WhiteListAddressAdministrationSnapshot address,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Update is outside this read-only test fixture.");
+
+        public ValueTask<bool> DeleteWhiteListAddressByIdAsync(
+            long databaseId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Delete is outside this read-only test fixture.");
     }
 
     private sealed class IntegrationDeliveryQueueClearObserver : IDeliveryQueueClearObserver

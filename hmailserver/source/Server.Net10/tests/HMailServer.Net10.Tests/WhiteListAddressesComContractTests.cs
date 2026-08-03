@@ -267,6 +267,58 @@ public sealed class WhiteListAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_DeleteUsesOwningScopeAndRemovesAfterStoreSuccess()
+    {
+        var deletedId = 0L;
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "first@example.test", "First"),
+                Snapshot(20, "203.0.113.1", "203.0.113.1", "second@example.test", "Second")
+            },
+            delete: id =>
+            {
+                deletedId = id;
+                return true;
+            },
+            isServerAdministrator: static () => true);
+
+        addresses.DeleteByDBID(10);
+
+        Assert.AreEqual(10, deletedId);
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(10)).ErrorCode);
+
+        addresses.DeleteByDBID(999);
+        var retained = addresses.get_ItemByDBID(20);
+        retained.Delete();
+        retained.Delete();
+
+        Assert.AreEqual(20, deletedId);
+        Assert.AreEqual(0, addresses.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_DeleteFailureMapsToFailureAndRetainsSnapshot()
+    {
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "first@example.test", "First")
+            },
+            delete: static _ => false,
+            isServerAdministrator: static () => true);
+
+        var error = Assert.ThrowsExactly<COMException>(() => addresses.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual(10, addresses.get_ItemByDBID(10).ID);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
@@ -526,6 +578,11 @@ public sealed class WhiteListAddressesComContractTests
             WhiteListAddressAdministrationSnapshot address,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Update is outside this read-only test fixture.");
+
+        public ValueTask<bool> DeleteWhiteListAddressByIdAsync(
+            long databaseId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Delete is outside this read-only test fixture.");
     }
 
     private sealed class ByteArrayComparer : IComparer<byte[]>

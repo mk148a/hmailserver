@@ -94,6 +94,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
     private readonly Func<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>? _reload;
     private readonly Func<WhiteListAddressAdministrationSnapshot, long>? _insert;
     private readonly Action<WhiteListAddressAdministrationSnapshot>? _update;
+    private readonly Func<long, bool>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
 
     public WhiteListAddresses()
@@ -105,12 +106,14 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         Func<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>? reload,
         Func<WhiteListAddressAdministrationSnapshot, long>? insert,
         Action<WhiteListAddressAdministrationSnapshot>? update,
+        Func<long, bool>? delete,
         Func<bool>? isServerAdministrator)
     {
         _addresses = addresses.ToArray();
         _reload = reload;
         _insert = insert;
         _update = update;
+        _delete = delete;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -130,7 +133,25 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         }
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        _ = GetAddresses();
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        var match = GetAddresses().FirstOrDefault(
+            address => unchecked((int)address.Id) == databaseId);
+        if (match is null)
+        {
+            return;
+        }
+
+        DeleteAddress(match.Id);
+    }
 
     public IInterfaceWhiteListAddress Add()
     {
@@ -238,17 +259,56 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         Func<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>? reload = null,
         Func<WhiteListAddressAdministrationSnapshot, long>? insert = null,
         Action<WhiteListAddressAdministrationSnapshot>? update = null,
+        Func<long, bool>? delete = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new WhiteListAddresses(addresses, reload, insert, update, isServerAdministrator);
+        return new WhiteListAddresses(addresses, reload, insert, update, delete, isServerAdministrator);
     }
 
     private WhiteListAddress CreateAddress(WhiteListAddressAdministrationSnapshot address) =>
         WhiteListAddress.CreateAuthorized(
             address,
             save: _insert is null && _update is null ? null : SaveAddress,
+            delete: _delete is null ? null : DeleteAddress,
             isServerAdministrator: _isServerAdministrator);
+
+    private void DeleteAddress(long databaseId)
+    {
+        var addresses = GetAddresses();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (!addresses.Any(address => address.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_delete(databaseId))
+            {
+                throw new InvalidOperationException("The whitelist delete did not affect the selected database row.");
+            }
+
+            Volatile.Write(
+                ref _addresses,
+                addresses.Where(address => address.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the whitelist address from the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<WhiteListAddressAdministrationSnapshot> GetAddresses()
     {
@@ -295,6 +355,7 @@ public sealed class WhiteListAddress : IInterfaceWhiteListAddress
 
     private WhiteListAddressAdministrationSnapshot? _address;
     private readonly Func<WhiteListAddressAdministrationSnapshot, WhiteListAddressAdministrationSnapshot>? _save;
+    private readonly Action<long>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
 
     public WhiteListAddress()
@@ -304,10 +365,12 @@ public sealed class WhiteListAddress : IInterfaceWhiteListAddress
     private WhiteListAddress(
         WhiteListAddressAdministrationSnapshot address,
         Func<WhiteListAddressAdministrationSnapshot, WhiteListAddressAdministrationSnapshot>? save,
+        Action<long>? delete,
         Func<bool>? isServerAdministrator)
     {
         _address = address;
         _save = save;
+        _delete = delete;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -341,13 +404,24 @@ public sealed class WhiteListAddress : IInterfaceWhiteListAddress
         _address = _save(Snapshot);
     }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(Snapshot.Id);
+    }
 
     internal static WhiteListAddress CreateAuthorized(
         WhiteListAddressAdministrationSnapshot address,
         Func<WhiteListAddressAdministrationSnapshot, WhiteListAddressAdministrationSnapshot>? save = null,
+        Action<long>? delete = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(address, save, isServerAdministrator);
+        new(address, save, delete, isServerAdministrator);
 
     private WhiteListAddressAdministrationSnapshot Snapshot =>
         _address ?? throw new COMException(
@@ -429,11 +503,18 @@ public static class WhiteListAddressAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool DeleteAddress(long databaseId) => store
+            .DeleteWhiteListAddressByIdAsync(databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return WhiteListAddresses.CreateAuthorized(
             LoadAddresses(),
             LoadAddresses,
             InsertAddress,
             UpdateAddress,
+            DeleteAddress,
             isServerAdministrator);
     }
 }

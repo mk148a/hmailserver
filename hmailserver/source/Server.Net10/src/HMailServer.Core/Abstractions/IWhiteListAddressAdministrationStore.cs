@@ -12,4 +12,8 @@ public interface IWhiteListAddressAdministrationStore
     ValueTask UpdateWhiteListAddressAsync(
         WhiteListAddressAdministrationSnapshot address,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> DeleteWhiteListAddressByIdAsync(
+        long databaseId,
+        CancellationToken cancellationToken);
 }
