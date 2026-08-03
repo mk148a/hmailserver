@@ -121,6 +121,94 @@ public sealed class WhiteListAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_AddStagesNewAddressAndAppendsOnlyAfterInsert()
+    {
+        WhiteListAddressAdministrationSnapshot? inserted = null;
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "existing@example.test", "Existing")
+            },
+            insert: address =>
+            {
+                inserted = address;
+                return 30;
+            },
+            isServerAdministrator: static () => true);
+
+        var added = addresses.Add();
+
+        Assert.AreEqual(0, added.ID);
+        Assert.AreEqual("0.0.0.0", added.LowerIPAddress);
+        Assert.AreEqual("0.0.0.0", added.UpperIPAddress);
+        Assert.AreEqual(string.Empty, added.EmailAddress);
+        Assert.AreEqual(string.Empty, added.Description);
+
+        added.LowerIPAddress = "198.51.100.1";
+        added.LowerIPAddress = "invalid-ip";
+        added.UpperIPAddress = "198.51.100.255";
+        added.UpperIPAddress = "300.300.300.300";
+        added.EmailAddress = "sender@example.test";
+        added.Description = "New address";
+
+        Assert.AreEqual("198.51.100.1", added.LowerIPAddress);
+        Assert.AreEqual("198.51.100.255", added.UpperIPAddress);
+
+        added.Save();
+
+        Assert.IsNotNull(inserted);
+        Assert.AreEqual(0, inserted!.Id);
+        Assert.AreEqual("198.51.100.1", inserted.LowerIpAddress);
+        Assert.AreEqual("198.51.100.255", inserted.UpperIpAddress);
+        Assert.AreEqual("sender@example.test", inserted.EmailAddress);
+        Assert.AreEqual("New address", inserted.Description);
+        Assert.AreEqual(30, added.ID);
+        Assert.AreEqual(2, addresses.Count);
+        Assert.AreEqual(30, addresses.get_ItemByDBID(30).ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_NewAddressSaveMapsFailureAndRetainsUnsavedFacade()
+    {
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "existing@example.test", "Existing")
+            },
+            insert: static _ => throw new InvalidOperationException("Simulated insert failure."),
+            isServerAdministrator: static () => true);
+        var added = addresses.Add();
+        added.EmailAddress = "sender@example.test";
+
+        var error = Assert.ThrowsExactly<COMException>(added.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, added.ID);
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(0)).ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_NewAddressSaveRechecksServerAdministrator()
+    {
+        var isServerAdministrator = true;
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            Array.Empty<WhiteListAddressAdministrationSnapshot>(),
+            insert: static _ => 30,
+            isServerAdministrator: () => isServerAdministrator);
+        var added = addresses.Add();
+        isServerAdministrator = false;
+
+        var error = Assert.ThrowsExactly<COMException>(added.Save);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, added.ID);
+        Assert.AreEqual(0, addresses.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
@@ -370,6 +458,11 @@ public sealed class WhiteListAddressesComContractTests
                 _addresses.OrderBy(static address => System.Net.IPAddress.Parse(address.LowerIpAddress).GetAddressBytes(),
                     ByteArrayComparer.Instance).ToArray());
         }
+
+        public ValueTask<long> InsertWhiteListAddressAsync(
+            WhiteListAddressAdministrationSnapshot address,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Insert is outside this read-only test fixture.");
     }
 
     private sealed class ByteArrayComparer : IComparer<byte[]>

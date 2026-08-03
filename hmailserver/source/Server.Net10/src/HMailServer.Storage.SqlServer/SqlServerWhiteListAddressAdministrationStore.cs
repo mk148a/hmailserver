@@ -16,8 +16,15 @@ SELECT
     whiteupperipaddress2,
     whiteemailaddress,
     whitedescription
-FROM hm_whitelist
-ORDER BY whiteloweripaddress1 ASC, whiteloweripaddress2 ASC;
+    FROM hm_whitelist
+    ORDER BY whiteloweripaddress1 ASC, whiteloweripaddress2 ASC;
+""";
+
+    public const string InsertWhiteListAddressSql = """
+INSERT INTO hm_whitelist
+    (whiteloweripaddress1, whiteloweripaddress2, whiteupperipaddress1, whiteupperipaddress2, whiteemailaddress, whitedescription)
+OUTPUT INSERTED.whiteid
+VALUES (@lowerIp1, @lowerIp2, @upperIp1, @upperIp2, @emailAddress, @description);
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
@@ -57,6 +64,26 @@ ORDER BY whiteloweripaddress1 ASC, whiteloweripaddress2 ASC;
         return addresses;
     }
 
+    public async ValueTask<long> InsertWhiteListAddressAsync(
+        WhiteListAddressAdministrationSnapshot address,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+
+        var lowerIp = ParseLegacyAddress(address.LowerIpAddress);
+        var upperIp = ParseLegacyAddress(address.UpperIpAddress);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertWhiteListAddressSql, connection);
+        AddLegacyAddressParameters(command, "@lowerIp1", "@lowerIp2", lowerIp);
+        AddLegacyAddressParameters(command, "@upperIp1", "@upperIp2", upperIp);
+        command.Parameters.Add("@emailAddress", SqlDbType.NVarChar, 255).Value = address.EmailAddress;
+        command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = address.Description;
+
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt64(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     internal static string FormatLegacyAddress(long address1, long? address2)
     {
         if (address2 is null)
@@ -85,4 +112,51 @@ ORDER BY whiteloweripaddress1 ASC, whiteloweripaddress2 ASC;
             bytes[offset + index] = (byte)(unsigned >> ((7 - index) * 8));
         }
     }
+
+    private static LegacyAddressParts ParseLegacyAddress(string address)
+    {
+        if (!IPAddress.TryParse(address, out var ipAddress))
+        {
+            throw new FormatException("Whitelist IP address must be a valid IPv4 or IPv6 address.");
+        }
+
+        var bytes = ipAddress.GetAddressBytes();
+        return bytes.Length switch
+        {
+            4 => new LegacyAddressParts(
+                ((long)bytes[0] << 24)
+                | ((long)bytes[1] << 16)
+                | ((long)bytes[2] << 8)
+                | bytes[3],
+                null),
+            16 => new LegacyAddressParts(
+                ReadInt64BigEndian(bytes, 0),
+                ReadInt64BigEndian(bytes, 8)),
+            _ => throw new FormatException("Whitelist IP address must be a valid IPv4 or IPv6 address.")
+        };
+    }
+
+    private static long ReadInt64BigEndian(byte[] bytes, int offset)
+    {
+        ulong value = 0;
+        for (var index = 0; index < 8; index++)
+        {
+            value = (value << 8) | bytes[offset + index];
+        }
+
+        return unchecked((long)value);
+    }
+
+    private static void AddLegacyAddressParameters(
+        SqlCommand command,
+        string address1Parameter,
+        string address2Parameter,
+        LegacyAddressParts address)
+    {
+        command.Parameters.Add(address1Parameter, SqlDbType.BigInt).Value = address.Address1;
+        command.Parameters.Add(address2Parameter, SqlDbType.BigInt).Value =
+            address.Address2.HasValue ? address.Address2.Value : DBNull.Value;
+    }
+
+    private sealed record LegacyAddressParts(long Address1, long? Address2);
 }
