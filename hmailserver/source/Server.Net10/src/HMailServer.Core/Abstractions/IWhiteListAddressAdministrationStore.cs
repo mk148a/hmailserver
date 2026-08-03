@@ -8,4 +8,8 @@ public interface IWhiteListAddressAdministrationStore
     ValueTask<long> InsertWhiteListAddressAsync(
         WhiteListAddressAdministrationSnapshot address,
         CancellationToken cancellationToken);
+
+    ValueTask UpdateWhiteListAddressAsync(
+        WhiteListAddressAdministrationSnapshot address,
+        CancellationToken cancellationToken);
 }

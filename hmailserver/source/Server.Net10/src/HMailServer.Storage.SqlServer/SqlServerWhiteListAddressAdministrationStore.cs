@@ -27,6 +27,17 @@ OUTPUT INSERTED.whiteid
 VALUES (@lowerIp1, @lowerIp2, @upperIp1, @upperIp2, @emailAddress, @description);
 """;
 
+    public const string UpdateWhiteListAddressSql = """
+UPDATE hm_whitelist
+SET whiteloweripaddress1 = @lowerIp1,
+    whiteloweripaddress2 = @lowerIp2,
+    whiteupperipaddress1 = @upperIp1,
+    whiteupperipaddress2 = @upperIp2,
+    whiteemailaddress = @emailAddress,
+    whitedescription = @description
+WHERE whiteid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerWhiteListAddressAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -82,6 +93,25 @@ VALUES (@lowerIp1, @lowerIp2, @upperIp1, @upperIp2, @emailAddress, @description)
 
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt64(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask UpdateWhiteListAddressAsync(
+        WhiteListAddressAdministrationSnapshot address,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+
+        var lowerIp = ParseLegacyAddress(address.LowerIpAddress);
+        var upperIp = ParseLegacyAddress(address.UpperIpAddress);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateWhiteListAddressSql, connection);
+        command.Parameters.Add("@id", SqlDbType.BigInt).Value = address.Id;
+        AddLegacyAddressParameters(command, "@lowerIp1", "@lowerIp2", lowerIp);
+        AddLegacyAddressParameters(command, "@upperIp1", "@upperIp2", upperIp);
+        command.Parameters.Add("@emailAddress", SqlDbType.NVarChar, 255).Value = address.EmailAddress;
+        command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = address.Description;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal static string FormatLegacyAddress(long address1, long? address2)

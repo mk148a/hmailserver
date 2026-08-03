@@ -79,6 +79,32 @@ public sealed class SqlServerWhiteListAddressAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
 
+    [TestMethod]
+    public void UpdateWhiteListAddressSql_UsesLegacyColumnsAndIdentityPredicate()
+    {
+        var sql = SqlServerWhiteListAddressAdministrationStore.UpdateWhiteListAddressSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_whitelist");
+        StringAssert.Contains(sql, "whiteloweripaddress1 = @lowerIp1");
+        StringAssert.Contains(sql, "whiteloweripaddress2 = @lowerIp2");
+        StringAssert.Contains(sql, "whiteupperipaddress1 = @upperIp1");
+        StringAssert.Contains(sql, "whiteupperipaddress2 = @upperIp2");
+        StringAssert.Contains(sql, "whiteemailaddress = @emailAddress");
+        StringAssert.Contains(sql, "whitedescription = @description");
+        StringAssert.Contains(sql, "WHERE whiteid = @id");
+    }
+
+    [TestMethod]
+    public void UpdateWhiteListAddressSql_RemainsScopedToWhitelistPersistence()
+    {
+        var sql = SqlServerWhiteListAddressAdministrationStore.UpdateWhiteListAddressSql;
+
+        Assert.IsFalse(sql.Contains("hm_settings", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_greylisting", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string FormatLegacyAddress(long address1, long? address2)
     {
         var method = typeof(SqlServerWhiteListAddressAdministrationStore).GetMethod(

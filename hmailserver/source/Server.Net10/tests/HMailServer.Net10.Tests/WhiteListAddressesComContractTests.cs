@@ -211,6 +211,62 @@ public sealed class WhiteListAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_ExistingAddressSaveUpdatesOnlyAfterSuccessfulStore()
+    {
+        WhiteListAddressAdministrationSnapshot? updated = null;
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "existing@example.test", "Existing")
+            },
+            update: address => updated = address,
+            isServerAdministrator: static () => true);
+
+        var existing = addresses[0];
+        existing.LowerIPAddress = "198.51.100.1";
+        existing.LowerIPAddress = "invalid-ip";
+        existing.UpperIPAddress = "198.51.100.255";
+        existing.EmailAddress = "updated@example.test";
+        existing.Description = "Updated";
+
+        existing.Save();
+
+        Assert.IsNotNull(updated);
+        Assert.AreEqual(10, updated!.Id);
+        Assert.AreEqual("198.51.100.1", updated.LowerIpAddress);
+        Assert.AreEqual("198.51.100.255", updated.UpperIpAddress);
+        Assert.AreEqual("updated@example.test", updated.EmailAddress);
+        Assert.AreEqual("Updated", updated.Description);
+        AssertAddress(
+            addresses.get_ItemByDBID(10),
+            10,
+            "198.51.100.1",
+            "198.51.100.255",
+            "updated@example.test",
+            "Updated");
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ExistingAddressSaveMapsFailureAndRetainsSnapshots()
+    {
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "existing@example.test", "Existing")
+            },
+            update: static _ => throw new InvalidOperationException("Simulated update failure."),
+            isServerAdministrator: static () => true);
+        var existing = addresses[0];
+        existing.Description = "Staged update";
+
+        var error = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual("Staged update", existing.Description);
+        Assert.AreEqual("Existing", addresses.get_ItemByDBID(10).Description);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
@@ -465,6 +521,11 @@ public sealed class WhiteListAddressesComContractTests
             WhiteListAddressAdministrationSnapshot address,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Insert is outside this read-only test fixture.");
+
+        public ValueTask UpdateWhiteListAddressAsync(
+            WhiteListAddressAdministrationSnapshot address,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Update is outside this read-only test fixture.");
     }
 
     private sealed class ByteArrayComparer : IComparer<byte[]>

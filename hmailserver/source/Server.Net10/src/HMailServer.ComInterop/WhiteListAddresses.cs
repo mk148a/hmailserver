@@ -93,6 +93,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
     private WhiteListAddressAdministrationSnapshot[]? _addresses;
     private readonly Func<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>? _reload;
     private readonly Func<WhiteListAddressAdministrationSnapshot, long>? _insert;
+    private readonly Action<WhiteListAddressAdministrationSnapshot>? _update;
     private readonly Func<bool>? _isServerAdministrator;
 
     public WhiteListAddresses()
@@ -103,11 +104,13 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses,
         Func<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>? reload,
         Func<WhiteListAddressAdministrationSnapshot, long>? insert,
+        Action<WhiteListAddressAdministrationSnapshot>? update,
         Func<bool>? isServerAdministrator)
     {
         _addresses = addresses.ToArray();
         _reload = reload;
         _insert = insert;
+        _update = update;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -123,7 +126,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
                 throw new COMException("Whitelist address index was outside the collection.", DispEBadIndex);
             }
 
-            return WhiteListAddress.CreateAuthorized(addresses[index]);
+            return CreateAddress(addresses[index]);
         }
     }
 
@@ -156,7 +159,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
 
         return match is null
             ? throw new COMException("No whitelist address with the specified database identifier exists.", DispEBadIndex)
-            : WhiteListAddress.CreateAuthorized(match);
+            : CreateAddress(match);
     }
 
     public void Refresh()
@@ -188,21 +191,35 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         WhiteListAddressAdministrationSnapshot address)
     {
         var addresses = GetAddresses();
-        if (address.Id != 0 || _insert is null)
+        if (address.Id != 0 && _update is null)
         {
             return Unavailable<WhiteListAddressAdministrationSnapshot>();
         }
 
         try
         {
-            var inserted = address with { Id = _insert(address) };
-            if (inserted.Id <= 0)
+            if (address.Id == 0)
             {
-                throw new InvalidOperationException("The whitelist insert did not return a valid database identifier.");
+                if (_insert is null)
+                {
+                    return Unavailable<WhiteListAddressAdministrationSnapshot>();
+                }
+
+                var inserted = address with { Id = _insert(address) };
+                if (inserted.Id <= 0)
+                {
+                    throw new InvalidOperationException("The whitelist insert did not return a valid database identifier.");
+                }
+
+                Volatile.Write(ref _addresses, addresses.Concat([inserted]).ToArray());
+                return inserted;
             }
 
-            Volatile.Write(ref _addresses, addresses.Concat([inserted]).ToArray());
-            return inserted;
+            _update!(address);
+            Volatile.Write(
+                ref _addresses,
+                addresses.Select(existing => existing.Id == address.Id ? address : existing).ToArray());
+            return address;
         }
         catch (COMException)
         {
@@ -220,11 +237,18 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         IReadOnlyList<WhiteListAddressAdministrationSnapshot> addresses,
         Func<IReadOnlyList<WhiteListAddressAdministrationSnapshot>>? reload = null,
         Func<WhiteListAddressAdministrationSnapshot, long>? insert = null,
+        Action<WhiteListAddressAdministrationSnapshot>? update = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new WhiteListAddresses(addresses, reload, insert, isServerAdministrator);
+        return new WhiteListAddresses(addresses, reload, insert, update, isServerAdministrator);
     }
+
+    private WhiteListAddress CreateAddress(WhiteListAddressAdministrationSnapshot address) =>
+        WhiteListAddress.CreateAuthorized(
+            address,
+            save: _insert is null && _update is null ? null : SaveAddress,
+            isServerAdministrator: _isServerAdministrator);
 
     private IReadOnlyList<WhiteListAddressAdministrationSnapshot> GetAddresses()
     {
@@ -399,10 +423,17 @@ public static class WhiteListAddressAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        void UpdateAddress(WhiteListAddressAdministrationSnapshot address) => store
+            .UpdateWhiteListAddressAsync(address, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return WhiteListAddresses.CreateAuthorized(
             LoadAddresses(),
             LoadAddresses,
             InsertAddress,
+            UpdateAddress,
             isServerAdministrator);
     }
 }
