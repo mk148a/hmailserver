@@ -91,7 +91,7 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return DomainAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            return DomainAdministrationRuntimeHost.CreateAuthorizedAdapter(() => _isServerAdministrator);
         }
     }
 

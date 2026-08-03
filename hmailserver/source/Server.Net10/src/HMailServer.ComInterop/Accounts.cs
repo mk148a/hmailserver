@@ -51,6 +51,7 @@ public sealed class Accounts : IInterfaceAccounts
 
     private AccountAdministrationEntry[]? _accounts;
     private readonly Func<IReadOnlyList<AccountAdministrationSnapshot>>? _reload;
+    private readonly Func<bool>? _isAuthenticated;
 
     public Accounts()
     {
@@ -58,20 +59,23 @@ public sealed class Accounts : IInterfaceAccounts
 
     private Accounts(
         IReadOnlyList<AccountAdministrationSnapshot> accounts,
-        Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload,
+        Func<bool>? isAuthenticated)
     {
         _accounts = CreateEntries(accounts);
         _reload = reload;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int Count => GetAccounts().Count;
 
     internal static Accounts CreateAuthorized(
         IReadOnlyList<AccountAdministrationSnapshot> accounts,
-        Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload = null,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
-        return new Accounts(accounts, reload);
+        return new Accounts(accounts, reload, isAuthenticated);
     }
 
     public IInterfaceAccount this[int index]
@@ -88,7 +92,8 @@ public sealed class Accounts : IInterfaceAccounts
                 accounts[index].Snapshot,
                 accounts[index].RulesState,
                 accounts[index].MessagesState,
-                accounts[index].ImapFoldersState);
+                accounts[index].ImapFoldersState,
+                _isAuthenticated);
         }
     }
 
@@ -129,7 +134,8 @@ public sealed class Accounts : IInterfaceAccounts
                 match.Snapshot,
                 match.RulesState,
                 match.MessagesState,
-                match.ImapFoldersState);
+                match.ImapFoldersState,
+                _isAuthenticated);
     }
 
     public IInterfaceAccount get_ItemByAddress(string address)
@@ -143,13 +149,19 @@ public sealed class Accounts : IInterfaceAccounts
                 match.Snapshot,
                 match.RulesState,
                 match.MessagesState,
-                match.ImapFoldersState);
+                match.ImapFoldersState,
+                _isAuthenticated);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
     private IReadOnlyList<AccountAdministrationEntry> GetAccounts()
     {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException("Accounts access requires an authenticated server administrator.", EAccessDenied);
+        }
+
         return Volatile.Read(ref _accounts)
             ?? throw new COMException("Accounts access requires an authenticated server administrator.", EAccessDenied);
     }
@@ -197,7 +209,7 @@ public static class AccountAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static Accounts CreateAuthorizedAdapter(int domainId)
+    internal static Accounts CreateAuthorizedAdapter(int domainId, Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -210,7 +222,7 @@ public static class AccountAdministrationRuntimeHost
                 .GetAwaiter()
                 .GetResult();
 
-        return Accounts.CreateAuthorized(LoadAccounts(), LoadAccounts);
+        return Accounts.CreateAuthorized(LoadAccounts(), LoadAccounts, isAuthenticated);
     }
 
     internal static Account CreateAuthorizedAccountByIdAdapter(int accountId)

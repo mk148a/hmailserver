@@ -2,7 +2,7 @@ using HMailServer.Core.Abstractions;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class MessageFileDeletionRuntime
+public sealed class MessageFileDeletionRuntime : IImapFolderMessageFileDeletionRuntime
 {
     public const int MaxAttempts = 5;
 

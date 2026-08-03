@@ -718,6 +718,7 @@ public static class Host
     builder.Services.AddSingleton<SqlServerImapSortPlanner>();
     builder.Services.AddSingleton<SqlServerFullTextSearchHealthCheck>();
     builder.Services.AddSingleton<MessageFilePathResolver>();
+    builder.Services.AddSingleton<MessageFileDeletionRuntime>();
     builder.Services.AddSingleton<IMessageSearchIndex, SqlServerMessageSearchIndex>();
     builder.Services.AddSingleton<IMessageSortIndex, SqlServerMessageSortIndex>();
     builder.Services.AddSingleton<IAutoBanLogonFailureRecorder, SqlServerAutoBanLogonFailureRecorder>();

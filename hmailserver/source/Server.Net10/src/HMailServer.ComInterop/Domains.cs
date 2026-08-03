@@ -308,6 +308,7 @@ public sealed class Domains : IInterfaceDomains
 
     private DomainAdministrationSnapshot[]? _domains;
     private readonly Func<IReadOnlyList<DomainAdministrationSnapshot>>? _reload;
+    private readonly Func<bool>? _isAuthenticated;
 
     public Domains()
     {
@@ -315,10 +316,12 @@ public sealed class Domains : IInterfaceDomains
 
     private Domains(
         IReadOnlyList<DomainAdministrationSnapshot> domains,
-        Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload,
+        Func<bool>? isAuthenticated)
     {
         _domains = domains.ToArray();
         _reload = reload;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int Count => GetDomains().Count;
@@ -328,10 +331,11 @@ public sealed class Domains : IInterfaceDomains
 
     internal static Domains CreateAuthorized(
         IReadOnlyList<DomainAdministrationSnapshot> domains,
-        Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload = null,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(domains);
-        return new Domains(domains, reload);
+        return new Domains(domains, reload, isAuthenticated);
     }
 
     public IInterfaceDomain this[int index]
@@ -344,7 +348,7 @@ public sealed class Domains : IInterfaceDomains
                 throw new COMException("Domain index was outside the collection.", DispEBadIndex);
             }
 
-            return Domain.CreateAuthorized(domains[index]);
+            return Domain.CreateAuthorized(domains[index], _isAuthenticated);
         }
     }
 
@@ -380,7 +384,7 @@ public sealed class Domains : IInterfaceDomains
 
         return match is null
             ? throw new COMException("No domain with the specified name exists.", DispEBadIndex)
-            : Domain.CreateAuthorized(match);
+            : Domain.CreateAuthorized(match, _isAuthenticated);
     }
 
     public IInterfaceDomain get_ItemByDBID(int databaseId)
@@ -389,7 +393,7 @@ public sealed class Domains : IInterfaceDomains
 
         return match is null
             ? throw new COMException("No domain with the specified database identifier exists.", DispEBadIndex)
-            : Domain.CreateAuthorized(match);
+            : Domain.CreateAuthorized(match, _isAuthenticated);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
@@ -411,6 +415,14 @@ public sealed class Domains : IInterfaceDomains
         _ = GetDomains();
         throw new COMException("This Domains member is not implemented by the .NET 10 rewrite yet.", ENotImplemented);
     }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException("Domain access requires an authenticated server administrator.", EAccessDenied);
+        }
+    }
 }
 
 [ComVisible(true)]
@@ -424,15 +436,17 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
 
     private readonly DomainAdministrationSnapshot? _domain;
     private readonly bool _authorized;
+    private readonly Func<bool>? _isAuthenticated;
 
     public Domain()
     {
     }
 
-    private Domain(DomainAdministrationSnapshot domain)
+    private Domain(DomainAdministrationSnapshot domain, Func<bool>? isAuthenticated)
     {
         _domain = domain;
         _authorized = true;
+        _isAuthenticated = isAuthenticated;
     }
 
     public override string Name
@@ -616,7 +630,7 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     }
 
     public override IInterfaceAccounts Accounts =>
-        AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+        AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _isAuthenticated);
 
     public override IInterfaceAliases Aliases =>
         AliasAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
@@ -627,7 +641,10 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     public override IInterfaceDomainAliases DomainAliases =>
         DomainAliasAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
-    internal static Domain CreateAuthorized(DomainAdministrationSnapshot domain) => new(domain);
+    internal static Domain CreateAuthorized(
+        DomainAdministrationSnapshot domain,
+        Func<bool>? isAuthenticated = null) =>
+        new(domain, isAuthenticated);
 
     void IDomainAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
 
@@ -643,6 +660,11 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     private void EnsureAuthorized()
     {
         if (!_authorized)
+        {
+            throw new COMException("Domain access requires an authenticated server administrator.", EAccessDenied);
+        }
+
+        if (_isAuthenticated is not null && !_isAuthenticated())
         {
             throw new COMException("Domain access requires an authenticated server administrator.", EAccessDenied);
         }
@@ -745,7 +767,7 @@ public static class DomainAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static Domains CreateAuthorizedAdapter()
+    internal static Domains CreateAuthorizedAdapter(Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -758,6 +780,6 @@ public static class DomainAdministrationRuntimeHost
                 .GetAwaiter()
                 .GetResult();
 
-        return Domains.CreateAuthorized(LoadDomains(), LoadDomains);
+        return Domains.CreateAuthorized(LoadDomains(), LoadDomains, isAuthenticated);
     }
 }

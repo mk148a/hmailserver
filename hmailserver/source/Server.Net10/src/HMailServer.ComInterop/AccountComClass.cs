@@ -19,6 +19,7 @@ public sealed class Account : IInterfaceAccount
     private readonly AccountMessageAdministrationState? _messagesState;
     private readonly RuleAdministrationState? _rulesState;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<bool>? _isAuthenticated;
     private bool _active;
     private string _activeDirectoryDomain = string.Empty;
     private string _address = string.Empty;
@@ -60,19 +61,22 @@ public sealed class Account : IInterfaceAccount
         _adminLevel = adminLevel;
         _rulesState = rulesState;
         _isServerAdministrator = isServerAdministrator;
+        _isAuthenticated = isServerAdministrator;
     }
 
     private Account(
         AccountAdministrationSnapshot administrationSnapshot,
         RuleAdministrationState rulesState,
         AccountMessageAdministrationState messagesState,
-        ImapFolderAdministrationState imapFoldersState)
+        ImapFolderAdministrationState imapFoldersState,
+        Func<bool>? isAuthenticated)
     {
         _attached = true;
         _administrationSnapshot = administrationSnapshot;
         _imapFoldersState = imapFoldersState;
         _messagesState = messagesState;
         _rulesState = rulesState;
+        _isAuthenticated = isAuthenticated;
     }
 
     public bool Active
@@ -169,9 +173,14 @@ public sealed class Account : IInterfaceAccount
         get
         {
             EnsureAttached();
+            EnsureAuthenticated();
 
             return _administrationSnapshot is { } account && _imapFoldersState is { } foldersState
-                ? HMailServer.ComInterop.IMAPFolders.CreateAuthorized(foldersState, account.Id, -1)
+                ? HMailServer.ComInterop.IMAPFolders.CreateAuthorized(
+                    foldersState,
+                    account.Id,
+                    -1,
+                    _isAuthenticated)
                 : NotImplemented<IInterfaceIMAPFolders>();
         }
     }
@@ -211,12 +220,15 @@ public sealed class Account : IInterfaceAccount
             RuleAdministrationRuntimeHost.CreateAuthorizedState(0),
             isServerAdministrator);
 
-    internal static Account CreateAuthorized(AccountAdministrationSnapshot account) =>
+    internal static Account CreateAuthorized(
+        AccountAdministrationSnapshot account,
+        Func<bool>? isAuthenticated = null) =>
         new(
             account,
             RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
             MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id),
-            ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id));
+            ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
+            isAuthenticated);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
@@ -225,7 +237,8 @@ public sealed class Account : IInterfaceAccount
             account,
             rulesState,
             MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id),
-            ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id));
+            ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
+            null);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
@@ -235,14 +248,16 @@ public sealed class Account : IInterfaceAccount
             account,
             rulesState,
             messagesState,
-            ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id));
+            ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
+            null);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
         RuleAdministrationState rulesState,
         AccountMessageAdministrationState messagesState,
-        ImapFolderAdministrationState imapFoldersState) =>
-        new(account, rulesState, messagesState, imapFoldersState);
+        ImapFolderAdministrationState imapFoldersState,
+        Func<bool>? isAuthenticated = null) =>
+        new(account, rulesState, messagesState, imapFoldersState, isAuthenticated);
 
     public void Save() => NotImplemented();
 
@@ -291,6 +306,16 @@ public sealed class Account : IInterfaceAccount
         {
             throw new COMException(
                 "You do not have access to this property / method. Ensure that hMailServer.Application.Authenticate() is called with proper login credentials.",
+                EAccessDenied);
+        }
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "Account access requires an authenticated server administrator.",
                 EAccessDenied);
         }
     }

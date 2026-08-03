@@ -69,7 +69,7 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
                 .ConfigureAwait(false);
 
             Assert.IsTrue(result.Succeeded);
-            Assert.AreEqual(2, result.DeletedMessages.Count);
+            Assert.AreEqual(3, result.DeletedMessages.Count);
             Assert.AreEqual(
                 new ImapFolderAdministrationDeletedMessage(
                     "child-owned.eml",

@@ -89,6 +89,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
@@ -96,6 +97,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
     private readonly ImapFolderAdministrationState? _state;
     private readonly int _accountId;
     private readonly int _parentFolderId;
+    private readonly Func<bool>? _isAuthenticated;
 
     public IMAPFolders()
     {
@@ -109,11 +111,13 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
     private IMAPFolders(
         ImapFolderAdministrationState state,
         int accountId,
-        int parentFolderId)
+        int parentFolderId,
+        Func<bool>? isAuthenticated)
     {
         _state = state;
         _accountId = accountId;
         _parentFolderId = parentFolderId;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int Count => GetFolders().Count;
@@ -135,7 +139,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
             }
 
             return _state is { } state
-                ? IMAPFolder.CreateAuthorized(folders[index], state)
+                ? IMAPFolder.CreateAuthorized(folders[index], state, _isAuthenticated)
                 : IMAPFolder.CreateAuthorized(folders[index]);
         }
     }
@@ -149,7 +153,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
                 "No IMAP folder with the specified database identifier exists.",
                 DispEBadIndex)
             : _state is { } state
-                ? IMAPFolder.CreateAuthorized(match, state)
+                ? IMAPFolder.CreateAuthorized(match, state, _isAuthenticated)
                 : IMAPFolder.CreateAuthorized(match);
     }
 
@@ -162,7 +166,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
         return match is null
             ? throw new COMException("No IMAP folder with the specified name exists.", DispEBadIndex)
             : _state is { } state
-                ? IMAPFolder.CreateAuthorized(match, state)
+                ? IMAPFolder.CreateAuthorized(match, state, _isAuthenticated)
                 : IMAPFolder.CreateAuthorized(match);
     }
 
@@ -201,10 +205,43 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
         }
 
         state.Append(snapshot);
-        return IMAPFolder.CreateAuthorized(snapshot, state);
+        return IMAPFolder.CreateAuthorized(snapshot, state, _isAuthenticated);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        EnsureAuthenticated();
+        var selected = GetFolders().FirstOrDefault(folder => folder.Id == databaseId);
+        if (selected is null)
+        {
+            throw new COMException(
+                "No IMAP folder with the specified database identifier exists.",
+                DispEBadIndex);
+        }
+
+        if (_state is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var result = ImapFolderAdministrationRuntimeHost.DeleteAuthorized(selected)
+                .GetAwaiter()
+                .GetResult();
+            if (result.Succeeded)
+            {
+                _state.RemoveTree(selected);
+            }
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the IMAP folder from the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<ImapFolderAdministrationSnapshot> GetFolders()
     {
@@ -219,6 +256,16 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
             ?? throw new COMException(
                 "IMAPFolders access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "IMAP folder access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private T Unavailable<T>()
@@ -240,8 +287,9 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
     internal static IMAPFolders CreateAuthorized(
         ImapFolderAdministrationState state,
         int accountId,
-        int parentFolderId) =>
-        new(state, accountId, parentFolderId);
+        int parentFolderId,
+        Func<bool>? isAuthenticated = null) =>
+        new(state, accountId, parentFolderId, isAuthenticated);
 }
 
 [ComVisible(true)]
@@ -257,6 +305,7 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
     private ImapFolderAdministrationSnapshot? _folder;
     private readonly ImapFolderAdministrationState? _foldersState;
+    private readonly Func<bool>? _isAuthenticated;
     private string? _stagedName;
     private bool? _stagedSubscribed;
 
@@ -266,10 +315,12 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
     private IMAPFolder(
         ImapFolderAdministrationSnapshot folder,
-        ImapFolderAdministrationState? foldersState = null)
+        ImapFolderAdministrationState? foldersState = null,
+        Func<bool>? isAuthenticated = null)
     {
         _folder = folder;
         _foldersState = foldersState;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int ID => Snapshot.Id;
@@ -310,7 +361,7 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
     public IInterfaceIMAPFolders SubFolders =>
         _foldersState is { } state
-            ? IMAPFolders.CreateAuthorized(state, Snapshot.AccountId, Snapshot.Id)
+            ? IMAPFolders.CreateAuthorized(state, Snapshot.AccountId, Snapshot.Id, _isAuthenticated)
             : ImapFolderAdministrationRuntimeHost.CreateAuthorizedChildAdapter(Snapshot.Id, Snapshot.AccountId);
 
     public int ParentID => Snapshot.ParentId;
@@ -339,8 +390,9 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
     internal static IMAPFolder CreateAuthorized(
         ImapFolderAdministrationSnapshot folder,
-        ImapFolderAdministrationState state) =>
-        new(folder, state);
+        ImapFolderAdministrationState state,
+        Func<bool>? isAuthenticated = null) =>
+        new(folder, state, isAuthenticated);
 
     public void Save()
     {
@@ -371,12 +423,50 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
         _stagedSubscribed = null;
     }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        var snapshot = Snapshot;
+        EnsureAuthenticated();
+        if (_foldersState is not { } state)
+        {
+            Unavailable();
+            return;
+        }
+
+        ImapFolderAdministrationDeletionResult result;
+        try
+        {
+            result = ImapFolderAdministrationRuntimeHost.DeleteAuthorized(snapshot)
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the IMAP folder from the database.",
+                unchecked((int)0x80004005));
+        }
+
+        if (result.Succeeded)
+        {
+            state.RemoveTree(snapshot);
+        }
+    }
 
     private ImapFolderAdministrationSnapshot Snapshot =>
         _folder ?? throw new COMException(
             "IMAPFolder access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "IMAP folder access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private T Unavailable<T>()
     {
@@ -456,6 +546,38 @@ internal sealed class ImapFolderAdministrationState
             return true;
         }
     }
+
+    public void RemoveTree(ImapFolderAdministrationSnapshot folder)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+        lock (_sync)
+        {
+            var folders = GetFolders().ToArray();
+            var removedIds = new HashSet<int> { folder.Id };
+            var preserveRootInbox = folder.ParentId == -1
+                && string.Equals(folder.Name, "INBOX", StringComparison.OrdinalIgnoreCase);
+
+            var changed = true;
+            while (changed)
+            {
+                changed = false;
+                foreach (var candidate in folders)
+                {
+                    if (candidate.AccountId == folder.AccountId
+                        && removedIds.Contains(candidate.ParentId)
+                        && removedIds.Add(candidate.Id))
+                    {
+                        changed = true;
+                    }
+                }
+            }
+
+            _snapshot = folders
+                .Where(candidate => !removedIds.Contains(candidate.Id)
+                    || (preserveRootInbox && candidate.Id == folder.Id))
+                .ToArray();
+        }
+    }
 }
 
 [ComVisible(false)]
@@ -464,12 +586,16 @@ public static class ImapFolderAdministrationRuntimeHost
     private const int CoENotInitialized = unchecked((int)0x800401F0);
 
     private static IImapFolderAdministrationStore? _store;
+    private static IImapFolderMessageFileDeletionRuntime? _messageFileDeletionRuntime;
     private static readonly ConcurrentDictionary<int, ImapFolderAdministrationState> _states = new();
 
-    public static void Configure(IImapFolderAdministrationStore store)
+    public static void Configure(
+        IImapFolderAdministrationStore store,
+        IImapFolderMessageFileDeletionRuntime? messageFileDeletionRuntime = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         Volatile.Write(ref _store, store);
+        Volatile.Write(ref _messageFileDeletionRuntime, messageFileDeletionRuntime);
         _states.Clear();
     }
 
@@ -518,6 +644,37 @@ public static class ImapFolderAdministrationRuntimeHost
 
         return await mutationStore.UpdateFolderAsync(folder, CancellationToken.None)
             .ConfigureAwait(false);
+    }
+
+    internal static async ValueTask<ImapFolderAdministrationDeletionResult> DeleteAuthorized(
+        ImapFolderAdministrationSnapshot folder)
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer IMAP folder administration runtime has not been initialized.",
+                CoENotInitialized);
+        if (store is not IImapFolderAdministrationDeletionStore deletionStore)
+        {
+            throw new COMException(
+                "IMAP folder deletion is not available in the configured administration store.",
+                unchecked((int)0x80004001));
+        }
+
+        var result = await deletionStore.DeleteFolderAsync(folder, CancellationToken.None)
+            .ConfigureAwait(false);
+        if (result.Succeeded)
+        {
+            try
+            {
+                _ = Volatile.Read(ref _messageFileDeletionRuntime)?.TryDeleteAll(result);
+            }
+            catch
+            {
+                // Legacy folder deletion keeps the database result authoritative when file cleanup fails.
+            }
+        }
+
+        return result;
     }
 
     internal static async ValueTask<ImapFolderPermissionAdministrationSnapshot?> InsertPermissionAuthorized(

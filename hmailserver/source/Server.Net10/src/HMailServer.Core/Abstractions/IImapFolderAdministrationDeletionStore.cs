@@ -7,6 +7,11 @@ public interface IImapFolderAdministrationDeletionStore
         CancellationToken cancellationToken);
 }
 
+public interface IImapFolderMessageFileDeletionRuntime
+{
+    bool TryDeleteAll(ImapFolderAdministrationDeletionResult result);
+}
+
 public sealed record ImapFolderAdministrationDeletionResult(
     bool Succeeded,
     IReadOnlyList<ImapFolderAdministrationDeletedMessage> DeletedMessages);

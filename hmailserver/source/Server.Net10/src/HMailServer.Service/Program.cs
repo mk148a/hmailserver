@@ -142,7 +142,8 @@ RuleCriteriaAdministrationRuntimeHost.Configure(
 RuleActionAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IRuleActionAdministrationStore>());
 ImapFolderAdministrationRuntimeHost.Configure(
-    host.Services.GetRequiredService<IImapFolderAdministrationStore>());
+    host.Services.GetRequiredService<IImapFolderAdministrationStore>(),
+    host.Services.GetRequiredService<MessageFileDeletionRuntime>());
 RouteAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IRouteAdministrationStore>());
 RouteAddressAdministrationRuntimeHost.Configure(
