@@ -201,8 +201,10 @@ public sealed class WhiteListAddressesComContractTests
         var added = addresses.Add();
         isServerAdministrator = false;
 
+        var addError = Assert.ThrowsExactly<COMException>(() => addresses.Add());
         var error = Assert.ThrowsExactly<COMException>(added.Save);
 
+        Assert.AreEqual(EAccessDenied, addError.ErrorCode);
         Assert.AreEqual(EAccessDenied, error.ErrorCode);
         Assert.AreEqual(0, added.ID);
         Assert.AreEqual(0, addresses.Count);

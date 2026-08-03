@@ -132,6 +132,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
     public IInterfaceWhiteListAddress Add()
     {
         _ = GetAddresses();
+        EnsureServerAdministrator();
         if (_insert is null)
         {
             return Unavailable<IInterfaceWhiteListAddress>();
@@ -231,6 +232,16 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
             ?? throw new COMException(
                 "WhiteListAddresses access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "WhiteListAddresses access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private void Unavailable()
