@@ -20,7 +20,7 @@ SELECT
     a.accountadminlevel,
     d.domainlimitationsenabled,
     d.domainmaxaccountsize,
-    CONVERT(bigint, COALESCE(SUM(CASE WHEN m.messagetype = 2 THEN m.messagesize ELSE 0 END), 0)) AS usedbytes
+    CONVERT(bigint, COALESCE(SUM(m.messagesize), 0)) AS usedbytes
 FROM hm_accounts AS a
 INNER JOIN hm_domains AS d
     ON d.domainid = a.accountdomainid

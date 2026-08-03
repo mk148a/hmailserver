@@ -13,7 +13,8 @@ public sealed class SqlServerImapQuotaStoreTests
         StringAssert.Contains(SqlServerImapQuotaStore.SelectQuotaSnapshotSql, "FROM hm_accounts AS a");
         StringAssert.Contains(SqlServerImapQuotaStore.SelectQuotaSnapshotSql, "INNER JOIN hm_domains AS d");
         StringAssert.Contains(SqlServerImapQuotaStore.SelectQuotaSnapshotSql, "LEFT JOIN hm_messages AS m");
-        StringAssert.Contains(SqlServerImapQuotaStore.SelectQuotaSnapshotSql, "m.messagetype = 2");
+        StringAssert.Contains(SqlServerImapQuotaStore.SelectQuotaSnapshotSql, "SUM(m.messagesize)");
+        Assert.IsFalse(SqlServerImapQuotaStore.SelectQuotaSnapshotSql.Contains("messagetype", StringComparison.OrdinalIgnoreCase));
         StringAssert.Contains(SqlServerImapQuotaStore.UpdateAccountQuotaSql, "SET accountmaxsize = @MaxSizeMb");
     }
 }
