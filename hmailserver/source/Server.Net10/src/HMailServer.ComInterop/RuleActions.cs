@@ -202,6 +202,7 @@ public sealed class RuleActions : IInterfaceRuleActions
     private readonly Action<RuleActionAdministrationSnapshot>? _save;
     private readonly Func<bool>? _isServerAdministrator;
     private readonly int? _owningRuleId;
+    private readonly Func<bool>? _isAuthenticated;
 
     public RuleActions()
     {
@@ -214,7 +215,8 @@ public sealed class RuleActions : IInterfaceRuleActions
         Func<int, RuleActionAdministrationSnapshot, int>? insert,
         Action<RuleActionAdministrationSnapshot>? save,
         Func<bool>? isServerAdministrator,
-        int? owningRuleId)
+        int? owningRuleId,
+        Func<bool>? isAuthenticated)
         : this(
             new RuleActionAdministrationState(actions),
             reload,
@@ -222,7 +224,8 @@ public sealed class RuleActions : IInterfaceRuleActions
             insert,
             save,
             isServerAdministrator,
-            owningRuleId ?? actions.FirstOrDefault()?.RuleId)
+            owningRuleId ?? actions.FirstOrDefault()?.RuleId,
+            isAuthenticated)
     {
     }
 
@@ -233,7 +236,8 @@ public sealed class RuleActions : IInterfaceRuleActions
         Func<int, RuleActionAdministrationSnapshot, int>? insert,
         Action<RuleActionAdministrationSnapshot>? save,
         Func<bool>? isServerAdministrator,
-        int? owningRuleId)
+        int? owningRuleId,
+        Func<bool>? isAuthenticated)
     {
         _state = state;
         _reload = reload;
@@ -242,6 +246,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         _save = save;
         _isServerAdministrator = isServerAdministrator;
         _owningRuleId = owningRuleId;
+        _isAuthenticated = isAuthenticated;
     }
 
     public IInterfaceRuleAction this[int index]
@@ -259,7 +264,8 @@ public sealed class RuleActions : IInterfaceRuleActions
                 action,
                 () => DeleteByDBID(action.Snapshot.Id),
                 _save is null ? null : SaveAction,
-                _isServerAdministrator);
+                _isServerAdministrator,
+                isAuthenticated: _isAuthenticated);
         }
     }
 
@@ -275,13 +281,15 @@ public sealed class RuleActions : IInterfaceRuleActions
                 match,
                 () => DeleteByDBID(match.Snapshot.Id),
                 _save is null ? null : SaveAction,
-                _isServerAdministrator);
+                _isServerAdministrator,
+                isAuthenticated: _isAuthenticated);
     }
 
     public int Count => GetActions().Count;
 
     public IInterfaceRuleAction Add()
     {
+        EnsureAuthenticated();
         _ = GetActions();
         if (_insert is null || _owningRuleId is null)
         {
@@ -310,11 +318,13 @@ public sealed class RuleActions : IInterfaceRuleActions
         return RuleAction.CreateAuthorized(
             entry,
             save: action => SaveAddedAction(entry, action),
-            isServerAdministrator: _isServerAdministrator);
+            isServerAdministrator: _isServerAdministrator,
+            isAuthenticated: _isAuthenticated);
     }
 
     public void DeleteByDBID(int databaseId)
     {
+        EnsureAuthenticated();
         var actions = GetActions();
         if (_deleteById is null)
         {
@@ -342,6 +352,7 @@ public sealed class RuleActions : IInterfaceRuleActions
 
     public void Refresh()
     {
+        EnsureAuthenticated();
         _ = GetActions();
         if (_reload is null)
         {
@@ -365,6 +376,7 @@ public sealed class RuleActions : IInterfaceRuleActions
 
     public void Delete(int index)
     {
+        EnsureAuthenticated();
         var actions = GetActions();
         if (_deleteById is null)
         {
@@ -398,10 +410,11 @@ public sealed class RuleActions : IInterfaceRuleActions
         Action<RuleActionAdministrationSnapshot>? save = null,
         Func<bool>? isServerAdministrator = null,
         int? owningRuleId = null,
-        Func<int, RuleActionAdministrationSnapshot, int>? insert = null)
+        Func<int, RuleActionAdministrationSnapshot, int>? insert = null,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(actions);
-        return new RuleActions(actions, reload, deleteById, insert, save, isServerAdministrator, owningRuleId);
+        return new RuleActions(actions, reload, deleteById, insert, save, isServerAdministrator, owningRuleId, isAuthenticated);
     }
 
     internal static RuleActions CreateAuthorized(
@@ -411,10 +424,11 @@ public sealed class RuleActions : IInterfaceRuleActions
         Action<RuleActionAdministrationSnapshot>? save = null,
         Func<bool>? isServerAdministrator = null,
         int? owningRuleId = null,
-        Func<int, RuleActionAdministrationSnapshot, int>? insert = null)
+        Func<int, RuleActionAdministrationSnapshot, int>? insert = null,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return new RuleActions(state, reload, deleteById, insert, save, isServerAdministrator, owningRuleId);
+        return new RuleActions(state, reload, deleteById, insert, save, isServerAdministrator, owningRuleId, isAuthenticated);
     }
 
     private void SaveAction(RuleActionAdministrationSnapshot action)
@@ -476,10 +490,31 @@ public sealed class RuleActions : IInterfaceRuleActions
 
     private IReadOnlyList<RuleActionAdministrationEntry> GetActions()
     {
+        EnsureAuthenticated();
         return _state?.GetActions()
             ?? throw new COMException(
                 "RuleActions access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "RuleActions access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "RuleActions access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private T Unavailable<T>()
@@ -515,6 +550,7 @@ public sealed class RuleAction : IInterfaceRuleAction
     private readonly Action<RuleActionAdministrationSnapshot>? _save;
     private readonly Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot>? _saveNew;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<bool>? _isAuthenticated;
 
     public RuleAction()
     {
@@ -525,13 +561,15 @@ public sealed class RuleAction : IInterfaceRuleAction
         Action? delete,
         Action<RuleActionAdministrationSnapshot>? save,
         Func<bool>? isServerAdministrator,
-        Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot>? saveNew)
+        Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot>? saveNew,
+        Func<bool>? isAuthenticated)
     {
         _entry = entry;
         _delete = delete;
         _save = save;
         _saveNew = saveNew;
         _isServerAdministrator = isServerAdministrator;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int ID => Snapshot.Id;
@@ -591,6 +629,7 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public void Save()
     {
+        EnsureAuthenticated();
         var snapshot = Snapshot;
         if (snapshot.Type == (int)ComRuleActionType.RunScriptFunction)
         {
@@ -648,6 +687,7 @@ public sealed class RuleAction : IInterfaceRuleAction
 
     public void Delete()
     {
+        EnsureAuthenticated();
         _ = Snapshot;
         if (_delete is null)
         {
@@ -663,8 +703,9 @@ public sealed class RuleAction : IInterfaceRuleAction
         Action? delete = null,
         Action<RuleActionAdministrationSnapshot>? save = null,
         Func<bool>? isServerAdministrator = null,
-        Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot>? saveNew = null) =>
-        new(entry, delete, save, isServerAdministrator, saveNew);
+        Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot>? saveNew = null,
+        Func<bool>? isAuthenticated = null) =>
+        new(entry, delete, save, isServerAdministrator, saveNew, isAuthenticated);
 
     private void Mutate(Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot> mutation)
     {
@@ -687,10 +728,26 @@ public sealed class RuleAction : IInterfaceRuleAction
         }
     }
 
-    private RuleActionAdministrationSnapshot Snapshot =>
-        _entry?.Snapshot ?? throw new COMException(
-            "RuleAction access requires an authenticated server administrator.",
-            EAccessDenied);
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "RuleAction access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
+    private RuleActionAdministrationSnapshot Snapshot
+    {
+        get
+        {
+            EnsureAuthenticated();
+            return _entry?.Snapshot ?? throw new COMException(
+                "RuleAction access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private void Unavailable()
     {
@@ -716,7 +773,9 @@ public static class RuleActionAdministrationRuntimeHost
 
     internal static RuleActions CreateAuthorizedAdapter(
         int ruleId,
-        RuleAdministrationGeneration? generation = null)
+        RuleAdministrationGeneration? generation = null,
+        Func<bool>? isServerAdministrator = null,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -754,9 +813,10 @@ public static class RuleActionAdministrationRuntimeHost
                 LoadActions,
                 DeleteActionById,
                 SaveAction,
-                isServerAdministrator: static () => true,
+                isServerAdministrator: isServerAdministrator ?? (static () => true),
                 owningRuleId: ruleId,
-                insert: InsertAction);
+                insert: InsertAction,
+                isAuthenticated: isAuthenticated);
         }
 
         var state = generation.GetActionState(ruleId);
@@ -766,8 +826,9 @@ public static class RuleActionAdministrationRuntimeHost
             LoadActions,
             DeleteActionById,
             SaveAction,
-            isServerAdministrator: static () => true,
+            isServerAdministrator: isServerAdministrator ?? (static () => true),
             owningRuleId: ruleId,
-            insert: InsertAction);
+            insert: InsertAction,
+            isAuthenticated: isAuthenticated);
     }
 }

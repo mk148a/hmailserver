@@ -337,7 +337,8 @@ public sealed class ApplicationComContractTests
         var denied = Assert.ThrowsExactly<COMException>(() => _ = application.Rules);
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
 
-        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var account = application.Authenticate("Administrator", "secret")!;
+        var accountRules = account.Rules;
         var rules = application.Rules;
 
         Assert.AreEqual(2, rules.Count);
@@ -355,7 +356,15 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual(1, rules.Count);
         Assert.AreEqual("Global refreshed", rules[0].Name);
         Assert.AreEqual(0, rules[0].AccountID);
-        Assert.AreEqual(2, store.ReadCount);
+        Assert.AreEqual(3, store.ReadCount);
+
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = rules.Count).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = accountRules.Count).ErrorCode);
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        Assert.AreEqual(1, rules.Count);
+        Assert.AreEqual(2, accountRules.Count);
     }
 
     [TestMethod]

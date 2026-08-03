@@ -439,6 +439,60 @@ public sealed class RuleActionsComContractTests
     }
 
     [TestMethod]
+    public void RetainedRuleActionFacades_RecheckLiveAuthenticationBeforeReadAndMutation()
+    {
+        var isAuthenticated = true;
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1)
+            },
+            isServerAdministrator: () => true,
+            isAuthenticated: () => isAuthenticated);
+        var actions = rules[0].Actions;
+        var action = actions[0];
+
+        isAuthenticated = false;
+
+        AssertError(EAccessDenied, () => _ = rules.Count);
+        AssertError(EAccessDenied, () => _ = actions.Count);
+        AssertError(EAccessDenied, () => _ = action.Subject);
+        AssertError(EAccessDenied, action.Save);
+        AssertError(EAccessDenied, () => _ = actions.Add());
+
+        isAuthenticated = true;
+        action.Subject = "Reauthenticated subject";
+        action.Save();
+
+        Assert.AreEqual("Reauthenticated subject", store.SavedActions.Single().Subject);
+    }
+
+    [TestMethod]
+    public void AuthenticatedOrdinaryRuleActionSave_AllowsNonAdministrator()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) });
+        var actions = RuleActions.CreateAuthorized(
+            new[] { Snapshot(100, 10, ComRuleActionType.Reply, 1) },
+            save: action => store
+                .SaveRuleActionAsync(10, action, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult(),
+            isServerAdministrator: static () => false,
+            isAuthenticated: static () => true);
+        var action = actions[0];
+
+        action.AbortSpamFlagged = false;
+        action.Save();
+
+        Assert.AreEqual(1, store.SavedActions.Count);
+        Assert.IsFalse(store.SavedActions.Single().AbortSpamFlagged);
+    }
+
+    [TestMethod]
     public void AuthorizedRule_RepeatedActionsReturnsFreshFacadesWithSharedActionState()
     {
         var store = new MutableRuleActionAdministrationStore(

@@ -97,6 +97,8 @@ public sealed class Rules : IInterfaceRules
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly RuleAdministrationState? _state;
+    private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<bool>? _isAuthenticated;
 
     public Rules()
     {
@@ -105,34 +107,56 @@ public sealed class Rules : IInterfaceRules
     private Rules(
         IReadOnlyList<RuleAdministrationSnapshot> rules,
         Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload,
-        Func<int, int, ValueTask<bool>>? delete)
+        Func<int, int, ValueTask<bool>>? delete,
+        Func<bool>? isServerAdministrator,
+        Func<bool>? isAuthenticated)
     {
         _state = RuleAdministrationState.CreateLoaded(rules, reload, delete);
+        _isServerAdministrator = isServerAdministrator;
+        _isAuthenticated = isAuthenticated;
     }
 
-    private Rules(RuleAdministrationState state) => _state = state;
+    private Rules(RuleAdministrationState state, Func<bool>? isServerAdministrator, Func<bool>? isAuthenticated)
+    {
+        _state = state;
+        _isServerAdministrator = isServerAdministrator;
+        _isAuthenticated = isAuthenticated;
+    }
 
-    public int Count => GetRules().Count;
+    public int Count
+    {
+        get
+        {
+            EnsureAuthenticated();
+            return GetRules().Count;
+        }
+    }
 
     internal static Rules CreateAuthorized(
         IReadOnlyList<RuleAdministrationSnapshot> rules,
         Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload = null,
-        Func<int, int, ValueTask<bool>>? delete = null)
+        Func<int, int, ValueTask<bool>>? delete = null,
+        Func<bool>? isServerAdministrator = null,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(rules);
-        return new Rules(rules, reload, delete);
+        return new Rules(rules, reload, delete, isServerAdministrator, isAuthenticated);
     }
 
-    internal static Rules CreateAuthorized(RuleAdministrationState state)
+    internal static Rules CreateAuthorized(
+        RuleAdministrationState state,
+        Func<bool>? isServerAdministrator = null,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return new Rules(state);
+        return new Rules(state, isServerAdministrator, isAuthenticated);
     }
 
     public IInterfaceRule this[int index]
     {
         get
         {
+            EnsureAuthenticated();
             var generation = GetGeneration();
             var rules = generation.Rules;
             if (index < 0 || index >= rules.Count)
@@ -140,24 +164,26 @@ public sealed class Rules : IInterfaceRules
                 throw new COMException("Rule index was outside the collection.", DispEBadIndex);
             }
 
-            return Rule.CreateAuthorized(rules[index], generation, GetState());
+            return Rule.CreateAuthorized(rules[index], generation, GetState(), _isServerAdministrator, _isAuthenticated);
         }
     }
 
     public IInterfaceRule get_ItemByDBID(int databaseId)
     {
+        EnsureAuthenticated();
         var generation = GetGeneration();
         var match = generation.Rules.FirstOrDefault(rule => rule.Id == databaseId);
 
         return match is null
             ? throw new COMException("No rule with the specified database identifier exists.", DispEBadIndex)
-            : Rule.CreateAuthorized(match, generation, GetState());
+            : Rule.CreateAuthorized(match, generation, GetState(), _isServerAdministrator, _isAuthenticated);
     }
 
     public IInterfaceRule Add() => Unavailable<IInterfaceRule>();
 
     public void DeleteByDBID(int databaseId)
     {
+        EnsureAuthenticated();
         var state = GetState();
         var generation = state.GetGeneration();
         var selected = generation.Rules.FirstOrDefault(rule => rule.Id == databaseId);
@@ -169,6 +195,7 @@ public sealed class Rules : IInterfaceRules
 
     public void Refresh()
     {
+        EnsureAuthenticated();
         var state = GetState();
         _ = state.GetGeneration();
         if (!state.CanRefresh)
@@ -201,6 +228,16 @@ public sealed class Rules : IInterfaceRules
             "Rules access requires an authenticated server administrator.",
             EAccessDenied);
 
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "Rules access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
     private T Unavailable<T>()
     {
         _ = GetRules();
@@ -231,6 +268,8 @@ public sealed class Rule : IInterfaceRule
     private readonly RuleAdministrationSnapshot? _rule;
     private readonly RuleAdministrationGeneration? _generation;
     private readonly RuleAdministrationState? _state;
+    private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<bool>? _isAuthenticated;
 
     public Rule()
     {
@@ -239,11 +278,15 @@ public sealed class Rule : IInterfaceRule
     private Rule(
         RuleAdministrationSnapshot rule,
         RuleAdministrationGeneration generation,
-        RuleAdministrationState? state)
+        RuleAdministrationState? state,
+        Func<bool>? isServerAdministrator,
+        Func<bool>? isAuthenticated)
     {
         _rule = rule;
         _generation = generation;
         _state = state;
+        _isServerAdministrator = isServerAdministrator;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int ID => Snapshot.Id;
@@ -256,20 +299,37 @@ public sealed class Rule : IInterfaceRule
 
     public bool UseAND { get => Snapshot.UseAnd; set => Unavailable(); }
 
-    public IInterfaceRuleCriterias Criterias =>
-        RuleCriteriaAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+    public IInterfaceRuleCriterias Criterias
+    {
+        get
+        {
+            return RuleCriteriaAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+        }
+    }
 
-    public IInterfaceRuleActions Actions =>
-        RuleActionAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _generation);
+    public IInterfaceRuleActions Actions
+    {
+        get
+        {
+            EnsureAuthenticated();
+            return RuleActionAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                Snapshot.Id,
+                _generation,
+                _isServerAdministrator,
+                _isAuthenticated);
+        }
+    }
 
     internal static Rule CreateAuthorized(RuleAdministrationSnapshot rule) =>
-        new(rule, new RuleAdministrationGeneration(new[] { rule }), null);
+        new(rule, new RuleAdministrationGeneration(new[] { rule }), null, null, null);
 
     internal static Rule CreateAuthorized(
         RuleAdministrationSnapshot rule,
         RuleAdministrationGeneration generation,
-        RuleAdministrationState state) =>
-        new(rule, generation, state);
+        RuleAdministrationState state,
+        Func<bool>? isServerAdministrator = null,
+        Func<bool>? isAuthenticated = null) =>
+        new(rule, generation, state, isServerAdministrator, isAuthenticated);
 
     public void Save() => Unavailable();
 
@@ -290,9 +350,25 @@ public sealed class Rule : IInterfaceRule
     }
 
     private RuleAdministrationSnapshot Snapshot =>
-        _rule ?? throw new COMException(
+        GetAuthenticatedSnapshot();
+
+    private RuleAdministrationSnapshot GetAuthenticatedSnapshot()
+    {
+        EnsureAuthenticated();
+        return _rule ?? throw new COMException(
             "Rule access requires an authenticated server administrator.",
             EAccessDenied);
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "Rules access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private T Unavailable<T>()
     {
@@ -465,7 +541,10 @@ public static class RuleAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static Rules CreateAuthorizedAdapter(int accountId)
+    internal static Rules CreateAuthorizedAdapter(
+        int accountId,
+        Func<bool>? isServerAdministrator = null,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -481,7 +560,12 @@ public static class RuleAdministrationRuntimeHost
         ValueTask<bool> DeleteRuleAsync(int ownerAccountId, int ruleId) =>
             store.DeleteRuleAsync(ownerAccountId, ruleId, CancellationToken.None);
 
-        return Rules.CreateAuthorized(LoadRules(), LoadRules, DeleteRuleAsync);
+        return Rules.CreateAuthorized(
+            LoadRules(),
+            LoadRules,
+            DeleteRuleAsync,
+            isServerAdministrator,
+            isAuthenticated);
     }
 
     internal static RuleAdministrationState CreateAuthorizedState(int accountId)

@@ -144,7 +144,10 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return RuleAdministrationRuntimeHost.CreateAuthorizedAdapter(accountId: 0);
+            return RuleAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                accountId: 0,
+                isServerAdministrator: () => _isServerAdministrator,
+                isAuthenticated: () => _isServerAdministrator);
         }
     }
 
@@ -204,7 +207,9 @@ public sealed class Application : IInterfaceApplication
                 CoENotInitialized);
 
         _isServerAdministrator = provider.Authenticate(username, password);
-        return _isServerAdministrator ? Account.CreateServerAdministrator() : null;
+        return _isServerAdministrator
+            ? Account.CreateServerAdministrator(() => _isServerAdministrator)
+            : null;
     }
 
     private void EnsureServerAdministrator()
