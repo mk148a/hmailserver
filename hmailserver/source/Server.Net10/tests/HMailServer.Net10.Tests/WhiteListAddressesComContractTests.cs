@@ -319,6 +319,43 @@ public sealed class WhiteListAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_ClearRemovesAllAddressesAfterStoreSuccess()
+    {
+        var clearCalls = 0;
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "first@example.test", "First"),
+                Snapshot(20, "203.0.113.1", "203.0.113.1", "second@example.test", "Second")
+            },
+            clear: () => clearCalls++,
+            isServerAdministrator: static () => true);
+
+        addresses.Clear();
+
+        Assert.AreEqual(1, clearCalls);
+        Assert.AreEqual(0, addresses.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ClearFailureRetainsSnapshot()
+    {
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.1", "192.0.2.255", "first@example.test", "First")
+            },
+            clear: static () => throw new InvalidOperationException("Simulated clear failure."),
+            isServerAdministrator: static () => true);
+
+        var error = Assert.ThrowsExactly<COMException>(addresses.Clear);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual(10, addresses[0].ID);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
@@ -583,6 +620,9 @@ public sealed class WhiteListAddressesComContractTests
             long databaseId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Delete is outside this read-only test fixture.");
+
+        public ValueTask ClearWhiteListAddressesAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Clear is outside this read-only test fixture.");
     }
 
     private sealed class ByteArrayComparer : IComparer<byte[]>

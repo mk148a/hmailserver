@@ -4134,6 +4134,9 @@ VALUES
             long databaseId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Delete is outside this read-only test fixture.");
+
+        public ValueTask ClearWhiteListAddressesAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Clear is outside this read-only test fixture.");
     }
 
     private sealed class IntegrationDeliveryQueueClearObserver : IDeliveryQueueClearObserver

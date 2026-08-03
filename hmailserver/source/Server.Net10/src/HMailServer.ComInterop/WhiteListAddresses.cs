@@ -95,6 +95,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
     private readonly Func<WhiteListAddressAdministrationSnapshot, long>? _insert;
     private readonly Action<WhiteListAddressAdministrationSnapshot>? _update;
     private readonly Func<long, bool>? _delete;
+    private readonly Action? _clear;
     private readonly Func<bool>? _isServerAdministrator;
 
     public WhiteListAddresses()
@@ -107,6 +108,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         Func<WhiteListAddressAdministrationSnapshot, long>? insert,
         Action<WhiteListAddressAdministrationSnapshot>? update,
         Func<long, bool>? delete,
+        Action? clear,
         Func<bool>? isServerAdministrator)
     {
         _addresses = addresses.ToArray();
@@ -114,6 +116,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         _insert = insert;
         _update = update;
         _delete = delete;
+        _clear = clear;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -206,7 +209,32 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         }
     }
 
-    public void Clear() => Unavailable();
+    public void Clear()
+    {
+        _ = GetAddresses();
+        EnsureServerAdministrator();
+        if (_clear is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _clear();
+            Volatile.Write(ref _addresses, []);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to clear the whitelist addresses from the database.",
+                EFail);
+        }
+    }
 
     private WhiteListAddressAdministrationSnapshot SaveAddress(
         WhiteListAddressAdministrationSnapshot address)
@@ -260,10 +288,11 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         Func<WhiteListAddressAdministrationSnapshot, long>? insert = null,
         Action<WhiteListAddressAdministrationSnapshot>? update = null,
         Func<long, bool>? delete = null,
+        Action? clear = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new WhiteListAddresses(addresses, reload, insert, update, delete, isServerAdministrator);
+        return new WhiteListAddresses(addresses, reload, insert, update, delete, clear, isServerAdministrator);
     }
 
     private WhiteListAddress CreateAddress(WhiteListAddressAdministrationSnapshot address) =>
@@ -509,12 +538,19 @@ public static class WhiteListAddressAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        void ClearAddresses() => store
+            .ClearWhiteListAddressesAsync(CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return WhiteListAddresses.CreateAuthorized(
             LoadAddresses(),
             LoadAddresses,
             InsertAddress,
             UpdateAddress,
             DeleteAddress,
+            ClearAddresses,
             isServerAdministrator);
     }
 }

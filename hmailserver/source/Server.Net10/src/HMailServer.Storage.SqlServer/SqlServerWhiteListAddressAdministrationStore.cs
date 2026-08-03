@@ -43,6 +43,10 @@ DELETE FROM hm_whitelist
 WHERE whiteid = @id;
 """;
 
+    public const string ClearWhiteListAddressesSql = """
+DELETE FROM hm_whitelist;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerWhiteListAddressAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -127,6 +131,13 @@ WHERE whiteid = @id;
         await using var command = new SqlCommand(DeleteWhiteListAddressSql, connection);
         command.Parameters.Add("@id", SqlDbType.BigInt).Value = databaseId;
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask ClearWhiteListAddressesAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(ClearWhiteListAddressesSql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal static string FormatLegacyAddress(long address1, long? address2)

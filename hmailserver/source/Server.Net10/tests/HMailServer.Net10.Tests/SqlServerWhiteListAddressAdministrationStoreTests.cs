@@ -125,6 +125,18 @@ public sealed class SqlServerWhiteListAddressAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
     }
 
+    [TestMethod]
+    public void ClearWhiteListAddressesSql_RemainsScopedToWhitelistPersistence()
+    {
+        var sql = SqlServerWhiteListAddressAdministrationStore.ClearWhiteListAddressesSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_whitelist");
+        Assert.IsFalse(sql.Contains("hm_settings", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_greylisting", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string FormatLegacyAddress(long address1, long? address2)
     {
         var method = typeof(SqlServerWhiteListAddressAdministrationStore).GetMethod(
