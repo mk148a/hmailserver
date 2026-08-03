@@ -23,6 +23,7 @@ public sealed class ImapSession
     private readonly IImapIdleNotifier? _idleNotifier;
     private readonly ImapAclCommandHandler? _aclCommandHandler;
     private readonly ImapQuotaCommandHandler? _quotaCommandHandler;
+    private readonly ImapSubscriptionCommandHandler? _subscriptionCommandHandler;
     private readonly IImapRecentFlagStore? _recentFlagStore;
     private readonly ImapSessionOptions _options;
     private readonly IImapAccountAuthenticator? _accountAuthenticator;
@@ -49,7 +50,8 @@ public sealed class ImapSession
         IImapMailboxStore? mailboxStore = null,
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
         IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null,
-        IClientAwareAuthenticationService? clientAwareAuthenticationService = null)
+        IClientAwareAuthenticationService? clientAwareAuthenticationService = null,
+        ImapSubscriptionCommandHandler? subscriptionCommandHandler = null)
     {
         _searchCommandHandler = searchCommandHandler;
         _sortCommandHandler = sortCommandHandler;
@@ -63,6 +65,7 @@ public sealed class ImapSession
         _idleNotifier = idleNotifier;
         _aclCommandHandler = aclCommandHandler;
         _quotaCommandHandler = quotaCommandHandler;
+        _subscriptionCommandHandler = subscriptionCommandHandler;
         _recentFlagStore = recentFlagStore;
         _options = options ?? new ImapSessionOptions();
         _accountAuthenticator = accountAuthenticator;
@@ -248,6 +251,31 @@ public sealed class ImapSession
             case "GETQUOTAROOT":
             case "SETQUOTA":
                 return await HandleQuotaAsync(stream, state, commandLine, cancellationToken).ConfigureAwait(false);
+
+            case "SUBSCRIBE":
+            case "UNSUBSCRIBE":
+                if (state.Account is null)
+                {
+                    await WriteTaggedAsync(stream, commandLine.Tag, "NO Authenticate first", cancellationToken).ConfigureAwait(false);
+                    return false;
+                }
+
+                if (_subscriptionCommandHandler is null)
+                {
+                    await WriteTaggedAsync(stream, commandLine.Tag, "NO Subscription backend is not configured", cancellationToken).ConfigureAwait(false);
+                    return false;
+                }
+
+                var subscriptionResponse = await _subscriptionCommandHandler
+                    .HandleAsync(
+                        state.Account.AccountId,
+                        commandLine.Tag,
+                        commandLine.Command,
+                        commandLine.Arguments,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                await WriteAsync(stream, subscriptionResponse, cancellationToken).ConfigureAwait(false);
+                return false;
 
             case "FETCH":
                 if (state.SelectedMailbox is null)

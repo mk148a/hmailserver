@@ -728,6 +728,7 @@ public static class Host
     builder.Services.AddSingleton<IImapMailboxStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
     builder.Services.AddSingleton<IImapMailboxDiscoveryStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
     builder.Services.AddSingleton<IImapAclStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
+    builder.Services.AddSingleton<IImapMailboxSubscriptionStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
     builder.Services.AddSingleton<IImapMessageFetchStore, SqlServerImapMessageFetchStore>();
     builder.Services.AddSingleton<IImapMessageMutationStore, SqlServerImapMessageMutationStore>();
     builder.Services.AddSingleton<IImapMessageCopyStore, SqlServerImapMessageCopyStore>();
@@ -961,6 +962,9 @@ public static class Host
     builder.Services.AddSingleton<ImapAppendCommandHandler>();
     builder.Services.AddSingleton<ImapAclCommandHandler>();
     builder.Services.AddSingleton<ImapQuotaCommandHandler>();
+    builder.Services.AddSingleton(serviceProvider => new ImapSubscriptionCommandHandler(
+        serviceProvider.GetRequiredService<IImapMailboxSubscriptionStore>(),
+        mailboxOptions.PublicFolderName));
     builder.Services.AddSingleton(serviceProvider => new ImapListCommandHandler(
         serviceProvider.GetRequiredService<IImapMailboxDiscoveryStore>(),
         mailboxOptions.HierarchyDelimiter));

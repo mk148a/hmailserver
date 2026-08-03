@@ -7,7 +7,7 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerImapMailboxStore : IImapMailboxStore, IImapMailboxDiscoveryStore, IImapAclStore
+public sealed class SqlServerImapMailboxStore : IImapMailboxStore, IImapMailboxDiscoveryStore, IImapAclStore, IImapMailboxSubscriptionStore
 {
     public const string FindChildFolderSql = """
 SELECT TOP (1)
@@ -51,6 +51,14 @@ WHERE
     m.messageaccountid = @MessageAccountId
     AND m.messagefolderid = @FolderId
     AND m.messagetype = 2;
+""";
+
+    public const string UpdateMailboxSubscriptionSql = """
+UPDATE hm_imapfolders
+SET folderissubscribed = @Subscribed
+WHERE
+    folderid = @FolderId
+    AND folderaccountid = @FolderAccountId;
 """;
 
     public const string ListFoldersSql = """
@@ -250,6 +258,65 @@ WHERE
             UidNext: folder.CurrentUid + 1,
             FirstUnseenUid: counters.FirstUnseenUid,
             IsReadOnly: readOnly || !access.CanWrite);
+    }
+
+    public async ValueTask<ImapMailboxSubscriptionResult> SetSubscribedAsync(
+        int requesterAccountId,
+        string mailboxName,
+        bool subscribed,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(requesterAccountId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(mailboxName);
+
+        var trimmedName = mailboxName.Trim();
+        var path = SqlServerImapMailboxPath.Parse(
+            trimmedName,
+            _options.HierarchyDelimiter,
+            _options.PublicFolderName);
+        if (path is null)
+        {
+            return new ImapMailboxSubscriptionResult(ImapMailboxSubscriptionStatus.MailboxNotFound);
+        }
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var folderAccountId = path.IsPublicFolder ? 0 : requesterAccountId;
+        var folder = await ResolveFolderPathAsync(
+            connection,
+            folderAccountId,
+            path.Segments,
+            cancellationToken).ConfigureAwait(false);
+        if (folder is null)
+        {
+            return new ImapMailboxSubscriptionResult(ImapMailboxSubscriptionStatus.MailboxNotFound);
+        }
+
+        if (!subscribed && folder.FolderAccountId == 0)
+        {
+            return new ImapMailboxSubscriptionResult(ImapMailboxSubscriptionStatus.PublicFolderNotSupported);
+        }
+
+        if (subscribed)
+        {
+            var access = await ResolveAccessAsync(
+                connection,
+                requesterAccountId,
+                folder,
+                path.IsPublicFolder,
+                cancellationToken).ConfigureAwait(false);
+            if (!access.CanLookup)
+            {
+                return new ImapMailboxSubscriptionResult(ImapMailboxSubscriptionStatus.PermissionDenied);
+            }
+        }
+
+        await using var command = new SqlCommand(UpdateMailboxSubscriptionSql, connection);
+        command.Parameters.Add("@FolderAccountId", SqlDbType.Int).Value = folder.FolderAccountId;
+        command.Parameters.Add("@FolderId", SqlDbType.Int).Value = folder.FolderId;
+        command.Parameters.Add("@Subscribed", SqlDbType.Int).Value = subscribed ? 1 : 0;
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1
+            ? ImapMailboxSubscriptionResult.Success()
+            : new ImapMailboxSubscriptionResult(ImapMailboxSubscriptionStatus.Failed);
     }
 
     public async IAsyncEnumerable<ImapMailboxListEntry> ListMailboxesAsync(

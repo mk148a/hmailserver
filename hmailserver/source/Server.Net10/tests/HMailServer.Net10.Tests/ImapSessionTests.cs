@@ -11,6 +11,35 @@ namespace HMailServer.Net10.Tests;
 public sealed class ImapSessionTests
 {
     [TestMethod]
+    public async Task RunAsync_DispatchesSubscriptionCommandsOnlyForAuthenticatedContext()
+    {
+        var store = new CapturingSubscriptionStore();
+        await using var stream = new DuplexMemoryStream(
+            "A001 SUBSCRIBE Projects\r\nA002 UNSUBSCRIBE Projects\r\nA003 LOGOUT\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            subscriptionStore: store);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 10),
+            CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "A001 OK Subscribe completed\r\n");
+        StringAssert.Contains(output, "A002 OK Unsubscribe completed\r\n");
+        Assert.AreEqual(2, store.CallCount);
+
+        await using var unauthenticatedStream = new DuplexMemoryStream("A001 SUBSCRIBE Projects\r\n");
+        await session.RunAsync(
+            unauthenticatedStream,
+            new ImapSessionContext(),
+            CancellationToken.None);
+        StringAssert.Contains(unauthenticatedStream.GetOutputText(), "A001 NO Authenticate first\r\n");
+        Assert.AreEqual(2, store.CallCount);
+    }
+
+    [TestMethod]
     public void TryParse_ParsesUidSearchCommandLine()
     {
         var parsed = ImapCommandLine.TryParse(
@@ -820,6 +849,7 @@ public sealed class ImapSessionTests
         IImapIdleNotifier? idleNotifier = null,
         IImapAclStore? aclStore = null,
         IImapQuotaStore? quotaStore = null,
+        IImapMailboxSubscriptionStore? subscriptionStore = null,
         IImapRecentFlagStore? recentFlagStore = null,
         ImapSessionOptions? options = null,
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
@@ -860,6 +890,9 @@ public sealed class ImapSessionTests
         var quotaHandler = quotaStore is null
             ? null
             : new ImapQuotaCommandHandler(quotaStore);
+        var subscriptionHandler = subscriptionStore is null
+            ? null
+            : new ImapSubscriptionCommandHandler(subscriptionStore, "#Public");
         return new ImapSession(
             handler,
             sortCommandHandler: sortHandler,
@@ -873,6 +906,7 @@ public sealed class ImapSessionTests
             idleNotifier: idleNotifier,
             aclCommandHandler: aclHandler,
             quotaCommandHandler: quotaHandler,
+            subscriptionCommandHandler: subscriptionHandler,
             recentFlagStore: recentFlagStore,
             options: options,
             accountAuthenticator: authenticator,
@@ -880,6 +914,21 @@ public sealed class ImapSessionTests
             eventScriptExecutor: eventScriptExecutor,
             autoBanLogonFailureRecorder: autoBanLogonFailureRecorder,
             clientAwareAuthenticationService: clientAwareAuthenticationService);
+    }
+
+    private sealed class CapturingSubscriptionStore : IImapMailboxSubscriptionStore
+    {
+        public int CallCount { get; private set; }
+
+        public ValueTask<ImapMailboxSubscriptionResult> SetSubscribedAsync(
+            int requesterAccountId,
+            string mailboxName,
+            bool subscribed,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return ValueTask.FromResult(ImapMailboxSubscriptionResult.Success());
+        }
     }
 
     private sealed class CapturingSearchIndex : IMessageSearchIndex
