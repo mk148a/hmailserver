@@ -83,13 +83,16 @@ WHERE accountid = @AccountId;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly MessageFilePathResolver _pathResolver;
+    private readonly Action<int>? _accountSizeInvalidationCallback;
 
     public SqlServerImapMessageAppendStore(
         SqlServerConnectionFactory connectionFactory,
-        MessageFilePathResolver pathResolver)
+        MessageFilePathResolver pathResolver,
+        Action<int>? accountSizeInvalidationCallback = null)
     {
         _connectionFactory = connectionFactory;
         _pathResolver = pathResolver;
+        _accountSizeInvalidationCallback = accountSizeInvalidationCallback;
     }
 
     public async ValueTask<ImapAppendResult> AppendAsync(
@@ -129,6 +132,7 @@ WHERE accountid = @AccountId;
 
         await File.WriteAllBytesAsync(messagePath, request.RawMessage, cancellationToken).ConfigureAwait(false);
 
+        ImapAppendResult result;
         try
         {
             await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
@@ -145,7 +149,7 @@ WHERE accountid = @AccountId;
                 await QueueForIndexingAsync(connection, transaction, messageId, cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
-                return new ImapAppendResult(
+                result = new ImapAppendResult(
                     new MessageIdentity(messageId, request.DestinationAccountId, request.DestinationFolderId, allocation.Uid),
                     GetUidValidity(allocation.FolderCreationTime));
             }
@@ -160,6 +164,9 @@ WHERE accountid = @AccountId;
             TryDelete(messagePath);
             throw;
         }
+
+        _accountSizeInvalidationCallback?.Invoke(request.DestinationAccountId);
+        return result;
     }
 
     private async ValueTask<string?> LoadDestinationAccountAddressAsync(
