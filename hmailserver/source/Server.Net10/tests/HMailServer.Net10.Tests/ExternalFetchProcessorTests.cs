@@ -367,6 +367,67 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_DoesNotCountMissingKnownUidWhenStoreDeletionReturnsFalse()
+    {
+        var account = CreateAccount(daysToKeep: 7);
+        var store = new FakeExternalFetchAccountStore(account)
+        {
+            KnownUids =
+            [
+                new ExternalFetchKnownUid(
+                    88,
+                    "uid-missing",
+                    DateTimeOffset.Parse("2025-12-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture).UtcDateTime)
+            ],
+            DeleteKnownUidResult = false
+        };
+        var processor = CreateProcessor(
+            store,
+            new FakeExternalFetchSession(),
+            new FakeSmtpMessageReceiver());
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.AreEqual(0, result.AccountsFailed);
+        Assert.AreEqual(0, result.KnownUidsDeleted);
+        Assert.AreEqual(77, store.CompletedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.ReleasedFetchAccountIds.Count);
+        CollectionAssert.AreEqual(new[] { 88 }, store.DeletedUidIds);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_FailsAccountWhenMissingKnownUidStoreDeletionThrows()
+    {
+        var account = CreateAccount(daysToKeep: 7);
+        var store = new FakeExternalFetchAccountStore(account)
+        {
+            KnownUids =
+            [
+                new ExternalFetchKnownUid(
+                    88,
+                    "uid-missing",
+                    DateTimeOffset.Parse("2025-12-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture).UtcDateTime)
+            ],
+            DeleteKnownUidException = new InvalidOperationException("Known UID deletion failed.")
+        };
+        var processor = CreateProcessor(
+            store,
+            new FakeExternalFetchSession(),
+            new FakeSmtpMessageReceiver());
+
+        var result = await processor.RunBatchAsync(ExternalFetchProcessorOptions.Default, CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsLeased);
+        Assert.AreEqual(0, result.AccountsCompleted);
+        Assert.AreEqual(1, result.AccountsFailed);
+        Assert.AreEqual(0, result.KnownUidsDeleted);
+        Assert.AreEqual(77, store.CompletedFetchAccountIds.Single());
+        Assert.AreEqual(0, store.ReleasedFetchAccountIds.Count);
+        CollectionAssert.AreEqual(new[] { 88 }, store.DeletedUidIds);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_CompletesLeaseWhenReceiverRejects()
     {
         var account = CreateAccount();
@@ -1078,6 +1139,10 @@ public sealed class ExternalFetchProcessorTests
 
         public List<int> ReleasedFetchAccountIds { get; } = [];
 
+        public bool DeleteKnownUidResult { get; init; } = true;
+
+        public Exception? DeleteKnownUidException { get; init; }
+
         public int ResetLocksCalls { get; private set; }
 
         public async IAsyncEnumerable<ExternalFetchAccountLease> LeaseReadyAccountsAsync(
@@ -1136,7 +1201,9 @@ public sealed class ExternalFetchProcessorTests
             CancellationToken cancellationToken)
         {
             DeletedUidIds.Add(uidId);
-            return ValueTask.FromResult(true);
+            return DeleteKnownUidException is null
+                ? ValueTask.FromResult(DeleteKnownUidResult)
+                : ValueTask.FromException<bool>(DeleteKnownUidException);
         }
     }
 
