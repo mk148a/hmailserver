@@ -21,6 +21,13 @@ FROM hm_tcpipports
 ORDER BY portaddress1 ASC, portaddress2 ASC, portnumber ASC;
 """;
 
+    public const string InsertTcpIpPortSql = """
+INSERT INTO hm_tcpipports
+    (portprotocol, portnumber, portaddress1, portaddress2, portconnectionsecurity, portsslcertificateid)
+OUTPUT INSERTED.portid
+VALUES (@protocol, @portNumber, @address1, @address2, @connectionSecurity, @sslCertificateId);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerTcpIpPortAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -62,6 +69,26 @@ ORDER BY portaddress1 ASC, portaddress2 ASC, portnumber ASC;
         return ports;
     }
 
+    public async ValueTask<int> InsertTcpIpPortAsync(
+        TcpIpPortAdministrationSnapshot port,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(port);
+        var address = ParseLegacyAddress(port.Address);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertTcpIpPortSql, connection);
+        command.Parameters.Add("@protocol", SqlDbType.TinyInt).Value = port.Protocol;
+        command.Parameters.Add("@portNumber", SqlDbType.Int).Value = port.PortNumber;
+        command.Parameters.Add("@address1", SqlDbType.BigInt).Value = address.Address1;
+        command.Parameters.Add("@address2", SqlDbType.BigInt).Value =
+            address.Address2.HasValue ? address.Address2.Value : DBNull.Value;
+        command.Parameters.Add("@connectionSecurity", SqlDbType.TinyInt).Value = port.ConnectionSecurity;
+        command.Parameters.Add("@sslCertificateId", SqlDbType.BigInt).Value = port.SslCertificateId;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
     private static string FormatLegacyAddress(long address1, long? address2)
     {
         if (address2 is null)
@@ -90,4 +117,40 @@ ORDER BY portaddress1 ASC, portaddress2 ASC, portnumber ASC;
             bytes[offset + index] = (byte)(unsigned >> ((7 - index) * 8));
         }
     }
+
+    private static LegacyAddressParts ParseLegacyAddress(string address)
+    {
+        if (!IPAddress.TryParse(address, out var ipAddress))
+        {
+            throw new FormatException("TCP/IP port address must be a valid IPv4 or IPv6 address.");
+        }
+
+        var bytes = ipAddress.GetAddressBytes();
+        return bytes.Length switch
+        {
+            4 => new LegacyAddressParts(
+                ((long)bytes[0] << 24)
+                | ((long)bytes[1] << 16)
+                | ((long)bytes[2] << 8)
+                | bytes[3],
+                null),
+            16 => new LegacyAddressParts(
+                ReadInt64BigEndian(bytes, 0),
+                ReadInt64BigEndian(bytes, 8)),
+            _ => throw new FormatException("TCP/IP port address must be a valid IPv4 or IPv6 address.")
+        };
+    }
+
+    private static long ReadInt64BigEndian(byte[] bytes, int offset)
+    {
+        ulong value = 0;
+        for (var index = 0; index < 8; index++)
+        {
+            value = (value << 8) | bytes[offset + index];
+        }
+
+        return unchecked((long)value);
+    }
+
+    private sealed record LegacyAddressParts(long Address1, long? Address2);
 }

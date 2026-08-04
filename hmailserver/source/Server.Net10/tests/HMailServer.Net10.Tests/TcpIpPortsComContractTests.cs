@@ -10,6 +10,7 @@ public sealed class TcpIpPortsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -227,6 +228,92 @@ public sealed class TcpIpPortsComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = ports.get_ItemByDBID(10)).ErrorCode);
     }
 
+    [TestMethod]
+    public void AuthorizedSettings_AddStagesNewPortAndPublishesAfterInsert()
+    {
+        var store = new MutableTcpIpPortAdministrationStore(
+            new[] { Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0) });
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ports = settings.TCPIPPorts;
+        var pending = ports.Add();
+
+        Assert.AreEqual(0, pending.ID);
+        Assert.AreEqual(ComSessionType.Unknown, pending.Protocol);
+        Assert.AreEqual(0, pending.PortNumber);
+        Assert.AreEqual("0.0.0.0", pending.Address);
+
+        pending.Protocol = ComSessionType.Imap;
+        pending.PortNumber = 993;
+        pending.Address = "2001:db8::1";
+        var invalidAddress = Assert.ThrowsExactly<COMException>(() => pending.Address = "not-an-ip");
+        pending.ConnectionSecurity = ComConnectionSecurity.StartTlsRequired;
+        pending.SSLCertificateID = 42;
+
+        Assert.AreEqual(ELegacyComError, invalidAddress.ErrorCode);
+        Assert.AreEqual("2001:db8::1", pending.Address);
+
+        pending.Save();
+
+        Assert.AreEqual(1, store.InsertedPorts.Count);
+        var inserted = store.InsertedPorts[0];
+        Assert.AreEqual(0, inserted.Id);
+        Assert.AreEqual((int)ComSessionType.Imap, inserted.Protocol);
+        Assert.AreEqual(993, inserted.PortNumber);
+        Assert.AreEqual("2001:db8::1", inserted.Address);
+        Assert.AreEqual((int)ComConnectionSecurity.StartTlsRequired, inserted.ConnectionSecurity);
+        Assert.AreEqual(42, inserted.SslCertificateId);
+        Assert.AreEqual(30, pending.ID);
+        Assert.AreEqual(2, ports.Count);
+        Assert.AreEqual(30, ports[1].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_NewPortSaveFailureRetainsDraftAndAllowsRetry()
+    {
+        var store = new MutableTcpIpPortAdministrationStore(Array.Empty<TcpIpPortAdministrationSnapshot>())
+        {
+            FailInsert = true
+        };
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ports = settings.TCPIPPorts;
+        var pending = ports.Add();
+        pending.PortNumber = 2525;
+
+        var error = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, pending.ID);
+        Assert.AreEqual(2525, pending.PortNumber);
+        Assert.AreEqual(0, ports.Count);
+
+        store.FailInsert = false;
+        pending.Save();
+
+        Assert.AreEqual(30, pending.ID);
+        Assert.AreEqual(1, ports.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_RetainedNewPortSaveRechecksServerAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new MutableTcpIpPortAdministrationStore(Array.Empty<TcpIpPortAdministrationSnapshot>());
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            isServerAdministrator: () => isServerAdministrator);
+        var pending = settings.TCPIPPorts.Add();
+
+        isServerAdministrator = false;
+        var error = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, store.InsertedPorts.Count);
+        isServerAdministrator = true;
+        Assert.AreEqual(0, pending.ID);
+    }
+
     private static TcpIpPortAdministrationSnapshot Snapshot(
         int id,
         ComSessionType protocol,
@@ -285,6 +372,10 @@ public sealed class TcpIpPortsComContractTests
 
         public int ReadCount { get; private set; }
 
+        public bool FailInsert { get; set; }
+
+        public List<TcpIpPortAdministrationSnapshot> InsertedPorts { get; } = [];
+
         public void Replace(IReadOnlyList<TcpIpPortAdministrationSnapshot> ports)
         {
             _ports = ports;
@@ -298,6 +389,19 @@ public sealed class TcpIpPortsComContractTests
                 _ports.OrderBy(port => port.Address, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(port => port.PortNumber)
                     .ToArray());
+        }
+
+        public ValueTask<int> InsertTcpIpPortAsync(
+            TcpIpPortAdministrationSnapshot port,
+            CancellationToken cancellationToken)
+        {
+            InsertedPorts.Add(port);
+            if (FailInsert)
+            {
+                throw new InvalidOperationException("Simulated TCP/IP port insert failure.");
+            }
+
+            return ValueTask.FromResult(30);
         }
     }
 }

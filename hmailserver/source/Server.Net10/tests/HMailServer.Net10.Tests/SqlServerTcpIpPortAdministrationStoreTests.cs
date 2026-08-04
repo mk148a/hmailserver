@@ -24,4 +24,22 @@ public sealed class SqlServerTcpIpPortAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void InsertTcpIpPortSql_UsesLegacyColumnsAndGeneratedIdentity()
+    {
+        var sql = SqlServerTcpIpPortAdministrationStore.InsertTcpIpPortSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_tcpipports");
+        StringAssert.Contains(sql, "portprotocol");
+        StringAssert.Contains(sql, "portnumber");
+        StringAssert.Contains(sql, "portaddress1");
+        StringAssert.Contains(sql, "portaddress2");
+        StringAssert.Contains(sql, "portconnectionsecurity");
+        StringAssert.Contains(sql, "portsslcertificateid");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.portid");
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+    }
 }

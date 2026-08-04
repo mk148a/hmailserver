@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Net;
 using HMailServer.Core.Abstractions;
 
 namespace HMailServer.ComInterop;
@@ -84,10 +85,13 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private TcpIpPortAdministrationSnapshot[]? _ports;
     private readonly Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? _reload;
+    private readonly Func<TcpIpPortAdministrationSnapshot, int>? _insert;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public TCPIPPorts()
     {
@@ -95,20 +99,26 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
 
     private TCPIPPorts(
         IReadOnlyList<TcpIpPortAdministrationSnapshot> ports,
-        Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? reload,
+        Func<TcpIpPortAdministrationSnapshot, int>? insert,
+        Func<bool>? isServerAdministrator)
     {
         _ports = ports.ToArray();
         _reload = reload;
+        _insert = insert;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int Count => GetPorts().Count;
 
     internal static TCPIPPorts CreateAuthorized(
         IReadOnlyList<TcpIpPortAdministrationSnapshot> ports,
-        Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? reload = null,
+        Func<TcpIpPortAdministrationSnapshot, int>? insert = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(ports);
-        return new TCPIPPorts(ports, reload);
+        return new TCPIPPorts(ports, reload, insert, isServerAdministrator);
     }
 
     public IInterfaceTCPIPPort this[int index]
@@ -136,7 +146,59 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public IInterfaceTCPIPPort Add() => Unavailable<IInterfaceTCPIPPort>();
+    public IInterfaceTCPIPPort Add()
+    {
+        _ = GetPorts();
+        if (_insert is null)
+        {
+            return Unavailable<IInterfaceTCPIPPort>();
+        }
+
+        return TCPIPPort.CreateAuthorized(
+            new TcpIpPortAdministrationSnapshot(
+                Id: 0,
+                Protocol: (int)ComSessionType.Unknown,
+                PortNumber: 0,
+                Address: "0.0.0.0",
+                ConnectionSecurity: (int)ComConnectionSecurity.None,
+                SslCertificateId: 0),
+            save: SaveNewPort,
+            isServerAdministrator: _isServerAdministrator);
+    }
+
+    private TcpIpPortAdministrationSnapshot SaveNewPort(TcpIpPortAdministrationSnapshot port)
+    {
+        EnsureServerAdministrator();
+        var ports = GetPorts();
+        if (_insert is null)
+        {
+            Unavailable();
+        }
+
+        try
+        {
+            var generatedId = _insert!(port);
+            if (generatedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The TCP/IP port insert did not return a valid generated identity.");
+            }
+
+            var persisted = port with { Id = generatedId };
+            Volatile.Write(ref _ports, ports.Append(persisted).ToArray());
+            return persisted;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the TCP/IP port to the database.",
+                EFail);
+        }
+    }
 
     public void Refresh()
     {
@@ -171,6 +233,16 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
                 EAccessDenied);
     }
 
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "TCPIPPorts access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
     private T Unavailable<T>()
     {
         _ = GetPorts();
@@ -196,40 +268,91 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
 public sealed class TCPIPPort : IInterfaceTCPIPPort
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly TcpIpPortAdministrationSnapshot? _port;
+    private TcpIpPortAdministrationSnapshot? _port;
+    private readonly Func<TcpIpPortAdministrationSnapshot, TcpIpPortAdministrationSnapshot>? _save;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public TCPIPPort()
     {
     }
 
-    private TCPIPPort(TcpIpPortAdministrationSnapshot port)
+    private TCPIPPort(
+        TcpIpPortAdministrationSnapshot port,
+        Func<TcpIpPortAdministrationSnapshot, TcpIpPortAdministrationSnapshot>? save,
+        Func<bool>? isServerAdministrator)
     {
         _port = port;
+        _save = save;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int ID => Snapshot.Id;
 
-    public ComSessionType Protocol { get => (ComSessionType)Snapshot.Protocol; set => Unavailable(); }
+    public ComSessionType Protocol
+    {
+        get => (ComSessionType)Snapshot.Protocol;
+        set => Mutate(snapshot => snapshot with { Protocol = (int)value });
+    }
 
-    public int PortNumber { get => Snapshot.PortNumber; set => Unavailable(); }
+    public int PortNumber { get => Snapshot.PortNumber; set => Mutate(snapshot => snapshot with { PortNumber = value }); }
 
-    public string Address { get => Snapshot.Address; set => Unavailable(); }
+    public string Address
+    {
+        get => Snapshot.Address;
+        set
+        {
+            if (!IPAddress.TryParse(value ?? string.Empty, out var address))
+            {
+                throw new COMException("Invalid IP address string.", ELegacyComError);
+            }
 
-    public bool UseSSL { get => Snapshot.ConnectionSecurity == (int)ComConnectionSecurity.Tls; set => Unavailable(); }
+            Mutate(snapshot => snapshot with { Address = address.ToString() });
+        }
+    }
 
-    public int SSLCertificateID { get => Snapshot.SslCertificateId; set => Unavailable(); }
+    public bool UseSSL
+    {
+        get => Snapshot.ConnectionSecurity == (int)ComConnectionSecurity.Tls;
+        set => Mutate(snapshot => snapshot with
+        {
+            ConnectionSecurity = value
+                ? (int)ComConnectionSecurity.Tls
+                : (int)ComConnectionSecurity.None
+        });
+    }
+
+    public int SSLCertificateID
+    {
+        get => Snapshot.SslCertificateId;
+        set => Mutate(snapshot => snapshot with { SslCertificateId = value });
+    }
 
     public ComConnectionSecurity ConnectionSecurity
     {
         get => (ComConnectionSecurity)Snapshot.ConnectionSecurity;
-        set => Unavailable();
+        set => Mutate(snapshot => snapshot with { ConnectionSecurity = (int)value });
     }
 
-    internal static TCPIPPort CreateAuthorized(TcpIpPortAdministrationSnapshot port) => new(port);
+    internal static TCPIPPort CreateAuthorized(
+        TcpIpPortAdministrationSnapshot port,
+        Func<TcpIpPortAdministrationSnapshot, TcpIpPortAdministrationSnapshot>? save = null,
+        Func<bool>? isServerAdministrator = null) =>
+        new(port, save, isServerAdministrator);
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        EnsureServerAdministrator();
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _port = _save(Snapshot);
+    }
 
     public void Delete() => Unavailable();
 
@@ -237,6 +360,28 @@ public sealed class TCPIPPort : IInterfaceTCPIPPort
         _port ?? throw new COMException(
             "TCPIPPort access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private void Mutate(Func<TcpIpPortAdministrationSnapshot, TcpIpPortAdministrationSnapshot> mutation)
+    {
+        EnsureServerAdministrator();
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _port = mutation(Snapshot);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "TCPIPPort access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private void Unavailable()
     {
@@ -260,7 +405,7 @@ public static class TcpIpPortAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static TCPIPPorts CreateAuthorizedAdapter()
+    internal static TCPIPPorts CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -273,6 +418,16 @@ public static class TcpIpPortAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return TCPIPPorts.CreateAuthorized(LoadPorts(), LoadPorts);
+        int InsertPort(TcpIpPortAdministrationSnapshot port) => store
+            .InsertTcpIpPortAsync(port, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return TCPIPPorts.CreateAuthorized(
+            LoadPorts(),
+            LoadPorts,
+            InsertPort,
+            isServerAdministrator);
     }
 }
