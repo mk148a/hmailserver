@@ -789,7 +789,15 @@ public static class Host
     builder.Services.AddSingleton<IDeliveryQueueRecipientStore, SqlServerDeliveryQueueRecipientStore>();
     builder.Services.AddSingleton<IDeliveryTargetResolver, SqlServerDeliveryTargetResolver>();
     builder.Services.AddSingleton<IScriptMessageCopyStore, SqlServerScriptMessageCopyStore>();
-    builder.Services.AddSingleton<ILocalDeliveryStore, SqlServerLocalDeliveryStore>();
+    builder.Services.AddSingleton<ILocalDeliveryStore>(static serviceProvider =>
+        new SqlServerLocalDeliveryStore(
+            serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
+            serviceProvider.GetRequiredService<MessageFilePathResolver>(),
+            serviceProvider.GetService<ISmtpAccountRuleProcessor>(),
+            serviceProvider.GetService<IImapMailboxStore>(),
+            serviceProvider.GetService<SqlServerSmtpQueueWriter>(),
+            serviceProvider.GetService<IScriptMessageCopyStore>(),
+            AccountAdministrationRuntimeHost.InvalidateAccountSize));
     builder.Services.AddSingleton(deliveryBounceOptions);
     builder.Services.AddSingleton<IDeliveryBounceStore, SqlServerDeliveryBounceStore>();
     builder.Services.AddSingleton<DeliveryMessageContentSource>();

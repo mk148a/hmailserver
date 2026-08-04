@@ -97,6 +97,7 @@ VALUES
     private readonly IImapMailboxStore? _mailboxStore;
     private readonly SqlServerSmtpQueueWriter? _queueWriter;
     private readonly IScriptMessageCopyStore? _scriptMessageCopyStore;
+    private readonly Action<int>? _accountSizeInvalidationCallback;
 
     public SqlServerLocalDeliveryStore(
         SqlServerConnectionFactory connectionFactory,
@@ -104,7 +105,8 @@ VALUES
         ISmtpAccountRuleProcessor? accountRuleProcessor = null,
         IImapMailboxStore? mailboxStore = null,
         SqlServerSmtpQueueWriter? queueWriter = null,
-        IScriptMessageCopyStore? scriptMessageCopyStore = null)
+        IScriptMessageCopyStore? scriptMessageCopyStore = null,
+        Action<int>? accountSizeInvalidationCallback = null)
     {
         _connectionFactory = connectionFactory;
         _pathResolver = pathResolver;
@@ -112,6 +114,7 @@ VALUES
         _mailboxStore = mailboxStore;
         _queueWriter = queueWriter;
         _scriptMessageCopyStore = scriptMessageCopyStore;
+        _accountSizeInvalidationCallback = accountSizeInvalidationCallback;
     }
 
     public async ValueTask<LocalDeliveryResult> DeliverAsync(
@@ -240,6 +243,7 @@ VALUES
                     cancellationToken).ConfigureAwait(false);
                 await QueueForIndexingAsync(connection, transaction, messageId, cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                _accountSizeInvalidationCallback?.Invoke(deliveryAccountId);
 
                 return new LocalDeliveryResult(
                     new MessageIdentity(messageId, accountId, allocation.FolderId, allocation.Uid),
