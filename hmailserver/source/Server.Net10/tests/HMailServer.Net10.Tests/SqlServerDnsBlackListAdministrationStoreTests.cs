@@ -51,4 +51,20 @@ public sealed class SqlServerDnsBlackListAdministrationStoreTests
         Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_settings", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateDnsBlackListSql_UsesLegacyFieldsAndIdentityPredicate()
+    {
+        var sql = SqlServerDnsBlackListAdministrationStore.UpdateDnsBlackListSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_dnsbl");
+        StringAssert.Contains(sql, "sblactive = @active");
+        StringAssert.Contains(sql, "sbldnshost = @dnsHost");
+        StringAssert.Contains(sql, "sblresult = @expectedResult");
+        StringAssert.Contains(sql, "sblrejectmessage = @rejectMessage");
+        StringAssert.Contains(sql, "sblscore = @score");
+        StringAssert.Contains(sql, "WHERE sblid = @id");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_settings", StringComparison.OrdinalIgnoreCase));
+    }
 }

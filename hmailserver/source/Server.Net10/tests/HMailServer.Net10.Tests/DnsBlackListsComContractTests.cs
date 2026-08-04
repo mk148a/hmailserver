@@ -200,6 +200,75 @@ public sealed class DnsBlackListsComContractTests
     }
 
     [TestMethod]
+    public void ExistingDnsBlackList_SaveUpdatesOnlyOwningSnapshotAfterSuccess()
+    {
+        DnsBlackListAdministrationSnapshot? updated = null;
+        IInterfaceDNSBlackLists blackLists = DNSBlackLists.CreateAuthorized(
+            new[] { Snapshot(10, false, "old.example.test", "Old", "127.0.0.2", 1) },
+            update: blackList =>
+            {
+                updated = blackList;
+                return true;
+            },
+            isServerAdministrator: static () => true);
+        var item = blackLists[0];
+
+        item.Active = true;
+        item.DNSHost = "new.example.test";
+        item.RejectMessage = "New";
+        item.ExpectedResult = "127.0.0.9";
+        item.Score = 7;
+        item.Save();
+
+        Assert.IsNotNull(updated);
+        Assert.AreEqual(10, updated!.Id);
+        Assert.IsTrue(updated.Active);
+        Assert.AreEqual("new.example.test", updated.DnsHost);
+        Assert.AreEqual("New", updated.RejectMessage);
+        Assert.AreEqual("127.0.0.9", updated.ExpectedResult);
+        Assert.AreEqual(7, updated.Score);
+        Assert.AreEqual(1, blackLists.Count);
+        AssertBlackList(blackLists[0], 10, true, "new.example.test", "New", "127.0.0.9", 7);
+    }
+
+    [TestMethod]
+    public void ExistingDnsBlackList_SaveFailureRetainsStagedItemAndOwnerSnapshot()
+    {
+        IInterfaceDNSBlackLists blackLists = DNSBlackLists.CreateAuthorized(
+            new[] { Snapshot(10, false, "old.example.test", "Old", "127.0.0.2", 1) },
+            update: static _ => false,
+            isServerAdministrator: static () => true);
+        var item = blackLists[0];
+        item.DNSHost = "staged.example.test";
+
+        var error = Assert.ThrowsExactly<COMException>(item.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual("staged.example.test", item.DNSHost);
+        Assert.AreEqual("old.example.test", blackLists[0].DNSHost);
+    }
+
+    [TestMethod]
+    public void ExistingDnsBlackList_RechecksLiveAdministratorBeforeMutationAndSave()
+    {
+        var isAdministrator = true;
+        IInterfaceDNSBlackLists blackLists = DNSBlackLists.CreateAuthorized(
+            new[] { Snapshot(10, false, "old.example.test", "Old", "127.0.0.2", 1) },
+            update: static _ => true,
+            isServerAdministrator: () => isAdministrator);
+        var item = blackLists[0];
+
+        isAdministrator = false;
+
+        var setterError = Assert.ThrowsExactly<COMException>(() => item.DNSHost = "denied.example.test");
+        var saveError = Assert.ThrowsExactly<COMException>(item.Save);
+
+        Assert.AreEqual(EAccessDenied, setterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual("old.example.test", blackLists[0].DNSHost);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;

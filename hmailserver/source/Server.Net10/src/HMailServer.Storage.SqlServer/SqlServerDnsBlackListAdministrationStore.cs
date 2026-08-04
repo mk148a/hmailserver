@@ -25,6 +25,17 @@ OUTPUT INSERTED.sblid
 VALUES (@active, @dnsHost, @rejectMessage, @expectedResult, @score);
 """;
 
+    public const string UpdateDnsBlackListSql = """
+UPDATE hm_dnsbl
+SET
+    sblactive = @active,
+    sbldnshost = @dnsHost,
+    sblresult = @expectedResult,
+    sblrejectmessage = @rejectMessage,
+    sblscore = @score
+WHERE sblid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDnsBlackListAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -74,5 +85,23 @@ VALUES (@active, @dnsHost, @rejectMessage, @expectedResult, @score);
 
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<bool> UpdateDnsBlackListAsync(
+        DnsBlackListAdministrationSnapshot blackList,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(blackList);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateDnsBlackListSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = blackList.Id;
+        command.Parameters.Add("@active", SqlDbType.Bit).Value = blackList.Active;
+        command.Parameters.Add("@dnsHost", SqlDbType.NVarChar, 255).Value = blackList.DnsHost;
+        command.Parameters.Add("@rejectMessage", SqlDbType.NVarChar, 255).Value = blackList.RejectMessage;
+        command.Parameters.Add("@expectedResult", SqlDbType.NVarChar, 255).Value = blackList.ExpectedResult;
+        command.Parameters.Add("@score", SqlDbType.Int).Value = blackList.Score;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 }
