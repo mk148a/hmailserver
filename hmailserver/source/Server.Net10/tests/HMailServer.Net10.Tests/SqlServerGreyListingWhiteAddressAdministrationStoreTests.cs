@@ -48,4 +48,18 @@ public sealed class SqlServerGreyListingWhiteAddressAdministrationStoreTests
         Assert.IsFalse(sql.Contains("hm_settings", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_greylisting_triplets", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateWhiteAddressSql_UsesLegacyColumnsAndIdentityPredicate()
+    {
+        var sql = SqlServerGreyListingWhiteAddressAdministrationStore.UpdateWhiteAddressSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_greylisting_whiteaddresses");
+        StringAssert.Contains(sql, "whiteipaddress = @ipAddress");
+        StringAssert.Contains(sql, "whiteipdescription = @description");
+        StringAssert.Contains(sql, "WHERE whiteid = @id");
+        Assert.IsFalse(sql.Contains("INSERT INTO", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_greylisting_triplets", StringComparison.OrdinalIgnoreCase));
+    }
 }

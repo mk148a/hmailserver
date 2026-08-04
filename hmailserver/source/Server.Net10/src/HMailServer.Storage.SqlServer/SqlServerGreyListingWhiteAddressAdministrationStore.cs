@@ -23,6 +23,13 @@ OUTPUT INSERTED.whiteid
 VALUES (@ipAddress, @description);
 """;
 
+    public const string UpdateWhiteAddressSql = """
+UPDATE hm_greylisting_whiteaddresses
+SET whiteipaddress = @ipAddress,
+    whiteipdescription = @description
+WHERE whiteid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerGreyListingWhiteAddressAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -66,5 +73,20 @@ VALUES (@ipAddress, @description);
 
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt64(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<bool> UpdateWhiteAddressAsync(
+        GreyListingWhiteAddressAdministrationSnapshot address,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateWhiteAddressSql, connection);
+        command.Parameters.Add("@id", SqlDbType.BigInt).Value = address.Id;
+        command.Parameters.Add("@ipAddress", SqlDbType.NVarChar, 255).Value = address.StoredIpAddress;
+        command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = address.Description;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 }

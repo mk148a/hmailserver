@@ -9,4 +9,9 @@ public interface IGreyListingWhiteAddressAdministrationStore
         GreyListingWhiteAddressAdministrationSnapshot address,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Greylisting white-address insertion is not available in this store.");
+
+    ValueTask<bool> UpdateWhiteAddressAsync(
+        GreyListingWhiteAddressAdministrationSnapshot address,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Greylisting white-address update is not available in this store.");
 }

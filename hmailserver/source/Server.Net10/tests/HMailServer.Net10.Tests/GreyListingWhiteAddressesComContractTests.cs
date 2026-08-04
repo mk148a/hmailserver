@@ -197,6 +197,48 @@ public sealed class GreyListingWhiteAddressesComContractTests
     }
 
     [TestMethod]
+    public void ExistingGreyListingWhiteAddress_SaveUpdatesOnlyAfterOwnerScopedPersistenceSucceeds()
+    {
+        GreyListingWhiteAddressAdministrationSnapshot? updated = null;
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            new[] { Snapshot(10, "192.0.2.%", "Original") },
+            saveExisting: address =>
+            {
+                updated = address;
+                return address;
+            },
+            isServerAdministrator: static () => true);
+        var retained = addresses[0];
+
+        retained.IPAddress = "not-an-ip";
+        retained.Description = "Updated";
+        retained.Save();
+
+        Assert.IsNotNull(updated);
+        Assert.AreEqual("not-an-ip", updated!.StoredIpAddress);
+        Assert.AreEqual("Updated", updated.Description);
+        Assert.AreEqual("not-an-ip", retained.IPAddress);
+        Assert.AreEqual("Updated", addresses[0].Description);
+    }
+
+    [TestMethod]
+    public void ExistingGreyListingWhiteAddress_SaveFailureRetainsOwnerSnapshot()
+    {
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            new[] { Snapshot(10, "192.0.2.%", "Original") },
+            saveExisting: static _ => throw new InvalidOperationException("Simulated update failure."),
+            isServerAdministrator: static () => true);
+        var retained = addresses[0];
+        retained.Description = "Staged update";
+
+        var error = Assert.ThrowsExactly<COMException>(retained.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual("Staged update", retained.Description);
+        Assert.AreEqual("Original", addresses[0].Description);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;

@@ -79,6 +79,7 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
     private GreyListingWhiteAddressAdministrationSnapshot[]? _addresses;
     private readonly Func<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>? _reload;
     private readonly Func<GreyListingWhiteAddressAdministrationSnapshot, long>? _insert;
+    private readonly Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? _saveExisting;
     private readonly Func<bool>? _isServerAdministrator;
 
     public GreyListingWhiteAddresses()
@@ -89,11 +90,13 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
         IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot> addresses,
         Func<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>? reload,
         Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert,
+        Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? saveExisting,
         Func<bool>? isServerAdministrator)
     {
         _addresses = addresses.ToArray();
         _reload = reload;
         _insert = insert;
+        _saveExisting = saveExisting;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -109,7 +112,10 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
                 throw new COMException("Greylisting white address index was outside the collection.", DispEBadIndex);
             }
 
-            return GreyListingWhiteAddress.CreateAuthorized(addresses[index]);
+            return GreyListingWhiteAddress.CreateAuthorized(
+                addresses[index],
+                saveExisting: _saveExisting is null ? null : SaveExistingAddress,
+                isServerAdministrator: _isServerAdministrator);
         }
     }
 
@@ -140,7 +146,10 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
             ? throw new COMException(
                 "No greylisting white address with the specified database identifier exists.",
                 DispEBadIndex)
-            : GreyListingWhiteAddress.CreateAuthorized(match);
+            : GreyListingWhiteAddress.CreateAuthorized(
+                match,
+                saveExisting: _saveExisting is null ? null : SaveExistingAddress,
+                isServerAdministrator: _isServerAdministrator);
     }
 
     public void Refresh()
@@ -173,17 +182,21 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
 
         return match is null
             ? throw new COMException("No greylisting white address with the specified name exists.", DispEBadIndex)
-            : GreyListingWhiteAddress.CreateAuthorized(match);
+            : GreyListingWhiteAddress.CreateAuthorized(
+                match,
+                saveExisting: _saveExisting is null ? null : SaveExistingAddress,
+                isServerAdministrator: _isServerAdministrator);
     }
 
     internal static GreyListingWhiteAddresses CreateAuthorized(
         IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot> addresses,
         Func<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>? reload = null,
         Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert = null,
+        Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? saveExisting = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new GreyListingWhiteAddresses(addresses, reload, insert, isServerAdministrator);
+        return new GreyListingWhiteAddresses(addresses, reload, insert, saveExisting, isServerAdministrator);
     }
 
     private IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot> GetAddresses()
@@ -198,6 +211,40 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
     {
         var addresses = GetAddresses();
         Volatile.Write(ref _addresses, addresses.Append(address).ToArray());
+    }
+
+    private GreyListingWhiteAddressAdministrationSnapshot SaveExistingAddress(
+        GreyListingWhiteAddressAdministrationSnapshot address)
+    {
+        var addresses = GetAddresses();
+        if (!addresses.Any(existing => existing.Id == address.Id))
+        {
+            return address;
+        }
+
+        if (_saveExisting is null)
+        {
+            Unavailable();
+        }
+
+        try
+        {
+            var saved = _saveExisting!(address);
+            Volatile.Write(
+                ref _addresses,
+                addresses.Select(existing => existing.Id == address.Id ? saved : existing).ToArray());
+            return saved;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the greylisting white address to the database.",
+                EFail);
+        }
     }
 
     private void EnsureServerAdministrator()
@@ -239,6 +286,7 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
     private GreyListingWhiteAddressAdministrationSnapshot? _address;
     private readonly Func<GreyListingWhiteAddressAdministrationSnapshot, long>? _insert;
     private readonly Action<GreyListingWhiteAddressAdministrationSnapshot>? _publish;
+    private readonly Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? _saveExisting;
     private readonly Func<bool>? _isServerAdministrator;
 
     public GreyListingWhiteAddress()
@@ -254,11 +302,13 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
         GreyListingWhiteAddressAdministrationSnapshot address,
         Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert,
         Action<GreyListingWhiteAddressAdministrationSnapshot>? publish,
+        Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? saveExisting,
         Func<bool>? isServerAdministrator)
     {
         _address = address;
         _insert = insert;
         _publish = publish;
+        _saveExisting = saveExisting;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -270,7 +320,7 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
         set
         {
             EnsureServerAdministrator();
-            if (_insert is null)
+            if (_insert is null && _saveExisting is null)
             {
                 Unavailable();
                 return;
@@ -286,7 +336,7 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
         set
         {
             EnsureServerAdministrator();
-            if (_insert is null)
+            if (_insert is null && _saveExisting is null)
             {
                 Unavailable();
                 return;
@@ -299,7 +349,8 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
     public void Save()
     {
         EnsureServerAdministrator();
-        if (_insert is null)
+        if ((Snapshot.Id == 0 && _insert is null) ||
+            (Snapshot.Id != 0 && _saveExisting is null))
         {
             Unavailable();
             return;
@@ -307,7 +358,13 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
 
         try
         {
-            var insertedId = _insert(Snapshot);
+            if (Snapshot.Id != 0)
+            {
+                _address = _saveExisting!(Snapshot);
+                return;
+            }
+
+            var insertedId = _insert!(Snapshot);
             if (insertedId <= 0)
             {
                 throw new InvalidOperationException(
@@ -336,8 +393,9 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
         GreyListingWhiteAddressAdministrationSnapshot address,
         Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert = null,
         Action<GreyListingWhiteAddressAdministrationSnapshot>? publish = null,
+        Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? saveExisting = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(address, insert, publish, isServerAdministrator);
+        new(address, insert, publish, saveExisting, isServerAdministrator);
 
     internal static string ConvertLikeToWildcard(string value)
     {
@@ -421,10 +479,27 @@ public static class GreyListingWhiteAddressAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        GreyListingWhiteAddressAdministrationSnapshot SaveExistingAddress(
+            GreyListingWhiteAddressAdministrationSnapshot address)
+        {
+            if (!store
+                .UpdateWhiteAddressAsync(address, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new InvalidOperationException(
+                    "The greylisting white-address update did not affect the selected database row.");
+            }
+
+            return address;
+        }
+
         return GreyListingWhiteAddresses.CreateAuthorized(
             LoadAddresses(),
             LoadAddresses,
             InsertAddress,
+            SaveExistingAddress,
             isServerAdministrator);
     }
 }
