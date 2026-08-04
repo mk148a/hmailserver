@@ -1,10 +1,10 @@
 # Current State
 
-- UTC timestamp: 2026-08-04T11:29:25Z
-- Local timestamp: 2026-08-04T14:29:25+03:00
+- UTC timestamp: 2026-08-04T11:30:46Z
+- Local timestamp: 2026-08-04T14:30:46+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `675b5d4b3`
-- Last successfully pushed commit: `19659f181` (verified after the Group update parity slice; Group delete code/test is committed locally and awaiting its separate documentation push)
+- Current HEAD: `6ec6df876`
+- Last successfully pushed commit: `6ec6df876` (verified after the Group delete parity slice)
 - Latest focused-test result: Groups/store coverage `17/17` passed
 - Latest full Net10 result: `1653 passed, 0 failed, 4 skipped` (1657 total)
 - Opt-in tests passed/skipped/blocked: `0/4/0` in the full run; disposable SQL deletion, SQL failure-path, and native registry integration are skipped by opt-in gates
