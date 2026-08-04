@@ -4,7 +4,7 @@
 - Local timestamp: 2026-08-04T10:32:05+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
 - Current HEAD: `75b649c69`
-- Last successfully pushed commit: `cfea2457e` (documentation for owner-scoped account registration reconciliation)
+- Last successfully pushed commit: `72f2bd6a9` (documentation for local-delivery account-size invalidation)
 - Latest focused-test result: local delivery `3/3` passed; Host composition `3/3` passed; Accounts `39/39` and existing mutation/append/copy seam tests remain green
 - Latest full Net10 result: `1611 passed, 0 failed, 4 skipped` (1615 total)
 - Opt-in tests passed/skipped/blocked: `0/4/0` in the full run; disposable SQL deletion, SQL failure-path, and native registry integration are skipped by opt-in gates
