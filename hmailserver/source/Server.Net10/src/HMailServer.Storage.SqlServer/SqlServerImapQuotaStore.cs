@@ -188,11 +188,7 @@ WHERE accountid = @AccountId;
 
         public ImapQuota ToQuota(string rootName)
         {
-            var limitMb = AccountMaxSizeMb > 0
-                ? AccountMaxSizeMb
-                : DomainLimitationsEnabled && DomainMaxAccountSizeMb > 0
-                    ? DomainMaxAccountSizeMb
-                    : (int?)null;
+            var limitMb = AccountMaxSizeMb > 0 ? AccountMaxSizeMb : (int?)null;
             return new ImapQuota(
                 rootName,
                 UsedKilobytes: UsedBytes / 1024,
