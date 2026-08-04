@@ -75,6 +75,7 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
     private BlockedAttachmentAdministrationSnapshot[]? _blockedAttachments;
     private readonly Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? _reload;
     private readonly Func<BlockedAttachmentAdministrationSnapshot, int>? _insert;
+    private readonly Action<BlockedAttachmentAdministrationSnapshot>? _update;
     private readonly Func<bool>? _isServerAdministrator;
 
     public BlockedAttachments()
@@ -85,11 +86,13 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
         IReadOnlyList<BlockedAttachmentAdministrationSnapshot> blockedAttachments,
         Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? reload,
         Func<BlockedAttachmentAdministrationSnapshot, int>? insert,
+        Action<BlockedAttachmentAdministrationSnapshot>? update,
         Func<bool>? isServerAdministrator)
     {
         _blockedAttachments = blockedAttachments.ToArray();
         _reload = reload;
         _insert = insert;
+        _update = update;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -107,6 +110,7 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
 
             return BlockedAttachment.CreateAuthorized(
                 blockedAttachments[index],
+                save: _update is null ? null : SaveExistingAttachment,
                 isServerAdministrator: _isServerAdministrator);
         }
     }
@@ -135,6 +139,7 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
             ? throw new COMException("No blocked attachment with the specified database identifier exists.", DispEBadIndex)
             : BlockedAttachment.CreateAuthorized(
                 match,
+                save: _update is null ? null : SaveExistingAttachment,
                 isServerAdministrator: _isServerAdministrator);
     }
 
@@ -165,10 +170,11 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
         IReadOnlyList<BlockedAttachmentAdministrationSnapshot> blockedAttachments,
         Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? reload = null,
         Func<BlockedAttachmentAdministrationSnapshot, int>? insert = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Action<BlockedAttachmentAdministrationSnapshot>? update = null)
     {
         ArgumentNullException.ThrowIfNull(blockedAttachments);
-        return new BlockedAttachments(blockedAttachments, reload, insert, isServerAdministrator);
+        return new BlockedAttachments(blockedAttachments, reload, insert, update, isServerAdministrator);
     }
 
     private BlockedAttachmentAdministrationSnapshot SaveNewAttachment(
@@ -193,6 +199,38 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
             var persisted = attachment with { Id = insertedId };
             Volatile.Write(ref _blockedAttachments, attachments.Append(persisted).ToArray());
             return persisted;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the blocked attachment to the database.",
+                EFail);
+        }
+    }
+
+    private BlockedAttachmentAdministrationSnapshot SaveExistingAttachment(
+        BlockedAttachmentAdministrationSnapshot attachment)
+    {
+        EnsureServerAdministrator();
+        var attachments = GetBlockedAttachments();
+        if (_update is null)
+        {
+            Unavailable();
+        }
+
+        try
+        {
+            _update!(attachment);
+            Volatile.Write(
+                ref _blockedAttachments,
+                attachments
+                    .Select(existing => existing.Id == attachment.Id ? attachment : existing)
+                    .ToArray());
+            return attachment;
         }
         catch (COMException)
         {
@@ -371,6 +409,13 @@ public static class BlockedAttachmentAdministrationRuntimeHost
             LoadBlockedAttachments(),
             LoadBlockedAttachments,
             InsertBlockedAttachment,
-            isServerAdministrator);
+            isServerAdministrator: isServerAdministrator,
+            update: UpdateBlockedAttachment);
+
+        void UpdateBlockedAttachment(BlockedAttachmentAdministrationSnapshot attachment) => store
+            .UpdateBlockedAttachmentAsync(attachment, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
     }
 }

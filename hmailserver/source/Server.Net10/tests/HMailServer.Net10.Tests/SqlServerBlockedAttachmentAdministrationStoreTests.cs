@@ -47,4 +47,17 @@ public sealed class SqlServerBlockedAttachmentAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateBlockedAttachmentSql_UsesLegacyMutableColumnsAndIdentityPredicate()
+    {
+        var sql = SqlServerBlockedAttachmentAdministrationStore.UpdateBlockedAttachmentSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_blocked_attachments");
+        StringAssert.Contains(sql, "bawildcard = @wildcard");
+        StringAssert.Contains(sql, "badescription = @description");
+        StringAssert.Contains(sql, "WHERE baid = @id");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
 }

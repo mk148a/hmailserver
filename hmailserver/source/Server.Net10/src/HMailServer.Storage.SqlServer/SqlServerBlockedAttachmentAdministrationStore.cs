@@ -22,6 +22,13 @@ OUTPUT INSERTED.baid
 VALUES (@wildcard, @description);
 """;
 
+    public const string UpdateBlockedAttachmentSql = """
+UPDATE hm_blocked_attachments
+SET bawildcard = @wildcard,
+    badescription = @description
+WHERE baid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerBlockedAttachmentAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -64,5 +71,19 @@ VALUES (@wildcard, @description);
         command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = attachment.Description;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask UpdateBlockedAttachmentAsync(
+        BlockedAttachmentAdministrationSnapshot attachment,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(attachment);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateBlockedAttachmentSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = attachment.Id;
+        command.Parameters.Add("@wildcard", SqlDbType.NVarChar, 255).Value = attachment.Wildcard;
+        command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = attachment.Description;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

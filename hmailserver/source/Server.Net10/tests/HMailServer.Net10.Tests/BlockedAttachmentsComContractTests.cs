@@ -245,6 +245,45 @@ public sealed class BlockedAttachmentsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_ExistingSaveUpdatesStoreAndOwnerSnapshot()
+    {
+        var updated = new List<BlockedAttachmentAdministrationSnapshot>();
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[] { Snapshot(10, "*.bat", "Batch file") },
+            update: attachment => updated.Add(attachment),
+            isServerAdministrator: static () => true);
+
+        var attachment = attachments[0];
+        attachment.Wildcard = "*.cmd";
+        attachment.Description = "Command file";
+        attachment.Save();
+
+        Assert.AreEqual(1, updated.Count);
+        Assert.AreEqual(10, updated[0].Id);
+        Assert.AreEqual("*.cmd", updated[0].Wildcard);
+        Assert.AreEqual("Command file", updated[0].Description);
+        AssertAttachment(attachments[0], 10, "*.cmd", "Command file");
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ExistingSaveFailureRetainsOwnerSnapshot()
+    {
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[] { Snapshot(10, "*.bat", "Batch file") },
+            update: _ => throw new InvalidOperationException("Simulated update failure."),
+            isServerAdministrator: static () => true);
+
+        var attachment = attachments[0];
+        attachment.Wildcard = "*.cmd";
+
+        var error = Assert.ThrowsExactly<COMException>(attachment.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual("*.cmd", attachment.Wildcard);
+        AssertAttachment(attachments[0], 10, "*.bat", "Batch file");
+    }
+
+    [TestMethod]
     public void AuthorizedAntiVirus_UsesConfiguredBlockedAttachmentRuntime()
     {
         var store = new MutableBlockedAttachmentAdministrationStore(
