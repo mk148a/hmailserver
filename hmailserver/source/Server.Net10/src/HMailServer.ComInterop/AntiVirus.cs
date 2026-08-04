@@ -130,6 +130,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     private readonly IClamAvScannerTestRuntime? _clamAvScannerTestRuntime;
     private readonly IClamWinScannerTestRuntime? _clamWinScannerTestRuntime;
     private readonly ICustomScannerTestRuntime? _customScannerTestRuntime;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public AntiVirus()
     {
@@ -139,12 +140,14 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         AntiVirusAdministrationSnapshot snapshot,
         IClamAvScannerTestRuntime? clamAvScannerTestRuntime,
         IClamWinScannerTestRuntime? clamWinScannerTestRuntime,
-        ICustomScannerTestRuntime? customScannerTestRuntime)
+        ICustomScannerTestRuntime? customScannerTestRuntime,
+        Func<bool>? isServerAdministrator)
     {
         _snapshot = snapshot;
         _clamAvScannerTestRuntime = clamAvScannerTestRuntime;
         _clamWinScannerTestRuntime = clamWinScannerTestRuntime;
         _customScannerTestRuntime = customScannerTestRuntime;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public bool ClamWinEnabled { get => Snapshot.ClamWinEnabled; set => Unavailable(); }
@@ -178,7 +181,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         get
         {
             _ = Snapshot;
-            return BlockedAttachmentAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            return BlockedAttachmentAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
         }
     }
 
@@ -269,14 +272,16 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         AntiVirusAdministrationSnapshot snapshot,
         IClamAvScannerTestRuntime? clamAvScannerTestRuntime = null,
         IClamWinScannerTestRuntime? clamWinScannerTestRuntime = null,
-        ICustomScannerTestRuntime? customScannerTestRuntime = null)
+        ICustomScannerTestRuntime? customScannerTestRuntime = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiVirus(
             snapshot,
             clamAvScannerTestRuntime,
             clamWinScannerTestRuntime,
-            customScannerTestRuntime);
+            customScannerTestRuntime,
+            isServerAdministrator);
     }
 
     private AntiVirusAdministrationSnapshot Snapshot =>

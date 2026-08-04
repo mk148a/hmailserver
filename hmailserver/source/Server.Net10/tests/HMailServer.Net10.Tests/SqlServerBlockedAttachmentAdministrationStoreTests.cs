@@ -32,4 +32,19 @@ public sealed class SqlServerBlockedAttachmentAdministrationStoreTests
         Assert.IsFalse(sql.Contains("process", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("xp_", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void InsertBlockedAttachmentSql_UsesGeneratedIdentityAndLegacyColumns()
+    {
+        var sql = SqlServerBlockedAttachmentAdministrationStore.InsertBlockedAttachmentSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_blocked_attachments");
+        StringAssert.Contains(sql, "bawildcard");
+        StringAssert.Contains(sql, "badescription");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.baid");
+        StringAssert.Contains(sql, "@wildcard");
+        StringAssert.Contains(sql, "@description");
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
 }

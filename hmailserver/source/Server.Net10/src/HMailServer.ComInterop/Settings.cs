@@ -1178,7 +1178,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         _administrationSnapshot.AntiVirusClamAvPort),
                     clamAvScannerTestRuntime: _runtimeConfiguration.ClamAvScannerTestRuntime,
                     clamWinScannerTestRuntime: _runtimeConfiguration.ClamWinScannerTestRuntime,
-                    customScannerTestRuntime: _runtimeConfiguration.CustomScannerTestRuntime);
+                    customScannerTestRuntime: _runtimeConfiguration.CustomScannerTestRuntime,
+                    isServerAdministrator: _isServerAdministrator);
         }
     }
 

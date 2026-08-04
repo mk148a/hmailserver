@@ -15,6 +15,13 @@ FROM hm_blocked_attachments
 ORDER BY bawildcard ASC;
 """;
 
+    public const string InsertBlockedAttachmentSql = """
+INSERT INTO hm_blocked_attachments
+    (bawildcard, badescription)
+OUTPUT INSERTED.baid
+VALUES (@wildcard, @description);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerBlockedAttachmentAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -43,5 +50,19 @@ ORDER BY bawildcard ASC;
         }
 
         return blockedAttachments;
+    }
+
+    public async ValueTask<int> InsertBlockedAttachmentAsync(
+        BlockedAttachmentAdministrationSnapshot attachment,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(attachment);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertBlockedAttachmentSql, connection);
+        command.Parameters.Add("@wildcard", SqlDbType.NVarChar, 255).Value = attachment.Wildcard;
+        command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = attachment.Description;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
     }
 }

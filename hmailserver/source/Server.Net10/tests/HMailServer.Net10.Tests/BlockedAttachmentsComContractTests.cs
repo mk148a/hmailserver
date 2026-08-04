@@ -167,6 +167,84 @@ public sealed class BlockedAttachmentsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_AddSaveInsertsAndPublishesOnlyNewSnapshot()
+    {
+        var inserted = new List<BlockedAttachmentAdministrationSnapshot>();
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[] { Snapshot(10, "*.bat", "Batch file") },
+            insert: attachment =>
+            {
+                inserted.Add(attachment);
+                return 77;
+            },
+            isServerAdministrator: static () => true);
+
+        var draft = attachments.Add();
+        draft.Wildcard = "*.cmd";
+        draft.Description = "Command file";
+
+        Assert.AreEqual(0, draft.ID);
+        draft.Save();
+
+        Assert.AreEqual(1, inserted.Count);
+        Assert.AreEqual(0, inserted[0].Id);
+        Assert.AreEqual("*.cmd", inserted[0].Wildcard);
+        Assert.AreEqual("Command file", inserted[0].Description);
+        Assert.AreEqual(77, draft.ID);
+        Assert.AreEqual(2, attachments.Count);
+        AssertAttachment(attachments[1], 77, "*.cmd", "Command file");
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_AddSaveFailureRetainsDraftAndParentSnapshot()
+    {
+        var inserted = 0;
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[] { Snapshot(10, "*.bat", "Batch file") },
+            insert: _ =>
+            {
+                inserted++;
+                throw new InvalidOperationException("Simulated insert failure.");
+            },
+            isServerAdministrator: static () => true);
+
+        var draft = attachments.Add();
+        draft.Wildcard = "*.cmd";
+
+        var error = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, inserted);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(1, attachments.Count);
+        AssertAttachment(attachments[0], 10, "*.bat", "Batch file");
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_RetainedDraftSaveRechecksServerAdministrator()
+    {
+        var isServerAdministrator = true;
+        var inserts = 0;
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            Array.Empty<BlockedAttachmentAdministrationSnapshot>(),
+            insert: _ =>
+            {
+                inserts++;
+                return 12;
+            },
+            isServerAdministrator: () => isServerAdministrator);
+
+        var draft = attachments.Add();
+        isServerAdministrator = false;
+
+        var error = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, inserts);
+        Assert.AreEqual(0, attachments.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedAntiVirus_UsesConfiguredBlockedAttachmentRuntime()
     {
         var store = new MutableBlockedAttachmentAdministrationStore(

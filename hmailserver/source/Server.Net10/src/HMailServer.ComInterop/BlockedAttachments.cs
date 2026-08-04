@@ -74,6 +74,8 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
 
     private BlockedAttachmentAdministrationSnapshot[]? _blockedAttachments;
     private readonly Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? _reload;
+    private readonly Func<BlockedAttachmentAdministrationSnapshot, int>? _insert;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public BlockedAttachments()
     {
@@ -81,10 +83,14 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
 
     private BlockedAttachments(
         IReadOnlyList<BlockedAttachmentAdministrationSnapshot> blockedAttachments,
-        Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? reload,
+        Func<BlockedAttachmentAdministrationSnapshot, int>? insert,
+        Func<bool>? isServerAdministrator)
     {
         _blockedAttachments = blockedAttachments.ToArray();
         _reload = reload;
+        _insert = insert;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int Count => GetBlockedAttachments().Count;
@@ -99,13 +105,27 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
                 throw new COMException("Blocked attachment index was outside the collection.", DispEBadIndex);
             }
 
-            return BlockedAttachment.CreateAuthorized(blockedAttachments[index]);
+            return BlockedAttachment.CreateAuthorized(
+                blockedAttachments[index],
+                isServerAdministrator: _isServerAdministrator);
         }
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public IInterfaceBlockedAttachment Add() => Unavailable<IInterfaceBlockedAttachment>();
+    public IInterfaceBlockedAttachment Add()
+    {
+        _ = GetBlockedAttachments();
+        if (_insert is null)
+        {
+            return Unavailable<IInterfaceBlockedAttachment>();
+        }
+
+        return BlockedAttachment.CreateAuthorized(
+            new BlockedAttachmentAdministrationSnapshot(0, string.Empty, string.Empty),
+            save: SaveNewAttachment,
+            isServerAdministrator: _isServerAdministrator);
+    }
 
     public IInterfaceBlockedAttachment get_ItemByDBID(int databaseId)
     {
@@ -113,7 +133,9 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
 
         return match is null
             ? throw new COMException("No blocked attachment with the specified database identifier exists.", DispEBadIndex)
-            : BlockedAttachment.CreateAuthorized(match);
+            : BlockedAttachment.CreateAuthorized(
+                match,
+                isServerAdministrator: _isServerAdministrator);
     }
 
     public void Refresh()
@@ -141,10 +163,47 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
 
     internal static BlockedAttachments CreateAuthorized(
         IReadOnlyList<BlockedAttachmentAdministrationSnapshot> blockedAttachments,
-        Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? reload = null,
+        Func<BlockedAttachmentAdministrationSnapshot, int>? insert = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(blockedAttachments);
-        return new BlockedAttachments(blockedAttachments, reload);
+        return new BlockedAttachments(blockedAttachments, reload, insert, isServerAdministrator);
+    }
+
+    private BlockedAttachmentAdministrationSnapshot SaveNewAttachment(
+        BlockedAttachmentAdministrationSnapshot attachment)
+    {
+        EnsureServerAdministrator();
+        var attachments = GetBlockedAttachments();
+        if (_insert is null)
+        {
+            Unavailable();
+        }
+
+        try
+        {
+            var insertedId = _insert!(attachment);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The blocked attachment insert did not return a valid generated identity.");
+            }
+
+            var persisted = attachment with { Id = insertedId };
+            Volatile.Write(ref _blockedAttachments, attachments.Append(persisted).ToArray());
+            return persisted;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the blocked attachment to the database.",
+                EFail);
+        }
     }
 
     private IReadOnlyList<BlockedAttachmentAdministrationSnapshot> GetBlockedAttachments()
@@ -161,6 +220,16 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
         throw new COMException(
             "This BlockedAttachments member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Blocked attachment access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private T Unavailable<T>()
@@ -180,7 +249,9 @@ public sealed class BlockedAttachment : IInterfaceBlockedAttachment
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly BlockedAttachmentAdministrationSnapshot? _blockedAttachment;
+    private BlockedAttachmentAdministrationSnapshot? _blockedAttachment;
+    private readonly Func<BlockedAttachmentAdministrationSnapshot, BlockedAttachmentAdministrationSnapshot>? _save;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public BlockedAttachment()
     {
@@ -191,18 +262,41 @@ public sealed class BlockedAttachment : IInterfaceBlockedAttachment
         _blockedAttachment = blockedAttachment;
     }
 
+    private BlockedAttachment(
+        BlockedAttachmentAdministrationSnapshot blockedAttachment,
+        Func<BlockedAttachmentAdministrationSnapshot, BlockedAttachmentAdministrationSnapshot>? save,
+        Func<bool>? isServerAdministrator)
+    {
+        _blockedAttachment = blockedAttachment;
+        _save = save;
+        _isServerAdministrator = isServerAdministrator;
+    }
+
     public int ID => Snapshot.Id;
 
-    public string Wildcard { get => Snapshot.Wildcard; set => Unavailable(); }
+    public string Wildcard { get => Snapshot.Wildcard; set => Mutate(snapshot => snapshot with { Wildcard = value ?? string.Empty }); }
 
-    public string Description { get => Snapshot.Description; set => Unavailable(); }
+    public string Description { get => Snapshot.Description; set => Mutate(snapshot => snapshot with { Description = value ?? string.Empty }); }
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        EnsureServerAdministrator();
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _blockedAttachment = _save(Snapshot);
+    }
 
     public void Delete() => Unavailable();
 
-    internal static BlockedAttachment CreateAuthorized(BlockedAttachmentAdministrationSnapshot blockedAttachment) =>
-        new(blockedAttachment);
+    internal static BlockedAttachment CreateAuthorized(
+        BlockedAttachmentAdministrationSnapshot blockedAttachment,
+        Func<BlockedAttachmentAdministrationSnapshot, BlockedAttachmentAdministrationSnapshot>? save = null,
+        Func<bool>? isServerAdministrator = null) =>
+        new(blockedAttachment, save, isServerAdministrator);
 
     private BlockedAttachmentAdministrationSnapshot Snapshot =>
         _blockedAttachment ?? throw new COMException(
@@ -215,6 +309,29 @@ public sealed class BlockedAttachment : IInterfaceBlockedAttachment
         throw new COMException(
             "This BlockedAttachment member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
+    }
+
+    private void Mutate(
+        Func<BlockedAttachmentAdministrationSnapshot, BlockedAttachmentAdministrationSnapshot> mutation)
+    {
+        EnsureServerAdministrator();
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _blockedAttachment = mutation(Snapshot);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Blocked attachment access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 }
 
@@ -231,7 +348,7 @@ public static class BlockedAttachmentAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static BlockedAttachments CreateAuthorizedAdapter()
+    internal static BlockedAttachments CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -244,6 +361,16 @@ public static class BlockedAttachmentAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return BlockedAttachments.CreateAuthorized(LoadBlockedAttachments(), LoadBlockedAttachments);
+        int InsertBlockedAttachment(BlockedAttachmentAdministrationSnapshot attachment) => store
+            .InsertBlockedAttachmentAsync(attachment, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return BlockedAttachments.CreateAuthorized(
+            LoadBlockedAttachments(),
+            LoadBlockedAttachments,
+            InsertBlockedAttachment,
+            isServerAdministrator);
     }
 }
