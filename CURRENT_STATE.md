@@ -1,10 +1,10 @@
 # Current State
 
-- UTC timestamp: 2026-08-04T15:35:00Z
-- Local timestamp: 2026-08-04T18:35:00+03:00
+- UTC timestamp: 2026-08-04T15:40:00Z
+- Local timestamp: 2026-08-04T18:40:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
 - Current HEAD: `b48c863ec`
-- Last successfully pushed commit: `7588e207f` (the TCP/IP insert state was verified against `origin/net10-modernization`; this TCP/IP delete slice remains unpushed until docs verification)
+- Last successfully pushed commit: `cf7c78a47` (verified against `origin/net10-modernization` after the TCP/IP delete code/test and documentation commits)
 - Latest focused-test result: TCP/IP/SQL coverage `16/16` passed
 - Latest full Net10 result: `1700 passed, 0 failed, 4 skipped` (1704 total)
 - Opt-in tests passed/skipped/blocked: `0/4/0` in the full run; disposable SQL deletion, SQL failure-path, and native registry integration are skipped by opt-in gates
