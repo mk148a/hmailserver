@@ -74,6 +74,9 @@ public sealed class RouteAddressesComContractTests
         var addressesDeleteByAddressError = Assert.ThrowsExactly<COMException>(
             () => new RouteAddresses().DeleteByAddress("alpha@example.test"));
         var addressError = Assert.ThrowsExactly<COMException>(() => _ = new RouteAddress().Address);
+        var addressSetError = Assert.ThrowsExactly<COMException>(
+            () => new RouteAddress().Address = "alpha@example.test");
+        var routeSetError = Assert.ThrowsExactly<COMException>(() => new RouteAddress().RouteID = 10);
         var addressDeleteError = Assert.ThrowsExactly<COMException>(new RouteAddress().Delete);
         var addressSaveError = Assert.ThrowsExactly<COMException>(new RouteAddress().Save);
 
@@ -82,6 +85,8 @@ public sealed class RouteAddressesComContractTests
         Assert.AreEqual(EAccessDenied, addressesAddError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressesDeleteByAddressError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, addressSetError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, routeSetError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressSaveError.ErrorCode);
     }
@@ -315,6 +320,111 @@ public sealed class RouteAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_ExistingRowSettersAndSavePreserveStagedRouteAndPublishUpdatedSnapshot()
+    {
+        var updatedAddresses = new List<RouteAddressAdministrationSnapshot>();
+        IInterfaceRouteAddresses addresses = RouteAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(100, 10, "alpha@example.test"),
+                Snapshot(200, 10, "beta@example.test")
+            },
+            update: snapshot =>
+            {
+                updatedAddresses.Add(snapshot);
+                return true;
+            },
+            owningRouteId: 10);
+
+        var alpha = addresses[0];
+        alpha.Address = "changed@example.test";
+        alpha.RouteID = 20;
+
+        AssertAddress(alpha, 100, 20, "changed@example.test");
+
+        alpha.Save();
+
+        CollectionAssert.AreEqual(
+            new[] { Snapshot(100, 20, "changed@example.test") },
+            updatedAddresses);
+        AssertAddress(alpha, 100, 20, "changed@example.test");
+        AssertAddress(addresses[0], 100, 20, "changed@example.test");
+        AssertAddress(addresses[1], 200, 10, "beta@example.test");
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ExistingSaveFailureRetainsStagedFacadeAndOwningSnapshot()
+    {
+        var allowUpdate = false;
+        var updatedAddresses = new List<RouteAddressAdministrationSnapshot>();
+        IInterfaceRouteAddresses addresses = RouteAddresses.CreateAuthorized(
+            new[] { Snapshot(100, 10, "alpha@example.test") },
+            update: snapshot =>
+            {
+                updatedAddresses.Add(snapshot);
+                return allowUpdate;
+            },
+            owningRouteId: 10);
+        var alpha = addresses[0];
+
+        alpha.Address = "changed@example.test";
+        alpha.RouteID = 20;
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(alpha.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        CollectionAssert.AreEqual(
+            new[] { Snapshot(100, 20, "changed@example.test") },
+            updatedAddresses);
+        AssertAddress(alpha, 100, 20, "changed@example.test");
+        AssertAddress(addresses[0], 100, 10, "alpha@example.test");
+
+        allowUpdate = true;
+        alpha.Save();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                Snapshot(100, 20, "changed@example.test"),
+                Snapshot(100, 20, "changed@example.test")
+            },
+            updatedAddresses);
+        AssertAddress(alpha, 100, 20, "changed@example.test");
+        AssertAddress(addresses[0], 100, 20, "changed@example.test");
+    }
+
+    [TestMethod]
+    public void AuthorizedRoute_ExistingSaveUsesOwningRouteForStaleRowProtectionAndPreservesTargetRoute()
+    {
+        var store = new FixedRouteAddressAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "alpha@example.test"),
+                Snapshot(200, 20, "beta@example.test")
+            });
+        RouteAddressAdministrationRuntimeHost.Configure(store);
+        var routes = Routes.CreateAuthorized(
+            new[]
+            {
+                RouteSnapshot(10, "alpha.example"),
+                RouteSnapshot(20, "beta.example")
+            });
+
+        var alphaAddresses = routes[0].Addresses;
+        var betaAddresses = routes[1].Addresses;
+        var alpha = alphaAddresses[0];
+        alpha.Address = "moved@example.test";
+        alpha.RouteID = 20;
+        alpha.Save();
+
+        CollectionAssert.AreEqual(
+            new[] { (OwningRouteId: 10, Snapshot: Snapshot(100, 20, "moved@example.test")) },
+            store.UpdatedAddresses);
+        AssertAddress(alphaAddresses[0], 100, 20, "moved@example.test");
+        AssertAddress(betaAddresses[0], 200, 20, "beta@example.test");
+    }
+
+    [TestMethod]
     public void AuthorizedRoute_UsesConfiguredRouteScopedRuntime()
     {
         var store = new FixedRouteAddressAdministrationStore(
@@ -450,6 +560,14 @@ public sealed class RouteAddressesComContractTests
         CollectionAssert.AreEqual(
             new[] { (RouteId: 10, DatabaseId: 200), (RouteId: 10, DatabaseId: 300) },
             addressStore.DeletedAddresses);
+
+        var setterError = Assert.ThrowsExactly<COMException>(
+            () => alpha.Address = "reauth@example.test");
+        var saveError = Assert.ThrowsExactly<COMException>(alpha.Save);
+
+        Assert.AreEqual(EAccessDenied, setterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.IsEmpty(addressStore.UpdatedAddresses);
     }
 
     private static RouteAddressAdministrationSnapshot Snapshot(int id, int routeId, string address) =>
@@ -511,6 +629,8 @@ public sealed class RouteAddressesComContractTests
 
         public List<(int OwningRouteId, RouteAddressAdministrationSnapshot Snapshot)> InsertedAddresses { get; } = [];
 
+        public List<(int OwningRouteId, RouteAddressAdministrationSnapshot Snapshot)> UpdatedAddresses { get; } = [];
+
         public int ReadCount { get; private set; }
 
         public ValueTask<IReadOnlyList<RouteAddressAdministrationSnapshot>> GetRouteAddressesAsync(
@@ -540,6 +660,15 @@ public sealed class RouteAddressesComContractTests
         {
             InsertedAddresses.Add((owningRouteId, snapshot));
             return ValueTask.FromResult(400);
+        }
+
+        public ValueTask<bool> UpdateRouteAddressAsync(
+            int owningRouteId,
+            RouteAddressAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
+            UpdatedAddresses.Add((owningRouteId, snapshot));
+            return ValueTask.FromResult(true);
         }
     }
 

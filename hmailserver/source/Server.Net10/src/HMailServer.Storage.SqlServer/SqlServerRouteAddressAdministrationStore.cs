@@ -28,6 +28,14 @@ OUTPUT INSERTED.routeaddressid
 VALUES (@RouteId, @Address);
 """;
 
+    public const string UpdateRouteAddressSql = """
+UPDATE hm_routeaddresses
+SET routeaddressrouteid = @TargetRouteId,
+    routeaddressaddress = @Address
+WHERE routeaddressrouteid = @OwningRouteId
+  AND routeaddressid = @Id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRouteAddressAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -85,5 +93,22 @@ VALUES (@RouteId, @Address);
         command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = snapshot.Address;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<bool> UpdateRouteAddressAsync(
+        int owningRouteId,
+        RouteAddressAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateRouteAddressSql, connection);
+        command.Parameters.Add("@TargetRouteId", SqlDbType.Int).Value = snapshot.RouteId;
+        command.Parameters.Add("@OwningRouteId", SqlDbType.Int).Value = owningRouteId;
+        command.Parameters.Add("@Id", SqlDbType.Int).Value = snapshot.Id;
+        command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = snapshot.Address;
+        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affectedRows == 1;
     }
 }

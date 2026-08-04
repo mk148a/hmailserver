@@ -54,4 +54,21 @@ public sealed class SqlServerRouteAddressAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_routes", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateRouteAddressSql_UsesOwnerAndIdPredicatesAndParameterizedLegacyColumns()
+    {
+        var sql = SqlServerRouteAddressAdministrationStore.UpdateRouteAddressSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_routeaddresses");
+        StringAssert.Contains(sql, "routeaddressrouteid = @TargetRouteId");
+        StringAssert.Contains(sql, "routeaddressaddress = @Address");
+        StringAssert.Contains(sql, "WHERE routeaddressrouteid = @OwningRouteId");
+        StringAssert.Contains(sql, "AND routeaddressid = @Id");
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_routes", StringComparison.OrdinalIgnoreCase));
+    }
 }

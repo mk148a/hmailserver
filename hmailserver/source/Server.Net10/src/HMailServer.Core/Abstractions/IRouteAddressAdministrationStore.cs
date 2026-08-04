@@ -15,4 +15,9 @@ public interface IRouteAddressAdministrationStore
         int owningRouteId,
         RouteAddressAdministrationSnapshot snapshot,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateRouteAddressAsync(
+        int owningRouteId,
+        RouteAddressAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken);
 }

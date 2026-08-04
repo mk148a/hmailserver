@@ -71,6 +71,7 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
     private RouteAddressAdministrationSnapshot[]? _addresses;
     private readonly Action<int>? _deleteById;
     private readonly Func<RouteAddressAdministrationSnapshot, int>? _insert;
+    private readonly Func<RouteAddressAdministrationSnapshot, bool>? _update;
     private readonly int? _owningRouteId;
     private readonly Func<bool>? _isServerAdministrator;
 
@@ -83,11 +84,13 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
         Action<int>? deleteById,
         Func<RouteAddressAdministrationSnapshot, int>? insert,
         int? owningRouteId,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<RouteAddressAdministrationSnapshot, bool>? update)
     {
         _addresses = addresses.ToArray();
         _deleteById = deleteById;
         _insert = insert;
+        _update = update;
         _owningRouteId = owningRouteId;
         _isServerAdministrator = isServerAdministrator;
     }
@@ -182,10 +185,17 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
         Action<int>? deleteById = null,
         Func<bool>? isServerAdministrator = null,
         Func<RouteAddressAdministrationSnapshot, int>? insert = null,
-        int? owningRouteId = null)
+        int? owningRouteId = null,
+        Func<RouteAddressAdministrationSnapshot, bool>? update = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new RouteAddresses(addresses, deleteById, insert, owningRouteId, isServerAdministrator);
+        return new RouteAddresses(
+            addresses,
+            deleteById,
+            insert,
+            owningRouteId,
+            isServerAdministrator,
+            update);
     }
 
     private IReadOnlyList<RouteAddressAdministrationSnapshot> GetAddresses()
@@ -200,6 +210,7 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
     {
         return RouteAddress.CreateAuthorized(
             address,
+            save: _update is null ? null : SaveRouteAddress,
             delete: _deleteById is null ? null : DeleteByDBID,
             isServerAdministrator: _isServerAdministrator);
     }
@@ -209,8 +220,33 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
         var addresses = GetAddresses();
         if (address.Id != 0 || _insert is null || _owningRouteId is null)
         {
-            Unavailable();
-            return address;
+            if (address.Id == 0 || _update is null || _owningRouteId is null ||
+                !addresses.Any(existing => existing.Id == address.Id))
+            {
+                Unavailable();
+                return address;
+            }
+
+            try
+            {
+                if (!_update(address))
+                {
+                    throw new InvalidOperationException(
+                        "The route address update did not affect exactly one owning row.");
+                }
+
+                var updatedAddresses = addresses
+                    .Select(existing => existing.Id == address.Id ? address : existing)
+                    .ToArray();
+                Volatile.Write(ref _addresses, updatedAddresses);
+                return address;
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to save the route address to the database.",
+                    EFail);
+            }
         }
 
         try
@@ -402,11 +438,18 @@ public static class RouteAddressAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool UpdateRouteAddress(RouteAddressAdministrationSnapshot address) => store
+            .UpdateRouteAddressAsync(routeId, address, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return RouteAddresses.CreateAuthorized(
             addresses,
             DeleteRouteAddressById,
             isServerAdministrator,
             InsertRouteAddress,
-            routeId);
+            routeId,
+            UpdateRouteAddress);
     }
 }
