@@ -903,7 +903,10 @@ public static class Host
     builder.Services.AddSingleton<IServiceDependencyRuntime, WindowsServiceDependencyRuntime>();
     builder.Services.AddSingleton<IEmailAllAccountsRecipientStore, SqlServerEmailAllAccountsRecipientStore>();
     builder.Services.AddSingleton<IEmailAllAccountsRuntime, StoreBackedEmailAllAccountsRuntime>();
-    builder.Services.AddSingleton<IImportMessageFromFileStore, SqlServerImportMessageFromFileStore>();
+    builder.Services.AddSingleton<IImportMessageFromFileStore>(static serviceProvider =>
+        new SqlServerImportMessageFromFileStore(
+            serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
+            AccountAdministrationRuntimeHost.InvalidateAccountSize));
     builder.Services.AddSingleton<IImportMessageFromFileRuntime>(serviceProvider =>
         new StoreBackedImportMessageFromFileRuntime(
             serviceProvider.GetRequiredService<IImportMessageFromFileStore>(),

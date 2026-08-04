@@ -1,4 +1,6 @@
+using HMailServer.Core.Abstractions;
 using HMailServer.Storage.SqlServer;
+using System.Reflection;
 
 namespace HMailServer.Net10.Tests;
 
@@ -90,6 +92,57 @@ public sealed class SqlServerImportMessageFromFileStoreTests
         StringAssert.Contains(unlock, "messagelocked = 0");
         StringAssert.Contains(unlock, "messageid = @MessageId");
         StringAssert.Contains(unlock, "messagetype = 1");
+    }
+
+    [TestMethod]
+    public void DeliveredImportStore_InjectsAccountSizeInvalidationAfterCommit()
+    {
+        var constructor = typeof(SqlServerImportMessageFromFileStore).GetConstructor(
+            BindingFlags.Public | BindingFlags.Instance,
+            binder: null,
+            new[]
+            {
+                typeof(SqlServerConnectionFactory),
+                typeof(Action<int>)
+            },
+            modifiers: null);
+
+        Assert.IsNotNull(constructor);
+        var source = File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..", "src", "HMailServer.Storage.SqlServer", "SqlServerImportMessageFromFileStore.cs"));
+        var commitIndex = source.IndexOf("await transaction.CommitAsync", StringComparison.Ordinal);
+        var callbackIndex = source.IndexOf(
+            "_accountSizeInvalidationCallback?.Invoke(message.AccountId)",
+            StringComparison.Ordinal);
+
+        Assert.IsTrue(commitIndex >= 0);
+        Assert.IsTrue(callbackIndex > commitIndex);
+    }
+
+    [TestMethod]
+    public async Task ImportDeliveredMessageAsync_WhenCanceledBeforeSql_DoesNotInvokeAccountSizeInvalidation()
+    {
+        var invalidatedAccountIds = new List<int>();
+        var store = new SqlServerImportMessageFromFileStore(
+            new SqlServerConnectionFactory("Server=invalid;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            invalidatedAccountIds.Add);
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await store.ImportDeliveredMessageAsync(
+                new ImportedDeliveredMessage(
+                    AccountId: 42,
+                    FolderAccountId: 42,
+                    FolderId: 7,
+                    FileName: "message.eml",
+                    FromAddress: "sender@example.test",
+                    Size: 123,
+                    CreatedUtc: DateTimeOffset.UtcNow),
+                cancellationTokenSource.Token));
+
+        CollectionAssert.AreEqual(Array.Empty<int>(), invalidatedAccountIds);
     }
 
     private static void AssertNoMutation(string sql)

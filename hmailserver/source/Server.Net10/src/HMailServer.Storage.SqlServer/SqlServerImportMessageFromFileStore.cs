@@ -178,11 +178,15 @@ WHERE
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly Action<int>? _accountSizeInvalidationCallback;
 
-    public SqlServerImportMessageFromFileStore(SqlServerConnectionFactory connectionFactory)
+    public SqlServerImportMessageFromFileStore(
+        SqlServerConnectionFactory connectionFactory,
+        Action<int>? accountSizeInvalidationCallback = null)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+        _accountSizeInvalidationCallback = accountSizeInvalidationCallback;
     }
 
     public async ValueTask<ImportedMessageReference?> FindExistingMessageAsync(
@@ -332,6 +336,7 @@ WHERE
                 messageId,
                 cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            _accountSizeInvalidationCallback?.Invoke(message.AccountId);
         }
         catch
         {

@@ -35,7 +35,8 @@ public sealed class ProductionHostCompositionTests
             host.Services.GetRequiredService<IImapMessageAppendStore>(),
             host.Services.GetRequiredService<IImapMessageCopyStore>(),
             host.Services.GetRequiredService<IImapMessageMutationStore>(),
-            host.Services.GetRequiredService<IScriptMessageCopyStore>()
+            host.Services.GetRequiredService<IScriptMessageCopyStore>(),
+            host.Services.GetRequiredService<IImportMessageFromFileStore>()
         })
         {
             var callback = store.GetType()
