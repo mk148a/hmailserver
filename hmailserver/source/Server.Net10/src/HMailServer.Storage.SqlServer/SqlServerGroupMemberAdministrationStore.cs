@@ -24,6 +24,14 @@ OUTPUT INSERTED.memberid
 VALUES (@groupId, @accountId);
 """;
 
+    public const string UpdateGroupMemberSql = """
+UPDATE hm_group_members
+SET membergroupid = @groupId,
+    memberaccountid = @accountId
+WHERE memberid = @memberId
+  AND membergroupid = @ownerGroupId;
+""";
+
     public const string DeleteGroupMemberSql = """
 DELETE FROM hm_group_members
 WHERE memberid = @memberId
@@ -74,6 +82,22 @@ WHERE memberid = @memberId
         command.Parameters.Add("@accountId", SqlDbType.Int).Value = member.AccountId;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<bool> UpdateGroupMemberAsync(
+        int owningGroupId,
+        GroupMemberAdministrationSnapshot member,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateGroupMemberSql, connection);
+        command.Parameters.Add("@groupId", SqlDbType.Int).Value = member.GroupId;
+        command.Parameters.Add("@accountId", SqlDbType.Int).Value = member.AccountId;
+        command.Parameters.Add("@memberId", SqlDbType.Int).Value = member.Id;
+        command.Parameters.Add("@ownerGroupId", SqlDbType.Int).Value = owningGroupId;
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
     public async ValueTask<bool> DeleteGroupMemberByIdAsync(

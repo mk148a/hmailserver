@@ -11,6 +11,12 @@ public interface IGroupMemberAdministrationStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Group member insertion is not implemented by this store.");
 
+    ValueTask<bool> UpdateGroupMemberAsync(
+        int owningGroupId,
+        GroupMemberAdministrationSnapshot member,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Group member update is not implemented by this store.");
+
     ValueTask<bool> DeleteGroupMemberByIdAsync(
         int groupId,
         int memberId,

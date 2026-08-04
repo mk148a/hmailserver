@@ -48,4 +48,18 @@ public sealed class SqlServerGroupMemberAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateGroupMemberSql_UsesLegacyColumnsAndOwnerScopedIdentityPredicates()
+    {
+        var sql = SqlServerGroupMemberAdministrationStore.UpdateGroupMemberSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_group_members");
+        StringAssert.Contains(sql, "membergroupid = @groupId");
+        StringAssert.Contains(sql, "memberaccountid = @accountId");
+        StringAssert.Contains(sql, "memberid = @memberId");
+        StringAssert.Contains(sql, "membergroupid = @ownerGroupId");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
 }
