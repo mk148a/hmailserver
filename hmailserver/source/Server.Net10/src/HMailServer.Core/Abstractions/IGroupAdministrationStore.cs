@@ -13,4 +13,9 @@ public interface IGroupAdministrationStore
         GroupAdministrationSnapshot group,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Group update is not implemented by this store.");
+
+    ValueTask<bool> DeleteGroupByIdAsync(
+        int groupId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Group deletion is not implemented by this store.");
 }

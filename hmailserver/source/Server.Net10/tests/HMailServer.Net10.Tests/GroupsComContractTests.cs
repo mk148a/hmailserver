@@ -96,6 +96,7 @@ public sealed class GroupsComContractTests
         var badIndex = Assert.ThrowsExactly<COMException>(() => _ = groups[2]);
         var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = groups.get_ItemByDBID(30));
         var badName = Assert.ThrowsExactly<COMException>(() => _ = groups.get_ItemByName("Missing"));
+        groups.DeleteByDBID(999);
         var pendingDelete = Assert.ThrowsExactly<COMException>(() => groups.DeleteByDBID(10));
         var pendingAdd = Assert.ThrowsExactly<COMException>(() => groups.Add());
         var pendingRefresh = Assert.ThrowsExactly<COMException>(groups.Refresh);
@@ -286,6 +287,65 @@ public sealed class GroupsComContractTests
         Assert.AreEqual("Support", group.Name);
         Assert.AreEqual("Support", groups[0].Name);
         Assert.AreEqual(2, updated.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_GroupDeleteRemovesOnlyOwningSnapshotAfterStoreSuccess()
+    {
+        var allowDelete = false;
+        var deleted = new List<int>();
+        IInterfaceGroups groups = Groups.CreateAuthorized(
+            new[] { Snapshot(10, "Administrators"), Snapshot(20, "Support") },
+            delete: databaseId =>
+            {
+                deleted.Add(databaseId);
+                if (!allowDelete)
+                {
+                    throw new InvalidOperationException("Simulated delete failure.");
+                }
+            });
+
+        var group = groups.get_ItemByDBID(10);
+        var failure = Assert.ThrowsExactly<COMException>(group.Delete);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(2, groups.Count);
+        Assert.AreEqual(1, deleted.Count);
+
+        allowDelete = true;
+        group.Delete();
+
+        Assert.AreEqual(1, groups.Count);
+        Assert.AreEqual(20, groups[0].ID);
+        Assert.AreEqual(10, deleted[1]);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = groups.get_ItemByDBID(10)).ErrorCode);
+    }
+
+    [TestMethod]
+    public void GroupDelete_RechecksLiveServerAdministratorAndScopesStaleIds()
+    {
+        var isServerAdministrator = true;
+        var deletes = 0;
+        IInterfaceGroups groups = Groups.CreateAuthorized(
+            new[] { Snapshot(10, "Administrators") },
+            delete: _ => deletes++,
+            isServerAdministrator: () => isServerAdministrator);
+        var group = groups[0];
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(group.Delete);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, deletes);
+        Assert.AreEqual(1, groups.Count);
+
+        isServerAdministrator = true;
+        groups.DeleteByDBID(999);
+
+        Assert.AreEqual(0, deletes);
+        Assert.AreEqual(1, groups.Count);
     }
 
     [TestMethod]

@@ -46,4 +46,19 @@ public sealed class SqlServerGroupAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("JOIN ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteGroupSql_UsesParameterizedIdentityAndOwnedAclCleanup()
+    {
+        var groupSql = SqlServerGroupAdministrationStore.DeleteGroupSql;
+        var aclSql = SqlServerGroupAdministrationStore.DeleteOwnedGroupAclSql;
+
+        StringAssert.Contains(groupSql, "DELETE FROM hm_groups");
+        StringAssert.Contains(groupSql, "WHERE groupid = @id");
+        StringAssert.Contains(aclSql, "DELETE FROM hm_acl");
+        StringAssert.Contains(aclSql, "aclpermissiontype = 1");
+        StringAssert.Contains(aclSql, "aclpermissiongroupid = @id");
+        Assert.IsFalse(groupSql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(aclSql.Contains("WHERE groupid = ", StringComparison.OrdinalIgnoreCase));
+    }
 }
