@@ -36,6 +36,7 @@ public sealed record SyntheticBenchmarkMetric(
     public long MeanGen0Collections { get; init; }
     public long MeanGen1Collections { get; init; }
     public long MeanGen2Collections { get; init; }
+    public long PeakWorkingSetBytes { get; init; }
 }
 
 public sealed record SyntheticBenchmarkReport(
@@ -171,7 +172,8 @@ public static class SyntheticImapSearchSortBenchmark
             gen0Collections,
             gen1Collections,
             gen2Collections,
-            expected.Length);
+            expected.Length,
+            CapturePeakWorkingSetBytes());
         var uniqueResultIds = expected.Select(static message => message.Uid).Distinct().Count() == expected.Length;
         var correctSortOrder = IsSorted(expected);
         var thresholdPassed = metrics.P95Milliseconds <= options.P95ThresholdMilliseconds;
@@ -241,7 +243,8 @@ public static class SyntheticImapSearchSortBenchmark
         IReadOnlyList<long> gen0Collections,
         IReadOnlyList<long> gen1Collections,
         IReadOnlyList<long> gen2Collections,
-        int resultCount)
+        int resultCount,
+        long peakWorkingSetBytes)
     {
         var ordered = samples.OrderBy(static value => value).ToArray();
         var mean = samples.Average();
@@ -255,8 +258,16 @@ public static class SyntheticImapSearchSortBenchmark
         {
             MeanGen0Collections = (long)gen0Collections.Average(),
             MeanGen1Collections = (long)gen1Collections.Average(),
-            MeanGen2Collections = (long)gen2Collections.Average()
+            MeanGen2Collections = (long)gen2Collections.Average(),
+            PeakWorkingSetBytes = peakWorkingSetBytes
         };
+    }
+
+    private static long CapturePeakWorkingSetBytes()
+    {
+        using var process = Process.GetCurrentProcess();
+        process.Refresh();
+        return process.PeakWorkingSet64;
     }
 
     private static double Percentile(IReadOnlyList<double> ordered, double percentile)
@@ -289,8 +300,8 @@ public static class SyntheticBenchmarkArtifactWriter
 
     private static string CreateCsv(SyntheticBenchmarkReport report) =>
         string.Join(Environment.NewLine,
-        "scenario,git_commit,message_count,seed,expected_matches,actual_matches,correct,p50_ms,p95_ms,p99_ms,mean_ms,throughput_messages_per_second,mean_allocated_bytes,mean_gen0_collections,mean_gen1_collections,mean_gen2_collections,threshold_ms,threshold_passed",
-        string.Join(",", Csv(report.Scenario), Csv(report.GitCommit), report.MessageCount.ToString(CultureInfo.InvariantCulture), report.Seed.ToString(CultureInfo.InvariantCulture), report.ExpectedMatchCount.ToString(CultureInfo.InvariantCulture), report.ActualMatchCount.ToString(CultureInfo.InvariantCulture), report.Correct.ToString(CultureInfo.InvariantCulture), Number(report.Metrics.P50Milliseconds), Number(report.Metrics.P95Milliseconds), Number(report.Metrics.P99Milliseconds), Number(report.Metrics.MeanMilliseconds), Number(report.Metrics.ThroughputMessagesPerSecond), report.Metrics.MeanAllocatedBytes.ToString(CultureInfo.InvariantCulture), report.Metrics.MeanGen0Collections.ToString(CultureInfo.InvariantCulture), report.Metrics.MeanGen1Collections.ToString(CultureInfo.InvariantCulture), report.Metrics.MeanGen2Collections.ToString(CultureInfo.InvariantCulture), Number(report.P95ThresholdMilliseconds), report.ThresholdPassed.ToString(CultureInfo.InvariantCulture)));
+        "scenario,git_commit,message_count,seed,expected_matches,actual_matches,correct,p50_ms,p95_ms,p99_ms,mean_ms,throughput_messages_per_second,mean_allocated_bytes,mean_gen0_collections,mean_gen1_collections,mean_gen2_collections,threshold_ms,threshold_passed,peak_working_set_bytes",
+        string.Join(",", Csv(report.Scenario), Csv(report.GitCommit), report.MessageCount.ToString(CultureInfo.InvariantCulture), report.Seed.ToString(CultureInfo.InvariantCulture), report.ExpectedMatchCount.ToString(CultureInfo.InvariantCulture), report.ActualMatchCount.ToString(CultureInfo.InvariantCulture), report.Correct.ToString(CultureInfo.InvariantCulture), Number(report.Metrics.P50Milliseconds), Number(report.Metrics.P95Milliseconds), Number(report.Metrics.P99Milliseconds), Number(report.Metrics.MeanMilliseconds), Number(report.Metrics.ThroughputMessagesPerSecond), report.Metrics.MeanAllocatedBytes.ToString(CultureInfo.InvariantCulture), report.Metrics.MeanGen0Collections.ToString(CultureInfo.InvariantCulture), report.Metrics.MeanGen1Collections.ToString(CultureInfo.InvariantCulture), report.Metrics.MeanGen2Collections.ToString(CultureInfo.InvariantCulture), Number(report.P95ThresholdMilliseconds), report.ThresholdPassed.ToString(CultureInfo.InvariantCulture), report.Metrics.PeakWorkingSetBytes.ToString(CultureInfo.InvariantCulture)));
 
     private static string CreateMarkdown(SyntheticBenchmarkReport report) => string.Join(
         Environment.NewLine,
@@ -309,6 +320,7 @@ public static class SyntheticBenchmarkArtifactWriter
         $"| p99 | {Number(report.Metrics.P99Milliseconds)} ms |",
         $"| Throughput | {Number(report.Metrics.ThroughputMessagesPerSecond)} messages/s |",
         $"| Mean allocation | {report.Metrics.MeanAllocatedBytes.ToString("N0", CultureInfo.InvariantCulture)} bytes |",
+        $"| Peak working set | {report.Metrics.PeakWorkingSetBytes.ToString("N0", CultureInfo.InvariantCulture)} bytes |",
         $"| Mean Gen 0 collections | {report.Metrics.MeanGen0Collections} |",
         $"| Mean Gen 1 collections | {report.Metrics.MeanGen1Collections} |",
         $"| Mean Gen 2 collections | {report.Metrics.MeanGen2Collections} |",

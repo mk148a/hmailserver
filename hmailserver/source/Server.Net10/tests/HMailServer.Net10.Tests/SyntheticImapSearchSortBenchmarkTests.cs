@@ -37,6 +37,7 @@ public sealed class SyntheticImapSearchSortBenchmarkTests
         Assert.IsTrue(report.Metrics.MeanGen0Collections >= 0);
         Assert.IsTrue(report.Metrics.MeanGen1Collections >= 0);
         Assert.IsTrue(report.Metrics.MeanGen2Collections >= 0);
+        Assert.IsTrue(report.Metrics.PeakWorkingSetBytes >= 0);
     }
 
     [TestMethod]
@@ -58,16 +59,23 @@ public sealed class SyntheticImapSearchSortBenchmarkTests
             Assert.IsTrue(File.Exists(csvPath));
             Assert.IsTrue(File.Exists(markdownPath));
             var json = File.ReadAllText(jsonPath);
-            Assert.IsNotNull(JsonSerializer.Deserialize<SyntheticBenchmarkReport>(json));
+            var deserializedReport = JsonSerializer.Deserialize<SyntheticBenchmarkReport>(json);
+            Assert.IsNotNull(deserializedReport);
+            Assert.IsTrue(deserializedReport!.Metrics.PeakWorkingSetBytes >= 0);
             StringAssert.Contains(json, "\"MeanGen0Collections\"");
             StringAssert.Contains(json, "\"MeanGen1Collections\"");
             StringAssert.Contains(json, "\"MeanGen2Collections\"");
+            StringAssert.Contains(json, "\"PeakWorkingSetBytes\"");
             var csv = File.ReadAllText(csvPath);
             var markdown = File.ReadAllText(markdownPath);
-            StringAssert.Contains(csv, "mean_gen0_collections,mean_gen1_collections,mean_gen2_collections");
+            StringAssert.Contains(csv, "threshold_passed,peak_working_set_bytes");
+            var csvLines = csv.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+            Assert.AreEqual(2, csvLines.Length);
+            Assert.AreEqual(csvLines[0].Split(',').Length, csvLines[1].Split(',').Length);
             StringAssert.Contains(markdown, "Mean Gen 0 collections");
             StringAssert.Contains(markdown, "Mean Gen 1 collections");
             StringAssert.Contains(markdown, "Mean Gen 2 collections");
+            StringAssert.Contains(markdown, "Peak working set");
             StringAssert.Contains(markdown, "offline-imap-search-sort-100k");
         }
         finally
