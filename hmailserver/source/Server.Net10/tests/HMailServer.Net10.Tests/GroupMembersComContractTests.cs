@@ -242,6 +242,64 @@ public sealed class GroupMembersComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_GroupMemberDeletePublishesOnlyAfterSuccessfulDelete()
+    {
+        var allowDelete = false;
+        var deleted = new List<int>();
+        IInterfaceGroupMembers members = GroupMembers.CreateAuthorized(
+            new[] { Snapshot(100, 10, 1000), Snapshot(200, 10, 2000) },
+            groupId: 10,
+            delete: memberId =>
+            {
+                deleted.Add(memberId);
+                if (!allowDelete)
+                {
+                    throw new InvalidOperationException("Simulated delete failure.");
+                }
+            });
+        var member = members.get_ItemByDBID(100);
+
+        var failure = Assert.ThrowsExactly<COMException>(member.Delete);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(2, members.Count);
+        Assert.AreEqual(1, deleted.Count);
+
+        allowDelete = true;
+        member.Delete();
+
+        Assert.AreEqual(1, members.Count);
+        Assert.AreEqual(200, members[0].ID);
+        Assert.AreEqual(100, deleted[1]);
+
+        member.Delete();
+        Assert.AreEqual(2, deleted.Count);
+    }
+
+    [TestMethod]
+    public void GroupMemberDelete_RechecksLiveAdministratorAndScopesUnknownIds()
+    {
+        var isServerAdministrator = true;
+        var deletes = 0;
+        IInterfaceGroupMembers members = GroupMembers.CreateAuthorized(
+            new[] { Snapshot(100, 10, 1000) },
+            groupId: 10,
+            delete: _ => deletes++,
+            isServerAdministrator: () => isServerAdministrator);
+        var member = members[0];
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(member.Delete);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, deletes);
+
+        isServerAdministrator = true;
+        members.DeleteByDBID(999);
+        Assert.AreEqual(0, deletes);
+    }
+
+    [TestMethod]
     public void AuthorizedGroup_UsesConfiguredGroupMemberRuntime()
     {
         AccountAdministrationRuntimeHost.Configure(

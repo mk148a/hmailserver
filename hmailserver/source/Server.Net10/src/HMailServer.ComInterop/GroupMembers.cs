@@ -71,6 +71,7 @@ public sealed class GroupMembers : IInterfaceGroupMembers
     private readonly Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? _reload;
     private readonly int _groupId;
     private readonly Func<GroupMemberAdministrationSnapshot, int>? _insert;
+    private readonly Action<int>? _delete;
     private readonly Action<GroupMemberAdministrationSnapshot>? _publish;
     private readonly Func<bool>? _isServerAdministrator;
 
@@ -83,12 +84,14 @@ public sealed class GroupMembers : IInterfaceGroupMembers
         Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? reload,
         int groupId,
         Func<GroupMemberAdministrationSnapshot, int>? insert,
+        Action<int>? delete,
         Func<bool>? isServerAdministrator)
     {
         _members = members.ToArray();
         _reload = reload;
         _groupId = groupId;
         _insert = insert;
+        _delete = delete;
         _publish = Publish;
         _isServerAdministrator = isServerAdministrator;
     }
@@ -100,10 +103,11 @@ public sealed class GroupMembers : IInterfaceGroupMembers
         Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? reload = null,
         int groupId = 0,
         Func<GroupMemberAdministrationSnapshot, int>? insert = null,
+        Action<int>? delete = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(members);
-        return new GroupMembers(members, reload, groupId, insert, isServerAdministrator);
+        return new GroupMembers(members, reload, groupId, insert, delete, isServerAdministrator);
     }
 
     private void Publish(GroupMemberAdministrationSnapshot member)
@@ -122,7 +126,10 @@ public sealed class GroupMembers : IInterfaceGroupMembers
                 throw new COMException("Group member index was outside the collection.", DispEBadIndex);
             }
 
-            return GroupMember.CreateAuthorized(members[index]);
+            return GroupMember.CreateAuthorized(
+                members[index],
+                delete: _delete is null ? null : DeleteMember,
+                isServerAdministrator: _isServerAdministrator);
         }
     }
 
@@ -134,10 +141,18 @@ public sealed class GroupMembers : IInterfaceGroupMembers
             ? throw new COMException(
                 "No group member with the specified database identifier exists.",
                 DispEBadIndex)
-            : GroupMember.CreateAuthorized(match);
+            : GroupMember.CreateAuthorized(
+                match,
+                delete: _delete is null ? null : DeleteMember,
+                isServerAdministrator: _isServerAdministrator);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        _ = GetMembers();
+        EnsureServerAdministrator();
+        DeleteMember(databaseId);
+    }
 
     public IInterfaceGroupMember Add()
     {
@@ -152,6 +167,7 @@ public sealed class GroupMembers : IInterfaceGroupMembers
             new GroupMemberAdministrationSnapshot(Id: 0, GroupId: _groupId, AccountId: 0),
             insert: _insert,
             publish: _publish,
+            delete: _delete is null ? null : DeleteMember,
             ownerGroupId: _groupId,
             isServerAdministrator: _isServerAdministrator);
     }
@@ -197,6 +213,35 @@ public sealed class GroupMembers : IInterfaceGroupMembers
         }
     }
 
+    private void DeleteMember(int databaseId)
+    {
+        var members = GetMembers();
+        if (!members.Any(member => member.Id == databaseId))
+        {
+            return;
+        }
+
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _delete(databaseId);
+            Volatile.Write(
+                ref _members,
+                members.Where(member => member.Id != databaseId).ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the group member from the database.",
+                EFail);
+        }
+    }
+
     private T Unavailable<T>()
     {
         _ = GetMembers();
@@ -227,6 +272,7 @@ public sealed class GroupMember : IInterfaceGroupMember
 
     private GroupMemberAdministrationSnapshot? _member;
     private readonly Func<GroupMemberAdministrationSnapshot, int>? _insert;
+    private readonly Action<int>? _delete;
     private readonly Action<GroupMemberAdministrationSnapshot>? _publish;
     private readonly int? _ownerGroupId;
     private readonly Func<bool>? _isServerAdministrator;
@@ -239,12 +285,14 @@ public sealed class GroupMember : IInterfaceGroupMember
         GroupMemberAdministrationSnapshot member,
         Func<GroupMemberAdministrationSnapshot, int>? insert,
         Action<GroupMemberAdministrationSnapshot>? publish,
+        Action<int>? delete,
         int? ownerGroupId,
         Func<bool>? isServerAdministrator)
     {
         _member = member;
         _insert = insert;
         _publish = publish;
+        _delete = delete;
         _ownerGroupId = ownerGroupId;
         _isServerAdministrator = isServerAdministrator;
     }
@@ -292,9 +340,10 @@ public sealed class GroupMember : IInterfaceGroupMember
         GroupMemberAdministrationSnapshot member,
         Func<GroupMemberAdministrationSnapshot, int>? insert = null,
         Action<GroupMemberAdministrationSnapshot>? publish = null,
+        Action<int>? delete = null,
         int? ownerGroupId = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(member, insert, publish, ownerGroupId, isServerAdministrator);
+        new(member, insert, publish, delete, ownerGroupId, isServerAdministrator);
 
     public void Save()
     {
@@ -338,7 +387,17 @@ public sealed class GroupMember : IInterfaceGroupMember
         }
     }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(Snapshot.Id);
+    }
 
     private GroupMemberAdministrationSnapshot Snapshot =>
         _member ?? throw new COMException(
@@ -406,11 +465,25 @@ public static class GroupMemberAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        void DeleteMember(int memberId)
+        {
+            if (!store
+                .DeleteGroupMemberByIdAsync(groupId, memberId, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new InvalidOperationException(
+                    "The group member delete did not affect the selected database row.");
+            }
+        }
+
         return GroupMembers.CreateAuthorized(
             LoadMembers(),
             LoadMembers,
             groupId,
             InsertMember,
+            DeleteMember,
             isServerAdministrator);
     }
 }

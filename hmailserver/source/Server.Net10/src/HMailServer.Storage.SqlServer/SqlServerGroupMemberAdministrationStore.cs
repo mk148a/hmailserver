@@ -24,6 +24,12 @@ OUTPUT INSERTED.memberid
 VALUES (@groupId, @accountId);
 """;
 
+    public const string DeleteGroupMemberSql = """
+DELETE FROM hm_group_members
+WHERE memberid = @memberId
+  AND membergroupid = @groupId;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerGroupMemberAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -68,5 +74,17 @@ VALUES (@groupId, @accountId);
         command.Parameters.Add("@accountId", SqlDbType.Int).Value = member.AccountId;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<bool> DeleteGroupMemberByIdAsync(
+        int groupId,
+        int memberId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteGroupMemberSql, connection);
+        command.Parameters.Add("@memberId", SqlDbType.Int).Value = memberId;
+        command.Parameters.Add("@groupId", SqlDbType.Int).Value = groupId;
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 }
