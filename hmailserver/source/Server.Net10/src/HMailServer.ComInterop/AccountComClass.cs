@@ -11,10 +11,15 @@ namespace HMailServer.ComInterop;
 public sealed class Account : IInterfaceAccount
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly bool _attached;
     private readonly AccountAdministrationSnapshot? _administrationSnapshot;
+    private readonly AccountSizeInvalidator? _accountSizeInvalidator;
+    private readonly Func<int, AccountAdministrationSnapshot?>? _accountSizeReadback;
+    private readonly object _accountSizeGate = new();
+    private AccountSizeState? _accountSizeState;
     private readonly ImapFolderAdministrationState? _imapFoldersState;
     private readonly AccountMessageAdministrationState? _messagesState;
     private readonly RuleAdministrationState? _rulesState;
@@ -69,10 +74,15 @@ public sealed class Account : IInterfaceAccount
         RuleAdministrationState rulesState,
         AccountMessageAdministrationState messagesState,
         ImapFolderAdministrationState imapFoldersState,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        AccountSizeInvalidator? accountSizeInvalidator,
+        Func<int, AccountAdministrationSnapshot?>? accountSizeReadback)
     {
         _attached = true;
         _administrationSnapshot = administrationSnapshot;
+        _accountSizeInvalidator = accountSizeInvalidator;
+        _accountSizeReadback = accountSizeReadback;
+        _accountSizeState = new AccountSizeState(administrationSnapshot.Size, administrationSnapshot.QuotaUsed, 0);
         _imapFoldersState = imapFoldersState;
         _messagesState = messagesState;
         _rulesState = rulesState;
@@ -105,7 +115,9 @@ public sealed class Account : IInterfaceAccount
 
     public string Password { get => Read(_password); set => Write(() => _password = value); }
 
-    public float Size => _administrationSnapshot?.Size ?? Read(0f);
+    public float Size => _administrationSnapshot is not null
+        ? GetAccountSize().Size
+        : Read(0f);
 
     public string ADUsername { get => _administrationSnapshot?.ActiveDirectoryUsername ?? Read(_activeDirectoryUsername); set => Write(() => _activeDirectoryUsername = value); }
 
@@ -185,7 +197,9 @@ public sealed class Account : IInterfaceAccount
         }
     }
 
-    public int QuotaUsed => _administrationSnapshot?.QuotaUsed ?? Read(0);
+    public int QuotaUsed => _administrationSnapshot is not null
+        ? GetAccountSize().QuotaUsed
+        : Read(0);
 
     public bool ForwardEnabled { get => _administrationSnapshot?.ForwardEnabled ?? Read(_forwardEnabled); set => Write(() => _forwardEnabled = value); }
 
@@ -228,7 +242,9 @@ public sealed class Account : IInterfaceAccount
             RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
             MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id),
             ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
-            isAuthenticated);
+            isAuthenticated,
+            null,
+            null);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
@@ -238,6 +254,8 @@ public sealed class Account : IInterfaceAccount
             rulesState,
             MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id),
             ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
+            null,
+            null,
             null);
 
     internal static Account CreateAuthorized(
@@ -249,6 +267,8 @@ public sealed class Account : IInterfaceAccount
             rulesState,
             messagesState,
             ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
+            null,
+            null,
             null);
 
     internal static Account CreateAuthorized(
@@ -256,8 +276,17 @@ public sealed class Account : IInterfaceAccount
         RuleAdministrationState rulesState,
         AccountMessageAdministrationState messagesState,
         ImapFolderAdministrationState imapFoldersState,
-        Func<bool>? isAuthenticated = null) =>
-        new(account, rulesState, messagesState, imapFoldersState, isAuthenticated);
+        Func<bool>? isAuthenticated = null,
+        AccountSizeInvalidator? accountSizeInvalidator = null,
+        Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null) =>
+        new(
+            account,
+            rulesState,
+            messagesState,
+            imapFoldersState,
+            isAuthenticated,
+            accountSizeInvalidator,
+            accountSizeReadback);
 
     public void Save() => NotImplemented();
 
@@ -287,6 +316,45 @@ public sealed class Account : IInterfaceAccount
         }
 
         return value;
+    }
+
+    private AccountSizeState GetAccountSize()
+    {
+        lock (_accountSizeGate)
+        {
+            var account = _administrationSnapshot!;
+            var state = _accountSizeState!;
+            if (_accountSizeInvalidator is null || _accountSizeReadback is null)
+            {
+                return state;
+            }
+
+            var version = _accountSizeInvalidator.GetVersion(account.Id);
+            if (version <= state.Version)
+            {
+                return state;
+            }
+
+            try
+            {
+                var refreshed = _accountSizeReadback(account.Id);
+                var updated = refreshed is null
+                    ? state with { Version = version }
+                    : new AccountSizeState(refreshed.Size, refreshed.QuotaUsed, version);
+                _accountSizeState = updated;
+                return updated;
+            }
+            catch (COMException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to retrieve the account size from the database.",
+                    EFail);
+            }
+        }
     }
 
     private void Write(Action assign)
@@ -331,4 +399,6 @@ public sealed class Account : IInterfaceAccount
         EnsureAttached();
         throw new COMException("This legacy COM member has not been implemented by the .NET 10 rewrite.", ENotImplemented);
     }
+
+    private sealed record AccountSizeState(float Size, int QuotaUsed, long Version);
 }

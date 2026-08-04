@@ -1,13 +1,52 @@
 using HMailServer.Core.Abstractions;
+using HMailServer.ComInterop;
 using HMailServer.Service;
 using Microsoft.Extensions.DependencyInjection;
 using Hosting = Microsoft.Extensions.Hosting;
+using System.Reflection;
 
 namespace HMailServer.Net10.Tests;
 
 [TestClass]
 public sealed class ProductionHostCompositionTests
 {
+    [TestMethod]
+    public void HostBuild_WiresAccountSizeInvalidationIntoImapMutationStores()
+    {
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-host-account-size-{Guid.NewGuid():N}");
+        var initializationFile = Path.Combine(dataDirectory, "hMailServer.ini");
+
+        var composition = HMailServer.Service.Host.Build(
+            [
+                "--ConnectionStrings:hMailServer=Server=127.0.0.1;Database=NeverOpened;Integrated Security=False;User Id=never;Password=never;TrustServerCertificate=True",
+                $"--DataDirectory={dataDirectory}",
+                $"--InitializationFile={initializationFile}",
+                "--Imap:Enabled=false",
+                "--Pop3:Enabled=false",
+                "--Smtp:Enabled=false",
+                "--ExternalFetch:Enabled=false"
+            ]);
+
+        using var host = composition.Host;
+        foreach (var store in new object[]
+        {
+            host.Services.GetRequiredService<IImapMessageAppendStore>(),
+            host.Services.GetRequiredService<IImapMessageCopyStore>(),
+            host.Services.GetRequiredService<IImapMessageMutationStore>()
+        })
+        {
+            var callback = store.GetType()
+                .GetField("_accountSizeInvalidationCallback", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.GetValue(store) as Action<int>;
+
+            Assert.IsNotNull(callback);
+            Assert.AreEqual(typeof(AccountAdministrationRuntimeHost), callback.Method.DeclaringType);
+            Assert.AreEqual(nameof(AccountAdministrationRuntimeHost.InvalidateAccountSize), callback.Method.Name);
+        }
+    }
+
     [TestMethod]
     public void HostBuild_ResolvesEveryRegisteredHostedServiceWithoutStartingOrUsingDatabase()
     {

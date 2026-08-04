@@ -730,9 +730,21 @@ public static class Host
     builder.Services.AddSingleton<IImapAclStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
     builder.Services.AddSingleton<IImapMailboxSubscriptionStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
     builder.Services.AddSingleton<IImapMessageFetchStore, SqlServerImapMessageFetchStore>();
-    builder.Services.AddSingleton<IImapMessageMutationStore, SqlServerImapMessageMutationStore>();
-    builder.Services.AddSingleton<IImapMessageCopyStore, SqlServerImapMessageCopyStore>();
-    builder.Services.AddSingleton<IImapMessageAppendStore, SqlServerImapMessageAppendStore>();
+    builder.Services.AddSingleton<IImapMessageMutationStore>(static serviceProvider =>
+        new SqlServerImapMessageMutationStore(
+            serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
+            serviceProvider.GetRequiredService<MessageFilePathResolver>(),
+            AccountAdministrationRuntimeHost.InvalidateAccountSize));
+    builder.Services.AddSingleton<IImapMessageCopyStore>(static serviceProvider =>
+        new SqlServerImapMessageCopyStore(
+            serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
+            serviceProvider.GetRequiredService<MessageFilePathResolver>(),
+            AccountAdministrationRuntimeHost.InvalidateAccountSize));
+    builder.Services.AddSingleton<IImapMessageAppendStore>(static serviceProvider =>
+        new SqlServerImapMessageAppendStore(
+            serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
+            serviceProvider.GetRequiredService<MessageFilePathResolver>(),
+            AccountAdministrationRuntimeHost.InvalidateAccountSize));
     builder.Services.AddSingleton<IImapIdleNotifier, PollingImapIdleNotifier>();
     builder.Services.AddSingleton<IImapQuotaStore, SqlServerImapQuotaStore>();
     builder.Services.AddSingleton<IImapRecentFlagStore, SqlServerImapRecentFlagStore>();

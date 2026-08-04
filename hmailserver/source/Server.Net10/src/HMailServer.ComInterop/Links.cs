@@ -41,6 +41,7 @@ public sealed class Links : IInterfaceLinks
     private readonly IAccountAdministrationStore? _accountStore;
     private readonly IAliasAdministrationStore? _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
+    private readonly Func<int, IInterfaceAccount>? _accountFactory;
 
     public Links()
     {
@@ -50,26 +51,29 @@ public sealed class Links : IInterfaceLinks
         IDomainAdministrationStore domainStore,
         IAccountAdministrationStore accountStore,
         IAliasAdministrationStore aliasStore,
-        IDistributionListAdministrationStore distributionListStore)
+        IDistributionListAdministrationStore distributionListStore,
+        Func<int, IInterfaceAccount>? accountFactory)
     {
         _domainStore = domainStore;
         _accountStore = accountStore;
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
+        _accountFactory = accountFactory;
     }
 
     internal static Links CreateAuthorized(
         IDomainAdministrationStore domainStore,
         IAccountAdministrationStore accountStore,
         IAliasAdministrationStore aliasStore,
-        IDistributionListAdministrationStore distributionListStore)
+        IDistributionListAdministrationStore distributionListStore,
+        Func<int, IInterfaceAccount>? accountFactory = null)
     {
         ArgumentNullException.ThrowIfNull(domainStore);
         ArgumentNullException.ThrowIfNull(accountStore);
         ArgumentNullException.ThrowIfNull(aliasStore);
         ArgumentNullException.ThrowIfNull(distributionListStore);
 
-        return new Links(domainStore, accountStore, aliasStore, distributionListStore);
+        return new Links(domainStore, accountStore, aliasStore, distributionListStore, accountFactory);
     }
 
     public IInterfaceDomain get_Domain(int databaseId)
@@ -89,7 +93,7 @@ public sealed class Links : IInterfaceLinks
                 .FirstOrDefault(candidate => candidate.Id == databaseId);
             if (account is not null)
             {
-                return Account.CreateAuthorized(account);
+                return _accountFactory?.Invoke(databaseId) ?? Account.CreateAuthorized(account);
             }
         }
 
@@ -201,7 +205,10 @@ public static class LinksAdministrationRuntimeHost
             stores.DomainStore,
             stores.AccountStore,
             stores.AliasStore,
-            stores.DistributionListStore);
+            stores.DistributionListStore,
+            accountId => AccountAdministrationRuntimeHost.CreateAuthorizedAccountAdapter(
+                stores.AccountStore,
+                accountId));
     }
 
     private sealed record Stores(

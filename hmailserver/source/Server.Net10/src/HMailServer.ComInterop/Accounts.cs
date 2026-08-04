@@ -51,6 +51,8 @@ public sealed class Accounts : IInterfaceAccounts
 
     private AccountAdministrationEntry[]? _accounts;
     private readonly Func<IReadOnlyList<AccountAdministrationSnapshot>>? _reload;
+    private readonly AccountSizeInvalidator? _accountSizeInvalidator;
+    private readonly Func<int, AccountAdministrationSnapshot?>? _accountSizeReadback;
     private readonly Func<bool>? _isAuthenticated;
 
     public Accounts()
@@ -60,11 +62,19 @@ public sealed class Accounts : IInterfaceAccounts
     private Accounts(
         IReadOnlyList<AccountAdministrationSnapshot> accounts,
         Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        AccountSizeInvalidator? accountSizeInvalidator,
+        Func<int, AccountAdministrationSnapshot?>? accountSizeReadback)
     {
         _accounts = CreateEntries(accounts);
         _reload = reload;
+        _accountSizeInvalidator = accountSizeInvalidator;
+        _accountSizeReadback = accountSizeReadback;
         _isAuthenticated = isAuthenticated;
+        foreach (var account in accounts)
+        {
+            _accountSizeInvalidator?.Register(account.Id);
+        }
     }
 
     public int Count => GetAccounts().Count;
@@ -72,10 +82,17 @@ public sealed class Accounts : IInterfaceAccounts
     internal static Accounts CreateAuthorized(
         IReadOnlyList<AccountAdministrationSnapshot> accounts,
         Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload = null,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        AccountSizeInvalidator? accountSizeInvalidator = null,
+        Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
-        return new Accounts(accounts, reload, isAuthenticated);
+        return new Accounts(
+            accounts,
+            reload,
+            isAuthenticated,
+            accountSizeInvalidator,
+            accountSizeReadback);
     }
 
     public IInterfaceAccount this[int index]
@@ -93,7 +110,9 @@ public sealed class Accounts : IInterfaceAccounts
                 accounts[index].RulesState,
                 accounts[index].MessagesState,
                 accounts[index].ImapFoldersState,
-                _isAuthenticated);
+                _isAuthenticated,
+                _accountSizeInvalidator,
+                _accountSizeReadback);
         }
     }
 
@@ -114,6 +133,10 @@ public sealed class Accounts : IInterfaceAccounts
         {
             var accounts = _reload();
             ArgumentNullException.ThrowIfNull(accounts);
+            foreach (var account in accounts)
+            {
+                _accountSizeInvalidator?.Register(account.Id);
+            }
             Volatile.Write(ref _accounts, CreateEntries(accounts));
         }
         catch (Exception)
@@ -135,7 +158,9 @@ public sealed class Accounts : IInterfaceAccounts
                 match.RulesState,
                 match.MessagesState,
                 match.ImapFoldersState,
-                _isAuthenticated);
+                _isAuthenticated,
+                _accountSizeInvalidator,
+                _accountSizeReadback);
     }
 
     public IInterfaceAccount get_ItemByAddress(string address)
@@ -150,7 +175,9 @@ public sealed class Accounts : IInterfaceAccounts
                 match.RulesState,
                 match.MessagesState,
                 match.ImapFoldersState,
-                _isAuthenticated);
+                _isAuthenticated,
+                _accountSizeInvalidator,
+                _accountSizeReadback);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
@@ -202,12 +229,17 @@ public static class AccountAdministrationRuntimeHost
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
     private static IAccountAdministrationStore? _store;
+    private static readonly AccountSizeInvalidator _accountSizeInvalidator = new();
 
     public static void Configure(IAccountAdministrationStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
         Volatile.Write(ref _store, store);
+        _accountSizeInvalidator.Reset();
     }
+
+    public static void InvalidateAccountSize(int accountId) =>
+        _accountSizeInvalidator.Invalidate(accountId);
 
     internal static Accounts CreateAuthorizedAdapter(int domainId, Func<bool>? isAuthenticated = null)
     {
@@ -222,7 +254,18 @@ public static class AccountAdministrationRuntimeHost
                 .GetAwaiter()
                 .GetResult();
 
-        return Accounts.CreateAuthorized(LoadAccounts(), LoadAccounts, isAuthenticated);
+        AccountAdministrationSnapshot? ReadAccount(int accountId) => store
+            .GetAccountByIdAsync(accountId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return Accounts.CreateAuthorized(
+            LoadAccounts(),
+            LoadAccounts,
+            isAuthenticated,
+            _accountSizeInvalidator,
+            ReadAccount);
     }
 
     internal static Account CreateAuthorizedAccountByIdAdapter(int accountId)
@@ -232,14 +275,38 @@ public static class AccountAdministrationRuntimeHost
                 "The hMailServer account administration runtime has not been initialized.",
                 CoENotInitialized);
 
+        return CreateAuthorizedAccountAdapter(store, accountId);
+    }
+
+    internal static Account CreateAuthorizedAccountAdapter(
+        IAccountAdministrationStore store,
+        int accountId)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+
         var account = store
             .GetAccountByIdAsync(accountId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        return account is null
-            ? throw new COMException("No account with the specified database identifier exists.", DispEBadIndex)
-            : Account.CreateAuthorized(account);
+        if (account is null)
+        {
+            throw new COMException("No account with the specified database identifier exists.", DispEBadIndex);
+        }
+
+        _accountSizeInvalidator.Register(account.Id);
+        return Account.CreateAuthorized(
+            account,
+            RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
+            MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id),
+            ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
+            null,
+            _accountSizeInvalidator,
+            accountId => store
+                .GetAccountByIdAsync(accountId, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult());
     }
 }

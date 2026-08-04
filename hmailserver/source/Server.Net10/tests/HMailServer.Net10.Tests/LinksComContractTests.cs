@@ -144,6 +144,48 @@ public sealed class LinksComContractTests
         Assert.AreEqual(40, links.get_DistributionList(40).ID);
     }
 
+    [TestMethod]
+    public void ApplicationLinks_AccountUsesSharedAccountSizeInvalidation()
+    {
+        var accountStore = new RecordingAccountStore(
+            new AccountAdministrationSnapshot(
+                20,
+                10,
+                "user@alpha.example",
+                true,
+                AdminLevel: 0,
+                Size: 1.25f,
+                QuotaUsed: 10));
+        AccountAdministrationRuntimeHost.Configure(accountStore);
+        LinksAdministrationRuntimeHost.Configure(
+            new RecordingDomainStore(new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) }),
+            accountStore,
+            new RecordingAliasStore(),
+            new RecordingDistributionListStore());
+
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        var account = application.Links.get_Account(20);
+        Assert.AreEqual(1.25f, account.Size, 0.0001f);
+
+        accountStore.Accounts =
+        [
+            new AccountAdministrationSnapshot(
+                20,
+                10,
+                "user@alpha.example",
+                true,
+                AdminLevel: 0,
+                Size: 3.5f,
+                QuotaUsed: 35)
+        ];
+        AccountAdministrationRuntimeHost.InvalidateAccountSize(20);
+
+        Assert.AreEqual(3.5f, account.Size, 0.0001f);
+        Assert.AreEqual(35, account.QuotaUsed);
+    }
+
     private static void AssertAccessDenied(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
@@ -177,19 +219,21 @@ public sealed class LinksComContractTests
     {
         public List<int> DomainIds { get; } = new();
 
+        public IReadOnlyList<AccountAdministrationSnapshot> Accounts { get; set; } = accounts;
+
         public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
             int domainId,
             CancellationToken cancellationToken)
         {
             DomainIds.Add(domainId);
             return ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
-                accounts.Where(account => account.DomainId == domainId).ToArray());
+                Accounts.Where(account => account.DomainId == domainId).ToArray());
         }
 
         public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
             int accountId,
             CancellationToken cancellationToken) =>
-            ValueTask.FromResult(accounts.FirstOrDefault(account => account.Id == accountId));
+            ValueTask.FromResult(Accounts.FirstOrDefault(account => account.Id == accountId));
     }
 
     private sealed class RecordingAliasStore(params AliasAdministrationSnapshot[] aliases)

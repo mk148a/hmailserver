@@ -222,6 +222,185 @@ public sealed class AccountsComContractTests
     }
 
     [TestMethod]
+    public void RetainedAccountSize_ReadsBackOnlyAfterInvalidation()
+    {
+        var store = new MutableAccountAdministrationStore(
+            [new AccountAdministrationSnapshot(
+                10,
+                100,
+                "old@example.test",
+                true,
+                0,
+                MaxSize: 100,
+                Size: 1.25f,
+                QuotaUsed: 10)]);
+        AccountAdministrationRuntimeHost.Configure(store);
+
+        var account = AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(100)[0];
+        Assert.AreEqual(1.25f, account.Size, 0.0001f);
+        Assert.AreEqual(10, account.QuotaUsed);
+        Assert.AreEqual(0, store.AccountReadCount);
+
+        store.Accounts =
+        [
+            new AccountAdministrationSnapshot(
+                10,
+                100,
+                "new@example.test",
+                true,
+                0,
+                MaxSize: 200,
+                Size: 3.5f,
+                QuotaUsed: 35)
+        ];
+
+        Assert.AreEqual(1.25f, account.Size, 0.0001f);
+        AccountAdministrationRuntimeHost.InvalidateAccountSize(10);
+
+        Assert.AreEqual(3.5f, account.Size, 0.0001f);
+        Assert.AreEqual(35, account.QuotaUsed);
+        Assert.AreEqual("old@example.test", account.Address);
+        Assert.AreEqual(100, account.MaxSize);
+        Assert.AreEqual(1, store.AccountReadCount);
+    }
+
+    [TestMethod]
+    public void AccountSizeInvalidator_OnlyMarksPositiveAccountIds()
+    {
+        var invalidator = new AccountSizeInvalidator();
+
+        invalidator.Invalidate(0);
+        invalidator.Invalidate(-1);
+
+        Assert.AreEqual(0, invalidator.GetVersion(0));
+        Assert.AreEqual(0, invalidator.GetVersion(-1));
+        Assert.AreEqual(0, invalidator.GetVersion(10));
+
+        invalidator.Register(10);
+        invalidator.Invalidate(10);
+
+        Assert.AreEqual(1, invalidator.GetVersion(10));
+        Assert.AreEqual(0, invalidator.GetVersion(20));
+    }
+
+    [TestMethod]
+    public void RetainedAccountSize_MissingReadbackAccountIsNoOp()
+    {
+        var store = new MutableAccountAdministrationStore(
+            [new AccountAdministrationSnapshot(
+                10,
+                100,
+                "account@example.test",
+                true,
+                0,
+                Size: 1.25f,
+                QuotaUsed: 10)]);
+        AccountAdministrationRuntimeHost.Configure(store);
+
+        var account = AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(100)[0];
+        store.Accounts = [];
+        AccountAdministrationRuntimeHost.InvalidateAccountSize(10);
+
+        Assert.AreEqual(1.25f, account.Size, 0.0001f);
+        Assert.AreEqual(10, account.QuotaUsed);
+        Assert.AreEqual(1, store.AccountReadCount);
+    }
+
+    [TestMethod]
+    public void RetainedAccountSize_ReadbackFailureUsesComFailureBoundary()
+    {
+        var store = new MutableAccountAdministrationStore(
+            [new AccountAdministrationSnapshot(
+                10,
+                100,
+                "account@example.test",
+                true,
+                0,
+                Size: 1.25f,
+                QuotaUsed: 10)]);
+        AccountAdministrationRuntimeHost.Configure(store);
+
+        var account = AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(100)[0];
+        store.AccountReadException = new InvalidOperationException("readback failed");
+        AccountAdministrationRuntimeHost.InvalidateAccountSize(10);
+
+        var exception = Assert.ThrowsExactly<COMException>(() => _ = account.Size);
+        Assert.AreEqual(unchecked((int)0x80004005), exception.ErrorCode);
+    }
+
+    [TestMethod]
+    public void RetainedAccountSize_SerializesConcurrentReadback()
+    {
+        var store = new MutableAccountAdministrationStore(
+            [new AccountAdministrationSnapshot(
+                10,
+                100,
+                "account@example.test",
+                true,
+                0,
+                Size: 1.25f,
+                QuotaUsed: 10)]);
+        var firstReadbackEntered = new ManualResetEventSlim();
+        var releaseFirstReadback = new ManualResetEventSlim();
+        var readbackCount = 0;
+        store.AccountReadOverride = _ =>
+        {
+            var call = Interlocked.Increment(ref readbackCount);
+            if (call == 1)
+            {
+                firstReadbackEntered.Set();
+                releaseFirstReadback.Wait();
+            }
+
+            return new AccountAdministrationSnapshot(
+                10,
+                100,
+                "account@example.test",
+                true,
+                0,
+                Size: call,
+                QuotaUsed: call);
+        };
+        AccountAdministrationRuntimeHost.Configure(store);
+
+        var account = AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(100)[0];
+        AccountAdministrationRuntimeHost.InvalidateAccountSize(10);
+        var first = Task.Run(() => account.Size);
+        Assert.IsTrue(firstReadbackEntered.Wait(TimeSpan.FromSeconds(5)));
+        var second = Task.Run(() => account.Size);
+
+        try
+        {
+            Thread.Sleep(100);
+            Assert.AreEqual(1, readbackCount);
+        }
+        finally
+        {
+            releaseFirstReadback.Set();
+        }
+
+        Task.WaitAll(first, second);
+        Assert.AreEqual(1f, first.Result);
+        Assert.AreEqual(1f, second.Result);
+        Assert.AreEqual(1, readbackCount);
+    }
+
+    [TestMethod]
+    public void AccountSizeInvalidationCallback_IsNonThrowing()
+    {
+        try
+        {
+            AccountAdministrationRuntimeHost.InvalidateAccountSize(0);
+            AccountAdministrationRuntimeHost.InvalidateAccountSize(-10);
+            AccountAdministrationRuntimeHost.InvalidateAccountSize(10);
+        }
+        catch (Exception exception)
+        {
+            Assert.Fail($"Account-size invalidation callback threw: {exception}");
+        }
+    }
+
+    [TestMethod]
     public void AccountWrappersFromOneSnapshotShareRulesAndRefreshCreatesNewState()
     {
         var account = new AccountAdministrationSnapshot(10, 100, "old@example.test", true, 0);
@@ -439,6 +618,12 @@ public sealed class AccountsComContractTests
 
         public int ReadCount { get; private set; }
 
+        public int AccountReadCount { get; private set; }
+
+        public Exception? AccountReadException { get; set; }
+
+        public Func<int, AccountAdministrationSnapshot?>? AccountReadOverride { get; set; }
+
         public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
             int domainId,
             CancellationToken cancellationToken)
@@ -450,8 +635,21 @@ public sealed class AccountsComContractTests
 
         public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
             int accountId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(Accounts.FirstOrDefault(account => account.Id == accountId));
+            CancellationToken cancellationToken)
+        {
+            AccountReadCount++;
+            if (AccountReadException is not null)
+            {
+                throw AccountReadException;
+            }
+
+            if (AccountReadOverride is not null)
+            {
+                return ValueTask.FromResult(AccountReadOverride(accountId));
+            }
+
+            return ValueTask.FromResult(Accounts.FirstOrDefault(account => account.Id == accountId));
+        }
     }
 
     private sealed class FixedAccountAdministrationStore(IReadOnlyList<AccountAdministrationSnapshot> accounts)
