@@ -22,6 +22,12 @@ OUTPUT INSERTED.groupid
 VALUES (@name);
 """;
 
+    public const string UpdateGroupSql = """
+UPDATE hm_groups
+SET groupname = @name
+WHERE groupid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerGroupAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -62,5 +68,19 @@ VALUES (@name);
         command.Parameters.Add("@name", SqlDbType.NVarChar, 255).Value = group.Name;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<bool> UpdateGroupAsync(
+        GroupAdministrationSnapshot group,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateGroupSql, connection);
+        command.Parameters.Add("@name", SqlDbType.NVarChar, 255).Value = group.Name;
+        command.Parameters.Add("@id", SqlDbType.Int).Value = group.Id;
+        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affectedRows == 1;
     }
 }

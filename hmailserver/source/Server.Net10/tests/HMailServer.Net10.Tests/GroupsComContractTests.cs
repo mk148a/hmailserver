@@ -259,6 +259,61 @@ public sealed class GroupsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_ExistingRowSavePublishesOnlyAfterSuccessfulUpdate()
+    {
+        var allowUpdate = false;
+        var updated = new List<GroupAdministrationSnapshot>();
+        IInterfaceGroups groups = Groups.CreateAuthorized(
+            new[] { Snapshot(10, "Administrators") },
+            update: group =>
+            {
+                updated.Add(group);
+                return allowUpdate;
+            });
+        var group = groups[0];
+
+        group.Name = "Support";
+        var saveError = Assert.ThrowsExactly<COMException>(group.Save);
+
+        Assert.AreEqual(EFail, saveError.ErrorCode);
+        Assert.AreEqual("Support", group.Name);
+        Assert.AreEqual("Administrators", groups[0].Name);
+        Assert.AreEqual(1, updated.Count);
+
+        allowUpdate = true;
+        group.Save();
+
+        Assert.AreEqual("Support", group.Name);
+        Assert.AreEqual("Support", groups[0].Name);
+        Assert.AreEqual(2, updated.Count);
+    }
+
+    [TestMethod]
+    public void RetainedExistingGroup_RechecksLiveServerAdministratorOnSetterAndSave()
+    {
+        var isServerAdministrator = true;
+        var updates = 0;
+        IInterfaceGroups groups = Groups.CreateAuthorized(
+            new[] { Snapshot(10, "Administrators") },
+            update: _ =>
+            {
+                updates++;
+                return true;
+            },
+            isServerAdministrator: () => isServerAdministrator);
+        var group = groups[0];
+        isServerAdministrator = false;
+
+        var setterError = Assert.ThrowsExactly<COMException>(() => group.Name = "Denied");
+        var saveError = Assert.ThrowsExactly<COMException>(group.Save);
+
+        Assert.AreEqual(EAccessDenied, setterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(0, updates);
+        Assert.AreEqual("Administrators", group.Name);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_UsesConfiguredGroupRuntime()
     {
         var store = new MutableGroupAdministrationStore(

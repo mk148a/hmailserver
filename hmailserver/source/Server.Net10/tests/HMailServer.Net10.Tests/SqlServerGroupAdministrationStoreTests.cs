@@ -33,4 +33,17 @@ public sealed class SqlServerGroupAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateGroupSql_UsesParameterizedIdentityPredicate()
+    {
+        var sql = SqlServerGroupAdministrationStore.UpdateGroupSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_groups");
+        StringAssert.Contains(sql, "SET groupname = @name");
+        StringAssert.Contains(sql, "WHERE groupid = @id");
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("JOIN ", StringComparison.OrdinalIgnoreCase));
+    }
 }
