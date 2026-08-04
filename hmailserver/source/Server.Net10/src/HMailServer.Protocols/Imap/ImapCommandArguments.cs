@@ -2,6 +2,19 @@ namespace HMailServer.Protocols.Imap;
 
 public static class ImapCommandArguments
 {
+    public static bool IsFirstArgumentQuoted(string arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+
+        var index = 0;
+        while (index < arguments.Length && char.IsWhiteSpace(arguments[index]))
+        {
+            index++;
+        }
+
+        return index < arguments.Length && arguments[index] == '"';
+    }
+
     public static IReadOnlyList<string> Parse(string arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);

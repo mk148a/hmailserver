@@ -36,7 +36,8 @@ public static class ImapQuotaResponseFormatter
             ? "* QUOTA " + Quote(result.Quota.RootName) + " ()\r\n"
             : FormatQuota(result.Quota);
 
-        return "* QUOTAROOT " + Quote(result.MailboxName) + " " + Quote(result.Quota.RootName) + "\r\n" + quota;
+        var mailbox = result.MailboxWasQuoted ? Quote(result.MailboxName) : result.MailboxName;
+        return "* QUOTAROOT " + mailbox + " " + Quote(result.Quota.RootName) + "\r\n" + quota;
     }
 
     private static string Quote(string value)

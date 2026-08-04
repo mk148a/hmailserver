@@ -50,10 +50,25 @@ public sealed class ImapQuotaCommandHandlerTests
             requesterAccountId: 77,
             tag: "A005",
             command: "GETQUOTAROOT",
-            arguments: "INBOX",
+            arguments: "\"INBOX\"",
             cancellationToken: CancellationToken.None);
 
         Assert.AreEqual("* QUOTAROOT \"INBOX\" \"\"\r\n* QUOTA \"\" ()\r\nA005 OK GETQUOTAROOT completed\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task HandleAsync_PreservesLegacyAtomMailboxTokenForGetQuotaRoot()
+    {
+        var handler = new ImapQuotaCommandHandler(new FakeQuotaStore());
+
+        var response = await handler.HandleAsync(
+            requesterAccountId: 77,
+            tag: "A006",
+            command: "GETQUOTAROOT",
+            arguments: "INBOX",
+            cancellationToken: CancellationToken.None);
+
+        Assert.AreEqual("* QUOTAROOT INBOX \"\"\r\n* QUOTA \"\" (STORAGE 2048 10240)\r\nA006 OK GETQUOTAROOT completed\r\n", response);
     }
 
     [TestMethod]

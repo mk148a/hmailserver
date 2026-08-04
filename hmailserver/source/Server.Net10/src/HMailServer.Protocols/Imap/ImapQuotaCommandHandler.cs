@@ -79,6 +79,10 @@ public sealed class ImapQuotaCommandHandler
             return FormatFailure(tag, result.Status, "GETQUOTAROOT");
         }
 
+        result = result with
+        {
+            MailboxWasQuoted = ImapCommandArguments.IsFirstArgumentQuoted(arguments)
+        };
         return ImapQuotaResponseFormatter.FormatQuotaRoot(result) + $"{SanitizeAtom(tag)} OK GETQUOTAROOT completed\r\n";
     }
 
