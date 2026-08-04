@@ -11,6 +11,12 @@ public interface IRuleCriteriaAdministrationStore
         int databaseId,
         CancellationToken cancellationToken);
 
+    ValueTask<int> InsertRuleCriteriaAsync(
+        int owningRuleId,
+        RuleCriteriaAdministrationSnapshot criterion,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
     ValueTask SaveRuleCriteriaAsync(
         int owningRuleId,
         RuleCriteriaAdministrationSnapshot criterion,

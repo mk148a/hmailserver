@@ -439,6 +439,143 @@ public sealed class RuleCriteriasComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleCriterias_AddStagesLegacyDefaultsAndPublishesAfterInsert()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, "X-Header")
+            })
+        {
+            NextInsertedCriteriaId = 500
+        };
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var criteria = rules[0].Criterias;
+
+        var criterion = criteria.Add();
+
+        Assert.AreEqual(0, criterion.ID);
+        Assert.AreEqual(10, criterion.RuleID);
+        Assert.AreEqual(string.Empty, criterion.MatchValue);
+        Assert.IsTrue(criterion.UsePredefined);
+        Assert.AreEqual(ComRulePredefinedField.From, criterion.PredefinedField);
+        Assert.AreEqual(ComRuleMatchType.Equals, criterion.MatchType);
+        Assert.AreEqual(string.Empty, criterion.HeaderField);
+        Assert.AreEqual(1, criteria.Count);
+
+        criterion.RuleID = 999;
+        criterion.MatchValue = "new value";
+        criterion.UsePredefined = false;
+        criterion.PredefinedField = ComRulePredefinedField.Body;
+        criterion.MatchType = ComRuleMatchType.NotEquals;
+        criterion.HeaderField = "X-New";
+
+        criterion.Save();
+
+        Assert.AreEqual(1, store.InsertedCriteria.Count);
+        Assert.AreEqual(10, store.InsertedOwningRuleIds[0]);
+        Assert.AreEqual(0, store.InsertedCriteria[0].Id);
+        Assert.AreEqual(10, store.InsertedCriteria[0].RuleId);
+        Assert.AreEqual("new value", store.InsertedCriteria[0].MatchValue);
+        Assert.IsFalse(store.InsertedCriteria[0].UsePredefined);
+        Assert.AreEqual((int)ComRulePredefinedField.Body, store.InsertedCriteria[0].PredefinedField);
+        Assert.AreEqual((int)ComRuleMatchType.NotEquals, store.InsertedCriteria[0].MatchType);
+        Assert.AreEqual("X-New", store.InsertedCriteria[0].HeaderField);
+        Assert.AreEqual(500, criterion.ID);
+        Assert.AreEqual(10, criterion.RuleID);
+        Assert.AreEqual(2, criteria.Count);
+        AssertCriterion(
+            criteria[1],
+            500,
+            10,
+            "new value",
+            false,
+            ComRulePredefinedField.Body,
+            ComRuleMatchType.NotEquals,
+            "X-New");
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleCriteria_NewItemInsertFailureRetainsDraftAndDoesNotPublish()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty)
+            })
+        {
+            FailInsert = true,
+            NextInsertedCriteriaId = 501
+        };
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var criteria = rules[0].Criterias;
+        var criterion = criteria.Add();
+        criterion.RuleID = 20;
+        criterion.MatchValue = "retry value";
+        criterion.UsePredefined = false;
+        criterion.PredefinedField = ComRulePredefinedField.Body;
+        criterion.MatchType = ComRuleMatchType.NotEquals;
+        criterion.HeaderField = "X-Retry";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(criterion.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, store.InsertedCriteria.Count);
+        Assert.AreEqual(10, store.InsertedOwningRuleIds[0]);
+        Assert.AreEqual(0, criterion.ID);
+        Assert.AreEqual(20, criterion.RuleID);
+        Assert.AreEqual("retry value", criterion.MatchValue);
+        Assert.IsFalse(criterion.UsePredefined);
+        Assert.AreEqual(ComRulePredefinedField.Body, criterion.PredefinedField);
+        Assert.AreEqual(ComRuleMatchType.NotEquals, criterion.MatchType);
+        Assert.AreEqual("X-Retry", criterion.HeaderField);
+        Assert.AreEqual(1, criteria.Count);
+
+        store.FailInsert = false;
+        criterion.Save();
+
+        Assert.AreEqual(501, criterion.ID);
+        Assert.AreEqual(10, criterion.RuleID);
+        Assert.AreEqual(2, criteria.Count);
+        Assert.AreEqual(2, store.InsertedCriteria.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleCriterias_AddUsesOwningRuleScopeAndLeavesForeignRowsUnchanged()
+    {
+        var store = new MutableRuleCriteriaAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, "first", true, ComRulePredefinedField.Subject, ComRuleMatchType.Contains, string.Empty),
+                Snapshot(200, 20, "foreign", false, ComRulePredefinedField.Unknown, ComRuleMatchType.Equals, "X-Foreign")
+            })
+        {
+            NextInsertedCriteriaId = 502
+        };
+        RuleCriteriaAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 1000, "Second rule", true, true, 2)
+            });
+
+        var criterion = rules[0].Criterias.Add();
+        criterion.Save();
+
+        Assert.AreEqual(10, store.InsertedOwningRuleIds[0]);
+        Assert.AreEqual(10, store.InsertedCriteria[0].RuleId);
+        Assert.AreEqual(2, rules[0].Criterias.Count);
+        Assert.AreEqual(1, rules[1].Criterias.Count);
+        Assert.AreEqual(200, rules[1].Criterias[0].ID);
+        Assert.AreEqual(20, rules[1].Criterias[0].RuleID);
+    }
+
+    [TestMethod]
     [DataRow(20)]
     [DataRow(0)]
     [DataRow(-1)]
@@ -1059,7 +1196,15 @@ public sealed class RuleCriteriasComContractTests
 
         public List<int> SavedOwningRuleIds { get; } = [];
 
+        public List<RuleCriteriaAdministrationSnapshot> InsertedCriteria { get; } = [];
+
+        public List<int> InsertedOwningRuleIds { get; } = [];
+
+        public int NextInsertedCriteriaId { get; set; } = 1000;
+
         public bool FailDelete { get; set; }
+
+        public bool FailInsert { get; set; }
 
         public bool FailSave { get; set; }
 
@@ -1094,6 +1239,23 @@ public sealed class RuleCriteriasComContractTests
                 .Where(criterion => criterion.RuleId != ruleId || criterion.Id != databaseId)
                 .ToArray();
             return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<int> InsertRuleCriteriaAsync(
+            int owningRuleId,
+            RuleCriteriaAdministrationSnapshot criterion,
+            CancellationToken cancellationToken)
+        {
+            InsertedOwningRuleIds.Add(owningRuleId);
+            InsertedCriteria.Add(criterion);
+            if (FailInsert)
+            {
+                throw new InvalidOperationException("Simulated store failure.");
+            }
+
+            var insertedId = NextInsertedCriteriaId++;
+            _criteria = _criteria.Append(criterion with { Id = insertedId, RuleId = owningRuleId }).ToArray();
+            return ValueTask.FromResult(insertedId);
         }
 
         public ValueTask SaveRuleCriteriaAsync(

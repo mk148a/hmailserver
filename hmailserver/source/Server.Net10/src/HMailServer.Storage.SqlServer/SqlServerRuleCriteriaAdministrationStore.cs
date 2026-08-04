@@ -27,6 +27,16 @@ WHERE criteriaruleid = @RuleId
   AND criteriaid = @CriteriaId;
 """;
 
+    public const string InsertRuleCriteriaSql = """
+INSERT INTO hm_rule_criterias
+    (criteriaruleid, criteriausepredefined, criteriapredefinedfield,
+     criteriaheadername, criteriamatchtype, criteriamatchvalue)
+OUTPUT INSERTED.criteriaid
+VALUES
+    (@RuleId, @UsePredefined, @PredefinedField,
+     @HeaderField, @MatchType, @MatchValue);
+""";
+
     public const string SaveRuleCriteriaSql = """
 UPDATE hm_rule_criterias
 SET criteriaruleid = @RuleId,
@@ -85,6 +95,26 @@ WHERE criteriaruleid = @OwningRuleId
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
         command.Parameters.Add("@CriteriaId", SqlDbType.Int).Value = databaseId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<int> InsertRuleCriteriaAsync(
+        int owningRuleId,
+        RuleCriteriaAdministrationSnapshot criterion,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(criterion);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(owningRuleId);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertRuleCriteriaSql, connection);
+        command.Parameters.Add("@RuleId", SqlDbType.Int).Value = owningRuleId;
+        command.Parameters.Add("@UsePredefined", SqlDbType.TinyInt).Value = criterion.UsePredefined ? 1 : 0;
+        command.Parameters.Add("@PredefinedField", SqlDbType.TinyInt).Value = criterion.PredefinedField;
+        command.Parameters.Add("@HeaderField", SqlDbType.NVarChar, 255).Value = criterion.HeaderField;
+        command.Parameters.Add("@MatchType", SqlDbType.TinyInt).Value = criterion.MatchType;
+        command.Parameters.Add("@MatchValue", SqlDbType.NVarChar, 255).Value = criterion.MatchValue;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
     }
 
     public async ValueTask SaveRuleCriteriaAsync(

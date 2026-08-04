@@ -43,6 +43,30 @@ public sealed class SqlServerRuleCriteriaAdministrationStoreTests
     }
 
     [TestMethod]
+    public void InsertRuleCriteriaSql_UsesParameterizedLegacyColumnsAndGeneratedIdentity()
+    {
+        var sql = SqlServerRuleCriteriaAdministrationStore.InsertRuleCriteriaSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_rule_criterias");
+        StringAssert.Contains(sql, "criteriaruleid");
+        StringAssert.Contains(sql, "criteriausepredefined");
+        StringAssert.Contains(sql, "criteriapredefinedfield");
+        StringAssert.Contains(sql, "criteriaheadername");
+        StringAssert.Contains(sql, "criteriamatchtype");
+        StringAssert.Contains(sql, "criteriamatchvalue");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.criteriaid");
+        StringAssert.Contains(sql, "@RuleId");
+        StringAssert.Contains(sql, "@UsePredefined");
+        StringAssert.Contains(sql, "@PredefinedField");
+        StringAssert.Contains(sql, "@HeaderField");
+        StringAssert.Contains(sql, "@MatchType");
+        StringAssert.Contains(sql, "@MatchValue");
+        Assert.IsFalse(sql.Contains("hm_rules", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SET IDENTITY_INSERT", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void SaveRuleCriteriaSql_UsesRuleAndCriteriaPredicatesAndAllPersistedFields()
     {
         var sql = SqlServerRuleCriteriaAdministrationStore.SaveRuleCriteriaSql;

@@ -94,7 +94,9 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
     private RuleCriteriaAdministrationSnapshot[]? _criteria;
     private readonly Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? _reload;
     private readonly Action<int>? _deleteById;
+    private readonly Func<int, RuleCriteriaAdministrationSnapshot, int>? _insert;
     private readonly Action<RuleCriteriaAdministrationSnapshot>? _save;
+    private readonly int? _owningRuleId;
 
     public RuleCriterias()
     {
@@ -104,12 +106,16 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
         IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria,
         Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? reload,
         Action<int>? deleteById,
-        Action<RuleCriteriaAdministrationSnapshot>? save)
+        Action<RuleCriteriaAdministrationSnapshot>? save,
+        int? owningRuleId,
+        Func<int, RuleCriteriaAdministrationSnapshot, int>? insert)
     {
         _criteria = criteria.ToArray();
         _reload = reload;
         _deleteById = deleteById;
+        _insert = insert;
         _save = save;
+        _owningRuleId = owningRuleId ?? criteria.FirstOrDefault()?.RuleId;
     }
 
     public IInterfaceRuleCriteria this[int index]
@@ -146,7 +152,28 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
 
     public int Count => GetCriteria().Count;
 
-    public IInterfaceRuleCriteria Add() => Unavailable<IInterfaceRuleCriteria>();
+    public IInterfaceRuleCriteria Add()
+    {
+        _ = GetCriteria();
+        if (_insert is null || _owningRuleId is null)
+        {
+            return Unavailable<IInterfaceRuleCriteria>();
+        }
+
+        var criterion = RuleCriteria.CreateAuthorized(
+            new RuleCriteriaAdministrationSnapshot(
+                Id: 0,
+                RuleId: _owningRuleId.Value,
+                MatchValue: string.Empty,
+                UsePredefined: true,
+                PredefinedField: (int)ComRulePredefinedField.From,
+                MatchType: (int)ComRuleMatchType.Equals,
+                HeaderField: string.Empty),
+            save: _save is null ? null : SaveCriterion,
+            saveNew: SaveNewCriterion);
+
+        return criterion;
+    }
 
     public void DeleteByDBID(int databaseId)
     {
@@ -235,10 +262,12 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
         IReadOnlyList<RuleCriteriaAdministrationSnapshot> criteria,
         Func<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? reload = null,
         Action<int>? deleteById = null,
-        Action<RuleCriteriaAdministrationSnapshot>? save = null)
+        Action<RuleCriteriaAdministrationSnapshot>? save = null,
+        int? owningRuleId = null,
+        Func<int, RuleCriteriaAdministrationSnapshot, int>? insert = null)
     {
         ArgumentNullException.ThrowIfNull(criteria);
-        return new RuleCriterias(criteria, reload, deleteById, save);
+        return new RuleCriterias(criteria, reload, deleteById, save, owningRuleId, insert);
     }
 
     private void SaveCriterion(RuleCriteriaAdministrationSnapshot criterion)
@@ -250,6 +279,27 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
         }
 
         _save(criterion);
+    }
+
+    private RuleCriteriaAdministrationSnapshot SaveNewCriterion(RuleCriteriaAdministrationSnapshot criterion)
+    {
+        if (_insert is null || _owningRuleId is null)
+        {
+            Unavailable();
+        }
+
+        var owningRuleId = _owningRuleId.GetValueOrDefault();
+        var prepared = criterion with { RuleId = owningRuleId };
+        var generatedId = _insert!(owningRuleId, prepared);
+        if (generatedId <= 0)
+        {
+            throw new InvalidOperationException("The rule criteria insert did not return a valid generated identity.");
+        }
+
+        var persisted = prepared with { Id = generatedId };
+        var criteria = GetCriteria();
+        Volatile.Write(ref _criteria, criteria.Append(persisted).ToArray());
+        return persisted;
     }
 
     private IReadOnlyList<RuleCriteriaAdministrationSnapshot> GetCriteria()
@@ -291,6 +341,7 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     private RuleCriteriaAdministrationSnapshot? _criterion;
     private readonly Action? _delete;
     private readonly Action<RuleCriteriaAdministrationSnapshot>? _save;
+    private readonly Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot>? _saveNew;
 
     public RuleCriteria()
     {
@@ -299,11 +350,13 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     private RuleCriteria(
         RuleCriteriaAdministrationSnapshot criterion,
         Action? delete,
-        Action<RuleCriteriaAdministrationSnapshot>? save)
+        Action<RuleCriteriaAdministrationSnapshot>? save,
+        Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot>? saveNew)
     {
         _criterion = criterion;
         _delete = delete;
         _save = save;
+        _saveNew = saveNew;
     }
 
     public int ID => Snapshot.Id;
@@ -330,16 +383,23 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
 
     public void Save()
     {
-        _ = Snapshot;
-        if (_save is null)
-        {
-            Unavailable();
-            return;
-        }
+        var snapshot = Snapshot;
 
         try
         {
-            _save(Snapshot);
+            if (_saveNew is not null && snapshot.Id == 0)
+            {
+                _criterion = _saveNew(snapshot);
+                return;
+            }
+
+            if (_save is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            _save(snapshot);
         }
         catch (COMException)
         {
@@ -368,11 +428,13 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     internal static RuleCriteria CreateAuthorized(
         RuleCriteriaAdministrationSnapshot criterion,
         Action? delete = null,
-        Action<RuleCriteriaAdministrationSnapshot>? save = null) => new(criterion, delete, save);
+        Action<RuleCriteriaAdministrationSnapshot>? save = null,
+        Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot>? saveNew = null) =>
+        new(criterion, delete, save, saveNew);
 
     private void Mutate(Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot> mutation)
     {
-        if (_save is null)
+        if (_save is null && _saveNew is null)
         {
             Unavailable();
             return;
@@ -433,10 +495,18 @@ public static class RuleCriteriaAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        int InsertCriterion(int owningRuleId, RuleCriteriaAdministrationSnapshot criterion) => store
+            .InsertRuleCriteriaAsync(owningRuleId, criterion, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return RuleCriterias.CreateAuthorized(
             LoadCriteria(),
             LoadCriteria,
             DeleteCriterionById,
-            SaveCriterion);
+            SaveCriterion,
+            owningRuleId: ruleId,
+            insert: InsertCriterion);
     }
 }
