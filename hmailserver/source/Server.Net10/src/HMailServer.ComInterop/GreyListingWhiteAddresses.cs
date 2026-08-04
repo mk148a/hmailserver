@@ -78,6 +78,8 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
 
     private GreyListingWhiteAddressAdministrationSnapshot[]? _addresses;
     private readonly Func<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>? _reload;
+    private readonly Func<GreyListingWhiteAddressAdministrationSnapshot, long>? _insert;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public GreyListingWhiteAddresses()
     {
@@ -85,10 +87,14 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
 
     private GreyListingWhiteAddresses(
         IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot> addresses,
-        Func<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>? reload,
+        Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert,
+        Func<bool>? isServerAdministrator)
     {
         _addresses = addresses.ToArray();
         _reload = reload;
+        _insert = insert;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int Count => GetAddresses().Count;
@@ -109,7 +115,21 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public IInterfaceGreyListingWhiteAddress Add() => Unavailable<IInterfaceGreyListingWhiteAddress>();
+    public IInterfaceGreyListingWhiteAddress Add()
+    {
+        _ = GetAddresses();
+        EnsureServerAdministrator();
+        if (_insert is null)
+        {
+            return Unavailable<IInterfaceGreyListingWhiteAddress>();
+        }
+
+        return GreyListingWhiteAddress.CreateAuthorized(
+            new GreyListingWhiteAddressAdministrationSnapshot(0, string.Empty, string.Empty),
+            insert: _insert,
+            publish: Publish,
+            isServerAdministrator: _isServerAdministrator);
+    }
 
     public IInterfaceGreyListingWhiteAddress get_ItemByDBID(int databaseId)
     {
@@ -158,10 +178,12 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
 
     internal static GreyListingWhiteAddresses CreateAuthorized(
         IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot> addresses,
-        Func<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>? reload = null,
+        Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new GreyListingWhiteAddresses(addresses, reload);
+        return new GreyListingWhiteAddresses(addresses, reload, insert, isServerAdministrator);
     }
 
     private IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot> GetAddresses()
@@ -170,6 +192,22 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
             ?? throw new COMException(
                 "GreyListingWhiteAddresses access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
+
+    private void Publish(GreyListingWhiteAddressAdministrationSnapshot address)
+    {
+        var addresses = GetAddresses();
+        Volatile.Write(ref _addresses, addresses.Append(address).ToArray());
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Greylisting white-address access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private void Unavailable()
@@ -195,9 +233,13 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
 public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly GreyListingWhiteAddressAdministrationSnapshot? _address;
+    private GreyListingWhiteAddressAdministrationSnapshot? _address;
+    private readonly Func<GreyListingWhiteAddressAdministrationSnapshot, long>? _insert;
+    private readonly Action<GreyListingWhiteAddressAdministrationSnapshot>? _publish;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public GreyListingWhiteAddress()
     {
@@ -208,19 +250,94 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
         _address = address;
     }
 
+    private GreyListingWhiteAddress(
+        GreyListingWhiteAddressAdministrationSnapshot address,
+        Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert,
+        Action<GreyListingWhiteAddressAdministrationSnapshot>? publish,
+        Func<bool>? isServerAdministrator)
+    {
+        _address = address;
+        _insert = insert;
+        _publish = publish;
+        _isServerAdministrator = isServerAdministrator;
+    }
+
     public int ID => unchecked((int)Snapshot.Id);
 
-    public string IPAddress { get => ConvertLikeToWildcard(Snapshot.StoredIpAddress); set => Unavailable(); }
+    public string IPAddress
+    {
+        get => ConvertLikeToWildcard(Snapshot.StoredIpAddress);
+        set
+        {
+            EnsureServerAdministrator();
+            if (_insert is null)
+            {
+                Unavailable();
+                return;
+            }
 
-    public string Description { get => Snapshot.Description; set => Unavailable(); }
+            _address = Snapshot with { StoredIpAddress = ConvertWildcardToLike(value ?? string.Empty) };
+        }
+    }
 
-    public void Save() => Unavailable();
+    public string Description
+    {
+        get => Snapshot.Description;
+        set
+        {
+            EnsureServerAdministrator();
+            if (_insert is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            _address = Snapshot with { Description = value ?? string.Empty };
+        }
+    }
+
+    public void Save()
+    {
+        EnsureServerAdministrator();
+        if (_insert is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var insertedId = _insert(Snapshot);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The greylisting white-address insert did not return a valid generated identity.");
+            }
+
+            var saved = Snapshot with { Id = insertedId };
+            _address = saved;
+            _publish?.Invoke(saved);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the greylisting white address to the database.",
+                EFail);
+        }
+    }
 
     public void Delete() => Unavailable();
 
     internal static GreyListingWhiteAddress CreateAuthorized(
-        GreyListingWhiteAddressAdministrationSnapshot address) =>
-        new(address);
+        GreyListingWhiteAddressAdministrationSnapshot address,
+        Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert = null,
+        Action<GreyListingWhiteAddressAdministrationSnapshot>? publish = null,
+        Func<bool>? isServerAdministrator = null) =>
+        new(address, insert, publish, isServerAdministrator);
 
     internal static string ConvertLikeToWildcard(string value)
     {
@@ -237,6 +354,16 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
             .Replace(escapedUnderscore, "_", StringComparison.Ordinal);
     }
 
+    internal static string ConvertWildcardToLike(string value)
+    {
+        return value
+            .Replace("/", "//", StringComparison.Ordinal)
+            .Replace("%", "/%", StringComparison.Ordinal)
+            .Replace("_", "/_", StringComparison.Ordinal)
+            .Replace("?", "_", StringComparison.Ordinal)
+            .Replace("*", "%", StringComparison.Ordinal);
+    }
+
     private GreyListingWhiteAddressAdministrationSnapshot Snapshot =>
         _address ?? throw new COMException(
             "GreyListingWhiteAddress access requires an authenticated server administrator.",
@@ -248,6 +375,16 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
         throw new COMException(
             "This GreyListingWhiteAddress member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Greylisting white-address access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 }
 
@@ -264,7 +401,8 @@ public static class GreyListingWhiteAddressAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static GreyListingWhiteAddresses CreateAuthorizedAdapter()
+    internal static GreyListingWhiteAddresses CreateAuthorizedAdapter(
+        Func<bool>? isServerAdministrator = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -277,6 +415,16 @@ public static class GreyListingWhiteAddressAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return GreyListingWhiteAddresses.CreateAuthorized(LoadAddresses(), LoadAddresses);
+        long InsertAddress(GreyListingWhiteAddressAdministrationSnapshot address) => store
+            .InsertWhiteAddressAsync(address, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return GreyListingWhiteAddresses.CreateAuthorized(
+            LoadAddresses(),
+            LoadAddresses,
+            InsertAddress,
+            isServerAdministrator);
     }
 }

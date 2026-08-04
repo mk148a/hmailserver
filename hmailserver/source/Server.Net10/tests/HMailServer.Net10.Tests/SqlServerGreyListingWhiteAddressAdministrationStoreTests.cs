@@ -32,4 +32,20 @@ public sealed class SqlServerGreyListingWhiteAddressAdministrationStoreTests
         Assert.IsFalse(sql.Contains("LIKE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("xp_", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void InsertWhiteAddressSql_UsesLegacyColumnsAndGeneratedIdentity()
+    {
+        var sql = SqlServerGreyListingWhiteAddressAdministrationStore.InsertWhiteAddressSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_greylisting_whiteaddresses");
+        StringAssert.Contains(sql, "whiteipaddress");
+        StringAssert.Contains(sql, "whiteipdescription");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.whiteid");
+        StringAssert.Contains(sql, "@ipAddress");
+        StringAssert.Contains(sql, "@description");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_settings", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_greylisting_triplets", StringComparison.OrdinalIgnoreCase));
+    }
 }

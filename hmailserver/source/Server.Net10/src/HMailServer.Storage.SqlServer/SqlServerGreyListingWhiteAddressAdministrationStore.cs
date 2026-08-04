@@ -16,6 +16,13 @@ FROM hm_greylisting_whiteaddresses
 ORDER BY whiteipaddress ASC;
 """;
 
+    public const string InsertWhiteAddressSql = """
+INSERT INTO hm_greylisting_whiteaddresses
+    (whiteipaddress, whiteipdescription)
+OUTPUT INSERTED.whiteid
+VALUES (@ipAddress, @description);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerGreyListingWhiteAddressAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -44,5 +51,20 @@ ORDER BY whiteipaddress ASC;
         }
 
         return addresses;
+    }
+
+    public async ValueTask<long> InsertWhiteAddressAsync(
+        GreyListingWhiteAddressAdministrationSnapshot address,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertWhiteAddressSql, connection);
+        command.Parameters.Add("@ipAddress", SqlDbType.NVarChar, 255).Value = address.StoredIpAddress;
+        command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = address.Description;
+
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt64(insertedId, System.Globalization.CultureInfo.InvariantCulture);
     }
 }

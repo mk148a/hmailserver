@@ -253,7 +253,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         get
         {
             _ = Snapshot;
-            return GreyListingWhiteAddressAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            return GreyListingWhiteAddressAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
         }
     }
 

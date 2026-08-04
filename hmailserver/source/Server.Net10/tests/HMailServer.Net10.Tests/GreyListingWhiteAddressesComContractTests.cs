@@ -129,6 +129,74 @@ public sealed class GreyListingWhiteAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_AddStagesLegacyWildcardTextAndPublishesOnlyAfterInsert()
+    {
+        GreyListingWhiteAddressAdministrationSnapshot? inserted = null;
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            Array.Empty<GreyListingWhiteAddressAdministrationSnapshot>(),
+            insert: address =>
+            {
+                inserted = address;
+                return 42;
+            },
+            isServerAdministrator: static () => true);
+
+        var draft = addresses.Add();
+        draft.IPAddress = "not-an-ip";
+        draft.Description = "Invalid input remains legacy data";
+
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(0, addresses.Count);
+
+        draft.Save();
+
+        Assert.IsNotNull(inserted);
+        Assert.AreEqual("not-an-ip", inserted!.StoredIpAddress);
+        Assert.AreEqual("Invalid input remains legacy data", inserted.Description);
+        Assert.AreEqual(42, draft.ID);
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual("not-an-ip", addresses[0].IPAddress);
+    }
+
+    [TestMethod]
+    public void NewGreyListingWhiteAddress_SaveFailureRetainsDraftAndOwnerSnapshot()
+    {
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            Array.Empty<GreyListingWhiteAddressAdministrationSnapshot>(),
+            insert: static _ => throw new InvalidOperationException("Simulated insert failure."),
+            isServerAdministrator: static () => true);
+        var draft = addresses.Add();
+        draft.IPAddress = "invalid/100%_value";
+
+        var error = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(0, addresses.Count);
+    }
+
+    [TestMethod]
+    public void NewGreyListingWhiteAddress_RechecksLiveAdministratorBeforeSetterAndSave()
+    {
+        var isAdministrator = true;
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            Array.Empty<GreyListingWhiteAddressAdministrationSnapshot>(),
+            insert: static _ => 42,
+            isServerAdministrator: () => isAdministrator);
+        var draft = addresses.Add();
+
+        isAdministrator = false;
+
+        var setterError = Assert.ThrowsExactly<COMException>(() => draft.IPAddress = "invalid");
+        var saveError = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EAccessDenied, setterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(0, addresses.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
