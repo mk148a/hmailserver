@@ -70,6 +70,8 @@ public sealed class Groups : IInterfaceGroups
 
     private GroupAdministrationSnapshot[]? _groups;
     private readonly Func<IReadOnlyList<GroupAdministrationSnapshot>>? _reload;
+    private readonly Func<GroupAdministrationSnapshot, int>? _insert;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public Groups()
     {
@@ -77,20 +79,26 @@ public sealed class Groups : IInterfaceGroups
 
     private Groups(
         IReadOnlyList<GroupAdministrationSnapshot> groups,
-        Func<IReadOnlyList<GroupAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<GroupAdministrationSnapshot>>? reload,
+        Func<GroupAdministrationSnapshot, int>? insert,
+        Func<bool>? isServerAdministrator)
     {
         _groups = groups.ToArray();
         _reload = reload;
+        _insert = insert;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int Count => GetGroups().Count;
 
     internal static Groups CreateAuthorized(
         IReadOnlyList<GroupAdministrationSnapshot> groups,
-        Func<IReadOnlyList<GroupAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<GroupAdministrationSnapshot>>? reload = null,
+        Func<GroupAdministrationSnapshot, int>? insert = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(groups);
-        return new Groups(groups, reload);
+        return new Groups(groups, reload, insert, isServerAdministrator);
     }
 
     public IInterfaceGroup this[int index]
@@ -103,7 +111,7 @@ public sealed class Groups : IInterfaceGroups
                 throw new COMException("Group index was outside the collection.", DispEBadIndex);
             }
 
-            return Group.CreateAuthorized(groups[index]);
+            return Group.CreateAuthorized(groups[index], isServerAdministrator: _isServerAdministrator);
         }
     }
 
@@ -113,7 +121,7 @@ public sealed class Groups : IInterfaceGroups
 
         return match is null
             ? throw new COMException("No group with the specified database identifier exists.", DispEBadIndex)
-            : Group.CreateAuthorized(match);
+            : Group.CreateAuthorized(match, isServerAdministrator: _isServerAdministrator);
     }
 
     public IInterfaceGroup get_ItemByName(string name)
@@ -123,12 +131,26 @@ public sealed class Groups : IInterfaceGroups
 
         return match is null
             ? throw new COMException("No group with the specified name exists.", DispEBadIndex)
-            : Group.CreateAuthorized(match);
+            : Group.CreateAuthorized(match, isServerAdministrator: _isServerAdministrator);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public IInterfaceGroup Add() => Unavailable<IInterfaceGroup>();
+    public IInterfaceGroup Add()
+    {
+        _ = GetGroups();
+        EnsureServerAdministrator();
+        if (_insert is null)
+        {
+            return Unavailable<IInterfaceGroup>();
+        }
+
+        return Group.CreateAuthorized(
+            new GroupAdministrationSnapshot(Id: 0, Name: string.Empty),
+            insert: _insert,
+            publish: Publish,
+            isServerAdministrator: _isServerAdministrator);
+    }
 
     public void Refresh()
     {
@@ -161,6 +183,22 @@ public sealed class Groups : IInterfaceGroups
                 EAccessDenied);
     }
 
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Groups access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
+    private void Publish(GroupAdministrationSnapshot group)
+    {
+        var groups = GetGroups();
+        Volatile.Write(ref _groups, groups.Append(group).ToArray());
+    }
+
     private T Unavailable<T>()
     {
         _ = GetGroups();
@@ -186,29 +224,95 @@ public sealed class Groups : IInterfaceGroups
 public sealed class Group : IInterfaceGroup
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly GroupAdministrationSnapshot? _group;
+    private GroupAdministrationSnapshot? _group;
+    private readonly Func<GroupAdministrationSnapshot, int>? _insert;
+    private readonly Action<GroupAdministrationSnapshot>? _publish;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public Group()
     {
     }
 
-    private Group(GroupAdministrationSnapshot group)
+    private Group(
+        GroupAdministrationSnapshot group,
+        Func<GroupAdministrationSnapshot, int>? insert,
+        Action<GroupAdministrationSnapshot>? publish,
+        Func<bool>? isServerAdministrator)
     {
         _group = group;
+        _insert = insert;
+        _publish = publish;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int ID => Snapshot.Id;
 
-    public string Name { get => Snapshot.Name; set => Unavailable(); }
+    public string Name
+    {
+        get => Snapshot.Name;
+        set
+        {
+            var snapshot = Snapshot;
+            EnsureServerAdministrator();
+            if (snapshot.Id != 0 || _insert is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            _group = snapshot with { Name = value ?? string.Empty };
+        }
+    }
 
     public IInterfaceGroupMembers Members =>
-        GroupMemberAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+        Snapshot.Id == 0
+            ? Unavailable<IInterfaceGroupMembers>()
+            : GroupMemberAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
-    internal static Group CreateAuthorized(GroupAdministrationSnapshot group) => new(group);
+    internal static Group CreateAuthorized(
+        GroupAdministrationSnapshot group,
+        Func<GroupAdministrationSnapshot, int>? insert = null,
+        Action<GroupAdministrationSnapshot>? publish = null,
+        Func<bool>? isServerAdministrator = null) =>
+        new(group, insert, publish, isServerAdministrator);
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        var snapshot = Snapshot;
+        EnsureServerAdministrator();
+        if (snapshot.Id != 0 || _insert is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var insertedId = _insert(snapshot);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The group insert did not return a valid generated identity.");
+            }
+
+            var saved = snapshot with { Id = insertedId };
+            _group = saved;
+            _publish?.Invoke(saved);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the group to the database.",
+                EFail);
+        }
+    }
 
     public void Delete() => Unavailable();
 
@@ -216,6 +320,16 @@ public sealed class Group : IInterfaceGroup
         _group ?? throw new COMException(
             "Group access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Group access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private T Unavailable<T>()
     {
@@ -248,7 +362,7 @@ public static class GroupAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static Groups CreateAuthorizedAdapter()
+    internal static Groups CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -261,7 +375,17 @@ public static class GroupAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return Groups.CreateAuthorized(LoadGroups(), LoadGroups);
+        int InsertGroup(GroupAdministrationSnapshot group) => store
+            .InsertGroupAsync(group, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return Groups.CreateAuthorized(
+            LoadGroups(),
+            LoadGroups,
+            InsertGroup,
+            isServerAdministrator);
     }
 
     internal static Group CreateAuthorizedGroupByIdAdapter(int groupId)

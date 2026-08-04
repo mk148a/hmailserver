@@ -1410,7 +1410,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
-            return GroupAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            EnsureServerAdministrator();
+            return GroupAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
         }
     }
 

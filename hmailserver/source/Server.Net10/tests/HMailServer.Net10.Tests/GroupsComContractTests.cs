@@ -62,13 +62,19 @@ public sealed class GroupsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var groupsError = Assert.ThrowsExactly<COMException>(() => _ = new Groups().Count);
+        var groupsAddError = Assert.ThrowsExactly<COMException>(() => _ = new Groups().Add());
         var groupsRefreshError = Assert.ThrowsExactly<COMException>(new Groups().Refresh);
         var groupError = Assert.ThrowsExactly<COMException>(() => _ = new Group().Name);
+        var groupNameSetterError = Assert.ThrowsExactly<COMException>(() => new Group().Name = "Denied");
+        var groupSaveError = Assert.ThrowsExactly<COMException>(new Group().Save);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Groups);
 
         Assert.AreEqual(EAccessDenied, groupsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, groupsAddError.ErrorCode);
         Assert.AreEqual(EAccessDenied, groupsRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, groupError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, groupNameSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, groupSaveError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -153,6 +159,103 @@ public sealed class GroupsComContractTests
         Assert.AreEqual(2, reloads);
         Assert.AreEqual(2, groups.Count);
         Assert.AreEqual("Support", groups.get_ItemByDBID(20).Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_AddStagesAndPublishesOnlyAfterSuccessfulInsert()
+    {
+        var failInsert = true;
+        var inserted = new List<GroupAdministrationSnapshot>();
+        IInterfaceGroups groups = Groups.CreateAuthorized(
+            new[] { Snapshot(10, "Administrators") },
+            insert: group =>
+            {
+                inserted.Add(group);
+                if (failInsert)
+                {
+                    throw new InvalidOperationException("Simulated insert failure.");
+                }
+
+                return 30;
+            });
+
+        var draft = groups.Add();
+
+        Assert.AreEqual(1, groups.Count);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(string.Empty, draft.Name);
+
+        draft.Name = "Support";
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual("Support", draft.Name);
+        Assert.AreEqual(1, groups.Count);
+
+        var firstSaveFailure = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EFail, firstSaveFailure.ErrorCode);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual("Support", draft.Name);
+        Assert.AreEqual(1, groups.Count);
+        Assert.AreEqual(1, inserted.Count);
+        Assert.AreEqual(0, inserted[0].Id);
+        Assert.AreEqual("Support", inserted[0].Name);
+
+        failInsert = false;
+        draft.Save();
+
+        Assert.AreEqual(30, draft.ID);
+        Assert.AreEqual("Support", draft.Name);
+        Assert.AreEqual(2, groups.Count);
+        Assert.AreEqual(30, groups.get_ItemByDBID(30).ID);
+        Assert.AreEqual("Support", groups.get_ItemByName("SUPPORT").Name);
+        Assert.AreEqual(2, inserted.Count);
+    }
+
+    [TestMethod]
+    public void RetainedGroupDraft_RechecksLiveServerAdministratorOnSetterAndSave()
+    {
+        var isServerAdministrator = true;
+        var inserted = 0;
+        IInterfaceGroups groups = Groups.CreateAuthorized(
+            Array.Empty<GroupAdministrationSnapshot>(),
+            insert: _ => ++inserted,
+            isServerAdministrator: () => isServerAdministrator);
+
+        var draft = groups.Add();
+        draft.Name = "Support";
+        isServerAdministrator = false;
+
+        var setterError = Assert.ThrowsExactly<COMException>(() => draft.Name = "Denied");
+        var saveError = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EAccessDenied, setterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual("Support", draft.Name);
+        Assert.AreEqual(0, inserted);
+
+        isServerAdministrator = true;
+        draft.Save();
+
+        Assert.AreEqual(1, draft.ID);
+        Assert.AreEqual(1, inserted);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_InvalidGeneratedIdentityFailsWithoutPublishingDraft()
+    {
+        IInterfaceGroups groups = Groups.CreateAuthorized(
+            Array.Empty<GroupAdministrationSnapshot>(),
+            insert: _ => 0);
+        var draft = groups.Add();
+        draft.Name = "Support";
+
+        var saveError = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EFail, saveError.ErrorCode);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual("Support", draft.Name);
+        Assert.AreEqual(0, groups.Count);
     }
 
     [TestMethod]
@@ -241,5 +344,10 @@ public sealed class GroupsComContractTests
             return ValueTask.FromResult<IReadOnlyList<GroupAdministrationSnapshot>>(
                 _groups.OrderBy(static group => group.Name, StringComparer.OrdinalIgnoreCase).ToArray());
         }
+
+        public ValueTask<int> InsertGroupAsync(
+            GroupAdministrationSnapshot group,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

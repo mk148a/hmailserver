@@ -3,4 +3,9 @@ namespace HMailServer.Core.Abstractions;
 public interface IGroupAdministrationStore
 {
     ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(CancellationToken cancellationToken);
+
+    ValueTask<int> InsertGroupAsync(
+        GroupAdministrationSnapshot group,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Group insertion is not implemented by this store.");
 }
