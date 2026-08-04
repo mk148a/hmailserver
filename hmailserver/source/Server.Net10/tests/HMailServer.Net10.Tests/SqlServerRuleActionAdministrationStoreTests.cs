@@ -78,6 +78,21 @@ public sealed class SqlServerRuleActionAdministrationStoreTests
     }
 
     [TestMethod]
+    public void SaveRuleActionOrderSql_UsesOwnerActionAndSortOrderPredicates()
+    {
+        var sql = SqlServerRuleActionAdministrationStore.SaveRuleActionOrderSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_rule_actions");
+        StringAssert.Contains(sql, "actionsortorder = @SortOrder");
+        StringAssert.Contains(sql, "WHERE actionruleid = @OwningRuleId");
+        StringAssert.Contains(sql, "AND actionid = @ActionId");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("JOIN", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void InsertRuleActionSql_UsesGeneratedIdentityAndAllPersistedFields()
     {
         var sql = SqlServerRuleActionAdministrationStore.InsertRuleActionSql;

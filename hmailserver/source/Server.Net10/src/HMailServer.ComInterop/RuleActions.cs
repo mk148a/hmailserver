@@ -181,6 +181,18 @@ internal sealed class RuleActionAdministrationState
             ref _actions,
             actions.Concat([new RuleActionAdministrationEntry(action)]).ToArray());
     }
+
+    internal void ApplyOrder(
+        IReadOnlyList<(RuleActionAdministrationEntry Entry, RuleActionAdministrationSnapshot Snapshot)> ordered)
+    {
+        ArgumentNullException.ThrowIfNull(ordered);
+        foreach (var item in ordered)
+        {
+            item.Entry.Snapshot = item.Snapshot;
+        }
+
+        Volatile.Write(ref _actions, ordered.Select(static item => item.Entry).ToArray());
+    }
 }
 
 [ComVisible(true)]
@@ -200,6 +212,7 @@ public sealed class RuleActions : IInterfaceRuleActions
     private readonly Action<int>? _deleteById;
     private readonly Func<int, RuleActionAdministrationSnapshot, int>? _insert;
     private readonly Action<RuleActionAdministrationSnapshot>? _save;
+    private readonly Action<IReadOnlyList<RuleActionAdministrationSnapshot>>? _saveOrder;
     private readonly Func<bool>? _isServerAdministrator;
     private readonly int? _owningRuleId;
     private readonly Func<bool>? _isAuthenticated;
@@ -214,6 +227,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         Action<int>? deleteById,
         Func<int, RuleActionAdministrationSnapshot, int>? insert,
         Action<RuleActionAdministrationSnapshot>? save,
+        Action<IReadOnlyList<RuleActionAdministrationSnapshot>>? saveOrder,
         Func<bool>? isServerAdministrator,
         int? owningRuleId,
         Func<bool>? isAuthenticated)
@@ -223,6 +237,7 @@ public sealed class RuleActions : IInterfaceRuleActions
             deleteById,
             insert,
             save,
+            saveOrder,
             isServerAdministrator,
             owningRuleId ?? actions.FirstOrDefault()?.RuleId,
             isAuthenticated)
@@ -235,6 +250,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         Action<int>? deleteById,
         Func<int, RuleActionAdministrationSnapshot, int>? insert,
         Action<RuleActionAdministrationSnapshot>? save,
+        Action<IReadOnlyList<RuleActionAdministrationSnapshot>>? saveOrder,
         Func<bool>? isServerAdministrator,
         int? owningRuleId,
         Func<bool>? isAuthenticated)
@@ -244,6 +260,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         _deleteById = deleteById;
         _insert = insert;
         _save = save;
+        _saveOrder = saveOrder;
         _isServerAdministrator = isServerAdministrator;
         _owningRuleId = owningRuleId;
         _isAuthenticated = isAuthenticated;
@@ -264,7 +281,8 @@ public sealed class RuleActions : IInterfaceRuleActions
                 action,
                 () => DeleteByDBID(action.Snapshot.Id),
                 _save is null ? null : SaveAction,
-                _isServerAdministrator,
+                move: direction => MoveAction(action.Snapshot.Id, direction),
+                isServerAdministrator: _isServerAdministrator,
                 isAuthenticated: _isAuthenticated);
         }
     }
@@ -281,7 +299,8 @@ public sealed class RuleActions : IInterfaceRuleActions
                 match,
                 () => DeleteByDBID(match.Snapshot.Id),
                 _save is null ? null : SaveAction,
-                _isServerAdministrator,
+                move: direction => MoveAction(match.Snapshot.Id, direction),
+                isServerAdministrator: _isServerAdministrator,
                 isAuthenticated: _isAuthenticated);
     }
 
@@ -318,6 +337,7 @@ public sealed class RuleActions : IInterfaceRuleActions
         return RuleAction.CreateAuthorized(
             entry,
             save: action => SaveAddedAction(entry, action),
+            move: direction => MoveAction(entry.Snapshot.Id, direction),
             isServerAdministrator: _isServerAdministrator,
             isAuthenticated: _isAuthenticated);
     }
@@ -408,13 +428,14 @@ public sealed class RuleActions : IInterfaceRuleActions
         Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload = null,
         Action<int>? deleteById = null,
         Action<RuleActionAdministrationSnapshot>? save = null,
+        Action<IReadOnlyList<RuleActionAdministrationSnapshot>>? saveOrder = null,
         Func<bool>? isServerAdministrator = null,
         int? owningRuleId = null,
         Func<int, RuleActionAdministrationSnapshot, int>? insert = null,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(actions);
-        return new RuleActions(actions, reload, deleteById, insert, save, isServerAdministrator, owningRuleId, isAuthenticated);
+        return new RuleActions(actions, reload, deleteById, insert, save, saveOrder, isServerAdministrator, owningRuleId, isAuthenticated);
     }
 
     internal static RuleActions CreateAuthorized(
@@ -422,13 +443,14 @@ public sealed class RuleActions : IInterfaceRuleActions
         Func<IReadOnlyList<RuleActionAdministrationSnapshot>>? reload = null,
         Action<int>? deleteById = null,
         Action<RuleActionAdministrationSnapshot>? save = null,
+        Action<IReadOnlyList<RuleActionAdministrationSnapshot>>? saveOrder = null,
         Func<bool>? isServerAdministrator = null,
         int? owningRuleId = null,
         Func<int, RuleActionAdministrationSnapshot, int>? insert = null,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return new RuleActions(state, reload, deleteById, insert, save, isServerAdministrator, owningRuleId, isAuthenticated);
+        return new RuleActions(state, reload, deleteById, insert, save, saveOrder, isServerAdministrator, owningRuleId, isAuthenticated);
     }
 
     private void SaveAction(RuleActionAdministrationSnapshot action)
@@ -440,6 +462,57 @@ public sealed class RuleActions : IInterfaceRuleActions
         }
 
         _save(action);
+    }
+
+    private void MoveAction(int databaseId, bool moveUp)
+    {
+        EnsureAuthenticated();
+        var actions = GetActions();
+        var index = actions.ToList().FindIndex(action => action.Snapshot.Id == databaseId);
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (_saveOrder is null || _owningRuleId is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        var targetIndex = moveUp ? index - 1 : index + 1;
+        if (targetIndex < 0 || targetIndex >= actions.Count)
+        {
+            return;
+        }
+
+        var ordered = actions.ToArray();
+        (ordered[index], ordered[targetIndex]) = (ordered[targetIndex], ordered[index]);
+        var normalized = ordered
+            .Select(
+                static (entry, position) =>
+                    (Entry: entry, Snapshot: entry.Snapshot with { SortOrder = position + 1 }))
+            .ToArray();
+        var updates = normalized
+            .Where(static item => item.Entry.Snapshot.Id > 0 && item.Entry.Snapshot.SortOrder != item.Snapshot.SortOrder)
+            .Select(static item => item.Snapshot)
+            .ToArray();
+
+        try
+        {
+            _saveOrder(updates);
+            _state!.ApplyOrder(normalized);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to move the rule action in the database.",
+                EFail);
+        }
     }
 
     private RuleActionAdministrationSnapshot SaveNewAction(
@@ -548,6 +621,7 @@ public sealed class RuleAction : IInterfaceRuleAction
     private readonly RuleActionAdministrationEntry? _entry;
     private readonly Action? _delete;
     private readonly Action<RuleActionAdministrationSnapshot>? _save;
+    private readonly Action<bool>? _move;
     private readonly Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot>? _saveNew;
     private readonly Func<bool>? _isServerAdministrator;
     private readonly Func<bool>? _isAuthenticated;
@@ -560,6 +634,7 @@ public sealed class RuleAction : IInterfaceRuleAction
         RuleActionAdministrationEntry entry,
         Action? delete,
         Action<RuleActionAdministrationSnapshot>? save,
+        Action<bool>? move,
         Func<bool>? isServerAdministrator,
         Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot>? saveNew,
         Func<bool>? isAuthenticated)
@@ -567,6 +642,7 @@ public sealed class RuleAction : IInterfaceRuleAction
         _entry = entry;
         _delete = delete;
         _save = save;
+        _move = move;
         _saveNew = saveNew;
         _isServerAdministrator = isServerAdministrator;
         _isAuthenticated = isAuthenticated;
@@ -681,9 +757,29 @@ public sealed class RuleAction : IInterfaceRuleAction
         }
     }
 
-    public void MoveUp() => Unavailable();
+    public void MoveUp()
+    {
+        EnsureAuthenticated();
+        if (_move is null)
+        {
+            Unavailable();
+            return;
+        }
 
-    public void MoveDown() => Unavailable();
+        _move(true);
+    }
+
+    public void MoveDown()
+    {
+        EnsureAuthenticated();
+        if (_move is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _move(false);
+    }
 
     public void Delete()
     {
@@ -702,10 +798,11 @@ public sealed class RuleAction : IInterfaceRuleAction
         RuleActionAdministrationEntry entry,
         Action? delete = null,
         Action<RuleActionAdministrationSnapshot>? save = null,
+        Action<bool>? move = null,
         Func<bool>? isServerAdministrator = null,
         Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot>? saveNew = null,
         Func<bool>? isAuthenticated = null) =>
-        new(entry, delete, save, isServerAdministrator, saveNew, isAuthenticated);
+        new(entry, delete, save, move, isServerAdministrator, saveNew, isAuthenticated);
 
     private void Mutate(Func<RuleActionAdministrationSnapshot, RuleActionAdministrationSnapshot> mutation)
     {
@@ -800,6 +897,12 @@ public static class RuleActionAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        void SaveActionOrder(IReadOnlyList<RuleActionAdministrationSnapshot> actions) => store
+            .SaveRuleActionOrderAsync(ruleId, actions, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         int InsertAction(int owningRuleId, RuleActionAdministrationSnapshot action) => store
             .InsertRuleActionAsync(owningRuleId, action, CancellationToken.None)
             .AsTask()
@@ -813,6 +916,7 @@ public static class RuleActionAdministrationRuntimeHost
                 LoadActions,
                 DeleteActionById,
                 SaveAction,
+                saveOrder: SaveActionOrder,
                 isServerAdministrator: isServerAdministrator ?? (static () => true),
                 owningRuleId: ruleId,
                 insert: InsertAction,
@@ -826,6 +930,7 @@ public static class RuleActionAdministrationRuntimeHost
             LoadActions,
             DeleteActionById,
             SaveAction,
+            saveOrder: SaveActionOrder,
             isServerAdministrator: isServerAdministrator ?? (static () => true),
             owningRuleId: ruleId,
             insert: InsertAction,

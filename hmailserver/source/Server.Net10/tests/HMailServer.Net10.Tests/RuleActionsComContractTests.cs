@@ -819,6 +819,107 @@ public sealed class RuleActionsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleAction_MoveUpAndDownRenumbersAndPersistsChangedExistingRows()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1),
+                Snapshot(200, 10, ComRuleActionType.SendUsingRoute, 2),
+                Snapshot(300, 10, ComRuleActionType.DeleteEmail, 3)
+            });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var actions = rules[0].Actions;
+
+        actions[1].MoveUp();
+
+        CollectionAssert.AreEqual(new[] { 200, 100, 300 }, Enumerable.Range(0, actions.Count).Select(i => actions[i].ID).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { (OwningRuleId: 10, DatabaseId: 200, SortOrder: 1), (OwningRuleId: 10, DatabaseId: 100, SortOrder: 2) },
+            store.SavedOrders);
+
+        actions[0].MoveDown();
+
+        CollectionAssert.AreEqual(new[] { 100, 200, 300 }, Enumerable.Range(0, actions.Count).Select(i => actions[i].ID).ToArray());
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                (OwningRuleId: 10, DatabaseId: 200, SortOrder: 1),
+                (OwningRuleId: 10, DatabaseId: 100, SortOrder: 2),
+                (OwningRuleId: 10, DatabaseId: 100, SortOrder: 1),
+                (OwningRuleId: 10, DatabaseId: 200, SortOrder: 2)
+            },
+            store.SavedOrders);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_MoveFailureRetainsOrderAndAllowsRetry()
+    {
+        var store = new MutableRuleActionAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1),
+                Snapshot(200, 10, ComRuleActionType.SendUsingRoute, 2)
+            })
+        {
+            FailSaveOrder = true
+        };
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) });
+        var actions = rules[0].Actions;
+        var retainedAction = actions[1];
+
+        var failure = Assert.ThrowsExactly<COMException>(retainedAction.MoveUp);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 100, 200 }, Enumerable.Range(0, actions.Count).Select(i => actions[i].ID).ToArray());
+        Assert.AreEqual(2, store.SavedOrders.Count);
+
+        store.FailSaveOrder = false;
+        retainedAction.MoveUp();
+
+        CollectionAssert.AreEqual(new[] { 200, 100 }, Enumerable.Range(0, actions.Count).Select(i => actions[i].ID).ToArray());
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleAction_MoveRechecksAuthenticationAndNoOpsForStaleOrBoundaryItems()
+    {
+        var isAuthenticated = true;
+        var store = new MutableRuleActionAdministrationStore(
+            new[]
+            {
+                Snapshot(100, 10, ComRuleActionType.Reply, 1),
+                Snapshot(200, 10, ComRuleActionType.SendUsingRoute, 2)
+            });
+        RuleActionAdministrationRuntimeHost.Configure(store);
+        var rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 1000, "First rule", true, true, 1) },
+            isAuthenticated: () => isAuthenticated);
+        var actions = rules[0].Actions;
+        var first = actions[0];
+        var last = actions[1];
+
+        first.MoveUp();
+        last.MoveDown();
+        Assert.AreEqual(0, store.SavedOrders.Count);
+
+        isAuthenticated = false;
+        AssertError(EAccessDenied, last.MoveUp);
+        Assert.AreEqual(0, store.SavedOrders.Count);
+
+        isAuthenticated = true;
+        store.Replace(new[] { Snapshot(300, 10, ComRuleActionType.DeleteEmail, 1) });
+        actions.Refresh();
+        last.MoveUp();
+
+        Assert.AreEqual(0, store.SavedOrders.Count);
+        Assert.AreEqual(300, actions[0].ID);
+    }
+
+    [TestMethod]
     public void AuthorizedRuleAction_RuleIdSetterStagesRawValuesAndSaveUsesImmutableOwningRuleScope()
     {
         var store = new MutableRuleActionAdministrationStore(
@@ -1737,6 +1838,8 @@ public sealed class RuleActionsComContractTests
 
         public bool FailSave { get; set; }
 
+        public bool FailSaveOrder { get; set; }
+
         public int SaveAffectedRows { get; set; } = 1;
 
         public List<int> SavedOwningRuleIds { get; } = [];
@@ -1744,6 +1847,8 @@ public sealed class RuleActionsComContractTests
         public List<(int RuleId, int DatabaseId)> DeletedActions { get; } = [];
 
         public List<RuleActionAdministrationSnapshot> SavedActions { get; } = [];
+
+        public List<(int OwningRuleId, int DatabaseId, int SortOrder)> SavedOrders { get; } = [];
 
         public void Replace(IReadOnlyList<RuleActionAdministrationSnapshot> actions)
         {
@@ -1786,6 +1891,21 @@ public sealed class RuleActionsComContractTests
             {
                 throw new InvalidOperationException(
                     $"Simulated store failure affecting {SaveAffectedRows} rows.");
+            }
+
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask SaveRuleActionOrderAsync(
+            int owningRuleId,
+            IReadOnlyList<RuleActionAdministrationSnapshot> actions,
+            CancellationToken cancellationToken)
+        {
+            SavedOrders.AddRange(
+                actions.Select(action => (owningRuleId, action.Id, action.SortOrder)));
+            if (FailSaveOrder)
+            {
+                throw new InvalidOperationException("Simulated rule action order store failure.");
             }
 
             return ValueTask.CompletedTask;

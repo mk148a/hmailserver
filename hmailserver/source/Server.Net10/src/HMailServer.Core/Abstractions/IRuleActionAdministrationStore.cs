@@ -21,4 +21,10 @@ public interface IRuleActionAdministrationStore
         int owningRuleId,
         RuleActionAdministrationSnapshot action,
         CancellationToken cancellationToken);
+
+    ValueTask SaveRuleActionOrderAsync(
+        int owningRuleId,
+        IReadOnlyList<RuleActionAdministrationSnapshot> actions,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Rule action ordering is not implemented by this store.");
 }

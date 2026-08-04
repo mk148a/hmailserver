@@ -69,6 +69,13 @@ WHERE actionruleid = @OwningRuleId
   AND actionid = @ActionId;
 """;
 
+    public const string SaveRuleActionOrderSql = """
+UPDATE hm_rule_actions
+SET actionsortorder = @SortOrder
+WHERE actionruleid = @OwningRuleId
+  AND actionid = @ActionId;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRuleActionAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -185,6 +192,46 @@ WHERE actionruleid = @OwningRuleId
         {
             throw new InvalidOperationException(
                 $"Saving rule action {action.Id} for owning rule {owningRuleId} affected {affectedRows} rows instead of exactly one.");
+        }
+    }
+
+    public async ValueTask SaveRuleActionOrderAsync(
+        int owningRuleId,
+        IReadOnlyList<RuleActionAdministrationSnapshot> actions,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actions);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqlTransaction)await connection
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        try
+        {
+            foreach (var action in actions)
+            {
+                await using var command = new SqlCommand(
+                    SaveRuleActionOrderSql,
+                    connection,
+                    transaction);
+                command.Parameters.Add("@OwningRuleId", SqlDbType.Int).Value = owningRuleId;
+                command.Parameters.Add("@ActionId", SqlDbType.Int).Value = action.Id;
+                command.Parameters.Add("@SortOrder", SqlDbType.Int).Value = action.SortOrder;
+
+                if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"Saving rule action order {action.Id} for owning rule {owningRuleId} did not affect exactly one row.");
+                }
+            }
+
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
         }
     }
 
