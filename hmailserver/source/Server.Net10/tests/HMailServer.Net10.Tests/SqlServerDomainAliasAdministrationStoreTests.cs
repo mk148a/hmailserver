@@ -51,4 +51,17 @@ public sealed class SqlServerDomainAliasAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteDomainAliasSql_UsesOwnerAndAliasPredicates()
+    {
+        var sql = SqlServerDomainAliasAdministrationStore.DeleteDomainAliasSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_domain_aliases");
+        StringAssert.Contains(sql, "WHERE dadomainid = @OwningDomainID");
+        StringAssert.Contains(sql, "AND daid = @AliasID");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+    }
 }

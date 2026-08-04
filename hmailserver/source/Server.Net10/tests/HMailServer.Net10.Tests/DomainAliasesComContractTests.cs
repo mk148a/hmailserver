@@ -335,6 +335,97 @@ public sealed class DomainAliasesComContractTests
         Assert.AreEqual(0, aliases.Count);
     }
 
+    [TestMethod]
+    public void AuthorizedDomainAliases_DeleteUsesOwnerScopeAndPublishesAfterStoreSuccess()
+    {
+        var store = new MutableDomainAliasAdministrationStore(
+            new[]
+            {
+                new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test"),
+                new DomainAliasAdministrationSnapshot(20, 200, "outside.test")
+            });
+        DomainAliasAdministrationRuntimeHost.Configure(store);
+        var aliases = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true)).DomainAliases;
+        var retained = aliases[0];
+
+        aliases.DeleteByDBID(20);
+        aliases.DeleteByDBID(10);
+
+        CollectionAssert.AreEqual(
+            new[] { (OwningDomainId: 100, AliasId: 10) },
+            store.DeletedAliases);
+        Assert.AreEqual(0, aliases.Count);
+        Assert.AreEqual(10, retained.ID);
+
+        retained.Delete();
+        Assert.AreEqual(1, store.DeletedAliases.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomainAliases_DeleteFailureRetainsSnapshotAndMapsToComFailure()
+    {
+        var store = new MutableDomainAliasAdministrationStore(
+            new[] { new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test") })
+        {
+            DeleteResult = false
+        };
+        DomainAliasAdministrationRuntimeHost.Configure(store);
+        var aliases = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true)).DomainAliases;
+
+        var error = Assert.ThrowsExactly<COMException>(() => aliases.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, aliases.Count);
+        Assert.AreEqual(10, aliases[0].ID);
+        CollectionAssert.AreEqual(
+            new[] { (OwningDomainId: 100, AliasId: 10) },
+            store.DeletedAliases);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomainAliases_DeleteByIndexHonorsLegacyInvalidIndexNoOp()
+    {
+        var store = new MutableDomainAliasAdministrationStore(
+            new[]
+            {
+                new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test"),
+                new DomainAliasAdministrationSnapshot(20, 100, "alias-two.test")
+            });
+        DomainAliasAdministrationRuntimeHost.Configure(store);
+        var aliases = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true)).DomainAliases;
+
+        aliases.Delete(-1);
+        aliases.Delete(99);
+        aliases.Delete(1);
+
+        CollectionAssert.AreEqual(
+            new[] { (OwningDomainId: 100, AliasId: 20) },
+            store.DeletedAliases);
+        Assert.AreEqual(1, aliases.Count);
+        Assert.AreEqual(10, aliases[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomainAliases_RetainedDeleteRechecksAuthentication()
+    {
+        var isAuthenticated = true;
+        var store = new MutableDomainAliasAdministrationStore(
+            new[] { new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test") });
+        DomainAliasAdministrationRuntimeHost.Configure(store);
+        var aliases = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(100, "example.test", true),
+            isAuthenticated: () => isAuthenticated).DomainAliases;
+        var retained = aliases[0];
+
+        isAuthenticated = false;
+        var error = Assert.ThrowsExactly<COMException>(retained.Delete);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, store.DeletedAliases.Count);
+        isAuthenticated = true;
+        Assert.AreEqual(1, aliases.Count);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -380,9 +471,13 @@ public sealed class DomainAliasesComContractTests
 
         public bool FailUpdate { get; set; }
 
+        public bool DeleteResult { get; set; } = true;
+
         public List<(int OwningDomainId, DomainAliasAdministrationSnapshot Alias)> InsertedAliases { get; } = [];
 
         public List<(int OwningDomainId, DomainAliasAdministrationSnapshot Alias)> UpdatedAliases { get; } = [];
+
+        public List<(int OwningDomainId, int AliasId)> DeletedAliases { get; } = [];
 
         public void Replace(IReadOnlyList<DomainAliasAdministrationSnapshot> aliases)
         {
@@ -424,6 +519,15 @@ public sealed class DomainAliasesComContractTests
             }
 
             return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<bool> DeleteDomainAliasAsync(
+            int owningDomainId,
+            int aliasId,
+            CancellationToken cancellationToken)
+        {
+            DeletedAliases.Add((owningDomainId, aliasId));
+            return ValueTask.FromResult(DeleteResult);
         }
     }
 }
