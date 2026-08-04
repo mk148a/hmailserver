@@ -62,4 +62,15 @@ public sealed class SqlServerGreyListingWhiteAddressAdministrationStoreTests
         Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_greylisting_triplets", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteWhiteAddressSql_UsesLegacyIdentityPredicate()
+    {
+        var sql = SqlServerGreyListingWhiteAddressAdministrationStore.DeleteWhiteAddressSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_greylisting_whiteaddresses");
+        StringAssert.Contains(sql, "WHERE whiteid = @id");
+        Assert.IsFalse(sql.Contains("DELETE FROM hm_greylisting_triplets", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+    }
 }

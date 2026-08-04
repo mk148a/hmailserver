@@ -239,6 +239,76 @@ public sealed class GreyListingWhiteAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedGreyListingWhiteAddresses_DeleteRemovesOnlyTheSelectedOwnerSnapshot()
+    {
+        var deleted = new List<long>();
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.%", "First"),
+                Snapshot(20, "203.0.113.5", "Second")
+            },
+            delete: id =>
+            {
+                deleted.Add(id);
+                return true;
+            },
+            isServerAdministrator: static () => true);
+
+        addresses.DeleteByDBID(10);
+
+        Assert.AreEqual(1, deleted.Count);
+        Assert.AreEqual(10L, deleted[0]);
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual(20, addresses[0].ID);
+        Assert.AreEqual(20, addresses.get_ItemByDBID(20).ID);
+    }
+
+    [TestMethod]
+    public void GreyListingWhiteAddress_DeleteUnknownOrFailedIdRetainsOwnerSnapshot()
+    {
+        var deleteCalls = 0;
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            new[] { Snapshot(10, "192.0.2.%", "First") },
+            delete: _ =>
+            {
+                deleteCalls++;
+                return false;
+            },
+            isServerAdministrator: static () => true);
+
+        addresses.DeleteByDBID(20);
+        Assert.AreEqual(0, deleteCalls);
+
+        var error = Assert.ThrowsExactly<COMException>(() => addresses.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, deleteCalls);
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual(10, addresses[0].ID);
+    }
+
+    [TestMethod]
+    public void RetainedGreyListingWhiteAddress_DeleteRechecksLiveAdministrator()
+    {
+        var isAdministrator = true;
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            new[] { Snapshot(10, "192.0.2.%", "First") },
+            delete: static _ => true,
+            isServerAdministrator: () => isAdministrator);
+        var retained = addresses[0];
+
+        isAdministrator = false;
+
+        var collectionError = Assert.ThrowsExactly<COMException>(() => addresses.DeleteByDBID(10));
+        var itemError = Assert.ThrowsExactly<COMException>(retained.Delete);
+
+        Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, itemError.ErrorCode);
+        Assert.AreEqual(1, addresses.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;

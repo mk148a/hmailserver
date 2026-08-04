@@ -30,6 +30,11 @@ SET whiteipaddress = @ipAddress,
 WHERE whiteid = @id;
 """;
 
+    public const string DeleteWhiteAddressSql = """
+DELETE FROM hm_greylisting_whiteaddresses
+WHERE whiteid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerGreyListingWhiteAddressAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -87,6 +92,16 @@ WHERE whiteid = @id;
         command.Parameters.Add("@ipAddress", SqlDbType.NVarChar, 255).Value = address.StoredIpAddress;
         command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = address.Description;
 
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> DeleteWhiteAddressByIdAsync(
+        long databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteWhiteAddressSql, connection);
+        command.Parameters.Add("@id", SqlDbType.BigInt).Value = databaseId;
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 }

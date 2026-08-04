@@ -81,6 +81,7 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
     private readonly Func<GreyListingWhiteAddressAdministrationSnapshot, long>? _insert;
     private readonly Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? _saveExisting;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<long, bool>? _delete;
 
     public GreyListingWhiteAddresses()
     {
@@ -91,13 +92,15 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
         Func<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>? reload,
         Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert,
         Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? saveExisting,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<long, bool>? delete)
     {
         _addresses = addresses.ToArray();
         _reload = reload;
         _insert = insert;
         _saveExisting = saveExisting;
         _isServerAdministrator = isServerAdministrator;
+        _delete = delete;
     }
 
     public int Count => GetAddresses().Count;
@@ -115,11 +118,17 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
             return GreyListingWhiteAddress.CreateAuthorized(
                 addresses[index],
                 saveExisting: _saveExisting is null ? null : SaveExistingAddress,
-                isServerAdministrator: _isServerAdministrator);
+                isServerAdministrator: _isServerAdministrator,
+                delete: _delete is null ? null : DeleteExistingAddress);
         }
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        _ = GetAddresses();
+        EnsureServerAdministrator();
+        DeleteExistingAddress(databaseId);
+    }
 
     public IInterfaceGreyListingWhiteAddress Add()
     {
@@ -149,7 +158,8 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
             : GreyListingWhiteAddress.CreateAuthorized(
                 match,
                 saveExisting: _saveExisting is null ? null : SaveExistingAddress,
-                isServerAdministrator: _isServerAdministrator);
+                isServerAdministrator: _isServerAdministrator,
+                delete: _delete is null ? null : DeleteExistingAddress);
     }
 
     public void Refresh()
@@ -185,7 +195,8 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
             : GreyListingWhiteAddress.CreateAuthorized(
                 match,
                 saveExisting: _saveExisting is null ? null : SaveExistingAddress,
-                isServerAdministrator: _isServerAdministrator);
+                isServerAdministrator: _isServerAdministrator,
+                delete: _delete is null ? null : DeleteExistingAddress);
     }
 
     internal static GreyListingWhiteAddresses CreateAuthorized(
@@ -193,10 +204,11 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
         Func<IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot>>? reload = null,
         Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert = null,
         Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? saveExisting = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<long, bool>? delete = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new GreyListingWhiteAddresses(addresses, reload, insert, saveExisting, isServerAdministrator);
+        return new GreyListingWhiteAddresses(addresses, reload, insert, saveExisting, isServerAdministrator, delete);
     }
 
     private IReadOnlyList<GreyListingWhiteAddressAdministrationSnapshot> GetAddresses()
@@ -247,6 +259,44 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
         }
     }
 
+    private void DeleteExistingAddress(long databaseId)
+    {
+        var addresses = GetAddresses();
+        if (!addresses.Any(address => address.Id == databaseId))
+        {
+            return;
+        }
+
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            if (!_delete(databaseId))
+            {
+                throw new InvalidOperationException(
+                    "The greylisting white-address delete did not affect the selected database row.");
+            }
+
+            Volatile.Write(
+                ref _addresses,
+                addresses.Where(address => address.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the greylisting white address from the database.",
+                EFail);
+        }
+    }
+
     private void EnsureServerAdministrator()
     {
         if (_isServerAdministrator is not null && !_isServerAdministrator())
@@ -288,6 +338,7 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
     private readonly Action<GreyListingWhiteAddressAdministrationSnapshot>? _publish;
     private readonly Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? _saveExisting;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Action<long>? _delete;
 
     public GreyListingWhiteAddress()
     {
@@ -303,13 +354,15 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
         Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert,
         Action<GreyListingWhiteAddressAdministrationSnapshot>? publish,
         Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? saveExisting,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Action<long>? delete)
     {
         _address = address;
         _insert = insert;
         _publish = publish;
         _saveExisting = saveExisting;
         _isServerAdministrator = isServerAdministrator;
+        _delete = delete;
     }
 
     public int ID => unchecked((int)Snapshot.Id);
@@ -387,15 +440,26 @@ public sealed class GreyListingWhiteAddress : IInterfaceGreyListingWhiteAddress
         }
     }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(Snapshot.Id);
+    }
 
     internal static GreyListingWhiteAddress CreateAuthorized(
         GreyListingWhiteAddressAdministrationSnapshot address,
         Func<GreyListingWhiteAddressAdministrationSnapshot, long>? insert = null,
         Action<GreyListingWhiteAddressAdministrationSnapshot>? publish = null,
         Func<GreyListingWhiteAddressAdministrationSnapshot, GreyListingWhiteAddressAdministrationSnapshot>? saveExisting = null,
-        Func<bool>? isServerAdministrator = null) =>
-        new(address, insert, publish, saveExisting, isServerAdministrator);
+        Func<bool>? isServerAdministrator = null,
+        Action<long>? delete = null) =>
+        new(address, insert, publish, saveExisting, isServerAdministrator, delete);
 
     internal static string ConvertLikeToWildcard(string value)
     {
@@ -495,11 +559,18 @@ public static class GreyListingWhiteAddressAdministrationRuntimeHost
             return address;
         }
 
+        bool DeleteAddress(long databaseId) => store
+            .DeleteWhiteAddressByIdAsync(databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return GreyListingWhiteAddresses.CreateAuthorized(
             LoadAddresses(),
             LoadAddresses,
             InsertAddress,
             SaveExistingAddress,
-            isServerAdministrator);
+            isServerAdministrator,
+            DeleteAddress);
     }
 }
