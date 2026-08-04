@@ -3,8 +3,8 @@
 - UTC timestamp: 2026-08-04T14:04:00Z
 - Local timestamp: 2026-08-04T17:04:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `2324b0131`
-- Last successfully pushed commit: `f8b5c3ce8` (verified against `origin/net10-modernization` after the blocked attachment insert state commit)
+- Current HEAD: `7b3581052`
+- Last successfully pushed commit: `7b3581052` (verified against `origin/net10-modernization` after the blocked attachment update code/test and documentation commits)
 - Latest focused-test result: BlockedAttachments/SQL/AntiVirus/Settings coverage `43/43` passed
 - Latest full Net10 result: `1710 passed, 0 failed, 4 skipped` (1714 total)
 - Opt-in tests passed/skipped/blocked: `0/4/0` in the full run; disposable SQL deletion, SQL failure-path, and native registry integration are skipped by opt-in gates
