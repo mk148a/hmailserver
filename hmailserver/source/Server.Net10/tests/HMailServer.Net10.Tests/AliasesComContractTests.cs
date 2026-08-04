@@ -399,6 +399,29 @@ public sealed class AliasesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedDomainAliases_DeleteByIndexUsesSnapshotOrderAndInvalidIndexIsNoOp()
+    {
+        var store = new MutableAliasAdministrationStore(
+            new[]
+            {
+                new AliasAdministrationSnapshot(10, 100, "abuse@example.test", "admin@example.test", true),
+                new AliasAdministrationSnapshot(20, 100, "sales@example.test", "sales-target@example.test", true)
+            });
+        AliasAdministrationRuntimeHost.Configure(store);
+        var aliases = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true)).Aliases;
+
+        aliases.Delete(-1);
+        aliases.Delete(99);
+        aliases.Delete(1);
+
+        CollectionAssert.AreEqual(
+            new[] { (OwningDomainId: 100, AliasId: 20) },
+            store.DeletedAliases);
+        Assert.AreEqual(1, aliases.Count);
+        Assert.AreEqual(10, aliases[0].ID);
+    }
+
+    [TestMethod]
     public void AuthorizedDomainAliases_RetainedDeleteRechecksAuthentication()
     {
         var isAuthenticated = true;

@@ -162,7 +162,21 @@ public sealed class Aliases : IInterfaceAliases
         }
     }
 
-    public void Delete(int index) => Unavailable();
+    public void Delete(int index)
+    {
+        var aliases = GetAliases();
+        if (_delete is null || _owningDomainId is null)
+        {
+            Unavailable();
+        }
+
+        if (index < 0 || index >= aliases.Count)
+        {
+            return;
+        }
+
+        DeleteExistingAlias(aliases[index].Id);
+    }
 
     public void Refresh()
     {
