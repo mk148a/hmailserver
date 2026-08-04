@@ -24,6 +24,14 @@ VALUES
     (@DomainID, @AliasName);
 """;
 
+    public const string UpdateDomainAliasSql = """
+UPDATE hm_domain_aliases
+SET dadomainid = @DomainID,
+    daalias = @AliasName
+WHERE dadomainid = @OwningDomainID
+  AND daid = @AliasID;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDomainAliasAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -68,5 +76,25 @@ VALUES
         command.Parameters.Add("@AliasName", SqlDbType.NVarChar, 255).Value = alias.AliasName;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask UpdateDomainAliasAsync(
+        int owningDomainId,
+        DomainAliasAdministrationSnapshot alias,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(alias);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateDomainAliasSql, connection);
+        command.Parameters.Add("@OwningDomainID", SqlDbType.Int).Value = owningDomainId;
+        command.Parameters.Add("@AliasID", SqlDbType.Int).Value = alias.Id;
+        command.Parameters.Add("@DomainID", SqlDbType.Int).Value = owningDomainId;
+        command.Parameters.Add("@AliasName", SqlDbType.NVarChar, 255).Value = alias.AliasName;
+        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        if (affectedRows != 1)
+        {
+            throw new InvalidOperationException(
+                $"Updating domain alias {alias.Id} for owning domain {owningDomainId} affected {affectedRows} rows instead of exactly one.");
+        }
     }
 }

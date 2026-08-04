@@ -11,4 +11,10 @@ public interface IDomainAliasAdministrationStore
         DomainAliasAdministrationSnapshot alias,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Domain alias insertion is not implemented by this store.");
+
+    ValueTask UpdateDomainAliasAsync(
+        int owningDomainId,
+        DomainAliasAdministrationSnapshot alias,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Domain alias updates are not implemented by this store.");
 }

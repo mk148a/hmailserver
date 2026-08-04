@@ -77,6 +77,7 @@ public sealed class DomainAliases : IInterfaceDomainAliases
     private DomainAliasAdministrationSnapshot[]? _aliases;
     private readonly Func<IReadOnlyList<DomainAliasAdministrationSnapshot>>? _reload;
     private readonly Func<int, DomainAliasAdministrationSnapshot, int>? _insert;
+    private readonly Action<int, DomainAliasAdministrationSnapshot>? _update;
     private readonly int? _owningDomainId;
     private readonly Func<bool>? _isAuthenticated;
 
@@ -88,12 +89,14 @@ public sealed class DomainAliases : IInterfaceDomainAliases
         IReadOnlyList<DomainAliasAdministrationSnapshot> aliases,
         Func<IReadOnlyList<DomainAliasAdministrationSnapshot>>? reload,
         Func<int, DomainAliasAdministrationSnapshot, int>? insert,
+        Action<int, DomainAliasAdministrationSnapshot>? update,
         int? owningDomainId,
         Func<bool>? isAuthenticated)
     {
         _aliases = aliases.ToArray();
         _reload = reload;
         _insert = insert;
+        _update = update;
         _owningDomainId = owningDomainId;
         _isAuthenticated = isAuthenticated;
     }
@@ -104,11 +107,12 @@ public sealed class DomainAliases : IInterfaceDomainAliases
         IReadOnlyList<DomainAliasAdministrationSnapshot> aliases,
         Func<IReadOnlyList<DomainAliasAdministrationSnapshot>>? reload = null,
         Func<int, DomainAliasAdministrationSnapshot, int>? insert = null,
+        Action<int, DomainAliasAdministrationSnapshot>? update = null,
         int? owningDomainId = null,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(aliases);
-        return new DomainAliases(aliases, reload, insert, owningDomainId, isAuthenticated);
+        return new DomainAliases(aliases, reload, insert, update, owningDomainId, isAuthenticated);
     }
 
     public IInterfaceDomainAlias this[int index]
@@ -121,7 +125,7 @@ public sealed class DomainAliases : IInterfaceDomainAliases
                 throw new COMException("Domain alias index was outside the collection.", DispEBadIndex);
             }
 
-            return DomainAlias.CreateAuthorized(aliases[index], isAuthenticated: _isAuthenticated);
+            return CreateExistingAlias(aliases[index]);
         }
     }
 
@@ -131,7 +135,7 @@ public sealed class DomainAliases : IInterfaceDomainAliases
 
         return match is null
             ? throw new COMException("No domain alias with the specified database identifier exists.", DispEBadIndex)
-            : DomainAlias.CreateAuthorized(match, isAuthenticated: _isAuthenticated);
+            : CreateExistingAlias(match);
     }
 
     public void Refresh()
@@ -173,7 +177,17 @@ public sealed class DomainAliases : IInterfaceDomainAliases
             new DomainAliasAdministrationSnapshot(0, _owningDomainId.Value, string.Empty));
         return DomainAlias.CreateAuthorized(
             entry,
+            save: _update is null ? null : alias => SaveExistingDomainAlias(entry, alias),
             saveNew: alias => SaveNewDomainAlias(entry, alias),
+            isAuthenticated: _isAuthenticated);
+    }
+
+    private IInterfaceDomainAlias CreateExistingAlias(DomainAliasAdministrationSnapshot alias)
+    {
+        var entry = new DomainAliasAdministrationEntry(alias);
+        return DomainAlias.CreateAuthorized(
+            entry,
+            save: _update is null ? null : snapshot => SaveExistingDomainAlias(entry, snapshot),
             isAuthenticated: _isAuthenticated);
     }
 
@@ -239,6 +253,43 @@ public sealed class DomainAliases : IInterfaceDomainAliases
         }
     }
 
+    private void SaveExistingDomainAlias(
+        DomainAliasAdministrationEntry entry,
+        DomainAliasAdministrationSnapshot alias)
+    {
+        EnsureAuthenticated();
+        var aliases = GetAliases();
+        if (_update is null || _owningDomainId is null)
+        {
+            Unavailable();
+        }
+
+        if (!aliases.Any(existing => existing.Id == alias.Id))
+        {
+            return;
+        }
+
+        var prepared = alias with { DomainId = _owningDomainId.GetValueOrDefault() };
+        try
+        {
+            _update!(_owningDomainId.GetValueOrDefault(), prepared);
+            entry.Snapshot = prepared;
+            Volatile.Write(
+                ref _aliases,
+                aliases.Select(existing => existing.Id == prepared.Id ? prepared : existing).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the domain alias to the database.",
+                EFail);
+        }
+    }
+
     private T Unavailable<T>()
     {
         _ = GetAliases();
@@ -280,6 +331,7 @@ public sealed class DomainAlias : IInterfaceDomainAlias
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly DomainAliasAdministrationEntry? _entry;
+    private readonly Action<DomainAliasAdministrationSnapshot>? _save;
     private readonly Func<DomainAliasAdministrationSnapshot, DomainAliasAdministrationSnapshot>? _saveNew;
     private readonly Func<bool>? _isAuthenticated;
 
@@ -289,10 +341,12 @@ public sealed class DomainAlias : IInterfaceDomainAlias
 
     private DomainAlias(
         DomainAliasAdministrationEntry entry,
+        Action<DomainAliasAdministrationSnapshot>? save,
         Func<DomainAliasAdministrationSnapshot, DomainAliasAdministrationSnapshot>? saveNew,
         Func<bool>? isAuthenticated)
     {
         _entry = entry;
+        _save = save;
         _saveNew = saveNew;
         _isAuthenticated = isAuthenticated;
     }
@@ -314,36 +368,62 @@ public sealed class DomainAlias : IInterfaceDomainAlias
     internal static DomainAlias CreateAuthorized(
         DomainAliasAdministrationSnapshot alias,
         Func<bool>? isAuthenticated = null) =>
-        new(new DomainAliasAdministrationEntry(alias), null, isAuthenticated);
+        new(new DomainAliasAdministrationEntry(alias), null, null, isAuthenticated);
 
     internal static DomainAlias CreateAuthorized(
         DomainAliasAdministrationEntry entry,
-        Func<DomainAliasAdministrationSnapshot, DomainAliasAdministrationSnapshot>? saveNew,
-        Func<bool>? isAuthenticated) =>
-        new(entry, saveNew, isAuthenticated);
+        Action<DomainAliasAdministrationSnapshot>? save = null,
+        Func<DomainAliasAdministrationSnapshot, DomainAliasAdministrationSnapshot>? saveNew = null,
+        Func<bool>? isAuthenticated = null) =>
+        new(entry, save, saveNew, isAuthenticated);
 
     public void Save()
     {
         EnsureAuthenticated();
-        if (Snapshot.Id != 0 || _saveNew is null)
+        if (Snapshot.Id == 0 && _saveNew is not null)
         {
-            Unavailable();
+            try
+            {
+                _entry!.Snapshot = _saveNew(Snapshot);
+            }
+            catch (COMException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to save the domain alias to the database.",
+                    EFail);
+            }
+
             return;
         }
 
-        try
+        if (Snapshot.Id > 0 && _save is not null)
         {
-            _entry!.Snapshot = _saveNew(Snapshot);
+            try
+            {
+                _save(Snapshot);
+            }
+            catch (COMException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to save the domain alias to the database.",
+                    EFail);
+            }
+
+            return;
         }
-        catch (COMException)
+
+        if (Snapshot.Id == 0 || _save is null)
         {
-            throw;
-        }
-        catch (Exception)
-        {
-            throw new COMException(
-                "It was not possible to save the domain alias to the database.",
-                EFail);
+            Unavailable();
+            return;
         }
     }
 
@@ -355,7 +435,7 @@ public sealed class DomainAlias : IInterfaceDomainAlias
     private void Mutate(Func<DomainAliasAdministrationSnapshot, DomainAliasAdministrationSnapshot> mutation)
     {
         EnsureAuthenticated();
-        if (_saveNew is null || Snapshot.Id != 0)
+        if (_save is null && _saveNew is null)
         {
             Unavailable();
             return;
@@ -425,10 +505,17 @@ public static class DomainAliasAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        void UpdateDomainAlias(int owningDomainId, DomainAliasAdministrationSnapshot alias) => store
+            .UpdateDomainAliasAsync(owningDomainId, alias, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return DomainAliases.CreateAuthorized(
             LoadAliases(),
             LoadAliases,
             InsertDomainAlias,
+            UpdateDomainAlias,
             domainId,
             isAuthenticated);
     }
