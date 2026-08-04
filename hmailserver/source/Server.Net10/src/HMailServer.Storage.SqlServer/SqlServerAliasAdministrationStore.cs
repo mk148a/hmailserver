@@ -37,6 +37,12 @@ WHERE aliasdomainid = @OwningDomainID
   AND aliasid = @AliasID;
 """;
 
+    public const string DeleteAliasSql = """
+DELETE FROM hm_aliases
+WHERE aliasdomainid = @OwningDomainID
+  AND aliasid = @AliasID;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerAliasAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -107,5 +113,17 @@ WHERE aliasdomainid = @OwningDomainID
             throw new InvalidOperationException(
                 $"Updating alias {alias.Id} for owning domain {owningDomainId} affected {affectedRows} rows instead of exactly one.");
         }
+    }
+
+    public async ValueTask<bool> DeleteAliasAsync(
+        int owningDomainId,
+        int aliasId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteAliasSql, connection);
+        command.Parameters.Add("@OwningDomainID", SqlDbType.Int).Value = owningDomainId;
+        command.Parameters.Add("@AliasID", SqlDbType.Int).Value = aliasId;
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 }

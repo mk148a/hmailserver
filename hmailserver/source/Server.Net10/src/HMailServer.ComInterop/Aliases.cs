@@ -102,6 +102,7 @@ public sealed class Aliases : IInterfaceAliases
     private readonly Func<IReadOnlyList<AliasAdministrationSnapshot>>? _reload;
     private readonly Func<int, AliasAdministrationSnapshot, int>? _insert;
     private readonly Action<int, AliasAdministrationSnapshot>? _save;
+    private readonly Func<int, int, bool>? _delete;
     private readonly int? _owningDomainId;
     private readonly Func<bool>? _isAuthenticated;
 
@@ -114,6 +115,7 @@ public sealed class Aliases : IInterfaceAliases
         Func<IReadOnlyList<AliasAdministrationSnapshot>>? reload,
         Func<int, AliasAdministrationSnapshot, int>? insert,
         Action<int, AliasAdministrationSnapshot>? save,
+        Func<int, int, bool>? delete,
         int? owningDomainId,
         Func<bool>? isAuthenticated)
     {
@@ -121,6 +123,7 @@ public sealed class Aliases : IInterfaceAliases
         _reload = reload;
         _insert = insert;
         _save = save;
+        _delete = delete;
         _owningDomainId = owningDomainId;
         _isAuthenticated = isAuthenticated;
     }
@@ -132,11 +135,12 @@ public sealed class Aliases : IInterfaceAliases
         Func<IReadOnlyList<AliasAdministrationSnapshot>>? reload = null,
         Func<int, AliasAdministrationSnapshot, int>? insert = null,
         Action<int, AliasAdministrationSnapshot>? save = null,
+        Func<int, int, bool>? delete = null,
         int? owningDomainId = null,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(aliases);
-        return new Aliases(aliases, reload, insert, save, owningDomainId, isAuthenticated);
+        return new Aliases(aliases, reload, insert, save, delete, owningDomainId, isAuthenticated);
     }
 
     public IInterfaceAlias this[int index]
@@ -153,6 +157,7 @@ public sealed class Aliases : IInterfaceAliases
             return Alias.CreateAuthorized(
                 entry,
                 save: _save is null ? null : alias => SaveExistingAlias(entry, alias),
+                delete: _delete is null ? null : DeleteExistingAlias,
                 isAuthenticated: _isAuthenticated);
         }
     }
@@ -213,7 +218,21 @@ public sealed class Aliases : IInterfaceAliases
             : CreateExistingAlias(match);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        _ = GetAliases();
+        if (_delete is null || _owningDomainId is null)
+        {
+            Unavailable();
+        }
+
+        if (!GetAliases().Any(alias => alias.Id == databaseId))
+        {
+            return;
+        }
+
+        DeleteExistingAlias(databaseId);
+    }
 
     public IInterfaceAlias get_ItemByName(string name)
     {
@@ -280,6 +299,7 @@ public sealed class Aliases : IInterfaceAliases
         return Alias.CreateAuthorized(
             entry,
             save: _save is null ? null : snapshot => SaveExistingAlias(entry, snapshot),
+            delete: _delete is null ? null : DeleteExistingAlias,
             isAuthenticated: _isAuthenticated);
     }
 
@@ -316,6 +336,44 @@ public sealed class Aliases : IInterfaceAliases
         {
             throw new COMException(
                 "It was not possible to save the alias to the database.",
+                EFail);
+        }
+    }
+
+    private void DeleteExistingAlias(int aliasId)
+    {
+        EnsureAuthenticated();
+        var aliases = GetAliases();
+        if (_delete is null || _owningDomainId is null)
+        {
+            Unavailable();
+        }
+
+        if (!aliases.Any(alias => alias.Id == aliasId))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_delete!(_owningDomainId.GetValueOrDefault(), aliasId))
+            {
+                throw new InvalidOperationException(
+                    $"Deleting alias {aliasId} for owning domain {_owningDomainId.GetValueOrDefault()} did not affect one row.");
+            }
+
+            Volatile.Write(
+                ref _aliases,
+                aliases.Where(alias => alias.Id != aliasId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the alias from the database.",
                 EFail);
         }
     }
@@ -369,6 +427,7 @@ public sealed class Alias : IInterfaceAlias
     private readonly AliasAdministrationEntry? _entry;
     private readonly Action<AliasAdministrationSnapshot>? _save;
     private readonly Func<AliasAdministrationSnapshot, AliasAdministrationSnapshot>? _saveNew;
+    private readonly Action<int>? _delete;
     private readonly Func<bool>? _isAuthenticated;
 
     public Alias()
@@ -379,11 +438,13 @@ public sealed class Alias : IInterfaceAlias
         AliasAdministrationEntry entry,
         Action<AliasAdministrationSnapshot>? save,
         Func<AliasAdministrationSnapshot, AliasAdministrationSnapshot>? saveNew,
+        Action<int>? delete,
         Func<bool>? isAuthenticated)
     {
         _entry = entry;
         _save = save;
         _saveNew = saveNew;
+        _delete = delete;
         _isAuthenticated = isAuthenticated;
     }
 
@@ -416,16 +477,40 @@ public sealed class Alias : IInterfaceAlias
     internal static Alias CreateAuthorized(
         AliasAdministrationSnapshot alias,
         Func<bool>? isAuthenticated = null) =>
-        new(new AliasAdministrationEntry(alias), null, null, isAuthenticated);
+        new(new AliasAdministrationEntry(alias), null, null, null, isAuthenticated);
 
     internal static Alias CreateAuthorized(
         AliasAdministrationEntry entry,
         Action<AliasAdministrationSnapshot>? save = null,
         Func<AliasAdministrationSnapshot, AliasAdministrationSnapshot>? saveNew = null,
+        Action<int>? delete = null,
         Func<bool>? isAuthenticated = null) =>
-        new(entry, save, saveNew, isAuthenticated);
+        new(entry, save, saveNew, delete, isAuthenticated);
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureAuthenticated();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _delete(Snapshot.Id);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the alias from the database.",
+                EFail);
+        }
+    }
 
     public void Save()
     {
@@ -553,11 +638,18 @@ public static class AliasAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool DeleteAlias(int owningDomainId, int aliasId) => store
+            .DeleteAliasAsync(owningDomainId, aliasId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return Aliases.CreateAuthorized(
             LoadAliases(),
             LoadAliases,
             InsertAlias,
             SaveAlias,
+            DeleteAlias,
             domainId,
             isAuthenticated);
     }

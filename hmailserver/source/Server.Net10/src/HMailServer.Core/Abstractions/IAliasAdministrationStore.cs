@@ -17,4 +17,10 @@ public interface IAliasAdministrationStore
         AliasAdministrationSnapshot alias,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Alias updates are not implemented by this store.");
+
+    ValueTask<bool> DeleteAliasAsync(
+        int owningDomainId,
+        int aliasId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Alias deletion is not implemented by this store.");
 }

@@ -352,6 +352,77 @@ public sealed class AliasesComContractTests
         Assert.AreEqual(0, aliases.Count);
     }
 
+    [TestMethod]
+    public void AuthorizedDomainAliases_DeleteUsesOwnerScopeAndPublishesAfterStoreSuccess()
+    {
+        var store = new MutableAliasAdministrationStore(
+            new[]
+            {
+                new AliasAdministrationSnapshot(10, 100, "abuse@example.test", "admin@example.test", true),
+                new AliasAdministrationSnapshot(20, 200, "outside@example.test", "outside-target@example.test", true)
+            });
+        AliasAdministrationRuntimeHost.Configure(store);
+        var domain = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true));
+        var aliases = domain.Aliases;
+        var retained = aliases[0];
+
+        aliases.DeleteByDBID(20);
+        aliases.DeleteByDBID(10);
+        retained.Delete();
+
+        CollectionAssert.AreEqual(
+            new[] { (OwningDomainId: 100, AliasId: 10) },
+            store.DeletedAliases);
+        Assert.AreEqual(0, aliases.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomainAliases_DeleteFailureMapsToFailureAndRetainsSnapshot()
+    {
+        var store = new MutableAliasAdministrationStore(
+            new[]
+            {
+                new AliasAdministrationSnapshot(10, 100, "abuse@example.test", "admin@example.test", true)
+            })
+        {
+            DeleteResult = false
+        };
+        AliasAdministrationRuntimeHost.Configure(store);
+        var domain = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true));
+        var aliases = domain.Aliases;
+
+        var error = Assert.ThrowsExactly<COMException>(() => aliases.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, aliases.Count);
+        Assert.AreEqual(10, aliases[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomainAliases_RetainedDeleteRechecksAuthentication()
+    {
+        var isAuthenticated = true;
+        var store = new MutableAliasAdministrationStore(
+            new[]
+            {
+                new AliasAdministrationSnapshot(10, 100, "abuse@example.test", "admin@example.test", true)
+            });
+        AliasAdministrationRuntimeHost.Configure(store);
+        var domain = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(100, "example.test", true),
+            isAuthenticated: () => isAuthenticated);
+        var aliases = domain.Aliases;
+        var retained = aliases[0];
+
+        isAuthenticated = false;
+        var error = Assert.ThrowsExactly<COMException>(retained.Delete);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, store.DeletedAliases.Count);
+        isAuthenticated = true;
+        Assert.AreEqual(1, aliases.Count);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -401,9 +472,13 @@ public sealed class AliasesComContractTests
 
         public bool FailSave { get; set; }
 
+        public bool DeleteResult { get; set; } = true;
+
         public List<(int OwningDomainId, AliasAdministrationSnapshot Alias)> InsertedAliases { get; } = [];
 
         public List<(int OwningDomainId, AliasAdministrationSnapshot Alias)> SavedAliases { get; } = [];
+
+        public List<(int OwningDomainId, int AliasId)> DeletedAliases { get; } = [];
 
         public void Replace(IReadOnlyList<AliasAdministrationSnapshot> aliases)
         {
@@ -445,6 +520,15 @@ public sealed class AliasesComContractTests
             }
 
             return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<bool> DeleteAliasAsync(
+            int owningDomainId,
+            int aliasId,
+            CancellationToken cancellationToken)
+        {
+            DeletedAliases.Add((owningDomainId, aliasId));
+            return ValueTask.FromResult(DeleteResult);
         }
     }
 }
