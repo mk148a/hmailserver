@@ -120,13 +120,16 @@ WHERE accountid = @AccountId;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly MessageFilePathResolver _pathResolver;
+    private readonly Action<int>? _accountSizeInvalidationCallback;
 
     public SqlServerImapMessageCopyStore(
         SqlServerConnectionFactory connectionFactory,
-        MessageFilePathResolver pathResolver)
+        MessageFilePathResolver pathResolver,
+        Action<int>? accountSizeInvalidationCallback = null)
     {
         _connectionFactory = connectionFactory;
         _pathResolver = pathResolver;
+        _accountSizeInvalidationCallback = accountSizeInvalidationCallback;
     }
 
     public async IAsyncEnumerable<ImapCopiedMessage> CopyAsync(
@@ -207,16 +210,20 @@ FROM SourceMessages
         }
 
         var workItems = PrepareCopies(request, sourceRows, destinationAccountAddress);
+        IReadOnlyList<ImapCopiedMessage> copied;
         try
         {
             CopyMessageFiles(workItems);
-            return await InsertCopiesAsync(connection, request, workItems, cancellationToken).ConfigureAwait(false);
+            copied = await InsertCopiesAsync(connection, request, workItems, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
             DeleteCopiedFiles(workItems);
             throw;
         }
+
+        InvalidateAccountSizesAfterCommit(request);
+        return copied;
     }
 
     private IReadOnlyList<CopyWorkItem> PrepareCopies(
@@ -316,6 +323,15 @@ FROM SourceMessages
         }
 
         return copied;
+    }
+
+    private void InvalidateAccountSizesAfterCommit(ImapCopyRequest request)
+    {
+        _accountSizeInvalidationCallback?.Invoke(request.DestinationAccountId);
+        if (request.DeleteSource && request.SourceAccountId != request.DestinationAccountId)
+        {
+            _accountSizeInvalidationCallback?.Invoke(request.SourceAccountId);
+        }
     }
 
     private async ValueTask<string?> LoadDestinationAccountAddressAsync(
