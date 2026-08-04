@@ -16,4 +16,5 @@ public sealed record SmtpReceiveRequest(
     bool IsEncryptedConnection = false,
     bool EnableAntivirusScan = true,
     bool EnableSpamScan = true,
-    bool? OriginalMessageSpamFlagged = null);
+    bool? OriginalMessageSpamFlagged = null,
+    bool IsExternalFetch = false);

@@ -26,6 +26,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly ISmtpGreylistingChecker? _greylistingChecker;
     private readonly SmtpGreylistingOptions _greylistingOptions;
     private readonly ISmtpUrlBlockListChecker? _urlBlockListChecker;
+    private readonly ISmtpGlobalWhitelistEvaluator? _globalWhitelistEvaluator;
     private readonly ServerStatusRuntimeState? _statusRuntimeState;
 
     public SqlServerSmtpMessageReceiver(
@@ -47,7 +48,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         ISmtpGreylistingChecker? greylistingChecker = null,
         SmtpGreylistingOptions? greylistingOptions = null,
         ISmtpUrlBlockListChecker? urlBlockListChecker = null,
-        ServerStatusRuntimeState? statusRuntimeState = null)
+        ServerStatusRuntimeState? statusRuntimeState = null,
+        ISmtpGlobalWhitelistEvaluator? globalWhitelistEvaluator = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
         _ruleProcessor = ruleProcessor;
@@ -65,6 +67,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _greylistingChecker = greylistingChecker;
         _greylistingOptions = greylistingOptions ?? new SmtpGreylistingOptions();
         _urlBlockListChecker = urlBlockListChecker;
+        _globalWhitelistEvaluator = globalWhitelistEvaluator;
         _statusRuntimeState = statusRuntimeState;
     }
 
@@ -79,27 +82,39 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
             return SmtpReceiveResult.Failure("554 No valid recipients");
         }
 
-        var dnsBlockListFailure = await RunDnsBlockListCheckAsync(request, cancellationToken).ConfigureAwait(false);
+        var bypassAntiSpam = await RunGlobalWhitelistEvaluationAsync(request, cancellationToken).ConfigureAwait(false);
+
+        var dnsBlockListFailure = bypassAntiSpam
+            ? null
+            : await RunDnsBlockListCheckAsync(request, cancellationToken).ConfigureAwait(false);
         if (dnsBlockListFailure is not null)
         {
             return dnsBlockListFailure;
         }
 
-        var reverseDnsFailure = await RunReverseDnsCheckAsync(request, cancellationToken).ConfigureAwait(false);
+        var reverseDnsFailure = bypassAntiSpam
+            ? null
+            : await RunReverseDnsCheckAsync(request, cancellationToken).ConfigureAwait(false);
         if (reverseDnsFailure is not null)
         {
             return reverseDnsFailure;
         }
 
-        var senderDomainMxFailure = await RunSenderDomainMxCheckAsync(request, cancellationToken).ConfigureAwait(false);
+        var senderDomainMxFailure = bypassAntiSpam
+            ? null
+            : await RunSenderDomainMxCheckAsync(request, cancellationToken).ConfigureAwait(false);
         if (senderDomainMxFailure is not null)
         {
             return senderDomainMxFailure;
         }
 
-        var spfPolicyResult = await RunSpfPolicyAsync(request, cancellationToken).ConfigureAwait(false);
+        var spfPolicyResult = bypassAntiSpam
+            ? SmtpSpfPolicyResult.Skipped
+            : await RunSpfPolicyAsync(request, cancellationToken).ConfigureAwait(false);
 
-        var greylistingFailure = await RunGreylistingCheckAsync(request, spfPolicyResult, cancellationToken).ConfigureAwait(false);
+        var greylistingFailure = bypassAntiSpam
+            ? null
+            : await RunGreylistingCheckAsync(request, spfPolicyResult, cancellationToken).ConfigureAwait(false);
         if (greylistingFailure is not null)
         {
             return greylistingFailure;
@@ -141,7 +156,9 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
             }
         }
 
-        var spamScanResult = await RunSpamScanAsync(request, cancellationToken).ConfigureAwait(false);
+        var spamScanResult = bypassAntiSpam
+            ? new SpamScanApplicationResult(request, SmtpQueueWriteRequest.RecentFlag)
+            : await RunSpamScanAsync(request, cancellationToken).ConfigureAwait(false);
         if (spamScanResult.FailureResult is not null)
         {
             return spamScanResult.FailureResult;
@@ -154,13 +171,17 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         };
         var messageFlags = spamScanResult.MessageFlags;
 
-        var dkimPolicyResult = await RunDkimPolicyAsync(request, cancellationToken).ConfigureAwait(false);
-        var dmarcPolicyResult = await RunDmarcPolicyAsync(
-                request,
-                spfPolicyResult,
-                dkimPolicyResult,
-                cancellationToken)
-            .ConfigureAwait(false);
+        var dkimPolicyResult = bypassAntiSpam
+            ? SmtpDkimPolicyResult.Skipped
+            : await RunDkimPolicyAsync(request, cancellationToken).ConfigureAwait(false);
+        var dmarcPolicyResult = bypassAntiSpam
+            ? SmtpDmarcPolicyResult.Skipped
+            : await RunDmarcPolicyAsync(
+                    request,
+                    spfPolicyResult,
+                    dkimPolicyResult,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
         if (spfPolicyResult.MarkAsSpam)
         {
@@ -260,6 +281,31 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         catch (Exception)
         {
             return SmtpReceiveResult.Failure("451 Requested action aborted: local error in processing");
+        }
+    }
+
+    private async ValueTask<bool> RunGlobalWhitelistEvaluationAsync(
+        SmtpReceiveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_globalWhitelistEvaluator is null || request.IsExternalFetch)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await _globalWhitelistEvaluator
+                .EvaluateAsync(request.MailFrom, request.ClientIPAddress, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
         }
     }
 

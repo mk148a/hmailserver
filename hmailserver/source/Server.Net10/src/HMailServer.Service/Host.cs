@@ -781,6 +781,7 @@ public static class Host
         new SignalingSmtpQueueWriter(
             serviceProvider.GetRequiredService<SqlServerSmtpQueueWriter>(),
             serviceProvider.GetRequiredService<IDeliveryQueueWakeSignal>()));
+    builder.Services.AddSingleton<ISmtpGlobalWhitelistEvaluator, SqlServerSmtpGlobalWhitelistEvaluator>();
     builder.Services.AddSingleton<ISmtpMessageReceiver, SqlServerSmtpMessageReceiver>();
     builder.Services.AddSingleton<ISmtpRecipientValidator, SqlServerSmtpRecipientValidator>();
     builder.Services.AddSingleton<IDeliveryQueueLeaseStore, SqlServerDeliveryQueueLeaseStore>();

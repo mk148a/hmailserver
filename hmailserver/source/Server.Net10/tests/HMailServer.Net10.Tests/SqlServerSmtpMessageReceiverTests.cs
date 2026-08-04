@@ -31,6 +31,164 @@ public sealed class SqlServerSmtpMessageReceiverTests
     }
 
     [TestMethod]
+    public async Task ReceiveAsync_GlobalWhitelistMatchSkipsOnlyAntiSpamChecks()
+    {
+        var queueWriter = new RecordingSmtpQueueWriter();
+        var eventCalled = false;
+        var ruleCalled = false;
+        var attachmentPolicy = new FakeAttachmentPolicy();
+        var spamScanner = new FakeSpamScanner(MessageSpamScanResult.Spam("spam"u8.ToArray(), score: 10));
+        var antivirusScanner = new FakeAntivirusScanner(MessageAntivirusScanResult.Clean());
+        var dnsBlockListChecker = new FakeDnsBlockListChecker(
+            SmtpDnsBlockListResult.Blocked("zen.example.test", "query", "127.0.0.2", "554 DNSBL"));
+        var reverseDnsChecker = new FakeReverseDnsChecker(
+            SmtpReverseDnsResult.Reject("127.0.0.1", Array.Empty<string>(), "missing-ptr", "554 PTR"));
+        var senderDomainMxChecker = new FakeSenderDomainMxChecker(
+            SmtpSenderDomainMxResult.Reject("example.test", "missing-mx", "554 MX"));
+        var greylistingChecker = new FakeGreylistingChecker(
+            SmtpGreylistingResult.Defer("recipient@example.test", "451 greylisted"));
+        var spfPolicy = new FakeSpfPolicy(CreateSpfPolicyResult(SmtpSpfPolicyStatus.Fail));
+        var dkimPolicy = new FakeDkimPolicy(CreateDkimPolicyResult(SmtpDkimPolicyStatus.PermFail));
+        var dmarcPolicy = new FakeDmarcPolicy(
+            SmtpDmarcPolicyResult.FromEvaluation(
+                SmtpDmarcPolicyStatus.Fail,
+                SmtpDmarcAppliedPolicy.Reject,
+                markFailuresAsSpam: true,
+                failureScore: 5,
+                headerFromDomain: "example.test",
+                diagnostic: "fail"));
+        var urlBlockListChecker = new FakeUrlBlockListChecker(
+            SmtpUrlBlockListResult.NotListed);
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            ruleProcessor: new FakeRuleProcessor(request =>
+            {
+                ruleCalled = true;
+                return SmtpRuleProcessingResult.Continue(request.MessageData);
+            }),
+            eventScriptExecutor: new FakeEventScriptExecutor(_ =>
+            {
+                eventCalled = true;
+                return SmtpRuleScriptExecutionResult.Continue();
+            }),
+            queueWriter: queueWriter,
+            antivirusScanner: antivirusScanner,
+            spamScanner: spamScanner,
+            attachmentPolicy: attachmentPolicy,
+            dnsBlockListChecker: dnsBlockListChecker,
+            reverseDnsChecker: reverseDnsChecker,
+            senderDomainMxChecker: senderDomainMxChecker,
+            spfPolicy: spfPolicy,
+            dkimPolicy: dkimPolicy,
+            dmarcPolicy: dmarcPolicy,
+            greylistingChecker: greylistingChecker,
+            urlBlockListChecker: urlBlockListChecker,
+            globalWhitelistEvaluator: new FakeGlobalWhitelistEvaluator(true));
+
+        var result = await receiver.ReceiveAsync(CreateRequest("Subject: Whitelist\r\n\r\nBody\r\n"u8.ToArray()), CancellationToken.None);
+
+        Assert.IsTrue(result.Accepted);
+        Assert.AreEqual(0, dnsBlockListChecker.CallCount);
+        Assert.AreEqual(0, reverseDnsChecker.CallCount);
+        Assert.AreEqual(0, senderDomainMxChecker.CallCount);
+        Assert.AreEqual(0, greylistingChecker.Requests.Count);
+        Assert.AreEqual(0, spfPolicy.Requests.Count);
+        Assert.AreEqual(0, dkimPolicy.Requests.Count);
+        Assert.AreEqual(0, dmarcPolicy.Requests.Count);
+        Assert.AreEqual(1, urlBlockListChecker.CallCount);
+        Assert.AreEqual(0, spamScanner.ScannedMessages.Count);
+        Assert.IsTrue(eventCalled);
+        Assert.IsTrue(ruleCalled);
+        Assert.AreEqual(1, attachmentPolicy.CallCount);
+        Assert.AreEqual(1, antivirusScanner.ScannedMessages.Count);
+        Assert.AreEqual(1, queueWriter.Requests.Count);
+        Assert.AreEqual(SmtpQueueWriteRequest.RecentFlag, queueWriter.Requests[0].MessageFlags);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_UnmatchedGlobalWhitelistRunsNormalChecks()
+    {
+        var dnsBlockListChecker = new FakeDnsBlockListChecker(
+            SmtpDnsBlockListResult.Blocked("zen.example.test", "query", "127.0.0.2", "554 DNSBL"));
+        var evaluator = new FakeGlobalWhitelistEvaluator(false);
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            dnsBlockListChecker: dnsBlockListChecker,
+            globalWhitelistEvaluator: evaluator);
+
+        var result = await receiver.ReceiveAsync(CreateRequest("Subject: Normal\r\n\r\nBody\r\n"u8.ToArray()), CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 DNSBL", result.FailureResponse);
+        Assert.AreEqual(1, evaluator.Requests.Count);
+        Assert.AreEqual("sender@example.test", evaluator.Requests[0].MailFrom);
+        Assert.AreEqual("127.0.0.1", evaluator.Requests[0].ClientIPAddress);
+        Assert.AreEqual(1, dnsBlockListChecker.CallCount);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_FaultedGlobalWhitelistRunsNormalChecks()
+    {
+        var dnsBlockListChecker = new FakeDnsBlockListChecker(
+            SmtpDnsBlockListResult.Blocked("zen.example.test", "query", "127.0.0.2", "554 DNSBL"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            dnsBlockListChecker: dnsBlockListChecker,
+            globalWhitelistEvaluator: new FakeGlobalWhitelistEvaluator(
+                (_, _) => throw new InvalidOperationException("store failure")));
+
+        var result = await receiver.ReceiveAsync(CreateRequest("Subject: Fault\r\n\r\nBody\r\n"u8.ToArray()), CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 DNSBL", result.FailureResponse);
+        Assert.AreEqual(1, dnsBlockListChecker.CallCount);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_ExternalFetchDoesNotUseSmtpGlobalWhitelist()
+    {
+        var dnsBlockListChecker = new FakeDnsBlockListChecker(
+            SmtpDnsBlockListResult.Blocked("zen.example.test", "query", "127.0.0.2", "554 DNSBL"));
+        var evaluator = new FakeGlobalWhitelistEvaluator(true);
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            dnsBlockListChecker: dnsBlockListChecker,
+            globalWhitelistEvaluator: evaluator);
+
+        var result = await receiver.ReceiveAsync(
+            CreateRequest("Subject: External fetch\r\n\r\nBody\r\n"u8.ToArray()) with { IsExternalFetch = true },
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 DNSBL", result.FailureResponse);
+        Assert.AreEqual(0, evaluator.Requests.Count);
+        Assert.AreEqual(1, dnsBlockListChecker.CallCount);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_GlobalWhitelistStillRunsUrlBlockList()
+    {
+        var urlBlockListChecker = new FakeUrlBlockListChecker(
+            SmtpUrlBlockListResult.Blocked("surbl.example.test", "bad.example.test", "query", "127.0.0.2", "554 URLBL"));
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            queueWriter: new RecordingSmtpQueueWriter(),
+            urlBlockListChecker: urlBlockListChecker,
+            globalWhitelistEvaluator: new FakeGlobalWhitelistEvaluator(true));
+
+        var result = await receiver.ReceiveAsync(CreateRequest("Subject: URL\r\n\r\nBody\r\n"u8.ToArray()), CancellationToken.None);
+
+        Assert.IsFalse(result.Accepted);
+        Assert.AreEqual("554 URLBL", result.FailureResponse);
+        Assert.AreEqual(1, urlBlockListChecker.CallCount);
+    }
+
+    [TestMethod]
     public async Task ReceiveAsync_EnqueuesPrimaryMessageThroughDeliveryWakeBoundary()
     {
         var durableWriter = new RecordingSmtpQueueWriter();
@@ -1077,6 +1235,45 @@ public sealed class SqlServerSmtpMessageReceiverTests
             _execute(request);
     }
 
+    private sealed class FakeGlobalWhitelistEvaluator : ISmtpGlobalWhitelistEvaluator
+    {
+        private readonly Func<string, string, bool> _evaluate;
+
+        public FakeGlobalWhitelistEvaluator(bool result)
+            : this((_, _) => result)
+        {
+        }
+
+        public FakeGlobalWhitelistEvaluator(Func<string, string, bool> evaluate)
+        {
+            _evaluate = evaluate;
+        }
+
+        public List<(string MailFrom, string ClientIPAddress)> Requests { get; } = [];
+
+        public ValueTask<bool> EvaluateAsync(
+            string mailFrom,
+            string clientIPAddress,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add((mailFrom, clientIPAddress));
+            return ValueTask.FromResult(_evaluate(mailFrom, clientIPAddress));
+        }
+    }
+
+    private sealed class FakeAttachmentPolicy : IMessageAttachmentPolicy
+    {
+        public int CallCount { get; private set; }
+
+        public ValueTask<MessageAttachmentPolicyResult> ApplyAsync(
+            byte[] messageData,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return ValueTask.FromResult(MessageAttachmentPolicyResult.Unchanged(messageData));
+        }
+    }
+
     private sealed class FakeAntivirusScanner : IMessageAntivirusScanner
     {
         private readonly MessageAntivirusScanResult _result;
@@ -1132,10 +1329,15 @@ public sealed class SqlServerSmtpMessageReceiverTests
             _result = result;
         }
 
+        public int CallCount { get; private set; }
+
         public ValueTask<SmtpDnsBlockListResult> CheckAsync(
             SmtpReceiveRequest request,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(_result);
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return ValueTask.FromResult(_result);
+        }
     }
 
     private sealed class FakeReverseDnsChecker : ISmtpReverseDnsChecker
@@ -1147,10 +1349,15 @@ public sealed class SqlServerSmtpMessageReceiverTests
             _result = result;
         }
 
+        public int CallCount { get; private set; }
+
         public ValueTask<SmtpReverseDnsResult> CheckAsync(
             SmtpReceiveRequest request,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(_result);
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return ValueTask.FromResult(_result);
+        }
     }
 
     private sealed class FakeSenderDomainMxChecker : ISmtpSenderDomainMxChecker
@@ -1162,10 +1369,15 @@ public sealed class SqlServerSmtpMessageReceiverTests
             _result = result;
         }
 
+        public int CallCount { get; private set; }
+
         public ValueTask<SmtpSenderDomainMxResult> CheckAsync(
             SmtpReceiveRequest request,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(_result);
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return ValueTask.FromResult(_result);
+        }
     }
 
     private sealed class FakeGreylistingChecker : ISmtpGreylistingChecker
@@ -1264,9 +1476,14 @@ public sealed class SqlServerSmtpMessageReceiverTests
             _result = result;
         }
 
+        public int CallCount { get; private set; }
+
         public ValueTask<SmtpUrlBlockListResult> CheckAsync(
             SmtpReceiveRequest request,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(_result);
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return ValueTask.FromResult(_result);
+        }
     }
 }
