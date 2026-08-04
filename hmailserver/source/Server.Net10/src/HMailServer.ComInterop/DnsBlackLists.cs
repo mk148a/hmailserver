@@ -97,6 +97,7 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
     private readonly Func<IReadOnlyList<DnsBlackListAdministrationSnapshot>>? _reload;
     private readonly Func<DnsBlackListAdministrationSnapshot, int>? _insert;
     private readonly Func<DnsBlackListAdministrationSnapshot, bool>? _update;
+    private readonly Func<int, bool>? _delete;
     private readonly Action<DnsBlackListAdministrationSnapshot>? _append;
     private readonly Action<DnsBlackListAdministrationSnapshot>? _replace;
     private readonly Func<bool>? _isServerAdministrator;
@@ -110,12 +111,14 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
         Func<IReadOnlyList<DnsBlackListAdministrationSnapshot>>? reload,
         Func<DnsBlackListAdministrationSnapshot, int>? insert,
         Func<DnsBlackListAdministrationSnapshot, bool>? update,
+        Func<int, bool>? delete,
         Func<bool>? isServerAdministrator)
     {
         _blackLists = blackLists.ToArray();
         _reload = reload;
         _insert = insert;
         _update = update;
+        _delete = delete;
         _isServerAdministrator = isServerAdministrator;
         _append = Append;
         _replace = Replace;
@@ -136,12 +139,16 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
             return DNSBlackList.CreateAuthorized(
                 blackLists[index],
                 update: _update,
+                delete: _delete,
                 replace: _replace,
                 isServerAdministrator: _isServerAdministrator);
         }
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        DeleteBlackList(databaseId);
+    }
 
     public IInterfaceDNSBlackList Add()
     {
@@ -155,6 +162,7 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
         return DNSBlackList.CreateAuthorized(
             new DnsBlackListAdministrationSnapshot(0, false, string.Empty, string.Empty, string.Empty, 0),
             insert: _insert,
+            delete: _delete,
             append: _append,
             isServerAdministrator: _isServerAdministrator);
     }
@@ -168,6 +176,7 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
             : DNSBlackList.CreateAuthorized(
                 match,
                 update: _update,
+                delete: _delete,
                 replace: _replace,
                 isServerAdministrator: _isServerAdministrator);
     }
@@ -205,6 +214,7 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
             : DNSBlackList.CreateAuthorized(
                 match,
                 update: _update,
+                delete: _delete,
                 replace: _replace,
                 isServerAdministrator: _isServerAdministrator);
     }
@@ -214,10 +224,11 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
         Func<IReadOnlyList<DnsBlackListAdministrationSnapshot>>? reload = null,
         Func<DnsBlackListAdministrationSnapshot, int>? insert = null,
         Func<DnsBlackListAdministrationSnapshot, bool>? update = null,
+        Func<int, bool>? delete = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(blackLists);
-        return new DNSBlackLists(blackLists, reload, insert, update, isServerAdministrator);
+        return new DNSBlackLists(blackLists, reload, insert, update, delete, isServerAdministrator);
     }
 
     private IReadOnlyList<DnsBlackListAdministrationSnapshot> GetBlackLists()
@@ -240,6 +251,45 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
         Volatile.Write(
             ref _blackLists,
             blackLists.Select(existing => existing.Id == blackList.Id ? blackList : existing).ToArray());
+    }
+
+    private void DeleteBlackList(int databaseId)
+    {
+        var blackLists = GetBlackLists();
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (!blackLists.Any(blackList => blackList.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_delete(databaseId))
+            {
+                throw new InvalidOperationException(
+                    "The DNS blacklist delete did not affect the selected database row.");
+            }
+
+            Volatile.Write(
+                ref _blackLists,
+                blackLists.Where(blackList => blackList.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the DNS blacklist from the database.",
+                EFail);
+        }
     }
 
     private void EnsureServerAdministrator()
@@ -281,6 +331,7 @@ public sealed class DNSBlackList : IInterfaceDNSBlackList
     private DnsBlackListAdministrationSnapshot? _blackList;
     private readonly Func<DnsBlackListAdministrationSnapshot, int>? _insert;
     private readonly Func<DnsBlackListAdministrationSnapshot, bool>? _update;
+    private readonly Func<int, bool>? _delete;
     private readonly Action<DnsBlackListAdministrationSnapshot>? _append;
     private readonly Action<DnsBlackListAdministrationSnapshot>? _replace;
     private readonly Func<bool>? _isServerAdministrator;
@@ -298,6 +349,7 @@ public sealed class DNSBlackList : IInterfaceDNSBlackList
         DnsBlackListAdministrationSnapshot blackList,
         Func<DnsBlackListAdministrationSnapshot, int>? insert,
         Func<DnsBlackListAdministrationSnapshot, bool>? update,
+        Func<int, bool>? delete,
         Action<DnsBlackListAdministrationSnapshot>? append,
         Action<DnsBlackListAdministrationSnapshot>? replace,
         Func<bool>? isServerAdministrator)
@@ -305,6 +357,7 @@ public sealed class DNSBlackList : IInterfaceDNSBlackList
         _blackList = blackList;
         _insert = insert;
         _update = update;
+        _delete = delete;
         _append = append;
         _replace = replace;
         _isServerAdministrator = isServerAdministrator;
@@ -389,16 +442,27 @@ public sealed class DNSBlackList : IInterfaceDNSBlackList
         set => Mutate(snapshot => snapshot with { Score = value });
     }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(Snapshot.Id);
+    }
 
     internal static DNSBlackList CreateAuthorized(
         DnsBlackListAdministrationSnapshot blackList,
         Func<DnsBlackListAdministrationSnapshot, int>? insert = null,
         Func<DnsBlackListAdministrationSnapshot, bool>? update = null,
+        Func<int, bool>? delete = null,
         Action<DnsBlackListAdministrationSnapshot>? append = null,
         Action<DnsBlackListAdministrationSnapshot>? replace = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(blackList, insert, update, append, replace, isServerAdministrator);
+        new(blackList, insert, update, delete, append, replace, isServerAdministrator);
 
     private DnsBlackListAdministrationSnapshot Snapshot =>
         _blackList ?? throw new COMException(
@@ -475,11 +539,18 @@ public static class DnsBlackListAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool DeleteBlackList(int databaseId) => store
+            .DeleteDnsBlackListByIdAsync(databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return DNSBlackLists.CreateAuthorized(
             LoadBlackLists(),
             LoadBlackLists,
             InsertBlackList,
             UpdateBlackList,
+            DeleteBlackList,
             isServerAdministrator);
     }
 }

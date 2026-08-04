@@ -67,4 +67,15 @@ public sealed class SqlServerDnsBlackListAdministrationStoreTests
         Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_settings", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteDnsBlackListSql_UsesLegacyIdentityPredicate()
+    {
+        var sql = SqlServerDnsBlackListAdministrationStore.DeleteDnsBlackListSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_dnsbl");
+        StringAssert.Contains(sql, "WHERE sblid = @id");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_settings", StringComparison.OrdinalIgnoreCase));
+    }
 }

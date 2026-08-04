@@ -36,6 +36,11 @@ SET
 WHERE sblid = @id;
 """;
 
+    public const string DeleteDnsBlackListSql = """
+DELETE FROM hm_dnsbl
+WHERE sblid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDnsBlackListAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -101,6 +106,17 @@ WHERE sblid = @id;
         command.Parameters.Add("@rejectMessage", SqlDbType.NVarChar, 255).Value = blackList.RejectMessage;
         command.Parameters.Add("@expectedResult", SqlDbType.NVarChar, 255).Value = blackList.ExpectedResult;
         command.Parameters.Add("@score", SqlDbType.Int).Value = blackList.Score;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> DeleteDnsBlackListByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteDnsBlackListSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = databaseId;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

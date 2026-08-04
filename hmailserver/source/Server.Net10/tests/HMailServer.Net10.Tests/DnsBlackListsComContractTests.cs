@@ -269,6 +269,66 @@ public sealed class DnsBlackListsComContractTests
     }
 
     [TestMethod]
+    public void DnsBlackLists_DeleteByDBIDRemovesOnlyTheSelectedSnapshotAfterSuccess()
+    {
+        var deletedId = 0;
+        IInterfaceDNSBlackLists blackLists = DNSBlackLists.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, true, "first.example.test", "First", "127.0.0.2", 1),
+                Snapshot(20, false, "second.example.test", "Second", "127.0.0.9", 2)
+            },
+            delete: id =>
+            {
+                deletedId = id;
+                return true;
+            },
+            isServerAdministrator: static () => true);
+
+        blackLists.DeleteByDBID(10);
+
+        Assert.AreEqual(10, deletedId);
+        Assert.AreEqual(1, blackLists.Count);
+        Assert.AreEqual(20, blackLists[0].ID);
+
+        blackLists.DeleteByDBID(999);
+        Assert.AreEqual(1, blackLists.Count);
+    }
+
+    [TestMethod]
+    public void DnsBlackLists_DeleteFailureRetainsOwnerSnapshot()
+    {
+        IInterfaceDNSBlackLists blackLists = DNSBlackLists.CreateAuthorized(
+            new[] { Snapshot(10, true, "first.example.test", "First", "127.0.0.2", 1) },
+            delete: static _ => false,
+            isServerAdministrator: static () => true);
+
+        var error = Assert.ThrowsExactly<COMException>(() => blackLists.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, blackLists.Count);
+        Assert.AreEqual(10, blackLists[0].ID);
+    }
+
+    [TestMethod]
+    public void AttachedDnsBlackList_DeleteRechecksLiveAdministrator()
+    {
+        var isAdministrator = true;
+        IInterfaceDNSBlackLists blackLists = DNSBlackLists.CreateAuthorized(
+            new[] { Snapshot(10, true, "first.example.test", "First", "127.0.0.2", 1) },
+            delete: static _ => true,
+            isServerAdministrator: () => isAdministrator);
+        var item = blackLists[0];
+
+        isAdministrator = false;
+
+        var error = Assert.ThrowsExactly<COMException>(item.Delete);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(1, blackLists.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
