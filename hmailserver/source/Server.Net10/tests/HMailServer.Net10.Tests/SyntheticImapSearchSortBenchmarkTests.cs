@@ -34,6 +34,9 @@ public sealed class SyntheticImapSearchSortBenchmarkTests
 
         Assert.AreEqual(3, report.ActualMatchCount);
         Assert.IsTrue(report.Correct);
+        Assert.IsTrue(report.Metrics.MeanGen0Collections >= 0);
+        Assert.IsTrue(report.Metrics.MeanGen1Collections >= 0);
+        Assert.IsTrue(report.Metrics.MeanGen2Collections >= 0);
     }
 
     [TestMethod]
@@ -54,9 +57,18 @@ public sealed class SyntheticImapSearchSortBenchmarkTests
             Assert.IsTrue(File.Exists(jsonPath));
             Assert.IsTrue(File.Exists(csvPath));
             Assert.IsTrue(File.Exists(markdownPath));
-            Assert.IsNotNull(JsonSerializer.Deserialize<SyntheticBenchmarkReport>(File.ReadAllText(jsonPath)));
-            StringAssert.Contains(File.ReadAllText(csvPath), "p50_ms,p95_ms,p99_ms");
-            StringAssert.Contains(File.ReadAllText(markdownPath), "offline-imap-search-sort-100k");
+            var json = File.ReadAllText(jsonPath);
+            Assert.IsNotNull(JsonSerializer.Deserialize<SyntheticBenchmarkReport>(json));
+            StringAssert.Contains(json, "\"MeanGen0Collections\"");
+            StringAssert.Contains(json, "\"MeanGen1Collections\"");
+            StringAssert.Contains(json, "\"MeanGen2Collections\"");
+            var csv = File.ReadAllText(csvPath);
+            var markdown = File.ReadAllText(markdownPath);
+            StringAssert.Contains(csv, "mean_gen0_collections,mean_gen1_collections,mean_gen2_collections");
+            StringAssert.Contains(markdown, "Mean Gen 0 collections");
+            StringAssert.Contains(markdown, "Mean Gen 1 collections");
+            StringAssert.Contains(markdown, "Mean Gen 2 collections");
+            StringAssert.Contains(markdown, "offline-imap-search-sort-100k");
         }
         finally
         {
