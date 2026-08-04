@@ -10,4 +10,9 @@ public interface IRouteAddressAdministrationStore
         int routeId,
         int databaseId,
         CancellationToken cancellationToken);
+
+    ValueTask<int> InsertRouteAddressAsync(
+        int owningRouteId,
+        RouteAddressAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken);
 }

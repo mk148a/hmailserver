@@ -70,16 +70,20 @@ public sealed class RouteAddressesComContractTests
     {
         var addressesError = Assert.ThrowsExactly<COMException>(() => _ = new RouteAddresses().Count);
         var addressesDeleteError = Assert.ThrowsExactly<COMException>(() => new RouteAddresses().DeleteByDBID(100));
+        var addressesAddError = Assert.ThrowsExactly<COMException>(() => new RouteAddresses().Add());
         var addressesDeleteByAddressError = Assert.ThrowsExactly<COMException>(
             () => new RouteAddresses().DeleteByAddress("alpha@example.test"));
         var addressError = Assert.ThrowsExactly<COMException>(() => _ = new RouteAddress().Address);
         var addressDeleteError = Assert.ThrowsExactly<COMException>(new RouteAddress().Delete);
+        var addressSaveError = Assert.ThrowsExactly<COMException>(new RouteAddress().Save);
 
         Assert.AreEqual(EAccessDenied, addressesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressesDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, addressesAddError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressesDeleteByAddressError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addressDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, addressSaveError.ErrorCode);
     }
 
     [TestMethod]
@@ -261,6 +265,56 @@ public sealed class RouteAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_AddStagesDraftAndPublishesOnlyAfterOwnerScopedInsertSucceeds()
+    {
+        var failInsert = true;
+        var insertedAddresses = new List<RouteAddressAdministrationSnapshot>();
+        IInterfaceRouteAddresses addresses = RouteAddresses.CreateAuthorized(
+            new[] { Snapshot(100, 10, "alpha@example.test") },
+            insert: address =>
+            {
+                insertedAddresses.Add(address);
+                if (failInsert)
+                {
+                    throw new InvalidOperationException("Simulated store failure.");
+                }
+
+                return 300;
+            },
+            owningRouteId: 10);
+
+        var added = addresses.Add();
+
+        AssertAddress(added, 0, 10, string.Empty);
+        Assert.AreEqual(1, addresses.Count);
+
+        added.Address = "new@example.test";
+        added.RouteID = 999;
+        AssertAddress(added, 0, 999, "new@example.test");
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(added.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(1, insertedAddresses.Count);
+        AssertAddress(insertedAddresses[0], 0, 10, "new@example.test");
+        AssertAddress(added, 0, 999, "new@example.test");
+        Assert.AreEqual(1, addresses.Count);
+        AssertAddress(addresses[0], 100, 10, "alpha@example.test");
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = addresses.get_ItemByDBID(300)).ErrorCode);
+
+        failInsert = false;
+        added.Save();
+
+        Assert.AreEqual(2, insertedAddresses.Count);
+        AssertAddress(insertedAddresses[1], 0, 10, "new@example.test");
+        AssertAddress(added, 300, 10, "new@example.test");
+        Assert.AreEqual(2, addresses.Count);
+        AssertAddress(addresses.get_ItemByDBID(300), 300, 10, "new@example.test");
+    }
+
+    [TestMethod]
     public void AuthorizedRoute_UsesConfiguredRouteScopedRuntime()
     {
         var store = new FixedRouteAddressAdministrationStore(
@@ -316,6 +370,27 @@ public sealed class RouteAddressesComContractTests
             },
             store.DeletedAddresses);
         Assert.AreEqual(0, addresses.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedRoute_AddUsesSelectedRouteAsInsertOwner()
+    {
+        var store = new FixedRouteAddressAdministrationStore(
+            new[] { Snapshot(100, 10, "alpha@example.test") });
+        RouteAddressAdministrationRuntimeHost.Configure(store);
+        var routes = Routes.CreateAuthorized(new[] { RouteSnapshot(10, "alpha.example") });
+
+        var addresses = routes[0].Addresses;
+        var added = addresses.Add();
+        added.Address = "new@example.test";
+        added.RouteID = 20;
+        added.Save();
+
+        Assert.AreEqual(1, store.InsertedAddresses.Count);
+        Assert.AreEqual(10, store.InsertedAddresses[0].OwningRouteId);
+        AssertAddress(store.InsertedAddresses[0].Snapshot, 0, 10, "new@example.test");
+        AssertAddress(added, 400, 10, "new@example.test");
+        AssertAddress(addresses.get_ItemByDBID(400), 400, 10, "new@example.test");
     }
 
     [TestMethod]
@@ -394,6 +469,17 @@ public sealed class RouteAddressesComContractTests
         Assert.AreEqual(expectedAddress, address.Address);
     }
 
+    private static void AssertAddress(
+        RouteAddressAdministrationSnapshot address,
+        int id,
+        int routeId,
+        string expectedAddress)
+    {
+        Assert.AreEqual(id, address.Id);
+        Assert.AreEqual(routeId, address.RouteId);
+        Assert.AreEqual(expectedAddress, address.Address);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -423,6 +509,8 @@ public sealed class RouteAddressesComContractTests
     {
         public List<(int RouteId, int DatabaseId)> DeletedAddresses { get; } = [];
 
+        public List<(int OwningRouteId, RouteAddressAdministrationSnapshot Snapshot)> InsertedAddresses { get; } = [];
+
         public int ReadCount { get; private set; }
 
         public ValueTask<IReadOnlyList<RouteAddressAdministrationSnapshot>> GetRouteAddressesAsync(
@@ -443,6 +531,15 @@ public sealed class RouteAddressesComContractTests
         {
             DeletedAddresses.Add((routeId, databaseId));
             return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<int> InsertRouteAddressAsync(
+            int owningRouteId,
+            RouteAddressAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
+            InsertedAddresses.Add((owningRouteId, snapshot));
+            return ValueTask.FromResult(400);
         }
     }
 

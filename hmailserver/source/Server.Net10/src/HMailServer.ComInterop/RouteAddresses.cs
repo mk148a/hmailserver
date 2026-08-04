@@ -70,6 +70,8 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
 
     private RouteAddressAdministrationSnapshot[]? _addresses;
     private readonly Action<int>? _deleteById;
+    private readonly Func<RouteAddressAdministrationSnapshot, int>? _insert;
+    private readonly int? _owningRouteId;
     private readonly Func<bool>? _isServerAdministrator;
 
     public RouteAddresses()
@@ -79,10 +81,14 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
     private RouteAddresses(
         IReadOnlyList<RouteAddressAdministrationSnapshot> addresses,
         Action<int>? deleteById,
+        Func<RouteAddressAdministrationSnapshot, int>? insert,
+        int? owningRouteId,
         Func<bool>? isServerAdministrator)
     {
         _addresses = addresses.ToArray();
         _deleteById = deleteById;
+        _insert = insert;
+        _owningRouteId = owningRouteId;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -142,7 +148,19 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
         }
     }
 
-    public IInterfaceRouteAddress Add() => Unavailable<IInterfaceRouteAddress>();
+    public IInterfaceRouteAddress Add()
+    {
+        _ = GetAddresses();
+        if (_insert is null || _owningRouteId is null)
+        {
+            return Unavailable<IInterfaceRouteAddress>();
+        }
+
+        return RouteAddress.CreateAuthorized(
+            new RouteAddressAdministrationSnapshot(0, _owningRouteId.Value, string.Empty),
+            save: SaveRouteAddress,
+            isServerAdministrator: _isServerAdministrator);
+    }
 
     public void DeleteByAddress(string address)
     {
@@ -162,10 +180,12 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
     internal static RouteAddresses CreateAuthorized(
         IReadOnlyList<RouteAddressAdministrationSnapshot> addresses,
         Action<int>? deleteById = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<RouteAddressAdministrationSnapshot, int>? insert = null,
+        int? owningRouteId = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new RouteAddresses(addresses, deleteById, isServerAdministrator);
+        return new RouteAddresses(addresses, deleteById, insert, owningRouteId, isServerAdministrator);
     }
 
     private IReadOnlyList<RouteAddressAdministrationSnapshot> GetAddresses()
@@ -182,6 +202,37 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
             address,
             delete: _deleteById is null ? null : DeleteByDBID,
             isServerAdministrator: _isServerAdministrator);
+    }
+
+    private RouteAddressAdministrationSnapshot SaveRouteAddress(RouteAddressAdministrationSnapshot address)
+    {
+        var addresses = GetAddresses();
+        if (address.Id != 0 || _insert is null || _owningRouteId is null)
+        {
+            Unavailable();
+            return address;
+        }
+
+        try
+        {
+            var ownerScopedAddress = address with { RouteId = _owningRouteId.Value };
+            var generatedId = _insert(ownerScopedAddress);
+            if (generatedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The route address insert did not return a valid generated identity.");
+            }
+
+            var insertedAddress = ownerScopedAddress with { Id = generatedId };
+            Volatile.Write(ref _addresses, addresses.Concat([insertedAddress]).ToArray());
+            return insertedAddress;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the route address to the database.",
+                EFail);
+        }
     }
 
     private T Unavailable<T>()
@@ -211,7 +262,8 @@ public sealed class RouteAddress : IInterfaceRouteAddress
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly RouteAddressAdministrationSnapshot? _address;
+    private RouteAddressAdministrationSnapshot? _address;
+    private readonly Func<RouteAddressAdministrationSnapshot, RouteAddressAdministrationSnapshot>? _save;
     private readonly Action<int>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
 
@@ -221,21 +273,33 @@ public sealed class RouteAddress : IInterfaceRouteAddress
 
     private RouteAddress(
         RouteAddressAdministrationSnapshot address,
+        Func<RouteAddressAdministrationSnapshot, RouteAddressAdministrationSnapshot>? save,
         Action<int>? delete,
         Func<bool>? isServerAdministrator)
     {
         _address = address;
+        _save = save;
         _delete = delete;
         _isServerAdministrator = isServerAdministrator;
     }
 
     public int ID => Snapshot.Id;
 
-    public string Address { get => Snapshot.Address; set => Unavailable(); }
+    public string Address { get => Snapshot.Address; set => Mutate(snapshot => snapshot with { Address = value ?? string.Empty }); }
 
-    public int RouteID { get => Snapshot.RouteId; set => Unavailable(); }
+    public int RouteID { get => Snapshot.RouteId; set => Mutate(snapshot => snapshot with { RouteId = value }); }
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        EnsureServerAdministrator();
+        _address = _save(Snapshot);
+    }
 
     public void Delete()
     {
@@ -257,9 +321,10 @@ public sealed class RouteAddress : IInterfaceRouteAddress
 
     internal static RouteAddress CreateAuthorized(
         RouteAddressAdministrationSnapshot address,
+        Func<RouteAddressAdministrationSnapshot, RouteAddressAdministrationSnapshot>? save = null,
         Action<int>? delete = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(address, delete, isServerAdministrator);
+        new(address, save, delete, isServerAdministrator);
 
     private RouteAddressAdministrationSnapshot Snapshot =>
         _address ?? throw new COMException(
@@ -272,6 +337,28 @@ public sealed class RouteAddress : IInterfaceRouteAddress
         throw new COMException(
             "This RouteAddress member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
+    }
+
+    private void Mutate(Func<RouteAddressAdministrationSnapshot, RouteAddressAdministrationSnapshot> mutation)
+    {
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        EnsureServerAdministrator();
+        _address = mutation(Snapshot);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "RouteAddress access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 }
 
@@ -309,9 +396,17 @@ public static class RouteAddressAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        int InsertRouteAddress(RouteAddressAdministrationSnapshot address) => store
+            .InsertRouteAddressAsync(routeId, address, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return RouteAddresses.CreateAuthorized(
             addresses,
             DeleteRouteAddressById,
-            isServerAdministrator);
+            isServerAdministrator,
+            InsertRouteAddress,
+            routeId);
     }
 }

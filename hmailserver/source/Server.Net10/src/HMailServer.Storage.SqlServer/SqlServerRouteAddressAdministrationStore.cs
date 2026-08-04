@@ -21,6 +21,13 @@ WHERE routeaddressrouteid = @RouteId
   AND routeaddressid = @Id;
 """;
 
+    public const string InsertRouteAddressSql = """
+INSERT INTO hm_routeaddresses
+    (routeaddressrouteid, routeaddressaddress)
+OUTPUT INSERTED.routeaddressid
+VALUES (@RouteId, @Address);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRouteAddressAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -63,5 +70,20 @@ WHERE routeaddressrouteid = @RouteId
         command.Parameters.Add("@RouteId", SqlDbType.Int).Value = routeId;
         command.Parameters.Add("@Id", SqlDbType.Int).Value = databaseId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<int> InsertRouteAddressAsync(
+        int owningRouteId,
+        RouteAddressAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertRouteAddressSql, connection);
+        command.Parameters.Add("@RouteId", SqlDbType.Int).Value = owningRouteId;
+        command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = snapshot.Address;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
     }
 }
