@@ -17,6 +17,13 @@ WHERE membergroupid = @GroupId
 ORDER BY memberid ASC;
 """;
 
+    public const string InsertGroupMemberSql = """
+INSERT INTO hm_group_members
+    (membergroupid, memberaccountid)
+OUTPUT INSERTED.memberid
+VALUES (@groupId, @accountId);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerGroupMemberAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -47,5 +54,19 @@ ORDER BY memberid ASC;
         }
 
         return members;
+    }
+
+    public async ValueTask<int> InsertGroupMemberAsync(
+        GroupMemberAdministrationSnapshot member,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertGroupMemberSql, connection);
+        command.Parameters.Add("@groupId", SqlDbType.Int).Value = member.GroupId;
+        command.Parameters.Add("@accountId", SqlDbType.Int).Value = member.AccountId;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
     }
 }

@@ -168,6 +168,80 @@ public sealed class GroupMembersComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_AddStagesOwnerAndPublishesOnlyAfterSuccessfulInsert()
+    {
+        var allowInsert = false;
+        var inserted = new List<GroupMemberAdministrationSnapshot>();
+        IInterfaceGroupMembers members = GroupMembers.CreateAuthorized(
+            Array.Empty<GroupMemberAdministrationSnapshot>(),
+            groupId: 10,
+            insert: member =>
+            {
+                inserted.Add(member);
+                if (!allowInsert)
+                {
+                    throw new InvalidOperationException("Simulated insert failure.");
+                }
+
+                return 300;
+            });
+
+        var draft = members.Add();
+
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(10, draft.GroupID);
+        Assert.AreEqual(0, draft.AccountID);
+        draft.AccountID = 1000;
+        Assert.AreEqual(0, members.Count);
+
+        var failure = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(1, inserted.Count);
+        Assert.AreEqual(10, inserted[0].GroupId);
+        Assert.AreEqual(1000, inserted[0].AccountId);
+        Assert.AreEqual(0, members.Count);
+
+        allowInsert = true;
+        draft.Save();
+
+        Assert.AreEqual(300, draft.ID);
+        Assert.AreEqual(1, members.Count);
+        AssertMember(members[0], 300, 10, 1000);
+    }
+
+    [TestMethod]
+    public void NewGroupMember_DeniesCrossParentAndRechecksLiveAdministrator()
+    {
+        var isServerAdministrator = true;
+        var inserts = 0;
+        IInterfaceGroupMembers members = GroupMembers.CreateAuthorized(
+            Array.Empty<GroupMemberAdministrationSnapshot>(),
+            groupId: 10,
+            insert: _ => ++inserts,
+            isServerAdministrator: () => isServerAdministrator);
+        var draft = members.Add();
+
+        draft.GroupID = 11;
+        var crossParent = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EAccessDenied, crossParent.ErrorCode);
+        Assert.AreEqual(0, inserts);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(0, members.Count);
+
+        draft.GroupID = 10;
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(() => draft.AccountID = 1000);
+        var deniedSave = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deniedSave.ErrorCode);
+        Assert.AreEqual(0, inserts);
+    }
+
+    [TestMethod]
     public void AuthorizedGroup_UsesConfiguredGroupMemberRuntime()
     {
         AccountAdministrationRuntimeHost.Configure(

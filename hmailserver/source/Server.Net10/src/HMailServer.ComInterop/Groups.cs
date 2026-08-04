@@ -359,7 +359,7 @@ public sealed class Group : IInterfaceGroup
     public IInterfaceGroupMembers Members =>
         Snapshot.Id == 0
             ? Unavailable<IInterfaceGroupMembers>()
-            : GroupMemberAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+            : GroupMemberAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _isServerAdministrator);
 
     internal static Group CreateAuthorized(
         GroupAdministrationSnapshot group,

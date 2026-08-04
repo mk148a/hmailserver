@@ -69,6 +69,10 @@ public sealed class GroupMembers : IInterfaceGroupMembers
 
     private GroupMemberAdministrationSnapshot[]? _members;
     private readonly Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? _reload;
+    private readonly int _groupId;
+    private readonly Func<GroupMemberAdministrationSnapshot, int>? _insert;
+    private readonly Action<GroupMemberAdministrationSnapshot>? _publish;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public GroupMembers()
     {
@@ -76,20 +80,36 @@ public sealed class GroupMembers : IInterfaceGroupMembers
 
     private GroupMembers(
         IReadOnlyList<GroupMemberAdministrationSnapshot> members,
-        Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? reload,
+        int groupId,
+        Func<GroupMemberAdministrationSnapshot, int>? insert,
+        Func<bool>? isServerAdministrator)
     {
         _members = members.ToArray();
         _reload = reload;
+        _groupId = groupId;
+        _insert = insert;
+        _publish = Publish;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int Count => GetMembers().Count;
 
     internal static GroupMembers CreateAuthorized(
         IReadOnlyList<GroupMemberAdministrationSnapshot> members,
-        Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<GroupMemberAdministrationSnapshot>>? reload = null,
+        int groupId = 0,
+        Func<GroupMemberAdministrationSnapshot, int>? insert = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(members);
-        return new GroupMembers(members, reload);
+        return new GroupMembers(members, reload, groupId, insert, isServerAdministrator);
+    }
+
+    private void Publish(GroupMemberAdministrationSnapshot member)
+    {
+        var current = GetMembers();
+        Volatile.Write(ref _members, current.Append(member).ToArray());
     }
 
     public IInterfaceGroupMember this[int index]
@@ -119,7 +139,22 @@ public sealed class GroupMembers : IInterfaceGroupMembers
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public IInterfaceGroupMember Add() => Unavailable<IInterfaceGroupMember>();
+    public IInterfaceGroupMember Add()
+    {
+        _ = GetMembers();
+        EnsureServerAdministrator();
+        if (_insert is null)
+        {
+            return Unavailable<IInterfaceGroupMember>();
+        }
+
+        return GroupMember.CreateAuthorized(
+            new GroupMemberAdministrationSnapshot(Id: 0, GroupId: _groupId, AccountId: 0),
+            insert: _insert,
+            publish: _publish,
+            ownerGroupId: _groupId,
+            isServerAdministrator: _isServerAdministrator);
+    }
 
     public void Refresh()
     {
@@ -152,6 +187,16 @@ public sealed class GroupMembers : IInterfaceGroupMembers
                 EAccessDenied);
     }
 
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "GroupMembers access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
     private T Unavailable<T>()
     {
         _ = GetMembers();
@@ -177,31 +222,121 @@ public sealed class GroupMembers : IInterfaceGroupMembers
 public sealed class GroupMember : IInterfaceGroupMember
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly GroupMemberAdministrationSnapshot? _member;
+    private GroupMemberAdministrationSnapshot? _member;
+    private readonly Func<GroupMemberAdministrationSnapshot, int>? _insert;
+    private readonly Action<GroupMemberAdministrationSnapshot>? _publish;
+    private readonly int? _ownerGroupId;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public GroupMember()
     {
     }
 
-    private GroupMember(GroupMemberAdministrationSnapshot member)
+    private GroupMember(
+        GroupMemberAdministrationSnapshot member,
+        Func<GroupMemberAdministrationSnapshot, int>? insert,
+        Action<GroupMemberAdministrationSnapshot>? publish,
+        int? ownerGroupId,
+        Func<bool>? isServerAdministrator)
     {
         _member = member;
+        _insert = insert;
+        _publish = publish;
+        _ownerGroupId = ownerGroupId;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int ID => Snapshot.Id;
 
-    public int GroupID { get => Snapshot.GroupId; set => Unavailable(); }
+    public int GroupID
+    {
+        get => Snapshot.GroupId;
+        set
+        {
+            var snapshot = Snapshot;
+            EnsureServerAdministrator();
+            if (_insert is null || snapshot.Id != 0)
+            {
+                Unavailable();
+                return;
+            }
 
-    public int AccountID { get => Snapshot.AccountId; set => Unavailable(); }
+            _member = snapshot with { GroupId = value };
+        }
+    }
+
+    public int AccountID
+    {
+        get => Snapshot.AccountId;
+        set
+        {
+            var snapshot = Snapshot;
+            EnsureServerAdministrator();
+            if (_insert is null || snapshot.Id != 0)
+            {
+                Unavailable();
+                return;
+            }
+
+            _member = snapshot with { AccountId = value };
+        }
+    }
 
     public IInterfaceAccount Account =>
         AccountAdministrationRuntimeHost.CreateAuthorizedAccountByIdAdapter(Snapshot.AccountId);
 
-    internal static GroupMember CreateAuthorized(GroupMemberAdministrationSnapshot member) => new(member);
+    internal static GroupMember CreateAuthorized(
+        GroupMemberAdministrationSnapshot member,
+        Func<GroupMemberAdministrationSnapshot, int>? insert = null,
+        Action<GroupMemberAdministrationSnapshot>? publish = null,
+        int? ownerGroupId = null,
+        Func<bool>? isServerAdministrator = null) =>
+        new(member, insert, publish, ownerGroupId, isServerAdministrator);
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        var snapshot = Snapshot;
+        EnsureServerAdministrator();
+        if (_insert is null || snapshot.Id != 0)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (_ownerGroupId is null || snapshot.GroupId != _ownerGroupId.Value)
+        {
+            throw new COMException(
+                "Group member mutation must remain within its owning group.",
+                EAccessDenied);
+        }
+
+        try
+        {
+            var insertedId = _insert(snapshot);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The group member insert did not return a valid generated identity.");
+            }
+
+            var saved = snapshot with { Id = insertedId };
+            _member = saved;
+            _publish?.Invoke(saved);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the group member to the database.",
+                EFail);
+        }
+    }
 
     public void Delete() => Unavailable();
 
@@ -209,6 +344,16 @@ public sealed class GroupMember : IInterfaceGroupMember
         _member ?? throw new COMException(
             "GroupMember access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Group member access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private T Unavailable<T>()
     {
@@ -240,7 +385,9 @@ public static class GroupMemberAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static GroupMembers CreateAuthorizedAdapter(int groupId)
+    internal static GroupMembers CreateAuthorizedAdapter(
+        int groupId,
+        Func<bool>? isServerAdministrator = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -253,6 +400,17 @@ public static class GroupMemberAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return GroupMembers.CreateAuthorized(LoadMembers(), LoadMembers);
+        int InsertMember(GroupMemberAdministrationSnapshot member) => store
+            .InsertGroupMemberAsync(member, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return GroupMembers.CreateAuthorized(
+            LoadMembers(),
+            LoadMembers,
+            groupId,
+            InsertMember,
+            isServerAdministrator);
     }
 }

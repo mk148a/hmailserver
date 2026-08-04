@@ -21,4 +21,19 @@ public sealed class SqlServerGroupMemberAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void InsertGroupMemberSql_UsesParameterizedOwnerAndAccountIdentity()
+    {
+        var sql = SqlServerGroupMemberAdministrationStore.InsertGroupMemberSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_group_members");
+        StringAssert.Contains(sql, "membergroupid");
+        StringAssert.Contains(sql, "memberaccountid");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.memberid");
+        StringAssert.Contains(sql, "@groupId");
+        StringAssert.Contains(sql, "@accountId");
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
 }
