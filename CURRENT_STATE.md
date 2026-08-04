@@ -3,8 +3,8 @@
 - UTC timestamp: 2026-08-04T13:55:00Z
 - Local timestamp: 2026-08-04T16:55:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `91129dfc1`
-- Last successfully pushed commit: `bded4c59f` (the current code/test commit is not pushed yet)
+- Current HEAD: `e659264b9`
+- Last successfully pushed commit: `e659264b9` (verified against `origin/net10-modernization` after the code/test and documentation commits)
 - Latest focused-test result: DomainAliases/SQL coverage `15/15` passed
 - Latest full Net10 result: `1687 passed, 0 failed, 4 skipped` (1691 total)
 - Opt-in tests passed/skipped/blocked: `0/4/0` in the full run; disposable SQL deletion, SQL failure-path, and native registry integration are skipped by opt-in gates
