@@ -1,6 +1,7 @@
 using HMailServer.Core.Abstractions;
 using HMailServer.Storage.SqlServer;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Reflection;
 
 namespace HMailServer.Net10.Tests;
 
@@ -47,5 +48,129 @@ public sealed class SqlServerImapMessageMutationStoreTests
         StringAssert.Contains(SqlServerImapMessageMutationStore.DeleteMessageSql, "DELETE FROM hm_message_search_documents");
         StringAssert.Contains(SqlServerImapMessageMutationStore.DeleteMessageSql, "DELETE FROM hm_message_metadata");
         StringAssert.Contains(SqlServerImapMessageMutationStore.DeleteMessageSql, "DELETE FROM hm_messages");
+    }
+
+    [TestMethod]
+    public void ExpungeStore_InjectsOptionalAccountSizeInvalidationCallback()
+    {
+        var constructor = typeof(SqlServerImapMessageMutationStore).GetConstructor(
+            BindingFlags.Public | BindingFlags.Instance,
+            binder: null,
+            new[]
+            {
+                typeof(SqlServerConnectionFactory),
+                typeof(MessageFilePathResolver),
+                typeof(Action<int>)
+            },
+            modifiers: null);
+
+        Assert.IsNotNull(constructor);
+    }
+
+    [TestMethod]
+    public void ExpungeStore_InvokesCallbackOnceAfterCommitBeforeFileCleanup()
+    {
+        var source = ReadExpungeCoreSource();
+        var commitIndex = source.IndexOf("await transaction.CommitAsync", StringComparison.Ordinal);
+        var callbackIndex = source.IndexOf(
+            "_accountSizeInvalidationCallback?.Invoke(accountId)",
+            StringComparison.Ordinal);
+        var cleanupIndex = source.IndexOf("TryDeleteMessageFile(row)", StringComparison.Ordinal);
+
+        Assert.IsTrue(commitIndex >= 0);
+        Assert.IsTrue(callbackIndex > commitIndex);
+        Assert.IsTrue(cleanupIndex > callbackIndex);
+        Assert.AreEqual(
+            1,
+            CountOccurrences(source, "_accountSizeInvalidationCallback?.Invoke(accountId)"));
+        StringAssert.Contains(ReadStoreSource(), "Action<int>? accountSizeInvalidationCallback = null");
+    }
+
+    [TestMethod]
+    public void ExpungeStore_SkipsCallbackForZeroRowsAndFailedTransactions()
+    {
+        var source = ReadExpungeCoreSource();
+        var zeroRowsIndex = source.IndexOf("if (rows.Count == 0)", StringComparison.Ordinal);
+        var rollbackIndex = source.IndexOf(
+            "await transaction.RollbackAsync(cancellationToken)",
+            StringComparison.Ordinal);
+        var callbackIndex = source.IndexOf(
+            "_accountSizeInvalidationCallback?.Invoke(accountId)",
+            StringComparison.Ordinal);
+
+        Assert.IsTrue(zeroRowsIndex >= 0);
+        Assert.IsTrue(rollbackIndex >= 0);
+        Assert.IsTrue(zeroRowsIndex < callbackIndex);
+        Assert.IsTrue(rollbackIndex < callbackIndex);
+    }
+
+    [TestMethod]
+    public async Task ExpungeAsync_WhenCanceledBeforeSql_DoesNotInvokeAccountSizeInvalidation()
+    {
+        var invalidatedAccountIds = new List<int>();
+        var store = new SqlServerImapMessageMutationStore(
+            new SqlServerConnectionFactory("Server=invalid;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            invalidatedAccountIds.Add);
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+
+        var enumerator = store.ExpungeDeletedAsync(11, 12, cancellationTokenSource.Token).GetAsyncEnumerator();
+        try
+        {
+            await Assert.ThrowsAsync<OperationCanceledException>(() => enumerator.MoveNextAsync().AsTask());
+        }
+        finally
+        {
+            await enumerator.DisposeAsync();
+        }
+
+        CollectionAssert.AreEqual(Array.Empty<int>(), invalidatedAccountIds);
+    }
+
+    private static string ReadStoreSource()
+    {
+        var sourcePath = Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "Server.Net10",
+            "src",
+            "HMailServer.Storage.SqlServer",
+            "SqlServerImapMessageMutationStore.cs");
+        return File.ReadAllText(Path.GetFullPath(sourcePath));
+    }
+
+    private static string ReadExpungeCoreSource()
+    {
+        var source = ReadStoreSource();
+        var startIndex = source.IndexOf(
+            "private async ValueTask<IReadOnlyList<ImapExpungedMessage>> ExpungeDeletedCoreAsync",
+            StringComparison.Ordinal);
+        var endIndex = source.IndexOf(
+            "private async ValueTask<IReadOnlyList<MessageMutationRow>> LoadDeletedRowsAsync",
+            startIndex,
+            StringComparison.Ordinal);
+
+        Assert.IsTrue(startIndex >= 0);
+        Assert.IsTrue(endIndex > startIndex);
+        return source[startIndex..endIndex];
+    }
+
+    private static int CountOccurrences(string source, string value)
+    {
+        var count = 0;
+        var startIndex = 0;
+        while ((startIndex = source.IndexOf(value, startIndex, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            startIndex += value.Length;
+        }
+
+        return count;
     }
 }

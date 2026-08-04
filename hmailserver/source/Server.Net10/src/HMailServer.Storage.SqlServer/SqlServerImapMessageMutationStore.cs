@@ -66,13 +66,16 @@ WHERE
 
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly MessageFilePathResolver _pathResolver;
+    private readonly Action<int>? _accountSizeInvalidationCallback;
 
     public SqlServerImapMessageMutationStore(
         SqlServerConnectionFactory connectionFactory,
-        MessageFilePathResolver pathResolver)
+        MessageFilePathResolver pathResolver,
+        Action<int>? accountSizeInvalidationCallback = null)
     {
         _connectionFactory = connectionFactory;
         _pathResolver = pathResolver;
+        _accountSizeInvalidationCallback = accountSizeInvalidationCallback;
     }
 
     public async IAsyncEnumerable<ImapStoredMessage> StoreFlagsAsync(
@@ -228,6 +231,8 @@ ORDER BY messageuid ASC;
             await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
             throw;
         }
+
+        _accountSizeInvalidationCallback?.Invoke(accountId);
 
         foreach (var row in rows)
         {
