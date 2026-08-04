@@ -284,6 +284,107 @@ public sealed class AccountsComContractTests
     }
 
     [TestMethod]
+    public void AccountsRefresh_RemovedAccountIdsNoLongerReceiveInvalidation()
+    {
+        var invalidator = new AccountSizeInvalidator();
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            [new AccountAdministrationSnapshot(10, 100, "account@example.test", true, 0)],
+            () => [],
+            accountSizeInvalidator: invalidator);
+
+        accounts.Refresh();
+        invalidator.Invalidate(10);
+
+        Assert.AreEqual(0, invalidator.GetVersion(10));
+    }
+
+    [TestMethod]
+    public void AccountsRefresh_ReaddedAccountGetsNewGenerationAndReadback()
+    {
+        var initial = new AccountAdministrationSnapshot(
+            10,
+            100,
+            "account@example.test",
+            true,
+            0,
+            Size: 1.25f,
+            QuotaUsed: 10);
+        var refreshed = initial with { Size = 3.5f, QuotaUsed = 35 };
+        IReadOnlyList<AccountAdministrationSnapshot> current = [initial];
+        var invalidator = new AccountSizeInvalidator();
+        var readbackCount = 0;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            [initial],
+            () => current,
+            accountSizeInvalidator: invalidator,
+            accountSizeReadback: _ =>
+            {
+                readbackCount++;
+                return refreshed;
+            });
+        var retainedAccount = accounts[0];
+
+        Assert.AreEqual(1.25f, retainedAccount.Size, 0.0001f);
+        current = [];
+        accounts.Refresh();
+        current = [refreshed];
+        accounts.Refresh();
+
+        Assert.AreEqual(1, invalidator.GetVersion(10));
+        Assert.AreEqual(3.5f, retainedAccount.Size, 0.0001f);
+        Assert.AreEqual(1, readbackCount);
+    }
+
+    [TestMethod]
+    public void AccountsRefresh_RetainedAccountDoesNotForceSizeReadback()
+    {
+        var initial = new AccountAdministrationSnapshot(
+            10,
+            100,
+            "account@example.test",
+            true,
+            0,
+            Size: 1.25f,
+            QuotaUsed: 10);
+        var refreshed = initial with { Size = 3.5f, QuotaUsed = 35 };
+        var invalidator = new AccountSizeInvalidator();
+        var readbackCount = 0;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            [initial],
+            () => [refreshed],
+            accountSizeInvalidator: invalidator,
+            accountSizeReadback: _ =>
+            {
+                readbackCount++;
+                return refreshed;
+            });
+        var retainedAccount = accounts[0];
+
+        accounts.Refresh();
+
+        Assert.AreEqual(1.25f, retainedAccount.Size, 0.0001f);
+        Assert.AreEqual(0, readbackCount);
+    }
+
+    [TestMethod]
+    public void AccountsRefresh_DoesNotRemoveAnotherCollectionRegistration()
+    {
+        var invalidator = new AccountSizeInvalidator();
+        IInterfaceAccounts first = Accounts.CreateAuthorized(
+            [new AccountAdministrationSnapshot(10, 100, "first@example.test", true, 0)],
+            () => [],
+            accountSizeInvalidator: invalidator);
+        _ = Accounts.CreateAuthorized(
+            [new AccountAdministrationSnapshot(20, 100, "second@example.test", true, 0)],
+            accountSizeInvalidator: invalidator);
+
+        first.Refresh();
+        invalidator.Invalidate(20);
+
+        Assert.AreEqual(1, invalidator.GetVersion(20));
+    }
+
+    [TestMethod]
     public void RetainedAccountSize_MissingReadbackAccountIsNoOp()
     {
         var store = new MutableAccountAdministrationStore(

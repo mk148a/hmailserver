@@ -54,6 +54,7 @@ public sealed class Accounts : IInterfaceAccounts
     private readonly AccountSizeInvalidator? _accountSizeInvalidator;
     private readonly Func<int, AccountAdministrationSnapshot?>? _accountSizeReadback;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly object _accountSizeRegistrationOwner = new();
 
     public Accounts()
     {
@@ -73,7 +74,7 @@ public sealed class Accounts : IInterfaceAccounts
         _isAuthenticated = isAuthenticated;
         foreach (var account in accounts)
         {
-            _accountSizeInvalidator?.Register(account.Id);
+            _accountSizeInvalidator?.Register(_accountSizeRegistrationOwner, account.Id);
         }
     }
 
@@ -133,10 +134,9 @@ public sealed class Accounts : IInterfaceAccounts
         {
             var accounts = _reload();
             ArgumentNullException.ThrowIfNull(accounts);
-            foreach (var account in accounts)
-            {
-                _accountSizeInvalidator?.Register(account.Id);
-            }
+            _accountSizeInvalidator?.Reconcile(
+                _accountSizeRegistrationOwner,
+                accounts.Select(account => account.Id).ToArray());
             Volatile.Write(ref _accounts, CreateEntries(accounts));
         }
         catch (Exception)
