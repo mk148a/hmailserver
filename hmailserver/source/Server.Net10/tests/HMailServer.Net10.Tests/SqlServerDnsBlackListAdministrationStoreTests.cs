@@ -35,4 +35,20 @@ public sealed class SqlServerDnsBlackListAdministrationStoreTests
         Assert.IsFalse(sql.Contains("xp_", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("OPENROWSET", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void InsertDnsBlackListSql_UsesLegacyColumnsAndGeneratedIdentity()
+    {
+        var sql = SqlServerDnsBlackListAdministrationStore.InsertDnsBlackListSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_dnsbl");
+        StringAssert.Contains(sql, "sblactive");
+        StringAssert.Contains(sql, "sbldnshost");
+        StringAssert.Contains(sql, "sblrejectmessage");
+        StringAssert.Contains(sql, "sblresult");
+        StringAssert.Contains(sql, "sblscore");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.sblid");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_settings", StringComparison.OrdinalIgnoreCase));
+    }
 }

@@ -285,7 +285,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         get
         {
             _ = Snapshot;
-            return DnsBlackListAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            return DnsBlackListAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
         }
     }
 

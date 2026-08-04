@@ -125,6 +125,81 @@ public sealed class DnsBlackListsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedDnsBlackLists_AddStagesFieldsAndPublishesOnlyAfterInsert()
+    {
+        DnsBlackListAdministrationSnapshot? inserted = null;
+        IInterfaceDNSBlackLists blackLists = DNSBlackLists.CreateAuthorized(
+            Array.Empty<DnsBlackListAdministrationSnapshot>(),
+            insert: blackList =>
+            {
+                inserted = blackList;
+                return 42;
+            },
+            isServerAdministrator: static () => true);
+        var draft = blackLists.Add();
+
+        draft.Active = true;
+        draft.DNSHost = "zen.example.test";
+        draft.RejectMessage = "Rejected";
+        draft.ExpectedResult = "127.0.0.2";
+        draft.Score = 4;
+
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(0, blackLists.Count);
+
+        draft.Save();
+
+        Assert.IsNotNull(inserted);
+        Assert.IsTrue(inserted!.Active);
+        Assert.AreEqual("zen.example.test", inserted.DnsHost);
+        Assert.AreEqual("Rejected", inserted.RejectMessage);
+        Assert.AreEqual("127.0.0.2", inserted.ExpectedResult);
+        Assert.AreEqual(4, inserted.Score);
+        Assert.AreEqual(42, draft.ID);
+        Assert.AreEqual(1, blackLists.Count);
+        AssertBlackList(blackLists[0], 42, true, "zen.example.test", "Rejected", "127.0.0.2", 4);
+    }
+
+    [TestMethod]
+    public void NewDnsBlackList_SaveFailureRetainsDraftAndOwnerSnapshot()
+    {
+        IInterfaceDNSBlackLists blackLists = DNSBlackLists.CreateAuthorized(
+            Array.Empty<DnsBlackListAdministrationSnapshot>(),
+            insert: static _ => throw new InvalidOperationException("Simulated insert failure."),
+            isServerAdministrator: static () => true);
+        var draft = blackLists.Add();
+        draft.DNSHost = "failed.example.test";
+
+        var error = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual("failed.example.test", draft.DNSHost);
+        Assert.AreEqual(0, blackLists.Count);
+    }
+
+    [TestMethod]
+    public void NewDnsBlackList_RechecksLiveAdministratorBeforeMutationAndSave()
+    {
+        var isAdministrator = true;
+        IInterfaceDNSBlackLists blackLists = DNSBlackLists.CreateAuthorized(
+            Array.Empty<DnsBlackListAdministrationSnapshot>(),
+            insert: static _ => 42,
+            isServerAdministrator: () => isAdministrator);
+        var draft = blackLists.Add();
+
+        isAdministrator = false;
+
+        var setterError = Assert.ThrowsExactly<COMException>(() => draft.DNSHost = "denied.example.test");
+        var saveError = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EAccessDenied, setterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(0, blackLists.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
