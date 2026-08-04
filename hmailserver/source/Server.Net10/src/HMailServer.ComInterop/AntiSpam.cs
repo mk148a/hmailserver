@@ -234,7 +234,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             _ = Snapshot;
             return _isServerAdministrator is not null && !_isServerAdministrator()
                 ? new SURBLServers()
-                : SurblServerAdministrationRuntimeHost.CreateAuthorizedAdapter();
+                : SurblServerAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
         }
     }
 

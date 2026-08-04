@@ -34,4 +34,19 @@ public sealed class SqlServerSurblServerAdministrationStoreTests
         Assert.IsFalse(sql.Contains("xp_", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("OPENROWSET", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void InsertSurblServerSql_UsesLegacyColumnsAndGeneratedIdentity()
+    {
+        var sql = SqlServerSurblServerAdministrationStore.InsertSurblServerSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_surblservers");
+        StringAssert.Contains(sql, "surblactive");
+        StringAssert.Contains(sql, "surblhost");
+        StringAssert.Contains(sql, "surblrejectmessage");
+        StringAssert.Contains(sql, "surblscore");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.surblid");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_dnsbl", StringComparison.OrdinalIgnoreCase));
+    }
 }

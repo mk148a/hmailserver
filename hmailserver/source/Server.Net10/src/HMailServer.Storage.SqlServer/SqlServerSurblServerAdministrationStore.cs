@@ -17,6 +17,13 @@ FROM hm_surblservers
 ORDER BY surblid ASC;
 """;
 
+    public const string InsertSurblServerSql = """
+INSERT INTO hm_surblservers
+    (surblactive, surblhost, surblrejectmessage, surblscore)
+OUTPUT INSERTED.surblid
+VALUES (@active, @dnsHost, @rejectMessage, @score);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerSurblServerAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -47,5 +54,22 @@ ORDER BY surblid ASC;
         }
 
         return servers;
+    }
+
+    public async ValueTask<int> InsertSurblServerAsync(
+        SurblServerAdministrationSnapshot server,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertSurblServerSql, connection);
+        command.Parameters.Add("@active", SqlDbType.Bit).Value = server.Active;
+        command.Parameters.Add("@dnsHost", SqlDbType.NVarChar, 255).Value = server.DnsHost;
+        command.Parameters.Add("@rejectMessage", SqlDbType.NVarChar, 255).Value = server.RejectMessage;
+        command.Parameters.Add("@score", SqlDbType.Int).Value = server.Score;
+
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
     }
 }

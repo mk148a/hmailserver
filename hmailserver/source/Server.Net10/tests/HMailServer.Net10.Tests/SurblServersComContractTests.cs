@@ -121,6 +121,79 @@ public sealed class SurblServersComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSurblServers_AddStagesFieldsAndPublishesOnlyAfterInsert()
+    {
+        SurblServerAdministrationSnapshot? inserted = null;
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            Array.Empty<SurblServerAdministrationSnapshot>(),
+            insert: server =>
+            {
+                inserted = server;
+                return 42;
+            },
+            isServerAdministrator: static () => true);
+        var draft = servers.Add();
+
+        draft.Active = true;
+        draft.DNSHost = "multi.example.test";
+        draft.RejectMessage = "Rejected";
+        draft.Score = 4;
+
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(0, servers.Count);
+
+        draft.Save();
+
+        Assert.IsNotNull(inserted);
+        Assert.IsTrue(inserted!.Active);
+        Assert.AreEqual("multi.example.test", inserted.DnsHost);
+        Assert.AreEqual("Rejected", inserted.RejectMessage);
+        Assert.AreEqual(4, inserted.Score);
+        Assert.AreEqual(42, draft.ID);
+        Assert.AreEqual(1, servers.Count);
+        AssertServer(servers[0], 42, true, "multi.example.test", "Rejected", 4);
+    }
+
+    [TestMethod]
+    public void NewSurblServer_SaveFailureRetainsDraftAndOwnerSnapshot()
+    {
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            Array.Empty<SurblServerAdministrationSnapshot>(),
+            insert: static _ => throw new InvalidOperationException("Simulated insert failure."),
+            isServerAdministrator: static () => true);
+        var draft = servers.Add();
+        draft.DNSHost = "failed.example.test";
+
+        var error = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual("failed.example.test", draft.DNSHost);
+        Assert.AreEqual(0, servers.Count);
+    }
+
+    [TestMethod]
+    public void NewSurblServer_RechecksLiveAdministratorBeforeMutationAndSave()
+    {
+        var isAdministrator = true;
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            Array.Empty<SurblServerAdministrationSnapshot>(),
+            insert: static _ => 42,
+            isServerAdministrator: () => isAdministrator);
+        var draft = servers.Add();
+
+        isAdministrator = false;
+
+        var setterError = Assert.ThrowsExactly<COMException>(() => draft.DNSHost = "denied.example.test");
+        var saveError = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EAccessDenied, setterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(0, servers.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
