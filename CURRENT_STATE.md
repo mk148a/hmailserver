@@ -1,10 +1,10 @@
 # Current State
 
-- UTC timestamp: 2026-08-04T14:35:28Z
-- Local timestamp: 2026-08-04T17:35:28+03:00
+- UTC timestamp: 2026-08-04T14:37:00Z
+- Local timestamp: 2026-08-04T17:37:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `b31ce86c1`
-- Last successfully pushed commit: `c0a941f07` (the greylisting insert code/test commit is locally verified but not yet pushed)
+- Current HEAD: `e13301d3a`
+- Last successfully pushed commit: `e13301d3a` (verified against `origin/net10-modernization` after the greylisting insert code/test and documentation commits)
 - Latest focused-test result: GreyListingWhiteAddresses/SQL coverage `14/14` passed
 - Latest full Net10 result: `1718 passed, 0 failed, 4 skipped` (1722 total)
 - Opt-in tests passed/skipped/blocked: `0/4/0` in the full run; disposable SQL deletion, SQL failure-path, and native registry integration are skipped by opt-in gates
