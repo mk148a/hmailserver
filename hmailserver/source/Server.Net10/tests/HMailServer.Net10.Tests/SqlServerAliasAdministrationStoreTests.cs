@@ -41,4 +41,21 @@ public sealed class SqlServerAliasAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateAliasSql_UsesOwnerAndAliasPredicatesAndAllMutableFields()
+    {
+        var sql = SqlServerAliasAdministrationStore.UpdateAliasSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_aliases");
+        StringAssert.Contains(sql, "aliasdomainid = @DomainID");
+        StringAssert.Contains(sql, "aliasname = @Name");
+        StringAssert.Contains(sql, "aliasvalue = @Value");
+        StringAssert.Contains(sql, "aliasactive = @Active");
+        StringAssert.Contains(sql, "WHERE aliasdomainid = @OwningDomainID");
+        StringAssert.Contains(sql, "AND aliasid = @AliasID");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+    }
 }

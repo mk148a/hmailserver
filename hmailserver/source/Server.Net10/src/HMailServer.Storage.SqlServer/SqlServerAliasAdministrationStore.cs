@@ -23,8 +23,18 @@ ORDER BY aliasname ASC;
 INSERT INTO hm_aliases
     (aliasdomainid, aliasname, aliasvalue, aliasactive)
 OUTPUT INSERTED.aliasid
-VALUES
+    VALUES
     (@DomainID, @Name, @Value, @Active);
+""";
+
+    public const string UpdateAliasSql = """
+UPDATE hm_aliases
+SET aliasdomainid = @DomainID,
+    aliasname = @Name,
+    aliasvalue = @Value,
+    aliasactive = @Active
+WHERE aliasdomainid = @OwningDomainID
+  AND aliasid = @AliasID;
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
@@ -75,5 +85,27 @@ VALUES
         command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = alias.Active ? 1 : 0;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask UpdateAliasAsync(
+        int owningDomainId,
+        AliasAdministrationSnapshot alias,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(alias);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAliasSql, connection);
+        command.Parameters.Add("@OwningDomainID", SqlDbType.Int).Value = owningDomainId;
+        command.Parameters.Add("@AliasID", SqlDbType.Int).Value = alias.Id;
+        command.Parameters.Add("@DomainID", SqlDbType.Int).Value = owningDomainId;
+        command.Parameters.Add("@Name", SqlDbType.NVarChar, 255).Value = alias.Name;
+        command.Parameters.Add("@Value", SqlDbType.NVarChar, 255).Value = alias.Value;
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = alias.Active ? 1 : 0;
+        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        if (affectedRows != 1)
+        {
+            throw new InvalidOperationException(
+                $"Updating alias {alias.Id} for owning domain {owningDomainId} affected {affectedRows} rows instead of exactly one.");
+        }
     }
 }

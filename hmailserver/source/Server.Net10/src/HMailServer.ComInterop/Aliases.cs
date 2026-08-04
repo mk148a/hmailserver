@@ -101,6 +101,7 @@ public sealed class Aliases : IInterfaceAliases
     private AliasAdministrationSnapshot[]? _aliases;
     private readonly Func<IReadOnlyList<AliasAdministrationSnapshot>>? _reload;
     private readonly Func<int, AliasAdministrationSnapshot, int>? _insert;
+    private readonly Action<int, AliasAdministrationSnapshot>? _save;
     private readonly int? _owningDomainId;
     private readonly Func<bool>? _isAuthenticated;
 
@@ -112,12 +113,14 @@ public sealed class Aliases : IInterfaceAliases
         IReadOnlyList<AliasAdministrationSnapshot> aliases,
         Func<IReadOnlyList<AliasAdministrationSnapshot>>? reload,
         Func<int, AliasAdministrationSnapshot, int>? insert,
+        Action<int, AliasAdministrationSnapshot>? save,
         int? owningDomainId,
         Func<bool>? isAuthenticated)
     {
         _aliases = aliases.ToArray();
         _reload = reload;
         _insert = insert;
+        _save = save;
         _owningDomainId = owningDomainId;
         _isAuthenticated = isAuthenticated;
     }
@@ -128,11 +131,12 @@ public sealed class Aliases : IInterfaceAliases
         IReadOnlyList<AliasAdministrationSnapshot> aliases,
         Func<IReadOnlyList<AliasAdministrationSnapshot>>? reload = null,
         Func<int, AliasAdministrationSnapshot, int>? insert = null,
+        Action<int, AliasAdministrationSnapshot>? save = null,
         int? owningDomainId = null,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(aliases);
-        return new Aliases(aliases, reload, insert, owningDomainId, isAuthenticated);
+        return new Aliases(aliases, reload, insert, save, owningDomainId, isAuthenticated);
     }
 
     public IInterfaceAlias this[int index]
@@ -145,7 +149,11 @@ public sealed class Aliases : IInterfaceAliases
                 throw new COMException("Alias index was outside the collection.", DispEBadIndex);
             }
 
-            return Alias.CreateAuthorized(aliases[index], isAuthenticated: _isAuthenticated);
+            var entry = new AliasAdministrationEntry(aliases[index]);
+            return Alias.CreateAuthorized(
+                entry,
+                save: _save is null ? null : alias => SaveExistingAlias(entry, alias),
+                isAuthenticated: _isAuthenticated);
         }
     }
 
@@ -192,8 +200,8 @@ public sealed class Aliases : IInterfaceAliases
 
         return Alias.CreateAuthorized(
             entry,
-            snapshot => SaveNewAlias(entry, snapshot),
-            _isAuthenticated);
+            saveNew: snapshot => SaveNewAlias(entry, snapshot),
+            isAuthenticated: _isAuthenticated);
     }
 
     public IInterfaceAlias get_ItemByDBID(int databaseId)
@@ -202,7 +210,7 @@ public sealed class Aliases : IInterfaceAliases
 
         return match is null
             ? throw new COMException("No alias with the specified database identifier exists.", DispEBadIndex)
-            : Alias.CreateAuthorized(match, isAuthenticated: _isAuthenticated);
+            : CreateExistingAlias(match);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
@@ -214,7 +222,7 @@ public sealed class Aliases : IInterfaceAliases
 
         return match is null
             ? throw new COMException("No alias with the specified name exists.", DispEBadIndex)
-            : Alias.CreateAuthorized(match, isAuthenticated: _isAuthenticated);
+            : CreateExistingAlias(match);
     }
 
     private IReadOnlyList<AliasAdministrationSnapshot> GetAliases()
@@ -253,6 +261,52 @@ public sealed class Aliases : IInterfaceAliases
             entry.Snapshot = persisted;
             Volatile.Write(ref _aliases, aliases.Append(persisted).ToArray());
             return persisted;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the alias to the database.",
+                EFail);
+        }
+    }
+
+    private IInterfaceAlias CreateExistingAlias(AliasAdministrationSnapshot alias)
+    {
+        var entry = new AliasAdministrationEntry(alias);
+        return Alias.CreateAuthorized(
+            entry,
+            save: _save is null ? null : snapshot => SaveExistingAlias(entry, snapshot),
+            isAuthenticated: _isAuthenticated);
+    }
+
+    private void SaveExistingAlias(
+        AliasAdministrationEntry entry,
+        AliasAdministrationSnapshot alias)
+    {
+        EnsureAuthenticated();
+        var aliases = GetAliases();
+        if (_save is null || _owningDomainId is null)
+        {
+            Unavailable();
+        }
+
+        if (!aliases.Any(existing => existing.Id == alias.Id))
+        {
+            return;
+        }
+
+        var prepared = alias with { DomainId = _owningDomainId.GetValueOrDefault() };
+        try
+        {
+            _save!(_owningDomainId.GetValueOrDefault(), prepared);
+            entry.Snapshot = prepared;
+            Volatile.Write(
+                ref _aliases,
+                aliases.Select(existing => existing.Id == prepared.Id ? prepared : existing).ToArray());
         }
         catch (COMException)
         {
@@ -313,6 +367,7 @@ public sealed class Alias : IInterfaceAlias
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly AliasAdministrationEntry? _entry;
+    private readonly Action<AliasAdministrationSnapshot>? _save;
     private readonly Func<AliasAdministrationSnapshot, AliasAdministrationSnapshot>? _saveNew;
     private readonly Func<bool>? _isAuthenticated;
 
@@ -322,10 +377,12 @@ public sealed class Alias : IInterfaceAlias
 
     private Alias(
         AliasAdministrationEntry entry,
+        Action<AliasAdministrationSnapshot>? save,
         Func<AliasAdministrationSnapshot, AliasAdministrationSnapshot>? saveNew,
         Func<bool>? isAuthenticated)
     {
         _entry = entry;
+        _save = save;
         _saveNew = saveNew;
         _isAuthenticated = isAuthenticated;
     }
@@ -359,13 +416,14 @@ public sealed class Alias : IInterfaceAlias
     internal static Alias CreateAuthorized(
         AliasAdministrationSnapshot alias,
         Func<bool>? isAuthenticated = null) =>
-        new(new AliasAdministrationEntry(alias), null, isAuthenticated);
+        new(new AliasAdministrationEntry(alias), null, null, isAuthenticated);
 
     internal static Alias CreateAuthorized(
         AliasAdministrationEntry entry,
-        Func<AliasAdministrationSnapshot, AliasAdministrationSnapshot>? saveNew,
+        Action<AliasAdministrationSnapshot>? save = null,
+        Func<AliasAdministrationSnapshot, AliasAdministrationSnapshot>? saveNew = null,
         Func<bool>? isAuthenticated = null) =>
-        new(entry, saveNew, isAuthenticated);
+        new(entry, save, saveNew, isAuthenticated);
 
     public void Delete() => Unavailable();
 
@@ -393,13 +451,33 @@ public sealed class Alias : IInterfaceAlias
             return;
         }
 
+        if (snapshot.Id > 0 && _save is not null)
+        {
+            try
+            {
+                _save(snapshot);
+            }
+            catch (COMException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to save the alias to the database.",
+                    EFail);
+            }
+
+            return;
+        }
+
         Unavailable();
     }
 
     private void Mutate(Func<AliasAdministrationSnapshot, AliasAdministrationSnapshot> mutation)
     {
         EnsureAuthenticated();
-        if (_saveNew is null)
+        if (_save is null && _saveNew is null)
         {
             Unavailable();
             return;
@@ -469,10 +547,17 @@ public static class AliasAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        void SaveAlias(int owningDomainId, AliasAdministrationSnapshot alias) => store
+            .UpdateAliasAsync(owningDomainId, alias, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return Aliases.CreateAuthorized(
             LoadAliases(),
             LoadAliases,
             InsertAlias,
+            SaveAlias,
             domainId,
             isAuthenticated);
     }
