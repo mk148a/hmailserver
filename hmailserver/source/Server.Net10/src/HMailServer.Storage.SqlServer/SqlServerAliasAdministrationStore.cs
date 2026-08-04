@@ -19,6 +19,14 @@ WHERE aliasdomainid = @DomainID
 ORDER BY aliasname ASC;
 """;
 
+    public const string InsertAliasSql = """
+INSERT INTO hm_aliases
+    (aliasdomainid, aliasname, aliasvalue, aliasactive)
+OUTPUT INSERTED.aliasid
+VALUES
+    (@DomainID, @Name, @Value, @Active);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerAliasAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -51,5 +59,21 @@ ORDER BY aliasname ASC;
         }
 
         return aliases;
+    }
+
+    public async ValueTask<int> InsertAliasAsync(
+        int owningDomainId,
+        AliasAdministrationSnapshot alias,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(alias);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertAliasSql, connection);
+        command.Parameters.Add("@DomainID", SqlDbType.Int).Value = owningDomainId;
+        command.Parameters.Add("@Name", SqlDbType.NVarChar, 255).Value = alias.Name;
+        command.Parameters.Add("@Value", SqlDbType.NVarChar, 255).Value = alias.Value;
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = alias.Active ? 1 : 0;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
     }
 }

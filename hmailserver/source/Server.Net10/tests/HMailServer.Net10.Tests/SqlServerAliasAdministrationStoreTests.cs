@@ -23,4 +23,22 @@ public sealed class SqlServerAliasAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void InsertAliasSql_UsesOwnerScopedFieldsAndGeneratedIdentity()
+    {
+        var sql = SqlServerAliasAdministrationStore.InsertAliasSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_aliases");
+        StringAssert.Contains(sql, "aliasdomainid, aliasname, aliasvalue, aliasactive");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.aliasid");
+        StringAssert.Contains(sql, "@DomainID");
+        StringAssert.Contains(sql, "@Name");
+        StringAssert.Contains(sql, "@Value");
+        StringAssert.Contains(sql, "@Active");
+        Assert.IsFalse(sql.Contains("MAX(", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("IDENT_CURRENT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
 }

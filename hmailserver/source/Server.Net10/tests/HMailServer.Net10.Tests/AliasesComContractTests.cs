@@ -58,10 +58,12 @@ public sealed class AliasesComContractTests
         var aliasesError = Assert.ThrowsExactly<COMException>(() => _ = new Aliases().Count);
         var aliasesRefreshError = Assert.ThrowsExactly<COMException>(new Aliases().Refresh);
         var aliasError = Assert.ThrowsExactly<COMException>(() => _ = new Alias().Name);
+        var aliasDomainIdSetterError = Assert.ThrowsExactly<COMException>(() => new Alias().DomainID = 42);
 
         Assert.AreEqual(EAccessDenied, aliasesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, aliasesRefreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, aliasError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, aliasDomainIdSetterError.ErrorCode);
     }
 
     [TestMethod]
@@ -181,6 +183,87 @@ public sealed class AliasesComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = aliases.get_ItemByDBID(40)).ErrorCode);
     }
 
+    [TestMethod]
+    public void AuthorizedDomainAliases_AddStagesFieldsUsesOwningDomainAndPublishesAfterInsert()
+    {
+        var store = new MutableAliasAdministrationStore(
+            new[]
+            {
+                new AliasAdministrationSnapshot(10, 100, "abuse@example.test", "admin@example.test", true)
+            });
+        AliasAdministrationRuntimeHost.Configure(store);
+        var domain = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true));
+        var aliases = domain.Aliases;
+
+        var pending = aliases.Add();
+        pending.DomainID = 999;
+        pending.Name = "sales@example.test";
+        pending.Value = "sales-target@example.test";
+        pending.Active = true;
+
+        Assert.AreEqual(0, pending.ID);
+        Assert.AreEqual(100, pending.DomainID);
+        pending.Save();
+
+        Assert.AreEqual(30, pending.ID);
+        Assert.AreEqual(2, aliases.Count);
+        CollectionAssert.AreEqual(
+            new[] { (OwningDomainId: 100, Alias: new AliasAdministrationSnapshot(0, 100, "sales@example.test", "sales-target@example.test", true)) },
+            store.InsertedAliases);
+        Assert.AreEqual(30, aliases.get_ItemByDBID(30).ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomainAliases_NewSaveFailureRetainsDraftAndCollectionForRetry()
+    {
+        var store = new MutableAliasAdministrationStore(
+            new[]
+            {
+                new AliasAdministrationSnapshot(10, 100, "abuse@example.test", "admin@example.test", true)
+            })
+        {
+            FailInsert = true
+        };
+        AliasAdministrationRuntimeHost.Configure(store);
+        var domain = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true));
+        var aliases = domain.Aliases;
+        var pending = aliases.Add();
+        pending.Name = "sales@example.test";
+        pending.Value = "sales-target@example.test";
+
+        var failure = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(0, pending.ID);
+        Assert.AreEqual("sales@example.test", pending.Name);
+        Assert.AreEqual(1, aliases.Count);
+
+        store.FailInsert = false;
+        pending.Save();
+
+        Assert.AreEqual(30, pending.ID);
+        Assert.AreEqual(2, aliases.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomainAliases_RetainedNewItemRechecksAuthentication()
+    {
+        var isAuthenticated = true;
+        var store = new MutableAliasAdministrationStore([]);
+        AliasAdministrationRuntimeHost.Configure(store);
+        var domain = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(100, "example.test", true),
+            isAuthenticated: () => isAuthenticated);
+        var pending = domain.Aliases.Add();
+        pending.Name = "sales@example.test";
+        isAuthenticated = false;
+
+        var error = Assert.ThrowsExactly<COMException>(() => pending.Save());
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, store.InsertedAliases.Count);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -226,6 +309,10 @@ public sealed class AliasesComContractTests
 
         public int ReadCount { get; private set; }
 
+        public bool FailInsert { get; set; }
+
+        public List<(int OwningDomainId, AliasAdministrationSnapshot Alias)> InsertedAliases { get; } = [];
+
         public void Replace(IReadOnlyList<AliasAdministrationSnapshot> aliases)
         {
             _aliases = aliases;
@@ -238,6 +325,20 @@ public sealed class AliasesComContractTests
             ReadCount++;
             return ValueTask.FromResult<IReadOnlyList<AliasAdministrationSnapshot>>(
                 _aliases.Where(alias => alias.DomainId == domainId).ToArray());
+        }
+
+        public ValueTask<int> InsertAliasAsync(
+            int owningDomainId,
+            AliasAdministrationSnapshot alias,
+            CancellationToken cancellationToken)
+        {
+            InsertedAliases.Add((owningDomainId, alias));
+            if (FailInsert)
+            {
+                throw new InvalidOperationException("Simulated alias insert failure.");
+            }
+
+            return ValueTask.FromResult(30);
         }
     }
 }

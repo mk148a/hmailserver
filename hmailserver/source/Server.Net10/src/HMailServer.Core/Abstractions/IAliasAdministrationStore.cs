@@ -5,4 +5,10 @@ public interface IAliasAdministrationStore
     ValueTask<IReadOnlyList<AliasAdministrationSnapshot>> GetAliasesAsync(
         int domainId,
         CancellationToken cancellationToken);
+
+    ValueTask<int> InsertAliasAsync(
+        int owningDomainId,
+        AliasAdministrationSnapshot alias,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Alias insertion is not implemented by this store.");
 }
