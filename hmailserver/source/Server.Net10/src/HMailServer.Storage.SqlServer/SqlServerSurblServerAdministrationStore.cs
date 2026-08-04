@@ -24,6 +24,15 @@ OUTPUT INSERTED.surblid
 VALUES (@active, @dnsHost, @rejectMessage, @score);
 """;
 
+    public const string UpdateSurblServerSql = """
+UPDATE hm_surblservers
+SET surblactive = @active,
+    surblhost = @dnsHost,
+    surblrejectmessage = @rejectMessage,
+    surblscore = @score
+WHERE surblid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerSurblServerAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -71,5 +80,22 @@ VALUES (@active, @dnsHost, @rejectMessage, @score);
 
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<bool> UpdateSurblServerAsync(
+        SurblServerAdministrationSnapshot server,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateSurblServerSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = server.Id;
+        command.Parameters.Add("@active", SqlDbType.Bit).Value = server.Active;
+        command.Parameters.Add("@dnsHost", SqlDbType.NVarChar, 255).Value = server.DnsHost;
+        command.Parameters.Add("@rejectMessage", SqlDbType.NVarChar, 255).Value = server.RejectMessage;
+        command.Parameters.Add("@score", SqlDbType.Int).Value = server.Score;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 }

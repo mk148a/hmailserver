@@ -49,4 +49,19 @@ public sealed class SqlServerSurblServerAdministrationStoreTests
         Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_dnsbl", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateSurblServerSql_UsesLegacyFieldsAndIdentityPredicate()
+    {
+        var sql = SqlServerSurblServerAdministrationStore.UpdateSurblServerSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_surblservers");
+        StringAssert.Contains(sql, "surblactive = @active");
+        StringAssert.Contains(sql, "surblhost = @dnsHost");
+        StringAssert.Contains(sql, "surblrejectmessage = @rejectMessage");
+        StringAssert.Contains(sql, "surblscore = @score");
+        StringAssert.Contains(sql, "WHERE surblid = @id");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_dnsbl", StringComparison.OrdinalIgnoreCase));
+    }
 }

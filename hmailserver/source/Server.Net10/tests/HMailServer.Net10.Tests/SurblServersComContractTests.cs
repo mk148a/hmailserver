@@ -194,6 +194,52 @@ public sealed class SurblServersComContractTests
     }
 
     [TestMethod]
+    public void ExistingSurblServer_SaveUpdatesOwnerSnapshotAfterSuccess()
+    {
+        SurblServerAdministrationSnapshot? updated = null;
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            new[] { Snapshot(10, false, "old.example.test", "Old", 1) },
+            update: server =>
+            {
+                updated = server;
+                return true;
+            },
+            isServerAdministrator: static () => true);
+        var item = servers[0];
+
+        item.Active = true;
+        item.DNSHost = "new.example.test";
+        item.RejectMessage = "New";
+        item.Score = 7;
+        item.Save();
+
+        Assert.IsNotNull(updated);
+        Assert.AreEqual(10, updated!.Id);
+        Assert.IsTrue(updated.Active);
+        Assert.AreEqual("new.example.test", updated.DnsHost);
+        Assert.AreEqual("New", updated.RejectMessage);
+        Assert.AreEqual(7, updated.Score);
+        AssertServer(servers[0], 10, true, "new.example.test", "New", 7);
+    }
+
+    [TestMethod]
+    public void ExistingSurblServer_SaveFailureRetainsStagedItemAndOwnerSnapshot()
+    {
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            new[] { Snapshot(10, false, "old.example.test", "Old", 1) },
+            update: static _ => false,
+            isServerAdministrator: static () => true);
+        var item = servers[0];
+        item.DNSHost = "staged.example.test";
+
+        var error = Assert.ThrowsExactly<COMException>(item.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual("staged.example.test", item.DNSHost);
+        Assert.AreEqual("old.example.test", servers[0].DNSHost);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
