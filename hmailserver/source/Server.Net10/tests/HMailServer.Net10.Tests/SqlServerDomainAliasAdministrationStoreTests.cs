@@ -21,4 +21,19 @@ public sealed class SqlServerDomainAliasAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void InsertDomainAliasSql_UsesOwnerAndAliasNameAndGeneratedIdentity()
+    {
+        var sql = SqlServerDomainAliasAdministrationStore.InsertDomainAliasSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_domain_aliases");
+        StringAssert.Contains(sql, "dadomainid");
+        StringAssert.Contains(sql, "daalias");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.daid");
+        StringAssert.Contains(sql, "@DomainID");
+        StringAssert.Contains(sql, "@AliasName");
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
 }

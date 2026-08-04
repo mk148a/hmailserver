@@ -182,6 +182,81 @@ public sealed class DomainAliasesComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = aliases.get_ItemByDBID(40)).ErrorCode);
     }
 
+    [TestMethod]
+    public void AuthorizedDomainAliases_AddStagesOwningDomainAndPublishesAfterInsert()
+    {
+        var store = new MutableDomainAliasAdministrationStore(
+            new[]
+            {
+                new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test"),
+                new DomainAliasAdministrationSnapshot(20, 200, "outside.test")
+            });
+        DomainAliasAdministrationRuntimeHost.Configure(store);
+        var aliases = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true)).DomainAliases;
+        var pending = aliases.Add();
+
+        pending.DomainID = 999;
+        pending.AliasName = "alias-new.test";
+        pending.Save();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                (OwningDomainId: 100, Alias: new DomainAliasAdministrationSnapshot(0, 100, "alias-new.test"))
+            },
+            store.InsertedAliases);
+        Assert.AreEqual(30, pending.ID);
+        Assert.AreEqual(2, aliases.Count);
+        Assert.AreEqual("alias-new.test", aliases.get_ItemByDBID(30).AliasName);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomainAliases_NewSaveFailureRetainsDraftAndAllowsRetry()
+    {
+        var store = new MutableDomainAliasAdministrationStore(Array.Empty<DomainAliasAdministrationSnapshot>())
+        {
+            FailInsert = true
+        };
+        DomainAliasAdministrationRuntimeHost.Configure(store);
+        var aliases = Domain.CreateAuthorized(new DomainAdministrationSnapshot(100, "example.test", true)).DomainAliases;
+        var pending = aliases.Add();
+        pending.AliasName = "alias-retry.test";
+
+        var error = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, pending.ID);
+        Assert.AreEqual("alias-retry.test", pending.AliasName);
+        Assert.AreEqual(0, aliases.Count);
+
+        store.FailInsert = false;
+        pending.Save();
+
+        Assert.AreEqual(30, pending.ID);
+        Assert.AreEqual(1, aliases.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomainAliases_RetainedNewItemRechecksAuthentication()
+    {
+        var isAuthenticated = true;
+        var store = new MutableDomainAliasAdministrationStore(Array.Empty<DomainAliasAdministrationSnapshot>());
+        DomainAliasAdministrationRuntimeHost.Configure(store);
+        var aliases = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(100, "example.test", true),
+            isAuthenticated: () => isAuthenticated).DomainAliases;
+        var pending = aliases.Add();
+        pending.AliasName = "alias-auth.test";
+
+        isAuthenticated = false;
+        var error = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, store.InsertedAliases.Count);
+        isAuthenticated = true;
+        Assert.AreEqual(0, aliases.Count);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -223,6 +298,10 @@ public sealed class DomainAliasesComContractTests
 
         public int ReadCount { get; private set; }
 
+        public bool FailInsert { get; set; }
+
+        public List<(int OwningDomainId, DomainAliasAdministrationSnapshot Alias)> InsertedAliases { get; } = [];
+
         public void Replace(IReadOnlyList<DomainAliasAdministrationSnapshot> aliases)
         {
             _aliases = aliases;
@@ -235,6 +314,20 @@ public sealed class DomainAliasesComContractTests
             ReadCount++;
             return ValueTask.FromResult<IReadOnlyList<DomainAliasAdministrationSnapshot>>(
                 _aliases.Where(alias => alias.DomainId == domainId).ToArray());
+        }
+
+        public ValueTask<int> InsertDomainAliasAsync(
+            int owningDomainId,
+            DomainAliasAdministrationSnapshot alias,
+            CancellationToken cancellationToken)
+        {
+            InsertedAliases.Add((owningDomainId, alias));
+            if (FailInsert)
+            {
+                throw new InvalidOperationException("Simulated domain alias insert failure.");
+            }
+
+            return ValueTask.FromResult(30);
         }
     }
 }

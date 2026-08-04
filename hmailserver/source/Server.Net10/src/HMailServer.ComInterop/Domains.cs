@@ -639,7 +639,7 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         DistributionListAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
 
     public override IInterfaceDomainAliases DomainAliases =>
-        DomainAliasAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+        DomainAliasAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _isAuthenticated);
 
     internal static Domain CreateAuthorized(
         DomainAdministrationSnapshot domain,
