@@ -91,6 +91,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
     private TcpIpPortAdministrationSnapshot[]? _ports;
     private readonly Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? _reload;
     private readonly Func<TcpIpPortAdministrationSnapshot, int>? _insert;
+    private readonly Action<int>? _deleteById;
     private readonly Func<bool>? _isServerAdministrator;
 
     public TCPIPPorts()
@@ -101,11 +102,13 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         IReadOnlyList<TcpIpPortAdministrationSnapshot> ports,
         Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? reload,
         Func<TcpIpPortAdministrationSnapshot, int>? insert,
+        Action<int>? deleteById,
         Func<bool>? isServerAdministrator)
     {
         _ports = ports.ToArray();
         _reload = reload;
         _insert = insert;
+        _deleteById = deleteById;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -115,10 +118,11 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         IReadOnlyList<TcpIpPortAdministrationSnapshot> ports,
         Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? reload = null,
         Func<TcpIpPortAdministrationSnapshot, int>? insert = null,
+        Action<int>? deleteById = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(ports);
-        return new TCPIPPorts(ports, reload, insert, isServerAdministrator);
+        return new TCPIPPorts(ports, reload, insert, deleteById, isServerAdministrator);
     }
 
     public IInterfaceTCPIPPort this[int index]
@@ -131,7 +135,10 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
                 throw new COMException("TCP/IP port index was outside the collection.", DispEBadIndex);
             }
 
-            return TCPIPPort.CreateAuthorized(ports[index]);
+            return TCPIPPort.CreateAuthorized(
+                ports[index],
+                delete: _deleteById is null ? null : DeleteByDBID,
+                isServerAdministrator: _isServerAdministrator);
         }
     }
 
@@ -141,10 +148,38 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
 
         return match is null
             ? throw new COMException("No TCP/IP port with the specified database identifier exists.", DispEBadIndex)
-            : TCPIPPort.CreateAuthorized(match);
+            : TCPIPPort.CreateAuthorized(
+                match,
+                delete: _deleteById is null ? null : DeleteByDBID,
+                isServerAdministrator: _isServerAdministrator);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var ports = GetPorts();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (!ports.Any(port => port.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            _deleteById(databaseId);
+            Volatile.Write(ref _ports, ports.Where(port => port.Id != databaseId).ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the TCP/IP port from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceTCPIPPort Add()
     {
@@ -163,6 +198,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
                 ConnectionSecurity: (int)ComConnectionSecurity.None,
                 SslCertificateId: 0),
             save: SaveNewPort,
+            delete: DeleteByDBID,
             isServerAdministrator: _isServerAdministrator);
     }
 
@@ -273,6 +309,7 @@ public sealed class TCPIPPort : IInterfaceTCPIPPort
 
     private TcpIpPortAdministrationSnapshot? _port;
     private readonly Func<TcpIpPortAdministrationSnapshot, TcpIpPortAdministrationSnapshot>? _save;
+    private readonly Action<int>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
 
     public TCPIPPort()
@@ -282,10 +319,12 @@ public sealed class TCPIPPort : IInterfaceTCPIPPort
     private TCPIPPort(
         TcpIpPortAdministrationSnapshot port,
         Func<TcpIpPortAdministrationSnapshot, TcpIpPortAdministrationSnapshot>? save,
+        Action<int>? delete,
         Func<bool>? isServerAdministrator)
     {
         _port = port;
         _save = save;
+        _delete = delete;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -339,8 +378,9 @@ public sealed class TCPIPPort : IInterfaceTCPIPPort
     internal static TCPIPPort CreateAuthorized(
         TcpIpPortAdministrationSnapshot port,
         Func<TcpIpPortAdministrationSnapshot, TcpIpPortAdministrationSnapshot>? save = null,
+        Action<int>? delete = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(port, save, isServerAdministrator);
+        new(port, save, delete, isServerAdministrator);
 
     public void Save()
     {
@@ -354,7 +394,17 @@ public sealed class TCPIPPort : IInterfaceTCPIPPort
         _port = _save(Snapshot);
     }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(Snapshot.Id);
+    }
 
     private TcpIpPortAdministrationSnapshot Snapshot =>
         _port ?? throw new COMException(
@@ -424,10 +474,17 @@ public static class TcpIpPortAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        void DeletePort(int databaseId) => store
+            .DeleteTcpIpPortByIdAsync(databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return TCPIPPorts.CreateAuthorized(
             LoadPorts(),
             LoadPorts,
             InsertPort,
+            DeletePort,
             isServerAdministrator);
     }
 }

@@ -42,4 +42,16 @@ public sealed class SqlServerTcpIpPortAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteTcpIpPortByIdSql_UsesPortIdentityPredicate()
+    {
+        var sql = SqlServerTcpIpPortAdministrationStore.DeleteTcpIpPortByIdSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_tcpipports");
+        StringAssert.Contains(sql, "WHERE portid = @id");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+    }
 }

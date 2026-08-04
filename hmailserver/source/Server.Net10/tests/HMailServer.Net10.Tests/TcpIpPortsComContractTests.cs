@@ -314,6 +314,66 @@ public sealed class TcpIpPortsComContractTests
         Assert.AreEqual(0, pending.ID);
     }
 
+    [TestMethod]
+    public void AuthorizedSettings_DeleteByDBIDUsesOwningSnapshotAndStaleItemsNoOp()
+    {
+        var store = new MutableTcpIpPortAdministrationStore(
+            new[]
+            {
+                Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0),
+                Snapshot(20, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.None, 0)
+            });
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ports = settings.TCPIPPorts;
+        var retained = ports.get_ItemByDBID(20);
+
+        ports.DeleteByDBID(999);
+        ports.DeleteByDBID(20);
+        retained.Delete();
+
+        CollectionAssert.AreEqual(new[] { 20 }, store.DeletedIds);
+        Assert.AreEqual(1, ports.Count);
+        Assert.AreEqual(10, ports[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_DeleteFailureMapsToComFailureAndRetainsSnapshot()
+    {
+        var store = new MutableTcpIpPortAdministrationStore(
+            new[] { Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0) })
+        {
+            FailDelete = true
+        };
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ports = settings.TCPIPPorts;
+
+        var error = Assert.ThrowsExactly<COMException>(() => ports.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 10 }, store.DeletedIds);
+        Assert.AreEqual(1, ports.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_RetainedPortDeleteRechecksServerAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new MutableTcpIpPortAdministrationStore(
+            new[] { Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0) });
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            isServerAdministrator: () => isServerAdministrator);
+        var port = settings.TCPIPPorts[0];
+
+        isServerAdministrator = false;
+        var error = Assert.ThrowsExactly<COMException>(port.Delete);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, store.DeletedIds.Count);
+    }
+
     private static TcpIpPortAdministrationSnapshot Snapshot(
         int id,
         ComSessionType protocol,
@@ -374,7 +434,11 @@ public sealed class TcpIpPortsComContractTests
 
         public bool FailInsert { get; set; }
 
+        public bool FailDelete { get; set; }
+
         public List<TcpIpPortAdministrationSnapshot> InsertedPorts { get; } = [];
+
+        public List<int> DeletedIds { get; } = [];
 
         public void Replace(IReadOnlyList<TcpIpPortAdministrationSnapshot> ports)
         {
@@ -402,6 +466,19 @@ public sealed class TcpIpPortsComContractTests
             }
 
             return ValueTask.FromResult(30);
+        }
+
+        public ValueTask DeleteTcpIpPortByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken)
+        {
+            DeletedIds.Add(databaseId);
+            if (FailDelete)
+            {
+                throw new InvalidOperationException("Simulated TCP/IP port delete failure.");
+            }
+
+            return ValueTask.CompletedTask;
         }
     }
 }

@@ -28,6 +28,11 @@ OUTPUT INSERTED.portid
 VALUES (@protocol, @portNumber, @address1, @address2, @connectionSecurity, @sslCertificateId);
 """;
 
+    public const string DeleteTcpIpPortByIdSql = """
+DELETE FROM hm_tcpipports
+WHERE portid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerTcpIpPortAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -87,6 +92,16 @@ VALUES (@protocol, @portNumber, @address1, @address2, @connectionSecurity, @sslC
         command.Parameters.Add("@sslCertificateId", SqlDbType.BigInt).Value = port.SslCertificateId;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask DeleteTcpIpPortByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteTcpIpPortByIdSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = databaseId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static string FormatLegacyAddress(long address1, long? address2)
