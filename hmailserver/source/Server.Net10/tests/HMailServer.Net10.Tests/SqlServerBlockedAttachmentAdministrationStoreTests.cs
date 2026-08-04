@@ -60,4 +60,15 @@ public sealed class SqlServerBlockedAttachmentAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteBlockedAttachmentByIdSql_UsesParameterizedIdentityPredicate()
+    {
+        var sql = SqlServerBlockedAttachmentAdministrationStore.DeleteBlockedAttachmentByIdSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_blocked_attachments");
+        StringAssert.Contains(sql, "WHERE baid = @id");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+    }
 }

@@ -284,6 +284,62 @@ public sealed class BlockedAttachmentsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_DeleteByIdAndAttachedDeletePublishOwnerRemoval()
+    {
+        var deleted = new List<int>();
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "*.bat", "Batch file"),
+                Snapshot(20, "*.exe", "Executable file")
+            },
+            deleteById: databaseId => deleted.Add(databaseId),
+            isServerAdministrator: static () => true);
+
+        attachments.DeleteByDBID(99);
+        attachments[0].Delete();
+
+        Assert.AreEqual(1, deleted.Count);
+        Assert.AreEqual(10, deleted[0]);
+        Assert.AreEqual(1, attachments.Count);
+        AssertAttachment(attachments[0], 20, "*.exe", "Executable file");
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_DeleteFailureRetainsOwnerSnapshot()
+    {
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[] { Snapshot(10, "*.bat", "Batch file") },
+            deleteById: _ => throw new InvalidOperationException("Simulated delete failure."),
+            isServerAdministrator: static () => true);
+
+        var error = Assert.ThrowsExactly<COMException>(() => attachments.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, attachments.Count);
+        AssertAttachment(attachments[0], 10, "*.bat", "Batch file");
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_RetainedAttachmentDeleteRechecksServerAdministrator()
+    {
+        var isServerAdministrator = true;
+        var deleted = 0;
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[] { Snapshot(10, "*.bat", "Batch file") },
+            deleteById: _ => deleted++,
+            isServerAdministrator: () => isServerAdministrator);
+        var attachment = attachments[0];
+        isServerAdministrator = false;
+
+        var error = Assert.ThrowsExactly<COMException>(attachment.Delete);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, deleted);
+        Assert.AreEqual(1, attachments.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedAntiVirus_UsesConfiguredBlockedAttachmentRuntime()
     {
         var store = new MutableBlockedAttachmentAdministrationStore(

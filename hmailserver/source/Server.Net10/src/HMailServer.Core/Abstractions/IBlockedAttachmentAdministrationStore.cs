@@ -14,4 +14,9 @@ public interface IBlockedAttachmentAdministrationStore
         BlockedAttachmentAdministrationSnapshot attachment,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Blocked attachment updates are not implemented by this store.");
+
+    ValueTask DeleteBlockedAttachmentByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Blocked attachment deletion is not implemented by this store.");
 }

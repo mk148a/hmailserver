@@ -74,6 +74,7 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
 
     private BlockedAttachmentAdministrationSnapshot[]? _blockedAttachments;
     private readonly Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? _reload;
+    private readonly Action<int>? _deleteById;
     private readonly Func<BlockedAttachmentAdministrationSnapshot, int>? _insert;
     private readonly Action<BlockedAttachmentAdministrationSnapshot>? _update;
     private readonly Func<bool>? _isServerAdministrator;
@@ -87,10 +88,12 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
         Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? reload,
         Func<BlockedAttachmentAdministrationSnapshot, int>? insert,
         Action<BlockedAttachmentAdministrationSnapshot>? update,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Action<int>? deleteById)
     {
         _blockedAttachments = blockedAttachments.ToArray();
         _reload = reload;
+        _deleteById = deleteById;
         _insert = insert;
         _update = update;
         _isServerAdministrator = isServerAdministrator;
@@ -111,11 +114,39 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
             return BlockedAttachment.CreateAuthorized(
                 blockedAttachments[index],
                 save: _update is null ? null : SaveExistingAttachment,
+                delete: _deleteById is null ? null : DeleteByDBID,
                 isServerAdministrator: _isServerAdministrator);
         }
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var attachments = GetBlockedAttachments();
+        if (_deleteById is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (!attachments.Any(attachment => attachment.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            _deleteById(databaseId);
+            Volatile.Write(
+                ref _blockedAttachments,
+                attachments.Where(attachment => attachment.Id != databaseId).ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the blocked attachment from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceBlockedAttachment Add()
     {
@@ -128,6 +159,7 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
         return BlockedAttachment.CreateAuthorized(
             new BlockedAttachmentAdministrationSnapshot(0, string.Empty, string.Empty),
             save: SaveNewAttachment,
+            delete: _deleteById is null ? null : DeleteByDBID,
             isServerAdministrator: _isServerAdministrator);
     }
 
@@ -140,6 +172,7 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
             : BlockedAttachment.CreateAuthorized(
                 match,
                 save: _update is null ? null : SaveExistingAttachment,
+                delete: _deleteById is null ? null : DeleteByDBID,
                 isServerAdministrator: _isServerAdministrator);
     }
 
@@ -171,10 +204,17 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
         Func<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>? reload = null,
         Func<BlockedAttachmentAdministrationSnapshot, int>? insert = null,
         Func<bool>? isServerAdministrator = null,
-        Action<BlockedAttachmentAdministrationSnapshot>? update = null)
+        Action<BlockedAttachmentAdministrationSnapshot>? update = null,
+        Action<int>? deleteById = null)
     {
         ArgumentNullException.ThrowIfNull(blockedAttachments);
-        return new BlockedAttachments(blockedAttachments, reload, insert, update, isServerAdministrator);
+        return new BlockedAttachments(
+            blockedAttachments,
+            reload,
+            insert,
+            update,
+            isServerAdministrator,
+            deleteById);
     }
 
     private BlockedAttachmentAdministrationSnapshot SaveNewAttachment(
@@ -289,24 +329,22 @@ public sealed class BlockedAttachment : IInterfaceBlockedAttachment
 
     private BlockedAttachmentAdministrationSnapshot? _blockedAttachment;
     private readonly Func<BlockedAttachmentAdministrationSnapshot, BlockedAttachmentAdministrationSnapshot>? _save;
+    private readonly Action<int>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
 
     public BlockedAttachment()
     {
     }
 
-    private BlockedAttachment(BlockedAttachmentAdministrationSnapshot blockedAttachment)
-    {
-        _blockedAttachment = blockedAttachment;
-    }
-
     private BlockedAttachment(
         BlockedAttachmentAdministrationSnapshot blockedAttachment,
         Func<BlockedAttachmentAdministrationSnapshot, BlockedAttachmentAdministrationSnapshot>? save,
+        Action<int>? delete,
         Func<bool>? isServerAdministrator)
     {
         _blockedAttachment = blockedAttachment;
         _save = save;
+        _delete = delete;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -328,13 +366,24 @@ public sealed class BlockedAttachment : IInterfaceBlockedAttachment
         _blockedAttachment = _save(Snapshot);
     }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(Snapshot.Id);
+    }
 
     internal static BlockedAttachment CreateAuthorized(
         BlockedAttachmentAdministrationSnapshot blockedAttachment,
         Func<BlockedAttachmentAdministrationSnapshot, BlockedAttachmentAdministrationSnapshot>? save = null,
+        Action<int>? delete = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(blockedAttachment, save, isServerAdministrator);
+        new(blockedAttachment, save, delete, isServerAdministrator);
 
     private BlockedAttachmentAdministrationSnapshot Snapshot =>
         _blockedAttachment ?? throw new COMException(
@@ -410,10 +459,17 @@ public static class BlockedAttachmentAdministrationRuntimeHost
             LoadBlockedAttachments,
             InsertBlockedAttachment,
             isServerAdministrator: isServerAdministrator,
-            update: UpdateBlockedAttachment);
+            update: UpdateBlockedAttachment,
+            deleteById: DeleteBlockedAttachment);
 
         void UpdateBlockedAttachment(BlockedAttachmentAdministrationSnapshot attachment) => store
             .UpdateBlockedAttachmentAsync(attachment, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        void DeleteBlockedAttachment(int databaseId) => store
+            .DeleteBlockedAttachmentByIdAsync(databaseId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();

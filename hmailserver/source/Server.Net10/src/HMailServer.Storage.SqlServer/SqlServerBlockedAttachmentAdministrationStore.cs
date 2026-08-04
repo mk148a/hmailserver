@@ -29,6 +29,11 @@ SET bawildcard = @wildcard,
 WHERE baid = @id;
 """;
 
+    public const string DeleteBlockedAttachmentByIdSql = """
+DELETE FROM hm_blocked_attachments
+WHERE baid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerBlockedAttachmentAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -84,6 +89,16 @@ WHERE baid = @id;
         command.Parameters.Add("@id", SqlDbType.Int).Value = attachment.Id;
         command.Parameters.Add("@wildcard", SqlDbType.NVarChar, 255).Value = attachment.Wildcard;
         command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = attachment.Description;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask DeleteBlockedAttachmentByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteBlockedAttachmentByIdSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = databaseId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }
