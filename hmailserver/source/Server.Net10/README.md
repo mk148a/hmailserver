@@ -2,6 +2,10 @@
 
 This folder contains the side-by-side .NET 10 implementation track. The legacy C++/ATL server remains the production implementation until this tree reaches protocol, data, and COM compatibility.
 
+## Current Continuation (2026-08-04)
+
+Code/test commit `75b649c69` wires local-delivery account-size invalidation after the delivered-message SQL transaction commits. This matches legacy `PersistentMessage::SaveObject` (`hmailserver/source/Server/Common/Persistence/PersistentMessage.cpp:489-513`), which calls `AccountSizeCache::ModifySize(accountId, size, true)` for a new account-owned message. Focused local-delivery tests pass `3/3`, Host composition tests pass `3/3`, and full Net10 passes `1611` with `4` opt-in skips. GETQUOTAROOT behavior is verified against `IMAPCommandGetQuotaRoot.cpp:31-81` and existing handler/store tests; it is not an open slice. Next: parity-explore the next account-owned message writer, then run approved disposable SQL callback/readback and rollback evidence, followed by FetchAccountUID ordering/failure evidence. No production resource was used.
+
 ## Prerequisites
 
 - .NET 10 SDK.
