@@ -33,6 +33,17 @@ DELETE FROM hm_tcpipports
 WHERE portid = @id;
 """;
 
+    public const string UpdateTcpIpPortSql = """
+UPDATE hm_tcpipports
+SET portprotocol = @protocol,
+    portnumber = @portNumber,
+    portaddress1 = @address1,
+    portaddress2 = @address2,
+    portconnectionsecurity = @connectionSecurity,
+    portsslcertificateid = @sslCertificateId
+WHERE portid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerTcpIpPortAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -101,6 +112,26 @@ WHERE portid = @id;
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(DeleteTcpIpPortByIdSql, connection);
         command.Parameters.Add("@id", SqlDbType.Int).Value = databaseId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask UpdateTcpIpPortAsync(
+        TcpIpPortAdministrationSnapshot port,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(port);
+        var address = ParseLegacyAddress(port.Address);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateTcpIpPortSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = port.Id;
+        command.Parameters.Add("@protocol", SqlDbType.TinyInt).Value = port.Protocol;
+        command.Parameters.Add("@portNumber", SqlDbType.Int).Value = port.PortNumber;
+        command.Parameters.Add("@address1", SqlDbType.BigInt).Value = address.Address1;
+        command.Parameters.Add("@address2", SqlDbType.BigInt).Value =
+            address.Address2.HasValue ? address.Address2.Value : DBNull.Value;
+        command.Parameters.Add("@connectionSecurity", SqlDbType.TinyInt).Value = port.ConnectionSecurity;
+        command.Parameters.Add("@sslCertificateId", SqlDbType.BigInt).Value = port.SslCertificateId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

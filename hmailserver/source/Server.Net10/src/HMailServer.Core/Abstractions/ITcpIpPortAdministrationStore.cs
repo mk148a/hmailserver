@@ -14,4 +14,9 @@ public interface ITcpIpPortAdministrationStore
         int databaseId,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("TCP/IP port deletion is not implemented by this store.");
+
+    ValueTask UpdateTcpIpPortAsync(
+        TcpIpPortAdministrationSnapshot port,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("TCP/IP port updates are not implemented by this store.");
 }

@@ -374,6 +374,56 @@ public sealed class TcpIpPortsComContractTests
         Assert.AreEqual(0, store.DeletedIds.Count);
     }
 
+    [TestMethod]
+    public void AuthorizedSettings_ExistingPortSaveUsesStoreAndPublishesSnapshot()
+    {
+        var store = new MutableTcpIpPortAdministrationStore(
+            new[] { Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0) });
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ports = settings.TCPIPPorts;
+        var port = ports[0];
+
+        port.Protocol = ComSessionType.Imap;
+        port.PortNumber = 993;
+        port.Address = "127.0.0.1";
+        port.ConnectionSecurity = ComConnectionSecurity.StartTlsRequired;
+        port.SSLCertificateID = 42;
+        port.Save();
+
+        Assert.AreEqual(1, store.UpdatedPorts.Count);
+        var updated = store.UpdatedPorts[0];
+        Assert.AreEqual(10, updated.Id);
+        Assert.AreEqual((int)ComSessionType.Imap, updated.Protocol);
+        Assert.AreEqual(993, updated.PortNumber);
+        Assert.AreEqual("127.0.0.1", updated.Address);
+        Assert.AreEqual((int)ComConnectionSecurity.StartTlsRequired, updated.ConnectionSecurity);
+        Assert.AreEqual(42, updated.SslCertificateId);
+        Assert.AreEqual(993, ports[0].PortNumber);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ExistingPortSaveFailureRetainsParentSnapshot()
+    {
+        var store = new MutableTcpIpPortAdministrationStore(
+            new[] { Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0) })
+        {
+            FailUpdate = true
+        };
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ports = settings.TCPIPPorts;
+        var port = ports[0];
+        port.PortNumber = 2525;
+
+        var error = Assert.ThrowsExactly<COMException>(port.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(2525, port.PortNumber);
+        Assert.AreEqual(25, ports[0].PortNumber);
+        Assert.AreEqual(1, store.UpdatedPorts.Count);
+    }
+
     private static TcpIpPortAdministrationSnapshot Snapshot(
         int id,
         ComSessionType protocol,
@@ -436,9 +486,13 @@ public sealed class TcpIpPortsComContractTests
 
         public bool FailDelete { get; set; }
 
+        public bool FailUpdate { get; set; }
+
         public List<TcpIpPortAdministrationSnapshot> InsertedPorts { get; } = [];
 
         public List<int> DeletedIds { get; } = [];
+
+        public List<TcpIpPortAdministrationSnapshot> UpdatedPorts { get; } = [];
 
         public void Replace(IReadOnlyList<TcpIpPortAdministrationSnapshot> ports)
         {
@@ -476,6 +530,19 @@ public sealed class TcpIpPortsComContractTests
             if (FailDelete)
             {
                 throw new InvalidOperationException("Simulated TCP/IP port delete failure.");
+            }
+
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask UpdateTcpIpPortAsync(
+            TcpIpPortAdministrationSnapshot port,
+            CancellationToken cancellationToken)
+        {
+            UpdatedPorts.Add(port);
+            if (FailUpdate)
+            {
+                throw new InvalidOperationException("Simulated TCP/IP port update failure.");
             }
 
             return ValueTask.CompletedTask;

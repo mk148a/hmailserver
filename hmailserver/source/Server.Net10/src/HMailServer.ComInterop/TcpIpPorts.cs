@@ -92,6 +92,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
     private readonly Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? _reload;
     private readonly Func<TcpIpPortAdministrationSnapshot, int>? _insert;
     private readonly Action<int>? _deleteById;
+    private readonly Action<TcpIpPortAdministrationSnapshot>? _update;
     private readonly Func<bool>? _isServerAdministrator;
 
     public TCPIPPorts()
@@ -103,12 +104,14 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? reload,
         Func<TcpIpPortAdministrationSnapshot, int>? insert,
         Action<int>? deleteById,
+        Action<TcpIpPortAdministrationSnapshot>? update,
         Func<bool>? isServerAdministrator)
     {
         _ports = ports.ToArray();
         _reload = reload;
         _insert = insert;
         _deleteById = deleteById;
+        _update = update;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -119,10 +122,11 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         Func<IReadOnlyList<TcpIpPortAdministrationSnapshot>>? reload = null,
         Func<TcpIpPortAdministrationSnapshot, int>? insert = null,
         Action<int>? deleteById = null,
+        Action<TcpIpPortAdministrationSnapshot>? update = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(ports);
-        return new TCPIPPorts(ports, reload, insert, deleteById, isServerAdministrator);
+        return new TCPIPPorts(ports, reload, insert, deleteById, update, isServerAdministrator);
     }
 
     public IInterfaceTCPIPPort this[int index]
@@ -137,6 +141,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
 
             return TCPIPPort.CreateAuthorized(
                 ports[index],
+                save: _update is null ? null : SaveExistingPort,
                 delete: _deleteById is null ? null : DeleteByDBID,
                 isServerAdministrator: _isServerAdministrator);
         }
@@ -150,6 +155,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
             ? throw new COMException("No TCP/IP port with the specified database identifier exists.", DispEBadIndex)
             : TCPIPPort.CreateAuthorized(
                 match,
+                save: _update is null ? null : SaveExistingPort,
                 delete: _deleteById is null ? null : DeleteByDBID,
                 isServerAdministrator: _isServerAdministrator);
     }
@@ -223,6 +229,35 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
             var persisted = port with { Id = generatedId };
             Volatile.Write(ref _ports, ports.Append(persisted).ToArray());
             return persisted;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the TCP/IP port to the database.",
+                EFail);
+        }
+    }
+
+    private TcpIpPortAdministrationSnapshot SaveExistingPort(TcpIpPortAdministrationSnapshot port)
+    {
+        EnsureServerAdministrator();
+        var ports = GetPorts();
+        if (_update is null)
+        {
+            Unavailable();
+        }
+
+        try
+        {
+            _update!(port);
+            Volatile.Write(
+                ref _ports,
+                ports.Select(existing => existing.Id == port.Id ? port : existing).ToArray());
+            return port;
         }
         catch (COMException)
         {
@@ -480,11 +515,18 @@ public static class TcpIpPortAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        void UpdatePort(TcpIpPortAdministrationSnapshot port) => store
+            .UpdateTcpIpPortAsync(port, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return TCPIPPorts.CreateAuthorized(
             LoadPorts(),
             LoadPorts,
             InsertPort,
             DeletePort,
+            UpdatePort,
             isServerAdministrator);
     }
 }
