@@ -26,6 +26,17 @@ public sealed class SyntheticImapSearchSortBenchmarkTests
     }
 
     [TestMethod]
+    public void ActualMatchCountReportsExecutedSearchResultCount()
+    {
+        var report = SyntheticImapSearchSortBenchmark.Run(
+            SyntheticImapSearchSortBenchmark.CreateDataset(23, 5700),
+            new SyntheticImapBenchmarkOptions(WarmupIterations: 0, MeasuredIterations: 1));
+
+        Assert.AreEqual(3, report.ActualMatchCount);
+        Assert.IsTrue(report.Correct);
+    }
+
+    [TestMethod]
     public void ArtifactWriterEmitsJsonCsvAndMarkdownWithAcceptanceFields()
     {
         var outputDirectory = Path.Combine(Path.GetTempPath(), "hmailserver-net10-benchmark-" + Guid.NewGuid().ToString("N"));

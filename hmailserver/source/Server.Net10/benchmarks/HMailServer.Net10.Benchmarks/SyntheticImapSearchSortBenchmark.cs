@@ -118,6 +118,7 @@ public static class SyntheticImapSearchSortBenchmark
         var expected = Execute(messages);
         var samples = new List<double>(options.MeasuredIterations);
         var allocations = new List<long>(options.MeasuredIterations);
+        var actualMatchCount = 0;
         var startedUtc = DateTimeOffset.UtcNow;
 
         for (var iteration = 0; iteration < options.WarmupIterations; iteration++)
@@ -141,6 +142,7 @@ public static class SyntheticImapSearchSortBenchmark
                 throw new InvalidOperationException("Synthetic SEARCH/SORT result changed between iterations.");
             }
 
+            actualMatchCount = actual.Length;
             samples.Add(stopwatch.Elapsed.TotalMilliseconds);
             allocations.Add(afterAllocated - beforeAllocated);
         }
@@ -167,10 +169,10 @@ public static class SyntheticImapSearchSortBenchmark
             SearchTerm: SearchTerm,
             SortOrder: SortOrder,
             ExpectedMatchCount: expected.Length,
-            ActualMatchCount: expected.Length,
+            ActualMatchCount: actualMatchCount,
             UniqueResultIds: uniqueResultIds,
             CorrectSortOrder: correctSortOrder,
-            Correct: uniqueResultIds && correctSortOrder,
+            Correct: expected.Length == actualMatchCount && uniqueResultIds && correctSortOrder,
             P95ThresholdMilliseconds: options.P95ThresholdMilliseconds,
             ThresholdPassed: thresholdPassed,
             Metrics: metrics,
