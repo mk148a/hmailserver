@@ -88,13 +88,16 @@ VALUES
 
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly MessageFilePathResolver _pathResolver;
+    private readonly Action<int>? _accountSizeInvalidationCallback;
 
     public SqlServerScriptMessageCopyStore(
         SqlServerConnectionFactory connectionFactory,
-        MessageFilePathResolver pathResolver)
+        MessageFilePathResolver pathResolver,
+        Action<int>? accountSizeInvalidationCallback = null)
     {
         _connectionFactory = connectionFactory;
         _pathResolver = pathResolver;
+        _accountSizeInvalidationCallback = accountSizeInvalidationCallback;
     }
 
     public async ValueTask<MessageIdentity> CopyAsync(
@@ -159,6 +162,7 @@ VALUES
                     messageId,
                     cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                _accountSizeInvalidationCallback?.Invoke(request.SourceAccountId);
                 return new MessageIdentity(
                     messageId,
                     request.SourceAccountId,

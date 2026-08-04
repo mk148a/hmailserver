@@ -788,7 +788,11 @@ public static class Host
     builder.Services.AddSingleton<IDeliveryQueueMessageStore, SqlServerDeliveryQueueMessageStore>();
     builder.Services.AddSingleton<IDeliveryQueueRecipientStore, SqlServerDeliveryQueueRecipientStore>();
     builder.Services.AddSingleton<IDeliveryTargetResolver, SqlServerDeliveryTargetResolver>();
-    builder.Services.AddSingleton<IScriptMessageCopyStore, SqlServerScriptMessageCopyStore>();
+    builder.Services.AddSingleton<IScriptMessageCopyStore>(static serviceProvider =>
+        new SqlServerScriptMessageCopyStore(
+            serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
+            serviceProvider.GetRequiredService<MessageFilePathResolver>(),
+            AccountAdministrationRuntimeHost.InvalidateAccountSize));
     builder.Services.AddSingleton<ILocalDeliveryStore>(static serviceProvider =>
         new SqlServerLocalDeliveryStore(
             serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
