@@ -29,4 +29,16 @@ public sealed class SqlServerDistributionListRecipientAdministrationStoreTests
         StringAssert.Contains(sql, "OUTPUT INSERTED.distributionlistrecipientid");
         StringAssert.Contains(sql, "VALUES (@ListId, @Address)");
     }
+
+    [TestMethod]
+    public void UpdateDistributionListRecipientSql_UsesParameterizedLegacyFieldsIdentityAndOwnerPredicate()
+    {
+        var sql = SqlServerDistributionListRecipientAdministrationStore.UpdateDistributionListRecipientSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_distributionlistsrecipients");
+        StringAssert.Contains(sql, "distributionlistrecipientlistid = @ListId");
+        StringAssert.Contains(sql, "distributionlistrecipientaddress = @Address");
+        StringAssert.Contains(sql, "WHERE distributionlistrecipientid = @ID");
+        StringAssert.Contains(sql, "AND distributionlistrecipientlistid = @ListId");
+    }
 }

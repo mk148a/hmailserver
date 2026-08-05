@@ -24,6 +24,15 @@ OUTPUT INSERTED.distributionlistrecipientid
 VALUES (@ListId, @Address);
 """;
 
+    public const string UpdateDistributionListRecipientSql = """
+UPDATE hm_distributionlistsrecipients
+SET
+    distributionlistrecipientlistid = @ListId,
+    distributionlistrecipientaddress = @Address
+WHERE distributionlistrecipientid = @ID
+  AND distributionlistrecipientlistid = @ListId;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDistributionListRecipientAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -68,5 +77,19 @@ VALUES (@ListId, @Address);
         command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = snapshot.Address;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<bool> UpdateDistributionListRecipientAsync(
+        DistributionListRecipientAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateDistributionListRecipientSql, connection);
+        command.Parameters.Add("@ID", SqlDbType.Int).Value = snapshot.Id;
+        command.Parameters.Add("@ListId", SqlDbType.Int).Value = snapshot.ListId;
+        command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = snapshot.Address;
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 }

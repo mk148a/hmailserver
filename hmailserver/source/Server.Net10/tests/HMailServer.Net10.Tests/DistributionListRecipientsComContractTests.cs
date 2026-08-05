@@ -217,6 +217,103 @@ public sealed class DistributionListRecipientsComContractTests
     }
 
     [TestMethod]
+    public void DistributionListRecipients_ExistingSave_UpdatesAllFieldsAndReplacesOnlyMatchingItem()
+    {
+        var store = new MutableDistributionListRecipientAdministrationStore(
+            new[]
+            {
+                new DistributionListRecipientAdministrationSnapshot(501, 999, "old@example.test"),
+                new DistributionListRecipientAdministrationSnapshot(502, 100, "other@example.test")
+            });
+        var recipients = DistributionListRecipients.CreateAuthorized(
+            new[]
+            {
+                new DistributionListRecipientAdministrationSnapshot(501, 999, "old@example.test"),
+                new DistributionListRecipientAdministrationSnapshot(502, 100, "other@example.test")
+            },
+            update: Update,
+            owningListId: 100,
+            isAuthenticated: static () => true);
+
+        var existing = recipients.get_ItemByDBID(501);
+        existing.RecipientAddress = "updated@example.test";
+        existing.Save();
+
+        Assert.AreEqual(1, store.Updated.Count);
+        Assert.AreEqual(501, store.Updated[0].Id);
+        Assert.AreEqual(100, store.Updated[0].ListId);
+        Assert.AreEqual("updated@example.test", store.Updated[0].Address);
+        AssertRecipient(recipients.get_ItemByDBID(501), 501, "updated@example.test");
+        AssertRecipient(recipients.get_ItemByDBID(502), 502, "other@example.test");
+
+        bool Update(DistributionListRecipientAdministrationSnapshot snapshot) =>
+            store.UpdateDistributionListRecipientAsync(snapshot, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+    }
+
+    [TestMethod]
+    public void DistributionListRecipients_FailedUpdate_RetainsStagedItemAndOwnerSnapshot()
+    {
+        var store = new MutableDistributionListRecipientAdministrationStore(
+            new[] { new DistributionListRecipientAdministrationSnapshot(601, 100, "original@example.test") })
+        {
+            FailUpdate = true
+        };
+        var recipients = DistributionListRecipients.CreateAuthorized(
+            new[] { new DistributionListRecipientAdministrationSnapshot(601, 100, "original@example.test") },
+            update: Update,
+            owningListId: 100,
+            isAuthenticated: static () => true);
+        var existing = recipients[0];
+        existing.RecipientAddress = "staged@example.test";
+
+        var failure = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(1, store.Updated.Count);
+        Assert.AreEqual(100, store.Updated[0].ListId);
+        Assert.AreEqual("staged@example.test", store.Updated[0].Address);
+        Assert.AreEqual("staged@example.test", existing.RecipientAddress);
+        Assert.AreEqual("original@example.test", recipients[0].RecipientAddress);
+
+        bool Update(DistributionListRecipientAdministrationSnapshot snapshot) =>
+            store.UpdateDistributionListRecipientAsync(snapshot, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+    }
+
+    [TestMethod]
+    public void DistributionListRecipients_ExistingMutationAndSave_RecheckLiveOwnerAuthentication()
+    {
+        var authenticated = true;
+        var store = new MutableDistributionListRecipientAdministrationStore(
+            new[] { new DistributionListRecipientAdministrationSnapshot(701, 100, "original@example.test") });
+        var recipients = DistributionListRecipients.CreateAuthorized(
+            new[] { new DistributionListRecipientAdministrationSnapshot(701, 100, "original@example.test") },
+            update: Update,
+            owningListId: 100,
+            isAuthenticated: () => authenticated);
+        var existing = recipients[0];
+        authenticated = false;
+
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => existing.RecipientAddress = "denied@example.test").ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(existing.Save).ErrorCode);
+        Assert.AreEqual(0, store.Updated.Count);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = recipients.Count).ErrorCode);
+
+        bool Update(DistributionListRecipientAdministrationSnapshot snapshot) =>
+            store.UpdateDistributionListRecipientAsync(snapshot, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+    }
+
+    [TestMethod]
     public void DistributionListRecipients_LiveAuthenticationDeniesAddSetterAndSave()
     {
         var authenticated = true;
@@ -296,7 +393,11 @@ public sealed class DistributionListRecipientsComContractTests
 
         public List<DistributionListRecipientAdministrationSnapshot> Inserted { get; } = new();
 
+        public List<DistributionListRecipientAdministrationSnapshot> Updated { get; } = new();
+
         public bool FailInsert { get; set; }
+
+        public bool FailUpdate { get; set; }
 
         public ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
             int distributionListId,
@@ -315,6 +416,19 @@ public sealed class DistributionListRecipientsComContractTests
             }
 
             return ValueTask.FromResult(500 + Inserted.Count);
+        }
+
+        public ValueTask<bool> UpdateDistributionListRecipientAsync(
+            DistributionListRecipientAdministrationSnapshot recipient,
+            CancellationToken cancellationToken)
+        {
+            Updated.Add(recipient);
+            if (FailUpdate)
+            {
+                throw new InvalidOperationException("Simulated recipient update failure.");
+            }
+
+            return ValueTask.FromResult(true);
         }
     }
 }

@@ -67,6 +67,7 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
 
     private DistributionListRecipientAdministrationSnapshot[]? _recipients;
     private readonly Func<DistributionListRecipientAdministrationSnapshot, int>? _insert;
+    private readonly Func<DistributionListRecipientAdministrationSnapshot, bool>? _update;
     private readonly int? _owningListId;
     private readonly Func<bool>? _isAuthenticated;
 
@@ -77,11 +78,13 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
     private DistributionListRecipients(
         IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients,
         Func<DistributionListRecipientAdministrationSnapshot, int>? insert,
+        Func<DistributionListRecipientAdministrationSnapshot, bool>? update,
         int? owningListId,
         Func<bool>? isAuthenticated)
     {
         _recipients = recipients.ToArray();
         _insert = insert;
+        _update = update;
         _owningListId = owningListId;
         _isAuthenticated = isAuthenticated;
     }
@@ -91,11 +94,12 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
     internal static DistributionListRecipients CreateAuthorized(
         IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients,
         Func<DistributionListRecipientAdministrationSnapshot, int>? insert = null,
+        Func<DistributionListRecipientAdministrationSnapshot, bool>? update = null,
         int? owningListId = null,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(recipients);
-        return new DistributionListRecipients(recipients, insert, owningListId, isAuthenticated);
+        return new DistributionListRecipients(recipients, insert, update, owningListId, isAuthenticated);
     }
 
     public IInterfaceDistributionListRecipient this[int index]
@@ -108,7 +112,10 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
                 throw new COMException("Distribution-list recipient index was outside the collection.", DispEBadIndex);
             }
 
-            return DistributionListRecipient.CreateAuthorized(recipients[index], isAuthenticated: _isAuthenticated);
+            return DistributionListRecipient.CreateAuthorized(
+                recipients[index],
+                update: _update is null ? null : UpdateRecipient,
+                isAuthenticated: _isAuthenticated);
         }
     }
 
@@ -118,7 +125,10 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
 
         return match is null
             ? throw new COMException("No distribution-list recipient with the specified database identifier exists.", DispEBadIndex)
-            : DistributionListRecipient.CreateAuthorized(match, isAuthenticated: _isAuthenticated);
+            : DistributionListRecipient.CreateAuthorized(
+                match,
+                update: _update is null ? null : UpdateRecipient,
+                isAuthenticated: _isAuthenticated);
     }
 
     public IInterfaceDistributionListRecipient Add()
@@ -184,6 +194,48 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         }
     }
 
+    private DistributionListRecipientAdministrationSnapshot UpdateRecipient(
+        DistributionListRecipientAdministrationSnapshot recipient)
+    {
+        EnsureAuthenticated();
+        var recipients = GetRecipients();
+        if (recipient.Id == 0 || _update is null || _owningListId is null)
+        {
+            Unavailable();
+            return recipient;
+        }
+
+        var ownerScopedRecipient = recipient with { ListId = _owningListId.Value };
+        try
+        {
+            if (!_update(ownerScopedRecipient))
+            {
+                throw new InvalidOperationException(
+                    "The distribution-list recipient update did not affect an existing owner-scoped row.");
+            }
+
+            var matchingIndex = Array.FindIndex(recipients.ToArray(), current => current.Id == ownerScopedRecipient.Id);
+            if (matchingIndex >= 0)
+            {
+                var replacedRecipients = recipients.ToArray();
+                replacedRecipients[matchingIndex] = ownerScopedRecipient;
+                Volatile.Write(ref _recipients, replacedRecipients);
+            }
+
+            return ownerScopedRecipient;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the distribution-list recipient to the database.",
+                EFail);
+        }
+    }
+
     private void EnsureAuthenticated()
     {
         if (_isAuthenticated is not null && !_isAuthenticated())
@@ -223,6 +275,7 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
 
     private DistributionListRecipientAdministrationSnapshot? _recipient;
     private readonly Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? _save;
+    private readonly Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? _update;
     private readonly Func<bool>? _isAuthenticated;
 
     public DistributionListRecipient()
@@ -232,10 +285,12 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
     private DistributionListRecipient(
         DistributionListRecipientAdministrationSnapshot recipient,
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? save,
+        Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? update,
         Func<bool>? isAuthenticated)
     {
         _recipient = recipient;
         _save = save;
+        _update = update;
         _isAuthenticated = isAuthenticated;
     }
 
@@ -250,8 +305,9 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
     internal static DistributionListRecipient CreateAuthorized(
         DistributionListRecipientAdministrationSnapshot recipient,
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? save = null,
+        Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? update = null,
         Func<bool>? isAuthenticated = null) =>
-        new(recipient, save, isAuthenticated);
+        new(recipient, save, update, isAuthenticated);
 
     public void Delete() => Unavailable();
 
@@ -259,13 +315,25 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
     {
         EnsureAuthenticated();
         var snapshot = Snapshot;
-        if (_save is null || snapshot.Id != 0)
+        if (snapshot.Id == 0)
+        {
+            if (_save is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            _recipient = _save(snapshot);
+            return;
+        }
+
+        if (_update is null)
         {
             Unavailable();
             return;
         }
 
-        _recipient = _save(snapshot);
+        _recipient = _update(snapshot);
     }
 
     private DistributionListRecipientAdministrationSnapshot Snapshot =>
@@ -286,7 +354,19 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
     {
         EnsureAuthenticated();
         var snapshot = Snapshot;
-        if (_save is null || snapshot.Id != 0)
+        if (snapshot.Id == 0)
+        {
+            if (_save is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            _recipient = mutation(snapshot);
+            return;
+        }
+
+        if (_update is null)
         {
             Unavailable();
             return;
@@ -340,9 +420,16 @@ public static class DistributionListRecipientAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool UpdateRecipient(DistributionListRecipientAdministrationSnapshot recipient) => store
+            .UpdateDistributionListRecipientAsync(recipient, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return DistributionListRecipients.CreateAuthorized(
             recipients,
             InsertRecipient,
+            UpdateRecipient,
             distributionListId,
             isAuthenticated);
     }
