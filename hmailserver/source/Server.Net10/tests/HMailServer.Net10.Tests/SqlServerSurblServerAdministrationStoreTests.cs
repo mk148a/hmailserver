@@ -64,4 +64,30 @@ public sealed class SqlServerSurblServerAdministrationStoreTests
         Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_dnsbl", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteSurblServerSql_UsesParameterizedIdentityPredicate()
+    {
+        var sql = SqlServerSurblServerAdministrationStore.DeleteSurblServerSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_surblservers");
+        StringAssert.Contains(sql, "WHERE surblid = @id");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_dnsbl", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void DeleteSurblServerByIdAsync_UsesBooleanIntIdStoreContract()
+    {
+        var method = typeof(SqlServerSurblServerAdministrationStore).GetMethod(
+            nameof(SqlServerSurblServerAdministrationStore.DeleteSurblServerByIdAsync));
+
+        Assert.IsNotNull(method);
+        Assert.AreEqual(typeof(ValueTask<bool>), method.ReturnType);
+        CollectionAssert.AreEqual(
+            new[] { typeof(int), typeof(CancellationToken) },
+            method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
+    }
 }

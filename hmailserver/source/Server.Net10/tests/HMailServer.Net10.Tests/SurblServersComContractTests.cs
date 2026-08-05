@@ -240,6 +240,94 @@ public sealed class SurblServersComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSurblServers_DeleteByDBID_RemovesContainedIdsAndIgnoresUnknownOrStaleIds()
+    {
+        var deletedIds = new List<int>();
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, true, "first.example.test", "First", 1),
+                Snapshot(20, true, "second.example.test", "Second", 2)
+            },
+            delete: id =>
+            {
+                deletedIds.Add(id);
+                return true;
+            },
+            isServerAdministrator: static () => true);
+
+        servers.DeleteByDBID(20);
+        servers.DeleteByDBID(999);
+        var stale = servers.get_ItemByDBID(10);
+        servers.DeleteByDBID(10);
+        stale.Delete();
+
+        CollectionAssert.AreEqual(new[] { 20, 10 }, deletedIds);
+        Assert.AreEqual(0, servers.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedSurblServer_DeleteDelegatesToOwnerAndRemovesSnapshot()
+    {
+        var deletedId = 0;
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            new[] { Snapshot(10, true, "first.example.test", "First", 1) },
+            delete: id =>
+            {
+                deletedId = id;
+                return true;
+            },
+            isServerAdministrator: static () => true);
+
+        servers[0].Delete();
+
+        Assert.AreEqual(10, deletedId);
+        Assert.AreEqual(0, servers.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedSurblDeletion_RechecksLiveAdministratorBeforeStore()
+    {
+        var isAdministrator = true;
+        var deleteCalls = 0;
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            new[] { Snapshot(10, true, "first.example.test", "First", 1) },
+            delete: _ =>
+            {
+                deleteCalls++;
+                return true;
+            },
+            isServerAdministrator: () => isAdministrator);
+        var item = servers[0];
+        isAdministrator = false;
+
+        var collectionError = Assert.ThrowsExactly<COMException>(() => servers.DeleteByDBID(10));
+        var itemError = Assert.ThrowsExactly<COMException>(item.Delete);
+
+        Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, itemError.ErrorCode);
+        Assert.AreEqual(0, deleteCalls);
+        Assert.AreEqual(1, servers.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedSurblDeletionFailureRetainsOwnerSnapshotAndItem()
+    {
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            new[] { Snapshot(10, true, "first.example.test", "First", 1) },
+            delete: static _ => false,
+            isServerAdministrator: static () => true);
+        var item = servers[0];
+
+        var error = Assert.ThrowsExactly<COMException>(item.Delete);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(10, item.ID);
+        Assert.AreEqual(10, servers[0].ID);
+        Assert.AreEqual(1, servers.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;

@@ -90,6 +90,7 @@ public sealed class SURBLServers : IInterfaceSURBLServers
     private readonly Func<IReadOnlyList<SurblServerAdministrationSnapshot>>? _reload;
     private readonly Func<SurblServerAdministrationSnapshot, int>? _insert;
     private readonly Func<SurblServerAdministrationSnapshot, bool>? _update;
+    private readonly Func<int, bool>? _delete;
     private readonly Action<SurblServerAdministrationSnapshot>? _append;
     private readonly Action<SurblServerAdministrationSnapshot>? _replace;
     private readonly Func<bool>? _isServerAdministrator;
@@ -103,12 +104,14 @@ public sealed class SURBLServers : IInterfaceSURBLServers
         Func<IReadOnlyList<SurblServerAdministrationSnapshot>>? reload,
         Func<SurblServerAdministrationSnapshot, int>? insert,
         Func<SurblServerAdministrationSnapshot, bool>? update,
+        Func<int, bool>? delete,
         Func<bool>? isServerAdministrator)
     {
         _servers = servers.ToArray();
         _reload = reload;
         _insert = insert;
         _update = update;
+        _delete = delete;
         _isServerAdministrator = isServerAdministrator;
         _append = Append;
         _replace = Replace;
@@ -129,12 +132,50 @@ public sealed class SURBLServers : IInterfaceSURBLServers
             return SURBLServer.CreateAuthorized(
                 servers[index],
                 update: _update,
+                delete: _delete is null ? null : DeleteByDBID,
                 replace: _replace,
                 isServerAdministrator: _isServerAdministrator);
         }
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var servers = GetServers();
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (!servers.Any(server => server.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_delete(databaseId))
+            {
+                throw new InvalidOperationException(
+                    "The SURBL server delete did not affect the selected database row.");
+            }
+
+            Volatile.Write(
+                ref _servers,
+                servers.Where(server => server.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the SURBL server from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceSURBLServer Add()
     {
@@ -148,6 +189,7 @@ public sealed class SURBLServers : IInterfaceSURBLServers
         return SURBLServer.CreateAuthorized(
             new SurblServerAdministrationSnapshot(0, false, string.Empty, string.Empty, 0),
             insert: _insert,
+            delete: _delete is null ? null : DeleteByDBID,
             append: _append,
             isServerAdministrator: _isServerAdministrator);
     }
@@ -161,6 +203,7 @@ public sealed class SURBLServers : IInterfaceSURBLServers
             : SURBLServer.CreateAuthorized(
                 match,
                 update: _update,
+                delete: _delete is null ? null : DeleteByDBID,
                 replace: _replace,
                 isServerAdministrator: _isServerAdministrator);
     }
@@ -198,6 +241,7 @@ public sealed class SURBLServers : IInterfaceSURBLServers
             : SURBLServer.CreateAuthorized(
                 match,
                 update: _update,
+                delete: _delete is null ? null : DeleteByDBID,
                 replace: _replace,
                 isServerAdministrator: _isServerAdministrator);
     }
@@ -207,10 +251,11 @@ public sealed class SURBLServers : IInterfaceSURBLServers
         Func<IReadOnlyList<SurblServerAdministrationSnapshot>>? reload = null,
         Func<SurblServerAdministrationSnapshot, int>? insert = null,
         Func<SurblServerAdministrationSnapshot, bool>? update = null,
+        Func<int, bool>? delete = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(servers);
-        return new SURBLServers(servers, reload, insert, update, isServerAdministrator);
+        return new SURBLServers(servers, reload, insert, update, delete, isServerAdministrator);
     }
 
     private IReadOnlyList<SurblServerAdministrationSnapshot> GetServers()
@@ -274,6 +319,7 @@ public sealed class SURBLServer : IInterfaceSURBLServer
     private SurblServerAdministrationSnapshot? _server;
     private readonly Func<SurblServerAdministrationSnapshot, int>? _insert;
     private readonly Func<SurblServerAdministrationSnapshot, bool>? _update;
+    private readonly Action<int>? _delete;
     private readonly Action<SurblServerAdministrationSnapshot>? _append;
     private readonly Action<SurblServerAdministrationSnapshot>? _replace;
     private readonly Func<bool>? _isServerAdministrator;
@@ -291,6 +337,7 @@ public sealed class SURBLServer : IInterfaceSURBLServer
         SurblServerAdministrationSnapshot server,
         Func<SurblServerAdministrationSnapshot, int>? insert,
         Func<SurblServerAdministrationSnapshot, bool>? update,
+        Action<int>? delete,
         Action<SurblServerAdministrationSnapshot>? append,
         Action<SurblServerAdministrationSnapshot>? replace,
         Func<bool>? isServerAdministrator)
@@ -298,6 +345,7 @@ public sealed class SURBLServer : IInterfaceSURBLServer
         _server = server;
         _insert = insert;
         _update = update;
+        _delete = delete;
         _append = append;
         _replace = replace;
         _isServerAdministrator = isServerAdministrator;
@@ -357,16 +405,27 @@ public sealed class SURBLServer : IInterfaceSURBLServer
 
     public int Score { get => Snapshot.Score; set => Mutate(snapshot => snapshot with { Score = value }); }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureServerAdministrator();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(Snapshot.Id);
+    }
 
     internal static SURBLServer CreateAuthorized(
         SurblServerAdministrationSnapshot server,
         Func<SurblServerAdministrationSnapshot, int>? insert = null,
         Func<SurblServerAdministrationSnapshot, bool>? update = null,
+        Action<int>? delete = null,
         Action<SurblServerAdministrationSnapshot>? append = null,
         Action<SurblServerAdministrationSnapshot>? replace = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(server, insert, update, append, replace, isServerAdministrator);
+        new(server, insert, update, delete, append, replace, isServerAdministrator);
 
     private SurblServerAdministrationSnapshot Snapshot =>
         _server ?? throw new COMException(
@@ -442,11 +501,18 @@ public static class SurblServerAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool DeleteServer(int databaseId) => store
+            .DeleteSurblServerByIdAsync(databaseId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return SURBLServers.CreateAuthorized(
             LoadServers(),
             LoadServers,
             InsertServer,
             UpdateServer,
+            DeleteServer,
             isServerAdministrator);
     }
 }

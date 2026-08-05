@@ -33,6 +33,11 @@ SET surblactive = @active,
 WHERE surblid = @id;
 """;
 
+    public const string DeleteSurblServerSql = """
+DELETE FROM hm_surblservers
+WHERE surblid = @id;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerSurblServerAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -95,6 +100,17 @@ WHERE surblid = @id;
         command.Parameters.Add("@dnsHost", SqlDbType.NVarChar, 255).Value = server.DnsHost;
         command.Parameters.Add("@rejectMessage", SqlDbType.NVarChar, 255).Value = server.RejectMessage;
         command.Parameters.Add("@score", SqlDbType.Int).Value = server.Score;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> DeleteSurblServerByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteSurblServerSql, connection);
+        command.Parameters.Add("@id", SqlDbType.Int).Value = databaseId;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

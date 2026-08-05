@@ -14,4 +14,9 @@ public interface ISurblServerAdministrationStore
         SurblServerAdministrationSnapshot server,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("SURBL server updates are not available in this store.");
+
+    ValueTask<bool> DeleteSurblServerByIdAsync(
+        int databaseId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("SURBL server deletion is not available in this store.");
 }
