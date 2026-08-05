@@ -17,6 +17,13 @@ WHERE distributionlistrecipientlistid = @DistributionListID
 ORDER BY distributionlistrecipientaddress ASC;
 """;
 
+    public const string InsertDistributionListRecipientSql = """
+INSERT INTO hm_distributionlistsrecipients
+    (distributionlistrecipientlistid, distributionlistrecipientaddress)
+OUTPUT INSERTED.distributionlistrecipientid
+VALUES (@ListId, @Address);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDistributionListRecipientAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -47,5 +54,19 @@ ORDER BY distributionlistrecipientaddress ASC;
         }
 
         return recipients;
+    }
+
+    public async ValueTask<int> InsertDistributionListRecipientAsync(
+        DistributionListRecipientAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertDistributionListRecipientSql, connection);
+        command.Parameters.Add("@ListId", SqlDbType.Int).Value = snapshot.ListId;
+        command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = snapshot.Address;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
     }
 }

@@ -62,26 +62,40 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly IReadOnlyList<DistributionListRecipientAdministrationSnapshot>? _recipients;
+    private DistributionListRecipientAdministrationSnapshot[]? _recipients;
+    private readonly Func<DistributionListRecipientAdministrationSnapshot, int>? _insert;
+    private readonly int? _owningListId;
+    private readonly Func<bool>? _isAuthenticated;
 
     public DistributionListRecipients()
     {
     }
 
-    private DistributionListRecipients(IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients)
+    private DistributionListRecipients(
+        IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients,
+        Func<DistributionListRecipientAdministrationSnapshot, int>? insert,
+        int? owningListId,
+        Func<bool>? isAuthenticated)
     {
         _recipients = recipients.ToArray();
+        _insert = insert;
+        _owningListId = owningListId;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int Count => GetRecipients().Count;
 
     internal static DistributionListRecipients CreateAuthorized(
-        IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients)
+        IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients,
+        Func<DistributionListRecipientAdministrationSnapshot, int>? insert = null,
+        int? owningListId = null,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(recipients);
-        return new DistributionListRecipients(recipients);
+        return new DistributionListRecipients(recipients, insert, owningListId, isAuthenticated);
     }
 
     public IInterfaceDistributionListRecipient this[int index]
@@ -94,7 +108,7 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
                 throw new COMException("Distribution-list recipient index was outside the collection.", DispEBadIndex);
             }
 
-            return DistributionListRecipient.CreateAuthorized(recipients[index]);
+            return DistributionListRecipient.CreateAuthorized(recipients[index], isAuthenticated: _isAuthenticated);
         }
     }
 
@@ -104,19 +118,80 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
 
         return match is null
             ? throw new COMException("No distribution-list recipient with the specified database identifier exists.", DispEBadIndex)
-            : DistributionListRecipient.CreateAuthorized(match);
+            : DistributionListRecipient.CreateAuthorized(match, isAuthenticated: _isAuthenticated);
     }
 
-    public IInterfaceDistributionListRecipient Add() => Unavailable<IInterfaceDistributionListRecipient>();
+    public IInterfaceDistributionListRecipient Add()
+    {
+        _ = GetRecipients();
+        EnsureAuthenticated();
+        if (_insert is null || _owningListId is null || _isAuthenticated is null)
+        {
+            return Unavailable<IInterfaceDistributionListRecipient>();
+        }
+
+        return DistributionListRecipient.CreateAuthorized(
+            new DistributionListRecipientAdministrationSnapshot(0, _owningListId.Value, string.Empty),
+            save: SaveRecipient,
+            isAuthenticated: _isAuthenticated);
+    }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
     private IReadOnlyList<DistributionListRecipientAdministrationSnapshot> GetRecipients()
     {
-        return _recipients
+        EnsureAuthenticated();
+        return Volatile.Read(ref _recipients)
             ?? throw new COMException(
                 "DistributionListRecipients access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
+
+    private DistributionListRecipientAdministrationSnapshot SaveRecipient(
+        DistributionListRecipientAdministrationSnapshot recipient)
+    {
+        EnsureAuthenticated();
+        var recipients = GetRecipients();
+        if (recipient.Id != 0 || _insert is null || _owningListId is null)
+        {
+            Unavailable();
+            return recipient;
+        }
+
+        var ownerScopedRecipient = recipient with { ListId = _owningListId.Value };
+        try
+        {
+            var insertedId = _insert(ownerScopedRecipient);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The distribution-list recipient insert did not return a valid generated identity.");
+            }
+
+            var insertedRecipient = ownerScopedRecipient with { Id = insertedId };
+            Volatile.Write(ref _recipients, recipients.Append(insertedRecipient).ToArray());
+            return insertedRecipient;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the distribution-list recipient to the database.",
+                EFail);
+        }
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "DistributionListRecipients access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private T Unavailable<T>()
@@ -146,15 +221,22 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly DistributionListRecipientAdministrationSnapshot? _recipient;
+    private DistributionListRecipientAdministrationSnapshot? _recipient;
+    private readonly Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? _save;
+    private readonly Func<bool>? _isAuthenticated;
 
     public DistributionListRecipient()
     {
     }
 
-    private DistributionListRecipient(DistributionListRecipientAdministrationSnapshot recipient)
+    private DistributionListRecipient(
+        DistributionListRecipientAdministrationSnapshot recipient,
+        Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? save,
+        Func<bool>? isAuthenticated)
     {
         _recipient = recipient;
+        _save = save;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int ID => Snapshot.Id;
@@ -162,16 +244,29 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
     public string RecipientAddress
     {
         get => Snapshot.Address;
-        set => Unavailable();
+        set => Mutate(snapshot => snapshot with { Address = value ?? string.Empty });
     }
 
     internal static DistributionListRecipient CreateAuthorized(
-        DistributionListRecipientAdministrationSnapshot recipient) =>
-        new(recipient);
+        DistributionListRecipientAdministrationSnapshot recipient,
+        Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? save = null,
+        Func<bool>? isAuthenticated = null) =>
+        new(recipient, save, isAuthenticated);
 
     public void Delete() => Unavailable();
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        EnsureAuthenticated();
+        var snapshot = Snapshot;
+        if (_save is null || snapshot.Id != 0)
+        {
+            Unavailable();
+            return;
+        }
+
+        _recipient = _save(snapshot);
+    }
 
     private DistributionListRecipientAdministrationSnapshot Snapshot =>
         _recipient ?? throw new COMException(
@@ -184,6 +279,30 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
         throw new COMException(
             "This DistributionListRecipient member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
+    }
+
+    private void Mutate(
+        Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot> mutation)
+    {
+        EnsureAuthenticated();
+        var snapshot = Snapshot;
+        if (_save is null || snapshot.Id != 0)
+        {
+            Unavailable();
+            return;
+        }
+
+        _recipient = mutation(snapshot);
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "DistributionListRecipient access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 }
 
@@ -200,7 +319,9 @@ public static class DistributionListRecipientAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static DistributionListRecipients CreateAuthorizedAdapter(int distributionListId)
+    internal static DistributionListRecipients CreateAuthorizedAdapter(
+        int distributionListId,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -213,6 +334,16 @@ public static class DistributionListRecipientAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return DistributionListRecipients.CreateAuthorized(recipients);
+        int InsertRecipient(DistributionListRecipientAdministrationSnapshot recipient) => store
+            .InsertDistributionListRecipientAsync(recipient, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return DistributionListRecipients.CreateAuthorized(
+            recipients,
+            InsertRecipient,
+            distributionListId,
+            isAuthenticated);
     }
 }

@@ -17,4 +17,16 @@ public sealed class SqlServerDistributionListRecipientAdministrationStoreTests
         StringAssert.Contains(sql, "WHERE distributionlistrecipientlistid = @DistributionListID");
         StringAssert.Contains(sql, "ORDER BY distributionlistrecipientaddress ASC");
     }
+
+    [TestMethod]
+    public void InsertDistributionListRecipientSql_UsesLegacyFieldsIdentityAndParameters()
+    {
+        var sql = SqlServerDistributionListRecipientAdministrationStore.InsertDistributionListRecipientSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_distributionlistsrecipients");
+        StringAssert.Contains(sql, "distributionlistrecipientlistid");
+        StringAssert.Contains(sql, "distributionlistrecipientaddress");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.distributionlistrecipientid");
+        StringAssert.Contains(sql, "VALUES (@ListId, @Address)");
+    }
 }

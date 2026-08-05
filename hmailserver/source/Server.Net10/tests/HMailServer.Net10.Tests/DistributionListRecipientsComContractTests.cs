@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class DistributionListRecipientsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
 
@@ -60,10 +61,14 @@ public sealed class DistributionListRecipientsComContractTests
     public void DirectActivation_PreservesLegacyAccessDeniedBoundary()
     {
         var recipientsError = Assert.ThrowsExactly<COMException>(() => _ = new DistributionListRecipients().Count);
+        var recipientsAddError = Assert.ThrowsExactly<COMException>(() => new DistributionListRecipients().Add());
         var recipientError = Assert.ThrowsExactly<COMException>(() => _ = new DistributionListRecipient().RecipientAddress);
+        var recipientSaveError = Assert.ThrowsExactly<COMException>(new DistributionListRecipient().Save);
 
         Assert.AreEqual(EAccessDenied, recipientsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, recipientsAddError.ErrorCode);
         Assert.AreEqual(EAccessDenied, recipientError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, recipientSaveError.ErrorCode);
     }
 
     [TestMethod]
@@ -84,11 +89,13 @@ public sealed class DistributionListRecipientsComContractTests
         var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = recipients.get_ItemByDBID(30));
         var pendingAdd = Assert.ThrowsExactly<COMException>(() => recipients.Add());
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => recipients[0].RecipientAddress = "changed@example.test");
+        var pendingSave = Assert.ThrowsExactly<COMException>(recipients[0].Save);
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingAdd.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingSave.ErrorCode);
     }
 
     [TestMethod]
@@ -115,6 +122,127 @@ public sealed class DistributionListRecipientsComContractTests
 
         Assert.AreEqual(1, recipients.Count);
         Assert.AreEqual("alpha@example.test", recipients[0].RecipientAddress);
+    }
+
+    [TestMethod]
+    public void AuthorizedRecipientCollection_RechecksLiveOwnerAuthenticationOnRead()
+    {
+        var authenticated = true;
+        DistributionListRecipientAdministrationRuntimeHost.Configure(
+            new FixedDistributionListRecipientAdministrationStore(
+                new[] { new DistributionListRecipientAdministrationSnapshot(10, 100, "alpha@example.test") }));
+        var list = DistributionList.CreateAuthorized(
+            new DistributionListAdministrationSnapshot(
+                100,
+                10,
+                "announce@example.test",
+                true,
+                false,
+                string.Empty,
+                (int)ComDistributionListMode.Public),
+            isAuthenticated: () => authenticated);
+
+        var recipients = list.Recipients;
+        authenticated = false;
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = recipients.Count).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = recipients[0]).ErrorCode);
+    }
+
+    [TestMethod]
+    public void DistributionListRecipients_AddAndSave_StagesAddressBindsOwnerAndAppendsAfterInsert()
+    {
+        var authenticated = true;
+        var store = new MutableDistributionListRecipientAdministrationStore(Array.Empty<DistributionListRecipientAdministrationSnapshot>());
+        DistributionListRecipientAdministrationRuntimeHost.Configure(store);
+        var list = DistributionList.CreateAuthorized(
+            new DistributionListAdministrationSnapshot(
+                100,
+                10,
+                "announce@example.test",
+                true,
+                false,
+                string.Empty,
+                (int)ComDistributionListMode.Public),
+            isAuthenticated: () => authenticated);
+
+        var recipients = list.Recipients;
+        var pending = recipients.Add();
+
+        Assert.AreEqual(0, pending.ID);
+        pending.RecipientAddress = "member@example.test";
+        Assert.AreEqual("member@example.test", pending.RecipientAddress);
+        Assert.AreEqual(0, recipients.Count);
+
+        pending.Save();
+
+        Assert.AreEqual(1, store.Inserted.Count);
+        Assert.AreEqual(0, store.Inserted[0].Id);
+        Assert.AreEqual(100, store.Inserted[0].ListId);
+        Assert.AreEqual("member@example.test", store.Inserted[0].Address);
+        Assert.AreEqual(501, pending.ID);
+        Assert.AreEqual(1, recipients.Count);
+        Assert.AreEqual(501, recipients[0].ID);
+        Assert.AreEqual("member@example.test", recipients[0].RecipientAddress);
+    }
+
+    [TestMethod]
+    public void DistributionListRecipients_FailedInsert_RetainsDraftAndOwnerSnapshot()
+    {
+        var store = new MutableDistributionListRecipientAdministrationStore(Array.Empty<DistributionListRecipientAdministrationSnapshot>())
+        {
+            FailInsert = true
+        };
+        DistributionListRecipientAdministrationRuntimeHost.Configure(store);
+        var recipients = DistributionList.CreateAuthorized(
+            new DistributionListAdministrationSnapshot(
+                200,
+                10,
+                "announce@example.test",
+                true,
+                false,
+                string.Empty,
+                (int)ComDistributionListMode.Public),
+            isAuthenticated: () => true).Recipients;
+        var pending = recipients.Add();
+        pending.RecipientAddress = "failed@example.test";
+
+        var failure = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(1, store.Inserted.Count);
+        Assert.AreEqual(0, pending.ID);
+        Assert.AreEqual("failed@example.test", pending.RecipientAddress);
+        Assert.AreEqual(0, recipients.Count);
+    }
+
+    [TestMethod]
+    public void DistributionListRecipients_LiveAuthenticationDeniesAddSetterAndSave()
+    {
+        var authenticated = true;
+        var store = new MutableDistributionListRecipientAdministrationStore(Array.Empty<DistributionListRecipientAdministrationSnapshot>());
+        DistributionListRecipientAdministrationRuntimeHost.Configure(store);
+        var recipients = DistributionList.CreateAuthorized(
+            new DistributionListAdministrationSnapshot(
+                300,
+                10,
+                "announce@example.test",
+                true,
+                false,
+                string.Empty,
+                (int)ComDistributionListMode.Public),
+            isAuthenticated: () => authenticated).Recipients;
+        var pending = recipients.Add();
+
+        authenticated = false;
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(recipients.Add).ErrorCode);
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => pending.RecipientAddress = "denied@example.test").ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(pending.Save).ErrorCode);
+        Assert.AreEqual(0, store.Inserted.Count);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = recipients.Count).ErrorCode);
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
@@ -158,5 +286,35 @@ public sealed class DistributionListRecipientsComContractTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>(
                 recipients.Where(recipient => recipient.ListId == distributionListId).ToArray());
+    }
+
+    private sealed class MutableDistributionListRecipientAdministrationStore(
+        IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients)
+        : IDistributionListRecipientAdministrationStore
+    {
+        private readonly IReadOnlyList<DistributionListRecipientAdministrationSnapshot> _recipients = recipients;
+
+        public List<DistributionListRecipientAdministrationSnapshot> Inserted { get; } = new();
+
+        public bool FailInsert { get; set; }
+
+        public ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
+            int distributionListId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>(
+                _recipients.Where(recipient => recipient.ListId == distributionListId).ToArray());
+
+        public ValueTask<int> InsertDistributionListRecipientAsync(
+            DistributionListRecipientAdministrationSnapshot recipient,
+            CancellationToken cancellationToken)
+        {
+            Inserted.Add(recipient);
+            if (FailInsert)
+            {
+                throw new InvalidOperationException("Simulated recipient insert failure.");
+            }
+
+            return ValueTask.FromResult(500 + Inserted.Count);
+        }
     }
 }

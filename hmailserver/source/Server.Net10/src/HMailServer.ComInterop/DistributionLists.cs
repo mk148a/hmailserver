@@ -404,8 +404,16 @@ public sealed class DistributionList : IInterfaceDistributionList
         set => Mutate(snapshot => snapshot with { Active = value });
     }
 
-    public IInterfaceDistributionListRecipients Recipients =>
-        DistributionListRecipientAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+    public IInterfaceDistributionListRecipients Recipients
+    {
+        get
+        {
+            EnsureAuthenticated();
+            return DistributionListRecipientAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                Snapshot.Id,
+                _isAuthenticated);
+        }
+    }
 
     public string Address
     {
