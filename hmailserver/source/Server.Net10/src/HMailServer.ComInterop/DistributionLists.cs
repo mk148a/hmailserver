@@ -112,6 +112,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
     private readonly Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? _reload;
     private readonly Func<DistributionListAdministrationSnapshot, int>? _insert;
     private readonly Func<DistributionListAdministrationSnapshot, bool>? _update;
+    private readonly Func<int, bool>? _delete;
     private readonly Func<bool>? _isAuthenticated;
     private readonly int _domainId;
 
@@ -124,6 +125,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
         Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? reload,
         Func<DistributionListAdministrationSnapshot, int>? insert,
         Func<DistributionListAdministrationSnapshot, bool>? update,
+        Func<int, bool>? delete,
         Func<bool>? isAuthenticated,
         int domainId)
     {
@@ -131,6 +133,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
         _reload = reload;
         _insert = insert;
         _update = update;
+        _delete = delete;
         _isAuthenticated = isAuthenticated;
         _domainId = domainId;
     }
@@ -142,11 +145,12 @@ public sealed class DistributionLists : IInterfaceDistributionLists
         Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? reload = null,
         Func<DistributionListAdministrationSnapshot, int>? insert = null,
         Func<DistributionListAdministrationSnapshot, bool>? update = null,
+        Func<int, bool>? delete = null,
         Func<bool>? isAuthenticated = null,
         int domainId = 0)
     {
         ArgumentNullException.ThrowIfNull(lists);
-        return new DistributionLists(lists, reload, insert, update, isAuthenticated, domainId);
+        return new DistributionLists(lists, reload, insert, update, delete, isAuthenticated, domainId);
     }
 
     public IInterfaceDistributionList this[int index]
@@ -163,6 +167,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 lists[index],
                 update: _update,
                 replace: Replace,
+                delete: _delete is null ? null : DeleteExistingList,
                 isAuthenticated: _isAuthenticated);
         }
     }
@@ -177,6 +182,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 match,
                 update: _update,
                 replace: Replace,
+                delete: _delete is null ? null : DeleteExistingList,
                 isAuthenticated: _isAuthenticated);
     }
 
@@ -200,10 +206,26 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 Mode: (int)ComDistributionListMode.Public),
             insert: _insert,
             append: Append,
+            delete: _delete is null ? null : DeleteExistingList,
             isAuthenticated: _isAuthenticated);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        _ = GetLists();
+        EnsureAuthenticated();
+        if (_delete is null)
+        {
+            Unavailable();
+        }
+
+        if (!GetLists().Any(list => list.Id == databaseId))
+        {
+            return;
+        }
+
+        DeleteExistingList(databaseId);
+    }
 
     public IInterfaceDistributionList get_ItemByAddress(string address)
     {
@@ -264,6 +286,49 @@ public sealed class DistributionLists : IInterfaceDistributionLists
             lists.Select(existing => existing.Id == list.Id ? list : existing).ToArray());
     }
 
+    private void DeleteExistingList(int databaseId)
+    {
+        EnsureAuthenticated();
+        var lists = GetLists();
+        if (_delete is null)
+        {
+            Unavailable();
+        }
+
+        if (databaseId == 0)
+        {
+            throw new InvalidOperationException("A distribution list with database identifier zero cannot be deleted.");
+        }
+
+        if (!lists.Any(list => list.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_delete!(databaseId))
+            {
+                throw new InvalidOperationException(
+                    $"Deleting distribution list {databaseId} for domain {_domainId} did not affect one row.");
+            }
+
+            Volatile.Write(
+                ref _lists,
+                lists.Where(list => list.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the distribution list from the database.",
+                EFail);
+        }
+    }
+
     private void EnsureAuthenticated()
     {
         if (_isAuthenticated is not null && !_isAuthenticated())
@@ -306,6 +371,7 @@ public sealed class DistributionList : IInterfaceDistributionList
     private readonly Func<DistributionListAdministrationSnapshot, bool>? _update;
     private readonly Action<DistributionListAdministrationSnapshot>? _append;
     private readonly Action<DistributionListAdministrationSnapshot>? _replace;
+    private readonly Action<int>? _delete;
     private readonly Func<bool>? _isAuthenticated;
 
     public DistributionList()
@@ -318,6 +384,7 @@ public sealed class DistributionList : IInterfaceDistributionList
         Func<DistributionListAdministrationSnapshot, bool>? update,
         Action<DistributionListAdministrationSnapshot>? append,
         Action<DistributionListAdministrationSnapshot>? replace,
+        Action<int>? delete,
         Func<bool>? isAuthenticated)
     {
         _list = list;
@@ -325,6 +392,7 @@ public sealed class DistributionList : IInterfaceDistributionList
         _update = update;
         _append = append;
         _replace = replace;
+        _delete = delete;
         _isAuthenticated = isAuthenticated;
     }
 
@@ -369,10 +437,34 @@ public sealed class DistributionList : IInterfaceDistributionList
         Func<DistributionListAdministrationSnapshot, bool>? update = null,
         Action<DistributionListAdministrationSnapshot>? append = null,
         Action<DistributionListAdministrationSnapshot>? replace = null,
+        Action<int>? delete = null,
         Func<bool>? isAuthenticated = null) =>
-        new(list, insert, update, append, replace, isAuthenticated);
+        new(list, insert, update, append, replace, delete, isAuthenticated);
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureAuthenticated();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _delete(Snapshot.Id);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the distribution list from the database.",
+                unchecked((int)0x80004005));
+        }
+    }
 
     public void Save()
     {
@@ -509,11 +601,18 @@ public static class DistributionListAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool DeleteList(int distributionListId) => store
+            .DeleteDistributionListAsync(domainId, distributionListId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return DistributionLists.CreateAuthorized(
             LoadLists(),
             LoadLists,
             InsertList,
             UpdateList,
+            DeleteList,
             isAuthenticated,
             domainId);
     }

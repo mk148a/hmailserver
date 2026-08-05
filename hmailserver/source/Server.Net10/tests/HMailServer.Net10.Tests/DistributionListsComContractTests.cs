@@ -588,6 +588,167 @@ public sealed class DistributionListsComContractTests
         Assert.AreEqual(0, store.Updated.Count(snapshot => snapshot.DomainId == 701));
     }
 
+    [TestMethod]
+    public void DomainDistributionLists_DeleteByDBIDAndAttachedDeleteRemoveOnlyOwnedSnapshotsAfterStoreSuccess()
+    {
+        var store = new MutableDistributionListAdministrationStore(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    70,
+                    700,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public),
+                new DistributionListAdministrationSnapshot(
+                    71,
+                    701,
+                    "outside@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            });
+        DistributionListAdministrationRuntimeHost.Configure(store);
+        var domain = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(700, "example.test", true),
+            () => true);
+        var lists = domain.DistributionLists;
+        var attached = lists.get_ItemByDBID(70);
+
+        attached.Delete();
+
+        Assert.AreEqual(1, store.Deleted.Count);
+        Assert.AreEqual(700, store.Deleted[0].OwningDomainId);
+        Assert.AreEqual(70, store.Deleted[0].DistributionListId);
+        Assert.AreEqual(0, lists.Count);
+
+        attached.Delete();
+        Assert.AreEqual(1, store.Deleted.Count);
+
+        lists.DeleteByDBID(71);
+        Assert.AreEqual(1, store.Deleted.Count);
+
+        var secondStore = new MutableDistributionListAdministrationStore(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    80,
+                    700,
+                    "members@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            });
+        DistributionListAdministrationRuntimeHost.Configure(secondStore);
+        var secondLists = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(700, "example.test", true),
+            () => true).DistributionLists;
+
+        secondLists.DeleteByDBID(80);
+
+        Assert.AreEqual(700, secondStore.Deleted[0].OwningDomainId);
+        Assert.AreEqual(80, secondStore.Deleted[0].DistributionListId);
+        Assert.AreEqual(0, secondLists.Count);
+    }
+
+    [TestMethod]
+    public void DomainDistributionLists_DeleteByDBID_IgnoresUnknownForeignAndStaleIds()
+    {
+        var store = new MutableDistributionListAdministrationStore(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    90,
+                    900,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public),
+                new DistributionListAdministrationSnapshot(
+                    91,
+                    901,
+                    "outside@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            });
+        DistributionListAdministrationRuntimeHost.Configure(store);
+        var lists = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(900, "example.test", true),
+            () => true).DistributionLists;
+
+        lists.DeleteByDBID(999);
+        lists.DeleteByDBID(91);
+        lists.DeleteByDBID(90);
+        lists.DeleteByDBID(90);
+
+        Assert.AreEqual(1, store.Deleted.Count);
+        Assert.AreEqual(90, store.Deleted[0].DistributionListId);
+        Assert.AreEqual(0, lists.Count);
+    }
+
+    [TestMethod]
+    public void DomainDistributionLists_FailedDeleteRetainsOwnerSnapshotAndMapsToFailure()
+    {
+        var store = new MutableDistributionListAdministrationStore(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    100,
+                    1000,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            })
+        {
+            DeleteSucceeds = false
+        };
+        DistributionListAdministrationRuntimeHost.Configure(store);
+        var lists = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(1000, "example.test", true),
+            () => true).DistributionLists;
+        var attached = lists.get_ItemByDBID(100);
+
+        var error = Assert.ThrowsExactly<COMException>(attached.Delete);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, lists.Count);
+        Assert.AreEqual(100, lists[0].ID);
+        Assert.AreEqual(1, store.Deleted.Count);
+    }
+
+    [TestMethod]
+    public void DomainDistributionLists_Delete_RechecksLiveAuthenticationAndRejectsZeroId()
+    {
+        var authenticated = true;
+        var store = new MutableDistributionListAdministrationStore(Array.Empty<DistributionListAdministrationSnapshot>());
+        DistributionListAdministrationRuntimeHost.Configure(store);
+        var lists = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(1100, "example.test", true),
+            () => authenticated).DistributionLists;
+        var pending = lists.Add();
+
+        var zeroIdError = Assert.ThrowsExactly<COMException>(pending.Delete);
+        authenticated = false;
+        var collectionError = Assert.ThrowsExactly<COMException>(() => lists.DeleteByDBID(999));
+        var attachedError = Assert.ThrowsExactly<COMException>(pending.Delete);
+
+        Assert.AreEqual(EFail, zeroIdError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, attachedError.ErrorCode);
+        Assert.AreEqual(0, store.Deleted.Count);
+        authenticated = true;
+        Assert.AreEqual(0, lists.Count);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -640,6 +801,10 @@ public sealed class DistributionListsComContractTests
 
         public List<DistributionListAdministrationSnapshot> Updated { get; } = new();
 
+        public List<(int OwningDomainId, int DistributionListId)> Deleted { get; } = new();
+
+        public bool DeleteSucceeds { get; set; } = true;
+
         public void Replace(IReadOnlyList<DistributionListAdministrationSnapshot> lists)
         {
             _lists = lists;
@@ -668,6 +833,15 @@ public sealed class DistributionListsComContractTests
         {
             Updated.Add(distributionList);
             return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<bool> DeleteDistributionListAsync(
+            int owningDomainId,
+            int distributionListId,
+            CancellationToken cancellationToken)
+        {
+            Deleted.Add((owningDomainId, distributionListId));
+            return ValueTask.FromResult(DeleteSucceeds);
         }
     }
 }

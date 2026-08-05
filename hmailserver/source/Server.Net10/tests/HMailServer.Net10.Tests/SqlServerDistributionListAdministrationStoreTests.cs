@@ -92,4 +92,40 @@ public sealed class SqlServerDistributionListAdministrationStoreTests
             new[] { typeof(DistributionListAdministrationSnapshot), typeof(CancellationToken) },
             method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
     }
+
+    [TestMethod]
+    public void DeleteDistributionListRecipientsSql_UsesParameterizedLegacyRecipientTableAndListId()
+    {
+        var sql = SqlServerDistributionListAdministrationStore.DeleteDistributionListRecipientsSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_distributionlistsrecipients");
+        StringAssert.Contains(sql, "distributionlistrecipientlistid = @LISTID");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("@LISTID'", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void DeleteDistributionListSql_UsesParameterizedOwnerScopedLegacyListTableAndIds()
+    {
+        var sql = SqlServerDistributionListAdministrationStore.DeleteDistributionListSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_distributionlists");
+        StringAssert.Contains(sql, "distributionlistdomainid = @DomainID");
+        StringAssert.Contains(sql, "distributionlistid = @LISTID");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("@LISTID'", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void DeleteDistributionListAsync_ExposesOwnerIdListIdAndCancellationContract()
+    {
+        var method = typeof(SqlServerDistributionListAdministrationStore).GetMethod(
+            nameof(SqlServerDistributionListAdministrationStore.DeleteDistributionListAsync));
+
+        Assert.IsNotNull(method);
+        Assert.AreEqual(typeof(ValueTask<bool>), method.ReturnType);
+        CollectionAssert.AreEqual(
+            new[] { typeof(int), typeof(int), typeof(CancellationToken) },
+            method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
+    }
 }

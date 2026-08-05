@@ -15,4 +15,10 @@ public interface IDistributionListAdministrationStore
         DistributionListAdministrationSnapshot distributionList,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Distribution list updates are not available in this store.");
+
+    ValueTask<bool> DeleteDistributionListAsync(
+        int owningDomainId,
+        int distributionListId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Distribution list deletion is not available in this store.");
 }
