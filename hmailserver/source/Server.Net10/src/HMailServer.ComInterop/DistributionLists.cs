@@ -110,6 +110,9 @@ public sealed class DistributionLists : IInterfaceDistributionLists
 
     private DistributionListAdministrationSnapshot[]? _lists;
     private readonly Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? _reload;
+    private readonly Func<DistributionListAdministrationSnapshot, int>? _insert;
+    private readonly Func<bool>? _isAuthenticated;
+    private readonly int _domainId;
 
     public DistributionLists()
     {
@@ -117,20 +120,29 @@ public sealed class DistributionLists : IInterfaceDistributionLists
 
     private DistributionLists(
         IReadOnlyList<DistributionListAdministrationSnapshot> lists,
-        Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? reload)
+        Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? reload,
+        Func<DistributionListAdministrationSnapshot, int>? insert,
+        Func<bool>? isAuthenticated,
+        int domainId)
     {
         _lists = lists.ToArray();
         _reload = reload;
+        _insert = insert;
+        _isAuthenticated = isAuthenticated;
+        _domainId = domainId;
     }
 
     public int Count => GetLists().Count;
 
     internal static DistributionLists CreateAuthorized(
         IReadOnlyList<DistributionListAdministrationSnapshot> lists,
-        Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? reload = null)
+        Func<IReadOnlyList<DistributionListAdministrationSnapshot>>? reload = null,
+        Func<DistributionListAdministrationSnapshot, int>? insert = null,
+        Func<bool>? isAuthenticated = null,
+        int domainId = 0)
     {
         ArgumentNullException.ThrowIfNull(lists);
-        return new DistributionLists(lists, reload);
+        return new DistributionLists(lists, reload, insert, isAuthenticated, domainId);
     }
 
     public IInterfaceDistributionList this[int index]
@@ -143,7 +155,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 throw new COMException("Distribution list index was outside the collection.", DispEBadIndex);
             }
 
-            return DistributionList.CreateAuthorized(lists[index]);
+            return DistributionList.CreateAuthorized(lists[index], isAuthenticated: _isAuthenticated);
         }
     }
 
@@ -153,10 +165,31 @@ public sealed class DistributionLists : IInterfaceDistributionLists
 
         return match is null
             ? throw new COMException("No distribution list with the specified database identifier exists.", DispEBadIndex)
-            : DistributionList.CreateAuthorized(match);
+            : DistributionList.CreateAuthorized(match, isAuthenticated: _isAuthenticated);
     }
 
-    public IInterfaceDistributionList Add() => Unavailable<IInterfaceDistributionList>();
+    public IInterfaceDistributionList Add()
+    {
+        _ = GetLists();
+        EnsureAuthenticated();
+        if (_insert is null || _isAuthenticated is null)
+        {
+            return Unavailable<IInterfaceDistributionList>();
+        }
+
+        return DistributionList.CreateAuthorized(
+            new DistributionListAdministrationSnapshot(
+                Id: 0,
+                DomainId: _domainId,
+                Address: string.Empty,
+                Active: false,
+                RequireSmtpAuth: false,
+                RequireSenderAddress: string.Empty,
+                Mode: (int)ComDistributionListMode.Public),
+            insert: _insert,
+            append: Append,
+            isAuthenticated: _isAuthenticated);
+    }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
@@ -167,7 +200,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
 
         return match is null
             ? throw new COMException("No distribution list with the specified address exists.", DispEBadIndex)
-            : DistributionList.CreateAuthorized(match);
+            : DistributionList.CreateAuthorized(match, isAuthenticated: _isAuthenticated);
     }
 
     public void Refresh()
@@ -201,6 +234,22 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 EAccessDenied);
     }
 
+    private void Append(DistributionListAdministrationSnapshot list)
+    {
+        var lists = GetLists();
+        Volatile.Write(ref _lists, lists.Append(list).ToArray());
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "DistributionLists access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
     private T Unavailable<T>()
     {
         _ = GetLists();
@@ -228,15 +277,25 @@ public sealed class DistributionList : IInterfaceDistributionList
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly DistributionListAdministrationSnapshot? _list;
+    private DistributionListAdministrationSnapshot? _list;
+    private readonly Func<DistributionListAdministrationSnapshot, int>? _insert;
+    private readonly Action<DistributionListAdministrationSnapshot>? _append;
+    private readonly Func<bool>? _isAuthenticated;
 
     public DistributionList()
     {
     }
 
-    private DistributionList(DistributionListAdministrationSnapshot list)
+    private DistributionList(
+        DistributionListAdministrationSnapshot list,
+        Func<DistributionListAdministrationSnapshot, int>? insert,
+        Action<DistributionListAdministrationSnapshot>? append,
+        Func<bool>? isAuthenticated)
     {
         _list = list;
+        _insert = insert;
+        _append = append;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int ID => Snapshot.Id;
@@ -244,7 +303,7 @@ public sealed class DistributionList : IInterfaceDistributionList
     public bool Active
     {
         get => Snapshot.Active;
-        set => Unavailable();
+        set => Mutate(snapshot => snapshot with { Active = value });
     }
 
     public IInterfaceDistributionListRecipients Recipients =>
@@ -253,32 +312,70 @@ public sealed class DistributionList : IInterfaceDistributionList
     public string Address
     {
         get => Snapshot.Address;
-        set => Unavailable();
+        set => Mutate(snapshot => snapshot with { Address = value ?? string.Empty });
     }
 
     public bool RequireSMTPAuth
     {
         get => Snapshot.RequireSmtpAuth;
-        set => Unavailable();
+        set => Mutate(snapshot => snapshot with { RequireSmtpAuth = value });
     }
 
     public string RequireSenderAddress
     {
         get => Snapshot.RequireSenderAddress;
-        set => Unavailable();
+        set => Mutate(snapshot => snapshot with { RequireSenderAddress = value ?? string.Empty });
     }
 
     public ComDistributionListMode Mode
     {
         get => (ComDistributionListMode)Snapshot.Mode;
-        set => Unavailable();
+        set => Mutate(snapshot => snapshot with { Mode = (int)value });
     }
 
-    internal static DistributionList CreateAuthorized(DistributionListAdministrationSnapshot list) => new(list);
+    internal static DistributionList CreateAuthorized(
+        DistributionListAdministrationSnapshot list,
+        Func<DistributionListAdministrationSnapshot, int>? insert = null,
+        Action<DistributionListAdministrationSnapshot>? append = null,
+        Func<bool>? isAuthenticated = null) =>
+        new(list, insert, append, isAuthenticated);
 
     public void Delete() => Unavailable();
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        EnsureAuthenticated();
+        var snapshot = Snapshot;
+        if (snapshot.Id != 0 || _insert is null || _isAuthenticated is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var insertedId = _insert(snapshot);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The distribution list insert did not return a valid generated identity.");
+            }
+
+            var saved = snapshot with { Id = insertedId };
+            _list = saved;
+            _append?.Invoke(saved);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the distribution list to the database.",
+                unchecked((int)0x80004005));
+        }
+    }
 
     private DistributionListAdministrationSnapshot Snapshot =>
         _list ?? throw new COMException(
@@ -300,6 +397,28 @@ public sealed class DistributionList : IInterfaceDistributionList
             "This DistributionList member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
     }
+
+    private void Mutate(Func<DistributionListAdministrationSnapshot, DistributionListAdministrationSnapshot> mutation)
+    {
+        EnsureAuthenticated();
+        if (_insert is null || _isAuthenticated is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _list = mutation(Snapshot);
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "DistributionList access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 }
 
 [ComVisible(false)]
@@ -315,7 +434,9 @@ public static class DistributionListAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static DistributionLists CreateAuthorizedAdapter(int domainId)
+    internal static DistributionLists CreateAuthorizedAdapter(
+        int domainId,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -328,6 +449,17 @@ public static class DistributionListAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return DistributionLists.CreateAuthorized(LoadLists(), LoadLists);
+        int InsertList(DistributionListAdministrationSnapshot list) => store
+            .InsertDistributionListAsync(list, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return DistributionLists.CreateAuthorized(
+            LoadLists(),
+            LoadLists,
+            InsertList,
+            isAuthenticated,
+            domainId);
     }
 }

@@ -133,6 +133,112 @@ public sealed class DistributionListsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_AddAndSave_StagesLegacyFieldsBindsOwnerAndAppendsAfterInsert()
+    {
+        var authenticated = true;
+        DistributionListAdministrationSnapshot? inserted = null;
+        var lists = DistributionLists.CreateAuthorized(
+            Array.Empty<DistributionListAdministrationSnapshot>(),
+            insert: draft =>
+            {
+                inserted = draft;
+                return 42;
+            },
+            isAuthenticated: () => authenticated,
+            domainId: 100);
+
+        var pending = lists.Add();
+
+        Assert.AreEqual(0, pending.ID);
+        pending.Active = true;
+        pending.Address = "announce@example.test";
+        pending.RequireSMTPAuth = true;
+        pending.RequireSenderAddress = "owner@example.test";
+        pending.Mode = ComDistributionListMode.Membership;
+
+        Assert.AreEqual(0, lists.Count);
+
+        pending.Save();
+
+        Assert.IsNotNull(inserted);
+        Assert.AreEqual(0, inserted!.Id);
+        Assert.AreEqual(100, inserted.DomainId);
+        Assert.AreEqual("announce@example.test", inserted.Address);
+        Assert.IsTrue(inserted.Active);
+        Assert.IsTrue(inserted.RequireSmtpAuth);
+        Assert.AreEqual("owner@example.test", inserted.RequireSenderAddress);
+        Assert.AreEqual((int)ComDistributionListMode.Membership, inserted.Mode);
+        Assert.AreEqual(42, pending.ID);
+        Assert.AreEqual(1, lists.Count);
+        Assert.AreEqual(42, lists[0].ID);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_FailedInsert_RetainsDraftAndDoesNotAppendOwnerSnapshot()
+    {
+        var insertAttempts = 0;
+        var lists = DistributionLists.CreateAuthorized(
+            Array.Empty<DistributionListAdministrationSnapshot>(),
+            insert: draft =>
+            {
+                insertAttempts++;
+                throw new InvalidOperationException("Simulated insert failure.");
+            },
+            isAuthenticated: () => true,
+            domainId: 200);
+        var pending = lists.Add();
+        pending.Address = "draft@example.test";
+        pending.RequireSenderAddress = "owner@example.test";
+
+        var failure = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(1, insertAttempts);
+        Assert.AreEqual(0, pending.ID);
+        Assert.AreEqual("draft@example.test", pending.Address);
+        Assert.AreEqual("owner@example.test", pending.RequireSenderAddress);
+        Assert.AreEqual(0, lists.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_LiveAuthenticationDeniesAddSettersAndSave()
+    {
+        var authenticated = true;
+        var insertAttempts = 0;
+        var lists = DistributionLists.CreateAuthorized(
+            Array.Empty<DistributionListAdministrationSnapshot>(),
+            insert: _ =>
+            {
+                insertAttempts++;
+                return 7;
+            },
+            isAuthenticated: () => authenticated,
+            domainId: 300);
+        var pending = lists.Add();
+        authenticated = false;
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(lists.Add).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => pending.Active = true).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => pending.Address = "denied@example.test").ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => pending.RequireSMTPAuth = true).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => pending.RequireSenderAddress = "denied@example.test").ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => pending.Mode = ComDistributionListMode.Membership).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(pending.Save).ErrorCode);
+        Assert.AreEqual(0, insertAttempts);
+        Assert.AreEqual(0, lists.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_WithoutAuthenticationCallback_RetainsNotImplementedMutationBoundary()
+    {
+        var lists = DistributionLists.CreateAuthorized(
+            Array.Empty<DistributionListAdministrationSnapshot>(),
+            insert: _ => 99);
+
+        Assert.AreEqual(ENotImplemented, Assert.ThrowsExactly<COMException>(lists.Add).ErrorCode);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;
@@ -280,6 +386,32 @@ public sealed class DistributionListsComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = lists.get_ItemByDBID(40)).ErrorCode);
     }
 
+    [TestMethod]
+    public void DomainDistributionLists_PassesOwnerAndLiveAuthenticationToMutationFacade()
+    {
+        var authenticated = true;
+        var store = new MutableDistributionListAdministrationStore(Array.Empty<DistributionListAdministrationSnapshot>());
+        DistributionListAdministrationRuntimeHost.Configure(store);
+        var domain = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(700, "example.test", true),
+            () => authenticated);
+        var lists = domain.DistributionLists;
+        var pending = lists.Add();
+        pending.Address = "announce@example.test";
+
+        authenticated = false;
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(pending.Save).ErrorCode);
+        Assert.AreEqual(0, store.Inserted.Count);
+
+        authenticated = true;
+        pending.Save();
+
+        Assert.AreEqual(1, store.Inserted.Count);
+        Assert.AreEqual(700, store.Inserted[0].DomainId);
+        Assert.AreEqual(1, lists.Count);
+        Assert.AreEqual(pending.ID, lists[0].ID);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -328,6 +460,8 @@ public sealed class DistributionListsComContractTests
 
         public int ReadCount { get; private set; }
 
+        public List<DistributionListAdministrationSnapshot> Inserted { get; } = new();
+
         public void Replace(IReadOnlyList<DistributionListAdministrationSnapshot> lists)
         {
             _lists = lists;
@@ -340,6 +474,14 @@ public sealed class DistributionListsComContractTests
             ReadCount++;
             return ValueTask.FromResult<IReadOnlyList<DistributionListAdministrationSnapshot>>(
                 _lists.Where(list => list.DomainId == domainId).ToArray());
+        }
+
+        public ValueTask<int> InsertDistributionListAsync(
+            DistributionListAdministrationSnapshot distributionList,
+            CancellationToken cancellationToken)
+        {
+            Inserted.Add(distributionList);
+            return ValueTask.FromResult(900 + Inserted.Count);
         }
     }
 }

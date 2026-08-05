@@ -21,6 +21,14 @@ WHERE distributionlistdomainid = @DomainID
 ORDER BY distributionlistaddress ASC;
 """;
 
+    public const string InsertDistributionListSql = """
+INSERT INTO hm_distributionlists
+    (distributionlistdomainid, distributionlistenabled, distributionlistaddress,
+     distributionlistrequireauth, distributionlistrequireaddress, distributionlistmode)
+OUTPUT INSERTED.distributionlistid
+VALUES (@DomainID, @Active, @Address, @RequireSMTPAuth, @RequireSenderAddress, @Mode);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDistributionListAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -55,5 +63,24 @@ ORDER BY distributionlistaddress ASC;
         }
 
         return lists;
+    }
+
+    public async ValueTask<int> InsertDistributionListAsync(
+        DistributionListAdministrationSnapshot distributionList,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(distributionList);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertDistributionListSql, connection);
+        command.Parameters.Add("@DomainID", SqlDbType.Int).Value = distributionList.DomainId;
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = distributionList.Active ? 1 : 0;
+        command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = distributionList.Address;
+        command.Parameters.Add("@RequireSMTPAuth", SqlDbType.TinyInt).Value = distributionList.RequireSmtpAuth ? 1 : 0;
+        command.Parameters.Add("@RequireSenderAddress", SqlDbType.NVarChar, 255).Value = distributionList.RequireSenderAddress;
+        command.Parameters.Add("@Mode", SqlDbType.TinyInt).Value = distributionList.Mode;
+
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
     }
 }
