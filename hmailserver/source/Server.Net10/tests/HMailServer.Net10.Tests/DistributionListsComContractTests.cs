@@ -201,6 +201,141 @@ public sealed class DistributionListsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedCollection_ExistingSave_StagesAllFieldsAndReplacesOnlyMatchingOwnerSnapshot()
+    {
+        var updated = new List<DistributionListAdministrationSnapshot>();
+        var lists = DistributionLists.CreateAuthorized(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    10,
+                    100,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public),
+                new DistributionListAdministrationSnapshot(
+                    20,
+                    100,
+                    "members@example.test",
+                    false,
+                    true,
+                    "owner@example.test",
+                    (int)ComDistributionListMode.Membership)
+            },
+            update: snapshot =>
+            {
+                updated.Add(snapshot);
+                return true;
+            },
+            isAuthenticated: () => true);
+
+        var existing = lists.get_ItemByDBID(10);
+        existing.Active = false;
+        existing.Address = "updated@example.test";
+        existing.RequireSMTPAuth = true;
+        existing.RequireSenderAddress = "sender@example.test";
+        existing.Mode = ComDistributionListMode.Announcement;
+        existing.Save();
+
+        Assert.AreEqual(1, updated.Count);
+        Assert.AreEqual(10, updated[0].Id);
+        Assert.AreEqual(100, updated[0].DomainId);
+        Assert.AreEqual("updated@example.test", updated[0].Address);
+        Assert.IsFalse(updated[0].Active);
+        Assert.IsTrue(updated[0].RequireSmtpAuth);
+        Assert.AreEqual("sender@example.test", updated[0].RequireSenderAddress);
+        Assert.AreEqual((int)ComDistributionListMode.Announcement, updated[0].Mode);
+        AssertDistributionList(
+            lists.get_ItemByDBID(10),
+            10,
+            "updated@example.test",
+            false,
+            true,
+            "sender@example.test",
+            ComDistributionListMode.Announcement);
+        AssertDistributionList(
+            lists.get_ItemByDBID(20),
+            20,
+            "members@example.test",
+            false,
+            true,
+            "owner@example.test",
+            ComDistributionListMode.Membership);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_FailedExistingUpdate_RetainsStagedItemAndOwnerSnapshot()
+    {
+        var lists = DistributionLists.CreateAuthorized(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    10,
+                    100,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            },
+            update: _ => false,
+            isAuthenticated: () => true);
+        var existing = lists.get_ItemByDBID(10);
+        existing.Address = "staged@example.test";
+        existing.Mode = ComDistributionListMode.Membership;
+
+        var failure = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual("staged@example.test", existing.Address);
+        Assert.AreEqual(ComDistributionListMode.Membership, existing.Mode);
+        AssertDistributionList(
+            lists.get_ItemByDBID(10),
+            10,
+            "announce@example.test",
+            true,
+            false,
+            string.Empty,
+            ComDistributionListMode.Public);
+    }
+
+    [TestMethod]
+    public void AuthorizedCollection_ExistingSave_RechecksLiveAuthentication()
+    {
+        var authenticated = true;
+        var updateAttempts = 0;
+        var lists = DistributionLists.CreateAuthorized(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    10,
+                    100,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            },
+            update: _ =>
+            {
+                updateAttempts++;
+                return true;
+            },
+            isAuthenticated: () => authenticated);
+        var existing = lists.get_ItemByDBID(10);
+        authenticated = false;
+
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => existing.Address = "denied@example.test").ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(existing.Save).ErrorCode);
+        Assert.AreEqual(0, updateAttempts);
+        Assert.AreEqual("announce@example.test", lists.get_ItemByDBID(10).Address);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_LiveAuthenticationDeniesAddSettersAndSave()
     {
         var authenticated = true;
@@ -412,6 +547,47 @@ public sealed class DistributionListsComContractTests
         Assert.AreEqual(pending.ID, lists[0].ID);
     }
 
+    [TestMethod]
+    public void DomainDistributionLists_ExistingSaveUsesOwnerScopedUpdate()
+    {
+        var store = new MutableDistributionListAdministrationStore(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    70,
+                    700,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public),
+                new DistributionListAdministrationSnapshot(
+                    71,
+                    701,
+                    "outside@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            });
+        DistributionListAdministrationRuntimeHost.Configure(store);
+        var domain = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(700, "example.test", true),
+            () => true);
+        var lists = domain.DistributionLists;
+        var existing = lists.get_ItemByDBID(70);
+
+        existing.Address = "updated@example.test";
+        existing.Save();
+
+        Assert.AreEqual(1, store.Updated.Count);
+        Assert.AreEqual(70, store.Updated[0].Id);
+        Assert.AreEqual(700, store.Updated[0].DomainId);
+        Assert.AreEqual("updated@example.test", lists.get_ItemByDBID(70).Address);
+        Assert.AreEqual(1, lists.Count);
+        Assert.AreEqual(0, store.Updated.Count(snapshot => snapshot.DomainId == 701));
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -462,6 +638,8 @@ public sealed class DistributionListsComContractTests
 
         public List<DistributionListAdministrationSnapshot> Inserted { get; } = new();
 
+        public List<DistributionListAdministrationSnapshot> Updated { get; } = new();
+
         public void Replace(IReadOnlyList<DistributionListAdministrationSnapshot> lists)
         {
             _lists = lists;
@@ -482,6 +660,14 @@ public sealed class DistributionListsComContractTests
         {
             Inserted.Add(distributionList);
             return ValueTask.FromResult(900 + Inserted.Count);
+        }
+
+        public ValueTask<bool> UpdateDistributionListAsync(
+            DistributionListAdministrationSnapshot distributionList,
+            CancellationToken cancellationToken)
+        {
+            Updated.Add(distributionList);
+            return ValueTask.FromResult(true);
         }
     }
 }

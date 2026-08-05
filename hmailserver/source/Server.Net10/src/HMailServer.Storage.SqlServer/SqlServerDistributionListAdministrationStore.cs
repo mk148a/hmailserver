@@ -29,6 +29,18 @@ OUTPUT INSERTED.distributionlistid
 VALUES (@DomainID, @Active, @Address, @RequireSMTPAuth, @RequireSenderAddress, @Mode);
 """;
 
+    public const string UpdateDistributionListSql = """
+UPDATE hm_distributionlists
+SET
+    distributionlistdomainid = @DomainID,
+    distributionlistenabled = @Active,
+    distributionlistaddress = @Address,
+    distributionlistrequireauth = @RequireSMTPAuth,
+    distributionlistrequireaddress = @RequireSenderAddress,
+    distributionlistmode = @Mode
+WHERE distributionlistid = @ID;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDistributionListAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -82,5 +94,24 @@ VALUES (@DomainID, @Active, @Address, @RequireSMTPAuth, @RequireSenderAddress, @
 
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<bool> UpdateDistributionListAsync(
+        DistributionListAdministrationSnapshot distributionList,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(distributionList);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateDistributionListSql, connection);
+        command.Parameters.Add("@ID", SqlDbType.Int).Value = distributionList.Id;
+        command.Parameters.Add("@DomainID", SqlDbType.Int).Value = distributionList.DomainId;
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = distributionList.Active ? 1 : 0;
+        command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = distributionList.Address;
+        command.Parameters.Add("@RequireSMTPAuth", SqlDbType.TinyInt).Value = distributionList.RequireSmtpAuth ? 1 : 0;
+        command.Parameters.Add("@RequireSenderAddress", SqlDbType.NVarChar, 255).Value = distributionList.RequireSenderAddress;
+        command.Parameters.Add("@Mode", SqlDbType.TinyInt).Value = distributionList.Mode;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 }

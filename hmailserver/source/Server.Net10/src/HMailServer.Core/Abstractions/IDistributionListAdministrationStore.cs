@@ -10,4 +10,9 @@ public interface IDistributionListAdministrationStore
         DistributionListAdministrationSnapshot distributionList,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Distribution list insertion is not available in this store.");
+
+    ValueTask<bool> UpdateDistributionListAsync(
+        DistributionListAdministrationSnapshot distributionList,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Distribution list updates are not available in this store.");
 }

@@ -62,4 +62,34 @@ public sealed class SqlServerDistributionListAdministrationStoreTests
             new[] { typeof(DistributionListAdministrationSnapshot), typeof(CancellationToken) },
             method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
     }
+
+    [TestMethod]
+    public void UpdateDistributionListSql_UsesAllLegacyFieldsAndIdentityPredicate()
+    {
+        var sql = SqlServerDistributionListAdministrationStore.UpdateDistributionListSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_distributionlists");
+        StringAssert.Contains(sql, "distributionlistdomainid = @DomainID");
+        StringAssert.Contains(sql, "distributionlistenabled = @Active");
+        StringAssert.Contains(sql, "distributionlistaddress = @Address");
+        StringAssert.Contains(sql, "distributionlistrequireauth = @RequireSMTPAuth");
+        StringAssert.Contains(sql, "distributionlistrequireaddress = @RequireSenderAddress");
+        StringAssert.Contains(sql, "distributionlistmode = @Mode");
+        StringAssert.Contains(sql, "WHERE distributionlistid = @ID");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("OUTPUT", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void UpdateDistributionListAsync_ExposesSnapshotAndCancellationContract()
+    {
+        var method = typeof(SqlServerDistributionListAdministrationStore).GetMethod(
+            nameof(SqlServerDistributionListAdministrationStore.UpdateDistributionListAsync));
+
+        Assert.IsNotNull(method);
+        Assert.AreEqual(typeof(ValueTask<bool>), method.ReturnType);
+        CollectionAssert.AreEqual(
+            new[] { typeof(DistributionListAdministrationSnapshot), typeof(CancellationToken) },
+            method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
+    }
 }
