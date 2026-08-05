@@ -41,4 +41,14 @@ public sealed class SqlServerDistributionListRecipientAdministrationStoreTests
         StringAssert.Contains(sql, "WHERE distributionlistrecipientid = @ID");
         StringAssert.Contains(sql, "AND distributionlistrecipientlistid = @ListId");
     }
+
+    [TestMethod]
+    public void DeleteDistributionListRecipientSql_UsesParameterizedRecipientAndOwnerPredicate()
+    {
+        var sql = SqlServerDistributionListRecipientAdministrationStore.DeleteDistributionListRecipientSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_distributionlistsrecipients");
+        StringAssert.Contains(sql, "distributionlistrecipientid = @ID");
+        StringAssert.Contains(sql, "distributionlistrecipientlistid = @ListId");
+    }
 }

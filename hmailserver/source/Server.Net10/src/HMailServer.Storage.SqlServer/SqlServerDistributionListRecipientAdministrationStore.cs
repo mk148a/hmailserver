@@ -33,6 +33,12 @@ WHERE distributionlistrecipientid = @ID
   AND distributionlistrecipientlistid = @ListId;
 """;
 
+    public const string DeleteDistributionListRecipientSql = """
+DELETE FROM hm_distributionlistsrecipients
+WHERE distributionlistrecipientid = @ID
+  AND distributionlistrecipientlistid = @ListId;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDistributionListRecipientAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -90,6 +96,19 @@ WHERE distributionlistrecipientid = @ID
         command.Parameters.Add("@ID", SqlDbType.Int).Value = snapshot.Id;
         command.Parameters.Add("@ListId", SqlDbType.Int).Value = snapshot.ListId;
         command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = snapshot.Address;
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> DeleteDistributionListRecipientAsync(
+        DistributionListRecipientAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteDistributionListRecipientSql, connection);
+        command.Parameters.Add("@ID", SqlDbType.Int).Value = snapshot.Id;
+        command.Parameters.Add("@ListId", SqlDbType.Int).Value = snapshot.ListId;
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 }

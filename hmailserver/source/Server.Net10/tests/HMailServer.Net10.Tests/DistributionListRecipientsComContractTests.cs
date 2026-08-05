@@ -62,12 +62,16 @@ public sealed class DistributionListRecipientsComContractTests
     {
         var recipientsError = Assert.ThrowsExactly<COMException>(() => _ = new DistributionListRecipients().Count);
         var recipientsAddError = Assert.ThrowsExactly<COMException>(() => new DistributionListRecipients().Add());
+        var recipientsDeleteError = Assert.ThrowsExactly<COMException>(() => new DistributionListRecipients().DeleteByDBID(1));
         var recipientError = Assert.ThrowsExactly<COMException>(() => _ = new DistributionListRecipient().RecipientAddress);
+        var recipientDeleteError = Assert.ThrowsExactly<COMException>(new DistributionListRecipient().Delete);
         var recipientSaveError = Assert.ThrowsExactly<COMException>(new DistributionListRecipient().Save);
 
         Assert.AreEqual(EAccessDenied, recipientsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, recipientsAddError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, recipientsDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, recipientError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, recipientDeleteError.ErrorCode);
         Assert.AreEqual(EAccessDenied, recipientSaveError.ErrorCode);
     }
 
@@ -342,6 +346,123 @@ public sealed class DistributionListRecipientsComContractTests
         Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = recipients.Count).ErrorCode);
     }
 
+    [TestMethod]
+    public void DistributionListRecipients_DeleteByDBIDAndAttachedDeleteRemoveContainedRowsAfterSuccess()
+    {
+        var store = new MutableDistributionListRecipientAdministrationStore(
+            new[]
+            {
+                new DistributionListRecipientAdministrationSnapshot(801, 100, "alpha@example.test"),
+                new DistributionListRecipientAdministrationSnapshot(802, 100, "beta@example.test"),
+                new DistributionListRecipientAdministrationSnapshot(900, 200, "foreign@example.test")
+            });
+        DistributionListRecipientAdministrationRuntimeHost.Configure(store);
+        var recipients = DistributionList.CreateAuthorized(
+            new DistributionListAdministrationSnapshot(
+                100,
+                10,
+                "announce@example.test",
+                true,
+                false,
+                string.Empty,
+                (int)ComDistributionListMode.Public),
+            isAuthenticated: static () => true).Recipients;
+
+        recipients.DeleteByDBID(801);
+        recipients.get_ItemByDBID(802).Delete();
+
+        Assert.AreEqual(2, store.Deleted.Count);
+        Assert.AreEqual(801, store.Deleted[0].Id);
+        Assert.AreEqual(100, store.Deleted[0].ListId);
+        Assert.AreEqual(802, store.Deleted[1].Id);
+        Assert.AreEqual(100, store.Deleted[1].ListId);
+        Assert.AreEqual(0, recipients.Count);
+    }
+
+    [TestMethod]
+    public void DistributionListRecipients_DeleteByDBID_IgnoresUnknownForeignAndStaleIds()
+    {
+        var store = new MutableDistributionListRecipientAdministrationStore(
+            new[]
+            {
+                new DistributionListRecipientAdministrationSnapshot(811, 100, "member@example.test"),
+                new DistributionListRecipientAdministrationSnapshot(912, 200, "foreign@example.test")
+            });
+        DistributionListRecipientAdministrationRuntimeHost.Configure(store);
+        var recipients = DistributionList.CreateAuthorized(
+            new DistributionListAdministrationSnapshot(
+                100,
+                10,
+                "announce@example.test",
+                true,
+                false,
+                string.Empty,
+                (int)ComDistributionListMode.Public),
+            isAuthenticated: static () => true).Recipients;
+
+        recipients.DeleteByDBID(999);
+        recipients.DeleteByDBID(912);
+        recipients.DeleteByDBID(811);
+        recipients.DeleteByDBID(811);
+
+        Assert.AreEqual(1, store.Deleted.Count);
+        Assert.AreEqual(811, store.Deleted[0].Id);
+        Assert.AreEqual(0, recipients.Count);
+    }
+
+    [TestMethod]
+    public void DistributionListRecipients_FailedDeleteMapsToFailureAndRetainsOwnerSnapshot()
+    {
+        var store = new MutableDistributionListRecipientAdministrationStore(
+            new[] { new DistributionListRecipientAdministrationSnapshot(821, 100, "member@example.test") })
+        {
+            FailDelete = true
+        };
+        DistributionListRecipientAdministrationRuntimeHost.Configure(store);
+        var recipients = DistributionList.CreateAuthorized(
+            new DistributionListAdministrationSnapshot(
+                100,
+                10,
+                "announce@example.test",
+                true,
+                false,
+                string.Empty,
+                (int)ComDistributionListMode.Public),
+            isAuthenticated: static () => true).Recipients;
+
+        var failure = Assert.ThrowsExactly<COMException>(() => recipients.DeleteByDBID(821));
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(1, store.Deleted.Count);
+        Assert.AreEqual(1, recipients.Count);
+        Assert.AreEqual(821, recipients[0].ID);
+    }
+
+    [TestMethod]
+    public void DistributionListRecipients_Delete_RechecksLiveOwnerAuthentication()
+    {
+        var authenticated = true;
+        var store = new MutableDistributionListRecipientAdministrationStore(
+            new[] { new DistributionListRecipientAdministrationSnapshot(831, 100, "member@example.test") });
+        DistributionListRecipientAdministrationRuntimeHost.Configure(store);
+        var recipients = DistributionList.CreateAuthorized(
+            new DistributionListAdministrationSnapshot(
+                100,
+                10,
+                "announce@example.test",
+                true,
+                false,
+                string.Empty,
+                (int)ComDistributionListMode.Public),
+            isAuthenticated: () => authenticated).Recipients;
+        var attached = recipients[0];
+        authenticated = false;
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => recipients.DeleteByDBID(831)).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(attached.Delete).ErrorCode);
+        Assert.AreEqual(0, store.Deleted.Count);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -395,9 +516,13 @@ public sealed class DistributionListRecipientsComContractTests
 
         public List<DistributionListRecipientAdministrationSnapshot> Updated { get; } = new();
 
+        public List<DistributionListRecipientAdministrationSnapshot> Deleted { get; } = new();
+
         public bool FailInsert { get; set; }
 
         public bool FailUpdate { get; set; }
+
+        public bool FailDelete { get; set; }
 
         public ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
             int distributionListId,
@@ -426,6 +551,19 @@ public sealed class DistributionListRecipientsComContractTests
             if (FailUpdate)
             {
                 throw new InvalidOperationException("Simulated recipient update failure.");
+            }
+
+            return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<bool> DeleteDistributionListRecipientAsync(
+            DistributionListRecipientAdministrationSnapshot recipient,
+            CancellationToken cancellationToken)
+        {
+            Deleted.Add(recipient);
+            if (FailDelete)
+            {
+                throw new InvalidOperationException("Simulated recipient delete failure.");
             }
 
             return ValueTask.FromResult(true);

@@ -68,6 +68,7 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
     private DistributionListRecipientAdministrationSnapshot[]? _recipients;
     private readonly Func<DistributionListRecipientAdministrationSnapshot, int>? _insert;
     private readonly Func<DistributionListRecipientAdministrationSnapshot, bool>? _update;
+    private readonly Func<DistributionListRecipientAdministrationSnapshot, bool>? _delete;
     private readonly int? _owningListId;
     private readonly Func<bool>? _isAuthenticated;
 
@@ -79,12 +80,14 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients,
         Func<DistributionListRecipientAdministrationSnapshot, int>? insert,
         Func<DistributionListRecipientAdministrationSnapshot, bool>? update,
+        Func<DistributionListRecipientAdministrationSnapshot, bool>? delete,
         int? owningListId,
         Func<bool>? isAuthenticated)
     {
         _recipients = recipients.ToArray();
         _insert = insert;
         _update = update;
+        _delete = delete;
         _owningListId = owningListId;
         _isAuthenticated = isAuthenticated;
     }
@@ -95,11 +98,12 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients,
         Func<DistributionListRecipientAdministrationSnapshot, int>? insert = null,
         Func<DistributionListRecipientAdministrationSnapshot, bool>? update = null,
+        Func<DistributionListRecipientAdministrationSnapshot, bool>? delete = null,
         int? owningListId = null,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(recipients);
-        return new DistributionListRecipients(recipients, insert, update, owningListId, isAuthenticated);
+        return new DistributionListRecipients(recipients, insert, update, delete, owningListId, isAuthenticated);
     }
 
     public IInterfaceDistributionListRecipient this[int index]
@@ -115,6 +119,7 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
             return DistributionListRecipient.CreateAuthorized(
                 recipients[index],
                 update: _update is null ? null : UpdateRecipient,
+                delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId),
                 isAuthenticated: _isAuthenticated);
         }
     }
@@ -128,6 +133,7 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
             : DistributionListRecipient.CreateAuthorized(
                 match,
                 update: _update is null ? null : UpdateRecipient,
+                delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId),
                 isAuthenticated: _isAuthenticated);
     }
 
@@ -143,10 +149,49 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         return DistributionListRecipient.CreateAuthorized(
             new DistributionListRecipientAdministrationSnapshot(0, _owningListId.Value, string.Empty),
             save: SaveRecipient,
+            delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId),
             isAuthenticated: _isAuthenticated);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+    public void DeleteByDBID(int databaseId)
+    {
+        var recipients = GetRecipients();
+        if (_delete is null || _owningListId is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        var match = recipients.FirstOrDefault(recipient => recipient.Id == databaseId);
+        if (match is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var ownerScopedRecipient = match with { ListId = _owningListId.Value };
+            if (!_delete!(ownerScopedRecipient))
+            {
+                throw new InvalidOperationException(
+                    "The distribution-list recipient delete did not affect the selected owner-scoped row.");
+            }
+
+            Volatile.Write(
+                ref _recipients,
+                recipients.Where(recipient => recipient.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the distribution-list recipient from the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<DistributionListRecipientAdministrationSnapshot> GetRecipients()
     {
@@ -276,6 +321,7 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
     private DistributionListRecipientAdministrationSnapshot? _recipient;
     private readonly Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? _save;
     private readonly Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? _update;
+    private readonly Action<int>? _delete;
     private readonly Func<bool>? _isAuthenticated;
 
     public DistributionListRecipient()
@@ -286,11 +332,13 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
         DistributionListRecipientAdministrationSnapshot recipient,
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? save,
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? update,
+        Action<int>? delete,
         Func<bool>? isAuthenticated)
     {
         _recipient = recipient;
         _save = save;
         _update = update;
+        _delete = delete;
         _isAuthenticated = isAuthenticated;
     }
 
@@ -306,10 +354,22 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
         DistributionListRecipientAdministrationSnapshot recipient,
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? save = null,
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? update = null,
+        Action<int>? delete = null,
         Func<bool>? isAuthenticated = null) =>
-        new(recipient, save, update, isAuthenticated);
+        new(recipient, save, update, delete, isAuthenticated);
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureAuthenticated();
+        var snapshot = Snapshot;
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(snapshot.Id);
+    }
 
     public void Save()
     {
@@ -426,10 +486,17 @@ public static class DistributionListRecipientAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool DeleteRecipient(DistributionListRecipientAdministrationSnapshot recipient) => store
+            .DeleteDistributionListRecipientAsync(recipient, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return DistributionListRecipients.CreateAuthorized(
             recipients,
             InsertRecipient,
             UpdateRecipient,
+            DeleteRecipient,
             distributionListId,
             isAuthenticated);
     }

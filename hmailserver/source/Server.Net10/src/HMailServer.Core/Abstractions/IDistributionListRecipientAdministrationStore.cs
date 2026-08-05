@@ -15,4 +15,9 @@ public interface IDistributionListRecipientAdministrationStore
         DistributionListRecipientAdministrationSnapshot snapshot,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Distribution-list recipient update is not available in this store.");
+
+    ValueTask<bool> DeleteDistributionListRecipientAsync(
+        DistributionListRecipientAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Distribution-list recipient deletion is not available in this store.");
 }
