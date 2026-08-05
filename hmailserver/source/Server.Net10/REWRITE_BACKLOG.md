@@ -1,5 +1,11 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-05, RECIPIENT UPDATE)
+
+Authenticated owner-scoped existing-row `DistributionListRecipient.Save()` UPDATE parity is complete in code/test commit `259cf0867`, following recipient INSERT commit `91645dc3a`. Legacy `InterfaceDistributionListRecipient::Save` (`hmailserver/source/Server/COM/InterfaceDistributionListRecipient.cpp:133-157`) delegates to `PersistentDistributionListRecipient::SaveObject` (`hmailserver/source/Server/Common/Persistence/PersistentDistributionListRecipient.cpp:103-139`), whose existing-row branch updates `distributionlistrecipientlistid` and `distributionlistrecipientaddress` by `distributionlistrecipientid`; the schema is `hmailserver/source/DBScripts/CreateTablesMSSQL.sql:331-340`. The .NET path preserves installed recipient COM identity/direct activation denial, live owner authentication, owner-scoped SQL predicates, failed staged-state retention, and post-success replacement of only the matching snapshot. Focused coverage is `15/15`; the full suite excluding the two AV-locked EICAR cleanup methods is `1777 passed, 0 failed, 4 opt-in skips`. Direct full execution remains environment-blocked by those unrelated scanner cleanup failures. Recipient deletion, SQL identity/readback, real COM activation, rollback injection, backup/restore, migration, SEC-18, and release gates remain open.
+
+Next slice: authenticated owner-scoped recipient `DeleteByDBID` plus attached `DistributionListRecipient.Delete()` parity.
+
 This backlog tracks the remaining production-parity work for the side-by-side .NET 10 rewrite. Keep it current as each slice lands.
 
 ## Current Completed Slice (2026-08-05, RECIPIENT INSERT)
