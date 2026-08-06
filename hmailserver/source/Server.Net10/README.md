@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``85e5a143a`` completes folder-scoped ``Messages.Add()`` plus new-item ``Message.Save()`` INSERT parity (DB row only). Legacy anchors are ``InterfaceMessages::Add`` (``hmailserver/source/Server/COM/InterfaceMessages.cpp:102``) and ``PersistentMessage::SaveObject``. The .NET path preserves installed Messages/Message COM identity/direct activation denial, rejects the account message-cache Add with ``DISP_E_BADINDEX``, stages a folder-scoped draft with Subject/From/Date/header setters, persists via a parameterized insert with ``OUTPUT INSERTED.messageid`` and a generated partial ``.eml`` filename, maps store failure to ``E_FAIL``, and publishes only the saved snapshot after success. Data-directory message-file creation remains fenced. Focused coverage ``23/23``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1841 passed, 0 failed, 10 opt-in skips`` (1851 total). Next slice: message SQL identity/readback evidence for the insert.
+
+
 Code/test commit ``29d90ca9d`` adds the opt-in isolated SQL identity/readback and rollback evidence for the completed TCP/IP port mutations. The ``SqlServerTcpIpPortAdministrationStoreIntegrationTests`` fixture mirrors the legacy ``hm_tcpipports`` schema in a disposable isolated database and proves ``OUTPUT INSERTED.portid`` identity readback with per-insert increments, identity-preserving UPDATE, delete-by-id, ``DeleteAllTcpIpPorts``, and a UNIQUE ``portnumber`` violation leaving no partial row. Live LocalDB evidence is ``1/1``; the focused TCP/IP-port suite is ``25/25``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1838 passed, 0 failed, 10 opt-in skips`` (1848 total). Next slice: bounded ``Messages.Add()``/``Message.Save()`` INSERT parity with data-directory file creation fenced.
 
 
