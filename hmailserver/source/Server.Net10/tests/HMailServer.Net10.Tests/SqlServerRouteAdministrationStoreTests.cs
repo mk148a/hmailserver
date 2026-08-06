@@ -75,4 +75,36 @@ public sealed class SqlServerRouteAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateRouteSql_UsesLegacyRouteTableColumnsAndIdentityPredicate()
+    {
+        var sql = SqlServerRouteAdministrationStore.UpdateRouteSql;
+        StringAssert.Contains(sql, "UPDATE hm_routes");
+        foreach (var column in new[]
+        {
+            "routedomainname",
+            "routedescription",
+            "routetargetsmthost",
+            "routetargetsmtport",
+            "routenooftries",
+            "routeminutesbetweentry",
+            "routealladdresses",
+            "routeuseauthentication",
+            "routeauthenticationusername",
+            "routeauthenticationpassword",
+            "routetreatsecurityaslocal",
+            "routetreatsenderaslocaldomain",
+            "routeconnectionsecurity"
+        })
+        {
+            StringAssert.Contains(sql, $"{column} = @");
+        }
+
+        StringAssert.Contains(sql, "WHERE routeid = @ID");
+        StringAssert.Contains(sql, "@ID");
+        StringAssert.Contains(sql, "@RelayerAuthPassword");
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

@@ -9,4 +9,9 @@ public interface IRouteAdministrationStore
         RouteAdministrationSnapshot snapshot,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Route insertion is not available in this store.");
+
+    ValueTask<bool> UpdateRouteAsync(
+        RouteAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Route update is not available in this store.");
 }

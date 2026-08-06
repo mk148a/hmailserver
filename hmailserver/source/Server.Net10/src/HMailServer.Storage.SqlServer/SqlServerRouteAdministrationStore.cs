@@ -31,6 +31,24 @@ public sealed class SqlServerRouteAdministrationStore : IRouteAdministrationStor
              @TreatSenderAsLocalDomain, @ConnectionSecurity);
         """;
 
+
+    public const string UpdateRouteSql = """
+        UPDATE hm_routes
+        SET routedomainname = @DomainName,
+            routedescription = @Description,
+            routetargetsmthost = @TargetSmtpHost,
+            routetargetsmtport = @TargetSmtpPort,
+            routenooftries = @NumberOfTries,
+            routeminutesbetweentry = @MinutesBetweenTry,
+            routealladdresses = @AllAddresses,
+            routeuseauthentication = @RelayerRequiresAuth,
+            routeauthenticationusername = @RelayerAuthUsername,
+            routeauthenticationpassword = @RelayerAuthPassword,
+            routetreatsecurityaslocal = @TreatRecipientAsLocalDomain,
+            routetreatsenderaslocaldomain = @TreatSenderAsLocalDomain,
+            routeconnectionsecurity = @ConnectionSecurity
+        WHERE routeid = @ID;
+        """;
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRouteAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -96,6 +114,33 @@ public sealed class SqlServerRouteAdministrationStore : IRouteAdministrationStor
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
     }
 
+    public async ValueTask<bool> UpdateRouteAsync(
+        RouteAdministrationSnapshot route,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(route);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateRouteSql, connection);
+        command.Parameters.Add("@ID", SqlDbType.Int).Value = route.Id;
+        command.Parameters.Add("@DomainName", SqlDbType.NVarChar, 255).Value = route.DomainName;
+        command.Parameters.Add("@Description", SqlDbType.NVarChar, 255).Value = route.Description;
+        command.Parameters.Add("@TargetSmtpHost", SqlDbType.NVarChar, 255).Value = route.TargetSmtpHost;
+        command.Parameters.Add("@TargetSmtpPort", SqlDbType.Int).Value = route.TargetSmtpPort;
+        command.Parameters.Add("@NumberOfTries", SqlDbType.Int).Value = route.NumberOfTries;
+        command.Parameters.Add("@MinutesBetweenTry", SqlDbType.Int).Value = route.MinutesBetweenTry;
+        command.Parameters.Add("@AllAddresses", SqlDbType.TinyInt).Value = route.AllAddresses ? 1 : 0;
+        command.Parameters.Add("@RelayerRequiresAuth", SqlDbType.TinyInt).Value = route.RelayerRequiresAuth ? 1 : 0;
+        command.Parameters.Add("@RelayerAuthUsername", SqlDbType.NVarChar, 255).Value = route.RelayerAuthUsername;
+        command.Parameters.Add("@RelayerAuthPassword", SqlDbType.NVarChar, 255).Value =
+            LegacyBlowfishPasswordCipher.Encrypt(route.RelayerAuthPassword);
+        command.Parameters.Add("@TreatRecipientAsLocalDomain", SqlDbType.TinyInt).Value =
+            route.TreatRecipientAsLocalDomain ? 1 : 0;
+        command.Parameters.Add("@TreatSenderAsLocalDomain", SqlDbType.TinyInt).Value =
+            route.TreatSenderAsLocalDomain ? 1 : 0;
+        command.Parameters.Add("@ConnectionSecurity", SqlDbType.TinyInt).Value = route.ConnectionSecurity;
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected == 1;
+    }
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
         Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) != 0;
 }

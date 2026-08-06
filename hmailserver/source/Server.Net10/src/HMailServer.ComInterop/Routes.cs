@@ -155,6 +155,7 @@ public sealed class Routes : IInterfaceRoutes
     private RouteAdministrationSnapshot[]? _routes;
     private readonly Func<IReadOnlyList<RouteAdministrationSnapshot>>? _reload;
     private readonly Func<RouteAdministrationSnapshot, int>? _insert;
+    private readonly Func<RouteAdministrationSnapshot, bool>? _update;
     private readonly Func<bool>? _isServerAdministrator;
 
     public Routes()
@@ -165,11 +166,13 @@ public sealed class Routes : IInterfaceRoutes
         IReadOnlyList<RouteAdministrationSnapshot> routes,
         Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload,
         Func<RouteAdministrationSnapshot, int>? insert,
+        Func<RouteAdministrationSnapshot, bool>? update,
         Func<bool>? isServerAdministrator)
     {
         _routes = routes.ToArray();
         _reload = reload;
         _insert = insert;
+        _update = update;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -179,10 +182,11 @@ public sealed class Routes : IInterfaceRoutes
         IReadOnlyList<RouteAdministrationSnapshot> routes,
         Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload = null,
         Func<RouteAdministrationSnapshot, int>? insert = null,
+        Func<RouteAdministrationSnapshot, bool>? update = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(routes);
-        return new Routes(routes, reload, insert, isServerAdministrator);
+        return new Routes(routes, reload, insert, update, isServerAdministrator);
     }
 
     public IInterfaceRoute this[int index]
@@ -197,7 +201,7 @@ public sealed class Routes : IInterfaceRoutes
 
             return Route.CreateAuthorized(
                 routes[index],
-                save: _insert is null ? null : SaveRoute,
+                save: _insert is null && _update is null ? null : SaveRoute,
                 isServerAdministrator: _isServerAdministrator);
         }
     }
@@ -211,7 +215,7 @@ public sealed class Routes : IInterfaceRoutes
             ? throw new COMException("No route with the specified domain name exists.", DispEBadIndex)
             : Route.CreateAuthorized(
                 match,
-                save: _insert is null ? null : SaveRoute,
+                save: _insert is null && _update is null ? null : SaveRoute,
                 isServerAdministrator: _isServerAdministrator);
     }
 
@@ -223,7 +227,7 @@ public sealed class Routes : IInterfaceRoutes
             ? throw new COMException("No route with the specified database identifier exists.", DispEBadIndex)
             : Route.CreateAuthorized(
                 match,
-                save: _insert is null ? null : SaveRoute,
+                save: _insert is null && _update is null ? null : SaveRoute,
                 isServerAdministrator: _isServerAdministrator);
     }
 
@@ -284,7 +288,40 @@ public sealed class Routes : IInterfaceRoutes
     {
         EnsureServerAdministrator();
         var routes = GetRoutes();
-        if (route.Id != 0 || _insert is null)
+        if (route.Id == 0)
+        {
+            if (_insert is null)
+            {
+                Unavailable();
+                return route;
+            }
+
+            try
+            {
+                var insertedId = _insert(route);
+                if (insertedId <= 0)
+                {
+                    throw new InvalidOperationException(
+                        "The route insert did not return a valid generated identity.");
+                }
+
+                var insertedRoute = route with { Id = insertedId };
+                Volatile.Write(ref _routes, routes.Append(insertedRoute).ToArray());
+                return insertedRoute;
+            }
+            catch (COMException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to save the route to the database.",
+                    EFail);
+            }
+        }
+
+        if (_update is null)
         {
             Unavailable();
             return route;
@@ -292,16 +329,21 @@ public sealed class Routes : IInterfaceRoutes
 
         try
         {
-            var insertedId = _insert(route);
-            if (insertedId <= 0)
+            if (!_update(route))
             {
                 throw new InvalidOperationException(
-                    "The route insert did not return a valid generated identity.");
+                    "The route update did not affect the selected database row.");
             }
 
-            var insertedRoute = route with { Id = insertedId };
-            Volatile.Write(ref _routes, routes.Append(insertedRoute).ToArray());
-            return insertedRoute;
+            var matchingIndex = Array.FindIndex(routes.ToArray(), current => current.Id == route.Id);
+            if (matchingIndex >= 0)
+            {
+                var replacedRoutes = routes.ToArray();
+                replacedRoutes[matchingIndex] = route;
+                Volatile.Write(ref _routes, replacedRoutes);
+            }
+
+            return route;
         }
         catch (COMException)
         {
@@ -532,10 +574,18 @@ public static class RouteAdministrationRuntimeHost
                 .GetAwaiter()
                 .GetResult();
 
+        bool UpdateRoute(RouteAdministrationSnapshot route) =>
+            store
+                .UpdateRouteAsync(route, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+
         return Routes.CreateAuthorized(
             LoadRoutes(),
             LoadRoutes,
             InsertRoute,
+            UpdateRoute,
             isServerAdministrator);
     }
 }

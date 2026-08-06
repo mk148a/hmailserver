@@ -343,6 +343,101 @@ public sealed class RoutesComContractTests
         Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingCollectionDelete.ErrorCode);
     }
+
+    [TestMethod]
+    public void ExistingRowSave_PersistsStagedSettersAndReplacesCollectionSnapshot()
+    {
+        var updates = new List<RouteAdministrationSnapshot>();
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            insert: _ => 11,
+            update: route =>
+            {
+                updates.Add(route);
+                return true;
+            });
+
+        var existing = routes[0];
+        existing.DomainName = "renamed.example";
+        existing.Description = "Updated";
+        existing.TargetSMTPHost = "smtp.renamed.example";
+        existing.TargetSMTPPort = 25;
+        existing.NumberOfTries = 2;
+        existing.MinutesBetweenTry = 30;
+        existing.AllAddresses = false;
+        existing.RelayerRequiresAuth = true;
+        existing.RelayerAuthUsername = "relay-user";
+        existing.SetRelayerAuthPassword("new-secret");
+        existing.TreatRecipientAsLocalDomain = true;
+        existing.TreatSecurityAsLocalDomain = true;
+        existing.TreatSenderAsLocalDomain = true;
+        existing.UseSSL = true;
+        existing.ConnectionSecurity = ComConnectionSecurity.StartTlsRequired;
+
+        existing.Save();
+
+        Assert.AreEqual(1, updates.Count);
+        var persisted = updates[0];
+        Assert.AreEqual(10, persisted.Id);
+        Assert.AreEqual("renamed.example", persisted.DomainName);
+        Assert.AreEqual("Updated", persisted.Description);
+        Assert.AreEqual("smtp.renamed.example", persisted.TargetSmtpHost);
+        Assert.AreEqual(25, persisted.TargetSmtpPort);
+        Assert.AreEqual(2, persisted.NumberOfTries);
+        Assert.AreEqual(30, persisted.MinutesBetweenTry);
+        Assert.IsFalse(persisted.AllAddresses);
+        Assert.IsTrue(persisted.RelayerRequiresAuth);
+        Assert.AreEqual("relay-user", persisted.RelayerAuthUsername);
+        Assert.AreEqual("new-secret", persisted.RelayerAuthPassword);
+        Assert.IsTrue(persisted.TreatRecipientAsLocalDomain);
+        Assert.IsTrue(persisted.TreatSenderAsLocalDomain);
+        Assert.AreEqual((int)ComConnectionSecurity.StartTlsRequired, persisted.ConnectionSecurity);
+
+        Assert.AreEqual("renamed.example", routes[0].DomainName);
+        Assert.AreEqual("renamed.example", routes.get_ItemByName("RENAMED.EXAMPLE").DomainName);
+        Assert.AreEqual("Updated", routes.get_ItemByDBID(10).Description);
+    }
+
+    [TestMethod]
+    public void FailedUpdate_MapsToEFailAndRetainsStagedStateWithoutReplacingSnapshot()
+    {
+        var failUpdate = true;
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            update: _ => failUpdate
+                ? throw new InvalidOperationException("Simulated store failure.")
+                : true);
+
+        var existing = routes[0];
+        existing.DomainName = "changed.example";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual("alpha.example", routes[0].DomainName);
+
+        existing.DomainName = "other.example";
+        failUpdate = false;
+        existing.Save();
+
+        Assert.AreEqual("other.example", routes[0].DomainName);
+    }
+
+    [TestMethod]
+    public void UnknownIdUpdate_MapsToEFailWhenStoreReportsNoAffectedRow()
+    {
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            update: _ => false);
+
+        var existing = routes[0];
+        existing.DomainName = "changed.example";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual("alpha.example", routes[0].DomainName);
+    }
     private static RouteAdministrationSnapshot Snapshot(
         int id,
         string domainName,
