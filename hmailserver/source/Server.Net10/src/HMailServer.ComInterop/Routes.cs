@@ -156,6 +156,7 @@ public sealed class Routes : IInterfaceRoutes
     private readonly Func<IReadOnlyList<RouteAdministrationSnapshot>>? _reload;
     private readonly Func<RouteAdministrationSnapshot, int>? _insert;
     private readonly Func<RouteAdministrationSnapshot, bool>? _update;
+    private readonly Func<int, bool>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
 
     public Routes()
@@ -167,12 +168,14 @@ public sealed class Routes : IInterfaceRoutes
         Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload,
         Func<RouteAdministrationSnapshot, int>? insert,
         Func<RouteAdministrationSnapshot, bool>? update,
+        Func<int, bool>? delete,
         Func<bool>? isServerAdministrator)
     {
         _routes = routes.ToArray();
         _reload = reload;
         _insert = insert;
         _update = update;
+        _delete = delete;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -183,10 +186,11 @@ public sealed class Routes : IInterfaceRoutes
         Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload = null,
         Func<RouteAdministrationSnapshot, int>? insert = null,
         Func<RouteAdministrationSnapshot, bool>? update = null,
+        Func<int, bool>? delete = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(routes);
-        return new Routes(routes, reload, insert, update, isServerAdministrator);
+        return new Routes(routes, reload, insert, update, delete, isServerAdministrator);
     }
 
     public IInterfaceRoute this[int index]
@@ -202,6 +206,7 @@ public sealed class Routes : IInterfaceRoutes
             return Route.CreateAuthorized(
                 routes[index],
                 save: _insert is null && _update is null ? null : SaveRoute,
+                delete: _delete is null ? null : DeleteRoute,
                 isServerAdministrator: _isServerAdministrator);
         }
     }
@@ -216,6 +221,7 @@ public sealed class Routes : IInterfaceRoutes
             : Route.CreateAuthorized(
                 match,
                 save: _insert is null && _update is null ? null : SaveRoute,
+                delete: _delete is null ? null : DeleteRoute,
                 isServerAdministrator: _isServerAdministrator);
     }
 
@@ -228,10 +234,48 @@ public sealed class Routes : IInterfaceRoutes
             : Route.CreateAuthorized(
                 match,
                 save: _insert is null && _update is null ? null : SaveRoute,
+                delete: _delete is null ? null : DeleteRoute,
                 isServerAdministrator: _isServerAdministrator);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+        public void DeleteByDBID(int databaseId)
+    {
+        var routes = GetRoutes();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        var match = routes.FirstOrDefault(route => route.Id == databaseId);
+        if (match is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_delete(databaseId))
+            {
+                throw new InvalidOperationException(
+                    "The route delete did not affect the selected database row.");
+            }
+
+            Volatile.Write(
+                ref _routes,
+                routes.Where(route => route.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the route from the database.",
+                EFail);
+        }
+    }
 
     public IInterfaceRoute Add()
     {
@@ -258,6 +302,7 @@ public sealed class Routes : IInterfaceRoutes
                 TreatSenderAsLocalDomain: false,
                 ConnectionSecurity: 0),
             save: SaveRoute,
+            delete: _delete is null ? null : DeleteRoute,
             isServerAdministrator: _isServerAdministrator);
     }
 
@@ -283,6 +328,8 @@ public sealed class Routes : IInterfaceRoutes
                 EFail);
         }
     }
+
+    private void DeleteRoute(int databaseId) => DeleteByDBID(databaseId);
 
     private RouteAdministrationSnapshot SaveRoute(RouteAdministrationSnapshot route)
     {
@@ -405,6 +452,7 @@ public sealed class Route : IInterfaceRoute
 
     private RouteAdministrationSnapshot? _route;
     private readonly Func<RouteAdministrationSnapshot, RouteAdministrationSnapshot>? _save;
+    private readonly Action<int>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
 
     public Route()
@@ -414,10 +462,12 @@ public sealed class Route : IInterfaceRoute
     private Route(
         RouteAdministrationSnapshot route,
         Func<RouteAdministrationSnapshot, RouteAdministrationSnapshot>? save,
+        Action<int>? delete,
         Func<bool>? isServerAdministrator)
     {
         _route = route;
         _save = save;
+        _delete = delete;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -471,8 +521,9 @@ public sealed class Route : IInterfaceRoute
     internal static Route CreateAuthorized(
         RouteAdministrationSnapshot route,
         Func<RouteAdministrationSnapshot, RouteAdministrationSnapshot>? save = null,
+        Action<int>? delete = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(route, save, isServerAdministrator);
+        new(route, save, delete, isServerAdministrator);
 
     public void SetRelayerAuthPassword(string newValue) =>
         Mutate(route => route with { RelayerAuthPassword = newValue ?? string.Empty });
@@ -503,7 +554,18 @@ public sealed class Route : IInterfaceRoute
         }
     }
 
-    public void Delete() => Unavailable();
+    public void Delete()
+    {
+        EnsureServerAdministrator();
+        var snapshot = Snapshot;
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(snapshot.Id);
+    }
 
     private RouteAdministrationSnapshot Snapshot =>
         _route ?? throw new COMException(
@@ -581,11 +643,19 @@ public static class RouteAdministrationRuntimeHost
                 .GetAwaiter()
                 .GetResult();
 
+        bool DeleteRoute(int routeId) =>
+            store
+                .DeleteRouteByIdAsync(routeId, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+
         return Routes.CreateAuthorized(
             LoadRoutes(),
             LoadRoutes,
             InsertRoute,
             UpdateRoute,
+            DeleteRoute,
             isServerAdministrator);
     }
 }

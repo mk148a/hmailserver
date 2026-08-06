@@ -14,4 +14,9 @@ public interface IRouteAdministrationStore
         RouteAdministrationSnapshot snapshot,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Route update is not available in this store.");
+
+    ValueTask<bool> DeleteRouteByIdAsync(
+        int routeId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Route deletion is not available in this store.");
 }

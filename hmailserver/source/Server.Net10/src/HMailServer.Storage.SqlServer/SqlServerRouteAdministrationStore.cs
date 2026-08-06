@@ -49,6 +49,16 @@ public sealed class SqlServerRouteAdministrationStore : IRouteAdministrationStor
             routeconnectionsecurity = @ConnectionSecurity
         WHERE routeid = @ID;
         """;
+
+    public const string DeleteRouteAddressesByRouteSql = """
+        DELETE FROM hm_routeaddresses
+        WHERE routeaddressrouteid = @RouteId;
+        """;
+
+    public const string DeleteRouteByIdSql = """
+        DELETE FROM hm_routes
+        WHERE routeid = @ID;
+        """;
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRouteAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -139,6 +149,20 @@ public sealed class SqlServerRouteAdministrationStore : IRouteAdministrationStor
             route.TreatSenderAsLocalDomain ? 1 : 0;
         command.Parameters.Add("@ConnectionSecurity", SqlDbType.TinyInt).Value = route.ConnectionSecurity;
         var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected == 1;
+    }
+    public async ValueTask<bool> DeleteRouteByIdAsync(
+        int routeId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteRouteAddressesByRouteSql, connection);
+        command.Parameters.Add("@RouteId", SqlDbType.Int).Value = routeId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var deleteCommand = new SqlCommand(DeleteRouteByIdSql, connection);
+        deleteCommand.Parameters.Add("@ID", SqlDbType.Int).Value = routeId;
+        var affected = await deleteCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return affected == 1;
     }
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>

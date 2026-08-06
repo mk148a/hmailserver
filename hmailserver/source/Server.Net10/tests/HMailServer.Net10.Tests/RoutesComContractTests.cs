@@ -438,6 +438,92 @@ public sealed class RoutesComContractTests
         Assert.AreEqual(EFail, saveFailure.ErrorCode);
         Assert.AreEqual("alpha.example", routes[0].DomainName);
     }
+    [TestMethod]
+    public void DeleteByDBID_RemovesOnlyMatchingSnapshotAndTreatsUnknownAsNoOp()
+    {
+        var deletedIds = new List<int>();
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "alpha.example", ComConnectionSecurity.Tls),
+                Snapshot(20, "beta.example", ComConnectionSecurity.StartTlsRequired)
+            },
+            delete: routeId =>
+            {
+                deletedIds.Add(routeId);
+                return true;
+            });
+
+        routes.DeleteByDBID(10);
+
+        Assert.AreEqual(1, routes.Count);
+        Assert.AreEqual(20, routes[0].ID);
+        Assert.AreEqual(20, routes.get_ItemByDBID(20).ID);
+        Assert.AreEqual(DispEBadIndex, Assert.ThrowsExactly<COMException>(() => routes.get_ItemByDBID(10)).ErrorCode);
+
+        routes.DeleteByDBID(999);
+        Assert.AreEqual(1, routes.Count);
+        CollectionAssert.AreEqual(new[] { 10 }, deletedIds);
+    }
+
+    [TestMethod]
+    public void FailedDelete_MapsToEFailAndRetainsSnapshot()
+    {
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            delete: _ => false);
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(() => routes.DeleteByDBID(10));
+
+        Assert.AreEqual(EFail, deleteFailure.ErrorCode);
+        Assert.AreEqual(1, routes.Count);
+        Assert.AreEqual("alpha.example", routes[0].DomainName);
+    }
+
+    [TestMethod]
+    public void ItemDelete_RoutesThroughOwningCollectionAndRechecksAuthentication()
+    {
+        var deletedIds = new List<int>();
+        var authenticated = true;
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            delete: routeId =>
+            {
+                deletedIds.Add(routeId);
+                return true;
+            },
+            isServerAdministrator: () => authenticated);
+
+        routes[0].Delete();
+
+        Assert.AreEqual(0, routes.Count);
+        CollectionAssert.AreEqual(new[] { 10 }, deletedIds);
+
+        var second = Routes.CreateAuthorized(
+            new[] { Snapshot(20, "beta.example", ComConnectionSecurity.Tls) },
+            insert: _ => 30,
+            delete: _ => true,
+            isServerAdministrator: () => authenticated);
+        var draft = second.Add();
+        draft.Delete();
+
+        authenticated = false;
+        var deniedDelete = Assert.ThrowsExactly<COMException>(() => second[0].Delete());
+        Assert.AreEqual(EAccessDenied, deniedDelete.ErrorCode);
+    }
+
+    [TestMethod]
+    public void DeleteWithoutConfiguredDelegate_RemainsNotImplemented()
+    {
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) });
+
+        var pendingCollectionDelete = Assert.ThrowsExactly<COMException>(() => routes.DeleteByDBID(10));
+        var pendingItemDelete = Assert.ThrowsExactly<COMException>(routes[0].Delete);
+
+        Assert.AreEqual(ENotImplemented, pendingCollectionDelete.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingItemDelete.ErrorCode);
+    }
     private static RouteAdministrationSnapshot Snapshot(
         int id,
         string domainName,
