@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``dbcbc346a`` adds the opt-in isolated SQL identity/readback and rollback evidence for the completed rule mutations. The ``SqlServerRuleAdministrationStoreIntegrationTests`` fixture mirrors the legacy ``hm_rules``/``hm_rule_criterias``/``hm_rule_actions`` schema in a disposable isolated database and proves ``OUTPUT INSERTED.ruleid`` identity readback with per-insert increments, owner-scoped UPDATE/DELETE that no-op against foreign account IDs, transactional cascade DELETE removing criteria/action rows before the rule row, and NOT NULL name violations leaving no partial row and the original row intact. Live LocalDB evidence is ``1/1``; the focused Rules suite is ``113/113``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1805 passed, 0 failed, 7 opt-in skips`` (1812 total). Next slice: next authenticated Admin collection mutation after rules.
+
+
 Code/test commit ``d7694c227`` completes authenticated existing-row ``Rule.Save()`` UPDATE parity after rule insert ``0239f30a1``. Legacy anchors are ``InterfaceRule::Save`` and ``PersistentRule::SaveObject`` (``hmailserver/source/Server/Common/Persistence/PersistentRule.cpp:73-120``). The .NET path preserves installed Rules/Rule COM identity/direct activation denial, rechecks live account/server authentication, stages setters on retained items, persists via a parameterized owner-scoped UPDATE (``WHERE ruleid AND ruleaccountid``), maps failed or no-row updates to ``E_FAIL``, and replaces only the matching snapshot in the generation after success. Focused coverage ``112/112``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1805 passed, 0 failed, 6 opt-in skips`` (1811 total). Next slice: isolated SQL identity/readback rollback evidence for rule mutations.
 
 
