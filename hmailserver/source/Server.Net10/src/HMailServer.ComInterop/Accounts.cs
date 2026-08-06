@@ -53,6 +53,7 @@ public sealed class Accounts : IInterfaceAccounts
     private readonly int _domainId;
     private readonly Func<AccountAdministrationSnapshot, string, int>? _insert;
     private readonly Func<int, bool>? _delete;
+    private readonly Func<AccountAdministrationSnapshot, string?, bool>? _update;
     private readonly Func<IReadOnlyList<AccountAdministrationSnapshot>>? _reload;
     private readonly AccountSizeInvalidator? _accountSizeInvalidator;
     private readonly Func<int, AccountAdministrationSnapshot?>? _accountSizeReadback;
@@ -69,6 +70,7 @@ public sealed class Accounts : IInterfaceAccounts
         int domainId,
         Func<AccountAdministrationSnapshot, string, int>? insert,
         Func<int, bool>? delete,
+        Func<AccountAdministrationSnapshot, string?, bool>? update,
         Func<bool>? isAuthenticated,
         AccountSizeInvalidator? accountSizeInvalidator,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback)
@@ -77,6 +79,7 @@ public sealed class Accounts : IInterfaceAccounts
         _domainId = domainId;
         _insert = insert;
         _delete = delete;
+        _update = update;
         _reload = reload;
         _accountSizeInvalidator = accountSizeInvalidator;
         _accountSizeReadback = accountSizeReadback;
@@ -95,6 +98,7 @@ public sealed class Accounts : IInterfaceAccounts
         int domainId = 0,
         Func<AccountAdministrationSnapshot, string, int>? insert = null,
         Func<int, bool>? delete = null,
+        Func<AccountAdministrationSnapshot, string?, bool>? update = null,
         Func<bool>? isAuthenticated = null,
         AccountSizeInvalidator? accountSizeInvalidator = null,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null)
@@ -106,6 +110,7 @@ public sealed class Accounts : IInterfaceAccounts
             domainId,
             insert,
             delete,
+            update,
             isAuthenticated,
             accountSizeInvalidator,
             accountSizeReadback);
@@ -129,7 +134,8 @@ public sealed class Accounts : IInterfaceAccounts
                 _isAuthenticated,
                 _accountSizeInvalidator,
                 _accountSizeReadback,
-                _delete is null ? null : DeleteAccount);
+                _delete is null ? null : DeleteAccount,
+                _update is null ? null : UpdateAccount);
         }
     }
 
@@ -247,7 +253,8 @@ public sealed class Accounts : IInterfaceAccounts
                 _isAuthenticated,
                 _accountSizeInvalidator,
                 _accountSizeReadback,
-                _delete is null ? null : DeleteAccount);
+                _delete is null ? null : DeleteAccount,
+                _update is null ? null : UpdateAccount);
     }
 
     public IInterfaceAccount get_ItemByAddress(string address)
@@ -265,7 +272,8 @@ public sealed class Accounts : IInterfaceAccounts
                 _isAuthenticated,
                 _accountSizeInvalidator,
                 _accountSizeReadback,
-                _delete is null ? null : DeleteAccount);
+                _delete is null ? null : DeleteAccount,
+                _update is null ? null : UpdateAccount);
     }
 
         public void DeleteByDBID(int databaseId)
@@ -302,6 +310,49 @@ public sealed class Accounts : IInterfaceAccounts
         {
             throw new COMException(
                 "It was not possible to delete the account from the database.",
+                EFail);
+        }
+    }
+
+    private bool UpdateAccount(AccountAdministrationSnapshot account, string? password)
+    {
+        var accounts = GetAccounts();
+        if (_update is null)
+        {
+            Unavailable();
+            return false;
+        }
+
+        try
+        {
+            if (!_update(account, password))
+            {
+                throw new InvalidOperationException(
+                    "The account update did not affect the selected database row.");
+            }
+
+            var matchingIndex = Array.FindIndex(accounts.ToArray(), current => current.Snapshot.Id == account.Id);
+            if (matchingIndex >= 0)
+            {
+                var replaced = accounts.ToArray();
+                replaced[matchingIndex] = new AccountAdministrationEntry(
+                    account,
+                    replaced[matchingIndex].RulesState,
+                    replaced[matchingIndex].MessagesState,
+                    replaced[matchingIndex].ImapFoldersState);
+                Volatile.Write(ref _accounts, replaced);
+            }
+
+            return true;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the account to the database.",
                 EFail);
         }
     }
@@ -398,12 +449,19 @@ public static class AccountAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool UpdateAccount(AccountAdministrationSnapshot account, string? password) => store
+            .UpdateAccountAsync(domainId, account, password, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return Accounts.CreateAuthorized(
             LoadAccounts(),
             LoadAccounts,
             domainId,
             InsertAccount,
             DeleteAccount,
+            UpdateAccount,
             isAuthenticated,
             _accountSizeInvalidator,
             ReadAccount);

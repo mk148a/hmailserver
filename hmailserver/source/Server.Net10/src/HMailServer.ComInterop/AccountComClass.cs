@@ -53,6 +53,9 @@ public sealed class Account : IInterfaceAccount
     private int _id;
     private readonly Func<AccountAdministrationSnapshot, string, int>? _save;
     private readonly Action<int>? _delete;
+    private AccountAdministrationSnapshot? _currentSaveSnapshot;
+    private readonly Func<AccountAdministrationSnapshot, string?, bool>? _update;
+    private bool _passwordModified;
 
     public Account()
     {
@@ -86,8 +89,10 @@ public sealed class Account : IInterfaceAccount
         Func<bool>? isAuthenticated,
         AccountSizeInvalidator? accountSizeInvalidator,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback,
-        Action<int>? delete = null)
+        Action<int>? delete = null,
+        Func<AccountAdministrationSnapshot, string?, bool>? update = null)
     {
+        _update = update;
         _attached = true;
         _administrationSnapshot = administrationSnapshot;
         _delete = delete;
@@ -102,35 +107,35 @@ public sealed class Account : IInterfaceAccount
 
     public bool Active
     {
-        get => _administrationSnapshot?.Active ?? Read(_active);
-        set => Write(() => _active = value);
+        get => CurrentSnapshot?.Active ?? Read(_active);
+        set => Set(() => _active = value, s => s with { Active = value });
     }
 
-    public string ADDomain { get => _administrationSnapshot?.ActiveDirectoryDomain ?? Read(_activeDirectoryDomain); set => Write(() => _activeDirectoryDomain = value); }
+    public string ADDomain { get => CurrentSnapshot?.ActiveDirectoryDomain ?? Read(_activeDirectoryDomain); set => Set(() => _activeDirectoryDomain = value, s => s with { ActiveDirectoryDomain = value ?? string.Empty }); }
 
     public string Address
     {
-        get => _administrationSnapshot?.Address ?? Read(_address);
-        set => Write(() => _address = value);
+        get => CurrentSnapshot?.Address ?? Read(_address);
+        set => Set(() => _address = value, s => s with { Address = value ?? string.Empty });
     }
 
     public int DomainID
     {
-        get => _administrationSnapshot?.DomainId ?? Read(_domainId);
-        set => Write(() => _domainId = value);
+        get => CurrentSnapshot?.DomainId ?? Read(_domainId);
+        set => Set(() => _domainId = value, s => s with { DomainId = value });
     }
 
-    public int ID => _administrationSnapshot?.Id ?? _id;
+    public int ID => CurrentSnapshot?.Id ?? _id;
 
-    public bool IsAD { get => _administrationSnapshot?.IsActiveDirectoryAccount ?? Read(_isActiveDirectoryAccount); set => Write(() => _isActiveDirectoryAccount = value); }
+    public bool IsAD { get => CurrentSnapshot?.IsActiveDirectoryAccount ?? Read(_isActiveDirectoryAccount); set => Set(() => _isActiveDirectoryAccount = value, s => s with { IsActiveDirectoryAccount = value }); }
 
-    public string Password { get => Read(_password); set => Write(() => _password = value); }
+    public string Password { get => Read(_password); set => Set(() => { _password = value; _passwordModified = true; }, s => s); }
 
     public float Size => _administrationSnapshot is not null
         ? GetAccountSize().Size
         : Read(0f);
 
-    public string ADUsername { get => _administrationSnapshot?.ActiveDirectoryUsername ?? Read(_activeDirectoryUsername); set => Write(() => _activeDirectoryUsername = value); }
+    public string ADUsername { get => CurrentSnapshot?.ActiveDirectoryUsername ?? Read(_activeDirectoryUsername); set => Set(() => _activeDirectoryUsername = value, s => s with { ActiveDirectoryUsername = value ?? string.Empty }); }
 
     public IInterfaceMessages Messages
     {
@@ -144,13 +149,13 @@ public sealed class Account : IInterfaceAccount
         }
     }
 
-    public int MaxSize { get => _administrationSnapshot?.MaxSize ?? Read(_maxSize); set => Write(() => _maxSize = value); }
+    public int MaxSize { get => CurrentSnapshot?.MaxSize ?? Read(_maxSize); set => Set(() => _maxSize = value, s => s with { MaxSize = value }); }
 
-    public bool VacationMessageIsOn { get => _administrationSnapshot?.VacationMessageIsOn ?? Read(_vacationMessageIsOn); set => Write(() => _vacationMessageIsOn = value); }
+    public bool VacationMessageIsOn { get => CurrentSnapshot?.VacationMessageIsOn ?? Read(_vacationMessageIsOn); set => Set(() => _vacationMessageIsOn = value, s => s with { VacationMessageIsOn = value }); }
 
-    public string VacationMessage { get => _administrationSnapshot?.VacationMessage ?? Read(_vacationMessage); set => Write(() => _vacationMessage = value); }
+    public string VacationMessage { get => CurrentSnapshot?.VacationMessage ?? Read(_vacationMessage); set => Set(() => _vacationMessage = value, s => s with { VacationMessage = value ?? string.Empty }); }
 
-    public string VacationSubject { get => _administrationSnapshot?.VacationSubject ?? Read(_vacationSubject); set => Write(() => _vacationSubject = value); }
+    public string VacationSubject { get => CurrentSnapshot?.VacationSubject ?? Read(_vacationSubject); set => Set(() => _vacationSubject = value, s => s with { VacationSubject = value ?? string.Empty }); }
 
     public IInterfaceFetchAccounts FetchAccounts
     {
@@ -169,7 +174,7 @@ public sealed class Account : IInterfaceAccount
         get => _administrationSnapshot is { } account
             ? (ComAdminLevel)account.AdminLevel
             : Read(_adminLevel);
-        set => Write(() => _adminLevel = value);
+        set => Set(() => _adminLevel = value, s => s with { AdminLevel = (int)value });
     }
 
     public IInterfaceRules Rules
@@ -212,31 +217,31 @@ public sealed class Account : IInterfaceAccount
         ? GetAccountSize().QuotaUsed
         : Read(0);
 
-    public bool ForwardEnabled { get => _administrationSnapshot?.ForwardEnabled ?? Read(_forwardEnabled); set => Write(() => _forwardEnabled = value); }
+    public bool ForwardEnabled { get => CurrentSnapshot?.ForwardEnabled ?? Read(_forwardEnabled); set => Set(() => _forwardEnabled = value, s => s with { ForwardEnabled = value }); }
 
-    public string ForwardAddress { get => _administrationSnapshot?.ForwardAddress ?? Read(_forwardAddress); set => Write(() => _forwardAddress = value); }
+    public string ForwardAddress { get => CurrentSnapshot?.ForwardAddress ?? Read(_forwardAddress); set => Set(() => _forwardAddress = value, s => s with { ForwardAddress = value ?? string.Empty }); }
 
-    public bool ForwardKeepOriginal { get => _administrationSnapshot?.ForwardKeepOriginal ?? Read(_forwardKeepOriginal); set => Write(() => _forwardKeepOriginal = value); }
+    public bool ForwardKeepOriginal { get => CurrentSnapshot?.ForwardKeepOriginal ?? Read(_forwardKeepOriginal); set => Set(() => _forwardKeepOriginal = value, s => s with { ForwardKeepOriginal = value }); }
 
-    public bool SignatureEnabled { get => _administrationSnapshot?.SignatureEnabled ?? Read(_signatureEnabled); set => Write(() => _signatureEnabled = value); }
+    public bool SignatureEnabled { get => CurrentSnapshot?.SignatureEnabled ?? Read(_signatureEnabled); set => Set(() => _signatureEnabled = value, s => s with { SignatureEnabled = value }); }
 
-    public string SignaturePlainText { get => _administrationSnapshot?.SignaturePlainText ?? Read(_signaturePlainText); set => Write(() => _signaturePlainText = value); }
+    public string SignaturePlainText { get => CurrentSnapshot?.SignaturePlainText ?? Read(_signaturePlainText); set => Set(() => _signaturePlainText = value, s => s with { SignaturePlainText = value ?? string.Empty }); }
 
-    public string SignatureHTML { get => _administrationSnapshot?.SignatureHtml ?? Read(_signatureHtml); set => Write(() => _signatureHtml = value); }
+    public string SignatureHTML { get => CurrentSnapshot?.SignatureHtml ?? Read(_signatureHtml); set => Set(() => _signatureHtml = value, s => s with { SignatureHtml = value ?? string.Empty }); }
 
-    public object LastLogonTime => _administrationSnapshot?.LastLogonTime ?? Read(_lastLogonUpdate);
+    public object LastLogonTime => CurrentSnapshot?.LastLogonTime ?? Read(_lastLogonUpdate);
 
-    public bool VacationMessageExpires { get => _administrationSnapshot?.VacationMessageExpires ?? Read(_vacationMessageExpires); set => Write(() => _vacationMessageExpires = value); }
+    public bool VacationMessageExpires { get => CurrentSnapshot?.VacationMessageExpires ?? Read(_vacationMessageExpires); set => Set(() => _vacationMessageExpires = value, s => s with { VacationMessageExpires = value }); }
 
-    public string VacationMessageExpiresDate { get => _administrationSnapshot?.VacationMessageExpiresDate ?? Read(_vacationMessageExpiresDate); set => Write(() => _vacationMessageExpiresDate = value); }
+    public string VacationMessageExpiresDate { get => CurrentSnapshot?.VacationMessageExpiresDate ?? Read(_vacationMessageExpiresDate); set => Set(() => _vacationMessageExpiresDate = value, s => s with { VacationMessageExpiresDate = value ?? string.Empty }); }
 
-    public string PersonFirstName { get => _administrationSnapshot?.PersonFirstName ?? Read(_personFirstName); set => Write(() => _personFirstName = value); }
+    public string PersonFirstName { get => CurrentSnapshot?.PersonFirstName ?? Read(_personFirstName); set => Set(() => _personFirstName = value, s => s with { PersonFirstName = value ?? string.Empty }); }
 
-    public string PersonLastName { get => _administrationSnapshot?.PersonLastName ?? Read(_personLastName); set => Write(() => _personLastName = value); }
+    public string PersonLastName { get => CurrentSnapshot?.PersonLastName ?? Read(_personLastName); set => Set(() => _personLastName = value, s => s with { PersonLastName = value ?? string.Empty }); }
 
-    public bool VacationMessageAbortSpamFlagged { get => _administrationSnapshot?.VacationMessageAbortSpamFlagged ?? Read(_vacationMessageAbortSpamFlagged); set => Write(() => _vacationMessageAbortSpamFlagged = value); }
+    public bool VacationMessageAbortSpamFlagged { get => CurrentSnapshot?.VacationMessageAbortSpamFlagged ?? Read(_vacationMessageAbortSpamFlagged); set => Set(() => _vacationMessageAbortSpamFlagged = value, s => s with { VacationMessageAbortSpamFlagged = value }); }
 
-    public bool ForwardAbortSpamFlagged { get => _administrationSnapshot?.ForwardAbortSpamFlagged ?? Read(_forwardAbortSpamFlagged); set => Write(() => _forwardAbortSpamFlagged = value); }
+    public bool ForwardAbortSpamFlagged { get => CurrentSnapshot?.ForwardAbortSpamFlagged ?? Read(_forwardAbortSpamFlagged); set => Set(() => _forwardAbortSpamFlagged = value, s => s with { ForwardAbortSpamFlagged = value }); }
 
     internal static Account CreateServerAdministrator(Func<bool>? isServerAdministrator = null) =>
         new(
@@ -293,7 +298,8 @@ public sealed class Account : IInterfaceAccount
         Func<bool>? isAuthenticated = null,
         AccountSizeInvalidator? accountSizeInvalidator = null,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null,
-        Action<int>? delete = null) =>
+        Action<int>? delete = null,
+        Func<AccountAdministrationSnapshot, string?, bool>? update = null) =>
         new(
             account,
             rulesState,
@@ -302,9 +308,10 @@ public sealed class Account : IInterfaceAccount
             isAuthenticated,
             accountSizeInvalidator,
             accountSizeReadback,
-            delete);
+            delete,
+            update);
 
-        internal static Account CreateAuthorizedDraft(
+    internal static Account CreateAuthorizedDraft(
         string address,
         ComAdminLevel adminLevel,
         int domainId,
@@ -323,7 +330,39 @@ public sealed class Account : IInterfaceAccount
     {
         EnsureAttached();
         EnsureAuthenticated();
-        if (_administrationSnapshot is not null || _save is null)
+        if (_administrationSnapshot is not null)
+        {
+            if (_update is null)
+            {
+                NotImplemented();
+                return;
+            }
+
+            try
+            {
+                if (!_update(
+                    CurrentSnapshot ?? _administrationSnapshot,
+                    _passwordModified ? _password : null))
+                {
+                    throw new InvalidOperationException(
+                        "The account update did not affect the selected database row.");
+                }
+            }
+            catch (COMException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to save the account to the database.",
+                    EFail);
+            }
+
+            return;
+        }
+
+        if (_save is null)
         {
             NotImplemented();
             return;
@@ -399,6 +438,21 @@ public sealed class Account : IInterfaceAccount
         }
 
         _delete(ID);
+    }
+
+    private AccountAdministrationSnapshot? CurrentSnapshot =>
+        _currentSaveSnapshot ?? _administrationSnapshot;
+
+    private void Set(
+        Action assign,
+        Func<AccountAdministrationSnapshot, AccountAdministrationSnapshot> morph)
+    {
+        EnsureAttached();
+        assign();
+        if (_administrationSnapshot is not null)
+        {
+            _currentSaveSnapshot = morph(CurrentSnapshot ?? _administrationSnapshot);
+        }
     }
 
     private T Read<T>(T value)

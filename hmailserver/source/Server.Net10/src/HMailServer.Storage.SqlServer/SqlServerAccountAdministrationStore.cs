@@ -177,7 +177,111 @@ ORDER BY accountaddress ASC;
         _connectionFactory = connectionFactory;
     }
 
-    public async ValueTask<bool> DeleteAccountAsync(
+    public async ValueTask<bool> UpdateAccountAsync(
+        int domainId,
+        AccountAdministrationSnapshot account,
+        string? password,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(BuildUpdateAccountSql(password != null), connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = account.Id;
+        command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
+        command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = account.Address;
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = account.Active ? 1 : 0;
+        command.Parameters.Add("@IsActive", SqlDbType.TinyInt).Value = account.IsActiveDirectoryAccount ? 1 : 0;
+        command.Parameters.Add("@ADDomain", SqlDbType.NVarChar, 255).Value = account.ActiveDirectoryDomain;
+        command.Parameters.Add("@ADUsername", SqlDbType.NVarChar, 255).Value = account.ActiveDirectoryUsername;
+        command.Parameters.Add("@MaxSize", SqlDbType.Int).Value = account.MaxSize;
+        command.Parameters.Add("@VacationMessageIsOn", SqlDbType.TinyInt).Value = account.VacationMessageIsOn ? 1 : 0;
+        command.Parameters.Add("@VacationMessage", SqlDbType.NVarChar, 1000).Value = account.VacationMessage;
+        command.Parameters.Add("@VacationSubject", SqlDbType.NVarChar, 200).Value = account.VacationSubject;
+        command.Parameters.Add("@VacationExpires", SqlDbType.TinyInt).Value = account.VacationMessageExpires ? 1 : 0;
+        command.Parameters.Add("@VacationExpiresDate", SqlDbType.NVarChar, 255).Value = account.VacationMessageExpiresDate;
+        command.Parameters.Add("@VacationAbortSpamFlagged", SqlDbType.TinyInt).Value = account.VacationMessageAbortSpamFlagged ? 1 : 0;
+        command.Parameters.Add("@AdminLevel", SqlDbType.TinyInt).Value = account.AdminLevel;
+        command.Parameters.Add("@ForwardEnabled", SqlDbType.TinyInt).Value = account.ForwardEnabled ? 1 : 0;
+        command.Parameters.Add("@ForwardAddress", SqlDbType.NVarChar, 255).Value = account.ForwardAddress;
+        command.Parameters.Add("@ForwardKeepOriginal", SqlDbType.TinyInt).Value = account.ForwardKeepOriginal ? 1 : 0;
+        command.Parameters.Add("@ForwardAbortSpamFlagged", SqlDbType.TinyInt).Value = account.ForwardAbortSpamFlagged ? 1 : 0;
+        command.Parameters.Add("@SignatureEnabled", SqlDbType.TinyInt).Value = account.SignatureEnabled ? 1 : 0;
+        command.Parameters.Add("@SignaturePlainText", SqlDbType.NVarChar, -1).Value = account.SignaturePlainText;
+        command.Parameters.Add("@SignatureHtml", SqlDbType.NVarChar, -1).Value = account.SignatureHtml;
+        command.Parameters.Add("@LastLogonTime", SqlDbType.DateTime).Value = account.LastLogonTime;
+        command.Parameters.Add("@PersonFirstName", SqlDbType.NVarChar, 60).Value = account.PersonFirstName;
+        command.Parameters.Add("@PersonLastName", SqlDbType.NVarChar, 60).Value = account.PersonLastName;
+        if (password is not null)
+        {
+            command.Parameters.Add("@Password", SqlDbType.NVarChar, 255).Value =
+                LegacyBlowfishPasswordCipher.Encrypt(password);
+            command.Parameters.Add("@PasswordEncryption", SqlDbType.TinyInt).Value = 1;
+        }
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected == 1;
+    }
+
+    private static string BuildUpdateAccountSql(bool includePassword) =>
+        includePassword ? UpdateAccountWithPasswordSql : UpdateAccountSql;
+
+    public const string UpdateAccountSql = """
+        UPDATE hm_accounts
+        SET accountaddress = @Address,
+            accountactive = @Active,
+            accountisad = @IsActive,
+            accountaddomain = @ADDomain,
+            accountadusername = @ADUsername,
+            accountmaxsize = @MaxSize,
+            accountvacationmessageon = @VacationMessageIsOn,
+            accountvacationmessage = @VacationMessage,
+            accountvacationsubject = @VacationSubject,
+            accountvacationexpires = @VacationExpires,
+            accountvacationexpiredate = @VacationExpiresDate,
+            accountvacationabortspamflagged = @VacationAbortSpamFlagged,
+            accountadminlevel = @AdminLevel,
+            accountforwardenabled = @ForwardEnabled,
+            accountforwardaddress = @ForwardAddress,
+            accountforwardkeeporiginal = @ForwardKeepOriginal,
+            accountforwardabortspamflagged = @ForwardAbortSpamFlagged,
+            accountenablesignature = @SignatureEnabled,
+            accountsignatureplaintext = @SignaturePlainText,
+            accountsignaturehtml = @SignatureHtml,
+            accountlastlogontime = @LastLogonTime,
+            accountpersonfirstname = @PersonFirstName,
+            accountpersonlastname = @PersonLastName
+        WHERE accountid = @AccountID AND accountdomainid = @DomainID;
+        """;
+
+    public const string UpdateAccountWithPasswordSql = """
+        UPDATE hm_accounts
+        SET accountaddress = @Address,
+            accountpassword = @Password,
+            accountactive = @Active,
+            accountisad = @IsActive,
+            accountaddomain = @ADDomain,
+            accountadusername = @ADUsername,
+            accountmaxsize = @MaxSize,
+            accountvacationmessageon = @VacationMessageIsOn,
+            accountvacationmessage = @VacationMessage,
+            accountvacationsubject = @VacationSubject,
+            accountvacationexpires = @VacationExpires,
+            accountvacationexpiredate = @VacationExpiresDate,
+            accountvacationabortspamflagged = @VacationAbortSpamFlagged,
+            accountpwencryption = @PasswordEncryption,
+            accountadminlevel = @AdminLevel,
+            accountforwardenabled = @ForwardEnabled,
+            accountforwardaddress = @ForwardAddress,
+            accountforwardkeeporiginal = @ForwardKeepOriginal,
+            accountforwardabortspamflagged = @ForwardAbortSpamFlagged,
+            accountenablesignature = @SignatureEnabled,
+            accountsignatureplaintext = @SignaturePlainText,
+            accountsignaturehtml = @SignatureHtml,
+            accountlastlogontime = @LastLogonTime,
+            accountpersonfirstname = @PersonFirstName,
+            accountpersonlastname = @PersonLastName
+        WHERE accountid = @AccountID AND accountdomainid = @DomainID;
+        """;    public async ValueTask<bool> DeleteAccountAsync(
         int domainId,
         int accountId,
         CancellationToken cancellationToken)

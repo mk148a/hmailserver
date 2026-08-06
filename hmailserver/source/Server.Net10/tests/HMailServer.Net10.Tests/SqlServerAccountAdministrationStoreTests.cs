@@ -172,4 +172,24 @@ public sealed class SqlServerAccountAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
     }
+
+
+    [TestMethod]
+    public void UpdateAccountSql_UsesLegacyAccountColumnsAndOwnerScopedIdentityPredicate()
+    {
+        foreach (var sql in new[] { SqlServerAccountAdministrationStore.UpdateAccountSql, SqlServerAccountAdministrationStore.UpdateAccountWithPasswordSql })
+        {
+            StringAssert.Contains(sql, "UPDATE hm_accounts");
+            StringAssert.Contains(sql, "accountaddress = @Address");
+            StringAssert.Contains(sql, "accountactive = @Active");
+            StringAssert.Contains(sql, "accountadminlevel = @AdminLevel");
+            StringAssert.Contains(sql, "WHERE accountid = @AccountID AND accountdomainid = @DomainID");
+            Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+        }
+
+        StringAssert.Contains(SqlServerAccountAdministrationStore.UpdateAccountWithPasswordSql, "accountpassword = @Password");
+        StringAssert.Contains(SqlServerAccountAdministrationStore.UpdateAccountWithPasswordSql, "accountpwencryption = @PasswordEncryption");
+        Assert.IsFalse(SqlServerAccountAdministrationStore.UpdateAccountSql.Contains("accountpassword", StringComparison.OrdinalIgnoreCase));
+    }
 }

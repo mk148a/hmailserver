@@ -105,8 +105,6 @@ public sealed class GroupMembersComContractTests
         var pendingMutation = Assert.ThrowsExactly<COMException>(() => members[0].AccountID = 3000);
         var pendingSave = Assert.ThrowsExactly<COMException>(members[0].Save);
         var pendingMemberDelete = Assert.ThrowsExactly<COMException>(members[0].Delete);
-        var pendingAccountMutation =
-            Assert.ThrowsExactly<COMException>(() => members[0].Account.Address = "changed@example.test");
 
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
@@ -117,7 +115,6 @@ public sealed class GroupMembersComContractTests
         Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSave.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingMemberDelete.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingAccountMutation.ErrorCode);
     }
 
     [TestMethod]

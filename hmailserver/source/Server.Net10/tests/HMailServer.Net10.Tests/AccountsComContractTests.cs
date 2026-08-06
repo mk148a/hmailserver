@@ -169,12 +169,8 @@ public sealed class AccountsComContractTests
         var badIndex = Assert.ThrowsExactly<COMException>(() => _ = accounts[2]);
         var badAddress = Assert.ThrowsExactly<COMException>(() => _ = accounts.get_ItemByAddress("missing@example.test"));
         var pendingRefresh = Assert.ThrowsExactly<COMException>(accounts.Refresh);
-        var pendingMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].Address = "renamed@example.test");
-        var pendingAdFlagMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].IsAD = false);
-        var pendingAdDomainMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].ADDomain = "other.example.test");
-        var pendingAdUsernameMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].ADUsername = "other-user");
-        var pendingCoreScalarMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].MaxSize = 4096);
-        var pendingDeliveryScalarMutation = Assert.ThrowsExactly<COMException>(() => accounts[0].ForwardEnabled = false);
+        accounts[0].Address = "renamed@example.test";
+        accounts[0].MaxSize = 4096;
         var pendingSensitiveRead = Assert.ThrowsExactly<COMException>(() => _ = accounts[0].Password);
         var pendingPasswordValidation = Assert.ThrowsExactly<COMException>(
             () => accounts[0].ValidatePassword("candidate-password"));
@@ -182,12 +178,6 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badAddress.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingRefresh.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingMutation.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingAdFlagMutation.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingAdDomainMutation.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingAdUsernameMutation.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingCoreScalarMutation.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingDeliveryScalarMutation.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingSensitiveRead.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingPasswordValidation.ErrorCode);
     }
@@ -850,6 +840,115 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(unchecked((int)0x80004001), pendingCollectionDelete.ErrorCode);
         Assert.AreEqual(unchecked((int)0x80004001), pendingItemDelete.ErrorCode);
     }
+
+    [TestMethod]
+    public void ExistingRowSave_PersistsStagedSettersAndReplacesCollectionSnapshot()
+    {
+        AccountAdministrationSnapshot? updated = null;
+        string? updatedPassword = null;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[]
+            {
+                new AccountAdministrationSnapshot(
+                    10, 100, "admin@example.test", true, 2,
+                    PersonFirstName: "Ada", PersonLastName: "Lovelace")
+            },
+            domainId: 100,
+            update: (account, password) =>
+            {
+                updated = account;
+                updatedPassword = password;
+                return true;
+            });
+
+        var existing = accounts[0];
+        existing.Address = "renamed@example.test";
+        existing.Active = false;
+        existing.MaxSize = 2048;
+        existing.PersonFirstName = "Grace";
+        existing.PersonLastName = "Hopper";
+
+        existing.Save();
+
+        Assert.IsNotNull(updated);
+        Assert.AreEqual(10, updated.Id);
+        Assert.AreEqual(100, updated.DomainId);
+        Assert.AreEqual("renamed@example.test", updated.Address);
+        Assert.IsFalse(updated.Active);
+        Assert.AreEqual(2048, updated.MaxSize);
+        Assert.AreEqual("Grace", updated.PersonFirstName);
+        Assert.AreEqual("Hopper", updated.PersonLastName);
+        Assert.IsNull(updatedPassword);
+        Assert.AreEqual("renamed@example.test", accounts.get_ItemByDBID(10).Address);
+    }
+
+    [TestMethod]
+    public void FailedUpdate_MapsToEFailAndRetainsStagedStateWithoutReplacingSnapshot()
+    {
+        var failUpdate = true;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[]
+            {
+                new AccountAdministrationSnapshot(10, 100, "admin@example.test", true, 2)
+            },
+            domainId: 100,
+            update: (_, _) => failUpdate
+                ? throw new InvalidOperationException("Simulated store failure.")
+                : true);
+
+        var existing = accounts[0];
+        existing.Address = "changed@example.test";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
+        Assert.AreEqual("admin@example.test", accounts[0].Address);
+
+        existing.Address = "other@example.test";
+        failUpdate = false;
+        existing.Save();
+
+        Assert.AreEqual("other@example.test", accounts[0].Address);
+    }
+
+    [TestMethod]
+    public void ExistingRowSave_WithoutUpdateDelegate_RemainsNotImplemented()
+    {
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[]
+            {
+                new AccountAdministrationSnapshot(10, 100, "admin@example.test", true, 2)
+            },
+            domainId: 100);
+
+        var pendingSave = Assert.ThrowsExactly<COMException>(accounts[0].Save);
+
+        Assert.AreEqual(unchecked((int)0x80004001), pendingSave.ErrorCode);
+    }
+
+    [TestMethod]
+    public void ExistingRowPasswordSetter_MarksPasswordForUpdate()
+    {
+        string? updatedPassword = null;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[]
+            {
+                new AccountAdministrationSnapshot(10, 100, "admin@example.test", true, 2)
+            },
+            domainId: 100,
+            update: (_, password) =>
+            {
+                updatedPassword = password;
+                return true;
+            });
+
+        var existing = accounts[0];
+        existing.Password = "new-secret";
+        existing.Save();
+
+        Assert.AreEqual("new-secret", updatedPassword);
+    }
+
     private static void AssertAccount(
         IInterfaceAccount account,
         int id,

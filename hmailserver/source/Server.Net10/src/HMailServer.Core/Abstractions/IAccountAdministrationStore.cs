@@ -22,4 +22,11 @@ public interface IAccountAdministrationStore
         int accountId,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Account deletion is not available in this store.");
+
+    ValueTask<bool> UpdateAccountAsync(
+        int domainId,
+        AccountAdministrationSnapshot snapshot,
+        string? password,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Account update is not available in this store.");
 }

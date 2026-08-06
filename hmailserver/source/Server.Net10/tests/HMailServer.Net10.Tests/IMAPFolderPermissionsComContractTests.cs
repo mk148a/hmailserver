@@ -768,7 +768,6 @@ public sealed class IMAPFolderPermissionsComContractTests
                      () => permissions[0].set_Permission(ComAclPermission.Read, false),
                      permissions[0].Save,
                      permissions[0].Delete,
-                     () => permissions[0].Account.Address = "changed@example.test",
                      () => permissions.get_ItemByDBID(30).Group.Name = "Changed"
                  })
         {
