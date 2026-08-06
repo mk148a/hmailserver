@@ -30,6 +30,100 @@ public sealed class BackupArchiveXmlSnapshotParserTests
         </Backup>
         """;
 
+    private const string AccountXml = """
+        <Backup>
+          <Domains>
+            <Domain Name="d">
+              <Accounts>
+                <Account Name="a@d.example"
+                         PersonFirstName="Ada"
+                         PersonLastName="Lovelace"
+                         Active="1"
+                         Password="encrypted"
+                         PasswordEncryption="1"
+                         MaxAccountSize="123"
+                         ADActive="1"
+                         ADDomain="CORP"
+                         ADUsername="ada"
+                         VacationMessageOn="1"
+                         VacationMessage="away"
+                         ForwardEnabled="1"
+                         ForwardAddress="fwd@example.test"
+                         EnableSignature="1"
+                         SignaturePlainText="sig"
+                         AdminLevel="2" />
+              </Accounts>
+            </Domain>
+          </Domains>
+        </Backup>
+        """;
+
+    [TestMethod]
+    public void ParseAccounts_ReconstructsLegacySnapshotFields()
+    {
+        var accounts = BackupArchiveXmlSnapshotParser.ParseAccounts(AccountXml, domainId: 7);
+
+        Assert.AreEqual(1, accounts.Count);
+        var entry = accounts[0];
+        Assert.AreEqual("a@d.example", entry.Account.Address);
+        Assert.AreEqual(7, entry.Account.DomainId);
+        Assert.IsTrue(entry.Account.Active);
+        Assert.AreEqual(2, entry.Account.AdminLevel);
+        Assert.AreEqual("encrypted", entry.Password);
+        Assert.AreEqual(1, entry.PasswordEncryption);
+        Assert.AreEqual(123, entry.Account.MaxSize);
+        Assert.IsTrue(entry.Account.IsActiveDirectoryAccount);
+        Assert.AreEqual("CORP", entry.Account.ActiveDirectoryDomain);
+        Assert.AreEqual("ada", entry.Account.ActiveDirectoryUsername);
+        Assert.IsTrue(entry.Account.VacationMessageIsOn);
+        Assert.AreEqual("away", entry.Account.VacationMessage);
+        Assert.IsTrue(entry.Account.ForwardEnabled);
+        Assert.AreEqual("fwd@example.test", entry.Account.ForwardAddress);
+        Assert.IsTrue(entry.Account.SignatureEnabled);
+        Assert.AreEqual("Ada", entry.Account.PersonFirstName);
+    }
+
+    [TestMethod]
+    public async Task RestoreAccountsAsync_ReplaysParsedArchiveIntoAccountStore()
+    {
+        var store = new RecordingAccountStore();
+        var entries = BackupArchiveXmlSnapshotParser.ParseAccounts(AccountXml, domainId: 7);
+
+        var result = await BackupRestoreMetadataWriter.RestoreAccountsAsync(
+            entries,
+            domainId: 7,
+            store,
+            () => default,
+            CancellationToken.None).ConfigureAwait(false);
+
+        Assert.AreEqual(1, result.RestoredAccounts);
+        Assert.AreEqual(7, store.InsertDomainId);
+        Assert.AreEqual(1, store.Inserted.Count);
+        Assert.AreEqual("a@d.example", store.Inserted[0].Address);
+        Assert.AreEqual("encrypted", store.InsertedPassword);
+    }
+
+    private sealed class RecordingAccountStore : IAccountAdministrationStore
+    {
+        public int InsertDomainId { get; private set; }
+        public List<AccountAdministrationSnapshot> Inserted { get; } = new();
+        public string? InsertedPassword { get; private set; }
+
+        public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(int domainId, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(Array.Empty<AccountAdministrationSnapshot>());
+
+        public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(int accountId, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<AccountAdministrationSnapshot?>(null);
+
+        public ValueTask<int> InsertAccountAsync(int domainId, AccountAdministrationSnapshot account, string password, CancellationToken cancellationToken)
+        {
+            InsertDomainId = domainId;
+            Inserted.Add(account);
+            InsertedPassword = password;
+            return ValueTask.FromResult(Inserted.Count);
+        }
+    }
+
     [TestMethod]
     public void ParseDomains_ReconstructsLegacySnapshotFields()
     {
