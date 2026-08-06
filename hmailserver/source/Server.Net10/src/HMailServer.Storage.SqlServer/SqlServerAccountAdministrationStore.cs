@@ -370,7 +370,7 @@ ORDER BY accountaddress ASC;
         CancellationToken cancellationToken)
     {
         await using var reader = await command.ExecuteReaderAsync(
-            CommandBehavior.SequentialAccess,
+            CommandBehavior.Default,
             cancellationToken).ConfigureAwait(false);
 
         var accounts = new List<AccountAdministrationSnapshot>();
@@ -387,7 +387,7 @@ ORDER BY accountaddress ASC;
         CancellationToken cancellationToken)
     {
         await using var reader = await command.ExecuteReaderAsync(
-            CommandBehavior.SequentialAccess,
+            CommandBehavior.Default,
             cancellationToken).ConfigureAwait(false);
 
         var accounts = new List<AccountBackupAdministrationSnapshot>();
