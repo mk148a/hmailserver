@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-05, BENCHMARK ARTIFACT SEAM)
+
+Offline acceptance seam for the performance benchmark pack is complete in test-only commit ``bd168169d``. ``SyntheticBenchmarkArtifactWriterTests`` asserts the deterministic JSON/CSV/Markdown artifact serialization (``offline-imap-search-sort.json/.csv/.md``), including CSV header/value columns and Markdown p50/p95/correctness rows, so the offline 100k SEARCH/SORT harness has an automated regression check without running the heavy benchmark or a live server. Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1856 passed, 0 failed, 11 opt-in skips`` (1867 total). Next slice: isolated backup/restore round-trip + upgrade rollback evidence (temp DB/Data, disposable).
+
 ## Current Completed Slice (2026-08-05, COM SCANNER SSRF GUARD)
 
 COM-path SSRF guard for scanner-test methods is complete in code/test commit ``0429fa1f1``. ``LegacyLocalScannerTargetGuard`` resolves an IP literal or DNS hostname and requires every returned address to be loopback or a local interface address (mirroring the legacy WebAdmin ``IsLocalHost`` policy), applied on ``AntiVirus.TestClamAVScanner`` and ``AntiSpam.TestSpamAssassinConnection`` before the runtime connects; non-local or unresolvable targets fail closed with ``E_FAIL``. Unit tests cover loopback accept / public reject; COM contract tests assert denial happens before the runtime and that local targets still delegate. Existing tests that drove non-local hostnames through the online runtime now use ``127.0.0.1``. Focused coverage ``26/26``; full suite excluding the two AV-locked EICAR cleanup methods ``1855 passed, 0 failed, 11 opt-in skips`` (1866 total). Next slice: real COM activation evidence for completed COM identities.

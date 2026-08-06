@@ -1,14 +1,12 @@
 # Current State
-- UTC timestamp: 2026-08-06T18:35:59Z
-- Local timestamp: 2026-08-06T21:35:59+03:00
+- UTC timestamp: 2026-08-06T18:46:43Z
+- Local timestamp: 2026-08-06T21:46:43+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `0429fa1f1`
+- Current HEAD: `bd168169d`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: SSRF-guard + AntiVirus + AntiSpam COM coverage `26 passed, 0 failed` (`LegacyLocalScannerTargetGuard` allows loopback/local-interface targets, denies public/resolved-external targets; COM `TestClamAVScanner`/`TestSpamAssassinConnection` reject non-local targets with `E_FAIL` before reaching the runtime)
-- Latest full Net10 result: `1855 passed, 0 failed, 11 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset); direct full execution remains blocked by two unrelated scanner-runtime cleanup failures; with the SQL connection set, the previously skipped message-indexing opt-in fixtures run and surface `5` pre-existing failures unrelated to this slice
-- Opt-in tests passed/skipped/blocked: `7/11/0`
-- Current bounded slice: COM-path SSRF guard for scanner-test methods, code/test commit `0429fa1f1`; `LegacyLocalScannerTargetGuard` resolves IP literal or DNS hostname and requires every returned address to be loopback or a local interface address (mirrors legacy WebAdmin `IsLocalHost` policy), applied on the ClamAV and SpamAssassin COM test paths
-- Completed milestones: full Settings/account/domain/message Admin mutation parity with live SQL evidence; WebAdmin POST/CSRF hardening incl. AJAX scanner endpoints; COM-path SSRF guard for scanner tests; external-fetch egress policy already present
-- Open production blockers: backup/restore round trip upgrade rollback incomplete; SEC-18 not GREEN; SMTP/IMAP/POP3 acceptance, performance/soak, installer, release-artifact gates open; message data-file creation fenced
-- Environment-blocked: EICAR cleanup; disposable SQL/native-registry/PHP-runtime opt-in; `AGENTS.md` do-not-touch; `artifacts/benchmarks/` `artifacts/sec18-staging/`
-- Next three independent slices: real COM activation evidence for completed COM identities; then performance acceptance beyond offline synthetic SEARCH/SORT; then backup/restore round trip and upgrade rollback evidence
+- Latest focused-test result: `SyntheticBenchmarkArtifactWriterTests` `1 passed, 0 failed`; full suite `1856 passed, 0 failed, 11 skipped` (1867 total) excluding two AV-locked EICAR cleanup methods
+- Current bounded slice: offline acceptance seam for the performance benchmark pack — regression test asserting the JSON/CSV/Markdown artifact serialization (deterministic CSV columns/values, Markdown p50/p95 rows, JSON Scenario) for `offline-imap-search-sort`; commit `bd168169d`
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity (Settings Routes/Rules/Groups/accounts/domains/messages + recipient/dir-list/greyname/DNSBL/SURBL whitelist/securityranges/AAF etc.), live SQL-LocalDB identity/readback+rollback evidence, WebAdmin POST/(existing CSRF) + AJAX scanner CSRF, SSRF guard for COM scanner tests, and offline 100k SEARCH/SORT benchmark artifacts
+- Open doors (environment-gated): real COM activation (registry/COM registration fenced), SEC-18, live protocol acceptance (SMTP/IMAP/POP3 running service), live performance evals (running service), backup/restore round trip + upgrade rollback (isolated DB), installer/release artifact gates
+- Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR scanner cleanup; disposable SQL/native-registry/PHP runtime opt-in
+- Next three slices: (a) isolated backup/restore round-trip + upgrade rollback evidence (temp DB/Data, disposable); (b) protocol acceptance harness (isolated in-process SMTP/IMAP session); (c) release/installer artifact gate
