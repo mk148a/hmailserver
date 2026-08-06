@@ -377,6 +377,80 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(unchecked((int)0x80004001), pendingSave.ErrorCode);
         Assert.AreEqual(unchecked((int)0x80004001), pendingDelete.ErrorCode);
     }
+    [TestMethod]
+    public void ExistingRowSave_PersistsStagedSettersAndReplacesCollectionSnapshot()
+    {
+        var updates = new List<DomainAdministrationSnapshot>();
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            insert: _ => 11,
+            update: domain =>
+            {
+                updates.Add(domain);
+                return true;
+            });
+
+        var existing = domains[0];
+        existing.Name = "renamed.example";
+        existing.Postmaster = "postmaster@renamed.example";
+        existing.Active = false;
+        existing.MaxMessageSize = 4096;
+        existing.PlusAddressingEnabled = true;
+
+        existing.Save();
+
+        Assert.AreEqual(1, updates.Count);
+        var persisted = updates[0];
+        Assert.AreEqual(10, persisted.Id);
+        Assert.AreEqual("renamed.example", persisted.Name);
+        Assert.AreEqual("postmaster@renamed.example", persisted.Postmaster);
+        Assert.IsFalse(persisted.Active);
+        Assert.AreEqual(4096, persisted.MaxMessageSize);
+        Assert.IsTrue(persisted.PlusAddressingEnabled);
+        Assert.AreEqual("renamed.example", domains[0].Name);
+        Assert.AreEqual("renamed.example", domains.get_ItemByName("RENAMED.EXAMPLE").Name);
+    }
+
+    [TestMethod]
+    public void FailedUpdate_MapsToEFailAndRetainsStagedStateWithoutReplacingSnapshot()
+    {
+        var failUpdate = true;
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            update: _ => failUpdate
+                ? throw new InvalidOperationException("Simulated store failure.")
+                : true);
+
+        var existing = domains[0];
+        existing.Name = "changed.example";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
+        Assert.AreEqual("alpha.example", domains[0].Name);
+
+        existing.Name = "other.example";
+        failUpdate = false;
+        existing.Save();
+
+        Assert.AreEqual("other.example", domains[0].Name);
+    }
+
+    [TestMethod]
+    public void UnknownIdUpdate_MapsToEFailWhenStoreReportsNoAffectedRow()
+    {
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            update: _ => false);
+
+        var existing = domains[0];
+        existing.Name = "changed.example";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
+        Assert.AreEqual("alpha.example", domains[0].Name);
+    }
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);

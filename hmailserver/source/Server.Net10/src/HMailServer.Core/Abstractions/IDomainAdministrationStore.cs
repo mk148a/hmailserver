@@ -9,4 +9,9 @@ public interface IDomainAdministrationStore
         DomainAdministrationSnapshot snapshot,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Domain insertion is not available in this store.");
+
+    ValueTask<bool> UpdateDomainAsync(
+        DomainAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Domain update is not available in this store.");
 }

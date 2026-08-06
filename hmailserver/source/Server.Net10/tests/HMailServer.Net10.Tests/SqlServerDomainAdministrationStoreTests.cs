@@ -113,4 +113,18 @@ public sealed class SqlServerDomainAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+    [TestMethod]
+    public void UpdateDomainSql_UsesLegacyDomainTableColumnsAndIdentityPredicate()
+    {
+        var sql = SqlServerDomainAdministrationStore.UpdateDomainSql;
+        StringAssert.Contains(sql, "UPDATE hm_domains");
+        StringAssert.Contains(sql, "domainname = @Name");
+        StringAssert.Contains(sql, "domainactive = @Active");
+        StringAssert.Contains(sql, "domainantispamoptions = @AntiSpamOptions");
+        StringAssert.Contains(sql, "domainlimitationsenabled = @LimitationsEnabled");
+        StringAssert.Contains(sql, "domaindkimprivatekeyfile = @DkimPrivateKeyFile");
+        StringAssert.Contains(sql, "WHERE domainid = @ID");
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

@@ -309,6 +309,7 @@ public sealed class Domains : IInterfaceDomains
     private DomainAdministrationSnapshot[]? _domains;
     private readonly Func<IReadOnlyList<DomainAdministrationSnapshot>>? _reload;
     private readonly Func<DomainAdministrationSnapshot, int>? _insert;
+    private readonly Func<DomainAdministrationSnapshot, bool>? _update;
     private readonly Func<bool>? _isAuthenticated;
 
     public Domains()
@@ -319,11 +320,13 @@ public sealed class Domains : IInterfaceDomains
         IReadOnlyList<DomainAdministrationSnapshot> domains,
         Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload,
         Func<DomainAdministrationSnapshot, int>? insert,
+        Func<DomainAdministrationSnapshot, bool>? update,
         Func<bool>? isAuthenticated)
     {
         _domains = domains.ToArray();
         _reload = reload;
         _insert = insert;
+        _update = update;
         _isAuthenticated = isAuthenticated;
     }
 
@@ -336,10 +339,11 @@ public sealed class Domains : IInterfaceDomains
         IReadOnlyList<DomainAdministrationSnapshot> domains,
         Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload = null,
         Func<DomainAdministrationSnapshot, int>? insert = null,
+        Func<DomainAdministrationSnapshot, bool>? update = null,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(domains);
-        return new Domains(domains, reload, insert, isAuthenticated);
+        return new Domains(domains, reload, insert, update, isAuthenticated);
     }
 
     public IInterfaceDomain this[int index]
@@ -352,7 +356,7 @@ public sealed class Domains : IInterfaceDomains
                 throw new COMException("Domain index was outside the collection.", DispEBadIndex);
             }
 
-            return Domain.CreateAuthorized(domains[index], _isAuthenticated);
+            return Domain.CreateAuthorized(domains[index], _isAuthenticated, _insert is null && _update is null ? null : SaveDomain);
         }
     }
 
@@ -433,7 +437,7 @@ public sealed class Domains : IInterfaceDomains
 
         return match is null
             ? throw new COMException("No domain with the specified name exists.", DispEBadIndex)
-            : Domain.CreateAuthorized(match, _isAuthenticated);
+            : Domain.CreateAuthorized(match, _isAuthenticated, _insert is null && _update is null ? null : SaveDomain);
     }
 
     public IInterfaceDomain get_ItemByDBID(int databaseId)
@@ -442,7 +446,7 @@ public sealed class Domains : IInterfaceDomains
 
         return match is null
             ? throw new COMException("No domain with the specified database identifier exists.", DispEBadIndex)
-            : Domain.CreateAuthorized(match, _isAuthenticated);
+            : Domain.CreateAuthorized(match, _isAuthenticated, _insert is null && _update is null ? null : SaveDomain);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
@@ -451,7 +455,40 @@ public sealed class Domains : IInterfaceDomains
     {
         EnsureAuthenticated();
         var domains = GetDomains();
-        if (domain.Id != 0 || _insert is null)
+        if (domain.Id == 0)
+        {
+            if (_insert is null)
+            {
+                Unavailable();
+                return domain;
+            }
+
+            try
+            {
+                var insertedId = _insert(domain);
+                if (insertedId <= 0)
+                {
+                    throw new InvalidOperationException(
+                        "The domain insert did not return a valid generated identity.");
+                }
+
+                var insertedDomain = domain with { Id = insertedId };
+                Volatile.Write(ref _domains, domains.Append(insertedDomain).ToArray());
+                return insertedDomain;
+            }
+            catch (COMException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to save the domain to the database.",
+                    EFail);
+            }
+        }
+
+        if (_update is null)
         {
             Unavailable();
             return domain;
@@ -459,16 +496,21 @@ public sealed class Domains : IInterfaceDomains
 
         try
         {
-            var insertedId = _insert(domain);
-            if (insertedId <= 0)
+            if (!_update(domain))
             {
                 throw new InvalidOperationException(
-                    "The domain insert did not return a valid generated identity.");
+                    "The domain update did not affect the selected database row.");
             }
 
-            var insertedDomain = domain with { Id = insertedId };
-            Volatile.Write(ref _domains, domains.Append(insertedDomain).ToArray());
-            return insertedDomain;
+            var matchingIndex = Array.FindIndex(domains.ToArray(), current => current.Id == domain.Id);
+            if (matchingIndex >= 0)
+            {
+                var replacedDomains = domains.ToArray();
+                replacedDomains[matchingIndex] = domain;
+                Volatile.Write(ref _domains, replacedDomains);
+            }
+
+            return domain;
         }
         catch (COMException)
         {
@@ -740,7 +782,7 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     {
         EnsureAuthorized();
         var snapshot = Snapshot;
-        if (snapshot.Id != 0 || _save is null)
+        if (_save is null)
         {
             DomainComAuthorization.Unavailable(this);
             return;
@@ -913,10 +955,17 @@ public static class DomainAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool UpdateDomain(DomainAdministrationSnapshot domain) => store
+            .UpdateDomainAsync(domain, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return Domains.CreateAuthorized(
             LoadDomains(),
             LoadDomains,
             InsertDomain,
+            UpdateDomain,
             isAuthenticated);
     }
 }
