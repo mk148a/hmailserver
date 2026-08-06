@@ -236,7 +236,7 @@ public sealed class AntiVirusComContractTests
         AssertPending(() => antivirus.TestClamWinScanner(@"C:\clamscan.exe", @"C:\db", out resultText));
         Assert.AreEqual(string.Empty, resultText);
         resultText = "not-empty";
-        AssertPending(() => antivirus.TestClamAVScanner("clamav.example.test", 3310, out resultText));
+        AssertPending(() => antivirus.TestClamAVScanner("127.0.0.1", 3310, out resultText));
         Assert.AreEqual(string.Empty, resultText);
     }
 
@@ -337,16 +337,16 @@ public sealed class AntiVirusComContractTests
                 ClamAvPort: 3310),
             runtime);
 
-        var success = antivirus.TestClamAVScanner("clamav.example.test", 3310, out var resultText);
+        var success = antivirus.TestClamAVScanner("127.0.0.1", 3310, out var resultText);
 
         Assert.IsFalse(success);
         Assert.AreEqual("Unable to connect.", resultText);
-        Assert.AreEqual("clamav.example.test", runtime.Hostname);
+        Assert.AreEqual("127.0.0.1", runtime.Hostname);
         Assert.AreEqual(3310, runtime.Port);
 
         runtime.ThrowOnTestConnection = true;
         var error = Assert.ThrowsExactly<COMException>(
-            () => antivirus.TestClamAVScanner("clamav.example.test", 3310, out _));
+            () => antivirus.TestClamAVScanner("127.0.0.1", 3310, out _));
 
         Assert.AreEqual(EFail, error.ErrorCode);
     }
@@ -408,6 +408,34 @@ public sealed class AntiVirusComContractTests
         Assert.IsTrue(method.GetParameters().Last().IsOut);
     }
 
+    [TestMethod]
+    public void TestClamAVScanner_DeniesNonLocalTargetsBeforeRuntime()
+    {
+        var runtime = new FakeClamAvScannerTestRuntime(new ClamAvScannerTestResult(true, "OK"));
+        IInterfaceAntiVirus antivirus = AntiVirus.CreateAuthorized(
+            new AntiVirusAdministrationSnapshot(
+                ClamWinEnabled: false,
+                ClamWinExecutable: string.Empty,
+                ClamWinDatabase: string.Empty,
+                Action: 0,
+                NotifyReceiver: false,
+                NotifySender: false,
+                CustomScannerEnabled: false,
+                CustomScannerExecutable: string.Empty,
+                CustomScannerReturnValue: 0,
+                MaximumMessageSize: 0,
+                EnableAttachmentBlocking: false,
+                ClamAvEnabled: true,
+                ClamAvHost: "127.0.0.1",
+                ClamAvPort: 3310),
+            clamAvScannerTestRuntime: runtime);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => antivirus.TestClamAVScanner("203.0.113.1", 3310, out _));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(string.Empty, runtime.Hostname);
+    }
     private static void AssertPending(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);

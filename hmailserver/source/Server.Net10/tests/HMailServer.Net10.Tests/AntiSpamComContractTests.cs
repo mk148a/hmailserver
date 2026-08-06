@@ -163,7 +163,7 @@ public sealed class AntiSpamComContractTests
         var newChildClearError = Assert.ThrowsExactly<COMException>(
             () => newAntiSpam.ClearGreyListingTriplets());
         var newChildSpamAssassinError = Assert.ThrowsExactly<COMException>(
-            () => newAntiSpam.TestSpamAssassinConnection("spamd.example.test", 1783, out _));
+            () => newAntiSpam.TestSpamAssassinConnection("127.0.0.1", 1783, out _));
         var newChildDkimError = Assert.ThrowsExactly<COMException>(
             () => newAntiSpam.DKIMVerify(@"C:\mail\message.eml"));
 
@@ -181,7 +181,7 @@ public sealed class AntiSpamComContractTests
         antiSpam.ClearGreyListingTriplets();
         var dkimResult = antiSpam.DKIMVerify(@"C:\mail\message.eml");
         var succeeded = antiSpam.TestSpamAssassinConnection(
-            "spamd.example.test",
+            "127.0.0.1",
             1783,
             out var resultText);
 
@@ -194,7 +194,7 @@ public sealed class AntiSpamComContractTests
         Assert.AreEqual(1, dkimRuntime.CallCount);
         Assert.AreEqual(@"C:\mail\message.eml", dkimRuntime.File);
         Assert.AreEqual(1, spamAssassinRuntime.CallCount);
-        Assert.AreEqual("spamd.example.test", spamAssassinRuntime.Hostname);
+        Assert.AreEqual("127.0.0.1", spamAssassinRuntime.Hostname);
         Assert.AreEqual(1783, spamAssassinRuntime.Port);
     }
 
@@ -361,16 +361,16 @@ public sealed class AntiSpamComContractTests
             new AntiSpamAdministrationSnapshot(),
             spamAssassinConnectionTestRuntime: runtime);
 
-        var success = antiSpam.TestSpamAssassinConnection("spamd.example.test", 1783, out var resultText);
+        var success = antiSpam.TestSpamAssassinConnection("127.0.0.1", 1783, out var resultText);
 
         Assert.IsFalse(success);
         Assert.AreEqual("Unable to connect.", resultText);
-        Assert.AreEqual("spamd.example.test", runtime.Hostname);
+        Assert.AreEqual("127.0.0.1", runtime.Hostname);
         Assert.AreEqual(1783, runtime.Port);
 
         runtime.ThrowOnTestConnection = true;
         var error = Assert.ThrowsExactly<COMException>(
-            () => antiSpam.TestSpamAssassinConnection("spamd.example.test", 1783, out _));
+            () => antiSpam.TestSpamAssassinConnection("127.0.0.1", 1783, out _));
 
         Assert.AreEqual(EFail, error.ErrorCode);
     }
@@ -482,6 +482,21 @@ public sealed class AntiSpamComContractTests
         Assert.IsTrue(method.GetParameters()[2].IsOut);
     }
 
+    [TestMethod]
+    public void TestSpamAssassinConnection_DeniesNonLocalTargetsBeforeRuntime()
+    {
+        var runtime = new FakeSpamAssassinConnectionTestRuntime(
+            new SpamAssassinConnectionTestResult(true, "OK"));
+        IInterfaceAntiSpam antiSpam = AntiSpam.CreateAuthorized(
+            new AntiSpamAdministrationSnapshot(),
+            spamAssassinConnectionTestRuntime: runtime);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => antiSpam.TestSpamAssassinConnection("203.0.113.1", 1783, out _));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, runtime.CallCount);
+    }
     private static void AssertPending(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);

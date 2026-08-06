@@ -356,6 +356,13 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             return Unavailable<bool>();
         }
 
+        if (!LegacyLocalScannerTargetGuard.IsLocalTarget(hostname ?? string.Empty))
+        {
+            throw new COMException(
+                "Only a locally hosted SpamAssassin scanner can be tested.",
+                EFail);
+        }
+
         try
         {
             var result = _spamAssassinConnectionTestRuntime.TestConnection(
