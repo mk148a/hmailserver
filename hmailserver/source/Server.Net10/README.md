@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``437612a13`` completes SEC-14 WebAdmin AJAX scanner-test POST/CSRF hardening. ``background_ajax_virustest.php`` and ``background_ajax_spamassassintest.php`` now require ``hmailRequirePostCsrfToken()`` after the server-admin guard, keep local-scanner-target restrictions and POST-only reads. New source tests assert guard-before-CSRF-before-reads. Focused coverage ``2/2``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1851 passed, 0 failed, 11 opt-in skips`` (1862 total). Next slice: shared egress/SSRF policy review for external fetch and diagnostics/network tests.
+
+
 Code/test commit ``795bd3b93`` completes authenticated ``Messages.DeleteByDBID`` plus ``Clear`` parity (DB-only), completing the message mutation trio (insert ``85e5a143a``, update ``f06a199b4``, delete). Legacy ``InterfaceMessages::DeleteByDBID``/``Clear`` delegate to ``PersistentMessage`` deletion. The .NET path preserves installed Messages/Message COM identity/direct activation denial, treats unknown IDs as no-ops, maps store failure to ``E_FAIL``, clears the folder snapshot only after successful whole-collection deletion, and removes only the selected snapshot after an owner+folder-scoped delete succeeds. Data-directory message-file deletion remains fenced. Focused coverage ``31/31``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1849 passed, 0 failed, 11 opt-in skips`` (1860 total). Next slice: SEC-14 WebAdmin remaining POST-only handlers.
 
 

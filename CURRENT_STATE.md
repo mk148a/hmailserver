@@ -1,14 +1,14 @@
 # Current State
-- UTC timestamp: 2026-08-06T17:58:03Z
-- Local timestamp: 2026-08-06T20:58:03+03:00
+- UTC timestamp: 2026-08-06T18:09:09Z
+- Local timestamp: 2026-08-06T21:09:09+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `795bd3b93`
+- Current HEAD: `437612a13`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: Messages COM/store coverage `31 passed, 0 failed` (folder-scoped Add draft, existing-row Save UPDATE, DeleteByDBID with unknown-ID no-op, Clear, failed delete/clear `E_FAIL`, legacy INSERT/UPDATE/DELETE SQL shapes)
-- Latest full Net10 result: `1849 passed, 0 failed, 11 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset); direct full execution remains blocked by two unrelated scanner-runtime cleanup failures; with the SQL connection set, the previously skipped message-indexing opt-in fixtures run and surface `5` pre-existing failures unrelated to this slice
-- Opt-in tests passed/skipped/blocked: `7/11/0` (recipient, route, rule, domain, account, TCP/IP port, and message-insert SQL evidence ran live against disposable LocalDB); skipped gates remain disposable SQL/native registry integration checks
-- Current bounded slice: authenticated `Messages.DeleteByDBID` plus `Clear` parity (DB-only), code/test commit `795bd3b93` completing the message mutation trio (insert `85e5a143a`, update `f06a199b4`, delete); legacy anchors are `InterfaceMessages::DeleteByDBID`/`Clear` and `PersistentMessage` deletion
-- Completed milestones: backup metadata option-matrix work through raw/compressed message staging; restore validation/planning transactional rollback orchestration; offline synthetic SEARCH/SORT benchmark; authenticated COM/Admin mutation slices through distribution-list recipient INSERT/UPDATE/DELETE plus live SQL; Settings Routes INSERT/UPDATE/DELETE plus live SQL; account Rules INSERT/UPDATE; domain INSERT/UPDATE/DELETE plus live SQL; TCPIPPorts SetDefault plus live SQL; account INSERT/UPDATE/DELETE plus live SQL; message INSERT/UPDATE/DELETE/Clear (DB-only)
-- Open production blockers: backup/restore round trip upgrade rollback incomplete; SEC-18 not GREEN; SMTP/IMAP/POP3 acceptance, performance/soak, installer, release-artifact gates open; message data-file creation and COM-path live SQL identity/readback remain open/fenced
-- Environment-blocked: EICAR scanner cleanup; disposable SQL/native-registry/PHP-runtime opt-in; `AGENTS.md` do-not-touch; `artifacts/benchmarks/` `artifacts/sec18-staging/`; data-directory folder/message-file operations fenced
-- Next three independent slices: SEC-14 WebAdmin remaining POST-only handlers; then real COM activation evidence for completed COM identities; then performance acceptance beyond offline synthetic SEARCH/SORT
+- Latest focused-test result: WebAdmin ajax scanner-test source coverage `2 passed, 0 failed` (`background_ajax_virustest.php` + `background_ajax_spamassassintest.php` now require `hmailRequirePostCsrfToken()` after the server-admin guard; POST-only reads, no GET var reads)
+- Latest full Net10 result: `1851 passed, 0 failed, 11 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset); direct full execution remains blocked by two unrelated scanner-runtime cleanup failures; with the SQL connection set, the previously skipped message-indexing opt-in fixtures run and surface `5` pre-existing failures unrelated to this slice
+- Opt-in tests passed/skipped/blocked: `7/11/0` (recipient, route, rule, domain, account, TCP/IP port, and message-insert SQL evidence ran live against disposable LocalDB)
+- Current bounded slice: SEC-14 WebAdmin AJAX scanner-test POST/CSRF hardening, code/test commit `437612a13`; the two AJAX handlers keep the server-admin guard, existing local-scanner-target restrictions (`hmailResolveLocalScannerTarget`/`hmailRejectScannerTarget`), and POST-only reads
+- Completed milestones: full Settings/account/domain/message Admin mutation parity with live SQL evidence; backup archive metadata option-matrix and restore dry-run planning; offline synthetic SEARCH/SORT benchmark; WebAdmin POST-only/CSRF hardening across all `background_*_save.php` handlers plus the two AJAX scanner-test endpoints
+- Open production blockers: backup/restore round trip upgrade rollback incomplete; SEC-18 not GREEN; SMTP/IMAP/POP3 acceptance, performance/soak, installer, release-artifact gates open; message data-file creation, COM-path live SQL identity/readback, shared egress/SSRF policy for external-fetch/diagnostics, and PHP session cutover remain open/fenced
+- Environment-blocked: EICAR scanner cleanup; disposable SQL/native-registry/PHP-runtime opt-in; `AGENTS.md` do-not-touch; `artifacts/benchmarks/` `artifacts/sec18-staging/`; data-directory operations fenced
+- Next three independent slices: shared egress/SSRF policy review for external fetch and diagnostics/network tests; then real COM activation evidence for completed COM identities; then performance acceptance beyond offline synthetic SEARCH/SORT
