@@ -66,4 +66,24 @@ public sealed class SqlServerRuleAdministrationStoreTests
             new[] { typeof(int), typeof(int), typeof(CancellationToken) },
             method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
     }
+    [TestMethod]
+    public void InsertRuleSql_UsesLegacyRuleTableColumnsAndIdentityOutput()
+    {
+        var sql = SqlServerRuleAdministrationStore.InsertRuleSql;
+        StringAssert.Contains(sql, "INSERT INTO hm_rules");
+        StringAssert.Contains(sql, "ruleaccountid");
+        StringAssert.Contains(sql, "rulename");
+        StringAssert.Contains(sql, "ruleactive");
+        StringAssert.Contains(sql, "ruleuseand");
+        StringAssert.Contains(sql, "rulesortorder");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.ruleid");
+        StringAssert.Contains(sql, "@AccountID");
+        StringAssert.Contains(sql, "@Name");
+        StringAssert.Contains(sql, "@Active");
+        StringAssert.Contains(sql, "@UseAnd");
+        StringAssert.Contains(sql, "@SortOrder");
+        Assert.IsFalse(sql.Contains("WHERE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

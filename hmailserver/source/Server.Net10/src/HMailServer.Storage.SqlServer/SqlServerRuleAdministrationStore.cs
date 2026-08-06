@@ -69,6 +69,14 @@ ELSE
 SELECT @Deleted;
 """;
 
+
+    public const string InsertRuleSql = """
+        INSERT INTO hm_rules
+            (ruleaccountid, rulename, ruleactive, ruleuseand, rulesortorder)
+        OUTPUT INSERTED.ruleid
+        VALUES
+            (@AccountID, @Name, @Active, @UseAnd, @SortOrder);
+        """;
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRuleAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -146,6 +154,22 @@ SELECT @Deleted;
             && Convert.ToInt32(deleted, CultureInfo.InvariantCulture) != 0;
     }
 
+    public async ValueTask<int> InsertRuleAsync(
+        int accountId,
+        RuleAdministrationSnapshot rule,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertRuleSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@Name", SqlDbType.NVarChar, 100).Value = rule.Name;
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = rule.Active ? 1 : 0;
+        command.Parameters.Add("@UseAnd", SqlDbType.TinyInt).Value = rule.UseAnd ? 1 : 0;
+        command.Parameters.Add("@SortOrder", SqlDbType.Int).Value = rule.SortOrder;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
         Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) != 0;
 }

@@ -266,6 +266,117 @@ public sealed class RulesComContractTests
         Assert.AreEqual("Retained rule", rules[0].Name);
     }
 
+    [TestMethod]
+    public void AuthorizedCollection_AddStagesLegacyDefaultsAndSavePublishesInsertedIdentity()
+    {
+        var inserted = new List<RuleAdministrationSnapshot>();
+        IInterfaceRules rules = Rules.CreateAuthorized(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 100, "Second rule", false, false, 2)
+            },
+            accountId: 100,
+            insert: rule =>
+            {
+                inserted.Add(rule);
+                return 30;
+            });
+
+        var draft = rules.Add();
+
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(100, draft.AccountID);
+        Assert.AreEqual(string.Empty, draft.Name);
+        Assert.IsTrue(draft.Active);
+        Assert.IsTrue(draft.UseAND);
+
+        draft.Name = "New rule";
+        draft.Active = false;
+        draft.UseAND = false;
+
+        Assert.AreEqual(2, rules.Count);
+        draft.Save();
+
+        Assert.AreEqual(3, rules.Count);
+        Assert.AreEqual(30, draft.ID);
+        Assert.AreEqual(1, inserted.Count);
+        var persisted = inserted[0];
+        Assert.AreEqual(0, persisted.Id);
+        Assert.AreEqual(100, persisted.AccountId);
+        Assert.AreEqual("New rule", persisted.Name);
+        Assert.IsFalse(persisted.Active);
+        Assert.IsFalse(persisted.UseAnd);
+        Assert.AreEqual(0, persisted.SortOrder);
+        Assert.AreEqual("New rule", rules.get_ItemByDBID(30).Name);
+    }
+
+    [TestMethod]
+    public void FailedInsert_MapsToEFailAndRetainsDraftWithoutPublishing()
+    {
+        var fail = true;
+        IInterfaceRules rules = Rules.CreateAuthorized(
+            Array.Empty<RuleAdministrationSnapshot>(),
+            accountId: 100,
+            insert: _ => fail
+                ? throw new InvalidOperationException("Simulated store failure.")
+                : 1);
+
+        var draft = rules.Add();
+        draft.Name = "New rule";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
+        Assert.AreEqual(0, rules.Count);
+        Assert.AreEqual(0, draft.ID);
+
+        draft.Name = "Other rule";
+        fail = false;
+        draft.Save();
+
+        Assert.AreEqual(1, rules.Count);
+        Assert.AreEqual(1, draft.ID);
+        Assert.AreEqual("Other rule", rules.get_ItemByDBID(1).Name);
+    }
+
+    [TestMethod]
+    public void AddAndMutate_RecheckLiveAuthentication()
+    {
+        var authenticated = true;
+        IInterfaceRules rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1) },
+            isAuthenticated: () => authenticated,
+            accountId: 100,
+            insert: _ => 11);
+
+        var draft = rules.Add();
+        authenticated = false;
+
+        var deniedAdd = Assert.ThrowsExactly<COMException>(() => rules.Add());
+        var deniedSetter = Assert.ThrowsExactly<COMException>(() => draft.Name = "x");
+        var deniedSave = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(unchecked((int)0x80070005), deniedAdd.ErrorCode);
+        Assert.AreEqual(unchecked((int)0x80070005), deniedSetter.ErrorCode);
+        Assert.AreEqual(unchecked((int)0x80070005), deniedSave.ErrorCode);
+    }
+
+    [TestMethod]
+    public void ExistingRowSaveAndSetters_RemainNotImplementedUntilUpdateParity()
+    {
+        IInterfaceRules rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1) },
+            accountId: 100,
+            insert: _ => 11);
+
+        var existing = rules[0];
+        var pendingSetter = Assert.ThrowsExactly<COMException>(() => existing.Name = "changed");
+        var pendingSave = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004001), pendingSetter.ErrorCode);
+        Assert.AreEqual(unchecked((int)0x80004001), pendingSave.ErrorCode);
+    }
     private static void AssertRule(
         IInterfaceRule rule,
         int id,

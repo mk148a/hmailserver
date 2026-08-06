@@ -109,9 +109,11 @@ public sealed class Rules : IInterfaceRules
         Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload,
         Func<int, int, ValueTask<bool>>? delete,
         Func<bool>? isServerAdministrator,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        int accountId = 0,
+        Func<RuleAdministrationSnapshot, int>? insert = null)
     {
-        _state = RuleAdministrationState.CreateLoaded(rules, reload, delete);
+        _state = RuleAdministrationState.CreateLoaded(rules, reload, delete, accountId, insert);
         _isServerAdministrator = isServerAdministrator;
         _isAuthenticated = isAuthenticated;
     }
@@ -137,10 +139,12 @@ public sealed class Rules : IInterfaceRules
         Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload = null,
         Func<int, int, ValueTask<bool>>? delete = null,
         Func<bool>? isServerAdministrator = null,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        int accountId = 0,
+        Func<RuleAdministrationSnapshot, int>? insert = null)
     {
         ArgumentNullException.ThrowIfNull(rules);
-        return new Rules(rules, reload, delete, isServerAdministrator, isAuthenticated);
+        return new Rules(rules, reload, delete, isServerAdministrator, isAuthenticated, accountId, insert);
     }
 
     internal static Rules CreateAuthorized(
@@ -179,7 +183,32 @@ public sealed class Rules : IInterfaceRules
             : Rule.CreateAuthorized(match, generation, GetState(), _isServerAdministrator, _isAuthenticated);
     }
 
-    public IInterfaceRule Add() => Unavailable<IInterfaceRule>();
+        public IInterfaceRule Add()
+    {
+        EnsureAuthenticated();
+        var state = GetState();
+        _ = state.GetGeneration();
+        if (state.AccountId == 0 || !state.CanInsert)
+        {
+            return Unavailable<IInterfaceRule>();
+        }
+
+        return Rule.CreateAuthorized(
+            new RuleAdministrationSnapshot(
+                Id: 0,
+                AccountId: state.AccountId,
+                Name: string.Empty,
+                Active: true,
+                UseAnd: true,
+                SortOrder: 0),
+            generation: GetGeneration(),
+            state: state,
+            save: state.InsertRule,
+            isServerAdministrator: _isServerAdministrator,
+            isAuthenticated: _isAuthenticated);
+    }
+
+
 
     public void DeleteByDBID(int databaseId)
     {
@@ -265,9 +294,10 @@ public sealed class Rule : IInterfaceRule
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly RuleAdministrationSnapshot? _rule;
+    private RuleAdministrationSnapshot? _rule;
     private readonly RuleAdministrationGeneration? _generation;
     private readonly RuleAdministrationState? _state;
+    private readonly Func<RuleAdministrationSnapshot, RuleAdministrationSnapshot>? _save;
     private readonly Func<bool>? _isServerAdministrator;
     private readonly Func<bool>? _isAuthenticated;
 
@@ -280,24 +310,26 @@ public sealed class Rule : IInterfaceRule
         RuleAdministrationGeneration generation,
         RuleAdministrationState? state,
         Func<bool>? isServerAdministrator,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        Func<RuleAdministrationSnapshot, RuleAdministrationSnapshot>? save = null)
     {
         _rule = rule;
         _generation = generation;
         _state = state;
         _isServerAdministrator = isServerAdministrator;
         _isAuthenticated = isAuthenticated;
+        _save = save;
     }
 
     public int ID => Snapshot.Id;
 
-    public int AccountID { get => Snapshot.AccountId; set => Unavailable(); }
+    public int AccountID { get => Snapshot.AccountId; set => Mutate(rule => rule with { AccountId = value }); }
 
-    public string Name { get => Snapshot.Name; set => Unavailable(); }
+    public string Name { get => Snapshot.Name; set => Mutate(rule => rule with { Name = value ?? string.Empty }); }
 
-    public bool Active { get => Snapshot.Active; set => Unavailable(); }
+    public bool Active { get => Snapshot.Active; set => Mutate(rule => rule with { Active = value }); }
 
-    public bool UseAND { get => Snapshot.UseAnd; set => Unavailable(); }
+    public bool UseAND { get => Snapshot.UseAnd; set => Mutate(rule => rule with { UseAnd = value }); }
 
     public IInterfaceRuleCriterias Criterias
     {
@@ -328,10 +360,35 @@ public sealed class Rule : IInterfaceRule
         RuleAdministrationGeneration generation,
         RuleAdministrationState state,
         Func<bool>? isServerAdministrator = null,
-        Func<bool>? isAuthenticated = null) =>
-        new(rule, generation, state, isServerAdministrator, isAuthenticated);
+        Func<bool>? isAuthenticated = null,
+        Func<RuleAdministrationSnapshot, RuleAdministrationSnapshot>? save = null) =>
+        new(rule, generation, state, isServerAdministrator, isAuthenticated, save);
 
-    public void Save() => Unavailable();
+        public void Save()
+    {
+        EnsureAuthenticated();
+        var snapshot = Snapshot;
+        if (_save is null || snapshot.Id != 0)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _rule = _save(snapshot);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the rule to the database.",
+                unchecked((int)0x80004005));
+        }
+    }
 
     public void MoveUp() => Unavailable();
 
@@ -370,6 +427,17 @@ public sealed class Rule : IInterfaceRule
         }
     }
 
+    private void Mutate(Func<RuleAdministrationSnapshot, RuleAdministrationSnapshot> mutation)
+    {
+        EnsureAuthenticated();
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _rule = mutation(Snapshot);
+    }
     private T Unavailable<T>()
     {
         _ = Snapshot;
@@ -424,33 +492,47 @@ internal sealed class RuleAdministrationState
     private readonly Func<IReadOnlyList<RuleAdministrationSnapshot>>? _reload;
     private RuleAdministrationGeneration? _generation;
     private readonly Func<int, int, ValueTask<bool>>? _delete;
+    private readonly int _accountId;
+    private readonly Func<RuleAdministrationSnapshot, int>? _insert;
 
     private RuleAdministrationState(
         Func<IReadOnlyList<RuleAdministrationSnapshot>> load,
         IReadOnlyList<RuleAdministrationSnapshot>? rules,
         Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload,
-        Func<int, int, ValueTask<bool>>? delete)
+        Func<int, int, ValueTask<bool>>? delete,
+        int accountId = 0,
+        Func<RuleAdministrationSnapshot, int>? insert = null)
     {
         _load = load;
         _reload = reload;
         _delete = delete;
+        _accountId = accountId;
+        _insert = insert;
         _generation = rules is null ? null : new RuleAdministrationGeneration(rules);
     }
 
     internal bool CanRefresh => _reload is not null;
 
+    internal int AccountId => _accountId;
+
+    internal bool CanInsert => _insert is not null;
+
     internal static RuleAdministrationState CreateLazy(
         Func<IReadOnlyList<RuleAdministrationSnapshot>> load,
-        Func<int, int, ValueTask<bool>>? delete = null) =>
-        new(load, null, load, delete);
+        Func<int, int, ValueTask<bool>>? delete = null,
+        int accountId = 0,
+        Func<RuleAdministrationSnapshot, int>? insert = null) =>
+        new(load, null, load, delete, accountId, insert);
 
     internal static RuleAdministrationState CreateLoaded(
         IReadOnlyList<RuleAdministrationSnapshot> rules,
         Func<IReadOnlyList<RuleAdministrationSnapshot>>? reload,
-        Func<int, int, ValueTask<bool>>? delete = null)
+        Func<int, int, ValueTask<bool>>? delete = null,
+        int accountId = 0,
+        Func<RuleAdministrationSnapshot, int>? insert = null)
     {
         ArgumentNullException.ThrowIfNull(rules);
-        return new(reload ?? (() => rules), rules, reload, delete);
+        return new(reload ?? (() => rules), rules, reload, delete, accountId, insert);
     }
 
     internal RuleAdministrationGeneration GetGeneration()
@@ -483,6 +565,45 @@ internal sealed class RuleAdministrationState
         Volatile.Write(ref _generation, new RuleAdministrationGeneration(rules));
     }
 
+    internal RuleAdministrationSnapshot InsertRule(RuleAdministrationSnapshot selected)
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+        lock (_gate)
+        {
+            var generation = GetGeneration();
+            if (_insert is null)
+            {
+                throw new COMException(
+                    "This Rule member is not implemented by the .NET 10 rewrite yet.",
+                    unchecked((int)0x80004001));
+            }
+
+            int insertedId;
+            try
+            {
+                insertedId = _insert(selected);
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to save the rule to the database.",
+                    unchecked((int)0x80004005));
+            }
+
+            if (insertedId <= 0)
+            {
+                throw new COMException(
+                    "It was not possible to save the rule to the database.",
+                    unchecked((int)0x80004005));
+            }
+
+            var inserted = selected with { Id = insertedId };
+            Volatile.Write(
+                ref _generation,
+                new RuleAdministrationGeneration(generation.Rules.Append(inserted).ToArray()));
+            return inserted;
+        }
+    }
     internal void Delete(RuleAdministrationSnapshot selected)
     {
         ArgumentNullException.ThrowIfNull(selected);
@@ -559,13 +680,14 @@ public static class RuleAdministrationRuntimeHost
 
         ValueTask<bool> DeleteRuleAsync(int ownerAccountId, int ruleId) =>
             store.DeleteRuleAsync(ownerAccountId, ruleId, CancellationToken.None);
+        int InsertRule(RuleAdministrationSnapshot rule) =>
+            store
+                .InsertRuleAsync(accountId, rule, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
 
-        return Rules.CreateAuthorized(
-            LoadRules(),
-            LoadRules,
-            DeleteRuleAsync,
-            isServerAdministrator,
-            isAuthenticated);
+        return Rules.CreateAuthorized(LoadRules(), LoadRules, DeleteRuleAsync, isServerAdministrator, isAuthenticated, accountId, InsertRule);
     }
 
     internal static RuleAdministrationState CreateAuthorizedState(int accountId)
@@ -593,7 +715,20 @@ public static class RuleAdministrationRuntimeHost
 
             return store.DeleteRuleAsync(ownerAccountId, ruleId, CancellationToken.None);
         }
+        int InsertRule(RuleAdministrationSnapshot rule)
+        {
+            var store = Volatile.Read(ref _store)
+                ?? throw new COMException(
+                    "The hMailServer rule administration runtime has not been initialized.",
+                    CoENotInitialized);
 
-        return RuleAdministrationState.CreateLazy(LoadRules, DeleteRuleAsync);
+            return store
+                .InsertRuleAsync(accountId, rule, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        return RuleAdministrationState.CreateLazy(LoadRules, DeleteRuleAsync, accountId, InsertRule);
     }
 }
