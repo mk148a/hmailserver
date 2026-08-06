@@ -1,14 +1,14 @@
 # Current State
-- UTC timestamp: 2026-08-06T13:48:57Z
-- Local timestamp: 2026-08-06T16:48:57+03:00
+- UTC timestamp: 2026-08-06T14:06:04Z
+- Local timestamp: 2026-08-06T17:06:04+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `ad97b391b`
+- Current HEAD: `0239f30a1`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: Routes COM/store/SQL `36 passed, 0 failed` including live isolated LocalDB evidence `1/1` (route INSERT identity readback, identity-preserving UPDATE, cascade DELETE with route-address rows, unknown-ID no-ops, NOT NULL rollback)
-- Latest full Net10 result: `1796 passed, 0 failed, 6 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset); direct full execution remains blocked by two unrelated scanner-runtime cleanup failures; with the SQL connection set, the previously skipped message-indexing opt-in fixtures run and surface `5` pre-existing failures unrelated to this slice
+- Latest focused-test result: Rules COM/store coverage `108 passed, 0 failed` (Add staged legacy defaults, server-admin/account recheck, failed-insert draft retention `E_FAIL`, existing-row Save/setters still `E_NOTIMPL`, legacy INSERT SQL shape)
+- Latest full Net10 result: `1801 passed, 0 failed, 6 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset); direct full execution remains blocked by two unrelated scanner-runtime cleanup failures; with the SQL connection set, the previously skipped message-indexing opt-in fixtures run and surface `5` pre-existing failures unrelated to this slice
 - Opt-in tests passed/skipped/blocked: `2/6/0` (recipient and route SQL evidence ran live against disposable LocalDB); skipped gates remain disposable SQL/native registry integration checks
-- Current bounded slice: isolated SQL identity/readback and rollback evidence for route mutations, code/test commit `ad97b391b`; legacy schema anchors are `hmailserver/source/DBScripts/CreateTablesMSSQL.sql` (`hm_routes`, `hm_routeaddresses`)
-- Completed milestones: backup metadata option-matrix work through raw/compressed message staging; restore validation/planning transactional rollback orchestration; offline synthetic SEARCH/SORT benchmark; authenticated COM/Admin mutation slices through distribution-list recipient INSERT/UPDATE/DELETE plus live isolated SQL evidence; Settings Routes INSERT/UPDATE/DELETE plus live isolated SQL evidence
+- Current bounded slice: authenticated account-owned `Rules.Add()` plus new-item `Rule.Save()` INSERT parity, code/test commit `0239f30a1`; legacy anchors are `InterfaceRules::Add` (`InterfaceRules.cpp:91`), `InterfaceRule::Save`, `PersistentRule::SaveObject` (`PersistentRule.cpp:73-120`) inserting `hm_rules` columns with `ruleid` identity
+- Completed milestones: backup metadata option-matrix work through raw/compressed message staging; restore validation/planning transactional rollback orchestration; offline synthetic SEARCH/SORT benchmark; authenticated COM/Admin mutation slices through distribution-list recipient INSERT/UPDATE/DELETE plus live isolated SQL evidence; Settings Routes INSERT/UPDATE/DELETE plus live isolated SQL evidence; account-owned Rules new-item insert parity
 - Open production blockers: backup/restore round trip upgrade rollback remain incomplete; SEC-18 not independently GREEN; COM/Admin parity, COM-path live SQL/COM activation, SMTP/IMAP/POP3 acceptance, performance/soak, installer, release-artifact gates remain open
 - Environment-blocked work: direct EICAR scanner cleanup blocked by host antivirus locking or quarantining test file; disposable SQL/native registry and PHP-runtime integration checks opt-in/skipped; `AGENTS.md` remains dirty/do-not-touch; `artifacts/benchmarks/` `artifacts/sec18-staging/`; WebAdmin, COM DCOM ACLs, COM-path SQL identity/readback
-- Next three independent slices: next authenticated Admin collection mutation after routes; then real COM activation evidence for completed COM identities; then performance acceptance beyond offline synthetic SEARCH/SORT
+- Next three independent slices: authenticated existing-row `Rule.Save()` UPDATE parity; then isolated SQL identity/readback rollback evidence for rule mutations; then next authenticated Admin collection mutation after rules
