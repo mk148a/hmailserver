@@ -59,6 +59,26 @@ FROM hm_domains
 ORDER BY domainname ASC;
 """;
 
+
+    public const string InsertDomainSql = """
+        INSERT INTO hm_domains
+            (domainname, domainactive, domainpostmaster, domainmaxsize, domainaddomain,
+             domainmaxmessagesize, domainmaxaccountsize, domainuseplusaddressing,
+             domainplusaddressingchar, domainantispamoptions, domainenablesignature,
+             domainsignaturemethod, domainsignatureplaintext, domainsignaturehtml,
+             domainaddsignaturestoreplies, domainaddsignaturestolocalemail,
+             domainmaxnoofaccounts, domainmaxnoofaliases, domainmaxnoofdistributionlists,
+             domainlimitationsenabled, domaindkimselector, domaindkimprivatekeyfile)
+        OUTPUT INSERTED.domainid
+        VALUES
+            (@Name, @Active, @Postmaster, @MaxSize, @ADDomain,
+             @MaxMessageSize, @MaxAccountSize, @PlusAddressingEnabled,
+             @PlusAddressingCharacter, @AntiSpamOptions, @SignatureEnabled,
+             @SignatureMethod, @SignaturePlainText, @SignatureHtml,
+             @AddSignaturesToReplies, @AddSignaturesToLocalMail,
+             @MaxNumberOfAccounts, @MaxNumberOfAliases, @MaxNumberOfDistributionLists,
+             @LimitationsEnabled, @DkimSelector, @DkimPrivateKeyFile);
+        """;
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDomainAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -67,6 +87,47 @@ ORDER BY domainname ASC;
         _connectionFactory = connectionFactory;
     }
 
+    public async ValueTask<int> InsertDomainAsync(
+        DomainAdministrationSnapshot domain,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(domain);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertDomainSql, connection);
+        command.Parameters.Add("@Name", SqlDbType.NVarChar, 255).Value = domain.Name;
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = domain.Active ? 1 : 0;
+        command.Parameters.Add("@Postmaster", SqlDbType.NVarChar, 255).Value = domain.Postmaster;
+        command.Parameters.Add("@MaxSize", SqlDbType.Int).Value = domain.MaxSize;
+        command.Parameters.Add("@ADDomain", SqlDbType.NVarChar, 255).Value = domain.AdDomainName;
+        command.Parameters.Add("@MaxMessageSize", SqlDbType.Int).Value = domain.MaxMessageSize;
+        command.Parameters.Add("@MaxAccountSize", SqlDbType.Int).Value = domain.MaxAccountSize;
+        command.Parameters.Add("@PlusAddressingEnabled", SqlDbType.TinyInt).Value = domain.PlusAddressingEnabled ? 1 : 0;
+        command.Parameters.Add("@PlusAddressingCharacter", SqlDbType.NVarChar, 1).Value = domain.PlusAddressingCharacter;
+        command.Parameters.Add("@AntiSpamOptions", SqlDbType.Int).Value =
+            (domain.AntiSpamEnableGreylisting ? AntiSpamOptionUseGreylisting : 0)
+            | (domain.DkimSignEnabled ? AntiSpamOptionDkimSign : 0)
+            | (domain.DkimHeaderCanonicalizationMethod == 1 ? AntiSpamOptionDkimSimpleHeader : 0)
+            | (domain.DkimBodyCanonicalizationMethod == 1 ? AntiSpamOptionDkimSimpleBody : 0)
+            | (domain.DkimSigningAlgorithm == 1 ? AntiSpamOptionDkimSha1 : 0)
+            | (domain.DkimSignAliasesEnabled ? AntiSpamOptionDkimSignAliases : 0);
+        command.Parameters.Add("@SignatureEnabled", SqlDbType.TinyInt).Value = domain.SignatureEnabled ? 1 : 0;
+        command.Parameters.Add("@SignatureMethod", SqlDbType.TinyInt).Value = domain.SignatureMethod;
+        command.Parameters.Add("@SignaturePlainText", SqlDbType.NVarChar, -1).Value = domain.SignaturePlainText;
+        command.Parameters.Add("@SignatureHtml", SqlDbType.NVarChar, -1).Value = domain.SignatureHtml;
+        command.Parameters.Add("@AddSignaturesToReplies", SqlDbType.TinyInt).Value = domain.AddSignaturesToReplies ? 1 : 0;
+        command.Parameters.Add("@AddSignaturesToLocalMail", SqlDbType.TinyInt).Value = domain.AddSignaturesToLocalMail ? 1 : 0;
+        command.Parameters.Add("@MaxNumberOfAccounts", SqlDbType.Int).Value = domain.MaxNumberOfAccounts;
+        command.Parameters.Add("@MaxNumberOfAliases", SqlDbType.Int).Value = domain.MaxNumberOfAliases;
+        command.Parameters.Add("@MaxNumberOfDistributionLists", SqlDbType.Int).Value = domain.MaxNumberOfDistributionLists;
+        command.Parameters.Add("@LimitationsEnabled", SqlDbType.TinyInt).Value =
+            (domain.MaxNumberOfAccountsEnabled ? 1 : 0)
+            | (domain.MaxNumberOfAliasesEnabled ? 2 : 0)
+            | (domain.MaxNumberOfDistributionListsEnabled ? 4 : 0);
+        command.Parameters.Add("@DkimSelector", SqlDbType.NVarChar, 255).Value = domain.DkimSelector;
+        command.Parameters.Add("@DkimPrivateKeyFile", SqlDbType.NVarChar, 255).Value = domain.DkimPrivateKeyFile;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
     public async ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
         CancellationToken cancellationToken)
     {

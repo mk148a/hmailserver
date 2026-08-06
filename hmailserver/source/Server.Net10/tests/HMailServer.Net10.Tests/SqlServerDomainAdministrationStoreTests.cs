@@ -70,4 +70,47 @@ public sealed class SqlServerDomainAdministrationStoreTests
         StringAssert.Contains(sql, "domainaddsignaturestoreplies");
         StringAssert.Contains(sql, "domainaddsignaturestolocalemail");
     }
+    [TestMethod]
+    public void InsertDomainSql_UsesLegacyDomainTableColumnsAndIdentityOutput()
+    {
+        var sql = SqlServerDomainAdministrationStore.InsertDomainSql;
+        StringAssert.Contains(sql, "INSERT INTO hm_domains");
+        foreach (var column in new[]
+        {
+            "domainname",
+            "domainactive",
+            "domainpostmaster",
+            "domainmaxsize",
+            "domainaddomain",
+            "domainmaxmessagesize",
+            "domainmaxaccountsize",
+            "domainuseplusaddressing",
+            "domainplusaddressingchar",
+            "domainantispamoptions",
+            "domainenablesignature",
+            "domainsignaturemethod",
+            "domainsignatureplaintext",
+            "domainsignaturehtml",
+            "domainaddsignaturestoreplies",
+            "domainaddsignaturestolocalemail",
+            "domainmaxnoofaccounts",
+            "domainmaxnoofaliases",
+            "domainmaxnoofdistributionlists",
+            "domainlimitationsenabled",
+            "domaindkimselector",
+            "domaindkimprivatekeyfile"
+        })
+        {
+            StringAssert.Contains(sql, column);
+        }
+
+        StringAssert.Contains(sql, "OUTPUT INSERTED.domainid");
+        StringAssert.Contains(sql, "@Name");
+        StringAssert.Contains(sql, "@AntiSpamOptions");
+        StringAssert.Contains(sql, "@LimitationsEnabled");
+        StringAssert.Contains(sql, "@DkimPrivateKeyFile");
+        Assert.IsFalse(sql.Contains("WHERE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

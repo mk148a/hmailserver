@@ -308,6 +308,7 @@ public sealed class Domains : IInterfaceDomains
 
     private DomainAdministrationSnapshot[]? _domains;
     private readonly Func<IReadOnlyList<DomainAdministrationSnapshot>>? _reload;
+    private readonly Func<DomainAdministrationSnapshot, int>? _insert;
     private readonly Func<bool>? _isAuthenticated;
 
     public Domains()
@@ -317,10 +318,12 @@ public sealed class Domains : IInterfaceDomains
     private Domains(
         IReadOnlyList<DomainAdministrationSnapshot> domains,
         Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload,
+        Func<DomainAdministrationSnapshot, int>? insert,
         Func<bool>? isAuthenticated)
     {
         _domains = domains.ToArray();
         _reload = reload;
+        _insert = insert;
         _isAuthenticated = isAuthenticated;
     }
 
@@ -332,10 +335,11 @@ public sealed class Domains : IInterfaceDomains
     internal static Domains CreateAuthorized(
         IReadOnlyList<DomainAdministrationSnapshot> domains,
         Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload = null,
+        Func<DomainAdministrationSnapshot, int>? insert = null,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(domains);
-        return new Domains(domains, reload, isAuthenticated);
+        return new Domains(domains, reload, insert, isAuthenticated);
     }
 
     public IInterfaceDomain this[int index]
@@ -375,7 +379,52 @@ public sealed class Domains : IInterfaceDomains
         }
     }
 
-    public IInterfaceDomain Add() => Unavailable<IInterfaceDomain>();
+        public IInterfaceDomain Add()
+    {
+        EnsureAuthenticated();
+        _ = GetDomains();
+        if (_insert is null)
+        {
+            return Unavailable<IInterfaceDomain>();
+        }
+
+        return Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(
+                Id: 0,
+                Name: string.Empty,
+                Active: false,
+                Postmaster: string.Empty,
+                MaxMessageSize: 0,
+                PlusAddressingEnabled: false,
+                PlusAddressingCharacter: "+",
+                AntiSpamEnableGreylisting: false,
+                AdDomainName: string.Empty,
+                MaxSize: 0,
+                Size: 0,
+                AllocatedSize: 0,
+                MaxNumberOfAccounts: 0,
+                MaxNumberOfAliases: 0,
+                MaxNumberOfDistributionLists: 0,
+                MaxNumberOfAccountsEnabled: false,
+                MaxNumberOfAliasesEnabled: false,
+                MaxNumberOfDistributionListsEnabled: false,
+                MaxAccountSize: 0,
+                SignatureEnabled: false,
+                SignatureMethod: 1,
+                SignaturePlainText: string.Empty,
+                SignatureHtml: string.Empty,
+                AddSignaturesToReplies: false,
+                AddSignaturesToLocalMail: true,
+                DkimSignEnabled: false,
+                DkimSelector: string.Empty,
+                DkimPrivateKeyFile: string.Empty,
+                DkimHeaderCanonicalizationMethod: 2,
+                DkimBodyCanonicalizationMethod: 2,
+                DkimSigningAlgorithm: 2,
+                DkimSignAliasesEnabled: false),
+            save: SaveDomain,
+            isAuthenticated: _isAuthenticated);
+    }
 
     public IInterfaceDomain get_ItemByName(string itemName)
     {
@@ -397,6 +446,41 @@ public sealed class Domains : IInterfaceDomains
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
+
+    private DomainAdministrationSnapshot SaveDomain(DomainAdministrationSnapshot domain)
+    {
+        EnsureAuthenticated();
+        var domains = GetDomains();
+        if (domain.Id != 0 || _insert is null)
+        {
+            Unavailable();
+            return domain;
+        }
+
+        try
+        {
+            var insertedId = _insert(domain);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The domain insert did not return a valid generated identity.");
+            }
+
+            var insertedDomain = domain with { Id = insertedId };
+            Volatile.Write(ref _domains, domains.Append(insertedDomain).ToArray());
+            return insertedDomain;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the domain to the database.",
+                EFail);
+        }
+    }
 
     private IReadOnlyList<DomainAdministrationSnapshot> GetDomains()
     {
@@ -434,25 +518,30 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
 
-    private readonly DomainAdministrationSnapshot? _domain;
+    private DomainAdministrationSnapshot? _domain;
     private readonly bool _authorized;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? _save;
 
     public Domain()
     {
     }
 
-    private Domain(DomainAdministrationSnapshot domain, Func<bool>? isAuthenticated)
+    private Domain(
+        DomainAdministrationSnapshot domain,
+        Func<bool>? isAuthenticated,
+        Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? save = null)
     {
         _domain = domain;
         _authorized = true;
         _isAuthenticated = isAuthenticated;
+        _save = save;
     }
 
     public override string Name
     {
         get => Snapshot.Name;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { Name = value ?? string.Empty });
     }
 
     public override int ID => Snapshot.Id;
@@ -460,49 +549,49 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     public override bool Active
     {
         get => Snapshot.Active;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { Active = value });
     }
 
     public override string Postmaster
     {
         get => Snapshot.Postmaster;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { Postmaster = value ?? string.Empty });
     }
 
     public override int MaxMessageSize
     {
         get => Snapshot.MaxMessageSize;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { MaxMessageSize = value });
     }
 
     public override bool PlusAddressingEnabled
     {
         get => Snapshot.PlusAddressingEnabled;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { PlusAddressingEnabled = value });
     }
 
     public override string PlusAddressingCharacter
     {
         get => Snapshot.PlusAddressingCharacter;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { PlusAddressingCharacter = value ?? string.Empty });
     }
 
     public override bool AntiSpamEnableGreylisting
     {
         get => Snapshot.AntiSpamEnableGreylisting;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { AntiSpamEnableGreylisting = value });
     }
 
     public override string ADDomainName
     {
         get => Snapshot.AdDomainName;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { AdDomainName = value ?? string.Empty });
     }
 
     public override int MaxSize
     {
         get => Snapshot.MaxSize;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { MaxSize = value });
     }
 
     public override int Size => Snapshot.Size;
@@ -512,121 +601,121 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     public override int MaxNumberOfAccounts
     {
         get => Snapshot.MaxNumberOfAccounts;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { MaxNumberOfAccounts = value });
     }
 
     public override int MaxNumberOfAliases
     {
         get => Snapshot.MaxNumberOfAliases;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { MaxNumberOfAliases = value });
     }
 
     public override int MaxNumberOfDistributionLists
     {
         get => Snapshot.MaxNumberOfDistributionLists;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { MaxNumberOfDistributionLists = value });
     }
 
     public override bool MaxNumberOfAccountsEnabled
     {
         get => Snapshot.MaxNumberOfAccountsEnabled;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { MaxNumberOfAccountsEnabled = value });
     }
 
     public override bool MaxNumberOfAliasesEnabled
     {
         get => Snapshot.MaxNumberOfAliasesEnabled;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { MaxNumberOfAliasesEnabled = value });
     }
 
     public override bool MaxNumberOfDistributionListsEnabled
     {
         get => Snapshot.MaxNumberOfDistributionListsEnabled;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { MaxNumberOfDistributionListsEnabled = value });
     }
 
     public override int MaxAccountSize
     {
         get => Snapshot.MaxAccountSize;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { MaxAccountSize = value });
     }
 
     public override bool SignatureEnabled
     {
         get => Snapshot.SignatureEnabled;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { SignatureEnabled = value });
     }
 
     public override ComDomainSignatureMethod SignatureMethod
     {
         get => (ComDomainSignatureMethod)Snapshot.SignatureMethod;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { SignatureMethod = (int)value });
     }
 
     public override string SignaturePlainText
     {
         get => Snapshot.SignaturePlainText;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { SignaturePlainText = value ?? string.Empty });
     }
 
     public override string SignatureHTML
     {
         get => Snapshot.SignatureHtml;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { SignatureHtml = value ?? string.Empty });
     }
 
     public override bool AddSignaturesToReplies
     {
         get => Snapshot.AddSignaturesToReplies;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { AddSignaturesToReplies = value });
     }
 
     public override bool AddSignaturesToLocalMail
     {
         get => Snapshot.AddSignaturesToLocalMail;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { AddSignaturesToLocalMail = value });
     }
 
     public override bool DKIMSignEnabled
     {
         get => Snapshot.DkimSignEnabled;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { DkimSignEnabled = value });
     }
 
     public override string DKIMSelector
     {
         get => Snapshot.DkimSelector;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { DkimSelector = value ?? string.Empty });
     }
 
     public override string DKIMPrivateKeyFile
     {
         get => Snapshot.DkimPrivateKeyFile;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { DkimPrivateKeyFile = value ?? string.Empty });
     }
 
     public override ComDkimCanonicalizationMethod DKIMHeaderCanonicalizationMethod
     {
         get => (ComDkimCanonicalizationMethod)Snapshot.DkimHeaderCanonicalizationMethod;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { DkimHeaderCanonicalizationMethod = (int)value });
     }
 
     public override ComDkimCanonicalizationMethod DKIMBodyCanonicalizationMethod
     {
         get => (ComDkimCanonicalizationMethod)Snapshot.DkimBodyCanonicalizationMethod;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { DkimBodyCanonicalizationMethod = (int)value });
     }
 
     public override ComDkimAlgorithm DKIMSigningAlgorithm
     {
         get => (ComDkimAlgorithm)Snapshot.DkimSigningAlgorithm;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { DkimSigningAlgorithm = (int)value });
     }
 
     public override bool DKIMSignAliasesEnabled
     {
         get => Snapshot.DkimSignAliasesEnabled;
-        set => DomainComAuthorization.Unavailable(this);
+        set => Mutate(domain => domain with { DkimSignAliasesEnabled = value });
     }
 
     public override IInterfaceAccounts Accounts =>
@@ -643,9 +732,47 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
 
     internal static Domain CreateAuthorized(
         DomainAdministrationSnapshot domain,
-        Func<bool>? isAuthenticated = null) =>
-        new(domain, isAuthenticated);
+        Func<bool>? isAuthenticated = null,
+        Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? save = null) =>
+        new(domain, isAuthenticated, save);
 
+    public override void Save()
+    {
+        EnsureAuthorized();
+        var snapshot = Snapshot;
+        if (snapshot.Id != 0 || _save is null)
+        {
+            DomainComAuthorization.Unavailable(this);
+            return;
+        }
+
+        try
+        {
+            _domain = _save(snapshot);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the domain to the database.",
+                unchecked((int)0x80004005));
+        }
+    }
+
+    private void Mutate(Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot> mutation)
+    {
+        EnsureAuthorized();
+        if (_save is null)
+        {
+            DomainComAuthorization.Unavailable(this);
+            return;
+        }
+
+        _domain = mutation(Snapshot);
+    }
     void IDomainAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
 
     private DomainAdministrationSnapshot Snapshot
@@ -675,11 +802,11 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
 public abstract class DomainComAdapter : IInterfaceDomain
 {
     public virtual string Name { get => Unavailable<string>(); set => Unavailable(); }
-    public void Save() => Unavailable();
+    public virtual void Save() => Unavailable();
     public virtual int ID => Unavailable<int>();
     public virtual bool Active { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual IInterfaceAccounts Accounts => Unavailable<IInterfaceAccounts>();
-    public void Delete() => Unavailable();
+    public virtual void Delete() => Unavailable();
     public virtual IInterfaceAliases Aliases => Unavailable<IInterfaceAliases>();
     public virtual IInterfaceDistributionLists DistributionLists => Unavailable<IInterfaceDistributionLists>();
     public virtual string Postmaster { get => Unavailable<string>(); set => Unavailable(); }
@@ -780,6 +907,16 @@ public static class DomainAdministrationRuntimeHost
                 .GetAwaiter()
                 .GetResult();
 
-        return Domains.CreateAuthorized(LoadDomains(), LoadDomains, isAuthenticated);
+                int InsertDomain(DomainAdministrationSnapshot domain) => store
+            .InsertDomainAsync(domain, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return Domains.CreateAuthorized(
+            LoadDomains(),
+            LoadDomains,
+            InsertDomain,
+            isAuthenticated);
     }
 }

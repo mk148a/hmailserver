@@ -268,6 +268,115 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(ENotImplemented, pendingDkimAliases.ErrorCode);
     }
 
+    [TestMethod]
+    public void AuthorizedCollection_AddStagesLegacyDefaultsAndSavePublishesInsertedIdentity()
+    {
+        var inserted = new List<DomainAdministrationSnapshot>();
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            insert: domain =>
+            {
+                inserted.Add(domain);
+                return 20;
+            });
+
+        var draft = domains.Add();
+
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(string.Empty, draft.Name);
+        Assert.IsFalse(draft.Active);
+        Assert.AreEqual("+", draft.PlusAddressingCharacter);
+        Assert.AreEqual(ComDomainSignatureMethod.SetIfNotSpecifiedInAccount, draft.SignatureMethod);
+        Assert.IsTrue(draft.AddSignaturesToLocalMail);
+        Assert.AreEqual(ComDkimCanonicalizationMethod.Relaxed, draft.DKIMHeaderCanonicalizationMethod);
+        Assert.AreEqual(ComDkimAlgorithm.SHA256, draft.DKIMSigningAlgorithm);
+
+        draft.Name = "beta.example";
+        draft.Postmaster = "postmaster@beta.example";
+        draft.Active = true;
+        draft.MaxMessageSize = 2048;
+        draft.PlusAddressingEnabled = true;
+        draft.SignatureEnabled = true;
+
+        Assert.AreEqual(1, domains.Count);
+        draft.Save();
+
+        Assert.AreEqual(2, domains.Count);
+        Assert.AreEqual(20, draft.ID);
+        Assert.AreEqual(1, inserted.Count);
+        var persisted = inserted[0];
+        Assert.AreEqual(0, persisted.Id);
+        Assert.AreEqual("beta.example", persisted.Name);
+        Assert.AreEqual("postmaster@beta.example", persisted.Postmaster);
+        Assert.IsTrue(persisted.Active);
+        Assert.AreEqual(2048, persisted.MaxMessageSize);
+        Assert.IsTrue(persisted.PlusAddressingEnabled);
+        Assert.AreEqual("beta.example", domains.get_ItemByDBID(20).Name);
+    }
+
+    [TestMethod]
+    public void FailedInsert_MapsToEFailAndRetainsDraftWithoutPublishing()
+    {
+        var fail = true;
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            Array.Empty<DomainAdministrationSnapshot>(),
+            insert: _ => fail
+                ? throw new InvalidOperationException("Simulated store failure.")
+                : 1);
+
+        var draft = domains.Add();
+        draft.Name = "beta.example";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
+        Assert.AreEqual(0, domains.Count);
+        Assert.AreEqual(0, draft.ID);
+
+        draft.Name = "gamma.example";
+        fail = false;
+        draft.Save();
+
+        Assert.AreEqual(1, domains.Count);
+        Assert.AreEqual(1, draft.ID);
+        Assert.AreEqual("gamma.example", domains.get_ItemByDBID(1).Name);
+    }
+
+    [TestMethod]
+    public void AddAndMutate_RecheckLiveAuthentication()
+    {
+        var authenticated = true;
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            insert: _ => 11,
+            isAuthenticated: () => authenticated);
+
+        var draft = domains.Add();
+        authenticated = false;
+
+        var deniedAdd = Assert.ThrowsExactly<COMException>(() => domains.Add());
+        var deniedSetter = Assert.ThrowsExactly<COMException>(() => draft.Name = "x");
+        var deniedSave = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(unchecked((int)0x80070005), deniedAdd.ErrorCode);
+        Assert.AreEqual(unchecked((int)0x80070005), deniedSetter.ErrorCode);
+        Assert.AreEqual(unchecked((int)0x80070005), deniedSave.ErrorCode);
+    }
+
+    [TestMethod]
+    public void ExistingRowSave_RemainsNotImplementedUntilUpdateParity()
+    {
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            insert: _ => 11);
+
+        var existing = domains[0];
+        var pendingSave = Assert.ThrowsExactly<COMException>(existing.Save);
+        var pendingDelete = Assert.ThrowsExactly<COMException>(existing.Delete);
+
+        Assert.AreEqual(unchecked((int)0x80004001), pendingSave.ErrorCode);
+        Assert.AreEqual(unchecked((int)0x80004001), pendingDelete.ErrorCode);
+    }
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
