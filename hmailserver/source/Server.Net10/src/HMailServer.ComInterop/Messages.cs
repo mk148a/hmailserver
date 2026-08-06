@@ -162,6 +162,8 @@ public sealed class Messages : IInterfaceMessages
     private readonly int _folderId;
     private readonly Func<MessageAdministrationSnapshot, long>? _insert;
     private readonly Func<MessageAdministrationSnapshot, bool>? _update;
+    private readonly Func<long, bool>? _delete;
+    private readonly Action? _clear;
 
     public Messages()
     {
@@ -173,7 +175,9 @@ public sealed class Messages : IInterfaceMessages
         int accountId,
         int folderId,
         Func<MessageAdministrationSnapshot, long>? insert,
-        Func<MessageAdministrationSnapshot, bool>? update = null)
+        Func<MessageAdministrationSnapshot, bool>? update = null,
+        Func<long, bool>? delete = null,
+        Action? clear = null)
     {
         _messages = messages.ToArray();
         _contentSource = contentSource;
@@ -181,6 +185,8 @@ public sealed class Messages : IInterfaceMessages
         _folderId = folderId;
         _insert = insert;
         _update = update;
+        _delete = delete;
+        _clear = clear;
     }
 
     public int Count => GetMessages().Count;
@@ -191,10 +197,12 @@ public sealed class Messages : IInterfaceMessages
         int accountId = 0,
         int folderId = 0,
         Func<MessageAdministrationSnapshot, long>? insert = null,
-        Func<MessageAdministrationSnapshot, bool>? update = null)
+        Func<MessageAdministrationSnapshot, bool>? update = null,
+        Func<long, bool>? delete = null,
+        Action? clear = null)
     {
         ArgumentNullException.ThrowIfNull(messages);
-        return new Messages(messages, contentSource, accountId, folderId, insert, update);
+        return new Messages(messages, contentSource, accountId, folderId, insert, update, delete, clear);
     }
 
     public IInterfaceMessage this[int index]
@@ -207,7 +215,11 @@ public sealed class Messages : IInterfaceMessages
                 throw new COMException("Message index was outside the collection.", DispEBadIndex);
             }
 
-            return Message.CreateAuthorized(messages[index], _contentSource, update: _update is null ? null : UpdateMessage);
+            return Message.CreateAuthorized(
+                messages[index],
+                _contentSource,
+                update: _update is null ? null : UpdateMessage,
+                delete: _delete is null ? null : DeleteMessage);
         }
     }
 
@@ -219,10 +231,53 @@ public sealed class Messages : IInterfaceMessages
             ? throw new COMException(
                 "No message with the specified database identifier exists.",
                 DispEBadIndex)
-            : Message.CreateAuthorized(match, _contentSource, update: _update is null ? null : UpdateMessage);
+            : Message.CreateAuthorized(
+                match,
+                _contentSource,
+                update: _update is null ? null : UpdateMessage,
+                delete: _delete is null ? null : DeleteMessage);
     }
 
-    public void DeleteByDBID(long databaseId) => Unavailable();
+    public void DeleteByDBID(long databaseId)
+    {
+        var messages = GetMessages();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (!messages.Any(message => message.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_delete(databaseId))
+            {
+                throw new InvalidOperationException(
+                    "The message delete did not affect the selected database row.");
+            }
+
+            Volatile.Write(
+                ref _messages,
+                messages.Where(message => message.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the message from the database.",
+                EFail);
+        }
+    }
+
+    private void DeleteMessage(long databaseId) => DeleteByDBID(databaseId);
+
 
     public IInterfaceMessage Add()
     {
@@ -326,7 +381,32 @@ public sealed class Messages : IInterfaceMessages
     }
 
 
-    public void Clear() => Unavailable();
+    public void Clear()
+    {
+        var messages = GetMessages();
+        if (_clear is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _clear();
+            Volatile.Write(ref _messages, Array.Empty<MessageAdministrationSnapshot>());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to clear the messages from the database.",
+                EFail);
+        }
+    }
+
 
     private IReadOnlyList<MessageAdministrationSnapshot> GetMessages()
     {
@@ -371,6 +451,7 @@ public sealed class Message : IInterfaceMessage
     private readonly Func<MessageAdministrationSnapshot, long>? _save;
     private readonly Func<MessageAdministrationSnapshot, bool>? _update;
     private readonly Action<MessageAdministrationSnapshot>? _publish;
+    private readonly Action<long>? _delete;
     private List<MessageHeaderSnapshot>? _draftHeaders;
 
     public Message()
@@ -382,13 +463,15 @@ public sealed class Message : IInterfaceMessage
         IMessageAdministrationContentSource? contentSource,
         Func<MessageAdministrationSnapshot, long>? save = null,
         Func<MessageAdministrationSnapshot, bool>? update = null,
-        Action<MessageAdministrationSnapshot>? publish = null)
+        Action<MessageAdministrationSnapshot>? publish = null,
+        Action<long>? delete = null)
     {
         _message = message;
         _contentSource = contentSource;
         _save = save;
         _update = update;
         _publish = publish;
+        _delete = delete;
     }
 
     public long ID => Snapshot.Id;
@@ -453,8 +536,9 @@ public sealed class Message : IInterfaceMessage
     internal static Message CreateAuthorized(
         MessageAdministrationSnapshot message,
         IMessageAdministrationContentSource? contentSource = null,
-        Func<MessageAdministrationSnapshot, bool>? update = null) =>
-        new(message, contentSource, update: update);
+        Func<MessageAdministrationSnapshot, bool>? update = null,
+        Action<long>? delete = null) =>
+        new(message, contentSource, update: update, delete: delete);
 
     internal static Message CreateAuthorizedDraft(
         MessageAdministrationSnapshot message,
@@ -537,6 +621,18 @@ public sealed class Message : IInterfaceMessage
                 "It was not possible to save the message to the database.",
                 EFail);
         }
+    }
+
+    public void Delete()
+    {
+        var snapshot = Snapshot;
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _delete(snapshot.Id);
     }
 
     public void AddRecipient(string name, string address) => Unavailable();
@@ -927,7 +1023,9 @@ public static class MessageAdministrationRuntimeHost
             state.AccountId,
             folderId: -1,
             insert: _ => throw new NotSupportedException("Account message cache does not support message insertion."),
-            update: _ => throw new NotSupportedException("Account message cache does not support message updates."));
+            update: _ => throw new NotSupportedException("Account message cache does not support message updates."),
+            delete: _ => throw new NotSupportedException("Account message cache does not support message deletion."),
+            clear: () => throw new NotSupportedException("Account message cache does not support message clear."));
     }
 
     internal static Messages CreateAuthorizedFolderAdapter(int folderId)
@@ -957,12 +1055,26 @@ public static class MessageAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool DeleteMessage(long messageId) => store
+            .DeleteMessageAsync(accountId, folderId, messageId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        void ClearMessages() => store
+            .ClearMessagesAsync(accountId, folderId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return Messages.CreateAuthorized(
             messages,
             Volatile.Read(ref _contentSource),
             accountId,
             folderId,
             InsertMessage,
-            UpdateMessage);
+            UpdateMessage,
+            DeleteMessage,
+            ClearMessages);
     }
 }

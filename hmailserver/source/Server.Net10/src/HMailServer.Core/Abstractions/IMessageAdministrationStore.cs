@@ -23,4 +23,17 @@ public interface IMessageAdministrationStore
         MessageAdministrationSnapshot snapshot,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Message update is not available in this store.");
+
+    ValueTask<bool> DeleteMessageAsync(
+        int accountId,
+        int folderId,
+        long messageId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Message deletion is not available in this store.");
+
+    ValueTask ClearMessagesAsync(
+        int accountId,
+        int folderId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Message clear is not available in this store.");
 }

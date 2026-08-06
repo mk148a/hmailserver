@@ -492,6 +492,81 @@ Body
 
         Assert.AreEqual("other@example.test", messages[0].FromAddress);
     }
+    [TestMethod]
+    public void DeleteByDBID_RemovesOnlyMatchingSnapshotAndTreatsUnknownAsNoOp()
+    {
+        var deletedIds = new List<long>();
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, 100, 20, "one.eml", 2, "one@example.test", 1024, 0, 0, Date(2026, 1, 1), 1),
+                Snapshot(11, 100, 20, "two.eml", 2, "two@example.test", 512, 0, 0, Date(2026, 1, 2), 2)
+            },
+            accountId: 100,
+            folderId: 20,
+            delete: messageId =>
+            {
+                deletedIds.Add(messageId);
+                return true;
+            });
+
+        messages.DeleteByDBID(10);
+
+        Assert.AreEqual(1, messages.Count);
+        Assert.AreEqual(11, messages[0].ID);
+
+        messages.DeleteByDBID(999);
+        Assert.AreEqual(1, messages.Count);
+        CollectionAssert.AreEqual(new[] { 10L }, deletedIds);
+    }
+
+    [TestMethod]
+    public void FailedDelete_MapsToEFailAndRetainsSnapshot()
+    {
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            new[] { Snapshot(10, 100, 20, "one.eml", 2, "one@example.test", 1024, 0, 0, Date(2026, 1, 1), 1) },
+            accountId: 100,
+            folderId: 20,
+            delete: _ => false);
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(() => messages.DeleteByDBID(10));
+
+        Assert.AreEqual(unchecked((int)0x80004005), deleteFailure.ErrorCode);
+        Assert.AreEqual(1, messages.Count);
+    }
+
+    [TestMethod]
+    public void Clear_EmptiesAllMessages()
+    {
+        var clearCalls = 0;
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, 100, 20, "one.eml", 2, "one@example.test", 1024, 0, 0, Date(2026, 1, 1), 1),
+                Snapshot(11, 100, 20, "two.eml", 2, "two@example.test", 512, 0, 0, Date(2026, 1, 2), 2)
+            },
+            accountId: 100,
+            folderId: 20,
+            clear: () => clearCalls++);
+
+        messages.Clear();
+
+        Assert.AreEqual(1, clearCalls);
+        Assert.AreEqual(0, messages.Count);
+    }
+
+    [TestMethod]
+    public void DeleteWithoutConfiguredDelegate_RemainsNotImplemented()
+    {
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            new[] { Snapshot(10, 100, 20, "one.eml", 2, "one@example.test", 1024, 0, 0, Date(2026, 1, 1), 1) });
+
+        var pendingDelete = Assert.ThrowsExactly<COMException>(() => messages.DeleteByDBID(10));
+        var pendingClear = Assert.ThrowsExactly<COMException>(messages.Clear);
+
+        Assert.AreEqual(unchecked((int)0x80004001), pendingDelete.ErrorCode);
+        Assert.AreEqual(unchecked((int)0x80004001), pendingClear.ErrorCode);
+    }
     private static MessageAdministrationSnapshot Snapshot(
         long id,
         int accountId,

@@ -66,12 +66,52 @@ ORDER BY messageuid ASC, messageid ASC;
         WHERE messageid = @MessageID
           AND messageaccountid = @AccountID
           AND messagefolderid = @FolderID;
-        """;    private readonly SqlServerConnectionFactory _connectionFactory;
+        """;    public const string DeleteMessageSql = """
+        DELETE FROM hm_messages
+        WHERE messageid = @MessageID
+          AND messageaccountid = @AccountID
+          AND messagefolderid = @FolderID;
+        """;
+
+    public const string ClearMessagesSql = """
+        DELETE FROM hm_messages
+        WHERE messageaccountid = @AccountID AND messagefolderid = @FolderID;
+        """;
+
+    private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerMessageAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+
+    public async ValueTask<bool> DeleteMessageAsync(
+        int accountId,
+        int folderId,
+        long messageId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteMessageSql, connection);
+        command.Parameters.Add("@MessageID", SqlDbType.BigInt).Value = messageId;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected == 1;
+    }
+
+    public async ValueTask ClearMessagesAsync(
+        int accountId,
+        int folderId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(ClearMessagesSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<bool> UpdateMessageAsync(

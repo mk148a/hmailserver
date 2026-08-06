@@ -140,4 +140,19 @@ public sealed class SqlServerMessageAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+    [TestMethod]
+    public void DeleteAndClearSql_AreOwnerScopedAndFolderScoped()
+    {
+        var deleteSql = SqlServerMessageAdministrationStore.DeleteMessageSql;
+        StringAssert.Contains(deleteSql, "DELETE FROM hm_messages");
+        StringAssert.Contains(deleteSql, "messageid = @MessageID");
+        StringAssert.Contains(deleteSql, "messageaccountid = @AccountID");
+        StringAssert.Contains(deleteSql, "messagefolderid = @FolderID");
+
+        var clearSql = SqlServerMessageAdministrationStore.ClearMessagesSql;
+        StringAssert.Contains(clearSql, "DELETE FROM hm_messages");
+        StringAssert.Contains(clearSql, "messageaccountid = @AccountID");
+        StringAssert.Contains(clearSql, "messagefolderid = @FolderID");
+        Assert.IsFalse(clearSql.Contains("messageid =", StringComparison.OrdinalIgnoreCase));
+    }
 }
