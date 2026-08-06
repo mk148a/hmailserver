@@ -1,16 +1,14 @@
 # Current State
-
-- UTC timestamp: 2026-08-05T07:50:51Z
-- Local timestamp: 2026-08-05T10:50:51+03:00
+- UTC timestamp: 2026-08-06T05:58:27Z
+- Local timestamp: 2026-08-06T08:58:27+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `259cf0867`
-- Last successfully pushed commit: `8b660df80` (documentation for prior slice; current code/docs commits are not pushed yet)
-- Latest focused-test result: DistributionListRecipients/SQL coverage `15 passed, 0 failed`
-- Latest full Net10 result: `1777 passed, 0 failed, 4 skipped` after excluding the two AV-locked EICAR cleanup methods; direct full execution remains blocked by two unrelated scanner-runtime cleanup failures
-- Opt-in tests passed/skipped/blocked: `0/4/0`; skipped gates remain disposable SQL/native registry integration checks
-- Current bounded slice: authenticated owner-scoped existing-row `DistributionListRecipient.Save()` UPDATE, code/test commit `259cf0867`; legacy anchors are `InterfaceDistributionListRecipient.cpp:133-157`, `PersistentDistributionListRecipient.cpp:103-139`, and `CreateTablesMSSQL.sql:331-340`
-- Completed milestones: backup metadata and option-matrix work through raw/compressed message staging; restore validation/planning and transactional rollback orchestration; offline synthetic SEARCH/SORT benchmark; authenticated COM/Admin mutation slices through distribution-list and recipient INSERT/UPDATE/DELETE where implemented
-- Open production blockers: backup/restore round trip and upgrade rollback remain incomplete; SEC-18 is not independently GREEN; COM/Admin parity, real SQL identity/readback, real COM activation, SMTP/IMAP/POP3 acceptance, performance/soak, installer, and release-artifact gates remain open; recipient delete remains open
-- Environment-blocked work: direct EICAR scanner cleanup is blocked by host antivirus locking or quarantining the test file; disposable SQL/native registry and PHP-runtime integration checks remain opt-in/skipped; no production resource may be used
-- Protected/do-not-touch areas: dirty `AGENTS.md`; untracked `artifacts/benchmarks/` and `artifacts/sec18-staging/`; production service, database, Data directory, WebAdmin, installed Application COM identity, DCOM ACLs, registry, firewall, and public ports
-- Next three independent slices: authenticated owner-scoped recipient Delete/DeleteByDBID parity; isolated SQL identity/readback and rollback evidence for completed COM mutations; next authenticated Admin collection mutation after recipient deletion
+- Current HEAD: `36270f965`
+- Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
+- Latest focused-test result: DistributionListRecipients/SQL coverage `24 passed, 0 failed` (contract + store + live isolated SQL identity/readback/rollback evidence, LocalDB `1/1`)
+- Latest full Net10 result: `1782 passed, 0 failed, 5 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset); direct full execution remains blocked by two unrelated scanner-runtime cleanup failures; with the SQL connection set, the previously skipped message-indexing opt-in fixtures run for the first time in this environment and surface `5` pre-existing failures unrelated to this test-only slice
+- Opt-in tests passed/skipped/blocked: `1/5/0` (recipient SQL evidence ran live against disposable LocalDB in-session); skipped gates remain disposable SQL/native registry integration checks
+- Current bounded slice: isolated SQL identity/readback and rollback evidence for the completed distribution-list recipient COM mutations, code/test commit `36270f965`; legacy anchors are `CreateTablesMSSQL.sql:309-340` and `SqlServerDistributionListRecipientAdministrationStore.cs`
+- Completed milestones: backup metadata option-matrix work through raw/compressed message staging; restore validation/planning transactional rollback orchestration; offline synthetic SEARCH/SORT benchmark; authenticated COM/Admin mutation slices through distribution-list recipient INSERT/UPDATE/DELETE plus live isolated SQL identity/readback/rollback evidence
+- Open production blockers: backup/restore round trip upgrade rollback remain incomplete; SEC-18 not independently GREEN; COM/Admin parity, COM-path live SQL/COM activation, SMTP/IMAP/POP3 acceptance, performance/soak, installer, release-artifact gates remain open
+- Environment-blocked work: direct EICAR scanner cleanup blocked by host antivirus locking or quarantining test file; LocalDB instance starts only under elevated context; disposable SQL/native registry and PHP-runtime integration checks opt-in/skipped; `AGENTS.md` remains dirty/do-not-touch; `artifacts/benchmarks/` `artifacts/sec18-staging/`; WebAdmin, COM DCOM ACLs, COM-path SQL identity/readback
+- Next three independent slices: next authenticated Admin collection mutation; performance acceptance beyond offline synthetic SEARCH/SORT; real COM activation evidence for completed COM identities
