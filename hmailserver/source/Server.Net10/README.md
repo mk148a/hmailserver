@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``795bd3b93`` completes authenticated ``Messages.DeleteByDBID`` plus ``Clear`` parity (DB-only), completing the message mutation trio (insert ``85e5a143a``, update ``f06a199b4``, delete). Legacy ``InterfaceMessages::DeleteByDBID``/``Clear`` delegate to ``PersistentMessage`` deletion. The .NET path preserves installed Messages/Message COM identity/direct activation denial, treats unknown IDs as no-ops, maps store failure to ``E_FAIL``, clears the folder snapshot only after successful whole-collection deletion, and removes only the selected snapshot after an owner+folder-scoped delete succeeds. Data-directory message-file deletion remains fenced. Focused coverage ``31/31``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1849 passed, 0 failed, 11 opt-in skips`` (1860 total). Next slice: SEC-14 WebAdmin remaining POST-only handlers.
+
+
 Code/test commit ``f06a199b4`` completes authenticated existing-row ``Message.Save()`` UPDATE parity (DB-only) after message insert ``85e5a143a``. Legacy anchors are ``InterfaceMessage::Save`` and ``PersistentMessage::SaveObject``. The .NET path preserves installed Messages/Message COM identity/direct activation denial, rechecks live authentication, stages retained-message From/header setters, persists via a parameterized owner-scoped UPDATE, maps failed or no-row updates to ``E_FAIL``, and replaces only the matching snapshot after success. Data-directory message-file creation and content rewrites remain fenced. Focused coverage ``26/26``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1844 passed, 0 failed, 11 opt-in skips`` (1855 total). Next slice: message delete/Clear parity (DB-only).
 
 
