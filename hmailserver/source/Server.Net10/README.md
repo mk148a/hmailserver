@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``0429fa1f1`` adds the COM-path SSRF guard for scanner-test methods. ``LegacyLocalScannerTargetGuard`` requires every resolved address to be loopback or a local interface address (mirroring legacy ``IsLocalHost``), applied on ``AntiVirus.TestClamAVScanner`` and ``AntiSpam.TestSpamAssassinConnection`` before the runtime connects; non-local or unresolvable targets fail closed with ``E_FAIL``. Unit and COM contract tests cover local accept, public/remote denial-before-runtime, and local delegation. Focused coverage ``26/26``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1855 passed, 0 failed, 11 opt-in skips`` (1866 total). Next slice: real COM activation evidence for completed COM identities.
+
+
 Read-only egress/SSRF posture audit (no production code changed). External fetch enforces ``ExternalFetchEndpointPolicy``; WebAdmin scanner AJAX handlers enforce ``IsLocalHost``-only targets plus POST-CSRF (``437612a13``); the COM ``TestClamAVScanner``/``TestSpamAssassinConnection`` methods still accept arbitrary host+port (residual gap), deferred as a security-policy slice needing an explicit allow-list design. Next slice: COM-path SSRF guard design decision for scanner-test methods.
 
 
