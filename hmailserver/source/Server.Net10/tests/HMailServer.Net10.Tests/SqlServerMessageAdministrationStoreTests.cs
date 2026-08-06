@@ -89,4 +89,37 @@ public sealed class SqlServerMessageAdministrationStoreTests
         Assert.IsFalse(sql.Contains("smtp", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("filecontent", StringComparison.OrdinalIgnoreCase));
     }
+    [TestMethod]
+    public void InsertMessageSql_UsesLegacyMessageTableColumnsAndIdentityOutput()
+    {
+        var sql = SqlServerMessageAdministrationStore.InsertMessageSql;
+        StringAssert.Contains(sql, "INSERT INTO hm_messages");
+        foreach (var column in new[]
+        {
+            "messageaccountid",
+            "messagefolderid",
+            "messagefilename",
+            "messagetype",
+            "messagefrom",
+            "messagesize",
+            "messagecurnooftries",
+            "messagenexttrytime",
+            "messageflags",
+            "messagecreatetime",
+            "messagelocked",
+            "messageuid"
+        })
+        {
+            StringAssert.Contains(sql, column);
+        }
+
+        StringAssert.Contains(sql, "OUTPUT INSERTED.messageid");
+        StringAssert.Contains(sql, "@AccountID");
+        StringAssert.Contains(sql, "@FolderID");
+        StringAssert.Contains(sql, "@FileName");
+        StringAssert.Contains(sql, "@Uid");
+        Assert.IsFalse(sql.Contains("WHERE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

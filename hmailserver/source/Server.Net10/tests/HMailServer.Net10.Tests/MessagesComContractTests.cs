@@ -184,7 +184,7 @@ public sealed class MessagesComContractTests
         Assert.AreEqual(DispEBadIndex, badIndex.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badDatabaseId.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
-        Assert.AreEqual(ENotImplemented, pendingAdd.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, pendingAdd.ErrorCode);
         Assert.AreEqual(ENotImplemented, pendingClear.ErrorCode);
     }
 
@@ -374,6 +374,71 @@ Body
         Assert.AreEqual("folder.eml", messages[0].Filename);
     }
 
+    [TestMethod]
+    public void AddStagesFolderScopedDraftAndSavePublishesInsertedIdentity()
+    {
+        MessageAdministrationSnapshot? inserted = null;
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            new[] { Snapshot(10, 100, 20, "one.eml", 2, "one@example.test", 1024, 0, 0, Date(2026, 1, 1), 1) },
+            accountId: 100,
+            folderId: 20,
+            insert: message =>
+            {
+                inserted = message;
+                return 11;
+            });
+
+        var draft = messages.Add();
+
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(string.Empty, draft.Filename);
+
+        draft.Subject = "Hello";
+        draft.From = "sender@example.test";
+        draft.set_HeaderValue("X-Test", "value");
+
+        Assert.AreEqual(1, messages.Count);
+        draft.Save();
+
+        Assert.AreEqual(2, messages.Count);
+        Assert.AreEqual(11, draft.ID);
+        Assert.IsNotNull(inserted);
+        Assert.AreEqual(0, inserted.Id);
+        Assert.AreEqual(100, inserted.AccountId);
+        Assert.AreEqual(20, inserted.FolderId);
+        Assert.AreEqual("sender@example.test", inserted.FromAddress);
+        Assert.IsTrue(inserted.FileName.EndsWith(".eml", StringComparison.OrdinalIgnoreCase));
+        Assert.AreEqual("sender@example.test", messages.get_ItemByDBID(11).FromAddress);
+    }
+
+    [TestMethod]
+    public void FailedInsert_MapsToEFailAndRetainsDraftWithoutPublishing()
+    {
+        var fail = true;
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            Array.Empty<MessageAdministrationSnapshot>(),
+            accountId: 100,
+            folderId: 20,
+            insert: _ => fail
+                ? throw new InvalidOperationException("Simulated store failure.")
+                : 1);
+
+        var draft = messages.Add();
+        draft.Subject = "Hello";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
+        Assert.AreEqual(0, messages.Count);
+        Assert.AreEqual(0, draft.ID);
+
+        draft.Subject = "Other";
+        fail = false;
+        draft.Save();
+
+        Assert.AreEqual(1, messages.Count);
+        Assert.AreEqual(1, draft.ID);
+    }
     private static MessageAdministrationSnapshot Snapshot(
         long id,
         int accountId,

@@ -44,7 +44,17 @@ WHERE messagefolderid = @FolderID
 ORDER BY messageuid ASC, messageid ASC;
 """;
 
-    private readonly SqlServerConnectionFactory _connectionFactory;
+    public const string InsertMessageSql = """
+        INSERT INTO hm_messages
+            (messageaccountid, messagefolderid, messagefilename, messagetype, messagefrom,
+             messagesize, messagecurnooftries, messagenexttrytime, messageflags,
+             messagecreatetime, messagelocked, messageuid)
+        OUTPUT INSERTED.messageid
+        VALUES
+            (@AccountID, @FolderID, @FileName, @State, @From,
+             @Size, @CurrentNumberOfTries, @NextTryTime, @Flags,
+             @CreateTime, @Locked, @Uid);
+        """;    private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerMessageAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -52,6 +62,30 @@ ORDER BY messageuid ASC, messageid ASC;
         _connectionFactory = connectionFactory;
     }
 
+    public async ValueTask<long> InsertMessageAsync(
+        int accountId,
+        int folderId,
+        MessageAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertMessageSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        command.Parameters.Add("@FileName", SqlDbType.NVarChar, 255).Value = snapshot.FileName;
+        command.Parameters.Add("@State", SqlDbType.TinyInt).Value = snapshot.State;
+        command.Parameters.Add("@From", SqlDbType.NVarChar, 255).Value = snapshot.FromAddress;
+        command.Parameters.Add("@Size", SqlDbType.BigInt).Value = snapshot.SizeBytes;
+        command.Parameters.Add("@CurrentNumberOfTries", SqlDbType.Int).Value = snapshot.CurrentNumberOfTries;
+        command.Parameters.Add("@NextTryTime", SqlDbType.DateTime).Value = snapshot.InternalDate;
+        command.Parameters.Add("@Flags", SqlDbType.TinyInt).Value = snapshot.Flags;
+        command.Parameters.Add("@CreateTime", SqlDbType.DateTime).Value = snapshot.InternalDate;
+        command.Parameters.Add("@Locked", SqlDbType.TinyInt).Value = 0;
+        command.Parameters.Add("@Uid", SqlDbType.BigInt).Value = snapshot.Uid;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt64(insertedId, CultureInfo.InvariantCulture);
+    }
     public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetAccountMessagesAsync(
         int accountId,
         CancellationToken cancellationToken) =>

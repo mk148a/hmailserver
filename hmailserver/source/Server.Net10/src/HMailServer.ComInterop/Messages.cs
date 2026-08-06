@@ -154,9 +154,13 @@ public sealed class Messages : IInterfaceMessages
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
+    private const int EFail = unchecked((int)0x80004005);
 
-    private readonly IReadOnlyList<MessageAdministrationSnapshot>? _messages;
+    private IReadOnlyList<MessageAdministrationSnapshot>? _messages;
     private readonly IMessageAdministrationContentSource? _contentSource;
+    private readonly int _accountId;
+    private readonly int _folderId;
+    private readonly Func<MessageAdministrationSnapshot, long>? _insert;
 
     public Messages()
     {
@@ -164,20 +168,29 @@ public sealed class Messages : IInterfaceMessages
 
     private Messages(
         IReadOnlyList<MessageAdministrationSnapshot> messages,
-        IMessageAdministrationContentSource? contentSource)
+        IMessageAdministrationContentSource? contentSource,
+        int accountId,
+        int folderId,
+        Func<MessageAdministrationSnapshot, long>? insert)
     {
         _messages = messages.ToArray();
         _contentSource = contentSource;
+        _accountId = accountId;
+        _folderId = folderId;
+        _insert = insert;
     }
 
     public int Count => GetMessages().Count;
 
     internal static Messages CreateAuthorized(
         IReadOnlyList<MessageAdministrationSnapshot> messages,
-        IMessageAdministrationContentSource? contentSource = null)
+        IMessageAdministrationContentSource? contentSource = null,
+        int accountId = 0,
+        int folderId = 0,
+        Func<MessageAdministrationSnapshot, long>? insert = null)
     {
         ArgumentNullException.ThrowIfNull(messages);
-        return new Messages(messages, contentSource);
+        return new Messages(messages, contentSource, accountId, folderId, insert);
     }
 
     public IInterfaceMessage this[int index]
@@ -207,7 +220,68 @@ public sealed class Messages : IInterfaceMessages
 
     public void DeleteByDBID(long databaseId) => Unavailable();
 
-    public IInterfaceMessage Add() => Unavailable<IInterfaceMessage>();
+    public IInterfaceMessage Add()
+    {
+        var messages = GetMessages();
+        if (_folderId <= 0 || _insert is null)
+        {
+            throw new COMException("Message index was outside the collection.", DispEBadIndex);
+        }
+
+        return Message.CreateAuthorizedDraft(
+            new MessageAdministrationSnapshot(
+                Id: 0,
+                AccountId: _accountId,
+                FolderId: _folderId,
+                FileName: string.Empty,
+                State: 0,
+                FromAddress: string.Empty,
+                SizeBytes: 0,
+                CurrentNumberOfTries: 0,
+                Flags: 0,
+                InternalDate: DateTime.UtcNow,
+                Uid: 0),
+            SaveMessage,
+            publish: saved =>
+            {
+                Volatile.Write(ref _messages, messages.Append(saved).ToArray());
+            });
+    }
+
+    private long SaveMessage(MessageAdministrationSnapshot message)
+    {
+        var messages = GetMessages();
+        if (_insert is null)
+        {
+            Unavailable();
+            return 0;
+        }
+
+        try
+        {
+            var insertedId = _insert(message);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The message insert did not return a valid generated identity.");
+            }
+
+            var saved = message with { Id = insertedId };
+            Volatile.Write(ref _messages, messages.Append(saved).ToArray());
+            return insertedId;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the message to the database.",
+                EFail);
+        }
+    }
+
 
     public void Clear() => Unavailable();
 
@@ -248,9 +322,12 @@ public sealed class Message : IInterfaceMessage
 
     private const int EFail = unchecked((int)0x80004005);
 
-    private readonly MessageAdministrationSnapshot? _message;
+    private MessageAdministrationSnapshot? _message;
     private readonly IMessageAdministrationContentSource? _contentSource;
     private MessageContentSnapshot? _content;
+    private readonly Func<MessageAdministrationSnapshot, long>? _save;
+    private readonly Action<MessageAdministrationSnapshot>? _publish;
+    private List<MessageHeaderSnapshot>? _draftHeaders;
 
     public Message()
     {
@@ -258,21 +335,37 @@ public sealed class Message : IInterfaceMessage
 
     private Message(
         MessageAdministrationSnapshot message,
-        IMessageAdministrationContentSource? contentSource)
+        IMessageAdministrationContentSource? contentSource,
+        Func<MessageAdministrationSnapshot, long>? save = null,
+        Action<MessageAdministrationSnapshot>? publish = null)
     {
         _message = message;
         _contentSource = contentSource;
+        _save = save;
+        _publish = publish;
     }
 
     public long ID => Snapshot.Id;
 
     public string Filename => Snapshot.FileName;
 
-    public string Subject { get => Content.HeaderValue("Subject"); set => Unavailable(); }
+    public string Subject
+    {
+        get => _message is { Id: 0 } ? DraftHeaderValue("Subject") : Content.HeaderValue("Subject");
+        set => SetDraftHeader("Subject", value);
+    }
 
-    public string From { get => Content.HeaderValue("From"); set => Unavailable(); }
+    public string From
+    {
+        get => _message is { Id: 0 } ? DraftHeaderValue("From") : Content.HeaderValue("From");
+        set => SetDraftHeader("From", value);
+    }
 
-    public string Date { get => Content.HeaderValue("Date"); set => Unavailable(); }
+    public string Date
+    {
+        get => _message is { Id: 0 } ? DraftHeaderValue("Date") : Content.HeaderValue("Date");
+        set => SetDraftHeader("Date", value);
+    }
 
     public string Body { get => Content.TextBody; set => Unavailable(); }
 
@@ -316,7 +409,51 @@ public sealed class Message : IInterfaceMessage
         IMessageAdministrationContentSource? contentSource = null) =>
         new(message, contentSource);
 
-    public void Save() => Unavailable();
+    internal static Message CreateAuthorizedDraft(
+        MessageAdministrationSnapshot message,
+        Func<MessageAdministrationSnapshot, long> save,
+        Action<MessageAdministrationSnapshot> publish) =>
+        new(message, contentSource: null, save, publish);
+
+    public void Save()
+    {
+        var snapshot = Snapshot;
+        if (_save is null || snapshot.Id != 0)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            var from = DraftHeaderValue("From");
+            var insertSnapshot = snapshot with
+            {
+                FileName = string.Concat(Guid.NewGuid().ToString("N"), ".eml"),
+                FromAddress = from
+            };
+            var insertedId = _save(insertSnapshot);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The message insert did not return a valid generated identity.");
+            }
+
+            var saved = insertSnapshot with { Id = insertedId };
+            _message = saved;
+            _publish?.Invoke(saved);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the message to the database.",
+                EFail);
+        }
+    }
 
     public void AddRecipient(string name, string address) => Unavailable();
 
@@ -324,7 +461,16 @@ public sealed class Message : IInterfaceMessage
 
     public string get_HeaderValue(string fieldName) => Content.HeaderValue(fieldName ?? string.Empty);
 
-    public void set_HeaderValue(string fieldName, string fieldValue) => Unavailable();
+    public void set_HeaderValue(string fieldName, string fieldValue)
+    {
+        if (_message is { Id: 0 })
+        {
+            SetDraftHeader(fieldName ?? string.Empty, fieldValue ?? string.Empty);
+            return;
+        }
+
+        Unavailable();
+    }
 
     public bool HasBodyType(string bodyType) => Content.HasBodyType(bodyType ?? string.Empty);
 
@@ -370,6 +516,39 @@ public sealed class Message : IInterfaceMessage
 
             _content = MessageContentSnapshot.Parse(content);
             return _content;
+        }
+    }
+
+    private string DraftHeaderValue(string fieldName)
+    {
+        if (_draftHeaders is null)
+        {
+            return string.Empty;
+        }
+
+        var match = _draftHeaders.FirstOrDefault(
+            header => string.Equals(header.Name, fieldName, StringComparison.OrdinalIgnoreCase));
+        return match?.Value ?? string.Empty;
+    }
+
+    private void SetDraftHeader(string fieldName, string value)
+    {
+        if (_message is not { Id: 0 } || _save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _draftHeaders ??= new List<MessageHeaderSnapshot>();
+        var existingIndex = _draftHeaders.FindIndex(
+            header => string.Equals(header.Name, fieldName, StringComparison.OrdinalIgnoreCase));
+        if (existingIndex >= 0)
+        {
+            _draftHeaders[existingIndex] = new MessageHeaderSnapshot(fieldName, value);
+        }
+        else
+        {
+            _draftHeaders.Add(new MessageHeaderSnapshot(fieldName, value));
         }
     }
 
@@ -658,7 +837,12 @@ public static class MessageAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult());
 
-        return Messages.CreateAuthorized(messages, Volatile.Read(ref _contentSource));
+        return Messages.CreateAuthorized(
+            messages,
+            Volatile.Read(ref _contentSource),
+            state.AccountId,
+            folderId: -1,
+            insert: _ => throw new NotSupportedException("Account message cache does not support message insertion."));
     }
 
     internal static Messages CreateAuthorizedFolderAdapter(int folderId)
@@ -674,6 +858,19 @@ public static class MessageAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return Messages.CreateAuthorized(messages, Volatile.Read(ref _contentSource));
+        int accountId = messages.Count == 0 ? -1 : (int)messages[0].AccountId;
+
+        long InsertMessage(MessageAdministrationSnapshot message) => store
+            .InsertMessageAsync(accountId, folderId, message, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
+        return Messages.CreateAuthorized(
+            messages,
+            Volatile.Read(ref _contentSource),
+            accountId,
+            folderId,
+            InsertMessage);
     }
 }
