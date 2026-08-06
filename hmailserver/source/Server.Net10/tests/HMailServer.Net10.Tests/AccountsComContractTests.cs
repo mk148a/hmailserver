@@ -762,6 +762,94 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(unchecked((int)0x80070005), deniedAdd.ErrorCode);
         Assert.AreEqual(unchecked((int)0x80070005), deniedSave.ErrorCode);
     }
+    [TestMethod]
+    public void DeleteByDBID_RemovesOnlyMatchingSnapshotAndTreatsUnknownAsNoOp()
+    {
+        var deletedIds = new List<int>();
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[]
+            {
+                new AccountAdministrationSnapshot(10, 100, "alpha@example.test", true, 2),
+                new AccountAdministrationSnapshot(20, 100, "beta@example.test", false, 0)
+            },
+            domainId: 100,
+            delete: accountId =>
+            {
+                deletedIds.Add(accountId);
+                return true;
+            });
+
+        accounts.DeleteByDBID(10);
+
+        Assert.AreEqual(1, accounts.Count);
+        Assert.AreEqual(20, accounts[0].ID);
+
+        accounts.DeleteByDBID(999);
+        Assert.AreEqual(1, accounts.Count);
+        CollectionAssert.AreEqual(new[] { 10 }, deletedIds);
+    }
+
+    [TestMethod]
+    public void FailedDelete_MapsToEFailAndRetainsSnapshot()
+    {
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[] { new AccountAdministrationSnapshot(10, 100, "alpha@example.test", true, 2) },
+            domainId: 100,
+            delete: _ => false);
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(() => accounts.DeleteByDBID(10));
+
+        Assert.AreEqual(unchecked((int)0x80004005), deleteFailure.ErrorCode);
+        Assert.AreEqual(1, accounts.Count);
+        Assert.AreEqual("alpha@example.test", accounts[0].Address);
+    }
+
+    [TestMethod]
+    public void ItemDelete_RoutesThroughOwningCollectionAndRechecksAuthentication()
+    {
+        var deletedIds = new List<int>();
+        var authenticated = true;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[] { new AccountAdministrationSnapshot(10, 100, "alpha@example.test", true, 2) },
+            domainId: 100,
+            delete: accountId =>
+            {
+                deletedIds.Add(accountId);
+                return true;
+            },
+            isAuthenticated: () => authenticated);
+
+        accounts[0].Delete();
+
+        Assert.AreEqual(0, accounts.Count);
+        CollectionAssert.AreEqual(new[] { 10 }, deletedIds);
+
+        var second = Accounts.CreateAuthorized(
+            new[] { new AccountAdministrationSnapshot(20, 100, "beta@example.test", true, 2) },
+            domainId: 100,
+            insert: (_, _) => 30,
+            delete: _ => true,
+            isAuthenticated: () => authenticated);
+        var draft = second.Add();
+        draft.Delete();
+
+        authenticated = false;
+        var deniedDelete = Assert.ThrowsExactly<COMException>(() => second[0].Delete());
+        Assert.AreEqual(unchecked((int)0x80070005), deniedDelete.ErrorCode);
+    }
+
+    [TestMethod]
+    public void DeleteWithoutConfiguredDelegate_RemainsNotImplemented()
+    {
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[] { new AccountAdministrationSnapshot(10, 100, "alpha@example.test", true, 2) });
+
+        var pendingCollectionDelete = Assert.ThrowsExactly<COMException>(() => accounts.DeleteByDBID(10));
+        var pendingItemDelete = Assert.ThrowsExactly<COMException>(accounts[0].Delete);
+
+        Assert.AreEqual(unchecked((int)0x80004001), pendingCollectionDelete.ErrorCode);
+        Assert.AreEqual(unchecked((int)0x80004001), pendingItemDelete.ErrorCode);
+    }
     private static void AssertAccount(
         IInterfaceAccount account,
         int id,

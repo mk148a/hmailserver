@@ -153,4 +153,23 @@ public sealed class SqlServerAccountAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteAccountSql_IsTransactionalAndCascadesLegacyAccountDependents()
+    {
+        var sql = SqlServerAccountAdministrationStore.DeleteAccountSql;
+        StringAssert.Contains(sql, "DELETE FROM hm_rule_criterias");
+        StringAssert.Contains(sql, "DELETE FROM hm_rule_actions");
+        StringAssert.Contains(sql, "DELETE FROM hm_rules WHERE ruleaccountid = @AccountID");
+        StringAssert.Contains(sql, "DELETE FROM hm_messagerecipients");
+        StringAssert.Contains(sql, "DELETE FROM hm_message_metadata WHERE metadata_accountid = @AccountID");
+        StringAssert.Contains(sql, "DELETE FROM hm_messages WHERE messageaccountid = @AccountID");
+        StringAssert.Contains(sql, "DELETE FROM hm_fetchaccounts WHERE faaccountid = @AccountID");
+        StringAssert.Contains(sql, "DELETE FROM hm_accounts WHERE accountid = @AccountID AND accountdomainid = @DomainID");
+        StringAssert.Contains(sql, "BEGIN TRANSACTION");
+        StringAssert.Contains(sql, "COMMIT TRANSACTION");
+        StringAssert.Contains(sql, "ROLLBACK TRANSACTION");
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

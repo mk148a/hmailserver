@@ -142,6 +142,33 @@ ORDER BY accountaddress ASC;
              @ForwardKeepOriginal, @ForwardAbortSpamFlagged, @SignatureEnabled,
              @SignaturePlainText, @SignatureHtml, @LastLogonTime,
              @PersonFirstName, @PersonLastName);
+        """;    public const string DeleteAccountSql = """
+        SET XACT_ABORT ON;
+        BEGIN TRANSACTION;
+
+        DECLARE @Deleted bit = 0;
+        IF EXISTS (SELECT 1 FROM hm_accounts WITH (UPDLOCK, HOLDLOCK) WHERE accountid = @AccountID AND accountdomainid = @DomainID)
+        BEGIN
+            DELETE FROM hm_rule_criterias
+                WHERE criteriaruleid IN (SELECT ruleid FROM hm_rules WHERE ruleaccountid = @AccountID);
+            DELETE FROM hm_rule_actions
+                WHERE actionruleid IN (SELECT ruleid FROM hm_rules WHERE ruleaccountid = @AccountID);
+            DELETE FROM hm_rules WHERE ruleaccountid = @AccountID;
+            DELETE FROM hm_messagerecipients
+                WHERE recipientmessageid IN (SELECT messageid FROM hm_messages WHERE messageaccountid = @AccountID);
+            DELETE FROM hm_message_metadata WHERE metadata_accountid = @AccountID;
+            DELETE FROM hm_message_search_queue
+                WHERE messageid IN (SELECT messageid FROM hm_messages WHERE messageaccountid = @AccountID);
+            DELETE FROM hm_message_search_documents
+                WHERE messageid IN (SELECT messageid FROM hm_messages WHERE messageaccountid = @AccountID);
+            DELETE FROM hm_messages WHERE messageaccountid = @AccountID;
+            DELETE FROM hm_fetchaccounts WHERE faaccountid = @AccountID;
+            DELETE FROM hm_accounts WHERE accountid = @AccountID AND accountdomainid = @DomainID;
+            IF @@ROWCOUNT = 1 SET @Deleted = 1;
+        END;
+
+        IF @Deleted = 1 COMMIT TRANSACTION; ELSE ROLLBACK TRANSACTION;
+        SELECT @Deleted;
         """;    private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerAccountAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -150,6 +177,18 @@ ORDER BY accountaddress ASC;
         _connectionFactory = connectionFactory;
     }
 
+    public async ValueTask<bool> DeleteAccountAsync(
+        int domainId,
+        int accountId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteAccountSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
+        var deleted = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return deleted is not null && Convert.ToInt32(deleted, CultureInfo.InvariantCulture) != 0;
+    }
     public async ValueTask<int> InsertAccountAsync(
         int domainId,
         AccountAdministrationSnapshot account,

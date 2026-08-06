@@ -52,6 +52,7 @@ public sealed class Accounts : IInterfaceAccounts
     private AccountAdministrationEntry[]? _accounts;
     private readonly int _domainId;
     private readonly Func<AccountAdministrationSnapshot, string, int>? _insert;
+    private readonly Func<int, bool>? _delete;
     private readonly Func<IReadOnlyList<AccountAdministrationSnapshot>>? _reload;
     private readonly AccountSizeInvalidator? _accountSizeInvalidator;
     private readonly Func<int, AccountAdministrationSnapshot?>? _accountSizeReadback;
@@ -67,6 +68,7 @@ public sealed class Accounts : IInterfaceAccounts
         Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload,
         int domainId,
         Func<AccountAdministrationSnapshot, string, int>? insert,
+        Func<int, bool>? delete,
         Func<bool>? isAuthenticated,
         AccountSizeInvalidator? accountSizeInvalidator,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback)
@@ -74,6 +76,7 @@ public sealed class Accounts : IInterfaceAccounts
         _accounts = CreateEntries(accounts);
         _domainId = domainId;
         _insert = insert;
+        _delete = delete;
         _reload = reload;
         _accountSizeInvalidator = accountSizeInvalidator;
         _accountSizeReadback = accountSizeReadback;
@@ -91,6 +94,7 @@ public sealed class Accounts : IInterfaceAccounts
         Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload = null,
         int domainId = 0,
         Func<AccountAdministrationSnapshot, string, int>? insert = null,
+        Func<int, bool>? delete = null,
         Func<bool>? isAuthenticated = null,
         AccountSizeInvalidator? accountSizeInvalidator = null,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null)
@@ -101,6 +105,7 @@ public sealed class Accounts : IInterfaceAccounts
             reload,
             domainId,
             insert,
+            delete,
             isAuthenticated,
             accountSizeInvalidator,
             accountSizeReadback);
@@ -123,7 +128,8 @@ public sealed class Accounts : IInterfaceAccounts
                 accounts[index].ImapFoldersState,
                 _isAuthenticated,
                 _accountSizeInvalidator,
-                _accountSizeReadback);
+                _accountSizeReadback,
+                _delete is null ? null : DeleteAccount);
         }
     }
 
@@ -140,6 +146,7 @@ public sealed class Accounts : IInterfaceAccounts
             ComAdminLevel.Normal,
             _domainId,
             SaveAccount,
+            _delete is null ? null : DeleteAccount,
             _isAuthenticated);
     }
 
@@ -183,7 +190,22 @@ public sealed class Accounts : IInterfaceAccounts
         }
     }
 
-    public void Delete(int index) => Unavailable();
+        public void Delete(int index)
+    {
+        var accounts = GetAccounts();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (index < 0 || index >= accounts.Count)
+        {
+            throw new COMException("Account index was outside the collection.", DispEBadIndex);
+        }
+
+        DeleteByDBID(accounts[index].Snapshot.Id);
+    }
 
     public void Refresh()
     {
@@ -224,7 +246,8 @@ public sealed class Accounts : IInterfaceAccounts
                 match.ImapFoldersState,
                 _isAuthenticated,
                 _accountSizeInvalidator,
-                _accountSizeReadback);
+                _accountSizeReadback,
+                _delete is null ? null : DeleteAccount);
     }
 
     public IInterfaceAccount get_ItemByAddress(string address)
@@ -241,10 +264,49 @@ public sealed class Accounts : IInterfaceAccounts
                 match.ImapFoldersState,
                 _isAuthenticated,
                 _accountSizeInvalidator,
-                _accountSizeReadback);
+                _accountSizeReadback,
+                _delete is null ? null : DeleteAccount);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+        public void DeleteByDBID(int databaseId)
+    {
+        var accounts = GetAccounts();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        if (!accounts.Any(account => account.Snapshot.Id == databaseId))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_delete(databaseId))
+            {
+                throw new InvalidOperationException(
+                    "The account delete did not affect the selected database row.");
+            }
+
+            Volatile.Write(
+                ref _accounts,
+                accounts.Where(account => account.Snapshot.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the account from the database.",
+                EFail);
+        }
+    }
+
+    private void DeleteAccount(int databaseId) => DeleteByDBID(databaseId);
 
     private IReadOnlyList<AccountAdministrationEntry> GetAccounts()
     {
@@ -330,11 +392,18 @@ public static class AccountAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool DeleteAccount(int accountId) => store
+            .DeleteAccountAsync(domainId, accountId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return Accounts.CreateAuthorized(
             LoadAccounts(),
             LoadAccounts,
             domainId,
             InsertAccount,
+            DeleteAccount,
             isAuthenticated,
             _accountSizeInvalidator,
             ReadAccount);

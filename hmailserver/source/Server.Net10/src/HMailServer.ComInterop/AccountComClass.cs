@@ -52,6 +52,7 @@ public sealed class Account : IInterfaceAccount
     private bool _forwardAbortSpamFlagged;
     private int _id;
     private readonly Func<AccountAdministrationSnapshot, string, int>? _save;
+    private readonly Action<int>? _delete;
 
     public Account()
     {
@@ -63,6 +64,7 @@ public sealed class Account : IInterfaceAccount
         int domainId,
         RuleAdministrationState rulesState,
         Func<AccountAdministrationSnapshot, string, int>? save,
+        Action<int>? delete,
         Func<bool>? isServerAdministrator)
     {
         _attached = true;
@@ -71,6 +73,7 @@ public sealed class Account : IInterfaceAccount
         _domainId = domainId;
         _rulesState = rulesState;
         _save = save;
+        _delete = delete;
         _isServerAdministrator = isServerAdministrator;
         _isAuthenticated = isServerAdministrator;
     }
@@ -82,10 +85,12 @@ public sealed class Account : IInterfaceAccount
         ImapFolderAdministrationState imapFoldersState,
         Func<bool>? isAuthenticated,
         AccountSizeInvalidator? accountSizeInvalidator,
-        Func<int, AccountAdministrationSnapshot?>? accountSizeReadback)
+        Func<int, AccountAdministrationSnapshot?>? accountSizeReadback,
+        Action<int>? delete = null)
     {
         _attached = true;
         _administrationSnapshot = administrationSnapshot;
+        _delete = delete;
         _accountSizeInvalidator = accountSizeInvalidator;
         _accountSizeReadback = accountSizeReadback;
         _accountSizeState = new AccountSizeState(administrationSnapshot.Size, administrationSnapshot.QuotaUsed, 0);
@@ -240,6 +245,7 @@ public sealed class Account : IInterfaceAccount
             0,
             RuleAdministrationRuntimeHost.CreateAuthorizedState(0),
             save: null,
+            delete: null,
             isServerAdministrator);
 
     internal static Account CreateAuthorized(
@@ -286,7 +292,8 @@ public sealed class Account : IInterfaceAccount
         ImapFolderAdministrationState imapFoldersState,
         Func<bool>? isAuthenticated = null,
         AccountSizeInvalidator? accountSizeInvalidator = null,
-        Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null) =>
+        Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null,
+        Action<int>? delete = null) =>
         new(
             account,
             rulesState,
@@ -294,13 +301,15 @@ public sealed class Account : IInterfaceAccount
             imapFoldersState,
             isAuthenticated,
             accountSizeInvalidator,
-            accountSizeReadback);
+            accountSizeReadback,
+            delete);
 
         internal static Account CreateAuthorizedDraft(
         string address,
         ComAdminLevel adminLevel,
         int domainId,
         Func<AccountAdministrationSnapshot, string, int> save,
+        Action<int>? delete = null,
         Func<bool>? isServerAdministrator = null) =>
         new(
             address,
@@ -308,6 +317,7 @@ public sealed class Account : IInterfaceAccount
             domainId,
             RuleAdministrationRuntimeHost.CreateAuthorizedState(0),
             save,
+            delete,
             isServerAdministrator);
     public void Save()
     {
@@ -378,7 +388,18 @@ public sealed class Account : IInterfaceAccount
 
     public void UnlockMailbox() => NotImplemented();
 
-    public void Delete() => NotImplemented();
+        public void Delete()
+    {
+        EnsureAttached();
+        EnsureAuthenticated();
+        if (_delete is null)
+        {
+            NotImplemented();
+            return;
+        }
+
+        _delete(ID);
+    }
 
     private T Read<T>(T value)
     {

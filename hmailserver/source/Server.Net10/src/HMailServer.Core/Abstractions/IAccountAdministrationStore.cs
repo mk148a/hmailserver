@@ -16,4 +16,10 @@ public interface IAccountAdministrationStore
         string password,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Account insertion is not available in this store.");
+
+    ValueTask<bool> DeleteAccountAsync(
+        int domainId,
+        int accountId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Account deletion is not available in this store.");
 }
