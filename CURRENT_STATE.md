@@ -1,14 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-06T18:54:29Z
-- Local timestamp: 2026-08-06T21:54:29+03:00
+- UTC timestamp: 2026-08-06T19:00:20Z
+- Local timestamp: 2026-08-06T22:00:20+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `f8fa925f0`
+- Current HEAD: `887521659`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: backup-projection SQL `1 passed, 0 failed` live on LocalDB (account backup projection identity + BlowFish password round-trip + `PasswordEncryption`, rules projection, domain read)
-- Latest full Net10 result: `1856 passed, 0 failed, 12 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset); with the SQL connection set, previously skipped message-indexing opt-in fixtures run and surface `5` pre-existing failures unrelated to this slice
-- Opt-in tests passed/skipped/blocked: `8/12/0` (recipient, route, rule, domain, account, TCP/IP port, message-insert, and backup-projection SQL evidence ran live against disposable LocalDB)
-- Current bounded slice: isolated SQL backup-projection evidence, code/test commit `f8fa925f0`; proves the archive-feed SQL seam (`GetBackupAccountsAsync` with encrypted password, `GetBackupRulesAsync`, `GetDomainsAsync`) on a disposable LocalDB database
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact serialization seam; backup-projection SQL evidence
-- Open doors (environment-gated or large): real COM activation (registry), SEC-18, live protocol acceptance, live performance evals, full backup/restore round-trip execution (restore writes), upgrade rollback, installer/release artifacts
+- Latest focused-test result: `BackupRestoreMetadataWriterTests` `2 passed, 0 failed` (restore replays domains through the admin store; partial failure invokes rollback and rethrows)
+- Latest full Net10 result: `1858 passed, 0 failed, 12 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: first restore-execution seam, code/test commit `887521659`; `BackupRestoreMetadataWriter.RestoreDomainsAsync` replays a domain snapshot batch through `IDomainAdministrationStore.InsertDomainAsync` inside `BackupRestoreTransactionBoundary` so a mid-batch failure invokes the caller rollback and leaves no partial commit
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection SQL evidence; first transactional restore writer
+- Open (environment-gated or large): the archive→snapshot parsing and full restore round-trip (restore executes into temp DB/Data), upgrade rollback, protocol acceptance, real COM activation, SEC-18, live performance, installer/release artifacts
 - Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime
-- Next three slices: full isolated backup/restore round-trip (restore execution into temp DB/Data); then upgrade rollback evidence; then live protocol acceptance harness
+- Next three slices: wire archive XML→snapshot restore for domains/accounts (the remainder of the round-trip); then upgrade rollback evidence; then live protocol acceptance harness

@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``887521659`` adds the first restore-execution seam, ``BackupRestoreMetadataWriter.RestoreDomainsAsync``, which replays a snapshot batch through ``IDomainAdministrationStore.InsertDomainAsync`` inside ``BackupRestoreTransactionBoundary`` so a mid-batch failure invokes the caller rollback and rethrows. ``BackupRestoreMetadataWriterTests`` covers full replay and partial-failure rollback. Focused ``2/2``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1858 passed, 0 failed, 12 opt-in skips`` (1870 total). Next slice: wire archive XML→snapshot restore for domains/accounts.
+
+
 Code/test commit ``f8fa925f0`` adds isolated SQL backup-projection evidence. ``SqlServerBackupProjectionIntegrationTests`` seeds a disposable LocalDB database and proves ``GetBackupAccountsAsync`` (identity + BlowFish password round-trip + ``PasswordEncryption=1``), ``GetBackupRulesAsync``, and ``GetDomainsAsync``. Live LocalDB ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1856 passed, 0 failed, 12 opt-in skips`` (1868 total). Next slice: full isolated backup/restore round-trip (restore execution into temp DB/Data).
 
 

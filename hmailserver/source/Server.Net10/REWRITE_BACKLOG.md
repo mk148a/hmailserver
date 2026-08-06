@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-05, RESTORE WRITER SEAM)
+
+The first restore-execution seam is complete in code/test commit ``887521659``. ``BackupRestoreMetadataWriter.RestoreDomainsAsync`` replays a ``DomainAdministrationSnapshot`` batch through ``IDomainAdministrationStore.InsertDomainAsync`` inside ``BackupRestoreTransactionBoundary`` so a mid-batch failure invokes the caller ``rollbackAsync`` and rethrows, leaving no partial commit. ``BackupRestoreMetadataWriterTests`` covers full replay (all domains persisted, rollback not called) and partial-failure rollback (rollback invoked, exception rethrown, only the pre-failure inserts recorded). Focused ``2/2``; full suite excluding the two AV-locked EICAR cleanup methods ``1858 passed, 0 failed, 12 opt-in skips`` (1870 total). Archive XML→snapshot parsing and the full restore round-trip (into temp DB/Data) remain open. Next slice: wire archive XML→snapshot restore for domains/accounts (the remainder of the round-trip).
+
 ## Current Completed Slice (2026-08-05, BACKUP PROJECTION SQL EVIDENCE)
 
 Isolated SQL backup-projection evidence is complete in code/test commit ``f8fa925f0``. The opt-in ``SqlServerBackupProjectionIntegrationTests`` fixture seeds a disposable LocalDB database (domain, account with BlowFish-encrypted password, rule) and proves the archive-feed seam: ``GetBackupAccountsAsync`` returns the account identity with ``Password`` decrypting to the original plaintext and ``PasswordEncryption=1``, ``GetBackupRulesAsync`` returns the seeded rule, and ``GetDomainsAsync`` returns the seeded domain. Live LocalDB evidence ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1856 passed, 0 failed, 12 opt-in skips`` (1868 total). Restore execution (writes into a temp DB/Data), upgrade rollback, and the full round-trip queue remain open. Next slice: full isolated backup/restore round-trip (restore execution into temp DB/Data).
