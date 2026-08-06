@@ -122,4 +122,22 @@ public sealed class SqlServerMessageAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+    [TestMethod]
+    public void UpdateMessageSql_UsesLegacyMessageColumnsAndOwnerScopedIdentityPredicate()
+    {
+        var sql = SqlServerMessageAdministrationStore.UpdateMessageSql;
+        StringAssert.Contains(sql, "UPDATE hm_messages");
+        StringAssert.Contains(sql, "messagefolderid = @FolderID");
+        StringAssert.Contains(sql, "messagefilename = @FileName");
+        StringAssert.Contains(sql, "messagefrom = @From");
+        StringAssert.Contains(sql, "messagesize = @Size");
+        StringAssert.Contains(sql, "messageflags = @Flags");
+        StringAssert.Contains(sql, "messagecreatetime = @CreateTime");
+        StringAssert.Contains(sql, "messageuid = @Uid");
+        StringAssert.Contains(sql, "WHERE messageid = @MessageID");
+        StringAssert.Contains(sql, "AND messageaccountid = @AccountID");
+        StringAssert.Contains(sql, "AND messagefolderid = @FolderID");
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

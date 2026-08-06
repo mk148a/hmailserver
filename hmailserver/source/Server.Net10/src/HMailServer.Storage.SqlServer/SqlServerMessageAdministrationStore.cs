@@ -54,6 +54,18 @@ ORDER BY messageuid ASC, messageid ASC;
             (@AccountID, @FolderID, @FileName, @State, @From,
              @Size, @CurrentNumberOfTries, @NextTryTime, @Flags,
              @CreateTime, @Locked, @Uid);
+        """;    public const string UpdateMessageSql = """
+        UPDATE hm_messages
+        SET messagefolderid = @FolderID,
+            messagefilename = @FileName,
+            messagefrom = @From,
+            messagesize = @Size,
+            messageflags = @Flags,
+            messagecreatetime = @CreateTime,
+            messageuid = @Uid
+        WHERE messageid = @MessageID
+          AND messageaccountid = @AccountID
+          AND messagefolderid = @FolderID;
         """;    private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerMessageAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -62,6 +74,27 @@ ORDER BY messageuid ASC, messageid ASC;
         _connectionFactory = connectionFactory;
     }
 
+    public async ValueTask<bool> UpdateMessageAsync(
+        int accountId,
+        int folderId,
+        MessageAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateMessageSql, connection);
+        command.Parameters.Add("@MessageID", SqlDbType.BigInt).Value = snapshot.Id;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        command.Parameters.Add("@FileName", SqlDbType.NVarChar, 255).Value = snapshot.FileName;
+        command.Parameters.Add("@From", SqlDbType.NVarChar, 255).Value = snapshot.FromAddress;
+        command.Parameters.Add("@Size", SqlDbType.BigInt).Value = snapshot.SizeBytes;
+        command.Parameters.Add("@Flags", SqlDbType.TinyInt).Value = snapshot.Flags;
+        command.Parameters.Add("@CreateTime", SqlDbType.DateTime).Value = snapshot.InternalDate;
+        command.Parameters.Add("@Uid", SqlDbType.BigInt).Value = snapshot.Uid;
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected == 1;
+    }
     public async ValueTask<long> InsertMessageAsync(
         int accountId,
         int folderId,

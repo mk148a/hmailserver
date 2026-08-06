@@ -439,6 +439,59 @@ Body
         Assert.AreEqual(1, messages.Count);
         Assert.AreEqual(1, draft.ID);
     }
+    [TestMethod]
+    public void ExistingRowSave_PersistsStagedFromAndReplacesCollectionSnapshot()
+    {
+        MessageAdministrationSnapshot? updated = null;
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            new[] { Snapshot(10, 100, 20, "one.eml", 2, "one@example.test", 1024, 0, 0, Date(2026, 1, 1), 1) },
+            accountId: 100,
+            folderId: 20,
+            insert: _ => 11,
+            update: message =>
+            {
+                updated = message;
+                return true;
+            });
+
+        var existing = messages[0];
+        existing.From = "sender@example.test";
+        existing.Save();
+
+        Assert.IsNotNull(updated);
+        Assert.AreEqual(10, updated.Id);
+        Assert.AreEqual(100, updated.AccountId);
+        Assert.AreEqual(20, updated.FolderId);
+        Assert.AreEqual("sender@example.test", updated.FromAddress);
+        Assert.AreEqual("sender@example.test", messages.get_ItemByDBID(10).FromAddress);
+    }
+
+    [TestMethod]
+    public void FailedUpdate_MapsToEFailAndRetainsStagedStateWithoutReplacingSnapshot()
+    {
+        var failUpdate = true;
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            new[] { Snapshot(10, 100, 20, "one.eml", 2, "one@example.test", 1024, 0, 0, Date(2026, 1, 1), 1) },
+            accountId: 100,
+            folderId: 20,
+            update: _ => failUpdate
+                ? throw new InvalidOperationException("Simulated store failure.")
+                : true);
+
+        var existing = messages[0];
+        existing.From = "changed@example.test";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
+        Assert.AreEqual("one@example.test", messages[0].FromAddress);
+
+        failUpdate = false;
+        existing.From = "other@example.test";
+        existing.Save();
+
+        Assert.AreEqual("other@example.test", messages[0].FromAddress);
+    }
     private static MessageAdministrationSnapshot Snapshot(
         long id,
         int accountId,

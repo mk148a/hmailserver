@@ -16,4 +16,11 @@ public interface IMessageAdministrationStore
         MessageAdministrationSnapshot snapshot,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Message insertion is not available in this store.");
+
+    ValueTask<bool> UpdateMessageAsync(
+        int accountId,
+        int folderId,
+        MessageAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Message update is not available in this store.");
 }
