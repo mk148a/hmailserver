@@ -363,7 +363,7 @@ public sealed class RulesComContractTests
     }
 
     [TestMethod]
-    public void ExistingRowSaveAndSetters_RemainNotImplementedUntilUpdateParity()
+    public void ExistingRowSave_RemainsNotImplementedUntilUpdateDelegate()
     {
         IInterfaceRules rules = Rules.CreateAuthorized(
             new[] { new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1) },
@@ -371,11 +371,85 @@ public sealed class RulesComContractTests
             insert: _ => 11);
 
         var existing = rules[0];
-        var pendingSetter = Assert.ThrowsExactly<COMException>(() => existing.Name = "changed");
         var pendingSave = Assert.ThrowsExactly<COMException>(existing.Save);
 
-        Assert.AreEqual(unchecked((int)0x80004001), pendingSetter.ErrorCode);
         Assert.AreEqual(unchecked((int)0x80004001), pendingSave.ErrorCode);
+        Assert.AreEqual("First rule", rules[0].Name);
+    }
+
+    [TestMethod]
+    public void ExistingRowSave_PersistsStagedSettersAndReplacesGenerationSnapshot()
+    {
+        var updates = new List<RuleAdministrationSnapshot>();
+        IInterfaceRules rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1) },
+            accountId: 100,
+            insert: _ => 11,
+            update: rule =>
+            {
+                updates.Add(rule);
+                return true;
+            });
+
+        var existing = rules[0];
+        existing.Name = "Renamed rule";
+        existing.Active = false;
+        existing.UseAND = false;
+
+        existing.Save();
+
+        Assert.AreEqual(1, updates.Count);
+        var persisted = updates[0];
+        Assert.AreEqual(10, persisted.Id);
+        Assert.AreEqual(100, persisted.AccountId);
+        Assert.AreEqual("Renamed rule", persisted.Name);
+        Assert.IsFalse(persisted.Active);
+        Assert.IsFalse(persisted.UseAnd);
+        Assert.AreEqual(1, persisted.SortOrder);
+        Assert.AreEqual("Renamed rule", rules[0].Name);
+    }
+
+    [TestMethod]
+    public void FailedUpdate_MapsToEFailAndRetainsStagedStateWithoutReplacingSnapshot()
+    {
+        var failUpdate = true;
+        IInterfaceRules rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1) },
+            accountId: 100,
+            update: _ => failUpdate
+                ? throw new InvalidOperationException("Simulated store failure.")
+                : true);
+
+        var existing = rules[0];
+        existing.Name = "changed";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
+        Assert.AreEqual("First rule", rules[0].Name);
+
+        existing.Name = "other";
+        failUpdate = false;
+        existing.Save();
+
+        Assert.AreEqual("other", rules[0].Name);
+    }
+
+    [TestMethod]
+    public void UnknownIdUpdate_MapsToEFailWhenStoreReportsNoAffectedRow()
+    {
+        IInterfaceRules rules = Rules.CreateAuthorized(
+            new[] { new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1) },
+            accountId: 100,
+            update: _ => false);
+
+        var existing = rules[0];
+        existing.Name = "changed";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
+        Assert.AreEqual("First rule", rules[0].Name);
     }
     private static void AssertRule(
         IInterfaceRule rule,

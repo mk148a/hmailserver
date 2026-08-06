@@ -77,6 +77,16 @@ SELECT @Deleted;
         VALUES
             (@AccountID, @Name, @Active, @UseAnd, @SortOrder);
         """;
+
+    public const string UpdateRuleSql = """
+        UPDATE hm_rules
+        SET ruleaccountid = @AccountID,
+            rulename = @Name,
+            ruleactive = @Active,
+            ruleuseand = @UseAnd,
+            rulesortorder = @SortOrder
+        WHERE ruleid = @RuleId AND ruleaccountid = @AccountID;
+        """;
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRuleAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -169,6 +179,23 @@ SELECT @Deleted;
         command.Parameters.Add("@SortOrder", SqlDbType.Int).Value = rule.SortOrder;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+    public async ValueTask<bool> UpdateRuleAsync(
+        int accountId,
+        RuleAdministrationSnapshot rule,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateRuleSql, connection);
+        command.Parameters.Add("@RuleId", SqlDbType.Int).Value = rule.Id;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@Name", SqlDbType.NVarChar, 100).Value = rule.Name;
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = rule.Active ? 1 : 0;
+        command.Parameters.Add("@UseAnd", SqlDbType.TinyInt).Value = rule.UseAnd ? 1 : 0;
+        command.Parameters.Add("@SortOrder", SqlDbType.Int).Value = rule.SortOrder;
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected == 1;
     }
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
         Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) != 0;

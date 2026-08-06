@@ -17,4 +17,10 @@ public interface IRuleAdministrationStore
         RuleAdministrationSnapshot snapshot,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Rule insertion is not available in this store.");
+
+    ValueTask<bool> UpdateRuleAsync(
+        int accountId,
+        RuleAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Rule update is not available in this store.");
 }

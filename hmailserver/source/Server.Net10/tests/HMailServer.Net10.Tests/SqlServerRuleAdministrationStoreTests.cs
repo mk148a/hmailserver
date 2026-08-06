@@ -86,4 +86,18 @@ public sealed class SqlServerRuleAdministrationStoreTests
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+    [TestMethod]
+    public void UpdateRuleSql_UsesLegacyRuleTableColumnsAndOwnerScopedIdentityPredicate()
+    {
+        var sql = SqlServerRuleAdministrationStore.UpdateRuleSql;
+        StringAssert.Contains(sql, "UPDATE hm_rules");
+        StringAssert.Contains(sql, "ruleaccountid = @AccountID");
+        StringAssert.Contains(sql, "rulename = @Name");
+        StringAssert.Contains(sql, "ruleactive = @Active");
+        StringAssert.Contains(sql, "ruleuseand = @UseAnd");
+        StringAssert.Contains(sql, "rulesortorder = @SortOrder");
+        StringAssert.Contains(sql, "WHERE ruleid = @RuleId AND ruleaccountid = @AccountID");
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
 }
