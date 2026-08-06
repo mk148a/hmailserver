@@ -1,13 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-06T19:00:20Z
-- Local timestamp: 2026-08-06T22:00:20+03:00
+- UTC timestamp: 2026-08-06T19:05:56Z
+- Local timestamp: 2026-08-06T22:05:56+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `887521659`
+- Current HEAD: `9e2d44daf`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: `BackupRestoreMetadataWriterTests` `2 passed, 0 failed` (restore replays domains through the admin store; partial failure invokes rollback and rethrows)
-- Latest full Net10 result: `1858 passed, 0 failed, 12 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
-- Current bounded slice: first restore-execution seam, code/test commit `887521659`; `BackupRestoreMetadataWriter.RestoreDomainsAsync` replays a domain snapshot batch through `IDomainAdministrationStore.InsertDomainAsync` inside `BackupRestoreTransactionBoundary` so a mid-batch failure invokes the caller rollback and leaves no partial commit
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection SQL evidence; first transactional restore writer
-- Open (environment-gated or large): the archive→snapshot parsing and full restore round-trip (restore executes into temp DB/Data), upgrade rollback, protocol acceptance, real COM activation, SEC-18, live performance, installer/release artifacts
+- Latest focused-test result: restore XML parser + writer `4 passed, 0 failed` (legacy domain XML attributes → snapshot; snapshot batch → transactional restore into the admin store)
+- Latest full Net10 result: `1860 passed, 0 failed, 12 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: backup archive XML→snapshot parser with restore wiring, code/test commit `9e2d44daf`; `BackupArchiveXmlSnapshotParser.ParseDomains` reads the legacy `<Domain>` attribute set (Name/Postmaster/Active/AntiSpamOptions/LimitationsEnabled/…), and the parsed snapshots feed `BackupRestoreMetadataWriter` for transactional restore
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection SQL evidence; transactional restore writer + archive-XML parser
+- Open (environment-gated or large): account/alias/distribution-list XML parsing and full restore round-trip into temp DB/Data, upgrade rollback, protocol acceptance, real COM activation, SEC-18, live performance, installer/release artifacts
 - Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime
-- Next three slices: wire archive XML→snapshot restore for domains/accounts (the remainder of the round-trip); then upgrade rollback evidence; then live protocol acceptance harness
+- Next three slices: account/alias/distribution-list XML parsing to complete the restore payload; then full restore round-trip into temp DB/Data; then upgrade rollback evidence
