@@ -93,6 +93,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
     private readonly Func<TcpIpPortAdministrationSnapshot, int>? _insert;
     private readonly Action<int>? _deleteById;
     private readonly Action<TcpIpPortAdministrationSnapshot>? _update;
+    private readonly Action? _deleteAll;
     private readonly Func<bool>? _isServerAdministrator;
 
     public TCPIPPorts()
@@ -105,6 +106,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         Func<TcpIpPortAdministrationSnapshot, int>? insert,
         Action<int>? deleteById,
         Action<TcpIpPortAdministrationSnapshot>? update,
+        Action? deleteAll,
         Func<bool>? isServerAdministrator)
     {
         _ports = ports.ToArray();
@@ -112,6 +114,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         _insert = insert;
         _deleteById = deleteById;
         _update = update;
+        _deleteAll = deleteAll;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -123,10 +126,11 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         Func<TcpIpPortAdministrationSnapshot, int>? insert = null,
         Action<int>? deleteById = null,
         Action<TcpIpPortAdministrationSnapshot>? update = null,
+        Action? deleteAll = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(ports);
-        return new TCPIPPorts(ports, reload, insert, deleteById, update, isServerAdministrator);
+        return new TCPIPPorts(ports, reload, insert, deleteById, update, deleteAll, isServerAdministrator);
     }
 
     public IInterfaceTCPIPPort this[int index]
@@ -294,7 +298,74 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         }
     }
 
-    public void SetDefault() => Unavailable();
+        public void SetDefault()
+    {
+        EnsureServerAdministrator();
+        var ports = GetPorts();
+        if (IsDefaultPorts(ports))
+        {
+            return;
+        }
+
+        if (_deleteAll is null || _insert is null || _reload is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _deleteAll();
+            InsertDefaultPorts();
+            Volatile.Write(ref _ports, _reload().ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to reset the TCP/IP ports to their defaults.",
+                EFail);
+        }
+    }
+
+    private static bool IsDefaultPorts(IReadOnlyList<TcpIpPortAdministrationSnapshot> ports) =>
+        ports.Count == 4
+        && IsDefaultPort(ports, 0, 25, (int)ComSessionType.Smtp)
+        && IsDefaultPort(ports, 1, 110, (int)ComSessionType.Pop3)
+        && IsDefaultPort(ports, 2, 143, (int)ComSessionType.Imap)
+        && IsDefaultPort(ports, 3, 587, (int)ComSessionType.Smtp);
+
+    private static bool IsDefaultPort(
+        IReadOnlyList<TcpIpPortAdministrationSnapshot> ports,
+        int index,
+        int portNumber,
+        int protocol) =>
+        ports[index].PortNumber == portNumber
+        && ports[index].Protocol == protocol
+        && ports[index].ConnectionSecurity == (int)ComConnectionSecurity.None
+        && ports[index].Address == "0.0.0.0";
+
+    private void InsertDefaultPorts()
+    {
+        var defaults = new[]
+        {
+            (Protocol: (int)ComSessionType.Smtp, Port: 25),
+            (Protocol: (int)ComSessionType.Pop3, Port: 110),
+            (Protocol: (int)ComSessionType.Imap, Port: 143),
+            (Protocol: (int)ComSessionType.Smtp, Port: 587)
+        };
+
+        foreach (var item in defaults)
+        {
+            _insert!(
+                new TcpIpPortAdministrationSnapshot(
+                    Id: 0,
+                    Protocol: item.Protocol,
+                    PortNumber: item.Port,
+                    Address: "0.0.0.0",
+                    ConnectionSecurity: (int)ComConnectionSecurity.None,
+                    SslCertificateId: 0));
+        }
+    }
 
     private IReadOnlyList<TcpIpPortAdministrationSnapshot> GetPorts()
     {
@@ -521,12 +592,19 @@ public static class TcpIpPortAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        void DeleteAllPorts() => store
+            .DeleteAllTcpIpPortsAsync(CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return TCPIPPorts.CreateAuthorized(
             LoadPorts(),
             LoadPorts,
             InsertPort,
             DeletePort,
             UpdatePort,
+            DeleteAllPorts,
             isServerAdministrator);
     }
 }

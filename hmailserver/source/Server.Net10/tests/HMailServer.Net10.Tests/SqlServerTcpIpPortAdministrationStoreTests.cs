@@ -72,4 +72,13 @@ public sealed class SqlServerTcpIpPortAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
     }
+    [TestMethod]
+    public void DeleteAllTcpIpPortsSql_RemovesEveryPort()
+    {
+        var sql = SqlServerTcpIpPortAdministrationStore.DeleteAllTcpIpPortsSql;
+        StringAssert.Contains(sql, "DELETE FROM hm_tcpipports");
+        Assert.IsFalse(sql.Contains("WHERE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

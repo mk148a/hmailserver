@@ -424,6 +424,99 @@ public sealed class TcpIpPortsComContractTests
         Assert.AreEqual(1, store.UpdatedPorts.Count);
     }
 
+    [TestMethod]
+    public void SetDefault_NoOpsWhenPortsAlreadyMatchLegacyDefaults()
+    {
+        var deleteAllCalls = 0;
+        var insertCalls = 0;
+        IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
+            new[]
+            {
+                Snapshot(1, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0),
+                Snapshot(2, ComSessionType.Pop3, 110, "0.0.0.0", ComConnectionSecurity.None, 0),
+                Snapshot(3, ComSessionType.Imap, 143, "0.0.0.0", ComConnectionSecurity.None, 0),
+                Snapshot(4, ComSessionType.Smtp, 587, "0.0.0.0", ComConnectionSecurity.None, 0)
+            },
+            insert: _ =>
+            {
+                insertCalls++;
+                return insertCalls;
+            },
+            deleteAll: () => deleteAllCalls++);
+
+        ports.SetDefault();
+
+        Assert.AreEqual(0, deleteAllCalls);
+        Assert.AreEqual(0, insertCalls);
+        Assert.AreEqual(4, ports.Count);
+    }
+
+    [TestMethod]
+    public void SetDefault_ResetsNonDefaultPortsToLegacyDefaults()
+    {
+        var deleteAllCalls = 0;
+        var inserted = new List<TcpIpPortAdministrationSnapshot>();
+        var nextId = 100;
+        IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
+            new[] { Snapshot(10, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.StartTlsRequired, 0) },
+            reload: () => new[]
+            {
+                new TcpIpPortAdministrationSnapshot(100, (int)ComSessionType.Smtp, 25, "0.0.0.0", 0, 0),
+                new TcpIpPortAdministrationSnapshot(101, (int)ComSessionType.Pop3, 110, "0.0.0.0", 0, 0),
+                new TcpIpPortAdministrationSnapshot(102, (int)ComSessionType.Imap, 143, "0.0.0.0", 0, 0),
+                new TcpIpPortAdministrationSnapshot(103, (int)ComSessionType.Smtp, 587, "0.0.0.0", 0, 0)
+            },
+            insert: port =>
+            {
+                inserted.Add(port);
+                return ++nextId;
+            },
+            deleteAll: () => deleteAllCalls++);
+
+        ports.SetDefault();
+
+        Assert.AreEqual(1, deleteAllCalls);
+        Assert.AreEqual(4, inserted.Count);
+        CollectionAssert.AreEqual(
+            new[] { (int)ComSessionType.Smtp, (int)ComSessionType.Pop3, (int)ComSessionType.Imap, (int)ComSessionType.Smtp },
+            inserted.Select(port => port.Protocol).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { 25, 110, 143, 587 },
+            inserted.Select(port => port.PortNumber).ToArray());
+        Assert.IsTrue(inserted.All(port => port.Address == "0.0.0.0"));
+        Assert.IsTrue(inserted.All(port => port.ConnectionSecurity == (int)ComConnectionSecurity.None));
+        Assert.AreEqual(4, ports.Count);
+        Assert.AreEqual(25, ports[0].PortNumber);
+    }
+
+    [TestMethod]
+    public void SetDefault_MapsStoreFailureToEFailAndRetainsSnapshot()
+    {
+        IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
+            new[] { Snapshot(10, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.None, 0) },
+            reload: () => throw new InvalidOperationException("Simulated store failure."),
+            insert: _ => 1,
+            deleteAll: () => { });
+
+        var failure = Assert.ThrowsExactly<COMException>(ports.SetDefault);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failure.ErrorCode);
+        Assert.AreEqual(1, ports.Count);
+    }
+
+    [TestMethod]
+    public void SetDefault_RechecksLiveServerAdministrator()
+    {
+        var authenticated = true;
+        IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
+            new[] { Snapshot(10, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.None, 0) },
+            isServerAdministrator: () => authenticated);
+
+        authenticated = false;
+        var denied = Assert.ThrowsExactly<COMException>(ports.SetDefault);
+
+        Assert.AreEqual(unchecked((int)0x80070005), denied.ErrorCode);
+    }
     private static TcpIpPortAdministrationSnapshot Snapshot(
         int id,
         ComSessionType protocol,

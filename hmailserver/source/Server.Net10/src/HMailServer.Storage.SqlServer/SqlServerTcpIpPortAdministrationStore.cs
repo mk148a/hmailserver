@@ -44,6 +44,9 @@ SET portprotocol = @protocol,
 WHERE portid = @id;
 """;
 
+    public const string DeleteAllTcpIpPortsSql = """
+        DELETE FROM hm_tcpipports;
+        """;
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerTcpIpPortAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -85,6 +88,12 @@ WHERE portid = @id;
         return ports;
     }
 
+    public async ValueTask DeleteAllTcpIpPortsAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteAllTcpIpPortsSql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
     public async ValueTask<int> InsertTcpIpPortAsync(
         TcpIpPortAdministrationSnapshot port,
         CancellationToken cancellationToken)

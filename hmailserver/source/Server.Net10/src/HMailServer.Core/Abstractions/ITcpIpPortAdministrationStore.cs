@@ -19,4 +19,7 @@ public interface ITcpIpPortAdministrationStore
         TcpIpPortAdministrationSnapshot port,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("TCP/IP port updates are not implemented by this store.");
+
+    ValueTask DeleteAllTcpIpPortsAsync(CancellationToken cancellationToken) =>
+        throw new NotSupportedException("TCP/IP port reset is not implemented by this store.");
 }
