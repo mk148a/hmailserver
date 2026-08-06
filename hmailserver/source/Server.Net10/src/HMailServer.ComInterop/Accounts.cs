@@ -50,6 +50,8 @@ public sealed class Accounts : IInterfaceAccounts
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private AccountAdministrationEntry[]? _accounts;
+    private readonly int _domainId;
+    private readonly Func<AccountAdministrationSnapshot, string, int>? _insert;
     private readonly Func<IReadOnlyList<AccountAdministrationSnapshot>>? _reload;
     private readonly AccountSizeInvalidator? _accountSizeInvalidator;
     private readonly Func<int, AccountAdministrationSnapshot?>? _accountSizeReadback;
@@ -63,11 +65,15 @@ public sealed class Accounts : IInterfaceAccounts
     private Accounts(
         IReadOnlyList<AccountAdministrationSnapshot> accounts,
         Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload,
+        int domainId,
+        Func<AccountAdministrationSnapshot, string, int>? insert,
         Func<bool>? isAuthenticated,
         AccountSizeInvalidator? accountSizeInvalidator,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback)
     {
         _accounts = CreateEntries(accounts);
+        _domainId = domainId;
+        _insert = insert;
         _reload = reload;
         _accountSizeInvalidator = accountSizeInvalidator;
         _accountSizeReadback = accountSizeReadback;
@@ -83,6 +89,8 @@ public sealed class Accounts : IInterfaceAccounts
     internal static Accounts CreateAuthorized(
         IReadOnlyList<AccountAdministrationSnapshot> accounts,
         Func<IReadOnlyList<AccountAdministrationSnapshot>>? reload = null,
+        int domainId = 0,
+        Func<AccountAdministrationSnapshot, string, int>? insert = null,
         Func<bool>? isAuthenticated = null,
         AccountSizeInvalidator? accountSizeInvalidator = null,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null)
@@ -91,6 +99,8 @@ public sealed class Accounts : IInterfaceAccounts
         return new Accounts(
             accounts,
             reload,
+            domainId,
+            insert,
             isAuthenticated,
             accountSizeInvalidator,
             accountSizeReadback);
@@ -117,7 +127,61 @@ public sealed class Accounts : IInterfaceAccounts
         }
     }
 
-    public IInterfaceAccount Add() => Unavailable<IInterfaceAccount>();
+        public IInterfaceAccount Add()
+    {
+        _ = GetAccounts();
+        if (_insert is null)
+        {
+            return Unavailable<IInterfaceAccount>();
+        }
+
+        return Account.CreateAuthorizedDraft(
+            string.Empty,
+            ComAdminLevel.Normal,
+            _domainId,
+            SaveAccount,
+            _isAuthenticated);
+    }
+
+    private int SaveAccount(AccountAdministrationSnapshot account, string password)
+    {
+        var accounts = GetAccounts();
+        if (_insert is null)
+        {
+            Unavailable();
+            return 0;
+        }
+
+        try
+        {
+            var insertedId = _insert(account, password);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The account insert did not return a valid generated identity.");
+            }
+
+            var saved = account with { Id = insertedId };
+            var entry = new AccountAdministrationEntry(
+                saved,
+                RuleAdministrationRuntimeHost.CreateAuthorizedState(insertedId),
+                MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(insertedId),
+                ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(insertedId));
+            Volatile.Write(ref _accounts, accounts.Append(entry).ToArray());
+            _accountSizeInvalidator?.Register(_accountSizeRegistrationOwner, insertedId);
+            return insertedId;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the account to the database.",
+                EFail);
+        }
+    }
 
     public void Delete(int index) => Unavailable();
 
@@ -260,9 +324,17 @@ public static class AccountAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        int InsertAccount(AccountAdministrationSnapshot account, string password) => store
+            .InsertAccountAsync(domainId, account, password, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return Accounts.CreateAuthorized(
             LoadAccounts(),
             LoadAccounts,
+            domainId,
+            InsertAccount,
             isAuthenticated,
             _accountSizeInvalidator,
             ReadAccount);

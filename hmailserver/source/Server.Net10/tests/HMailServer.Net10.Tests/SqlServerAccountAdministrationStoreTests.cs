@@ -105,4 +105,52 @@ public sealed class SqlServerAccountAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("messagefilename", StringComparison.OrdinalIgnoreCase));
     }
+    [TestMethod]
+    public void InsertAccountSql_UsesLegacyAccountTableColumnsAndIdentityOutput()
+    {
+        var sql = SqlServerAccountAdministrationStore.InsertAccountSql;
+        StringAssert.Contains(sql, "INSERT INTO hm_accounts");
+        foreach (var column in new[]
+        {
+            "accountdomainid",
+            "accountaddress",
+            "accountpassword",
+            "accountactive",
+            "accountisad",
+            "accountaddomain",
+            "accountadusername",
+            "accountmaxsize",
+            "accountvacationmessageon",
+            "accountvacationmessage",
+            "accountvacationsubject",
+            "accountvacationexpires",
+            "accountvacationexpiredate",
+            "accountvacationabortspamflagged",
+            "accountpwencryption",
+            "accountadminlevel",
+            "accountforwardenabled",
+            "accountforwardaddress",
+            "accountforwardkeeporiginal",
+            "accountforwardabortspamflagged",
+            "accountenablesignature",
+            "accountsignatureplaintext",
+            "accountsignaturehtml",
+            "accountlastlogontime",
+            "accountpersonfirstname",
+            "accountpersonlastname"
+        })
+        {
+            StringAssert.Contains(sql, column);
+        }
+
+        StringAssert.Contains(sql, "OUTPUT INSERTED.accountid");
+        StringAssert.Contains(sql, "@Address");
+        StringAssert.Contains(sql, "@Password");
+        StringAssert.Contains(sql, "@PasswordEncryption");
+        StringAssert.Contains(sql, "@AdminLevel");
+        StringAssert.Contains(sql, "@LastLogonTime");
+        Assert.IsFalse(sql.Contains("WHERE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

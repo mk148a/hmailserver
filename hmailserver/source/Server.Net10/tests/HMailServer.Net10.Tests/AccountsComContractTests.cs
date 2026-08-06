@@ -659,6 +659,109 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(1, folderStore.ReadCount);
     }
 
+    [TestMethod]
+    public void AddStagesDraftAndSavePublishesInsertedIdentity()
+    {
+        AccountAdministrationSnapshot? inserted = null;
+        string? insertedPassword = null;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[] { new AccountAdministrationSnapshot(10, 100, "alpha@example.test", true, 2) },
+            domainId: 100,
+            insert: (account, password) =>
+            {
+                inserted = account;
+                insertedPassword = password;
+                return 20;
+            });
+
+        var draft = accounts.Add();
+
+        Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(string.Empty, draft.Address);
+        Assert.AreEqual(100, draft.DomainID);
+        Assert.AreEqual(ComAdminLevel.Normal, draft.AdminLevel);
+        Assert.IsFalse(draft.Active);
+
+        draft.Address = "beta@example.test";
+        draft.Password = "secret";
+        draft.Active = true;
+        draft.AdminLevel = ComAdminLevel.DomainAdministrator;
+        draft.MaxSize = 1024;
+        draft.VacationMessageIsOn = true;
+        draft.VacationMessage = "away";
+        draft.ForwardEnabled = true;
+        draft.ForwardAddress = "fwd@example.test";
+        draft.SignatureEnabled = true;
+        draft.SignaturePlainText = "sig";
+
+        Assert.AreEqual(1, accounts.Count);
+        draft.Save();
+
+        Assert.AreEqual(2, accounts.Count);
+        Assert.AreEqual(20, draft.ID);
+        Assert.IsNotNull(inserted);
+        Assert.AreEqual(0, inserted.Id);
+        Assert.AreEqual(100, inserted.DomainId);
+        Assert.AreEqual("beta@example.test", inserted.Address);
+        Assert.IsTrue(inserted.Active);
+        Assert.AreEqual((int)ComAdminLevel.DomainAdministrator, inserted.AdminLevel);
+        Assert.AreEqual(1024, inserted.MaxSize);
+        Assert.IsTrue(inserted.VacationMessageIsOn);
+        Assert.IsTrue(inserted.ForwardEnabled);
+        Assert.IsTrue(inserted.SignatureEnabled);
+        Assert.AreEqual("secret", insertedPassword);
+        Assert.AreEqual("beta@example.test", accounts.get_ItemByDBID(20).Address);
+    }
+
+    [TestMethod]
+    public void FailedInsert_MapsToEFailAndRetainsDraftWithoutPublishing()
+    {
+        var fail = true;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            Array.Empty<AccountAdministrationSnapshot>(),
+            domainId: 100,
+            insert: (_, _) => fail
+                ? throw new InvalidOperationException("Simulated store failure.")
+                : 1);
+
+        var draft = accounts.Add();
+        draft.Address = "beta@example.test";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
+        Assert.AreEqual(0, accounts.Count);
+        Assert.AreEqual(0, draft.ID);
+
+        draft.Address = "gamma@example.test";
+        fail = false;
+        draft.Save();
+
+        Assert.AreEqual(1, accounts.Count);
+        Assert.AreEqual(1, draft.ID);
+        Assert.AreEqual("gamma@example.test", accounts.get_ItemByDBID(1).Address);
+    }
+
+    [TestMethod]
+    public void AddAndSave_RecheckLiveAuthentication()
+    {
+        var authenticated = true;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            new[] { new AccountAdministrationSnapshot(10, 100, "alpha@example.test", true, 2) },
+            domainId: 100,
+            insert: (_, _) => 11,
+            isAuthenticated: () => authenticated);
+
+        var draft = accounts.Add();
+        draft.Address = "beta@example.test";
+        authenticated = false;
+
+        var deniedAdd = Assert.ThrowsExactly<COMException>(() => accounts.Add());
+        var deniedSave = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(unchecked((int)0x80070005), deniedAdd.ErrorCode);
+        Assert.AreEqual(unchecked((int)0x80070005), deniedSave.ErrorCode);
+    }
     private static void AssertAccount(
         IInterfaceAccount account,
         int id,

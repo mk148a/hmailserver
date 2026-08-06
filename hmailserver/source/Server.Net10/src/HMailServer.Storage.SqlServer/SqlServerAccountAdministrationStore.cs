@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using HMailServer.Core.Abstractions;
+using HMailServer.Security;
 using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
@@ -121,7 +122,27 @@ WHERE accountdomainid = @DomainID
 ORDER BY accountaddress ASC;
 """;
 
-    private readonly SqlServerConnectionFactory _connectionFactory;
+    public const string InsertAccountSql = """
+        INSERT INTO hm_accounts
+            (accountdomainid, accountaddress, accountpassword, accountactive, accountisad,
+             accountaddomain, accountadusername, accountmaxsize, accountvacationmessageon,
+             accountvacationmessage, accountvacationsubject, accountvacationexpires,
+             accountvacationexpiredate, accountvacationabortspamflagged, accountpwencryption,
+             accountadminlevel, accountforwardenabled, accountforwardaddress,
+             accountforwardkeeporiginal, accountforwardabortspamflagged, accountenablesignature,
+             accountsignatureplaintext, accountsignaturehtml, accountlastlogontime,
+             accountpersonfirstname, accountpersonlastname)
+        OUTPUT INSERTED.accountid
+        VALUES
+            (@DomainID, @Address, @Password, @Active, @IsAD,
+             @ADDomain, @ADUsername, @MaxSize, @VacationMessageIsOn,
+             @VacationMessage, @VacationSubject, @VacationExpires,
+             @VacationExpiresDate, @VacationAbortSpamFlagged, @PasswordEncryption,
+             @AdminLevel, @ForwardEnabled, @ForwardAddress,
+             @ForwardKeepOriginal, @ForwardAbortSpamFlagged, @SignatureEnabled,
+             @SignaturePlainText, @SignatureHtml, @LastLogonTime,
+             @PersonFirstName, @PersonLastName);
+        """;    private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerAccountAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -129,6 +150,45 @@ ORDER BY accountaddress ASC;
         _connectionFactory = connectionFactory;
     }
 
+    public async ValueTask<int> InsertAccountAsync(
+        int domainId,
+        AccountAdministrationSnapshot account,
+        string password,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(InsertAccountSql, connection);
+        command.Parameters.Add("@DomainId", SqlDbType.Int).Value = domainId;
+        command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = account.Address;
+        command.Parameters.Add("@Password", SqlDbType.NVarChar, 255).Value =
+            LegacyBlowfishPasswordCipher.Encrypt(password);
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = account.Active ? 1 : 0;
+        command.Parameters.Add("@IsAD", SqlDbType.TinyInt).Value = account.IsActiveDirectoryAccount ? 1 : 0;
+        command.Parameters.Add("@ADDomain", SqlDbType.NVarChar, 255).Value = account.ActiveDirectoryDomain;
+        command.Parameters.Add("@ADUsername", SqlDbType.NVarChar, 255).Value = account.ActiveDirectoryUsername;
+        command.Parameters.Add("@MaxSize", SqlDbType.Int).Value = account.MaxSize;
+        command.Parameters.Add("@VacationMessageIsOn", SqlDbType.TinyInt).Value = account.VacationMessageIsOn ? 1 : 0;
+        command.Parameters.Add("@VacationMessage", SqlDbType.NVarChar, 1000).Value = account.VacationMessage;
+        command.Parameters.Add("@VacationSubject", SqlDbType.NVarChar, 200).Value = account.VacationSubject;
+        command.Parameters.Add("@VacationExpires", SqlDbType.TinyInt).Value = account.VacationMessageExpires ? 1 : 0;
+        command.Parameters.Add("@VacationExpiresDate", SqlDbType.NVarChar, 255).Value = account.VacationMessageExpiresDate;
+        command.Parameters.Add("@VacationAbortSpamFlagged", SqlDbType.TinyInt).Value = account.VacationMessageAbortSpamFlagged ? 1 : 0;
+        command.Parameters.Add("@PasswordEncryption", SqlDbType.TinyInt).Value = 1;
+        command.Parameters.Add("@AdminLevel", SqlDbType.TinyInt).Value = account.AdminLevel;
+        command.Parameters.Add("@ForwardEnabled", SqlDbType.TinyInt).Value = account.ForwardEnabled ? 1 : 0;
+        command.Parameters.Add("@ForwardAddress", SqlDbType.NVarChar, 255).Value = account.ForwardAddress;
+        command.Parameters.Add("@ForwardKeepOriginal", SqlDbType.TinyInt).Value = account.ForwardKeepOriginal ? 1 : 0;
+        command.Parameters.Add("@ForwardAbortSpamFlagged", SqlDbType.TinyInt).Value = account.ForwardAbortSpamFlagged ? 1 : 0;
+        command.Parameters.Add("@SignatureEnabled", SqlDbType.TinyInt).Value = account.SignatureEnabled ? 1 : 0;
+        command.Parameters.Add("@SignaturePlainText", SqlDbType.NVarChar, -1).Value = account.SignaturePlainText;
+        command.Parameters.Add("@SignatureHtml", SqlDbType.NVarChar, -1).Value = account.SignatureHtml;
+        command.Parameters.Add("@LastLogonTime", SqlDbType.DateTime).Value = account.LastLogonTime;
+        command.Parameters.Add("@PersonFirstName", SqlDbType.NVarChar, 60).Value = account.PersonFirstName;
+        command.Parameters.Add("@PersonLastName", SqlDbType.NVarChar, 60).Value = account.PersonLastName;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
     public async ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
         int domainId,
         CancellationToken cancellationToken)

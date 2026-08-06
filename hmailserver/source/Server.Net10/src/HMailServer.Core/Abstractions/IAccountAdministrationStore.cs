@@ -9,4 +9,11 @@ public interface IAccountAdministrationStore
     ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
         int accountId,
         CancellationToken cancellationToken);
+
+    ValueTask<int> InsertAccountAsync(
+        int domainId,
+        AccountAdministrationSnapshot snapshot,
+        string password,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Account insertion is not available in this store.");
 }

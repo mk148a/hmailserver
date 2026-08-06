@@ -43,13 +43,15 @@ public sealed class Account : IInterfaceAccount
     private bool _signatureEnabled;
     private string _signaturePlainText = string.Empty;
     private string _signatureHtml = string.Empty;
-    private readonly object _lastLogonTime = DateTime.Now;
+    private readonly object _lastLogonUpdate = DateTime.Now;
     private bool _vacationMessageExpires;
     private string _vacationMessageExpiresDate = string.Empty;
     private string _personFirstName = string.Empty;
     private string _personLastName = string.Empty;
     private bool _vacationMessageAbortSpamFlagged;
     private bool _forwardAbortSpamFlagged;
+    private int _id;
+    private readonly Func<AccountAdministrationSnapshot, string, int>? _save;
 
     public Account()
     {
@@ -58,13 +60,17 @@ public sealed class Account : IInterfaceAccount
     private Account(
         string address,
         ComAdminLevel adminLevel,
+        int domainId,
         RuleAdministrationState rulesState,
+        Func<AccountAdministrationSnapshot, string, int>? save,
         Func<bool>? isServerAdministrator)
     {
         _attached = true;
         _address = address;
         _adminLevel = adminLevel;
+        _domainId = domainId;
         _rulesState = rulesState;
+        _save = save;
         _isServerAdministrator = isServerAdministrator;
         _isAuthenticated = isServerAdministrator;
     }
@@ -109,7 +115,7 @@ public sealed class Account : IInterfaceAccount
         set => Write(() => _domainId = value);
     }
 
-    public int ID => _administrationSnapshot?.Id ?? Read(0);
+    public int ID => _administrationSnapshot?.Id ?? _id;
 
     public bool IsAD { get => _administrationSnapshot?.IsActiveDirectoryAccount ?? Read(_isActiveDirectoryAccount); set => Write(() => _isActiveDirectoryAccount = value); }
 
@@ -213,7 +219,7 @@ public sealed class Account : IInterfaceAccount
 
     public string SignatureHTML { get => _administrationSnapshot?.SignatureHtml ?? Read(_signatureHtml); set => Write(() => _signatureHtml = value); }
 
-    public object LastLogonTime => _administrationSnapshot?.LastLogonTime ?? Read(_lastLogonTime);
+    public object LastLogonTime => _administrationSnapshot?.LastLogonTime ?? Read(_lastLogonUpdate);
 
     public bool VacationMessageExpires { get => _administrationSnapshot?.VacationMessageExpires ?? Read(_vacationMessageExpires); set => Write(() => _vacationMessageExpires = value); }
 
@@ -231,7 +237,9 @@ public sealed class Account : IInterfaceAccount
         new(
             "Administrator",
             ComAdminLevel.ServerAdministrator,
+            0,
             RuleAdministrationRuntimeHost.CreateAuthorizedState(0),
+            save: null,
             isServerAdministrator);
 
     internal static Account CreateAuthorized(
@@ -288,7 +296,72 @@ public sealed class Account : IInterfaceAccount
             accountSizeInvalidator,
             accountSizeReadback);
 
-    public void Save() => NotImplemented();
+        internal static Account CreateAuthorizedDraft(
+        string address,
+        ComAdminLevel adminLevel,
+        int domainId,
+        Func<AccountAdministrationSnapshot, string, int> save,
+        Func<bool>? isServerAdministrator = null) =>
+        new(
+            address,
+            adminLevel,
+            domainId,
+            RuleAdministrationRuntimeHost.CreateAuthorizedState(0),
+            save,
+            isServerAdministrator);
+    public void Save()
+    {
+        EnsureAttached();
+        EnsureAuthenticated();
+        if (_administrationSnapshot is not null || _save is null)
+        {
+            NotImplemented();
+            return;
+        }
+
+        try
+        {
+            _id = _save(BuildDraftSnapshot(), _password);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the account to the database.",
+                EFail);
+        }
+    }
+
+    private AccountAdministrationSnapshot BuildDraftSnapshot() =>
+        new(
+            Id: 0,
+            DomainId: _domainId,
+            Address: _address,
+            Active: _active,
+            AdminLevel: (int)_adminLevel,
+            IsActiveDirectoryAccount: _isActiveDirectoryAccount,
+            ActiveDirectoryDomain: _activeDirectoryDomain,
+            ActiveDirectoryUsername: _activeDirectoryUsername,
+            MaxSize: _maxSize,
+            LastLogonTime: (DateTime)_lastLogonUpdate,
+            PersonFirstName: _personFirstName,
+            PersonLastName: _personLastName,
+            VacationMessageIsOn: _vacationMessageIsOn,
+            VacationMessage: _vacationMessage,
+            VacationSubject: _vacationSubject,
+            VacationMessageExpires: _vacationMessageExpires,
+            VacationMessageExpiresDate: _vacationMessageExpiresDate,
+            VacationMessageAbortSpamFlagged: _vacationMessageAbortSpamFlagged,
+            ForwardEnabled: _forwardEnabled,
+            ForwardAddress: _forwardAddress,
+            ForwardKeepOriginal: _forwardKeepOriginal,
+            ForwardAbortSpamFlagged: _forwardAbortSpamFlagged,
+            SignatureEnabled: _signatureEnabled,
+            SignaturePlainText: _signaturePlainText,
+            SignatureHtml: _signatureHtml);
 
     public void DeleteMessages() => NotImplemented();
 
