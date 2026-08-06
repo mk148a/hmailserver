@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-05, BACKUP PROJECTION SQL EVIDENCE)
+
+Isolated SQL backup-projection evidence is complete in code/test commit ``f8fa925f0``. The opt-in ``SqlServerBackupProjectionIntegrationTests`` fixture seeds a disposable LocalDB database (domain, account with BlowFish-encrypted password, rule) and proves the archive-feed seam: ``GetBackupAccountsAsync`` returns the account identity with ``Password`` decrypting to the original plaintext and ``PasswordEncryption=1``, ``GetBackupRulesAsync`` returns the seeded rule, and ``GetDomainsAsync`` returns the seeded domain. Live LocalDB evidence ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1856 passed, 0 failed, 12 opt-in skips`` (1868 total). Restore execution (writes into a temp DB/Data), upgrade rollback, and the full round-trip queue remain open. Next slice: full isolated backup/restore round-trip (restore execution into temp DB/Data).
+
 ## Current Completed Slice (2026-08-05, BENCHMARK ARTIFACT SEAM)
 
 Offline acceptance seam for the performance benchmark pack is complete in test-only commit ``bd168169d``. ``SyntheticBenchmarkArtifactWriterTests`` asserts the deterministic JSON/CSV/Markdown artifact serialization (``offline-imap-search-sort.json/.csv/.md``), including CSV header/value columns and Markdown p50/p95/correctness rows, so the offline 100k SEARCH/SORT harness has an automated regression check without running the heavy benchmark or a live server. Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1856 passed, 0 failed, 11 opt-in skips`` (1867 total). Next slice: isolated backup/restore round-trip + upgrade rollback evidence (temp DB/Data, disposable).

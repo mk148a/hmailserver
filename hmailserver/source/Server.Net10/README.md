@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``f8fa925f0`` adds isolated SQL backup-projection evidence. ``SqlServerBackupProjectionIntegrationTests`` seeds a disposable LocalDB database and proves ``GetBackupAccountsAsync`` (identity + BlowFish password round-trip + ``PasswordEncryption=1``), ``GetBackupRulesAsync``, and ``GetDomainsAsync``. Live LocalDB ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1856 passed, 0 failed, 12 opt-in skips`` (1868 total). Next slice: full isolated backup/restore round-trip (restore execution into temp DB/Data).
+
+
 Test-only commit ``bd168169d`` adds an offline acceptance seam for the performance benchmark pack via ``SyntheticBenchmarkArtifactWriterTests``, asserting the deterministic JSON/CSV/Markdown artifact serialization without running the heavy benchmark or a live server. Focused ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1856 passed, 0 failed, 11 opt-in skips`` (1867 total). Next slice: isolated backup/restore round-trip + upgrade rollback evidence (temp DB/Data, disposable).
 
 

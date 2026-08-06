@@ -1,12 +1,14 @@
 # Current State
-- UTC timestamp: 2026-08-06T18:46:43Z
-- Local timestamp: 2026-08-06T21:46:43+03:00
+- UTC timestamp: 2026-08-06T18:54:29Z
+- Local timestamp: 2026-08-06T21:54:29+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `bd168169d`
+- Current HEAD: `f8fa925f0`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: `SyntheticBenchmarkArtifactWriterTests` `1 passed, 0 failed`; full suite `1856 passed, 0 failed, 11 skipped` (1867 total) excluding two AV-locked EICAR cleanup methods
-- Current bounded slice: offline acceptance seam for the performance benchmark pack — regression test asserting the JSON/CSV/Markdown artifact serialization (deterministic CSV columns/values, Markdown p50/p95 rows, JSON Scenario) for `offline-imap-search-sort`; commit `bd168169d`
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity (Settings Routes/Rules/Groups/accounts/domains/messages + recipient/dir-list/greyname/DNSBL/SURBL whitelist/securityranges/AAF etc.), live SQL-LocalDB identity/readback+rollback evidence, WebAdmin POST/(existing CSRF) + AJAX scanner CSRF, SSRF guard for COM scanner tests, and offline 100k SEARCH/SORT benchmark artifacts
-- Open doors (environment-gated): real COM activation (registry/COM registration fenced), SEC-18, live protocol acceptance (SMTP/IMAP/POP3 running service), live performance evals (running service), backup/restore round trip + upgrade rollback (isolated DB), installer/release artifact gates
-- Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR scanner cleanup; disposable SQL/native-registry/PHP runtime opt-in
-- Next three slices: (a) isolated backup/restore round-trip + upgrade rollback evidence (temp DB/Data, disposable); (b) protocol acceptance harness (isolated in-process SMTP/IMAP session); (c) release/installer artifact gate
+- Latest focused-test result: backup-projection SQL `1 passed, 0 failed` live on LocalDB (account backup projection identity + BlowFish password round-trip + `PasswordEncryption`, rules projection, domain read)
+- Latest full Net10 result: `1856 passed, 0 failed, 12 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset); with the SQL connection set, previously skipped message-indexing opt-in fixtures run and surface `5` pre-existing failures unrelated to this slice
+- Opt-in tests passed/skipped/blocked: `8/12/0` (recipient, route, rule, domain, account, TCP/IP port, message-insert, and backup-projection SQL evidence ran live against disposable LocalDB)
+- Current bounded slice: isolated SQL backup-projection evidence, code/test commit `f8fa925f0`; proves the archive-feed SQL seam (`GetBackupAccountsAsync` with encrypted password, `GetBackupRulesAsync`, `GetDomainsAsync`) on a disposable LocalDB database
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact serialization seam; backup-projection SQL evidence
+- Open doors (environment-gated or large): real COM activation (registry), SEC-18, live protocol acceptance, live performance evals, full backup/restore round-trip execution (restore writes), upgrade rollback, installer/release artifacts
+- Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime
+- Next three slices: full isolated backup/restore round-trip (restore execution into temp DB/Data); then upgrade rollback evidence; then live protocol acceptance harness
