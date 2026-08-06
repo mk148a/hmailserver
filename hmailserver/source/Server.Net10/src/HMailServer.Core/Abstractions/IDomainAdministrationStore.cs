@@ -14,4 +14,9 @@ public interface IDomainAdministrationStore
         DomainAdministrationSnapshot snapshot,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Domain update is not available in this store.");
+
+    ValueTask<bool> DeleteDomainByIdAsync(
+        int domainId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Domain deletion is not available in this store.");
 }

@@ -451,6 +451,91 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
         Assert.AreEqual("alpha.example", domains[0].Name);
     }
+    [TestMethod]
+    public void DeleteByDBID_RemovesOnlyMatchingSnapshotAndTreatsUnknownAsNoOp()
+    {
+        var deletedIds = new List<int>();
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[]
+            {
+                new DomainAdministrationSnapshot(10, "alpha.example", true),
+                new DomainAdministrationSnapshot(20, "beta.example", false)
+            },
+            delete: domainId =>
+            {
+                deletedIds.Add(domainId);
+                return true;
+            });
+
+        domains.DeleteByDBID(10);
+
+        Assert.AreEqual(1, domains.Count);
+        Assert.AreEqual(20, domains[0].ID);
+        Assert.AreEqual(DispEBadIndex, Assert.ThrowsExactly<COMException>(() => domains.get_ItemByDBID(10)).ErrorCode);
+
+        domains.DeleteByDBID(999);
+        Assert.AreEqual(1, domains.Count);
+        CollectionAssert.AreEqual(new[] { 10 }, deletedIds);
+    }
+
+    [TestMethod]
+    public void FailedDelete_MapsToEFailAndRetainsSnapshot()
+    {
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            delete: _ => false);
+
+        var deleteFailure = Assert.ThrowsExactly<COMException>(() => domains.DeleteByDBID(10));
+
+        Assert.AreEqual(unchecked((int)0x80004005), deleteFailure.ErrorCode);
+        Assert.AreEqual(1, domains.Count);
+        Assert.AreEqual("alpha.example", domains[0].Name);
+    }
+
+    [TestMethod]
+    public void ItemDelete_RoutesThroughOwningCollectionAndRechecksAuthentication()
+    {
+        var deletedIds = new List<int>();
+        var authenticated = true;
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            delete: domainId =>
+            {
+                deletedIds.Add(domainId);
+                return true;
+            },
+            isAuthenticated: () => authenticated);
+
+        domains[0].Delete();
+
+        Assert.AreEqual(0, domains.Count);
+        CollectionAssert.AreEqual(new[] { 10 }, deletedIds);
+
+        var second = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(20, "beta.example", true) },
+            insert: _ => 30,
+            delete: _ => true,
+            isAuthenticated: () => authenticated);
+        var draft = second.Add();
+        draft.Delete();
+
+        authenticated = false;
+        var deniedDelete = Assert.ThrowsExactly<COMException>(() => second[0].Delete());
+        Assert.AreEqual(unchecked((int)0x80070005), deniedDelete.ErrorCode);
+    }
+
+    [TestMethod]
+    public void DeleteWithoutConfiguredDelegate_RemainsNotImplemented()
+    {
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) });
+
+        var pendingCollectionDelete = Assert.ThrowsExactly<COMException>(() => domains.DeleteByDBID(10));
+        var pendingItemDelete = Assert.ThrowsExactly<COMException>(domains[0].Delete);
+
+        Assert.AreEqual(unchecked((int)0x80004001), pendingCollectionDelete.ErrorCode);
+        Assert.AreEqual(unchecked((int)0x80004001), pendingItemDelete.ErrorCode);
+    }
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);

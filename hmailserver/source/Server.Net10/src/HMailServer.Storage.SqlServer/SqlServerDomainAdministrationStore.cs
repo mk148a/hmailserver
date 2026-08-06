@@ -106,6 +106,46 @@ ORDER BY domainname ASC;
             domaindkimprivatekeyfile = @DkimPrivateKeyFile
         WHERE domainid = @ID;
         """;
+
+    public const string DeleteDomainByIdSql = """
+        SET XACT_ABORT ON;
+        BEGIN TRANSACTION;
+
+        DECLARE @Deleted bit = 0;
+        IF EXISTS (SELECT 1 FROM hm_domains WITH (UPDLOCK, HOLDLOCK) WHERE domainid = @ID)
+        BEGIN
+            DELETE FROM hm_domain_aliases WHERE dadomainid = @ID;
+            DELETE FROM hm_distributionlistsrecipients
+                WHERE distributionlistrecipientlistid IN (
+                    SELECT distributionlistid FROM hm_distributionlists WHERE distributionlistdomainid = @ID);
+            DELETE FROM hm_distributionlists WHERE distributionlistdomainid = @ID;
+            DELETE FROM hm_aliases WHERE aliasdomainid = @ID;
+            DELETE FROM hm_rule_actions
+                WHERE actionruleid IN (
+                    SELECT ruleid FROM hm_rules
+                    WHERE ruleaccountid IN (SELECT accountid FROM hm_accounts WHERE accountdomainid = @ID));
+            DELETE FROM hm_rule_criterias
+                WHERE criteriaruleid IN (
+                    SELECT ruleid FROM hm_rules
+                    WHERE ruleaccountid IN (SELECT accountid FROM hm_accounts WHERE accountdomainid = @ID));
+            DELETE FROM hm_rules
+                WHERE ruleaccountid IN (SELECT accountid FROM hm_accounts WHERE accountdomainid = @ID);
+            DELETE FROM hm_messagerecipients
+                WHERE recipientmessageid IN (
+                    SELECT messageid FROM hm_messages
+                    WHERE messageaccountid IN (SELECT accountid FROM hm_accounts WHERE accountdomainid = @ID));
+            DELETE FROM hm_message_metadata
+                WHERE metadata_accountid IN (SELECT accountid FROM hm_accounts WHERE accountdomainid = @ID);
+            DELETE FROM hm_messages
+                WHERE messageaccountid IN (SELECT accountid FROM hm_accounts WHERE accountdomainid = @ID);
+            DELETE FROM hm_accounts WHERE accountdomainid = @ID;
+            DELETE FROM hm_domains WHERE domainid = @ID;
+            IF @@ROWCOUNT = 1 SET @Deleted = 1;
+        END;
+
+        IF @Deleted = 1 COMMIT TRANSACTION; ELSE ROLLBACK TRANSACTION;
+        SELECT @Deleted;
+        """;
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerDomainAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -114,6 +154,16 @@ ORDER BY domainname ASC;
         _connectionFactory = connectionFactory;
     }
 
+    public async ValueTask<bool> DeleteDomainByIdAsync(
+        int domainId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteDomainByIdSql, connection);
+        command.Parameters.Add("@ID", SqlDbType.Int).Value = domainId;
+        var deleted = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return deleted is not null && Convert.ToInt32(deleted, CultureInfo.InvariantCulture) != 0;
+    }
     public async ValueTask<bool> UpdateDomainAsync(
         DomainAdministrationSnapshot domain,
         CancellationToken cancellationToken)

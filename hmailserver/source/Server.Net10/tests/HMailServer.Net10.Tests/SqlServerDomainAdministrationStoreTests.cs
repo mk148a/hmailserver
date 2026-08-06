@@ -127,4 +127,21 @@ public sealed class SqlServerDomainAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+    [TestMethod]
+    public void DeleteDomainByIdSql_IsTransactionalAndCascadesLegacyDomainDependents()
+    {
+        var sql = SqlServerDomainAdministrationStore.DeleteDomainByIdSql;
+        StringAssert.Contains(sql, "DELETE FROM hm_domain_aliases WHERE dadomainid = @ID");
+        StringAssert.Contains(sql, "DELETE FROM hm_distributionlistsrecipients");
+        StringAssert.Contains(sql, "DELETE FROM hm_distributionlists WHERE distributionlistdomainid = @ID");
+        StringAssert.Contains(sql, "DELETE FROM hm_aliases WHERE aliasdomainid = @ID");
+        StringAssert.Contains(sql, "DELETE FROM hm_rules");
+        StringAssert.Contains(sql, "DELETE FROM hm_accounts WHERE accountdomainid = @ID");
+        StringAssert.Contains(sql, "DELETE FROM hm_domains WHERE domainid = @ID");
+        StringAssert.Contains(sql, "BEGIN TRANSACTION");
+        StringAssert.Contains(sql, "COMMIT TRANSACTION");
+        StringAssert.Contains(sql, "ROLLBACK TRANSACTION");
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

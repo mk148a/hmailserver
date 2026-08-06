@@ -310,6 +310,7 @@ public sealed class Domains : IInterfaceDomains
     private readonly Func<IReadOnlyList<DomainAdministrationSnapshot>>? _reload;
     private readonly Func<DomainAdministrationSnapshot, int>? _insert;
     private readonly Func<DomainAdministrationSnapshot, bool>? _update;
+    private readonly Func<int, bool>? _delete;
     private readonly Func<bool>? _isAuthenticated;
 
     public Domains()
@@ -321,12 +322,14 @@ public sealed class Domains : IInterfaceDomains
         Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload,
         Func<DomainAdministrationSnapshot, int>? insert,
         Func<DomainAdministrationSnapshot, bool>? update,
+        Func<int, bool>? delete,
         Func<bool>? isAuthenticated)
     {
         _domains = domains.ToArray();
         _reload = reload;
         _insert = insert;
         _update = update;
+        _delete = delete;
         _isAuthenticated = isAuthenticated;
     }
 
@@ -340,10 +343,11 @@ public sealed class Domains : IInterfaceDomains
         Func<IReadOnlyList<DomainAdministrationSnapshot>>? reload = null,
         Func<DomainAdministrationSnapshot, int>? insert = null,
         Func<DomainAdministrationSnapshot, bool>? update = null,
+        Func<int, bool>? delete = null,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(domains);
-        return new Domains(domains, reload, insert, update, isAuthenticated);
+        return new Domains(domains, reload, insert, update, delete, isAuthenticated);
     }
 
     public IInterfaceDomain this[int index]
@@ -356,7 +360,7 @@ public sealed class Domains : IInterfaceDomains
                 throw new COMException("Domain index was outside the collection.", DispEBadIndex);
             }
 
-            return Domain.CreateAuthorized(domains[index], _isAuthenticated, _insert is null && _update is null ? null : SaveDomain);
+            return Domain.CreateAuthorized(domains[index], _isAuthenticated, _insert is null && _update is null ? null : SaveDomain, delete: _delete is null ? null : DeleteDomain);
         }
     }
 
@@ -427,6 +431,7 @@ public sealed class Domains : IInterfaceDomains
                 DkimSigningAlgorithm: 2,
                 DkimSignAliasesEnabled: false),
             save: SaveDomain,
+            delete: _delete is null ? null : DeleteDomain,
             isAuthenticated: _isAuthenticated);
     }
 
@@ -437,7 +442,7 @@ public sealed class Domains : IInterfaceDomains
 
         return match is null
             ? throw new COMException("No domain with the specified name exists.", DispEBadIndex)
-            : Domain.CreateAuthorized(match, _isAuthenticated, _insert is null && _update is null ? null : SaveDomain);
+            : Domain.CreateAuthorized(match, _isAuthenticated, _insert is null && _update is null ? null : SaveDomain, delete: _delete is null ? null : DeleteDomain);
     }
 
     public IInterfaceDomain get_ItemByDBID(int databaseId)
@@ -446,10 +451,50 @@ public sealed class Domains : IInterfaceDomains
 
         return match is null
             ? throw new COMException("No domain with the specified database identifier exists.", DispEBadIndex)
-            : Domain.CreateAuthorized(match, _isAuthenticated, _insert is null && _update is null ? null : SaveDomain);
+            : Domain.CreateAuthorized(match, _isAuthenticated, _insert is null && _update is null ? null : SaveDomain, delete: _delete is null ? null : DeleteDomain);
     }
 
-    public void DeleteByDBID(int databaseId) => Unavailable();
+        public void DeleteByDBID(int databaseId)
+    {
+        EnsureAuthenticated();
+        var domains = GetDomains();
+        if (_delete is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        var match = domains.FirstOrDefault(domain => domain.Id == databaseId);
+        if (match is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_delete(databaseId))
+            {
+                throw new InvalidOperationException(
+                    "The domain delete did not affect the selected database row.");
+            }
+
+            Volatile.Write(
+                ref _domains,
+                domains.Where(domain => domain.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the domain from the database.",
+                EFail);
+        }
+    }
+
+    private void DeleteDomain(int databaseId) => DeleteByDBID(databaseId);
 
     private DomainAdministrationSnapshot SaveDomain(DomainAdministrationSnapshot domain)
     {
@@ -564,6 +609,7 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     private readonly bool _authorized;
     private readonly Func<bool>? _isAuthenticated;
     private readonly Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? _save;
+    private readonly Action<int>? _delete;
 
     public Domain()
     {
@@ -572,12 +618,14 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     private Domain(
         DomainAdministrationSnapshot domain,
         Func<bool>? isAuthenticated,
-        Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? save = null)
+        Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? save = null,
+        Action<int>? delete = null)
     {
         _domain = domain;
         _authorized = true;
         _isAuthenticated = isAuthenticated;
         _save = save;
+        _delete = delete;
     }
 
     public override string Name
@@ -775,8 +823,9 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     internal static Domain CreateAuthorized(
         DomainAdministrationSnapshot domain,
         Func<bool>? isAuthenticated = null,
-        Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? save = null) =>
-        new(domain, isAuthenticated, save);
+        Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? save = null,
+        Action<int>? delete = null) =>
+        new(domain, isAuthenticated, save, delete);
 
     public override void Save()
     {
@@ -802,6 +851,19 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
                 "It was not possible to save the domain to the database.",
                 unchecked((int)0x80004005));
         }
+    }
+
+    public override void Delete()
+    {
+        EnsureAuthorized();
+        var snapshot = Snapshot;
+        if (_delete is null)
+        {
+            DomainComAuthorization.Unavailable(this);
+            return;
+        }
+
+        _delete(snapshot.Id);
     }
 
     private void Mutate(Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot> mutation)
@@ -961,11 +1023,18 @@ public static class DomainAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
+        bool DeleteDomain(int domainId) => store
+            .DeleteDomainByIdAsync(domainId, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+
         return Domains.CreateAuthorized(
             LoadDomains(),
             LoadDomains,
             InsertDomain,
             UpdateDomain,
+            DeleteDomain,
             isAuthenticated);
     }
 }
