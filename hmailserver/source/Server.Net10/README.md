@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``794d93a3c`` completes authenticated ``TCPIPPorts.SetDefault()`` parity. Legacy anchors are ``InterfaceTCPIPPorts::SetDefault`` (``hmailserver/source/Server/COM/InterfaceTCPIPPorts.cpp:37``) and ``TCPIPPorts::SetDefault`` (``hmailserver/source/Server/Common/BO/TCPIPPorts.cpp:37-80``). The .NET path preserves installed TCPIPPorts COM identity/direct activation denial, rechecks live server-administrator authentication, performs the legacy no-op detection against the four default ports, deletes all then reinserts the four defaults and reloads the snapshot, and maps store failure to ``E_FAIL``. Focused coverage ``24/24``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1824 passed, 0 failed, 8 opt-in skips`` (1832 total). Next slice: authenticated ``Accounts.Add()`` plus new-item ``Account.Save()`` INSERT parity.
+
+
 Code/test commit ``f85bf4681`` adds the opt-in isolated SQL identity/readback and rollback evidence for the completed domain mutations. The ``SqlServerDomainAdministrationStoreIntegrationTests`` fixture mirrors the legacy ``hm_domains`` schema plus dependents in a disposable isolated database and proves ``OUTPUT INSERTED.domainid`` identity readback with per-insert increments, anti-spam/limitations bit-packing round-trip, owner-scoped UPDATE/DELETE no-op against unknown IDs, transactional cascade DELETE removing domain dependents before the domain row, and NOT NULL name violations leaving no partial row and the original row intact. Live LocalDB evidence is ``1/1``; the focused Domains suite is ``23/23``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1819 passed, 0 failed, 8 opt-in skips`` (1827 total). Next slice: next authenticated Admin collection mutation after domains.
 
 
