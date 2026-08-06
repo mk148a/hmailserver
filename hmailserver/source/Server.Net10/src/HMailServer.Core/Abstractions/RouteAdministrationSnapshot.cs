@@ -13,4 +13,5 @@ public sealed record RouteAdministrationSnapshot(
     string RelayerAuthUsername,
     bool TreatRecipientAsLocalDomain,
     bool TreatSenderAsLocalDomain,
-    int ConnectionSecurity);
+    int ConnectionSecurity,
+    string RelayerAuthPassword = "");

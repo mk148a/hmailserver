@@ -211,6 +211,138 @@ public sealed class RoutesComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = routes.get_ItemByDBID(10)).ErrorCode);
     }
 
+
+    [TestMethod]
+    public void AuthorizedCollection_AddStagesLegacyDefaultsAndSavePublishesInsertedIdentity()
+    {
+        var inserted = new List<RouteAdministrationSnapshot>();
+        var nextId = 100;
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            insert: route =>
+            {
+                inserted.Add(route);
+                return ++nextId;
+            });
+
+        var draft = routes.Add();
+
+        Assert.AreEqual(0, draft.ID);
+        Assert.IsTrue(draft.AllAddresses);
+        Assert.IsFalse(draft.RelayerRequiresAuth);
+        Assert.AreEqual(string.Empty, draft.DomainName);
+        Assert.AreEqual(string.Empty, draft.Description);
+        Assert.AreEqual(0, draft.TargetSMTPPort);
+        Assert.AreEqual(0, draft.NumberOfTries);
+        Assert.AreEqual(0, draft.MinutesBetweenTry);
+        Assert.AreEqual(ComConnectionSecurity.None, draft.ConnectionSecurity);
+
+        draft.DomainName = "relay.example";
+        draft.Description = "Relay";
+        draft.TargetSMTPHost = "smtp.relay.example";
+        draft.TargetSMTPPort = 2525;
+        draft.NumberOfTries = 5;
+        draft.MinutesBetweenTry = 20;
+        draft.AllAddresses = false;
+        draft.RelayerRequiresAuth = true;
+        draft.RelayerAuthUsername = "relay-user";
+        draft.SetRelayerAuthPassword("secret");
+        draft.TreatSecurityAsLocalDomain = true;
+        draft.TreatSenderAsLocalDomain = true;
+        draft.UseSSL = true;
+        draft.ConnectionSecurity = ComConnectionSecurity.StartTlsRequired;
+
+        Assert.AreEqual(1, routes.Count);
+        draft.Save();
+
+        Assert.AreEqual(2, routes.Count);
+        Assert.AreEqual(101, draft.ID);
+        Assert.AreEqual(1, inserted.Count);
+        var persisted = inserted[0];
+        Assert.AreEqual(0, persisted.Id);
+        Assert.AreEqual("relay.example", persisted.DomainName);
+        Assert.AreEqual("Relay", persisted.Description);
+        Assert.AreEqual("smtp.relay.example", persisted.TargetSmtpHost);
+        Assert.AreEqual(2525, persisted.TargetSmtpPort);
+        Assert.AreEqual(5, persisted.NumberOfTries);
+        Assert.AreEqual(20, persisted.MinutesBetweenTry);
+        Assert.IsFalse(persisted.AllAddresses);
+        Assert.IsTrue(persisted.RelayerRequiresAuth);
+        Assert.AreEqual("relay-user", persisted.RelayerAuthUsername);
+        Assert.AreEqual("secret", persisted.RelayerAuthPassword);
+        Assert.IsTrue(persisted.TreatRecipientAsLocalDomain);
+        Assert.IsTrue(persisted.TreatSenderAsLocalDomain);
+        Assert.AreEqual((int)ComConnectionSecurity.StartTlsRequired, persisted.ConnectionSecurity);
+        Assert.AreEqual("relay.example", routes.get_ItemByDBID(101).DomainName);
+    }
+
+    [TestMethod]
+    public void FailedInsert_MapsToEFailAndRetainsDraftWithoutPublishing()
+    {
+        var fail = true;
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            Array.Empty<RouteAdministrationSnapshot>(),
+            insert: _ => fail
+                ? throw new InvalidOperationException("Simulated store failure.")
+                : 1);
+
+        var draft = routes.Add();
+        draft.DomainName = "relay.example";
+
+        var saveFailure = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EFail, saveFailure.ErrorCode);
+        Assert.AreEqual(0, routes.Count);
+        Assert.AreEqual(0, draft.ID);
+
+        draft.DomainName = "other.example";
+        fail = false;
+        draft.Save();
+
+        Assert.AreEqual(1, routes.Count);
+        Assert.AreEqual(1, draft.ID);
+        Assert.AreEqual("other.example", routes.get_ItemByDBID(1).DomainName);
+    }
+
+    [TestMethod]
+    public void AddAndMutate_RecheckLiveServerAdministrator()
+    {
+        var authenticated = true;
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            insert: _ => 1,
+            isServerAdministrator: () => authenticated);
+
+        var draft = routes.Add();
+        authenticated = false;
+
+        var deniedAdd = Assert.ThrowsExactly<COMException>(() => routes.Add());
+        var deniedSetter = Assert.ThrowsExactly<COMException>(() => draft.DomainName = "x");
+        var deniedPassword = Assert.ThrowsExactly<COMException>(() => draft.SetRelayerAuthPassword("x"));
+        var deniedSave = Assert.ThrowsExactly<COMException>(draft.Save);
+
+        Assert.AreEqual(EAccessDenied, deniedAdd.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deniedSetter.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deniedPassword.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deniedSave.ErrorCode);
+    }
+
+    [TestMethod]
+    public void ExistingRowSave_RemainsNotImplementedUntilUpdateParity()
+    {
+        IInterfaceRoutes routes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            insert: _ => 11);
+
+        var existing = routes[0];
+        var pendingSave = Assert.ThrowsExactly<COMException>(existing.Save);
+        var pendingDelete = Assert.ThrowsExactly<COMException>(existing.Delete);
+        var pendingCollectionDelete = Assert.ThrowsExactly<COMException>(() => routes.DeleteByDBID(10));
+
+        Assert.AreEqual(ENotImplemented, pendingSave.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingDelete.ErrorCode);
+        Assert.AreEqual(ENotImplemented, pendingCollectionDelete.ErrorCode);
+    }
     private static RouteAdministrationSnapshot Snapshot(
         int id,
         string domainName,

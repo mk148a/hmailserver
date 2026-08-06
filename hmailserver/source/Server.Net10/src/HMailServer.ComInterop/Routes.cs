@@ -154,6 +154,7 @@ public sealed class Routes : IInterfaceRoutes
 
     private RouteAdministrationSnapshot[]? _routes;
     private readonly Func<IReadOnlyList<RouteAdministrationSnapshot>>? _reload;
+    private readonly Func<RouteAdministrationSnapshot, int>? _insert;
     private readonly Func<bool>? _isServerAdministrator;
 
     public Routes()
@@ -163,10 +164,12 @@ public sealed class Routes : IInterfaceRoutes
     private Routes(
         IReadOnlyList<RouteAdministrationSnapshot> routes,
         Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload,
+        Func<RouteAdministrationSnapshot, int>? insert,
         Func<bool>? isServerAdministrator)
     {
         _routes = routes.ToArray();
         _reload = reload;
+        _insert = insert;
         _isServerAdministrator = isServerAdministrator;
     }
 
@@ -175,10 +178,11 @@ public sealed class Routes : IInterfaceRoutes
     internal static Routes CreateAuthorized(
         IReadOnlyList<RouteAdministrationSnapshot> routes,
         Func<IReadOnlyList<RouteAdministrationSnapshot>>? reload = null,
+        Func<RouteAdministrationSnapshot, int>? insert = null,
         Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(routes);
-        return new Routes(routes, reload, isServerAdministrator);
+        return new Routes(routes, reload, insert, isServerAdministrator);
     }
 
     public IInterfaceRoute this[int index]
@@ -191,7 +195,10 @@ public sealed class Routes : IInterfaceRoutes
                 throw new COMException("Route index was outside the collection.", DispEBadIndex);
             }
 
-            return Route.CreateAuthorized(routes[index], _isServerAdministrator);
+            return Route.CreateAuthorized(
+                routes[index],
+                save: _insert is null ? null : SaveRoute,
+                isServerAdministrator: _isServerAdministrator);
         }
     }
 
@@ -202,7 +209,10 @@ public sealed class Routes : IInterfaceRoutes
 
         return match is null
             ? throw new COMException("No route with the specified domain name exists.", DispEBadIndex)
-            : Route.CreateAuthorized(match, _isServerAdministrator);
+            : Route.CreateAuthorized(
+                match,
+                save: _insert is null ? null : SaveRoute,
+                isServerAdministrator: _isServerAdministrator);
     }
 
     public IInterfaceRoute get_ItemByDBID(int databaseId)
@@ -211,12 +221,41 @@ public sealed class Routes : IInterfaceRoutes
 
         return match is null
             ? throw new COMException("No route with the specified database identifier exists.", DispEBadIndex)
-            : Route.CreateAuthorized(match, _isServerAdministrator);
+            : Route.CreateAuthorized(
+                match,
+                save: _insert is null ? null : SaveRoute,
+                isServerAdministrator: _isServerAdministrator);
     }
 
     public void DeleteByDBID(int databaseId) => Unavailable();
 
-    public IInterfaceRoute Add() => Unavailable<IInterfaceRoute>();
+    public IInterfaceRoute Add()
+    {
+        _ = GetRoutes();
+        EnsureServerAdministrator();
+        if (_insert is null)
+        {
+            return Unavailable<IInterfaceRoute>();
+        }
+
+        return Route.CreateAuthorized(
+            new RouteAdministrationSnapshot(
+                Id: 0,
+                DomainName: string.Empty,
+                Description: string.Empty,
+                TargetSmtpHost: string.Empty,
+                TargetSmtpPort: 0,
+                NumberOfTries: 0,
+                MinutesBetweenTry: 0,
+                AllAddresses: true,
+                RelayerRequiresAuth: false,
+                RelayerAuthUsername: string.Empty,
+                TreatRecipientAsLocalDomain: false,
+                TreatSenderAsLocalDomain: false,
+                ConnectionSecurity: 0),
+            save: SaveRoute,
+            isServerAdministrator: _isServerAdministrator);
+    }
 
     public void Refresh()
     {
@@ -241,12 +280,57 @@ public sealed class Routes : IInterfaceRoutes
         }
     }
 
+    private RouteAdministrationSnapshot SaveRoute(RouteAdministrationSnapshot route)
+    {
+        EnsureServerAdministrator();
+        var routes = GetRoutes();
+        if (route.Id != 0 || _insert is null)
+        {
+            Unavailable();
+            return route;
+        }
+
+        try
+        {
+            var insertedId = _insert(route);
+            if (insertedId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The route insert did not return a valid generated identity.");
+            }
+
+            var insertedRoute = route with { Id = insertedId };
+            Volatile.Write(ref _routes, routes.Append(insertedRoute).ToArray());
+            return insertedRoute;
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the route to the database.",
+                EFail);
+        }
+    }
+
     private IReadOnlyList<RouteAdministrationSnapshot> GetRoutes()
     {
         return Volatile.Read(ref _routes)
             ?? throw new COMException(
                 "Routes access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Routes access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private T Unavailable<T>()
@@ -274,9 +358,11 @@ public sealed class Routes : IInterfaceRoutes
 public sealed class Route : IInterfaceRoute
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly RouteAdministrationSnapshot? _route;
+    private RouteAdministrationSnapshot? _route;
+    private readonly Func<RouteAdministrationSnapshot, RouteAdministrationSnapshot>? _save;
     private readonly Func<bool>? _isServerAdministrator;
 
     public Route()
@@ -285,67 +371,95 @@ public sealed class Route : IInterfaceRoute
 
     private Route(
         RouteAdministrationSnapshot route,
+        Func<RouteAdministrationSnapshot, RouteAdministrationSnapshot>? save,
         Func<bool>? isServerAdministrator)
     {
         _route = route;
+        _save = save;
         _isServerAdministrator = isServerAdministrator;
     }
 
     public int ID => Snapshot.Id;
 
-    public string DomainName { get => Snapshot.DomainName; set => Unavailable(); }
+    public string DomainName { get => Snapshot.DomainName; set => Mutate(route => route with { DomainName = value ?? string.Empty }); }
 
-    public string TargetSMTPHost { get => Snapshot.TargetSmtpHost; set => Unavailable(); }
+    public string TargetSMTPHost { get => Snapshot.TargetSmtpHost; set => Mutate(route => route with { TargetSmtpHost = value ?? string.Empty }); }
 
-    public int TargetSMTPPort { get => Snapshot.TargetSmtpPort; set => Unavailable(); }
+    public int TargetSMTPPort { get => Snapshot.TargetSmtpPort; set => Mutate(route => route with { TargetSmtpPort = value }); }
 
-    public int NumberOfTries { get => Snapshot.NumberOfTries; set => Unavailable(); }
+    public int NumberOfTries { get => Snapshot.NumberOfTries; set => Mutate(route => route with { NumberOfTries = value }); }
 
-    public int MinutesBetweenTry { get => Snapshot.MinutesBetweenTry; set => Unavailable(); }
+    public int MinutesBetweenTry { get => Snapshot.MinutesBetweenTry; set => Mutate(route => route with { MinutesBetweenTry = value }); }
 
-    public bool AllAddresses { get => Snapshot.AllAddresses; set => Unavailable(); }
+    public bool AllAddresses { get => Snapshot.AllAddresses; set => Mutate(route => route with { AllAddresses = value }); }
 
     public IInterfaceRouteAddresses Addresses =>
         RouteAddressAdministrationRuntimeHost.CreateAuthorizedAdapter(
             Snapshot.Id,
             _isServerAdministrator);
 
-    public bool RelayerRequiresAuth { get => Snapshot.RelayerRequiresAuth; set => Unavailable(); }
+    public bool RelayerRequiresAuth { get => Snapshot.RelayerRequiresAuth; set => Mutate(route => route with { RelayerRequiresAuth = value }); }
 
-    public string RelayerAuthUsername { get => Snapshot.RelayerAuthUsername; set => Unavailable(); }
+    public string RelayerAuthUsername { get => Snapshot.RelayerAuthUsername; set => Mutate(route => route with { RelayerAuthUsername = value ?? string.Empty }); }
 
     public bool TreatSecurityAsLocalDomain
     {
         get => Snapshot.TreatRecipientAsLocalDomain;
-        set => Unavailable();
+        set => Mutate(route => route with { TreatRecipientAsLocalDomain = value });
     }
 
     public bool UseSSL
     {
         get => Snapshot.ConnectionSecurity == (int)ComConnectionSecurity.Tls;
-        set => Unavailable();
+        set => Mutate(route => route with { ConnectionSecurity = value ? (int)ComConnectionSecurity.Tls : (int)ComConnectionSecurity.None });
     }
 
-    public string Description { get => Snapshot.Description; set => Unavailable(); }
+    public string Description { get => Snapshot.Description; set => Mutate(route => route with { Description = value ?? string.Empty }); }
 
-    public bool TreatSenderAsLocalDomain { get => Snapshot.TreatSenderAsLocalDomain; set => Unavailable(); }
+    public bool TreatSenderAsLocalDomain { get => Snapshot.TreatSenderAsLocalDomain; set => Mutate(route => route with { TreatSenderAsLocalDomain = value }); }
 
-    public bool TreatRecipientAsLocalDomain { get => Snapshot.TreatRecipientAsLocalDomain; set => Unavailable(); }
+    public bool TreatRecipientAsLocalDomain { get => Snapshot.TreatRecipientAsLocalDomain; set => Mutate(route => route with { TreatRecipientAsLocalDomain = value }); }
 
     public ComConnectionSecurity ConnectionSecurity
     {
         get => (ComConnectionSecurity)Snapshot.ConnectionSecurity;
-        set => Unavailable();
+        set => Mutate(route => route with { ConnectionSecurity = (int)value });
     }
 
     internal static Route CreateAuthorized(
         RouteAdministrationSnapshot route,
+        Func<RouteAdministrationSnapshot, RouteAdministrationSnapshot>? save = null,
         Func<bool>? isServerAdministrator = null) =>
-        new(route, isServerAdministrator);
+        new(route, save, isServerAdministrator);
 
-    public void SetRelayerAuthPassword(string newValue) => Unavailable();
+    public void SetRelayerAuthPassword(string newValue) =>
+        Mutate(route => route with { RelayerAuthPassword = newValue ?? string.Empty });
 
-    public void Save() => Unavailable();
+    public void Save()
+    {
+        EnsureServerAdministrator();
+        var snapshot = Snapshot;
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        try
+        {
+            _route = _save(snapshot);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to save the route to the database.",
+                EFail);
+        }
+    }
 
     public void Delete() => Unavailable();
 
@@ -354,12 +468,26 @@ public sealed class Route : IInterfaceRoute
             "Route access requires an authenticated server administrator.",
             EAccessDenied);
 
-    private T Unavailable<T>()
+    private void Mutate(Func<RouteAdministrationSnapshot, RouteAdministrationSnapshot> mutation)
     {
-        _ = Snapshot;
-        throw new COMException(
-            "This Route member is not implemented by the .NET 10 rewrite yet.",
-            ENotImplemented);
+        EnsureServerAdministrator();
+        if (_save is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _route = mutation(Snapshot);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Route access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private void Unavailable()
@@ -375,7 +503,6 @@ public sealed class Route : IInterfaceRoute
 public static class RouteAdministrationRuntimeHost
 {
     private const int CoENotInitialized = unchecked((int)0x800401F0);
-
     private static IRouteAdministrationStore? _store;
 
     public static void Configure(IRouteAdministrationStore store)
@@ -391,12 +518,24 @@ public static class RouteAdministrationRuntimeHost
                 "The hMailServer route administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        IReadOnlyList<RouteAdministrationSnapshot> LoadRoutes() => store
-            .GetRoutesAsync(CancellationToken.None)
-            .AsTask()
-            .GetAwaiter()
-            .GetResult();
+        IReadOnlyList<RouteAdministrationSnapshot> LoadRoutes() =>
+            store
+                .GetRoutesAsync(CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
 
-        return Routes.CreateAuthorized(LoadRoutes(), LoadRoutes, isServerAdministrator);
+        int InsertRoute(RouteAdministrationSnapshot route) =>
+            store
+                .InsertRouteAsync(route, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+
+        return Routes.CreateAuthorized(
+            LoadRoutes(),
+            LoadRoutes,
+            InsertRoute,
+            isServerAdministrator);
     }
 }
