@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Read-only egress/SSRF posture audit (no production code changed). External fetch enforces ``ExternalFetchEndpointPolicy``; WebAdmin scanner AJAX handlers enforce ``IsLocalHost``-only targets plus POST-CSRF (``437612a13``); the COM ``TestClamAVScanner``/``TestSpamAssassinConnection`` methods still accept arbitrary host+port (residual gap), deferred as a security-policy slice needing an explicit allow-list design. Next slice: COM-path SSRF guard design decision for scanner-test methods.
+
+
 Code/test commit ``437612a13`` completes SEC-14 WebAdmin AJAX scanner-test POST/CSRF hardening. ``background_ajax_virustest.php`` and ``background_ajax_spamassassintest.php`` now require ``hmailRequirePostCsrfToken()`` after the server-admin guard, keep local-scanner-target restrictions and POST-only reads. New source tests assert guard-before-CSRF-before-reads. Focused coverage ``2/2``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1851 passed, 0 failed, 11 opt-in skips`` (1862 total). Next slice: shared egress/SSRF policy review for external fetch and diagnostics/network tests.
 
 

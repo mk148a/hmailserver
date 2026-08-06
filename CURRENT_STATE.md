@@ -1,14 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-06T18:09:09Z
-- Local timestamp: 2026-08-06T21:09:09+03:00
+- UTC timestamp: 2026-08-06T18:23:23Z
+- Local timestamp: 2026-08-06T21:23:23+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `437612a13`
+- Current HEAD: `12aaec246` (docs; no code change this run)
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: WebAdmin ajax scanner-test source coverage `2 passed, 0 failed` (`background_ajax_virustest.php` + `background_ajax_spamassassintest.php` now require `hmailRequirePostCsrfToken()` after the server-admin guard; POST-only reads, no GET var reads)
-- Latest full Net10 result: `1851 passed, 0 failed, 11 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset); direct full execution remains blocked by two unrelated scanner-runtime cleanup failures; with the SQL connection set, the previously skipped message-indexing opt-in fixtures run and surface `5` pre-existing failures unrelated to this slice
-- Opt-in tests passed/skipped/blocked: `7/11/0` (recipient, route, rule, domain, account, TCP/IP port, and message-insert SQL evidence ran live against disposable LocalDB)
-- Current bounded slice: SEC-14 WebAdmin AJAX scanner-test POST/CSRF hardening, code/test commit `437612a13`; the two AJAX handlers keep the server-admin guard, existing local-scanner-target restrictions (`hmailResolveLocalScannerTarget`/`hmailRejectScannerTarget`), and POST-only reads
-- Completed milestones: full Settings/account/domain/message Admin mutation parity with live SQL evidence; backup archive metadata option-matrix and restore dry-run planning; offline synthetic SEARCH/SORT benchmark; WebAdmin POST-only/CSRF hardening across all `background_*_save.php` handlers plus the two AJAX scanner-test endpoints
-- Open production blockers: backup/restore round trip upgrade rollback incomplete; SEC-18 not GREEN; SMTP/IMAP/POP3 acceptance, performance/soak, installer, release-artifact gates open; message data-file creation, COM-path live SQL identity/readback, shared egress/SSRF policy for external-fetch/diagnostics, and PHP session cutover remain open/fenced
-- Environment-blocked: EICAR scanner cleanup; disposable SQL/native-registry/PHP-runtime opt-in; `AGENTS.md` do-not-touch; `artifacts/benchmarks/` `artifacts/sec18-staging/`; data-directory operations fenced
-- Next three independent slices: shared egress/SSRF policy review for external fetch and diagnostics/network tests; then real COM activation evidence for completed COM identities; then performance acceptance beyond offline synthetic SEARCH/SORT
+- Latest focused-test result: unchanged `1851 passed, 0 failed, 11 skipped` baseline (this run produced a read-only egress/SSRF policy audit only)
+- Latest full Net10 result: `1851 passed, 0 failed, 11 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: read-only SSRF/egress posture audit for scanner-test COM methods; no production code changed
+- SSRF/egress posture (verified): external fetch has `ExternalFetchEndpointPolicy` (metadata/cloud addresses, special-use ranges, private CIDR allow-list); WebAdmin scanner AJAX handlers enforce `hmailResolveLocalScannerTarget`/`hmailRejectScannerTarget` (`IsLocalHost` only) plus POST-CSRF; the COM `TestClamAVScanner`/`TestSpamAssassinConnection` methods still pass an arbitrary host+port to their runtimes (residual gap). A COM-level SSRF guard conflicts with existing committed tests that drive non-local hostnames through an online runtime and require DNS, so it is deferred as a security-policy slice rather than forced.
+- Open production blockers: COM-path SSRF guard for scanner tests; SEC-18 not GREEN; SMTP/IMAP/POP3 acceptance, performance/soak, installer, release-artifact gates; message data-file creation fenced
+- Environment-blocked: EICAR cleanup; disposable SQL/native-registry/PHP runtime opt-in; `AGENTS.md` do-not-touch; `artifacts/benchmarks/` `artifacts/sec18-staging/`
+- Next three independent slices: COM-path SSRF guard for scanner-test methods (design decision); then real COM activation evidence for completed COM identities; then performance acceptance beyond offline synthetic SEARCH/SORT
