@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``fc8efb819`` adds backup archive account XML parsing with transactional restore. ``BackupArchiveXmlSnapshotParser.ParseAccounts`` reads the legacy ``<Account>`` attribute set into ``RestoreAccountEntry``, and ``RestoreAccountsAsync`` replays entries through ``IAccountAdministrationStore.InsertAccountAsync`` inside the transaction boundary with caller rollback. ``BackupArchiveXmlSnapshotParserTests`` asserts field reconstruction and the XML→writer→store round trip. Focused ``2/2``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1862 passed, 0 failed, 12 opt-in skips`` (1874 total). Next slice: alias/distribution-list XML parsing to complete the restore payload.
+
+
 Code/test commit ``9e2d44daf`` adds the backup archive XML→snapshot parser with restore wiring. ``BackupArchiveXmlSnapshotParser.ParseDomains`` reads the legacy ``<Domain>`` attribute set into ``DomainAdministrationSnapshot`` (including anti-spam/DKIM and limitations bit packing), and the parsed snapshots feed ``BackupRestoreMetadataWriter.RestoreDomainsAsync`` for transactional restore. ``BackupArchiveXmlSnapshotParserTests`` asserts field reconstruction and the XML→writer→store round trip. Focused ``2/2``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1860 passed, 0 failed, 12 opt-in skips`` (1872 total). Next slice: account/alias/distribution-list XML parsing to complete the restore payload.
 
 

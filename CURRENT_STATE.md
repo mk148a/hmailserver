@@ -1,13 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-06T19:05:56Z
-- Local timestamp: 2026-08-06T22:05:56+03:00
+- UTC timestamp: 2026-08-06T19:12:26Z
+- Local timestamp: 2026-08-06T22:12:26+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `9e2d44daf`
+- Current HEAD: `fc8efb819`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: restore XML parser + writer `4 passed, 0 failed` (legacy domain XML attributes → snapshot; snapshot batch → transactional restore into the admin store)
-- Latest full Net10 result: `1860 passed, 0 failed, 12 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
-- Current bounded slice: backup archive XML→snapshot parser with restore wiring, code/test commit `9e2d44daf`; `BackupArchiveXmlSnapshotParser.ParseDomains` reads the legacy `<Domain>` attribute set (Name/Postmaster/Active/AntiSpamOptions/LimitationsEnabled/…), and the parsed snapshots feed `BackupRestoreMetadataWriter` for transactional restore
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection SQL evidence; transactional restore writer + archive-XML parser
-- Open (environment-gated or large): account/alias/distribution-list XML parsing and full restore round-trip into temp DB/Data, upgrade rollback, protocol acceptance, real COM activation, SEC-18, live performance, installer/release artifacts
+- Latest focused-test result: backup restore XML parser + writer `6 passed, 0 failed` (domains + accounts parse/round-trip through the transactional restore writer)
+- Latest full Net10 result: `1862 passed, 0 failed, 12 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: account backup XML parsing + transactional account restore, code/test commit `fc8efb819`; `ParseAccounts` reads the legacy `<Account>` attribute set (Name/Password/PasswordEncryption/AdminLevel/…), `RestoreAccountsAsync` replays entries through `IAccountAdministrationStore.InsertAccountAsync` inside the transaction boundary
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection SQL evidence; transactional restore writer + domain/account XML parsers
+- Open (environment-gated or large): alias/distribution-list XML parsing, full restore round-trip into temp DB/Data, upgrade rollback, protocol acceptance, real COM activation, SEC-18, live performance, installer/release artifacts
 - Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime
-- Next three slices: account/alias/distribution-list XML parsing to complete the restore payload; then full restore round-trip into temp DB/Data; then upgrade rollback evidence
+- Next three slices: alias/distribution-list XML parsing to complete the restore payload; then full restore round-trip into temp DB/Data; then upgrade rollback evidence
