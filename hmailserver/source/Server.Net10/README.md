@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``f06a199b4`` completes authenticated existing-row ``Message.Save()`` UPDATE parity (DB-only) after message insert ``85e5a143a``. Legacy anchors are ``InterfaceMessage::Save`` and ``PersistentMessage::SaveObject``. The .NET path preserves installed Messages/Message COM identity/direct activation denial, rechecks live authentication, stages retained-message From/header setters, persists via a parameterized owner-scoped UPDATE, maps failed or no-row updates to ``E_FAIL``, and replaces only the matching snapshot after success. Data-directory message-file creation and content rewrites remain fenced. Focused coverage ``26/26``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1844 passed, 0 failed, 11 opt-in skips`` (1855 total). Next slice: message delete/Clear parity (DB-only).
+
+
 Code/test commit ``22c206330`` adds the opt-in isolated SQL identity/readback and rollback evidence for the message insert. The ``SqlServerMessageAdministrationStoreIntegrationTests`` fixture mirrors the legacy ``hm_messages`` schema in a disposable isolated database and proves ``OUTPUT INSERTED.messageid`` identity readback with per-insert increments, and a UNIQUE ``messagefilename`` violation leaving no partial row. Live LocalDB evidence is ``1/1``; the focused Messages suite is ``24/24``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1841 passed, 0 failed, 11 opt-in skips`` (1852 total). Next slice: existing-row ``Message.Save()`` UPDATE parity (DB-only).
 
 
