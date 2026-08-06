@@ -5,7 +5,7 @@
    if (hmailGetAdminLevel() != ADMIN_SERVER)
    	hmailHackingAttemp(); // The user is not server administrator.
 
-   hmailRequirePost();
+   hmailRequirePostCsrfToken();
    
    $Hostname = hmailGetPostVar("Hostname", "localhost");
    $Port = hmailResolveLocalScannerPort(hmailGetPostVar("Port", 783));
