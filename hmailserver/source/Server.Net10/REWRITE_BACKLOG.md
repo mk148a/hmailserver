@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-05, DB VERSION GATE EVIDENCE)
+
+Isolated database version gate and upgrade rollback evidence is complete in code/test commit ``98433db25``. The opt-in ``SqlServerDatabaseAdministrationStoreIntegrationTests`` fixture seeds ``hm_dbversion`` at 5000 (``CurrentVersion < RequiredVersion``), simulates the upgrade write to 5708 (gate clears), then rolls back to 5000 (gate returns, exactly one version row remains). Live LocalDB ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1865 passed, 0 failed, 14 opt-in skips`` (1879 total). Data-directory message-file restore, protocol acceptance, real COM activation, SEC-18, and release gates remain open. Next slice: live protocol acceptance harness.
+
 ## Current Completed Slice (2026-08-05, RESTORE ROUND-TRIP EVIDENCE)
 
 Isolated backup metadata restore round-trip evidence is complete in code/test commit ``495ddb974``. The opt-in ``BackupRestoreRoundTripIntegrationTests`` fixture restores a crafted legacy archive (domain + account + alias + distribution list + recipient XML) through ``BackupArchiveXmlSnapshotParser`` + ``BackupRestoreMetadataWriter`` into a disposable LocalDB target and verifies every restored row via the SQL admin stores (domains, accounts, aliases, distribution lists, recipients). Live LocalDB evidence ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1865 passed, 0 failed, 13 opt-in skips`` (1878 total). Data-directory message-file restore, upgrade rollback, protocol acceptance, and release gates remain open. Next slice: upgrade rollback evidence.

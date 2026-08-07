@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``98433db25`` adds isolated database version gate and upgrade rollback evidence. ``SqlServerDatabaseAdministrationStoreIntegrationTests`` seeds ``hm_dbversion`` at 5000, simulates the upgrade write to 5708 (gate clears), then rolls back to 5000 (gate returns, one version row). Live LocalDB ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1865 passed, 0 failed, 14 opt-in skips`` (1879 total). Next slice: live protocol acceptance harness.
+
+
 Code/test commit ``495ddb974`` adds isolated backup metadata restore round-trip evidence. ``BackupRestoreRoundTripIntegrationTests`` restores a crafted legacy archive (domain/account/alias/distribution-list/recipient) through the parser + transactional restore writer into a disposable LocalDB target and verifies every restored row. Live LocalDB ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1865 passed, 0 failed, 13 opt-in skips`` (1878 total). Next slice: upgrade rollback evidence.
 
 
