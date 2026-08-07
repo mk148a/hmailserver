@@ -1,13 +1,14 @@
 # Current State
-- UTC timestamp: 2026-08-07T05:55:46Z
-- Local timestamp: 2026-08-07T08:55:46+03:00
+- UTC timestamp: 2026-08-07T06:02:24Z
+- Local timestamp: 2026-08-07T09:02:24+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `19456d549`
+- Current HEAD: `495ddb974`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: restore XML parser + writer `9 passed, 0 failed` (domains, accounts, aliases, distribution lists, distribution-list recipients)
-- Latest full Net10 result: `1865 passed, 0 failed, 12 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
-- Current bounded slice: distribution-list recipient XML parsing with transactional restore, code/test commit `19456d549`; `ParseDistributionListRecipients` reads `<Recipient Name=...>` and `RestoreDistributionListRecipientsAsync` replays through `InsertDistributionListRecipientAsync` inside the transaction boundary with caller rollback
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection SQL evidence; transactional restore writer + domain/account/alias/distribution-list/recipient XML parsers (full restore payload XML coverage)
-- Open (environment-gated or large): full restore round-trip into temp DB/Data, upgrade rollback, protocol acceptance, real COM activation, SEC-18, live performance, installer/release artifacts
+- Latest focused-test result: backup metadata restore round-trip `1 passed, 0 failed` live on LocalDB (archive XML -> domain/account/alias/distribution-list/recipient parsing -> transactional restore writer -> SQL stores -> target DB readback)
+- Latest full Net10 result: `1865 passed, 0 failed, 13 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Opt-in tests passed/skipped/blocked: `9/13/0` (recipient, route, rule, domain, account, TCP/IP port, message-insert, backup-projection, and backup-restore-round-trip SQL evidence ran live against disposable LocalDB)
+- Current bounded slice: isolated backup metadata restore round-trip evidence, code/test commit `495ddb974`; `BackupRestoreRoundTripIntegrationTests` restores a crafted legacy archive into a disposable target DB and verifies domain/account/alias/distribution-list/recipient rows via the SQL admin stores
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection SQL evidence; transactional restore writer + full payload XML parsers + metadata restore round-trip
+- Open (environment-gated or large): data-directory message-file restore, upgrade rollback, protocol acceptance, real COM activation, SEC-18, live performance, installer/release artifacts
 - Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime
-- Next three slices: full restore round-trip into temp DB/Data; then upgrade rollback evidence; then live protocol acceptance harness
+- Next three slices: upgrade rollback evidence; then live protocol acceptance harness; then real COM activation evidence

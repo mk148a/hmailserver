@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``495ddb974`` adds isolated backup metadata restore round-trip evidence. ``BackupRestoreRoundTripIntegrationTests`` restores a crafted legacy archive (domain/account/alias/distribution-list/recipient) through the parser + transactional restore writer into a disposable LocalDB target and verifies every restored row. Live LocalDB ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1865 passed, 0 failed, 13 opt-in skips`` (1878 total). Next slice: upgrade rollback evidence.
+
+
 Code/test commit ``19456d549`` adds backup archive distribution-list recipient XML parsing with transactional restore. ``ParseDistributionListRecipients`` reads ``<Recipient Name=...>``, and ``RestoreDistributionListRecipientsAsync`` replays them through ``InsertDistributionListRecipientAsync`` inside the transaction boundary with caller rollback. Focused ``9/9``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1865 passed, 0 failed, 12 opt-in skips`` (1877 total). Next slice: full restore round-trip into temp DB/Data.
 
 
