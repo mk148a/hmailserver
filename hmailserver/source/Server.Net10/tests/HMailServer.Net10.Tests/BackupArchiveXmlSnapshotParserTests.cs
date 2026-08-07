@@ -166,6 +166,34 @@ public sealed class BackupArchiveXmlSnapshotParserTests
         Assert.AreEqual(7, lists[0].DomainId);
     }
 
+    private const string RecipientXml = """
+        <Backup>
+          <Domains>
+            <Domain Name="d">
+              <DistributionLists>
+                <DistributionList Name="team@d.example">
+                  <Recipients>
+                    <Recipient Name="r1@example.test" />
+                    <Recipient Name="r2@example.test" />
+                  </Recipients>
+                </DistributionList>
+              </DistributionLists>
+            </Domain>
+          </Domains>
+        </Backup>
+        """;
+
+    [TestMethod]
+    public void ParseDistributionListRecipients_ReconstructsLegacySnapshotFields()
+    {
+        var recipients = BackupArchiveXmlSnapshotParser.ParseDistributionListRecipients(RecipientXml, distributionListId: 42);
+
+        Assert.AreEqual(2, recipients.Count);
+        Assert.AreEqual(42, recipients[0].ListId);
+        Assert.AreEqual("r1@example.test", recipients[0].Address);
+        Assert.AreEqual("r2@example.test", recipients[1].Address);
+    }
+
     [TestMethod]
     public void ParseDomains_ReconstructsLegacySnapshotFields()
     {

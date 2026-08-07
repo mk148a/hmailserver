@@ -27,6 +27,20 @@ public static class BackupArchiveXmlSnapshotParser
             .ToArray();
     }
 
+    public static IReadOnlyList<DistributionListRecipientAdministrationSnapshot> ParseDistributionListRecipients(
+        string archiveXml,
+        int distributionListId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = XDocument.Parse(archiveXml);
+        return document.Descendants("Recipient")
+            .Select(element => new DistributionListRecipientAdministrationSnapshot(
+                Id: 0,
+                ListId: distributionListId,
+                Address: element.Attribute("Name")?.Value ?? string.Empty))
+            .ToArray();
+    }
+
     public static IReadOnlyList<AliasAdministrationSnapshot> ParseAliases(string archiveXml, int domainId)
     {
         ArgumentException.ThrowIfNullOrEmpty(archiveXml);
