@@ -124,6 +124,48 @@ public sealed class BackupArchiveXmlSnapshotParserTests
         }
     }
 
+    private const string AliasAndListXml = """
+        <Backup>
+          <Domains>
+            <Domain Name="d">
+              <Aliases>
+                <Alias Name="alias@d.example" Value="target@example.test" Active="1" />
+              </Aliases>
+              <DistributionLists>
+                <DistributionList Name="team@d.example" Active="1" RequiresAuth="1"
+                                  RequiresAuthAddress="sender@example.test" ListMode="1" />
+              </DistributionLists>
+            </Domain>
+          </Domains>
+        </Backup>
+        """;
+
+    [TestMethod]
+    public void ParseAliases_ReconstructsLegacySnapshotFields()
+    {
+        var aliases = BackupArchiveXmlSnapshotParser.ParseAliases(AliasAndListXml, domainId: 7);
+
+        Assert.AreEqual(1, aliases.Count);
+        Assert.AreEqual("alias@d.example", aliases[0].Name);
+        Assert.AreEqual("target@example.test", aliases[0].Value);
+        Assert.IsTrue(aliases[0].Active);
+        Assert.AreEqual(7, aliases[0].DomainId);
+    }
+
+    [TestMethod]
+    public void ParseDistributionLists_ReconstructsLegacySnapshotFields()
+    {
+        var lists = BackupArchiveXmlSnapshotParser.ParseDistributionLists(AliasAndListXml, domainId: 7);
+
+        Assert.AreEqual(1, lists.Count);
+        Assert.AreEqual("team@d.example", lists[0].Address);
+        Assert.IsTrue(lists[0].Active);
+        Assert.IsTrue(lists[0].RequireSmtpAuth);
+        Assert.AreEqual("sender@example.test", lists[0].RequireSenderAddress);
+        Assert.AreEqual(1, lists[0].Mode);
+        Assert.AreEqual(7, lists[0].DomainId);
+    }
+
     [TestMethod]
     public void ParseDomains_ReconstructsLegacySnapshotFields()
     {

@@ -27,6 +27,38 @@ public static class BackupArchiveXmlSnapshotParser
             .ToArray();
     }
 
+    public static IReadOnlyList<AliasAdministrationSnapshot> ParseAliases(string archiveXml, int domainId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = XDocument.Parse(archiveXml);
+        return document.Descendants("Alias")
+            .Select(element => new AliasAdministrationSnapshot(
+                Id: 0,
+                DomainId: domainId,
+                Name: element.Attribute("Name")?.Value ?? string.Empty,
+                Value: element.Attribute("Value")?.Value ?? string.Empty,
+                Active: IntAttr(element, "Active") != 0))
+            .ToArray();
+    }
+
+    public static IReadOnlyList<DistributionListAdministrationSnapshot> ParseDistributionLists(
+        string archiveXml,
+        int domainId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = XDocument.Parse(archiveXml);
+        return document.Descendants("DistributionList")
+            .Select(element => new DistributionListAdministrationSnapshot(
+                Id: 0,
+                DomainId: domainId,
+                Address: element.Attribute("Name")?.Value ?? string.Empty,
+                Active: IntAttr(element, "Active") != 0,
+                RequireSmtpAuth: IntAttr(element, "RequiresAuth") != 0,
+                RequireSenderAddress: element.Attribute("RequiresAuthAddress")?.Value ?? string.Empty,
+                Mode: IntAttr(element, "ListMode")))
+            .ToArray();
+    }
+
     private static RestoreAccountEntry ParseAccount(XElement element, int domainId)
     {
         var snapshot = new AccountAdministrationSnapshot(
