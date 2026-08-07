@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``19456d549`` adds backup archive distribution-list recipient XML parsing with transactional restore. ``ParseDistributionListRecipients`` reads ``<Recipient Name=...>``, and ``RestoreDistributionListRecipientsAsync`` replays them through ``InsertDistributionListRecipientAsync`` inside the transaction boundary with caller rollback. Focused ``9/9``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1865 passed, 0 failed, 12 opt-in skips`` (1877 total). Next slice: full restore round-trip into temp DB/Data.
+
+
 Code/test commit ``8e5bfa01f`` adds backup archive alias and distribution-list XML parsing with transactional restore. ``ParseAliases``/``ParseDistributionLists`` reconstruct the legacy snapshots, and ``RestoreAliasesAsync``/``RestoreDistributionListsAsync`` replay them through the stores inside the transaction boundary with caller rollback. Focused ``2/2``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1864 passed, 0 failed, 12 opt-in skips`` (1876 total). Next slice: distribution-list recipient XML parsing to complete the restore payload.
 
 

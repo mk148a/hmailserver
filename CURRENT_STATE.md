@@ -1,13 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-07T05:49:19Z
-- Local timestamp: 2026-08-07T08:49:19+03:00
+- UTC timestamp: 2026-08-07T05:55:46Z
+- Local timestamp: 2026-08-07T08:55:46+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `8e5bfa01f`
+- Current HEAD: `19456d549`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: restore XML parser + writer `8 passed, 0 failed` (domains, accounts, aliases, distribution lists parse + round-trip through the transactional restore writer)
-- Latest full Net10 result: `1864 passed, 0 failed, 12 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
-- Current bounded slice: alias and distribution-list backup XML parsing with transactional restore, code/test commit `8e5bfa01f`; `ParseAliases` reads `Name/Value/Active`, `ParseDistributionLists` reads `Name/Active/RequiresAuth/RequiresAuthAddress/ListMode`, and the new writer methods replay through `InsertAliasAsync`/`InsertDistributionListAsync` inside the transaction boundary
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection SQL evidence; transactional restore writer + domain/account/alias/distribution-list XML parsers
-- Open (environment-gated or large): distribution-list recipients XML parsing, full restore round-trip into temp DB/Data, upgrade rollback, protocol acceptance, real COM activation, SEC-18, live performance, installer/release artifacts
+- Latest focused-test result: restore XML parser + writer `9 passed, 0 failed` (domains, accounts, aliases, distribution lists, distribution-list recipients)
+- Latest full Net10 result: `1865 passed, 0 failed, 12 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: distribution-list recipient XML parsing with transactional restore, code/test commit `19456d549`; `ParseDistributionListRecipients` reads `<Recipient Name=...>` and `RestoreDistributionListRecipientsAsync` replays through `InsertDistributionListRecipientAsync` inside the transaction boundary with caller rollback
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection SQL evidence; transactional restore writer + domain/account/alias/distribution-list/recipient XML parsers (full restore payload XML coverage)
+- Open (environment-gated or large): full restore round-trip into temp DB/Data, upgrade rollback, protocol acceptance, real COM activation, SEC-18, live performance, installer/release artifacts
 - Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime
-- Next three slices: distribution-list recipient XML parsing to complete the restore payload; then full restore round-trip into temp DB/Data; then upgrade rollback evidence
+- Next three slices: full restore round-trip into temp DB/Data; then upgrade rollback evidence; then live protocol acceptance harness
