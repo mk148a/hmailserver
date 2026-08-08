@@ -1,4 +1,12 @@
-## Current Completed Slice (2026-08-08, DB-ONLY RESTORE SQL TRANSACTION)
+## Current Completed Slice (2026-08-08, NON-DB RESTORE RECOVERY JOURNAL)
+
+Code/test commit `904000f85` adds a durable, bounded recovery journal to the non-DB Data directory swap. It records phase transitions, cleans up after known success, preserves rollback evidence after rollback failure or uncertain metadata outcome, and blocks service startup and later restore attempts when a pending or malformed journal requires manual recovery. Focused coverage is `12 passed, 0 failed, 0 skipped`; default full Net10 is `1914 passed, 0 failed, 25 skipped`.
+
+Legacy behavior is anchored by `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`), `Collection<T,P>::XMLLoad`/`DeleteAll` (`hmailserver/source/Server/Common/BO/Collection.h:85-220`), and `Reinitializator::ReInitialize` (`hmailserver/source/Server/Common/Application/Reinitializator.cpp:36-53`). Legacy deletes domain/public-folder state before data replacement and reinitializes asynchronously. Current symbols are `BackupRestoreRecoveryJournal`, `BackupRestoreDataDirectoryRuntime.RestoreAsync`, `MetadataBackupRestoreExecutor.ExecuteNonDbDataRestoreAsync`, and service `Program.cs`.
+
+The journal is not cross-resource atomicity or automatic crash recovery: power-loss rename durability, ACL/MAC/handle-relative safety, process-kill temp cleanup, SQL connection-loss/commit ambiguity, normal-installation deletion/reinitialization, service/COM, SEC-18, installer, AD/DC, and lifecycle gates remain open. Release status is RED. Next slice: legacy domain/public-folder deletion and reinitialization ordering on disposable targets.
+
+## Historical Slice (2026-08-08, DB-ONLY RESTORE SQL TRANSACTION)
 
 Code/test commit `41d81cca0` adds a production-wired SQL transaction boundary for DB-only `RestoreDomains` metadata restore. Domain, account, alias, distribution-list, and recipient inserts share one SQL connection and transaction; commit and rollback/disposal behavior are covered by disposable LocalDB tests. Focused coverage is `10 passed, 0 failed, 0 skipped`; default full Net10 is `1908 passed, 0 failed, 25 skipped`; SQL-enabled full is `1926 passed, 5 failed, 2 skipped`, with five unrelated message-indexing fixture failures.
 

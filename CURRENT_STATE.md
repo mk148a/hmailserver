@@ -1,15 +1,16 @@
 # Current State
-- UTC timestamp: 2026-08-08T13:40:24Z
-- Local timestamp: 2026-08-08T16:40:24+03:00
+- UTC timestamp: 2026-08-08T14:07:36Z
+- Local timestamp: 2026-08-08T17:07:36+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `41d81cca0` (code/test; documentation commit pending)
-- Last successfully pushed commit: `6a0926f89` (partial-recipient rollback documentation)
-- Latest focused-test result: DB-only LocalDB transaction commit/rollback/disposal/fail-closed coverage `10 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: default `1908 passed, 0 failed, 25 skipped`; SQL-enabled run `1926 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures
-- Opt-in tests passed/skipped/blocked: DB-only restore acceptance `10 passed`; SQL-enabled full run has `5` unrelated `SqlServerMessageIndexingIntegrationTests` failures; native AD/DC, installer, registry/COM, and service/COM remain blocked
-- Current bounded slice: SQL transaction boundary for DB-only `RestoreDomains` metadata, code/test commit `41d81cca0`
+- Current HEAD: `904000f85` (code/test; documentation commit pending)
+- Last successfully pushed commit: `22bc1bf63` (DB-only restore transaction documentation)
+- Latest focused-test result: non-DB recovery journal and startup fail-closed coverage `12 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: default `1914 passed, 0 failed, 25 skipped`; SQL-enabled restore acceptance remains `10 passed` when LocalDB is enabled, while the prior SQL-enabled full run has five unrelated message-indexing fixture failures
+- Opt-in tests passed/skipped/blocked: recovery runtime `12 passed`; SQL restore acceptance `10 passed` when enabled; native AD/DC, installer, registry/COM, and service/COM remain blocked
+- Current bounded slice: durable non-DB restore recovery journal with fail-closed startup/restore inspection, code/test commit `904000f85`
+- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, non-DB recovery journal acceptance
 - Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance
-- Open production blockers: private binding ACL/handle-relative TOCTOU, normal-installation full restore ordering, crash-safe shared SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
+- Open production blockers: journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe shared SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: add durable non-DB restore journal/recovery or prove crash compensation boundaries; implement legacy domain/public-folder deletion and application reinitialization ordering; complete isolated service/COM queued restore once approved composition is available
+- Next three independent slices: implement legacy domain/public-folder deletion and application reinitialization ordering; complete isolated service/COM queued restore once approved composition is available; add fault-injection and restart evidence for journal/SQL ambiguity and private binding containment
