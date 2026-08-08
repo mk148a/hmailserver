@@ -73,11 +73,14 @@ public interface IBackupTaskQueue
 
     IAsyncEnumerable<BackupTaskRequest> ReadAllAsync(CancellationToken cancellationToken);
 
+    void StopAccepting();
+
     void CompleteAndAbortPending();
 }
 
 public sealed class BackupTaskQueue : IBackupTaskQueue, IDisposable
 {
+    private readonly object _lifecycleGate = new();
     private readonly Channel<BackupTaskRequest> _queue =
         Channel.CreateUnbounded<BackupTaskRequest>(new UnboundedChannelOptions
         {
@@ -89,20 +92,39 @@ public sealed class BackupTaskQueue : IBackupTaskQueue, IDisposable
     public bool TryEnqueue(BackupTaskRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return _queue.Writer.TryWrite(request);
+        lock (_lifecycleGate)
+        {
+            return !_stopping && _queue.Writer.TryWrite(request);
+        }
     }
 
     public IAsyncEnumerable<BackupTaskRequest> ReadAllAsync(CancellationToken cancellationToken) =>
         _queue.Reader.ReadAllAsync(cancellationToken);
 
+    public void StopAccepting()
+    {
+        lock (_lifecycleGate)
+        {
+            if (_stopping)
+            {
+                return;
+            }
+
+            _stopping = true;
+            _queue.Writer.TryComplete();
+        }
+    }
+
     public void CompleteAndAbortPending()
     {
-        _queue.Writer.TryComplete();
+        StopAccepting();
         while (_queue.Reader.TryRead(out var request))
         {
             request.AbortPending();
         }
     }
+
+    private bool _stopping;
 
     public void Dispose() => CompleteAndAbortPending();
 }
