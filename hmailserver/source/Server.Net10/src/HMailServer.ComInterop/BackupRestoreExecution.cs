@@ -246,6 +246,9 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             throw new InvalidDataException("The backup contains no domain metadata to restore.");
         }
 
+        using var authorizationLease = await backup
+            .AcquireAuthorizationLeaseAsync(cancellationToken)
+            .ConfigureAwait(false);
         await _dataDirectoryRuntime
             .RestoreAsync(
                 evidence,

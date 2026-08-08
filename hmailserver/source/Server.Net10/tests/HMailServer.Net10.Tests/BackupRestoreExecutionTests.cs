@@ -158,6 +158,146 @@ public sealed class BackupRestoreExecutionTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_RejectsNonDbRestoreWhenAuthorizationIsInvalidatedBeforeLease()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateNonDbAsync(compressed: false);
+        var stores = new RecordingStores();
+        var barrierEntered = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBarrier = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rollbackPath = Path.Combine(fixture.Root, "rollback");
+        var copyCount = 0;
+        var dataDirectoryRuntime = new BackupRestoreDataDirectoryRuntime(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            (_, _, _) => Interlocked.Increment(ref copyCount));
+        var application = CreateAuthenticatedApplication(new RecordingBackupArchiveMetadataReader(6));
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            stores.Domains,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            stores.Recipients,
+            dataDirectoryRuntime: dataDirectoryRuntime,
+            dataDirectoryBoundaryFactory: () =>
+            {
+                barrierEntered.TrySetResult(null);
+                releaseBarrier.Task.GetAwaiter().GetResult();
+                return new BackupRestoreDataDirectoryBoundary(fixture.DataDirectory, rollbackPath);
+            });
+        var backup = (Backup)application.BackupManager.LoadBackup(fixture.ArchivePath);
+        backup.RestoreDomains = true;
+        backup.RestoreMessages = true;
+
+        var restoreTask = Task.Run(
+            async () => await executor.ExecuteAsync(backup, CancellationToken.None).ConfigureAwait(false));
+        await barrierEntered.Task;
+        Assert.IsNull(application.Authenticate("administrator", "wrong"));
+        releaseBarrier.SetResult(null);
+
+        var error = await Assert.ThrowsExactlyAsync<COMException>(() => restoreTask);
+
+        Assert.AreEqual(unchecked((int)0x80070005), error.ErrorCode);
+        Assert.AreEqual(0, copyCount);
+        Assert.AreEqual("original", await File.ReadAllTextAsync(fixture.OriginalFilePath));
+        Assert.IsFalse(File.Exists(fixture.RestoredFilePath));
+        Assert.IsFalse(Directory.Exists(rollbackPath));
+        Assert.IsFalse(File.Exists(BackupRestoreRecoveryJournal.GetJournalPath(fixture.DataDirectory)));
+        Assert.AreEqual(0, stores.Domains.Items.Count);
+        Assert.AreEqual(0, stores.Accounts.Items.Count);
+        Assert.AreEqual(0, stores.Aliases.Items.Count);
+        Assert.AreEqual(0, stores.DistributionLists.Items.Count);
+        Assert.AreEqual(0, stores.Recipients.Items.Count);
+        backup.CleanupArchiveBinding();
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_HoldsNonDbLeaseThroughCopyAndMetadataCommit()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateNonDbAsync(compressed: false);
+        var stores = new RecordingStores();
+        var copyStarted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCopy = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var metadataCommitStarted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseMetadataCommit = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var copyCount = 0;
+        var dataDirectoryRuntime = new BackupRestoreDataDirectoryRuntime(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            (sourcePath, targetPath, cancellationToken) =>
+            {
+                Interlocked.Increment(ref copyCount);
+                copyStarted.TrySetResult(null);
+                releaseCopy.Task.GetAwaiter().GetResult();
+                cancellationToken.ThrowIfCancellationRequested();
+                File.Copy(
+                    Path.Combine(sourcePath, "restored.txt"),
+                    Path.Combine(targetPath, "restored.txt"));
+            });
+        var application = CreateAuthenticatedApplication(new RecordingBackupArchiveMetadataReader(6));
+        var backup = (Backup)application.BackupManager.LoadBackup(fixture.ArchivePath);
+        backup.RestoreDomains = true;
+        backup.RestoreMessages = true;
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            stores.Domains,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            new GatedRecipientStore(stores.Recipients, metadataCommitStarted, releaseMetadataCommit),
+            dataDirectoryRuntime: dataDirectoryRuntime);
+
+        var restoreTask = Task.Run(
+            async () => await executor.ExecuteAsync(backup, CancellationToken.None).ConfigureAwait(false));
+        Task<IInterfaceAccount?>? invalidationTask = null;
+        var invalidationBlockedDuringCopy = false;
+        var invalidationBlockedDuringMetadataCommit = false;
+        try
+        {
+            await copyStarted.Task;
+            invalidationTask = Task.Run(() => application.Authenticate("administrator", "wrong"));
+            invalidationBlockedDuringCopy = SpinWait.SpinUntil(
+                () => invalidationTask.Status == TaskStatus.Running,
+                TimeSpan.FromSeconds(1))
+                && !invalidationTask.IsCompleted;
+            releaseCopy.SetResult(null);
+
+            await metadataCommitStarted.Task;
+            invalidationBlockedDuringMetadataCommit = !invalidationTask.IsCompleted;
+            releaseMetadataCommit.SetResult(null);
+            await restoreTask;
+        }
+        finally
+        {
+            releaseCopy.TrySetResult(null);
+            releaseMetadataCommit.TrySetResult(null);
+        }
+
+        Assert.IsTrue(invalidationBlockedDuringCopy);
+        Assert.IsTrue(invalidationBlockedDuringMetadataCommit);
+        Assert.IsNotNull(invalidationTask);
+        Assert.IsNull(await invalidationTask);
+        Assert.AreEqual(1, copyCount);
+        Assert.AreEqual(1, stores.Domains.Items.Count);
+        Assert.AreEqual("restored", await File.ReadAllTextAsync(fixture.RestoredFilePath));
+        Assert.IsFalse(File.Exists(fixture.OriginalFilePath));
+        Assert.AreEqual(
+            unchecked((int)0x80070005),
+            Assert.ThrowsExactly<COMException>(() => _ = backup.ContainsDomains).ErrorCode);
+        backup.CleanupArchiveBinding();
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_RejectsUnsupportedRestoreSelectionBeforeArchiveOrWrites()
     {
         var stores = new RecordingStores();
@@ -364,6 +504,33 @@ public sealed class BackupRestoreExecutionTests
             int domainId,
             CancellationToken cancellationToken) =>
             inner.DeleteDomainByIdAsync(domainId, cancellationToken);
+    }
+
+    private sealed class GatedRecipientStore(
+        IDistributionListRecipientAdministrationStore inner,
+        TaskCompletionSource<object?> insertStarted,
+        TaskCompletionSource<object?> releaseInsert) : IDistributionListRecipientAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
+            int distributionListId,
+            CancellationToken cancellationToken) =>
+            inner.GetRecipientsAsync(distributionListId, cancellationToken);
+
+        public async ValueTask<int> InsertDistributionListRecipientAsync(
+            DistributionListRecipientAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
+            insertStarted.TrySetResult(null);
+            await releaseInsert.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return await inner
+                .InsertDistributionListRecipientAsync(snapshot, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public ValueTask<bool> DeleteDistributionListRecipientAsync(
+            DistributionListRecipientAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken) =>
+            inner.DeleteDistributionListRecipientAsync(snapshot, cancellationToken);
     }
 
     private sealed class RecordingMetadataTransactionFactory(RecordingStores stores) : IBackupRestoreMetadataTransactionFactory
