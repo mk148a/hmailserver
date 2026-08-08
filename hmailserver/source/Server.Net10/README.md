@@ -1,3 +1,11 @@
+## Current Completed Slice (2026-08-08, DB-ONLY DOMAIN CLEANUP WIRING)
+
+Code/test commit `a2b030d82` wires the transaction-scoped `DeleteAllDomainsForRestoreAsync` capability into DB-only restore. After archive-internal duplicate validation, the existing authorization lease and SQL transaction are acquired; the existing domain graph is cleared exactly once; and archive domains/accounts/aliases/distribution lists/recipients are inserted through the same transaction. The non-DB path still requires an empty store and does not call this cleanup.
+
+Legacy behavior is anchored by `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`), `Collection<T,P>::XMLLoad`/`DeleteAll` (`hmailserver/source/Server/Common/BO/Collection.h:85-215`), `PersistentAccount::DeleteObject` (`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp:55-100`), and `Reinitializator::ReInitialize` (`hmailserver/source/Server/Common/Application/Reinitializator.cpp:35-57`). Focused restore execution and round-trip coverage is `15 passed, 0 failed, 11 skipped`; default full Net10 is `1936 passed, 0 failed, 29 skipped`.
+
+This slice proves executor ordering and failure-before-insert with fakes; approved disposable SQL/Data replacement remains environment-blocked. Release remains RED for full filesystem/public-folder/settings/reinitialization ordering, handle-relative containment, process-kill/power-loss, SQL/filesystem atomicity, service/COM, SEC-18, installer, AD/DC, migration, and lifecycle gates. Next slice: disposable populated-store SQL/Data acceptance for the wired DB-only path.
+
 ## Current Completed Slice (2026-08-08, TRANSACTION-SCOPED DOMAIN RESTORE CLEANUP CAPABILITY)
 
 Code/test commit `74ca89853` adds a transaction-scoped, set-based `DeleteAllDomainsForRestoreAsync` capability to the SQL restore transaction. It snapshots domain-owned accounts, lists, rules, messages, fetch accounts, IMAP folders, group memberships, and ACL ownership under the transaction, deletes dependent rows in legacy owner order, and leaves commit or rollback to the existing transaction owner.
