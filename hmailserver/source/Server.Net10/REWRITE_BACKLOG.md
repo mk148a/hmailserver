@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-05, RELEASE ARTIFACT GATE)
+
+The release artifact gate is complete in code/test commit ``4191ac3d1``. ``ReleaseArtifactGateTests`` asserts the Net10 Service output (``HMailServer.Service\bin\Debug\net10.0-windows``) contains the 13 required release artifacts (``hMailServer.exe``, ``HMailServer.ComInterop.dll`` + ``.comhost.dll``, ``Core``/``Protocols``/``Storage.SqlServer``/``Delivery``/``Security``, ``7za.exe``, ``BouncyCastle``) and that ``hMailServer.runtimeconfig.json`` targets ``Microsoft.NETCore.App``. Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1871 passed, 0 failed, 14 opt-in skips`` (1885 total). Next slice: InnoSetup installer build gate.
+
 ## Current Completed Slice (2026-08-05, COM HOST ACTIVATION EVIDENCE)
 
 COM host activation feasibility evidence is complete in code/test commit ``c09fcf435``. ``ComHostActivationIntegrationTests`` loads ``HMailServer.ComInterop.comhost.dll`` next to the test host, verifies the ``DllGetClassObject`` export exists, and records HRESULT ``0x80008093`` when invoked in-process — the .NET comhost cannot bootstrap its runtime from inside another .NET process, so genuine activation requires the service host/registration (registry/DCOM state, fenced). Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1870 passed, 0 failed, 14 opt-in skips`` (1884 total). Next slice: installer/release artifact gate.

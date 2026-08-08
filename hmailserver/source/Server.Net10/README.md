@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``4191ac3d1`` adds the release artifact gate. ``ReleaseArtifactGateTests`` asserts the 13 required Net10 Service artifacts and the runtimeconfig framework. Focused ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1871 passed, 0 failed, 14 opt-in skips`` (1885 total). Next slice: InnoSetup installer build gate.
+
+
 Code/test commit ``c09fcf435`` adds COM host activation feasibility evidence. ``ComHostActivationIntegrationTests`` loads the comhost DLL, verifies the ``DllGetClassObject`` export, and records HRESULT ``0x80008093`` (host-runtime dependency) for in-process invocation; genuine out-of-proc activation requires registration/DCOM (fenced). Focused ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1870 passed, 0 failed, 14 opt-in skips`` (1884 total). Next slice: installer/release artifact gate.
 
 

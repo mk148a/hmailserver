@@ -1,13 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-08T05:29:48Z
-- Local timestamp: 2026-08-08T08:29:48+03:00
+- UTC timestamp: 2026-08-08T05:36:23Z
+- Local timestamp: 2026-08-08T08:36:23+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `c09fcf435`
+- Current HEAD: `4191ac3d1`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: COM host activation evidence `1 passed, 0 failed` (`HMailServer.ComInterop.comhost.dll` loads, exports `DllGetClassObject`, and records HRESULT `0x80008093` proving the host-runtime dependency for out-of-proc activation)
-- Latest full Net10 result: `1870 passed, 0 failed, 14 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
-- Current bounded slice: COM host activation feasibility evidence, code/test commit `c09fcf435`; registration-free in-process `DllGetClassObject` from another .NET process cannot bootstrap the comhost runtime by design; genuine activation requires the service host/registration (registry/DCOM state fenced)
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup/restore/version-gate SQL evidence; restore writer + full XML parsers; SMTP/IMAP/POP3 accept-latency + 1k-concurrent acceptance; COM host export/host-runtime dependency evidence
-- Open (environment-gated): real out-of-proc COM activation (service host + registration/DCOM), SEC-18, installer/release artifacts
+- Latest focused-test result: release artifact gate `1 passed, 0 failed` (13 required artifacts in the Service output + runtimeconfig targets Microsoft.NETCore.App)
+- Latest full Net10 result: `1871 passed, 0 failed, 14 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: release artifact gate, code/test commit `4191ac3d1`; `ReleaseArtifactGateTests` asserts the Net10 Service output contains the required executables/DLLs (hMailServer.exe, ComInterop + comhost, Core/Protocols/Storage/Delivery/Security, 7za, BouncyCastle) and the runtimeconfig framework
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup/restore/version-gate SQL evidence; restore writer + full XML parsers; SMTP/IMAP/POP3 accept-latency + 1k-concurrent acceptance; COM host activation feasibility; release artifact gate
+- Open (environment-gated): real out-of-proc COM activation (registration/DCOM), SEC-18, InnoSetup installer build, soak/leak release checks
 - Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime; MIDL regeneration transient-flaky
-- Next three slices: installer/release artifact gate; then release-gate soak/leak checks; then elevated SEC-18/COM activation evidence
+- Next three slices: InnoSetup installer build gate; then soak/leak release checks; then elevated SEC-18/COM activation evidence
