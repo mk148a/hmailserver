@@ -136,6 +136,30 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
         Assert.IsFalse(Directory.Exists(fixture.RollbackPath));
     }
 
+    [TestMethod]
+    public void EnsureSafeDataBackupRoot_RejectsNonDirectoryRoots()
+    {
+        using var fixture = new DataDirectoryFixture();
+        File.WriteAllText(fixture.ArchivePath, "not-a-directory");
+
+        Assert.ThrowsExactly<InvalidDataException>(
+            () => BackupRestoreDataDirectoryRuntime.EnsureSafeDataBackupRoot(fixture.ArchivePath));
+    }
+
+    [TestMethod]
+    public void Boundary_DisposePreservesRollbackArtifact()
+    {
+        using var fixture = new DataDirectoryFixture();
+        Directory.CreateDirectory(fixture.RollbackPath);
+        File.WriteAllText(Path.Combine(fixture.RollbackPath, "original.txt"), "original");
+
+        using (new BackupRestoreDataDirectoryBoundary(fixture.TargetPath, fixture.RollbackPath))
+        {
+        }
+
+        Assert.IsTrue(File.Exists(Path.Combine(fixture.RollbackPath, "original.txt")));
+    }
+
     private static async Task CreateArchiveAsync(string archivePath, string sourcePath)
     {
         var startInfo = new ProcessStartInfo

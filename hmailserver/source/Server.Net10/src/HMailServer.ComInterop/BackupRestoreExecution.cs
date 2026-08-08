@@ -28,7 +28,9 @@ internal static class BackupRestoreRuntimeHost
 [ComVisible(false)]
 internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
 {
-    private const int SupportedRestoreOptions = BackupStartPlan.BackupDomainsFlag;
+    private const int SupportedDbOnlyRestoreOptions = BackupStartPlan.BackupDomainsFlag;
+    private const int SupportedDataRestoreOptions =
+        BackupStartPlan.BackupDomainsFlag | BackupStartPlan.BackupMessagesFlag;
 
     private readonly BackupRestoreIntegrityRuntime _integrityRuntime;
     private readonly string _dataDirectory;
@@ -38,6 +40,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
     private readonly IDistributionListAdministrationStore _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore _recipientStore;
     private readonly SevenZipBackupArchiveMetadataReader _metadataReader;
+    private readonly BackupRestoreDataDirectoryRuntime _dataDirectoryRuntime;
+    private readonly Func<BackupRestoreDataDirectoryBoundary> _dataDirectoryBoundaryFactory;
 
     internal MetadataBackupRestoreExecutor(
         string sevenZipExecutablePath,
@@ -46,7 +50,9 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IAccountAdministrationStore accountStore,
         IAliasAdministrationStore aliasStore,
         IDistributionListAdministrationStore distributionListStore,
-        IDistributionListRecipientAdministrationStore recipientStore)
+        IDistributionListRecipientAdministrationStore recipientStore,
+        BackupRestoreDataDirectoryRuntime? dataDirectoryRuntime = null,
+        Func<BackupRestoreDataDirectoryBoundary>? dataDirectoryBoundaryFactory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
@@ -64,16 +70,35 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _recipientStore = recipientStore;
+        _dataDirectoryRuntime = dataDirectoryRuntime ?? new BackupRestoreDataDirectoryRuntime(sevenZipExecutablePath);
+        _dataDirectoryBoundaryFactory = dataDirectoryBoundaryFactory
+            ?? (() => new BackupRestoreDataDirectoryBoundary(
+                _dataDirectory,
+                Path.Combine(Path.GetTempPath(), $"hmailserver-restore-{Guid.NewGuid():N}.rollback")));
     }
 
     public async ValueTask ExecuteAsync(Backup backup, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(backup);
-        if (backup.RestoreOptions != SupportedRestoreOptions)
+        if (backup.RestoreOptions == SupportedDataRestoreOptions)
+        {
+            await ExecuteNonDbDataRestoreAsync(backup, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (backup.RestoreOptions != SupportedDbOnlyRestoreOptions)
         {
             throw new InvalidOperationException(
-                "Only RestoreDomains is supported by the DB-only metadata restore slice.");
+                "Only RestoreDomains (DB-only) or RestoreDomains|RestoreMessages (non-DB-only) is supported.");
         }
+
+        await ExecuteDbOnlyMetadataRestoreAsync(backup, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask ExecuteDbOnlyMetadataRestoreAsync(
+        Backup backup,
+        CancellationToken cancellationToken)
+    {
 
         using var archiveReadLock = BackupArchiveIdentity.OpenReadLock(backup.ArchivePath);
         EnsureArchiveIdentity(backup);
@@ -94,7 +119,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 dryRun.FailureReason ?? "The restore options are not supported by the DB-only metadata restore slice.");
         }
 
-        if (evidence.BackupOptions != SupportedRestoreOptions)
+        if (evidence.BackupOptions != SupportedDbOnlyRestoreOptions)
         {
             throw new InvalidOperationException(
                 "The archive contains restore sections outside the DB-only metadata restore slice.");
@@ -137,9 +162,109 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             throw new InvalidDataException("The backup contains no domain metadata to restore.");
         }
 
+        await RestoreMetadataAsync(domains, requireEmptyStore: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask ExecuteNonDbDataRestoreAsync(
+        Backup backup,
+        CancellationToken cancellationToken)
+    {
+        using var archiveReadLock = BackupArchiveIdentity.OpenReadLock(backup.ArchivePath);
+        EnsureArchiveIdentity(backup);
+        var evidence = await _integrityRuntime
+            .InspectAsync(backup.ArchivePath, cancellationToken)
+            .ConfigureAwait(false);
+        var dryRun = BackupRestoreDryRunPlanner.Plan(evidence, backup.RestoreOptions);
+        if (!dryRun.EvidenceIsValid
+            || dryRun.FailureReason is not null
+            || dryRun.MissingRestoreOptions != 0
+            || dryRun.RestoreSettings
+            || !dryRun.RestoreDomains
+            || !dryRun.RestoreMessages
+            || !dryRun.RequiresFilesystemStaging
+            || !dryRun.Steps.Contains(BackupRestoreDryRunPlanner.RestoreDataDirectoryStep))
+        {
+            throw new InvalidOperationException(
+                dryRun.FailureReason
+                    ?? "Only RestoreDomains|RestoreMessages non-DB-only restore is supported by this slice.");
+        }
+
+        if (evidence.BackupOptions is not int backupOptions
+            || (backupOptions & (BackupStartPlan.BackupSettingsFlag
+                | BackupStartPlan.BackupDomainsFlag
+                | BackupStartPlan.BackupMessagesFlag))
+                != SupportedDataRestoreOptions
+            || evidence.BackupMessagesDbOnly)
+        {
+            throw new InvalidOperationException(
+                "The archive is not a non-DB-only RestoreDomains|RestoreMessages backup.");
+        }
+
+        if (string.Equals(evidence.DataFilesFormat, "Raw", StringComparison.OrdinalIgnoreCase)
+            && backup.ArchiveIdentity is not null)
+        {
+            throw new InvalidOperationException(
+                "Raw DataBackup restore requires a bound external sibling snapshot.");
+        }
+
+        using var boundary = _dataDirectoryBoundaryFactory();
+        var containment = BackupRestoreContainmentPreflight.Plan(
+            evidence,
+            boundary.TargetDataDirectoryPath,
+            boundary.RollbackArtifactPath,
+            cancellationToken);
+        if (!containment.IsSafe)
+        {
+            throw new InvalidOperationException(
+                containment.FailureReason ?? "The restore containment preflight failed.");
+        }
+
+        var revalidatedContainment = await BackupRestoreContainmentPreflight
+            .RevalidateAsync(
+                containment,
+                evidence,
+                _integrityRuntime,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!revalidatedContainment.IsSafe)
+        {
+            throw new InvalidOperationException(
+                revalidatedContainment.FailureReason
+                    ?? "The restore containment revalidation failed.");
+        }
+
+        EnsureArchiveIdentity(backup);
+        var archiveXml = _metadataReader.ReadMetadataXml(backup.ArchivePath);
+        EnsureArchiveIdentity(backup);
+        var domains = BackupArchiveXmlSnapshotParser.ParseDomainEntries(archiveXml);
+        if (domains.Count == 0)
+        {
+            throw new InvalidDataException("The backup contains no domain metadata to restore.");
+        }
+
+        await _dataDirectoryRuntime
+            .RestoreAsync(
+                evidence,
+                revalidatedContainment,
+                cancellationToken,
+                commitAsync: ct => RestoreMetadataAsync(domains, requireEmptyStore: true, ct))
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask RestoreMetadataAsync(
+        IReadOnlyList<RestoreDomainEntry> domains,
+        bool requireEmptyStore,
+        CancellationToken cancellationToken)
+    {
         var existingDomains = await _domainStore
             .GetDomainsAsync(cancellationToken)
             .ConfigureAwait(false);
+        if (requireEmptyStore && existingDomains.Count != 0)
+        {
+            throw new InvalidOperationException(
+                "Non-DB-only restore requires an empty disposable domain store.");
+        }
+
         var existingDomainNames = existingDomains
             .Select(static domain => domain.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);

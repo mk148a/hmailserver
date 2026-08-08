@@ -130,6 +130,77 @@ public sealed class BackupRestoreExecutionTests
         CollectionAssert.AreEqual(new[] { 1 }, stores.Domains.Deleted.ToArray());
     }
 
+    [TestMethod]
+    public async Task ExecuteAsync_RawNonDbRestoreStagesDataAndMetadata()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateNonDbAsync(compressed: false);
+        var stores = new RecordingStores();
+        var executor = stores.CreateExecutor(fixture.DataDirectory);
+        var backup = Backup.CreateAuthorized(6, fixture.ArchivePath);
+        backup.RestoreDomains = true;
+        backup.RestoreMessages = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        Assert.AreEqual(1, stores.Domains.Items.Count);
+        Assert.AreEqual("restore.example", stores.Domains.Items[0].Name);
+        Assert.AreEqual("restored", await File.ReadAllTextAsync(fixture.RestoredFilePath));
+        Assert.IsTrue(File.Exists(fixture.RawDataBackupFilePath));
+        Assert.IsFalse(File.Exists(fixture.OriginalFilePath));
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_CompressedNonDbRestoreStagesDataAndMetadata()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateNonDbAsync(compressed: true);
+        var stores = new RecordingStores();
+        var executor = stores.CreateExecutor(fixture.DataDirectory);
+        var backup = Backup.CreateAuthorized(14, fixture.ArchivePath);
+        backup.RestoreDomains = true;
+        backup.RestoreMessages = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        Assert.AreEqual(1, stores.Domains.Items.Count);
+        Assert.AreEqual("restore.example", stores.Domains.Items[0].Name);
+        Assert.AreEqual("restored", await File.ReadAllTextAsync(fixture.RestoredFilePath));
+        Assert.IsFalse(File.Exists(fixture.OriginalFilePath));
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_NonDbMetadataFailureRestoresOriginalDataDirectory()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateNonDbAsync(compressed: false);
+        var stores = new RecordingStores { FailAliasInsert = true };
+        var executor = stores.CreateExecutor(fixture.DataDirectory);
+        var backup = Backup.CreateAuthorized(6, fixture.ArchivePath);
+        backup.RestoreDomains = true;
+        backup.RestoreMessages = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        Assert.AreEqual("original", await File.ReadAllTextAsync(fixture.OriginalFilePath));
+        Assert.IsFalse(File.Exists(fixture.RestoredFilePath));
+        Assert.AreEqual(0, stores.Domains.Items.Count);
+        CollectionAssert.AreEqual(new[] { 1 }, stores.Domains.Deleted.ToArray());
+    }
+
     private sealed class RecordingStores
     {
         public RecordingDomainStore Domains { get; } = new();
@@ -308,6 +379,9 @@ public sealed class BackupRestoreExecutionTests
         public string Root { get; }
         public string ArchivePath { get; }
         public string DataDirectory { get; }
+        public string OriginalFilePath => Path.Combine(DataDirectory, "original.txt");
+        public string RestoredFilePath => Path.Combine(DataDirectory, "restored.txt");
+        public string RawDataBackupFilePath => Path.Combine(Root, "DataBackup", "restored.txt");
 
         public static async Task<ArchiveFixture> CreateAsync(string xml)
         {
@@ -316,6 +390,7 @@ public sealed class BackupRestoreExecutionTests
             var dataDirectory = Path.Combine(root, "data");
             Directory.CreateDirectory(source);
             Directory.CreateDirectory(dataDirectory);
+            File.WriteAllText(Path.Combine(dataDirectory, "original.txt"), "original");
             File.WriteAllText(Path.Combine(source, "hMailServerBackup.xml"), xml);
             var archivePath = Path.Combine(root, "backup.7z");
             var startInfo = new ProcessStartInfo
@@ -330,6 +405,58 @@ public sealed class BackupRestoreExecutionTests
             startInfo.ArgumentList.Add("a");
             startInfo.ArgumentList.Add(archivePath);
             startInfo.ArgumentList.Add("hMailServerBackup.xml");
+            startInfo.ArgumentList.Add("-t7z");
+            startInfo.ArgumentList.Add("-mx1");
+            using var process = Process.Start(startInfo);
+            Assert.IsNotNull(process);
+            await process.StandardOutput.ReadToEndAsync();
+            var error = await process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            Assert.AreEqual(0, process.ExitCode, error);
+            return new ArchiveFixture(root, archivePath, dataDirectory);
+        }
+
+        public static async Task<ArchiveFixture> CreateNonDbAsync(bool compressed)
+        {
+            var root = Path.Combine(Path.GetTempPath(), $"hmailserver-restore-nondb-{Guid.NewGuid():N}");
+            var source = Path.Combine(root, "source");
+            var dataDirectory = Path.Combine(root, "data");
+            Directory.CreateDirectory(source);
+            Directory.CreateDirectory(dataDirectory);
+            File.WriteAllText(Path.Combine(dataDirectory, "original.txt"), "original");
+
+            var dataBackup = compressed
+                ? Path.Combine(source, "DataBackup")
+                : Path.Combine(root, "DataBackup");
+            Directory.CreateDirectory(dataBackup);
+            File.WriteAllText(Path.Combine(dataBackup, "restored.txt"), "restored");
+
+            var format = compressed ? "7z" : "Raw";
+            var mode = compressed ? "14" : "6";
+            var xml = ArchiveXml.Replace(
+                "<BackupInformation Mode=\"2\" />",
+                $"<BackupInformation Mode=\"{mode}\"><DataFiles Format=\"{format}\" FolderName=\"DataBackup\" /></BackupInformation>",
+                StringComparison.Ordinal);
+            File.WriteAllText(Path.Combine(source, "hMailServerBackup.xml"), xml);
+
+            var archivePath = Path.Combine(root, "backup.7z");
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+                WorkingDirectory = source,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            startInfo.ArgumentList.Add("a");
+            startInfo.ArgumentList.Add(archivePath);
+            startInfo.ArgumentList.Add("hMailServerBackup.xml");
+            if (compressed)
+            {
+                startInfo.ArgumentList.Add("DataBackup");
+            }
+
             startInfo.ArgumentList.Add("-t7z");
             startInfo.ArgumentList.Add("-mx1");
             using var process = Process.Start(startInfo);

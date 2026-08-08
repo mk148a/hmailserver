@@ -21,7 +21,8 @@ internal sealed class BackupRestoreDataDirectoryRuntime
     internal async ValueTask RestoreAsync(
         BackupRestoreIntegrityEvidence evidence,
         BackupRestoreContainmentPlan plan,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<CancellationToken, ValueTask>? commitAsync = null)
     {
         ArgumentNullException.ThrowIfNull(evidence);
         ArgumentNullException.ThrowIfNull(plan);
@@ -77,6 +78,11 @@ internal sealed class BackupRestoreDataDirectoryRuntime
             {
                 Directory.CreateDirectory(targetPath);
                 _copyTree(sourcePath, targetPath, cancellationToken);
+                if (commitAsync is not null)
+                {
+                    await commitAsync(cancellationToken).ConfigureAwait(false);
+                }
+
                 Directory.Delete(rollbackPath, recursive: true);
             }
             catch (Exception mutationFailure)
@@ -118,7 +124,9 @@ internal sealed class BackupRestoreDataDirectoryRuntime
             throw new InvalidOperationException("The raw DataBackup source directory is missing.");
         }
 
-        return Path.GetFullPath(plan.SourcePath);
+        var sourcePath = Path.GetFullPath(plan.SourcePath);
+        EnsureSafeDataBackupRoot(sourcePath);
+        return sourcePath;
     }
 
     private async ValueTask<string> ExtractDataBackupAsync(
@@ -163,6 +171,8 @@ internal sealed class BackupRestoreDataDirectoryRuntime
             {
                 throw new InvalidDataException("The compressed restore does not contain DataBackup.");
             }
+
+            EnsureSafeDataBackupRoot(dataBackupPath);
 
             return extractionRoot;
         }
@@ -215,5 +225,57 @@ internal sealed class BackupRestoreDataDirectoryRuntime
         {
             throw new IOException("The restore source contains a reparse point.");
         }
+    }
+
+    internal static void EnsureSafeDataBackupRoot(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (!Directory.Exists(path))
+        {
+            throw new InvalidDataException("The restore DataBackup root is not a directory.");
+        }
+
+        RejectReparsePointChain(path);
+    }
+
+    private static void RejectReparsePointChain(string path)
+    {
+        var currentPath = Path.GetFullPath(path);
+        while (!string.IsNullOrWhiteSpace(currentPath))
+        {
+            RejectReparsePoint(currentPath);
+            var parentPath = Path.GetDirectoryName(currentPath);
+            if (string.Equals(parentPath, currentPath, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            currentPath = parentPath!;
+        }
+    }
+}
+
+[ComVisible(false)]
+internal sealed class BackupRestoreDataDirectoryBoundary : IDisposable
+{
+    internal BackupRestoreDataDirectoryBoundary(
+        string targetDataDirectoryPath,
+        string rollbackArtifactPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetDataDirectoryPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(rollbackArtifactPath);
+
+        TargetDataDirectoryPath = targetDataDirectoryPath;
+        RollbackArtifactPath = rollbackArtifactPath;
+    }
+
+    internal string TargetDataDirectoryPath { get; }
+
+    internal string RollbackArtifactPath { get; }
+
+    public void Dispose()
+    {
+        // BackupRestoreDataDirectoryRuntime owns cleanup after successful finalization.
+        // Preserve a rollback artifact when recovery itself failed.
     }
 }
