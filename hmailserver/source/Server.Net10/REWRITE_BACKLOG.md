@@ -1,4 +1,4 @@
-## Current Next Slice (2026-08-08, WIRE DOMAIN CLEANUP INTO FULL RESTORE)
+## Historical Next Slice (2026-08-08, WIRE DOMAIN CLEANUP INTO FULL RESTORE; SUPERSEDED)
 
 The transaction-scoped domain cleanup capability is complete in code/test commit `74ca89853`, but it is not yet called by restore orchestration. Legacy `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`) deletes domain-owned state before replacing the Data directory; `Collection<T,P>::DeleteAll` (`hmailserver/source/Server/Common/BO/Collection.h:85-215`) supplies collection deletion semantics, `PersistentAccount::DeleteObject` removes account-owned folders/groups/ACLs, and `Reinitializator::ReInitialize` (`hmailserver/source/Server/Common/Application/Reinitializator.cpp:36-53`) performs the later application restart/reinitialization.
 
