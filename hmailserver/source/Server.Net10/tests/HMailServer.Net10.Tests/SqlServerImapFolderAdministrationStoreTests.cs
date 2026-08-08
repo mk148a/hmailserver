@@ -204,7 +204,13 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
         StringAssert.Contains(sql, "WHERE messages.messageaccountid = 0");
         StringAssert.Contains(sql, "messages.messagetype <> 2");
         StringAssert.Contains(sql, "@FolderIds");
-        StringAssert.Contains(sql, "@MessageIds");
+        StringAssert.Contains(sql, "@RemovedMessages");
+        StringAssert.Contains(sql, "messagefilename");
+        StringAssert.Contains(sql, "messageaccountid");
+        StringAssert.Contains(sql, "messagefolderid");
+        StringAssert.Contains(sql, "accountaddress");
+        StringAssert.Contains(sql, "messagetype");
+        StringAssert.Contains(sql, "LEFT JOIN hm_accounts AS accounts");
         StringAssert.Contains(sql, "hm_messagerecipients");
         StringAssert.Contains(sql, "hm_message_search_queue");
         StringAssert.Contains(sql, "hm_message_search_documents");
@@ -216,6 +222,9 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
         Assert.IsFalse(sql.Contains("BEGIN TRANSACTION", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("COMMIT TRANSACTION", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("ROLLBACK TRANSACTION", StringComparison.OrdinalIgnoreCase));
+        Assert.IsTrue(
+            sql.IndexOf("SELECT messagefilename", StringComparison.OrdinalIgnoreCase)
+                < sql.IndexOf("DELETE recipients", StringComparison.OrdinalIgnoreCase));
         Assert.IsTrue(
             sql.IndexOf("DELETE messages", StringComparison.OrdinalIgnoreCase)
                 < sql.IndexOf("DELETE folders", StringComparison.OrdinalIgnoreCase));

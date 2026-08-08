@@ -76,6 +76,10 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     public ValueTask DeleteAllPublicFoldersForRestoreAsync(CancellationToken cancellationToken) =>
         _publicFolderStore.DeleteAllPublicFoldersForRestoreAsync(cancellationToken);
 
+    public ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
+        DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>
+        _publicFolderStore.DeleteAllPublicFoldersForRestoreWithManifestAsync(cancellationToken);
+
     public async ValueTask CommitAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

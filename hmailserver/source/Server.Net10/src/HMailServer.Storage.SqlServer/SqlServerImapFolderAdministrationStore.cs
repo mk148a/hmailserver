@@ -295,38 +295,54 @@ SELECT folderid
 FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)
 WHERE folderaccountid = 0;
 
-DECLARE @MessageIds TABLE
+DECLARE @RemovedMessages TABLE
 (
     messageid bigint NOT NULL PRIMARY KEY,
+    messagefilename nvarchar(255) NOT NULL,
+    messageaccountid int NOT NULL,
+    messagefolderid int NOT NULL,
+    accountaddress nvarchar(255) NULL,
     messagetype tinyint NOT NULL
 );
 
-INSERT INTO @MessageIds (messageid, messagetype)
-SELECT messages.messageid, messages.messagetype
+INSERT INTO @RemovedMessages
+    (messageid, messagefilename, messageaccountid, messagefolderid, accountaddress, messagetype)
+SELECT messages.messageid,
+       messages.messagefilename,
+       messages.messageaccountid,
+       messages.messagefolderid,
+       accounts.accountaddress,
+       messages.messagetype
 FROM hm_messages AS messages WITH (UPDLOCK, HOLDLOCK)
 INNER JOIN @FolderIds AS folders
     ON folders.folderid = messages.messagefolderid
+LEFT JOIN hm_accounts AS accounts
+    ON accounts.accountid = messages.messageaccountid
 WHERE messages.messageaccountid = 0;
+
+SELECT messagefilename, messageaccountid, messagefolderid, accountaddress, messagetype
+FROM @RemovedMessages
+ORDER BY messageid;
 
 DELETE recipients
 FROM hm_messagerecipients AS recipients
-INNER JOIN @MessageIds AS messages
+INNER JOIN @RemovedMessages AS messages
     ON messages.messageid = recipients.recipientmessageid
 WHERE messages.messagetype <> 2;
 
 DELETE queue
 FROM hm_message_search_queue AS queue
-INNER JOIN @MessageIds AS messages
+INNER JOIN @RemovedMessages AS messages
     ON messages.messageid = queue.messageid;
 
 DELETE documents
 FROM hm_message_search_documents AS documents
-INNER JOIN @MessageIds AS messages
+INNER JOIN @RemovedMessages AS messages
     ON messages.messageid = documents.messageid;
 
 DELETE metadata
 FROM hm_message_metadata AS metadata
-INNER JOIN @MessageIds AS messages
+INNER JOIN @RemovedMessages AS messages
     ON messages.messageid = metadata.metadata_messageid;
 
 DELETE permissions
@@ -336,7 +352,7 @@ INNER JOIN @FolderIds AS folders
 
 DELETE messages
 FROM hm_messages AS messages
-INNER JOIN @MessageIds AS selected
+INNER JOIN @RemovedMessages AS selected
     ON selected.messageid = messages.messageid;
 
 DELETE folders
@@ -608,6 +624,49 @@ WHERE NOT
             .ConfigureAwait(false);
 
         await commandLease.Command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
+        DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken)
+    {
+        if (_transactionContext is null)
+        {
+            throw new InvalidOperationException(
+                "Public-folder restore cleanup requires an existing SQL restore transaction.");
+        }
+
+        await using var commandLease = await SqlServerCommandLease
+            .OpenAsync(
+                _connectionFactory,
+                _transactionContext,
+                DeleteAllPublicFoldersForRestoreSql,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        await using var reader = await commandLease.Command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+
+        var messages = new List<ImapFolderAdministrationDeletedMessage>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            messages.Add(
+                new ImapFolderAdministrationDeletedMessage(
+                    reader.GetString(0),
+                    reader.GetInt32(1),
+                    reader.GetInt32(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.GetByte(4)));
+        }
+
+        while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
+        {
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+            }
+        }
+
+        return messages;
     }
 
     private static async ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> ReadFoldersAsync(

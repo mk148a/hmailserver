@@ -26,5 +26,10 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
         throw new NotSupportedException(
             "Transaction-scoped public-folder deletion for restore is not implemented by this transaction.");
 
+    ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
+        DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "Transaction-scoped public-folder deletion with a restore manifest is not implemented by this transaction.");
+
     ValueTask CommitAsync(CancellationToken cancellationToken);
 }

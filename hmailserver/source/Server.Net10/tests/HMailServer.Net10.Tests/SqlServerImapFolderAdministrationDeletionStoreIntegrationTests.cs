@@ -186,6 +186,154 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreTransaction_PublicFolderCleanupReturnsManifestAndLeavesRollbackToOwner()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+
+        var databaseName = $"hmailserver_net10_public_restore_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            await SeedPublicRestoreRowsAsync(testConnectionString).ConfigureAwait(false);
+
+            var transactionFactory = new SqlServerBackupRestoreMetadataTransactionFactory(
+                new SqlServerConnectionFactory(testConnectionString));
+
+            await using (var transaction = await transactionFactory
+                .BeginAsync(CancellationToken.None)
+                .ConfigureAwait(false))
+            {
+                var manifest = await transaction
+                    .DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+
+                Assert.AreEqual(2, manifest.Count);
+                Assert.AreEqual(
+                    new ImapFolderAdministrationDeletedMessage(
+                        "public-queued.eml", 0, 500, null, 1),
+                    manifest[0]);
+                Assert.AreEqual(
+                    new ImapFolderAdministrationDeletedMessage(
+                        "public-delivered.eml", 0, 500, null, 2),
+                    manifest[1]);
+            }
+
+            Assert.AreEqual(
+                2L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_messages",
+                    "messageid",
+                    new long[] { 5001, 5002 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                1L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_imapfolders",
+                    "folderid",
+                    new long[] { 500 }).ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreTransaction_PublicFolderCleanupCommitsManifestAndDependents()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+
+        var databaseName = $"hmailserver_net10_public_restore_commit_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            await SeedPublicRestoreRowsAsync(testConnectionString).ConfigureAwait(false);
+
+            var transactionFactory = new SqlServerBackupRestoreMetadataTransactionFactory(
+                new SqlServerConnectionFactory(testConnectionString));
+
+            await using (var transaction = await transactionFactory
+                .BeginAsync(CancellationToken.None)
+                .ConfigureAwait(false))
+            {
+                var manifest = await transaction
+                    .DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+
+                Assert.AreEqual(2, manifest.Count);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            Assert.AreEqual(
+                0L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_messages",
+                    "messageid",
+                    new long[] { 5001, 5002 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                0L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_imapfolders",
+                    "folderid",
+                    new long[] { 500 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                1L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_messagerecipients",
+                    "recipientmessageid",
+                    new long[] { 5001, 5002 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                0L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_message_metadata",
+                    "metadata_messageid",
+                    new long[] { 5001, 5002 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                0L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_message_search_queue",
+                    "messageid",
+                    new long[] { 5001, 5002 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                0L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_message_search_documents",
+                    "messageid",
+                    new long[] { 5001, 5002 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                0L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_acl",
+                    "aclsharefolderid",
+                    new long[] { 500 }).ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string GetApprovedConnectionStringOrInconclusive()
     {
         var rawConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -470,6 +618,69 @@ INSERT INTO dbo.hm_acl
     (aclsharefolderid, aclpermissiontype, aclpermissiongroupid, aclpermissionaccountid, aclvalue)
 VALUES
     (100, 0, 0, 10, 1), (200, 0, 0, 10, 1), (300, 0, 0, 10, 1), (400, 0, 0, 20, 1);
+""";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task SeedPublicRestoreRowsAsync(string connectionString)
+    {
+        const string sql = """
+SET IDENTITY_INSERT dbo.hm_imapfolders ON;
+INSERT INTO dbo.hm_imapfolders
+    (folderid, folderaccountid, folderparentid, foldername, folderissubscribed,
+     foldercreationtime, foldercurrentuid)
+VALUES
+    (500, 0, -1, N'Public', 1, CONVERT(datetime, '2026-08-01T00:00:00', 126), 1);
+SET IDENTITY_INSERT dbo.hm_imapfolders OFF;
+
+SET IDENTITY_INSERT dbo.hm_messages ON;
+INSERT INTO dbo.hm_messages
+    (messageid, messageaccountid, messagefolderid, messagefilename, messagetype,
+     messagefrom, messagesize, messagecurnooftries, messagenexttrytime, messageflags,
+     messagecreatetime, messagelocked, messageuid)
+VALUES
+    (5001, 0, 500, N'public-queued.eml', 1, N'from@example.test', 10, 0,
+     CONVERT(datetime, '2026-08-01T00:00:00', 126), 0,
+     CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, 1),
+    (5002, 0, 500, N'public-delivered.eml', 2, N'from@example.test', 20, 0,
+     CONVERT(datetime, '2026-08-01T00:00:00', 126), 0,
+     CONVERT(datetime, '2026-08-01T00:00:00', 126), 0, 2);
+SET IDENTITY_INSERT dbo.hm_messages OFF;
+
+INSERT INTO dbo.hm_messagerecipients
+    (recipientmessageid, recipientaddress, recipientlocalaccountid, recipientoriginaladdress)
+VALUES
+    (5001, N'recipient@example.test', 0, N'recipient@example.test'),
+    (5002, N'recipient@example.test', 0, N'recipient@example.test');
+
+INSERT INTO dbo.hm_message_metadata
+    (metadata_accountid, metadata_folderid, metadata_messageid, metadata_dateutc,
+     metadata_from, metadata_subject, metadata_to, metadata_cc)
+VALUES
+    (0, 500, 5001, NULL, N'from@example.test', N'subject', N'to@example.test', N''),
+    (0, 500, 5002, NULL, N'from@example.test', N'subject', N'to@example.test', N'');
+
+INSERT INTO dbo.hm_message_search_queue
+    (messageid, queuedutc, attempts)
+VALUES
+    (5001, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 0),
+    (5002, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 0);
+
+INSERT INTO dbo.hm_message_search_documents
+    (messageid, messageaccountid, messagefolderid, messageuid, messageinternaldateutc,
+     messagesize, messageflags, search_header, search_body, search_combined, updatedutc)
+VALUES
+    (5001, 0, 500, 1, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 10, 0, N'', N'', N'', CONVERT(datetime2(3), '2026-08-01T00:00:00', 126)),
+    (5002, 0, 500, 2, CONVERT(datetime2(3), '2026-08-01T00:00:00', 126), 20, 0, N'', N'', N'', CONVERT(datetime2(3), '2026-08-01T00:00:00', 126));
+
+INSERT INTO dbo.hm_acl
+    (aclsharefolderid, aclpermissiontype, aclpermissiongroupid, aclpermissionaccountid, aclvalue)
+VALUES
+    (500, 0, 0, 0, 1);
 """;
 
         await using var connection = new SqlConnection(connectionString);
