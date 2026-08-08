@@ -1,4 +1,10 @@
-## Current Continuation (2026-08-08, DISPOSABLE NON-DB RESTORE ACCEPTANCE)
+## Current Completed Slice (2026-08-08, PARTIAL RECIPIENT ROLLBACK ACCEPTANCE)
+
+Test-only code/test commit `ec9b71ed0` proves rollback after one real distribution-list recipient insert. The second recipient insert fails, and the test verifies cleanup of the generated recipient/list/alias/account/domain rows through the real SQL stores plus Data-directory restoration. Focused LocalDB coverage is `5 passed, 0 failed, 0 skipped`; default full Net10 is `1908 passed, 0 failed, 20 skipped`; SQL-enabled full Net10 is `1921 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures.
+
+Legacy list-before-recipient behavior is anchored by `DistributionList::XMLLoad`/`XMLLoadSubItems`, `DistributionListRecipients::PreSaveObject`, and persistent list/list-recipient `SaveObject`. The next slice is shared SQL transaction or durable restore journal evidence; release remains RED.
+
+## Historical Continuation (2026-08-08, DISPOSABLE NON-DB RESTORE ACCEPTANCE)
 
 Test-only code/test commit `1b479dfac` adds real LocalDB acceptance for the bound raw non-DB restore executor. It creates a unique disposable database, restores the legacy domain graph through the SQL administration stores, replaces a temporary Data directory from the bound raw sibling, and deterministically drops/removes all test resources. Focused restore round-trip coverage is `2 passed, 0 failed, 0 skipped`; the default full Net10 suite remains `1908 passed, 0 failed, 16 skipped`.
 

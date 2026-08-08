@@ -2,6 +2,12 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-08 continuation: test-only code/test commit `ec9b71ed0` adds disposable LocalDB acceptance for a failure after one real distribution-list recipient insert. The second recipient insert is injected to fail; the test verifies filesystem rollback and removal of the inserted recipient, list, alias, account, and domain through the real SQL stores. Focused restore coverage is `5 passed, 0 failed, 0 skipped`; default full Net10 is `1908 passed, 0 failed, 20 skipped`; SQL-enabled full Net10 is `1921 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures.
+
+Legacy anchors: `DistributionList::XMLLoad`/`XMLLoadSubItems`, `DistributionListRecipients::PreSaveObject`, and persistent list/list-recipient `SaveObject`; legacy leaves partial rows after recipient failure. Current compensation is `BackupRestoreMetadataWriter.RestoreDistributionListRecipientsAsync` plus `MetadataBackupRestoreExecutor.RollbackAsync`. Next slice: shared SQL transaction or durable restore journal with crash/recovery evidence. Production release remains RED and queued service/COM acceptance remains environment-blocked.
+
+## Current Authoritative Continuation
+
 Authoritative 2026-08-08 continuation: test-only code/test commit `387589ce1` adds disposable LocalDB acceptance for a recipient-stage restore failure. The test injects failure on the first distribution-list recipient insert and verifies filesystem rollback plus compensation of the created distribution list, alias, account, and domain through the real SQL stores. Focused restore coverage is `4 passed, 0 failed, 0 skipped`; default full Net10 is `1908 passed, 0 failed, 18 skipped`; SQL-enabled full Net10 is `1919 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures.
 
 Legacy parity anchors: `BackupExecuter::StartRestore`, `Collection<T,P>::XMLLoad`/`DeleteAll`, `DistributionList::XMLLoad`/`XMLLoadSubItems`, `DistributionListRecipients::PreSaveObject`/`GetCollectionName`, and persistent list/list-recipient `SaveObject` implementations. Legacy writes the list before recipients and does not compensate a later recipient failure. Current .NET anchors are `BackupRestoreMetadataWriter.RestoreDistributionListsAsync`/`RestoreDistributionListRecipientsAsync` and `MetadataBackupRestoreExecutor.RollbackAsync`, which compensate in reverse dependency order.

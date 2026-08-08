@@ -1,4 +1,12 @@
-## Current Completed Slice (2026-08-08, DISPOSABLE NON-DB RESTORE ACCEPTANCE)
+## Current Completed Slice (2026-08-08, PARTIAL RECIPIENT ROLLBACK ACCEPTANCE)
+
+Test-only code/test commit `ec9b71ed0` adds disposable LocalDB acceptance for a failure after one real distribution-list recipient is inserted. The second recipient insert is injected to fail; the test verifies the first recipient, list, alias, account, and domain are removed through the real SQL stores and that the original Data directory is restored. Focused restore coverage is `5 passed, 0 failed, 0 skipped`; default full Net10 is `1908 passed, 0 failed, 20 skipped`; SQL-enabled full Net10 is `1921 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures.
+
+Legacy anchors are `DistributionList::XMLLoad`/`XMLLoadSubItems`, `DistributionListRecipients::PreSaveObject`, and persistent list/list-recipient `SaveObject`; legacy persists the list before recipients and leaves partial rows after a later recipient failure. Current .NET anchors are `BackupRestoreMetadataWriter.RestoreDistributionListRecipientsAsync` and `MetadataBackupRestoreExecutor.RollbackAsync`, which record generated IDs and compensate in reverse order. No production code or machine state changed.
+
+The next independent slice is a shared SQL transaction or durable restore journal with crash/recovery tests. Queued COM acceptance remains environment-blocked; normal-installation deletion/reinitialization ordering, full restore, SEC-18, installer, native AD/DC, and lifecycle gates remain open.
+
+## Historical Slice (2026-08-08, DISPOSABLE NON-DB RESTORE ACCEPTANCE)
 
 Test-only code/test commit `1b479dfac` adds a real LocalDB executor acceptance test for the bound raw non-DB restore path. Against a unique disposable database and temporary Data directory, `MetadataBackupRestoreExecutor` restores the legacy domain graph through the SQL administration stores and replaces the old data tree from the bound raw sibling; the test drops the database and removes the temporary tree in `finally`. Legacy behavior remains anchored by `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`).
 
