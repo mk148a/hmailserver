@@ -1,4 +1,20 @@
 # Current State
+- UTC timestamp: 2026-08-08T15:42:00Z
+- Local timestamp: 2026-08-08T18:42:00+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
+- Current HEAD: `efd873fea` (code/test; documentation commit pending)
+- Last successfully pushed commit: `6c000d3e5` (atomic restore authorization lease documentation)
+- Latest focused-test result: non-DB restore authorization lease `11 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: default `1919 passed, 0 failed, 26 skipped`
+- Opt-in tests passed/skipped/blocked: non-DB executor/runtime focus `11 passed`; native AD/DC, installer, registry/COM, service/COM, and SQL/Data end-to-end remain blocked
+- Current bounded slice: per-Application authorization lease held through non-DB filesystem replacement, rollback, and metadata commit, code/test commit `efd873fea`
+- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, DB-only and non-DB restore authorization lease acceptance
+- Open production blockers: abandoned queued restores lack deterministic shutdown cleanup, restored account ciphertext may be double-encrypted, journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
+- Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
+- Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
+- Next three independent slices: drain pending restore tasks on service cancellation with idempotent cleanup; preserve archived account credential/encryption type during restore; harden recovery-journal durability and handle-relative containment
+
+## Historical State
 - UTC timestamp: 2026-08-08T15:19:08Z
 - Local timestamp: 2026-08-08T18:19:08+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
