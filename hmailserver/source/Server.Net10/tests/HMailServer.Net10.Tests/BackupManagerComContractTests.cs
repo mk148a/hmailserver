@@ -443,6 +443,36 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
+    public void PendingRestoreAbort_CleansArchiveBindingBeforeExecution()
+    {
+        var archivePath = Path.Combine(Path.GetTempPath(), $"hmailserver-pending-restore-{Guid.NewGuid():N}.7z");
+        File.WriteAllText(archivePath, "archive");
+        using var queue = new BackupTaskQueue();
+        var manager = BackupManagerComClass.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(2),
+            new BackupOperationRuntime(queue),
+            restoreExecutor: new RecordingBackupRestoreExecutor());
+
+        try
+        {
+            var backup = (Backup)manager.LoadBackup(archivePath);
+            var boundArchivePath = backup.ArchivePath;
+            backup.RestoreDomains = true;
+            backup.StartRestore();
+
+            Assert.IsTrue(File.Exists(boundArchivePath));
+            queue.CompleteAndAbortPending();
+            queue.Dispose();
+
+            Assert.IsFalse(File.Exists(boundArchivePath));
+        }
+        finally
+        {
+            File.Delete(archivePath);
+        }
+    }
+
+    [TestMethod]
     public void AuthenticatedApplication_ExposesAuthorizedBackupManagerChild()
     {
         var reader = new RecordingBackupArchiveMetadataReader(2);

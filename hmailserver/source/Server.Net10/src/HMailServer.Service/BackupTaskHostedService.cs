@@ -23,6 +23,12 @@ public sealed class BackupTaskHostedService : BackgroundService
     {
         await foreach (var task in _queue.ReadAllAsync(stoppingToken).ConfigureAwait(false))
         {
+            if (stoppingToken.IsCancellationRequested)
+            {
+                task.AbortPending();
+                continue;
+            }
+
             try
             {
                 task.SetStatus("Loading backup settings....");
@@ -39,8 +45,20 @@ public sealed class BackupTaskHostedService : BackgroundService
             }
             finally
             {
-                task.ThreadStopped();
+                task.NotifyThreadStopped();
             }
+        }
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await base.StopAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _queue.CompleteAndAbortPending();
         }
     }
 }

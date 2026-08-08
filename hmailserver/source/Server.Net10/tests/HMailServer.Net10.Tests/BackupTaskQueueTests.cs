@@ -1,4 +1,6 @@
 using HMailServer.Core.Abstractions;
+using HMailServer.Service;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HMailServer.Net10.Tests;
 
@@ -31,10 +33,68 @@ public sealed class BackupTaskQueueTests
         Assert.IsFalse(queue.TryEnqueue(CreateRequest()));
     }
 
-    private static BackupTaskRequest CreateRequest() => new(
+    [TestMethod]
+    public void DisposeAbortsPendingRequestsAndIsIdempotent()
+    {
+        var aborted = 0;
+        var threadStopped = 0;
+        var queue = new BackupTaskQueue();
+        Assert.IsTrue(queue.TryEnqueue(CreateRequest(
+            () => Interlocked.Increment(ref aborted),
+            () => Interlocked.Increment(ref threadStopped))));
+
+        queue.Dispose();
+        queue.CompleteAndAbortPending();
+
+        Assert.AreEqual(1, aborted);
+        Assert.AreEqual(1, threadStopped);
+        Assert.IsFalse(queue.TryEnqueue(CreateRequest()));
+    }
+
+    [TestMethod]
+    public async Task HostedServiceShutdownAbortsPendingRequestsAndRejectsPostShutdownEnqueue()
+    {
+        var aborted = 0;
+        var pendingThreadStopped = 0;
+        var runningThreadStopped = 0;
+        var runningStarted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var queue = new BackupTaskQueue();
+        Assert.IsTrue(queue.TryEnqueue(new BackupTaskRequest(
+            async cancellationToken =>
+            {
+                runningStarted.TrySetResult(null);
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            },
+            static _ => { },
+            static _ => { },
+            static () => { },
+            () => Interlocked.Increment(ref runningThreadStopped))));
+        Assert.IsTrue(queue.TryEnqueue(CreateRequest(
+            () => Interlocked.Increment(ref aborted),
+            () => Interlocked.Increment(ref pendingThreadStopped))));
+        using var service = new BackupTaskHostedService(
+            queue,
+            NullLogger<BackupTaskHostedService>.Instance);
+
+        await service.StartAsync(CancellationToken.None);
+        await runningStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await service.StopAsync(stopTimeout.Token);
+        queue.Dispose();
+
+        Assert.AreEqual(1, aborted);
+        Assert.AreEqual(1, pendingThreadStopped);
+        Assert.AreEqual(1, runningThreadStopped);
+        Assert.IsFalse(queue.TryEnqueue(CreateRequest()));
+    }
+
+    private static BackupTaskRequest CreateRequest(
+        Action? abort = null,
+        Action? threadStopped = null) => new(
         static _ => ValueTask.CompletedTask,
         static _ => { },
         static _ => { },
         static () => { },
-        static () => { });
+        threadStopped ?? (() => { }),
+        abort);
 }

@@ -154,7 +154,8 @@ public sealed class BackupManager : IInterfaceBackupManager
                     SetStatus,
                     OnBackupFailed,
                     OnBackupCompleted,
-                    OnThreadStopped));
+                    OnThreadStopped,
+                    backup.CleanupArchiveBinding));
         }
         catch
         {

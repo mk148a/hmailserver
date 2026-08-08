@@ -132,7 +132,8 @@ public sealed class BackupOperationRuntime : IBackupOperationRuntime
             task.SetStatus,
             task.Failed,
             task.Completed,
-            task.ThreadStopped);
+            task.ThreadStopped,
+            task.AbortCallback);
     }
 
     private static async ValueTask<BackupStartPlanEvidence> RunPreflightAsync(

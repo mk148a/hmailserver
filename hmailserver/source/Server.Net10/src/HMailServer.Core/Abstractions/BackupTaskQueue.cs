@@ -9,7 +9,8 @@ public sealed class BackupTaskRequest
         Action<string> setStatus,
         Action<string> failed,
         Action completed,
-        Action threadStopped)
+        Action threadStopped,
+        Action? abort = null)
     {
         ArgumentNullException.ThrowIfNull(executeAsync);
         ArgumentNullException.ThrowIfNull(setStatus);
@@ -22,6 +23,7 @@ public sealed class BackupTaskRequest
         Failed = failed;
         Completed = completed;
         ThreadStopped = threadStopped;
+        AbortCallback = abort;
     }
 
     public Func<CancellationToken, ValueTask> ExecuteAsync { get; }
@@ -33,6 +35,36 @@ public sealed class BackupTaskRequest
     public Action Completed { get; }
 
     public Action ThreadStopped { get; }
+
+    public Action? AbortCallback { get; }
+
+    private int _threadStopped;
+    private int _aborted;
+
+    public void AbortPending()
+    {
+        if (Interlocked.Exchange(ref _aborted, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            AbortCallback?.Invoke();
+        }
+        finally
+        {
+            NotifyThreadStopped();
+        }
+    }
+
+    public void NotifyThreadStopped()
+    {
+        if (Interlocked.Exchange(ref _threadStopped, 1) == 0)
+        {
+            ThreadStopped();
+        }
+    }
 }
 
 public interface IBackupTaskQueue
@@ -40,6 +72,8 @@ public interface IBackupTaskQueue
     bool TryEnqueue(BackupTaskRequest request);
 
     IAsyncEnumerable<BackupTaskRequest> ReadAllAsync(CancellationToken cancellationToken);
+
+    void CompleteAndAbortPending();
 }
 
 public sealed class BackupTaskQueue : IBackupTaskQueue, IDisposable
@@ -61,5 +95,14 @@ public sealed class BackupTaskQueue : IBackupTaskQueue, IDisposable
     public IAsyncEnumerable<BackupTaskRequest> ReadAllAsync(CancellationToken cancellationToken) =>
         _queue.Reader.ReadAllAsync(cancellationToken);
 
-    public void Dispose() => _queue.Writer.TryComplete();
+    public void CompleteAndAbortPending()
+    {
+        _queue.Writer.TryComplete();
+        while (_queue.Reader.TryRead(out var request))
+        {
+            request.AbortPending();
+        }
+    }
+
+    public void Dispose() => CompleteAndAbortPending();
 }
