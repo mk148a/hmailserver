@@ -1,3 +1,11 @@
+## Current Completed Slice (2026-08-08, TRANSACTION-SCOPED DOMAIN RESTORE CLEANUP CAPABILITY)
+
+Code/test commit `74ca89853` adds a transaction-scoped, set-based `DeleteAllDomainsForRestoreAsync` capability to the SQL restore transaction. It snapshots domain-owned accounts, lists, rules, messages, fetch accounts, IMAP folders, group memberships, and ACL ownership under the transaction, deletes dependent rows in legacy owner order, and leaves commit or rollback to the existing transaction owner.
+
+Legacy behavior is anchored by `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`), `Collection<T,P>::DeleteAll` (`hmailserver/source/Server/Common/BO/Collection.h:85-215`), `PersistentAccount::DeleteObject` (`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp`), and `Reinitializator::ReInitialize` (`hmailserver/source/Server/Common/Application/Reinitializator.cpp:36-53`). Focused coverage is `6 passed, 0 failed, 3 skipped`; default full Net10 is `1934 passed, 0 failed, 29 skipped`. SQL commit/rollback tests are present but skipped without the approved disposable SQL environment.
+
+This is a capability-only slice: restore orchestration still does not call it, and no production restore behavior changed. Release remains RED for full deletion/reinitialization ordering, public folders/settings, handle-relative containment, process-kill/power-loss, SQL/filesystem atomicity, service/COM, SEC-18, installer, AD/DC, migration, and lifecycle gates. Next slice: wire domain cleanup immediately before full-restore filesystem replacement with isolated populated-store rollback and ordering tests.
+
 ## Current Completed Slice (2026-08-08, FINAL RESTORE CONTAINMENT REVALIDATION)
 
 Code/test commit `0d08e2c47` adds one final synchronous `BackupRestoreContainmentPreflight.Revalidate` after metadata parsing and the authorization lease, immediately before non-DB Data-directory staging. Focused negative tests mutate the raw source or target at the lease boundary and prove the restore fails before copy or domain mutation.
