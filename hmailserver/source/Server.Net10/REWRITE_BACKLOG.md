@@ -1,5 +1,13 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-08, DEFAULT DOMAIN LOGIN LOOKUP)
+
+Code/test commit `c0d9294b6` applies the configured `Settings.DefaultDomain` to normal IMAP username lookup when the supplied username has no `@`, using the existing `ISettingsAdministrationStore` boundary and `Canonicalize` helper. The disposable local SQL test proves `default` authenticates as `default@example.test`; focused coverage is `1 passed, 0 skipped`, and the full Net10 run is `1882 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods. No domain-alias SQL behavior, COM identity, SMTP trust, production service, database, or Data directory changed.
+
+Legacy anchor: `hmailserver/source/Server/Common/Util/PasswordValidator.cpp:44-51` applies aliases and then the configured default domain before account lookup. The remaining normal-login gap is domain-alias translation (`hm_domain_aliases`, legacy `DomainAliases::ApplyAliasesOnAddress`); real AD/DC evidence and release gates remain open.
+
+Next slice: legacy domain-alias translation for normal IMAP authentication, preserving owner/schema boundaries and existing direct email lookup.
+
 ## Current Completed Slice (2026-08-08, LOGIN SCRIPT ORDERING)
 
 Code/test commit `d2c24d2c8` restores the legacy normal `LOGIN` ordering in `SqlServerImapAccountAuthenticator`: the account is materialized, `IClientPasswordValidationScriptExecutor` runs first, script `Accept` can authorize an empty password, script `Reject` fails immediately, and only `Continue` reaches the empty-password rejection. The existing `AUTHENTICATE PLAIN` parser still rejects an empty password with `BAD Command is missing password.` before the authenticator. Focused SQL/IMAP coverage is `40 passed, 0 skipped`; the full Net10 run is `1882 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods.

@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Rewrite
 
+## Current Continuation (2026-08-08, DEFAULT DOMAIN LOGIN LOOKUP)
+
+Code/test commit `c0d9294b6` applies configured `Settings.DefaultDomain` to normal IMAP username lookup when the username has no `@`, through the existing settings-store boundary. Disposable local SQL evidence proves `default` authenticates as `default@example.test`; focused `1 passed, 0 skipped`; full Net10 `1882 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods. Legacy `PasswordValidator.cpp:44-51` applies aliases then default domain; domain-alias translation remains a separate open slice. Next slice: `hm_domain_aliases` lookup parity.
+
 ## Current Continuation (2026-08-08, LOGIN SCRIPT ORDERING)
 
 Code/test commit `d2c24d2c8` restores legacy normal `LOGIN` script ordering: the SQL account is materialized, the password-validation script runs before empty-password rejection, script `Accept` can authorize an empty password, and `Continue` still fails empty passwords. `AUTHENTICATE PLAIN` continues to reject empty passwords in the parser before the authenticator. Focused SQL/IMAP coverage is `40 passed, 0 skipped`; full Net10 is `1882 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods. Legacy anchors are `IMAPCommandLOGIN::ExecuteCommand` (`hmailserver/source/Server/IMAP/IMAPCommandLogin.cpp:52-57`), `IMAPCommandAUTHENTICATE::ExecuteCommand` (`hmailserver/source/Server/IMAP/IMAPCommandAuthenticate.cpp:77-79`), and `PasswordValidator::ValidatePassword` (`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:109-133`). Next slice: domain-alias/default-domain lookup; real AD/DC, SEC-18/COM/DCOM, installer, migration/restore, and soak gates remain open.
