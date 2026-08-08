@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -134,6 +135,50 @@ public sealed class ImapTcpListenerTests
         Assert.IsGreaterThan(0, capturedRequest.Client.SessionId);
 
         await StopListenerAsync(runTask, cts);
+    }
+
+
+    [TestMethod]
+    [TestCategory("LiveProtocolAcceptance")]
+    public async Task LoopbackAcceptLatency_ServesBannerWithinBudget()
+    {
+        const int clientCount = 200;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var listener = CreateListener(maxConcurrentConnections: 64);
+        var runTask = listener.RunAsync(cts.Token);
+        var endpoint = await listener.Started.WaitAsync(cts.Token);
+
+        var latencies = new List<double>(clientCount);
+        try
+        {
+            for (var i = 0; i < clientCount; i++)
+            {
+                var stopwatch = Stopwatch.StartNew();
+                using var client = new TcpClient();
+                await client.ConnectAsync(endpoint.Address, endpoint.Port, cts.Token);
+                await using var stream = client.GetStream();
+                using var reader = CreateReader(stream);
+                var banner = await ReadLineAsync(reader, cts.Token);
+                stopwatch.Stop();
+                Assert.AreEqual("* OK hMailServer .NET 10 IMAP ready", banner);
+                latencies.Add(stopwatch.Elapsed.TotalMilliseconds);
+            }
+
+            latencies.Sort();
+            var p95 = Percentile(latencies, 0.95);
+            Assert.AreEqual(clientCount, latencies.Count);
+            Assert.IsTrue(p95 < TimeSpan.FromSeconds(5).TotalMilliseconds, "IMAP" + " accept p95 (" + p95.ToString("0.###") + "ms) exceeded budget.");
+        }
+        finally
+        {
+            await StopListenerAsync(runTask, cts);
+        }
+    }
+
+    private static double Percentile(IReadOnlyList<double> orderedValues, double percentile)
+    {
+        var index = (int)Math.Ceiling(percentile * orderedValues.Count) - 1;
+        return orderedValues[Math.Clamp(index, 0, orderedValues.Count - 1)];
     }
 
     private static ImapTcpListener CreateListener(
