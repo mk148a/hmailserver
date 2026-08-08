@@ -182,7 +182,7 @@ WHERE
         string password,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+        if (string.IsNullOrWhiteSpace(username))
         {
             return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
         }
@@ -254,6 +254,11 @@ WHERE
         }
 
         if (scriptDecision == ClientPasswordValidationScriptDecision.Reject)
+        {
+            return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
+        }
+
+        if (string.IsNullOrEmpty(password))
         {
             return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
         }

@@ -79,6 +79,47 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
             Assert.AreEqual(
                 new DateTime(2000, 1, 1),
                 await ReadLastLogonAsync(testConnectionString, 3).ConfigureAwait(false));
+
+            var scriptPasswords = new List<string>();
+            var scriptAuthenticator = new SqlServerImapAccountAuthenticator(
+                new SqlServerConnectionFactory(authConnectionString),
+                passwordValidationScriptExecutor: new DelegatePasswordValidationScriptExecutor(
+                    request =>
+                    {
+                        scriptPasswords.Add(request.Password);
+                        return ClientPasswordValidationScriptResult.Accept();
+                    }),
+                activeDirectoryPasswordValidator: validator);
+            var scriptBaseline = await ReadLastLogonAsync(testConnectionString, 4).ConfigureAwait(false);
+            var scriptAccepted = await scriptAuthenticator
+                .AuthenticateAsync("script@example.test", string.Empty, CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsTrue(scriptAccepted.Succeeded);
+            CollectionAssert.AreEqual(new[] { string.Empty }, scriptPasswords);
+            Assert.IsTrue(
+                await ReadLastLogonAsync(testConnectionString, 4).ConfigureAwait(false)
+                    > scriptBaseline);
+
+            var continueValidatorCalls = 0;
+            var continuedAuthenticator = new SqlServerImapAccountAuthenticator(
+                new SqlServerConnectionFactory(authConnectionString),
+                passwordValidationScriptExecutor: new DelegatePasswordValidationScriptExecutor(
+                    _ => ClientPasswordValidationScriptResult.Continue()),
+                activeDirectoryPasswordValidator: new DelegateActiveDirectoryPasswordValidator(
+                    (_, _, _) =>
+                    {
+                        continueValidatorCalls++;
+                        return true;
+                    }));
+            var continued = await continuedAuthenticator
+                .AuthenticateAsync("rejected@example.test", string.Empty, CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsFalse(continued.Succeeded);
+            Assert.AreEqual("Invalid user name or password.", continued.FailureMessage);
+            Assert.AreEqual(0, continueValidatorCalls);
+            Assert.AreEqual(
+                new DateTime(2000, 1, 1),
+                await ReadLastLogonAsync(testConnectionString, 2).ConfigureAwait(false));
         }
         finally
         {
@@ -200,6 +241,8 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
                 (10, N'rejected@example.test', N'', 1, 1, N'CORP', N'rejected', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
                  N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
                 (20, N'inactive@example.test', N'', 1, 1, N'CORP', N'inactive', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
+                 N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
+                (10, N'script@example.test', N'', 1, 1, N'CORP', N'script', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
                  N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N'');
             """;
 
@@ -241,5 +284,21 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
 
         public bool Validate(string domain, string username, string password) =>
             _validate(domain, username, password);
+    }
+
+    private sealed class DelegatePasswordValidationScriptExecutor : IClientPasswordValidationScriptExecutor
+    {
+        private readonly Func<ClientPasswordValidationScriptRequest, ClientPasswordValidationScriptResult> _execute;
+
+        public DelegatePasswordValidationScriptExecutor(
+            Func<ClientPasswordValidationScriptRequest, ClientPasswordValidationScriptResult> execute)
+        {
+            _execute = execute;
+        }
+
+        public ClientPasswordValidationScriptResult Execute(
+            ClientPasswordValidationScriptRequest request,
+            CancellationToken cancellationToken) =>
+            _execute(request);
     }
 }

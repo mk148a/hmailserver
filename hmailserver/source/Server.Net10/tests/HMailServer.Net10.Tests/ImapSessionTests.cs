@@ -323,6 +323,40 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_LoginForwardsEmptyPasswordToAuthenticationBoundary()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN user@example.test \"\"\r\n");
+        var authenticator = new CapturingAuthenticator();
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            authenticator);
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Invalid user name or password.\r\n");
+        Assert.AreEqual(1, authenticator.Calls);
+        Assert.AreEqual(string.Empty, authenticator.Password);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_AuthenticatePlainRejectsEmptyPasswordBeforeAuthenticator()
+    {
+        var token = EncodeSaslPlain(string.Empty, "user@example.test", string.Empty);
+        await using var stream = new DuplexMemoryStream(
+            $"A001 AUTHENTICATE PLAIN {token}\r\n");
+        var authenticator = new CapturingAuthenticator();
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            authenticator);
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 BAD Command is missing password.\r\n");
+        Assert.AreEqual(0, authenticator.Calls);
+    }
+
+    [TestMethod]
     public async Task RunAsync_CapabilityOmitsPlainAuthWhenTlsIsRequired()
     {
         await using var stream = new DuplexMemoryStream("A001 CAPABILITY\r\nA002 LOGOUT\r\n");
@@ -1055,6 +1089,22 @@ public sealed class ImapSessionTests
                     ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(77, username)));
             }
 
+            return ValueTask.FromResult(ImapAuthenticationResult.Failure("Invalid user name or password."));
+        }
+    }
+
+    private sealed class CapturingAuthenticator : IImapAccountAuthenticator
+    {
+        public int Calls { get; private set; }
+        public string Password { get; private set; } = string.Empty;
+
+        public ValueTask<ImapAuthenticationResult> AuthenticateAsync(
+            string username,
+            string password,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            Password = password;
             return ValueTask.FromResult(ImapAuthenticationResult.Failure("Invalid user name or password."));
         }
     }
