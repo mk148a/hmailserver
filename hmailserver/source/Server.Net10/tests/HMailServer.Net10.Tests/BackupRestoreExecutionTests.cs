@@ -217,6 +217,97 @@ public sealed class BackupRestoreExecutionTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_RejectsNonDbRestoreWhenRawSourceChangesAfterAuthorizationLease()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateNonDbAsync(compressed: false);
+        var stores = new RecordingStores();
+        var copyCount = 0;
+        var dataDirectoryRuntime = new BackupRestoreDataDirectoryRuntime(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            (_, _, _) => Interlocked.Increment(ref copyCount));
+        var sourcePath = Path.Combine(fixture.Root, "DataBackup");
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            stores.Domains,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            stores.Recipients,
+            dataDirectoryRuntime: dataDirectoryRuntime);
+        var backup = Backup.CreateAuthorized(
+            6,
+            fixture.ArchivePath,
+            authorizationLeaseFactory: _ =>
+            {
+                Directory.Delete(sourcePath, recursive: true);
+                return ValueTask.FromResult<IDisposable?>(new NoopLease());
+            });
+        backup.RestoreDomains = true;
+        backup.RestoreMessages = true;
+
+        var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        StringAssert.Contains(error.Message, "accessible directory");
+        Assert.AreEqual(0, copyCount);
+        Assert.AreEqual("original", await File.ReadAllTextAsync(fixture.OriginalFilePath));
+        Assert.IsFalse(File.Exists(fixture.RestoredFilePath));
+        Assert.AreEqual(0, stores.Domains.Items.Count);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_RejectsNonDbRestoreWhenTargetPathChangesAfterAuthorizationLease()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateNonDbAsync(compressed: false);
+        var stores = new RecordingStores();
+        var copyCount = 0;
+        var dataDirectoryRuntime = new BackupRestoreDataDirectoryRuntime(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            (_, _, _) => Interlocked.Increment(ref copyCount));
+        var originalTargetPath = fixture.DataDirectory + ".original";
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            stores.Domains,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            stores.Recipients,
+            dataDirectoryRuntime: dataDirectoryRuntime);
+        var backup = Backup.CreateAuthorized(
+            6,
+            fixture.ArchivePath,
+            authorizationLeaseFactory: _ =>
+            {
+                Directory.Move(fixture.DataDirectory, originalTargetPath);
+                File.WriteAllText(fixture.DataDirectory, "target mutation");
+                return ValueTask.FromResult<IDisposable?>(new NoopLease());
+            });
+        backup.RestoreDomains = true;
+        backup.RestoreMessages = true;
+
+        var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        StringAssert.Contains(error.Message, "target data path is a file");
+        Assert.AreEqual(0, copyCount);
+        Assert.AreEqual("target mutation", await File.ReadAllTextAsync(fixture.DataDirectory));
+        Assert.AreEqual("original", await File.ReadAllTextAsync(Path.Combine(originalTargetPath, "original.txt")));
+        Assert.AreEqual(0, stores.Domains.Items.Count);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_HoldsNonDbLeaseThroughCopyAndMetadataCommit()
     {
         if (!OperatingSystem.IsWindows())
@@ -464,6 +555,13 @@ public sealed class BackupRestoreExecutionTests
                 FailAliasInsert ? new FailingAliasStore(Aliases) : Aliases,
                 DistributionLists,
                 Recipients);
+        }
+    }
+
+    private sealed class NoopLease : IDisposable
+    {
+        public void Dispose()
+        {
         }
     }
 

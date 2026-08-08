@@ -249,10 +249,21 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         using var authorizationLease = await backup
             .AcquireAuthorizationLeaseAsync(cancellationToken)
             .ConfigureAwait(false);
+        var finalContainment = BackupRestoreContainmentPreflight.Revalidate(
+            revalidatedContainment,
+            evidence,
+            cancellationToken);
+        if (!finalContainment.IsSafe)
+        {
+            throw new InvalidOperationException(
+                finalContainment.FailureReason
+                    ?? "The final restore containment revalidation failed.");
+        }
+
         await _dataDirectoryRuntime
             .RestoreAsync(
                 evidence,
-                revalidatedContainment,
+                finalContainment,
                 cancellationToken,
                 commitAsync: ct => RestoreMetadataAsync(
                     domains,
