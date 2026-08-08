@@ -40,6 +40,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     private readonly SqlConnection _connection;
     private readonly SqlTransaction _transaction;
     private readonly SqlServerDomainAdministrationStore _domainStore;
+    private readonly SqlServerImapFolderAdministrationStore _publicFolderStore;
     private bool _commitStarted;
     private bool _committed;
 
@@ -51,6 +52,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         _transaction = transaction;
         var context = new SqlServerBackupRestoreTransactionContext(connection, transaction);
         _domainStore = new SqlServerDomainAdministrationStore(context);
+        _publicFolderStore = new SqlServerImapFolderAdministrationStore(context);
         DomainStore = _domainStore;
         AccountStore = new SqlServerAccountAdministrationStore(context);
         AliasStore = new SqlServerAliasAdministrationStore(context);
@@ -70,6 +72,9 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
 
     public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         _domainStore.DeleteAllDomainsForRestoreAsync(cancellationToken);
+
+    public ValueTask DeleteAllPublicFoldersForRestoreAsync(CancellationToken cancellationToken) =>
+        _publicFolderStore.DeleteAllPublicFoldersForRestoreAsync(cancellationToken);
 
     public async ValueTask CommitAsync(CancellationToken cancellationToken)
     {

@@ -282,12 +282,89 @@ FROM @RemovedMessages
 ORDER BY messageid;
 """;
 
+    public const string DeleteAllPublicFoldersForRestoreSql = """
+SET XACT_ABORT ON;
+
+DECLARE @FolderIds TABLE
+(
+    folderid int NOT NULL PRIMARY KEY
+);
+
+INSERT INTO @FolderIds (folderid)
+SELECT folderid
+FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)
+WHERE folderaccountid = 0;
+
+DECLARE @MessageIds TABLE
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messagetype tinyint NOT NULL
+);
+
+INSERT INTO @MessageIds (messageid, messagetype)
+SELECT messages.messageid, messages.messagetype
+FROM hm_messages AS messages WITH (UPDLOCK, HOLDLOCK)
+INNER JOIN @FolderIds AS folders
+    ON folders.folderid = messages.messagefolderid
+WHERE messages.messageaccountid = 0;
+
+DELETE recipients
+FROM hm_messagerecipients AS recipients
+INNER JOIN @MessageIds AS messages
+    ON messages.messageid = recipients.recipientmessageid
+WHERE messages.messagetype <> 2;
+
+DELETE queue
+FROM hm_message_search_queue AS queue
+INNER JOIN @MessageIds AS messages
+    ON messages.messageid = queue.messageid;
+
+DELETE documents
+FROM hm_message_search_documents AS documents
+INNER JOIN @MessageIds AS messages
+    ON messages.messageid = documents.messageid;
+
+DELETE metadata
+FROM hm_message_metadata AS metadata
+INNER JOIN @MessageIds AS messages
+    ON messages.messageid = metadata.metadata_messageid;
+
+DELETE permissions
+FROM hm_acl AS permissions
+INNER JOIN @FolderIds AS folders
+    ON folders.folderid = permissions.aclsharefolderid;
+
+DELETE messages
+FROM hm_messages AS messages
+INNER JOIN @MessageIds AS selected
+    ON selected.messageid = messages.messageid;
+
+DELETE folders
+FROM hm_imapfolders AS folders
+INNER JOIN @FolderIds AS selected
+    ON selected.folderid = folders.folderid
+WHERE NOT
+(
+    folders.folderparentid = -1
+    AND UPPER(folders.foldername) = N'INBOX'
+);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerImapFolderAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    internal SqlServerImapFolderAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
     }
 
     public async ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetFoldersForAccountAsync(
@@ -511,6 +588,26 @@ ORDER BY messageid;
         }
 
         return new ImapFolderAdministrationDeletionResult(succeeded, messages);
+    }
+
+    internal async ValueTask DeleteAllPublicFoldersForRestoreAsync(
+        CancellationToken cancellationToken)
+    {
+        if (_transactionContext is null)
+        {
+            throw new InvalidOperationException(
+                "Public-folder restore cleanup requires an existing SQL restore transaction.");
+        }
+
+        await using var commandLease = await SqlServerCommandLease
+            .OpenAsync(
+                _connectionFactory,
+                _transactionContext,
+                DeleteAllPublicFoldersForRestoreSql,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        await commandLease.Command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> ReadFoldersAsync(

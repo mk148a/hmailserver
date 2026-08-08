@@ -22,5 +22,9 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
         throw new NotSupportedException(
             "Transaction-scoped domain deletion for restore is not implemented by this transaction.");
 
+    ValueTask DeleteAllPublicFoldersForRestoreAsync(CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "Transaction-scoped public-folder deletion for restore is not implemented by this transaction.");
+
     ValueTask CommitAsync(CancellationToken cancellationToken);
 }

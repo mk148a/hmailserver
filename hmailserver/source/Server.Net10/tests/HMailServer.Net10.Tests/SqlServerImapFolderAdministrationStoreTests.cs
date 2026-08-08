@@ -192,6 +192,35 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
         StringAssert.Contains(sql, "accountaddress");
     }
 
+    [TestMethod]
+    public void DeleteAllPublicFoldersForRestoreSql_IsTransactionScopedAndDeletesLegacyDependentsInOrder()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.DeleteAllPublicFoldersForRestoreSql;
+
+        StringAssert.Contains(sql, "SET XACT_ABORT ON");
+        StringAssert.Contains(sql, "FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)");
+        StringAssert.Contains(sql, "WHERE folderaccountid = 0");
+        StringAssert.Contains(sql, "FROM hm_messages AS messages WITH (UPDLOCK, HOLDLOCK)");
+        StringAssert.Contains(sql, "WHERE messages.messageaccountid = 0");
+        StringAssert.Contains(sql, "messages.messagetype <> 2");
+        StringAssert.Contains(sql, "@FolderIds");
+        StringAssert.Contains(sql, "@MessageIds");
+        StringAssert.Contains(sql, "hm_messagerecipients");
+        StringAssert.Contains(sql, "hm_message_search_queue");
+        StringAssert.Contains(sql, "hm_message_search_documents");
+        StringAssert.Contains(sql, "hm_message_metadata");
+        StringAssert.Contains(sql, "hm_acl");
+        StringAssert.Contains(sql, "DELETE folders");
+        StringAssert.Contains(sql, "folders.folderparentid = -1");
+        StringAssert.Contains(sql, "UPPER(folders.foldername) = N'INBOX'");
+        Assert.IsFalse(sql.Contains("BEGIN TRANSACTION", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("COMMIT TRANSACTION", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("ROLLBACK TRANSACTION", StringComparison.OrdinalIgnoreCase));
+        Assert.IsTrue(
+            sql.IndexOf("DELETE messages", StringComparison.OrdinalIgnoreCase)
+                < sql.IndexOf("DELETE folders", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static void AssertFolderProjection(string sql)
     {
         StringAssert.Contains(sql, "folderid");
