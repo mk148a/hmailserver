@@ -101,6 +101,26 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
                 new[] { (Domain: "CORP", Username: "aliasuser") },
                 aliasCalls);
 
+            var quotedLocalPartAuthenticator = new SqlServerImapAccountAuthenticator(
+                new SqlServerConnectionFactory(authConnectionString),
+                activeDirectoryPasswordValidator: new DelegateActiveDirectoryPasswordValidator(
+                    (_, username, _) => username == "quoted"));
+            var quotedLocalPartResult = await quotedLocalPartAuthenticator
+                .AuthenticateAsync("\"a@b\"@ALIAS.TEST", "directory-secret", CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsTrue(quotedLocalPartResult.Succeeded, quotedLocalPartResult.FailureMessage);
+            Assert.IsNotNull(quotedLocalPartResult.Account);
+            Assert.AreEqual("\"a@b\"@example.test", quotedLocalPartResult.Account!.Address);
+
+            var plainAliasAuthenticator = new SqlServerImapAccountAuthenticator(
+                new SqlServerConnectionFactory(authConnectionString));
+            var plainAliasResult = await plainAliasAuthenticator
+                .AuthenticateAsync("aliaslocal@ALIAS.TEST", "secret", CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsTrue(plainAliasResult.Succeeded, plainAliasResult.FailureMessage);
+            Assert.IsNotNull(plainAliasResult.Account);
+            Assert.AreEqual("aliaslocal@example.test", plainAliasResult.Account!.Address);
+
             var inactiveDomain = await authenticator
                 .AuthenticateAsync("inactive@example.test", "directory-secret", CancellationToken.None)
                 .ConfigureAwait(false);
@@ -285,6 +305,10 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
                 (10, N'default@example.test', N'', 1, 1, N'CORP', N'default', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
                  N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
                 (10, N'aliasuser@example.test', N'', 1, 1, N'CORP', N'aliasuser', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
+                 N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
+                (10, N'"a@b"@example.test', N'', 1, 1, N'CORP', N'quoted', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
+                 N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
+                (10, N'aliaslocal@example.test', N'secret', 1, 0, N'', N'', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
                  N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N'');
             """;
 

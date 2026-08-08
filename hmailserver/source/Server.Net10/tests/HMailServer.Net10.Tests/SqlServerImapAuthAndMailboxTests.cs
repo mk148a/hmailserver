@@ -29,6 +29,7 @@ public sealed class SqlServerImapAuthAndMailboxTests
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "CONVERT(varchar(30), a.accountlastlogontime, 126)");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "LEFT JOIN hm_domain_aliases AS da");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "da.daalias COLLATE Latin1_General_100_CI_AS");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "REVERSE(@Username)");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "da.daid ASC");
     }
 

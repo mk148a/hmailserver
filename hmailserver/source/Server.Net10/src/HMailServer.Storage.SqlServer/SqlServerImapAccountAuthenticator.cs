@@ -47,16 +47,16 @@ WHERE
     AND (
         a.accountaddress COLLATE Latin1_General_100_CI_AS = @Username COLLATE Latin1_General_100_CI_AS
         OR (
-            CHARINDEX('@', @Username) > 0
-            AND da.daalias COLLATE Latin1_General_100_CI_AS = SUBSTRING(@Username, CHARINDEX('@', @Username) + 1, 255) COLLATE Latin1_General_100_CI_AS
+            CHARINDEX('@', REVERSE(@Username)) > 0
+            AND da.daalias COLLATE Latin1_General_100_CI_AS = SUBSTRING(@Username, LEN(@Username) - CHARINDEX('@', REVERSE(@Username)) + 2, 255) COLLATE Latin1_General_100_CI_AS
             AND a.accountaddress COLLATE Latin1_General_100_CI_AS = (
-                LEFT(@Username, CHARINDEX('@', @Username) - 1) + N'@' + d.domainname)
+                LEFT(@Username, LEN(@Username) - CHARINDEX('@', REVERSE(@Username))) + N'@' + d.domainname)
                 COLLATE Latin1_General_100_CI_AS
         )
     )
 ORDER BY
     CASE
-        WHEN da.daalias COLLATE Latin1_General_100_CI_AS = SUBSTRING(@Username, CHARINDEX('@', @Username) + 1, 255) COLLATE Latin1_General_100_CI_AS
+        WHEN da.daalias COLLATE Latin1_General_100_CI_AS = SUBSTRING(@Username, LEN(@Username) - CHARINDEX('@', REVERSE(@Username)) + 2, 255) COLLATE Latin1_General_100_CI_AS
             THEN 0
         ELSE 1
     END,
