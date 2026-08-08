@@ -1455,3 +1455,10 @@ Authoritative 2026-08-08 continuation: code/test commit `124acfc0c` binds raw ex
 The next gate is isolated service/COM queued restore against disposable SQL/Data. Do not claim production parity: private temp ACL and path-based TOCTOU remain, SQL/filesystem restore is not crash-safe, normal-installation domain/public-folder deletion ordering and application reinitialization remain open, and native COM/DCOM, SEC-18, installer, AD/DC, migration, and 24-hour lifecycle gates are still RED. No production service, SQL/Data directory, COM registration, DCOM ACL, IIS, SMTP trust, or live reconfiguration changed.
 
 Older `Current Next Slice` paragraphs below this entry are historical.
+## Current Authoritative Continuation
+
+Authoritative 2026-08-08 continuation: test-only code/test commit `1b479dfac` adds real disposable LocalDB + filesystem acceptance for the bound raw non-DB restore executor. The test creates a unique database, restores domains/accounts/aliases/distribution lists/recipients, verifies the raw DataBackup replacement, and drops both SQL/temp resources in `finally`. Focused coverage is `2 passed, 0 failed, 0 skipped`; default full Net10 remains `1908 passed, 0 failed, 16 skipped`.
+
+The SQL-enabled full run was `1918 passed, 5 failed, 2 skipped`; the five failures are existing `SqlServerMessageIndexingIntegrationTests` fixture/schema/ACL/cache failures and are unrelated to restore. The queued out-of-process service/COM acceptance is environment-blocked because no approved isolated composition exists; do not change installed COM registration, DCOM ACLs, production service, SQL, Data directory, or IIS. Next independent slice: shared SQL/filesystem transaction or durable restore journal, then legacy delete/reinitialize ordering.
+
+Older continuation paragraphs below this entry are historical.

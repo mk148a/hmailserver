@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-08T12:26:09Z
-- Local timestamp: 2026-08-08T15:26:09+03:00
+- UTC timestamp: 2026-08-08T12:32:20Z
+- Local timestamp: 2026-08-08T15:32:20+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `124acfc0c` (code/test; documentation commit pending)
-- Last successfully pushed commit: `a97cc433f` (bounded non-DB restore staging documentation)
-- Latest focused-test result: raw archive/sibling binding `5 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1908 passed, 0 failed, 16 skipped`
-- Opt-in tests passed/skipped/blocked: Local SQL restore round-trip remains passed; full run has `16` environment/opt-in skips; native AD/DC, installer, registry/COM, live service/COM, and disposable end-to-end restore evidence remain blocked
-- Current bounded slice: raw external `DataBackup` sibling binding/hash, code/test commit `124acfc0c`
-- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding
+- Current HEAD: `1b479dfac` (code/test; documentation commit pending)
+- Last successfully pushed commit: `5ad21795c` (raw DataBackup binding documentation)
+- Latest focused-test result: disposable non-DB LocalDB restore round-trip `2 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: default `1908 passed, 0 failed, 16 skipped`; SQL-enabled run `1918 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures
+- Opt-in tests passed/skipped/blocked: disposable restore executor/round-trip `2 passed`; SQL-enabled full run `5` unrelated `SqlServerMessageIndexingIntegrationTests` failures; native AD/DC, installer, registry/COM, and service/COM remain blocked
+- Current bounded slice: disposable LocalDB + filesystem non-DB restore acceptance, code/test commit `1b479dfac`
+- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor acceptance
 - Open production blockers: private binding ACL/handle-relative TOCTOU, normal-installation full restore ordering, crash-safe shared SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: run queued restore through isolated service/COM with disposable SQL/Data; add a shared SQL transaction or durable restore journal with recovery tests; implement legacy domain/public-folder deletion and application reinitialization ordering
+- Next three independent slices: add a shared SQL transaction or durable restore journal with recovery tests; implement legacy domain/public-folder deletion and application reinitialization ordering; complete isolated service/COM queued restore once approved composition is available

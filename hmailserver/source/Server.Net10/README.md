@@ -1,3 +1,9 @@
+## Current Continuation (2026-08-08, DISPOSABLE NON-DB RESTORE ACCEPTANCE)
+
+Test-only code/test commit `1b479dfac` adds real LocalDB acceptance for the bound raw non-DB restore executor. It creates a unique disposable database, restores the legacy domain graph through the SQL administration stores, replaces a temporary Data directory from the bound raw sibling, and deterministically drops/removes all test resources. Focused restore round-trip coverage is `2 passed, 0 failed, 0 skipped`; the default full Net10 suite remains `1908 passed, 0 failed, 16 skipped`.
+
+With the approved LocalDB opt-in enabled, the full suite reached `1918 passed, 5 failed, 2 skipped`; the five failures are pre-existing `SqlServerMessageIndexingIntegrationTests` fixture failures, not restore failures. The next service/COM queued acceptance is environment-blocked because no approved isolated out-of-process composition is available; production COM registration, DCOM, service, SQL, and Data-directory changes remain fenced. Next code slice: shared SQL/filesystem transaction or durable restore journal.
+
 ## Current Continuation (2026-08-08, RAW DATABACKUP SIBLING BINDING)
 
 Code/test commit `124acfc0c` binds raw `DataBackup` content with the archive snapshot. Legacy `BackupExecuter::RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:339-388`) resolves `DataFiles/@FolderName` beside the original archive; `.NET 10` now copies that sibling into the private binding directory, rejects source changes during copy, records a deterministic tree hash, and validates the bound tree before restore. Focused archive/raw coverage is `5 passed, 0 failed, 0 skipped`; the preceding executor/runtime focus is `13 passed, 0 failed, 0 skipped`; full Net10 is `1908 passed, 0 failed, 16 skipped`.
