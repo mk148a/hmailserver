@@ -77,12 +77,24 @@ public sealed class BackupManager : IInterfaceBackupManager
     public IInterfaceBackup LoadBackup(string xmlFile)
     {
         EnsureAuthorized();
-        var containsOptions = _metadataReader!.ReadContainsOptions(xmlFile);
-        return Backup.CreateAuthorized(
-            containsOptions,
-            Path.GetFullPath(xmlFile),
-            StartRestore,
-            _authorizationGuard);
+        var archiveBinding = BackupArchiveBinding.TryCreate(xmlFile);
+        try
+        {
+            var archivePath = archiveBinding?.ArchivePath ?? Path.GetFullPath(xmlFile);
+            var containsOptions = _metadataReader!.ReadContainsOptions(archivePath);
+            return Backup.CreateAuthorized(
+                containsOptions,
+                archivePath,
+                StartRestore,
+                _authorizationGuard,
+                archiveBinding?.Identity,
+                archiveBinding);
+        }
+        catch
+        {
+            archiveBinding?.Dispose();
+            throw;
+        }
     }
 
     internal static BackupManager CreateAuthorized(
@@ -113,24 +125,48 @@ public sealed class BackupManager : IInterfaceBackupManager
         EnsureAuthorized();
         if (_operationRuntime is null || _restoreExecutor is null)
         {
+            backup.CleanupArchiveBinding();
             throw NotImplemented();
         }
 
         SetStatus("Restore started");
-        var result = _operationRuntime.TryStartRestore(
-            () => new BackupTaskRequest(
-                cancellationToken => _restoreExecutor.ExecuteAsync(backup, cancellationToken),
-                SetStatus,
-                OnBackupFailed,
-                OnBackupCompleted,
-                OnThreadStopped));
+        BackupStartDispatchResult result;
+        try
+        {
+            result = _operationRuntime.TryStartRestore(
+                () => new BackupTaskRequest(
+                    cancellationToken => ExecuteRestoreAsync(backup, cancellationToken),
+                    SetStatus,
+                    OnBackupFailed,
+                    OnBackupCompleted,
+                    OnThreadStopped));
+        }
+        catch
+        {
+            backup.CleanupArchiveBinding();
+            throw;
+        }
         if (result == BackupStartDispatchResult.AlreadyRunning)
         {
+            backup.CleanupArchiveBinding();
             OnBackupFailed("Backup or restore operation is already started");
         }
         else if (result == BackupStartDispatchResult.QueueUnavailable)
         {
+            backup.CleanupArchiveBinding();
             OnBackupFailed("Restore operation failed because random work queue did not exist.");
+        }
+    }
+
+    private async ValueTask ExecuteRestoreAsync(Backup backup, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _restoreExecutor!.ExecuteAsync(backup, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            backup.CleanupArchiveBinding();
         }
     }
 

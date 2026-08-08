@@ -60,6 +60,8 @@ public sealed class Backup : IInterfaceBackup
     private readonly int _containsOptions;
     private readonly string? _archivePath;
     private readonly Action<Backup>? _startRestore;
+    private readonly BackupArchiveIdentity? _archiveIdentity;
+    private BackupArchiveBinding? _archiveBinding;
     private int _restoreOptions;
 
     public Backup()
@@ -70,13 +72,17 @@ public sealed class Backup : IInterfaceBackup
         int containsOptions,
         string? archivePath,
         Action<Backup>? startRestore,
-        Func<bool>? authorizationGuard)
+        Func<bool>? authorizationGuard,
+        BackupArchiveIdentity? archiveIdentity,
+        BackupArchiveBinding? archiveBinding)
     {
         _authorized = true;
         _authorizationGuard = authorizationGuard;
         _containsOptions = containsOptions;
         _archivePath = archivePath;
         _startRestore = startRestore;
+        _archiveIdentity = archiveIdentity;
+        _archiveBinding = archiveBinding;
     }
 
     public bool ContainsSettings => HasContainsFlag(SettingsFlag);
@@ -120,15 +126,24 @@ public sealed class Backup : IInterfaceBackup
         int containsOptions,
         string? archivePath = null,
         Action<Backup>? startRestore = null,
-        Func<bool>? authorizationGuard = null) =>
-        new(containsOptions, archivePath, startRestore, authorizationGuard);
+        Func<bool>? authorizationGuard = null,
+        BackupArchiveIdentity? archiveIdentity = null,
+        BackupArchiveBinding? archiveBinding = null) =>
+        new(containsOptions, archivePath, startRestore, authorizationGuard, archiveIdentity, archiveBinding);
 
-    internal string ArchivePath => _archivePath
+    internal string ArchivePath => _archiveBinding?.ArchivePath ?? _archivePath
         ?? throw new COMException(
             "This Backup member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
 
     internal int RestoreOptions => _restoreOptions;
+
+    internal BackupArchiveIdentity? ArchiveIdentity => _archiveBinding?.Identity ?? _archiveIdentity;
+
+    internal void CleanupArchiveBinding() =>
+        Interlocked.Exchange(ref _archiveBinding, null)?.Dispose();
+
+    ~Backup() => CleanupArchiveBinding();
 
     private bool HasContainsFlag(int flag)
     {

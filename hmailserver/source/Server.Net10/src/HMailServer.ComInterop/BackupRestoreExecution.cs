@@ -75,6 +75,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 "Only RestoreDomains is supported by the DB-only metadata restore slice.");
         }
 
+        using var archiveReadLock = BackupArchiveIdentity.OpenReadLock(backup.ArchivePath);
+        EnsureArchiveIdentity(backup);
         var evidence = await _integrityRuntime
             .InspectAsync(backup.ArchivePath, cancellationToken, backupMessagesDbOnly: true)
             .ConfigureAwait(false);
@@ -126,7 +128,9 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                     ?? "The restore containment revalidation failed.");
         }
 
+        EnsureArchiveIdentity(backup);
         var archiveXml = _metadataReader.ReadMetadataXml(backup.ArchivePath);
+        EnsureArchiveIdentity(backup);
         var domains = BackupArchiveXmlSnapshotParser.ParseDomainEntries(archiveXml);
         if (domains.Count == 0)
         {
@@ -297,6 +301,16 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             {
                 throw new InvalidOperationException("Restore rollback could not delete a domain.");
             }
+        }
+    }
+
+    private static void EnsureArchiveIdentity(Backup backup)
+    {
+        if (backup.ArchiveIdentity is not null
+            && !backup.ArchiveIdentity.Matches(backup.ArchivePath))
+        {
+            throw new InvalidDataException(
+                "The restore archive changed after it was loaded.");
         }
     }
 }
