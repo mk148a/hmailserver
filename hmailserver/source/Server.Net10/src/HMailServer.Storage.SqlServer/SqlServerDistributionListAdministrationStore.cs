@@ -69,11 +69,18 @@ WHERE distributionlistdomainid = @DomainID
         _transactionContext = transactionContext;
     }
 
+    private SqlServerConnectionFactory GetStandaloneConnectionFactory() =>
+        _transactionContext is not null
+            ? throw new InvalidOperationException(
+                "Non-transaction-aware operations are not supported on transaction-scoped SQL administration stores.")
+            : _connectionFactory;
+
     public async ValueTask<IReadOnlyList<DistributionListAdministrationSnapshot>> GetDistributionListsAsync(
         int domainId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var connectionFactory = GetStandaloneConnectionFactory();
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(GetDistributionListsSql, connection);
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
         await using var reader = await command.ExecuteReaderAsync(
@@ -122,9 +129,10 @@ WHERE distributionlistdomainid = @DomainID
         DistributionListAdministrationSnapshot distributionList,
         CancellationToken cancellationToken)
     {
+        var connectionFactory = GetStandaloneConnectionFactory();
         ArgumentNullException.ThrowIfNull(distributionList);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateDistributionListSql, connection);
         command.Parameters.Add("@ID", SqlDbType.Int).Value = distributionList.Id;
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = distributionList.DomainId;
@@ -142,12 +150,13 @@ WHERE distributionlistdomainid = @DomainID
         int distributionListId,
         CancellationToken cancellationToken)
     {
+        var connectionFactory = GetStandaloneConnectionFactory();
         if (distributionListId == 0)
         {
             return false;
         }
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var recipientsCommand = new SqlCommand(DeleteDistributionListRecipientsSql, connection);
         recipientsCommand.Parameters.Add("@LISTID", SqlDbType.Int).Value = distributionListId;
         _ = await recipientsCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);

@@ -163,11 +163,18 @@ ORDER BY domainname ASC;
         _transactionContext = transactionContext;
     }
 
+    private SqlServerConnectionFactory GetStandaloneConnectionFactory() =>
+        _transactionContext is not null
+            ? throw new InvalidOperationException(
+                "Non-transaction-aware operations are not supported on transaction-scoped SQL administration stores.")
+            : _connectionFactory;
+
     public async ValueTask<bool> DeleteDomainByIdAsync(
         int domainId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var connectionFactory = GetStandaloneConnectionFactory();
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(DeleteDomainByIdSql, connection);
         command.Parameters.Add("@ID", SqlDbType.Int).Value = domainId;
         var deleted = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
@@ -177,8 +184,9 @@ ORDER BY domainname ASC;
         DomainAdministrationSnapshot domain,
         CancellationToken cancellationToken)
     {
+        var connectionFactory = GetStandaloneConnectionFactory();
         ArgumentNullException.ThrowIfNull(domain);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateDomainSql, connection);
         command.Parameters.Add("@ID", SqlDbType.Int).Value = domain.Id;
         command.Parameters.Add("@Name", SqlDbType.NVarChar, 255).Value = domain.Name;

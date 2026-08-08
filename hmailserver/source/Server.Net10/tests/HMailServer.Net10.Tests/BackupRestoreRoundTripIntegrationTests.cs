@@ -516,6 +516,111 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             }).ConfigureAwait(false);
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task SqlServerBackupRestoreMetadataTransaction_UnsupportedMethodsFailClosed()
+    {
+        await WithDbOnlyRestoreTargetAsync(
+            "unsupported_methods_fail_closed",
+            ToDbOnlyArchiveXml(NonDbArchiveXml),
+            async fixture =>
+            {
+                var domain = BackupArchiveXmlSnapshotParser.ParseDomains(NonDbArchiveXml).Single();
+                var account = BackupArchiveXmlSnapshotParser.ParseAccounts(NonDbArchiveXml, domainId: 1).Single().Account;
+                var alias = BackupArchiveXmlSnapshotParser.ParseAliases(NonDbArchiveXml, domainId: 1).Single();
+                var distributionList = BackupArchiveXmlSnapshotParser
+                    .ParseDistributionLists(NonDbArchiveXml, domainId: 1)
+                    .Single();
+                var recipient = BackupArchiveXmlSnapshotParser
+                    .ParseDistributionListRecipients(NonDbArchiveXml, distributionListId: 1)
+                    .Single();
+
+                await using var transaction = await fixture.TransactionFactory
+                    .BeginAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+
+                Assert.AreEqual(
+                    0,
+                    (await transaction.DomainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false)).Count);
+
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.DomainStore.DeleteDomainByIdAsync(1, CancellationToken.None));
+                await AssertTransactionScopedOperationFailsAsync(
+                    async () =>
+                    {
+                        _ = await transaction.DomainStore.UpdateDomainAsync(
+                            domain,
+                            CancellationToken.None).ConfigureAwait(false);
+                    });
+
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.AccountStore.GetAccountsAsync(1, CancellationToken.None));
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.AccountStore.GetAccountByIdAsync(1, CancellationToken.None));
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => ((IBackupAccountAdministrationStore)transaction.AccountStore)
+                        .GetBackupAccountsAsync(1, CancellationToken.None));
+                await AssertTransactionScopedOperationFailsAsync(
+                    async () =>
+                    {
+                        _ = await transaction.AccountStore.UpdateAccountAsync(
+                            1,
+                            account,
+                            password: null,
+                            cancellationToken: CancellationToken.None).ConfigureAwait(false);
+                    });
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.AccountStore.DeleteAccountAsync(1, 1, CancellationToken.None));
+
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.AliasStore.GetAliasesAsync(1, CancellationToken.None));
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.AliasStore.UpdateAliasAsync(1, alias, CancellationToken.None));
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.AliasStore.DeleteAliasAsync(1, 1, CancellationToken.None));
+
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.DistributionListStore.GetDistributionListsAsync(1, CancellationToken.None));
+                await AssertTransactionScopedOperationFailsAsync(
+                    async () =>
+                    {
+                        _ = await transaction.DistributionListStore.UpdateDistributionListAsync(
+                            distributionList,
+                            CancellationToken.None).ConfigureAwait(false);
+                    });
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.DistributionListStore.DeleteDistributionListAsync(1, 1, CancellationToken.None));
+
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.RecipientStore.GetRecipientsAsync(1, CancellationToken.None));
+                await AssertTransactionScopedOperationFailsAsync(
+                    async () =>
+                    {
+                        _ = await transaction.RecipientStore.UpdateDistributionListRecipientAsync(
+                            recipient,
+                            CancellationToken.None).ConfigureAwait(false);
+                    });
+                await AssertTransactionScopedOperationFailsAsync(
+                    () => transaction.RecipientStore.DeleteDistributionListRecipientAsync(
+                        recipient,
+                        CancellationToken.None));
+            }).ConfigureAwait(false);
+    }
+
+    private static async Task AssertTransactionScopedOperationFailsAsync(Func<ValueTask> operation)
+    {
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => operation().AsTask()).ConfigureAwait(false);
+        StringAssert.Contains(exception.Message, "transaction-scoped");
+    }
+
+    private static async Task AssertTransactionScopedOperationFailsAsync<T>(Func<ValueTask<T>> operation)
+    {
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => operation().AsTask()).ConfigureAwait(false);
+        StringAssert.Contains(exception.Message, "transaction-scoped");
+    }
+
     private static async Task AssertAllMetadataTablesEmptyAsync(DbOnlyRestoreFixture fixture)
     {
         Assert.AreEqual(0, (await fixture.DomainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false)).Count);

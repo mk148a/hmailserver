@@ -56,11 +56,18 @@ WHERE distributionlistrecipientid = @ID
         _transactionContext = transactionContext;
     }
 
+    private SqlServerConnectionFactory GetStandaloneConnectionFactory() =>
+        _transactionContext is not null
+            ? throw new InvalidOperationException(
+                "Non-transaction-aware operations are not supported on transaction-scoped SQL administration stores.")
+            : _connectionFactory;
+
     public async ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
         int distributionListId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var connectionFactory = GetStandaloneConnectionFactory();
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(GetRecipientsSql, connection);
         command.Parameters.Add("@DistributionListID", SqlDbType.Int).Value = distributionListId;
         await using var reader = await command.ExecuteReaderAsync(
@@ -100,9 +107,10 @@ WHERE distributionlistrecipientid = @ID
         DistributionListRecipientAdministrationSnapshot snapshot,
         CancellationToken cancellationToken)
     {
+        var connectionFactory = GetStandaloneConnectionFactory();
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateDistributionListRecipientSql, connection);
         command.Parameters.Add("@ID", SqlDbType.Int).Value = snapshot.Id;
         command.Parameters.Add("@ListId", SqlDbType.Int).Value = snapshot.ListId;
@@ -114,9 +122,10 @@ WHERE distributionlistrecipientid = @ID
         DistributionListRecipientAdministrationSnapshot snapshot,
         CancellationToken cancellationToken)
     {
+        var connectionFactory = GetStandaloneConnectionFactory();
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(DeleteDistributionListRecipientSql, connection);
         command.Parameters.Add("@ID", SqlDbType.Int).Value = snapshot.Id;
         command.Parameters.Add("@ListId", SqlDbType.Int).Value = snapshot.ListId;

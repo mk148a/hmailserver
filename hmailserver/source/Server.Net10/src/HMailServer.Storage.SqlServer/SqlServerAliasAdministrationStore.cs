@@ -60,11 +60,18 @@ WHERE aliasdomainid = @OwningDomainID
         _transactionContext = transactionContext;
     }
 
+    private SqlServerConnectionFactory GetStandaloneConnectionFactory() =>
+        _transactionContext is not null
+            ? throw new InvalidOperationException(
+                "Non-transaction-aware operations are not supported on transaction-scoped SQL administration stores.")
+            : _connectionFactory;
+
     public async ValueTask<IReadOnlyList<AliasAdministrationSnapshot>> GetAliasesAsync(
         int domainId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var connectionFactory = GetStandaloneConnectionFactory();
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(GetAliasesSql, connection);
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
         await using var reader = await command.ExecuteReaderAsync(
@@ -109,8 +116,9 @@ WHERE aliasdomainid = @OwningDomainID
         AliasAdministrationSnapshot alias,
         CancellationToken cancellationToken)
     {
+        var connectionFactory = GetStandaloneConnectionFactory();
         ArgumentNullException.ThrowIfNull(alias);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAliasSql, connection);
         command.Parameters.Add("@OwningDomainID", SqlDbType.Int).Value = owningDomainId;
         command.Parameters.Add("@AliasID", SqlDbType.Int).Value = alias.Id;
@@ -131,7 +139,8 @@ WHERE aliasdomainid = @OwningDomainID
         int aliasId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var connectionFactory = GetStandaloneConnectionFactory();
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(DeleteAliasSql, connection);
         command.Parameters.Add("@OwningDomainID", SqlDbType.Int).Value = owningDomainId;
         command.Parameters.Add("@AliasID", SqlDbType.Int).Value = aliasId;

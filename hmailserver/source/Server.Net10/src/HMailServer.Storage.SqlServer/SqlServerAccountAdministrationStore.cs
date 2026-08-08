@@ -186,14 +186,21 @@ ORDER BY accountaddress ASC;
         _transactionContext = transactionContext;
     }
 
+    private SqlServerConnectionFactory GetStandaloneConnectionFactory() =>
+        _transactionContext is not null
+            ? throw new InvalidOperationException(
+                "Non-transaction-aware operations are not supported on transaction-scoped SQL administration stores.")
+            : _connectionFactory;
+
     public async ValueTask<bool> UpdateAccountAsync(
         int domainId,
         AccountAdministrationSnapshot account,
         string? password,
         CancellationToken cancellationToken)
     {
+        var connectionFactory = GetStandaloneConnectionFactory();
         ArgumentNullException.ThrowIfNull(account);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(BuildUpdateAccountSql(password != null), connection);
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = account.Id;
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
@@ -295,7 +302,8 @@ ORDER BY accountaddress ASC;
         int accountId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var connectionFactory = GetStandaloneConnectionFactory();
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(DeleteAccountSql, connection);
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
@@ -347,7 +355,8 @@ ORDER BY accountaddress ASC;
         int domainId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var connectionFactory = GetStandaloneConnectionFactory();
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(GetAccountsSql, connection);
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
 
@@ -358,7 +367,8 @@ ORDER BY accountaddress ASC;
         int accountId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var connectionFactory = GetStandaloneConnectionFactory();
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(GetAccountByIdSql, connection);
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
 
@@ -369,7 +379,8 @@ ORDER BY accountaddress ASC;
         int domainId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var connectionFactory = GetStandaloneConnectionFactory();
+        await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(GetBackupAccountsSql, connection);
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
 
