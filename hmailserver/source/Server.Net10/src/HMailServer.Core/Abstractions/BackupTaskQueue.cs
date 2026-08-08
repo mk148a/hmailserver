@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading.Channels;
 
 namespace HMailServer.Core.Abstractions;
@@ -120,7 +121,16 @@ public sealed class BackupTaskQueue : IBackupTaskQueue, IDisposable
         StopAccepting();
         while (_queue.Reader.TryRead(out var request))
         {
-            request.AbortPending();
+            try
+            {
+                request.AbortPending();
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError(
+                    "A queued hMailServer backup task could not complete its shutdown abort callback: {0}",
+                    exception);
+            }
         }
     }
 

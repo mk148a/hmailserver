@@ -36,7 +36,17 @@ public sealed class BackupTaskHostedService : BackgroundService
             {
                 if (stoppingToken.IsCancellationRequested)
                 {
-                    task.AbortPending();
+                    try
+                    {
+                        task.AbortPending();
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.LogError(
+                            exception,
+                            "A queued hMailServer backup task could not complete its shutdown abort callback.");
+                    }
+
                     continue;
                 }
 

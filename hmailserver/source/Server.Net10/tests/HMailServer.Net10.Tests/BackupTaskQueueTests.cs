@@ -52,6 +52,27 @@ public sealed class BackupTaskQueueTests
     }
 
     [TestMethod]
+    public void CompleteAndAbortPending_ContinuesAfterAbortCallbackFailure()
+    {
+        var firstThreadStopped = 0;
+        var secondAborted = 0;
+        var secondThreadStopped = 0;
+        using var queue = new BackupTaskQueue();
+        Assert.IsTrue(queue.TryEnqueue(CreateRequest(
+            () => throw new InvalidOperationException("abort failed"),
+            () => Interlocked.Increment(ref firstThreadStopped))));
+        Assert.IsTrue(queue.TryEnqueue(CreateRequest(
+            () => Interlocked.Increment(ref secondAborted),
+            () => Interlocked.Increment(ref secondThreadStopped))));
+
+        queue.CompleteAndAbortPending();
+
+        Assert.AreEqual(1, firstThreadStopped);
+        Assert.AreEqual(1, secondAborted);
+        Assert.AreEqual(1, secondThreadStopped);
+    }
+
+    [TestMethod]
     public async Task HostedServiceShutdownAbortsPendingRequestsAndRejectsPostShutdownEnqueue()
     {
         var aborted = 0;
