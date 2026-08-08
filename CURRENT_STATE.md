@@ -1,10 +1,10 @@
 # Current State
-- UTC timestamp: 2026-08-08T19:12:00Z
-- Local timestamp: 2026-08-08T22:12:00+03:00
+- UTC timestamp: 2026-08-08T19:16:00Z
+- Local timestamp: 2026-08-08T22:16:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: code commit `3e912982a` is unpushed; documentation commit is pending
-- Current HEAD: `3e912982a`
-- Last successfully pushed commit: `f45d12604`
+- Push status: verified clean relative to configured upstream after normal push; protected unrelated worktree changes remain
+- Current HEAD: `9b9b1fafa`
+- Last successfully pushed commit: `9b9b1fafa`
 - Latest focused-test result: restore runtime tests `17 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: default `1939 passed, 0 failed, 29 skipped`
 - Opt-in tests passed/skipped/blocked: SQL restore, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped
