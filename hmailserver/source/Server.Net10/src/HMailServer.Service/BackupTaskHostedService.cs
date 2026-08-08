@@ -52,6 +52,7 @@ public sealed class BackupTaskHostedService : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        _queue.CompleteAndAbortPending();
         try
         {
             await base.StopAsync(cancellationToken).ConfigureAwait(false);

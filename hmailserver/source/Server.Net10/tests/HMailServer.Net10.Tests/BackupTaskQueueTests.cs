@@ -79,7 +79,9 @@ public sealed class BackupTaskQueueTests
         await service.StartAsync(CancellationToken.None);
         await runningStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
         using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await service.StopAsync(stopTimeout.Token);
+        var stopTask = service.StopAsync(stopTimeout.Token);
+        Assert.IsFalse(queue.TryEnqueue(CreateRequest()));
+        await stopTask;
         queue.Dispose();
 
         Assert.AreEqual(1, aborted);
