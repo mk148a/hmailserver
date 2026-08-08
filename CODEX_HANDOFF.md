@@ -2,6 +2,14 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-08 continuation: code/test commit `342f95325` makes all unsupported members on the five transaction-scoped SQL restore stores fail closed with `InvalidOperationException` instead of `NullReferenceException`. The shared transaction still exposes only the insert/read operations required by DB-only restore; no COM identity or direct activation boundary changed. Focused SQL restore coverage is `11 passed, 0 failed, 0 skipped`; default full Net10 is `1914 passed, 0 failed, 26 skipped`.
+
+Legacy references: `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`), `Collection<T,P>::XMLLoad`/`DeleteAll` (`hmailserver/source/Server/Common/BO/Collection.h:85-220`), and `IInterfaceDatabase::BeginTransaction`/`ExecuteSQL`, which has no legacy transaction-scoped administration-store equivalent. Current symbols: `IBackupRestoreMetadataTransaction`, `SqlServerBackupRestoreMetadataTransaction`, and the five `SqlServer*AdministrationStore` classes. The implementation intentionally does not open an independent connection from a transaction-scoped store.
+
+Open blockers remain: queued restore execution must revalidate authorization after queueing; restore must preserve archived account credential/encryption type instead of blindly re-encrypting; journal power-loss/ACL/handle-relative durability, full deletion/reinitialization, crash-safe SQL/NTFS outcome, isolated service/COM, SEC-18, installer, AD/DC, and 24-hour lifecycle evidence are incomplete. Security/reality gate remains RED. Next slice: execution-time authorization revalidation for queued restore with invalidation and cancellation tests.
+
+## Current Authoritative Continuation
+
 Authoritative 2026-08-08 continuation: code/test commit `904000f85` adds a bounded non-DB restore recovery journal. The journal records target/rollback/archive identity and phase transitions, cleans on known success, preserves evidence on rollback failure or ambiguous metadata outcome, and `Program.cs` fails closed before service startup when a pending or malformed journal exists. Focused recovery coverage is `12 passed, 0 failed, 0 skipped`; default full Net10 is `1914 passed, 0 failed, 25 skipped`.
 
 Legacy references: `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`), `Collection<T,P>::XMLLoad`/`DeleteAll` (`hmailserver/source/Server/Common/BO/Collection.h:85-220`), and `Reinitializator::ReInitialize` (`hmailserver/source/Server/Common/Application/Reinitializator.cpp:36-53`). Legacy deletes domains/public folders before data replacement and reinitializes asynchronously. Current symbols: `BackupRestoreRecoveryJournal`, `BackupRestoreDataDirectoryRuntime.RestoreAsync`, `MetadataBackupRestoreExecutor.ExecuteNonDbDataRestoreAsync`, and service `Program.cs`.

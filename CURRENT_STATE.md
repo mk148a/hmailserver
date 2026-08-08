@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-08T14:28:36Z
-- Local timestamp: 2026-08-08T17:28:36+03:00
+- UTC timestamp: 2026-08-08T14:30:18Z
+- Local timestamp: 2026-08-08T17:30:18+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `904000f85` (code/test; documentation commit pending)
+- Current HEAD: `342f95325` (code/test; documentation commit pending)
 - Last successfully pushed commit: `d2a4928bf` (non-DB recovery journal documentation)
-- Latest focused-test result: non-DB recovery journal and startup fail-closed coverage `12 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: default `1914 passed, 0 failed, 25 skipped`; SQL-enabled restore acceptance remains `10 passed` when LocalDB is enabled, while the prior SQL-enabled full run has five unrelated message-indexing fixture failures
-- Opt-in tests passed/skipped/blocked: recovery runtime `12 passed`; SQL restore acceptance `10 passed` when enabled; native AD/DC, installer, registry/COM, and service/COM remain blocked
-- Current bounded slice: durable non-DB restore recovery journal with fail-closed startup/restore inspection, code/test commit `904000f85`
+- Latest focused-test result: SQL restore transaction-scoped unsupported-member coverage `1 passed, 0 skipped, 0 failed`; restore round-trip group `11 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: default `1914 passed, 0 failed, 26 skipped`; SQL-enabled focused restore coverage `11 passed, 0 failed, 0 skipped`
+- Opt-in tests passed/skipped/blocked: SQL restore acceptance `11 passed`; default opt-in set `26 skipped`; native AD/DC, installer, registry/COM, and service/COM remain blocked
+- Current bounded slice: transaction-scoped SQL restore stores fail closed for unsupported non-transaction-aware members, code/test commit `342f95325`
 - Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, non-DB recovery journal acceptance
-- Open production blockers: journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe shared SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
+- Open production blockers: queued restore execution lacks authorization-generation revalidation, restored account ciphertext may be double-encrypted, journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe shared SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: implement legacy domain/public-folder deletion and application reinitialization ordering; complete isolated service/COM queued restore once approved composition is available; add fault-injection and restart evidence for journal/SQL ambiguity and private binding containment
+- Next three independent slices: revalidate authorization immediately before queued restore execution; preserve archived account credential/encryption type during restore; implement legacy domain/public-folder deletion and application reinitialization ordering only on disposable targets
