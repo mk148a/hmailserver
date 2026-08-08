@@ -1,5 +1,11 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-08, IMAP MASTER USER)
+
+Code/test commit `ef7e5ec65` implements the bounded legacy IMAP AUTHENTICATE PLAIN master-user path. Legacy references are `hmailserver/source/Server/IMAP/IMAPCommandAuthenticate.cpp:27-122`, `hmailserver/source/Server/Common/Util/AccountLogon.cpp:37-75`, and `hmailserver/source/Server/Common/Util/PasswordValidator.cpp:78-164`: authcid is the configured master user, authzid is the active target mailbox, only the master credential is checked, and master-policy failures do not enter auto-ban accounting. The .NET path carries authzid through `ClientAuthenticationRequest`/`IImapAccountAuthenticator`, validates the configured master identity through the SQL-backed authenticator, returns the target mailbox, preserves ordinary auth, and does not retain credentials. Focused coverage is `43 passed, 0 skipped`; full Net10 is `1877 passed, 0 failed, 15 skipped` excluding the two AV-locked EICAR cleanup methods. AD/SSPI authentication and live SQL master-user evidence remain separate gaps; no COM identity, SMTP behavior, settings setter, or live reconfiguration changed.
+
+Next slice: isolated SQL/AD authentication evidence and fail-closed AD boundary review. Keep live service/COM lifecycle soak, SEC-18 registration/DCOM, installer build, and production replacement fenced.
+
 ## Current Completed Slice (2026-08-08, SHORT OFFLINE SOAK)
 
 Code/test commit `53680b0d2` adds `ShortSoakBenchmark` and `ShortSoakBenchmarkTests`. The commandable bounded synthetic IMAP SEARCH/SORT soak emits JSON/CSV/Markdown with p50/p95/p99, errors, process memory, handles, threads, TCP connections, GC deltas, thresholds, timestamps, runtime, and git commit. Focused coverage is `4 passed, 0 skipped`; a smoke run completed 3/3 cycles with 0 errors and threshold pass. This remains an offline synthetic gate and does not replace the mandatory 24-hour live service leak/handle/thread/socket soak or COM lifecycle acceptance. Next slice: run the live 24-hour restart/COM lifecycle soak on an isolated host, then continue SEC-18/COM activation and the approved-toolchain InnoSetup build gates.
