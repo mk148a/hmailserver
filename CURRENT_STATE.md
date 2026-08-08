@@ -1,19 +1,19 @@
 # Current State
-- UTC timestamp: 2026-08-08T19:16:00Z
-- Local timestamp: 2026-08-08T22:16:00+03:00
+- UTC timestamp: 2026-08-08T20:10:00Z
+- Local timestamp: 2026-08-08T23:10:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
 - Push status: verified clean relative to configured upstream after normal push; protected unrelated worktree changes remain
-- Current HEAD: `9b9b1fafa`
-- Last successfully pushed commit: `9b9b1fafa`
-- Latest focused-test result: restore runtime tests `17 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: default `1939 passed, 0 failed, 29 skipped`
-- Opt-in tests passed/skipped/blocked: SQL restore, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped
-- Current bounded slice: source-handle-backed restore swap/rollback, code/test commit `3e912982a`; not full handle-relative containment
+- Current HEAD: `4cc66396a` (code/test; documentation commit for this slice follows)
+- Last successfully pushed commit: `604b3d8e7`
+- Latest focused-test result: public restore SQL shape `11 passed, 0 skipped, 0 failed`; related SQL integration `0 passed, 3 skipped, 0 failed`
+- Latest full Net10 result: default `1939 passed, 0 failed, 31 skipped`
+- Opt-in tests passed/skipped/blocked: SQL restore manifest/commit/rollback, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped
+- Current bounded slice: additive transaction-scoped public restore deletion manifest, code/test commit `4cc66396a`; not wired to full restore orchestration
 - Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, DB-only and non-DB restore authorization lease acceptance, queued restore pending cleanup, shutdown admission, active-task completion fence, abort-failure isolation, rejected archive ownership acceptance, archived account credential-type preservation, journal finalization durability hardening, final pre-staging containment revalidation, transaction-scoped domain cleanup capability, and DB-only cleanup wiring
-- Open production blockers: disposable populated-store SQL/Data acceptance, full legacy filesystem deletion/public-folder/settings/reinitialization ordering, destination/copy/delete path-based TOCTOU, process-kill/power-loss evidence, credential metadata validation and live SQL restore evidence, crash-safe SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
-- Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
+- Open production blockers: approved populated-store SQL/Data acceptance for manifest/no-return cleanup, full legacy filesystem deletion/public-folder/settings/reinitialization ordering, destination/copy/delete path-based TOCTOU, process-kill/power-loss evidence, credential metadata validation and live SQL restore evidence, crash-safe SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
+- Environment-blocked work: approved disposable SQL connection/database-create opt-in, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: implement full-restore public-folder deletion with staged message-file cleanup and reinitialization ordering; run approved populated-store DB-only SQL/Data acceptance; complete native destination-parent/copy/delete containment
+- Next three independent slices: run approved populated-store SQL/Data acceptance for manifest and no-return public cleanup; complete native destination-parent/copy/delete containment; implement archive-backed full public-folder/settings ordering with staged file cleanup and reinitialization only after the archive surface is complete
 
 ## Historical State
 - UTC timestamp: 2026-08-08T15:19:08Z
