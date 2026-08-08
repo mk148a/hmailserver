@@ -31,6 +31,7 @@ public sealed class BackupManager : IInterfaceBackupManager
 
     private readonly IBackupArchiveMetadataReader? _metadataReader;
     private readonly IBackupOperationRuntime? _operationRuntime;
+    private readonly IBackupRestoreExecutor? _restoreExecutor;
     private readonly IBackupEventDispatcher _eventDispatcher;
 
     public BackupManager()
@@ -41,10 +42,12 @@ public sealed class BackupManager : IInterfaceBackupManager
     private BackupManager(
         IBackupArchiveMetadataReader metadataReader,
         IBackupOperationRuntime? operationRuntime,
+        IBackupRestoreExecutor? restoreExecutor,
         IBackupEventDispatcher eventDispatcher)
     {
         _metadataReader = metadataReader;
         _operationRuntime = operationRuntime;
+        _restoreExecutor = restoreExecutor;
         _eventDispatcher = eventDispatcher;
     }
 
@@ -72,16 +75,21 @@ public sealed class BackupManager : IInterfaceBackupManager
     {
         EnsureAuthorized();
         var containsOptions = _metadataReader!.ReadContainsOptions(xmlFile);
-        return Backup.CreateAuthorized(containsOptions);
+        return Backup.CreateAuthorized(
+            containsOptions,
+            Path.GetFullPath(xmlFile),
+            StartRestore);
     }
 
     internal static BackupManager CreateAuthorized(
         IBackupArchiveMetadataReader? metadataReader = null,
         IBackupOperationRuntime? operationRuntime = null,
-        IBackupEventDispatcher? eventDispatcher = null) =>
+        IBackupEventDispatcher? eventDispatcher = null,
+        IBackupRestoreExecutor? restoreExecutor = null) =>
         new(
             metadataReader ?? SevenZipBackupArchiveMetadataReader.CreateDefault(),
             operationRuntime ?? BackupManagerRuntimeHost.Runtime,
+            restoreExecutor ?? BackupRestoreRuntimeHost.Runtime,
             eventDispatcher ?? BackupEventDispatcherRuntimeHost.Runtime ?? NoopBackupEventDispatcher.Instance);
 
     internal void OnThreadStopped() => _operationRuntime?.OnThreadStopped();
@@ -91,6 +99,32 @@ public sealed class BackupManager : IInterfaceBackupManager
         lock (_statusGate)
         {
             return _statusLog;
+        }
+    }
+
+    private void StartRestore(Backup backup)
+    {
+        EnsureAuthorized();
+        if (_operationRuntime is null || _restoreExecutor is null)
+        {
+            throw NotImplemented();
+        }
+
+        SetStatus("Restore started");
+        var result = _operationRuntime.TryStartRestore(
+            () => new BackupTaskRequest(
+                cancellationToken => _restoreExecutor.ExecuteAsync(backup, cancellationToken),
+                SetStatus,
+                OnBackupFailed,
+                OnBackupCompleted,
+                OnThreadStopped));
+        if (result == BackupStartDispatchResult.AlreadyRunning)
+        {
+            OnBackupFailed("Backup or restore operation is already started");
+        }
+        else if (result == BackupStartDispatchResult.QueueUnavailable)
+        {
+            OnBackupFailed("Restore operation failed because random work queue did not exist.");
         }
     }
 
@@ -293,6 +327,47 @@ internal sealed class SevenZipBackupArchiveMetadataReader : IBackupArchiveMetada
             }
 
             return options;
+        }
+        catch
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+
+            process.WaitForExit();
+            _ = errorTask.GetAwaiter().GetResult();
+            throw;
+        }
+    }
+
+    internal string ReadMetadataXml(string archivePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(archivePath);
+        var fullArchivePath = Path.GetFullPath(archivePath);
+        using var process = new Process
+        {
+            StartInfo = CreateStartInfo(_sevenZipExecutablePath, fullArchivePath)
+        };
+
+        if (!process.Start())
+        {
+            throw new InvalidOperationException("The legacy 7z reader could not be started.");
+        }
+
+        var errorTask = process.StandardError.ReadToEndAsync();
+        try
+        {
+            var metadataXml = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            var error = errorTask.GetAwaiter().GetResult();
+            if (process.ExitCode is not 0 and not 1)
+            {
+                throw new InvalidDataException(
+                    $"The legacy 7z reader failed with exit code {process.ExitCode}: {error.Trim()}");
+            }
+
+            return metadataXml;
         }
         catch
         {

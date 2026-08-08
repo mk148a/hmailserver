@@ -13,7 +13,8 @@ public static class BackupRestoreMetadataWriter
         IReadOnlyList<DomainAdministrationSnapshot> domains,
         IDomainAdministrationStore store,
         Func<ValueTask> rollbackAsync,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<int>? onInserted = null)
     {
         ArgumentNullException.ThrowIfNull(domains);
         ArgumentNullException.ThrowIfNull(store);
@@ -25,7 +26,8 @@ public static class BackupRestoreMetadataWriter
             {
                 foreach (var domain in domains)
                 {
-                    await store.InsertDomainAsync(domain, ct).ConfigureAwait(false);
+                    var insertedId = await store.InsertDomainAsync(domain, ct).ConfigureAwait(false);
+                    onInserted?.Invoke(insertedId);
                     restored++;
                 }
             },
@@ -41,7 +43,8 @@ public static class BackupRestoreMetadataWriter
         int domainId,
         IAccountAdministrationStore store,
         Func<ValueTask> rollbackAsync,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<int>? onInserted = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
         ArgumentNullException.ThrowIfNull(store);
@@ -53,7 +56,8 @@ public static class BackupRestoreMetadataWriter
             {
                 foreach (var entry in accounts)
                 {
-                    await store.InsertAccountAsync(domainId, entry.Account, entry.Password, ct).ConfigureAwait(false);
+                    var insertedId = await store.InsertAccountAsync(domainId, entry.Account, entry.Password, ct).ConfigureAwait(false);
+                    onInserted?.Invoke(insertedId);
                     restored++;
                 }
             },
@@ -69,7 +73,8 @@ public static class BackupRestoreMetadataWriter
         int domainId,
         IAliasAdministrationStore store,
         Func<ValueTask> rollbackAsync,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<int>? onInserted = null)
     {
         ArgumentNullException.ThrowIfNull(aliases);
         ArgumentNullException.ThrowIfNull(store);
@@ -81,7 +86,8 @@ public static class BackupRestoreMetadataWriter
             {
                 foreach (var alias in aliases)
                 {
-                    await store.InsertAliasAsync(domainId, alias, ct).ConfigureAwait(false);
+                    var insertedId = await store.InsertAliasAsync(domainId, alias, ct).ConfigureAwait(false);
+                    onInserted?.Invoke(insertedId);
                     restored++;
                 }
             },
@@ -97,7 +103,8 @@ public static class BackupRestoreMetadataWriter
         int domainId,
         IDistributionListAdministrationStore store,
         Func<ValueTask> rollbackAsync,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<int>? onInserted = null)
     {
         ArgumentNullException.ThrowIfNull(distributionLists);
         ArgumentNullException.ThrowIfNull(store);
@@ -109,7 +116,8 @@ public static class BackupRestoreMetadataWriter
             {
                 foreach (var distributionList in distributionLists)
                 {
-                    await store.InsertDistributionListAsync(distributionList, ct).ConfigureAwait(false);
+                    var insertedId = await store.InsertDistributionListAsync(distributionList, ct).ConfigureAwait(false);
+                    onInserted?.Invoke(insertedId);
                     restored++;
                 }
             },
@@ -125,7 +133,8 @@ public static class BackupRestoreMetadataWriter
         int distributionListId,
         IDistributionListRecipientAdministrationStore store,
         Func<ValueTask> rollbackAsync,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<int>? onInserted = null)
     {
         ArgumentNullException.ThrowIfNull(recipients);
         ArgumentNullException.ThrowIfNull(store);
@@ -138,7 +147,8 @@ public static class BackupRestoreMetadataWriter
                 foreach (var recipient in recipients)
                 {
                     var scoped = recipient with { ListId = distributionListId };
-                    await store.InsertDistributionListRecipientAsync(scoped, ct).ConfigureAwait(false);
+                    var insertedId = await store.InsertDistributionListRecipientAsync(scoped, ct).ConfigureAwait(false);
+                    onInserted?.Invoke(insertedId);
                     restored++;
                 }
             },

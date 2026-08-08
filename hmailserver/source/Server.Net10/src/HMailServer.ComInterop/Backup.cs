@@ -57,16 +57,20 @@ public sealed class Backup : IInterfaceBackup
 
     private readonly bool _authorized;
     private readonly int _containsOptions;
+    private readonly string? _archivePath;
+    private readonly Action<Backup>? _startRestore;
     private int _restoreOptions;
 
     public Backup()
     {
     }
 
-    private Backup(int containsOptions)
+    private Backup(int containsOptions, string? archivePath, Action<Backup>? startRestore)
     {
         _authorized = true;
         _containsOptions = containsOptions;
+        _archivePath = archivePath;
+        _startRestore = startRestore;
     }
 
     public bool ContainsSettings => HasContainsFlag(SettingsFlag);
@@ -96,12 +100,28 @@ public sealed class Backup : IInterfaceBackup
     public void StartRestore()
     {
         EnsureAuthorized();
-        throw new COMException(
-            "This Backup member is not implemented by the .NET 10 rewrite yet.",
-            ENotImplemented);
+        if (_startRestore is null)
+        {
+            throw new COMException(
+                "This Backup member is not implemented by the .NET 10 rewrite yet.",
+                ENotImplemented);
+        }
+
+        _startRestore(this);
     }
 
-    internal static Backup CreateAuthorized(int containsOptions) => new(containsOptions);
+    internal static Backup CreateAuthorized(
+        int containsOptions,
+        string? archivePath = null,
+        Action<Backup>? startRestore = null) =>
+        new(containsOptions, archivePath, startRestore);
+
+    internal string ArchivePath => _archivePath
+        ?? throw new COMException(
+            "This Backup member is not implemented by the .NET 10 rewrite yet.",
+            ENotImplemented);
+
+    internal int RestoreOptions => _restoreOptions;
 
     private bool HasContainsFlag(int flag)
     {

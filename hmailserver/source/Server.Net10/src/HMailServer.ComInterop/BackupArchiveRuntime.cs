@@ -35,6 +35,11 @@ public sealed class SevenZipBackupArchiveRuntime
         _localNow = localNow ?? (static () => DateTime.Now);
         _payloadProvider = payloadProvider;
         _dataDirectory = dataDirectory;
+        if (_dataDirectory is not null
+            && _payloadProvider?.Target is BackupXmlPayloadRuntime payloadRuntime)
+        {
+            payloadRuntime.ConfigureRestoreRuntime(_sevenZipExecutablePath, _dataDirectory);
+        }
     }
 
     public async ValueTask CreateAsync(
@@ -1413,5 +1418,23 @@ public sealed class BackupXmlPayloadRuntime
             ruleActions,
             folders,
             folderMessages);
+    }
+
+    internal void ConfigureRestoreRuntime(string sevenZipExecutablePath, string dataDirectory)
+    {
+        if (_distributionListStore is null || _distributionListRecipientStore is null)
+        {
+            return;
+        }
+
+        BackupRestoreRuntimeHost.Configure(
+            new MetadataBackupRestoreExecutor(
+                sevenZipExecutablePath,
+                dataDirectory,
+                _domainStore,
+                _accountStore,
+                _aliasStore,
+                _distributionListStore,
+                _distributionListRecipientStore));
     }
 }

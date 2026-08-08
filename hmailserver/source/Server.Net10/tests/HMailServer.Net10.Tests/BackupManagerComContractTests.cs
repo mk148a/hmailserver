@@ -356,6 +356,28 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
+    public async Task AuthorizedRestore_QueuesLoadedArchivePathAndSelections()
+    {
+        var archivePath = Path.Combine(Path.GetTempPath(), $"hmailserver-restore-{Guid.NewGuid():N}.7z");
+        var runtime = new RecordingBackupOperationRuntime();
+        var executor = new RecordingBackupRestoreExecutor();
+        IInterfaceBackupManager manager = BackupManagerComClass.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(2),
+            runtime,
+            restoreExecutor: executor);
+
+        var backup = manager.LoadBackup(archivePath);
+        backup.RestoreDomains = true;
+        backup.StartRestore();
+
+        Assert.IsNotNull(runtime.RestoreTask);
+        await runtime.RestoreTask!.ExecuteAsync(CancellationToken.None);
+
+        Assert.AreEqual(Path.GetFullPath(archivePath), executor.ArchivePath);
+        Assert.AreEqual(2, executor.RestoreOptions);
+    }
+
+    [TestMethod]
     public void AuthenticatedApplication_ExposesAuthorizedBackupManagerChild()
     {
         var reader = new RecordingBackupArchiveMetadataReader(2);
@@ -401,6 +423,37 @@ public sealed class BackupManagerComContractTests
         public void OnBackupCompleted() => Events.Add("completed");
 
         public void OnBackupFailed(string reason) => Events.Add("failed:" + reason);
+    }
+
+    private sealed class RecordingBackupOperationRuntime : IBackupOperationRuntime
+    {
+        public BackupTaskRequest? RestoreTask { get; private set; }
+
+        public BackupStartDispatchResult TryStartBackup(Func<BackupTaskRequest> taskFactory) =>
+            BackupStartDispatchResult.Queued;
+
+        public BackupStartDispatchResult TryStartRestore(Func<BackupTaskRequest> taskFactory)
+        {
+            RestoreTask = taskFactory();
+            return BackupStartDispatchResult.Queued;
+        }
+
+        public void OnThreadStopped()
+        {
+        }
+    }
+
+    private sealed class RecordingBackupRestoreExecutor : IBackupRestoreExecutor
+    {
+        public string? ArchivePath { get; private set; }
+        public int RestoreOptions { get; private set; }
+
+        public ValueTask ExecuteAsync(Backup backup, CancellationToken cancellationToken)
+        {
+            ArchivePath = backup.ArchivePath;
+            RestoreOptions = backup.RestoreOptions;
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class RecordingBackupEventScriptExecutor : IBackupEventScriptExecutor

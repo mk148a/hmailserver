@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Xml;
 using System.Xml.Linq;
 using HMailServer.Core.Abstractions;
 
@@ -8,12 +9,24 @@ namespace HMailServer.ComInterop;
 [ComVisible(false)]
 public sealed record RestoreAccountEntry(AccountAdministrationSnapshot Account, string Password, int PasswordEncryption);
 
+[ComVisible(false)]
+public sealed record RestoreDistributionListEntry(
+    DistributionListAdministrationSnapshot DistributionList,
+    IReadOnlyList<DistributionListRecipientAdministrationSnapshot> Recipients);
+
+[ComVisible(false)]
+public sealed record RestoreDomainEntry(
+    DomainAdministrationSnapshot Domain,
+    IReadOnlyList<RestoreAccountEntry> Accounts,
+    IReadOnlyList<AliasAdministrationSnapshot> Aliases,
+    IReadOnlyList<RestoreDistributionListEntry> DistributionLists);
+
 public static class BackupArchiveXmlSnapshotParser
 {
     public static IReadOnlyList<DomainAdministrationSnapshot> ParseDomains(string archiveXml)
     {
         ArgumentException.ThrowIfNullOrEmpty(archiveXml);
-        var document = XDocument.Parse(archiveXml);
+        var document = ParseDocument(archiveXml);
         var domains = document.Descendants("Domain").Select(ParseDomain).ToArray();
         return domains;
     }
@@ -21,7 +34,7 @@ public static class BackupArchiveXmlSnapshotParser
     public static IReadOnlyList<RestoreAccountEntry> ParseAccounts(string archiveXml, int domainId)
     {
         ArgumentException.ThrowIfNullOrEmpty(archiveXml);
-        var document = XDocument.Parse(archiveXml);
+        var document = ParseDocument(archiveXml);
         return document.Descendants("Account")
             .Select(element => ParseAccount(element, domainId))
             .ToArray();
@@ -32,7 +45,7 @@ public static class BackupArchiveXmlSnapshotParser
         int distributionListId)
     {
         ArgumentException.ThrowIfNullOrEmpty(archiveXml);
-        var document = XDocument.Parse(archiveXml);
+        var document = ParseDocument(archiveXml);
         return document.Descendants("Recipient")
             .Select(element => new DistributionListRecipientAdministrationSnapshot(
                 Id: 0,
@@ -44,7 +57,7 @@ public static class BackupArchiveXmlSnapshotParser
     public static IReadOnlyList<AliasAdministrationSnapshot> ParseAliases(string archiveXml, int domainId)
     {
         ArgumentException.ThrowIfNullOrEmpty(archiveXml);
-        var document = XDocument.Parse(archiveXml);
+        var document = ParseDocument(archiveXml);
         return document.Descendants("Alias")
             .Select(element => new AliasAdministrationSnapshot(
                 Id: 0,
@@ -60,7 +73,7 @@ public static class BackupArchiveXmlSnapshotParser
         int domainId)
     {
         ArgumentException.ThrowIfNullOrEmpty(archiveXml);
-        var document = XDocument.Parse(archiveXml);
+        var document = ParseDocument(archiveXml);
         return document.Descendants("DistributionList")
             .Select(element => new DistributionListAdministrationSnapshot(
                 Id: 0,
@@ -70,6 +83,51 @@ public static class BackupArchiveXmlSnapshotParser
                 RequireSmtpAuth: IntAttr(element, "RequiresAuth") != 0,
                 RequireSenderAddress: element.Attribute("RequiresAuthAddress")?.Value ?? string.Empty,
                 Mode: IntAttr(element, "ListMode")))
+            .ToArray();
+    }
+
+    public static IReadOnlyList<RestoreDomainEntry> ParseDomainEntries(string archiveXml)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = ParseDocument(archiveXml);
+        var domains = document.Root?.Element("Domains")?.Elements("Domain")
+            ?? Enumerable.Empty<XElement>();
+
+        return domains
+            .Select(domain => new RestoreDomainEntry(
+                ParseDomain(domain),
+                domain.Element("Accounts")?.Elements("Account")
+                    .Select(account => ParseAccount(account, 0))
+                    .ToArray()
+                    ?? Array.Empty<RestoreAccountEntry>(),
+                domain.Element("Aliases")?.Elements("Alias")
+                    .Select(alias => new AliasAdministrationSnapshot(
+                        Id: 0,
+                        DomainId: 0,
+                        Name: alias.Attribute("Name")?.Value ?? string.Empty,
+                        Value: alias.Attribute("Value")?.Value ?? string.Empty,
+                        Active: IntAttr(alias, "Active") != 0))
+                    .ToArray()
+                    ?? Array.Empty<AliasAdministrationSnapshot>(),
+                domain.Element("DistributionLists")?.Elements("DistributionList")
+                    .Select(list => new RestoreDistributionListEntry(
+                        new DistributionListAdministrationSnapshot(
+                            Id: 0,
+                            DomainId: 0,
+                            Address: list.Attribute("Name")?.Value ?? string.Empty,
+                            Active: IntAttr(list, "Active") != 0,
+                            RequireSmtpAuth: IntAttr(list, "RequiresAuth") != 0,
+                            RequireSenderAddress: list.Attribute("RequiresAuthAddress")?.Value ?? string.Empty,
+                            Mode: IntAttr(list, "ListMode")),
+                        list.Element("Recipients")?.Elements("Recipient")
+                            .Select(recipient => new DistributionListRecipientAdministrationSnapshot(
+                                Id: 0,
+                                ListId: 0,
+                                Address: recipient.Attribute("Name")?.Value ?? string.Empty))
+                            .ToArray()
+                            ?? Array.Empty<DistributionListRecipientAdministrationSnapshot>()))
+                    .ToArray()
+                    ?? Array.Empty<RestoreDistributionListEntry>()))
             .ToArray();
     }
 
@@ -157,4 +215,18 @@ public static class BackupArchiveXmlSnapshotParser
         int.TryParse(element.Attribute(name)?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
             ? value
             : 0;
+
+    private static XDocument ParseDocument(string archiveXml)
+    {
+        using var stringReader = new StringReader(archiveXml);
+        using var reader = XmlReader.Create(
+            stringReader,
+            new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null,
+                MaxCharactersInDocument = 1024 * 1024
+            });
+        return XDocument.Load(reader, LoadOptions.None);
+    }
 }

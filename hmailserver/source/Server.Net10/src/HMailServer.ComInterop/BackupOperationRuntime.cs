@@ -16,6 +16,8 @@ public interface IBackupOperationRuntime
 {
     BackupStartDispatchResult TryStartBackup(Func<BackupTaskRequest> taskFactory);
 
+    BackupStartDispatchResult TryStartRestore(Func<BackupTaskRequest> taskFactory);
+
     void OnThreadStopped();
 }
 
@@ -73,6 +75,9 @@ internal sealed class BackupOperationCoordinator : IBackupOperationRuntime
         }
     }
 
+    public BackupStartDispatchResult TryStartRestore(Func<BackupTaskRequest> taskFactory) =>
+        TryStartBackup(taskFactory);
+
     public void OnThreadStopped()
     {
         lock (_gate)
@@ -109,6 +114,9 @@ public sealed class BackupOperationRuntime : IBackupOperationRuntime
                 ? taskFactory
                 : () => WrapTaskWithPreflight(taskFactory()));
     }
+
+    public BackupStartDispatchResult TryStartRestore(Func<BackupTaskRequest> taskFactory) =>
+        _coordinator.TryStartRestore(taskFactory);
 
     public void OnThreadStopped() => _coordinator.OnThreadStopped();
 
