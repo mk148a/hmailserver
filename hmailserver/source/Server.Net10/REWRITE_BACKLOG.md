@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-08, SHORT OFFLINE SOAK)
+
+Code/test commit `53680b0d2` adds `ShortSoakBenchmark` and `ShortSoakBenchmarkTests`. The commandable bounded synthetic IMAP SEARCH/SORT soak emits JSON/CSV/Markdown with p50/p95/p99, errors, process memory, handles, threads, TCP connections, GC deltas, thresholds, timestamps, runtime, and git commit. Focused coverage is `4 passed, 0 skipped`; a smoke run completed 3/3 cycles with 0 errors and threshold pass. This remains an offline synthetic gate and does not replace the mandatory 24-hour live service leak/handle/thread/socket soak or COM lifecycle acceptance. Next slice: run the live 24-hour restart/COM lifecycle soak on an isolated host, then continue SEC-18/COM activation and the approved-toolchain InnoSetup build gates.
+
 ## Current Completed Slice (2026-08-08, INSTALLER SOURCE GATE)
 
 Code/test commit `8cc67112b` adds `InstallerSourceGateTests`. The source gate checks the legacy InnoSetup `hMailServer64.iss` include graph and the x64 C++ payload wiring in `hmailserver/installation/section_files_64.iss`. The real `ISCC.exe` build is explicit opt-in and is not reported as passed when prerequisites are absent. Focused coverage is `1 passed, 1 skipped`; the full suite excluding the two AV-locked EICAR cleanup methods is `1872 passed, 0 failed, 15 skipped`. This host has no `ISCC.exe` and no `hmailserver/source/server/hMailServer/x64/Release/hMailServer.exe`, so the actual installer build remains environment-blocked. No installer, service, registry, DCOM, database, or production state changed.
