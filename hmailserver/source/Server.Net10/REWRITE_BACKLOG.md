@@ -1,3 +1,11 @@
+## Current Completed Slice (2026-08-08, ISOLATED DATABACKUP STAGING)
+
+Code/test commit `a4b9dfe9e` adds an isolated filesystem restore primitive for the legacy `BackupExecuter::RestoreDataDirectory_` behavior. `BackupRestoreDataDirectoryRuntime` accepts only integrity-validated Raw or 7z `DataFiles`, stages the raw sibling or compressed `DataBackup` subtree into a disposable target, preserves the old target behind a rollback artifact, restores it on copy failure, rejects reparse points, kills canceled 7z extraction, and cleans successful temporary state. It is deliberately not wired into the production restore executor yet.
+
+Legacy references: `hmailserver/source/Server/Common/Application/BackupExecuter.cpp` (`RestoreDataDirectory_`), `BackupExecuter::StartRestore`, and `BackupManager::StartRestore` in `hmailserver/source/Server/Common/Application/BackupManager.cpp`. Current symbols: `hmailserver/source/Server.Net10/src/HMailServer.ComInterop/BackupRestoreDataDirectoryRuntime.cs`, `BackupRestoreContainmentPreflight.cs`, and `BackupRestoreIntegrityRuntime.cs`; focused `BackupRestoreDataDirectoryRuntimeTests` coverage is `4 passed, 0 failed, 0 skipped`; full Net10 is `1893 passed, 0 failed, 16 skipped`.
+
+The previous DB-only metadata restore remains the last production-wired restore slice (`26b660ff8`). This staging slice changes no production behavior and uses no production service, SQL database, Data directory, COM registration, DCOM ACL, or IIS state. Next slice: wire raw/7z staging into the authenticated restore executor for non-DB-only `RestoreDomains|RestoreMessages` and prove disposable target replacement/rollback through the service composition. Full settings/public-folder/IMAP/message restore, one shared SQL transaction, application reinitialization, real COM/DCOM, SEC-18, native AD/DC, installer, and 24-hour lifecycle gates remain open.
+
 # hMailServer .NET 10 Remaining Work
 
 ## Current Completed Slice (2026-08-08, QUEUED DB-ONLY METADATA RESTORE)

@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-08T10:18:00Z
-- Local timestamp: 2026-08-08T13:18:00+03:00
+- UTC timestamp: 2026-08-08T10:55:00Z
+- Local timestamp: 2026-08-08T13:55:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `26b660ff8`
-- Last successfully pushed commit: `9090d5438` (IMAP domain-alias parity documentation)
-- Latest focused-test result: restore/COM and disposable Local SQL round-trip `24 passed, 0 skipped, 0 failed`; restore execution focus `25 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1889 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
+- Current HEAD: `a4b9dfe9e`
+- Last successfully pushed commit: `b0d00d39e` (queued DB-only restore documentation)
+- Latest focused-test result: isolated raw/compressed DataBackup staging and rollback `4 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `1893 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
 - Opt-in tests passed/skipped/blocked: disposable Local SQL restore round-trip `1 passed, 0 skipped`; full run `16` opt-in/environment skips; native domain-controller LogonUser, installer, registry/COM, and live service evidence remain blocked
-- Current bounded slice: authenticated queued DB-only metadata restore, code/test commit `26b660ff8`
+- Current bounded slice: isolated raw/compressed DataBackup staging primitive, code/test commit `a4b9dfe9e`
 - Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup
 - Open production blockers: real out-of-proc COM/DCOM activation, SEC-18 cutover, InnoSetup build, migration/restore acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: isolated service/COM restore host and disposable end-to-end restore target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: actual isolated service/COM queued DB-only restore against disposable SQL; raw/compressed DataBackup staging with containment and rollback; real native AD/DC evidence or isolated 24-hour service/COM lifecycle soak when the required host exists
+- Next three independent slices: wire raw/compressed staging into authenticated non-DB-only restore with disposable target acceptance; actual isolated service/COM queued restore against disposable SQL; real native AD/DC evidence or isolated 24-hour service/COM lifecycle soak when the required host exists
