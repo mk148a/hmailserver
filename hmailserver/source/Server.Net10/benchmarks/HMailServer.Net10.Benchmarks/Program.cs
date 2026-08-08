@@ -2,6 +2,28 @@ using HMailServer.Net10.Benchmarks;
 
 var options = ParseOptions(args);
 var dataset = SyntheticImapSearchSortBenchmark.CreateDataset(options.MessageCount, options.Seed);
+if (string.Equals(ParseString(args, "--mode", "search-sort"), "short-soak", StringComparison.OrdinalIgnoreCase))
+{
+    var soak = ShortSoakBenchmark.Run(
+        dataset,
+        new ShortSoakBenchmarkOptions(
+            MessageCount: options.MessageCount,
+            Cycles: ParseInt(args, "--cycles", 20),
+            Seed: options.Seed,
+            MaxDurationSeconds: ParseInt(args, "--max-seconds", 30),
+            P95ThresholdMilliseconds: ParseDouble(args, "--p95-threshold-ms", 2_500),
+            MaxPrivateMemoryGrowthBytes: ParseLong(args, "--max-private-memory-growth-bytes", 64 * 1024 * 1024),
+            MaxHandleGrowth: ParseInt(args, "--max-handle-growth", 100),
+            MaxThreadGrowth: ParseInt(args, "--max-thread-growth", 20),
+            MaxTcpConnectionGrowth: ParseInt(args, "--max-tcp-growth", 50),
+            GitCommit: options.GitCommit));
+    var soakOutputDirectory = ParseOutputDirectory(args);
+    ShortSoakArtifactWriter.Write(soak, soakOutputDirectory);
+    Console.WriteLine($"Wrote short-soak artifacts to {Path.GetFullPath(soakOutputDirectory)}");
+    Console.WriteLine($"cycles={soak.CompletedCycles}/{soak.AttemptedCycles} errors={soak.ErrorCount} p95={soak.P95Milliseconds:0.###}ms threshold={soak.ThresholdPassed}");
+    return soak.Correct && soak.ThresholdPassed ? 0 : 2;
+}
+
 var report = SyntheticImapSearchSortBenchmark.Run(dataset, options);
 var outputDirectory = ParseOutputDirectory(args);
 SyntheticBenchmarkArtifactWriter.Write(report, outputDirectory);
@@ -29,6 +51,9 @@ static int ParseInt(string[] args, string name, int fallback) =>
 
 static double ParseDouble(string[] args, string name, double fallback) =>
     double.TryParse(ParseOptional(args, name), out var value) ? value : fallback;
+
+static long ParseLong(string[] args, string name, long fallback) =>
+    long.TryParse(ParseOptional(args, name), out var value) ? value : fallback;
 
 static string ParseString(string[] args, string name, string fallback) =>
     ParseOptional(args, name) ?? fallback;
