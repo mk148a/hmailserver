@@ -2,6 +2,12 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-08 continuation: code/test commit `d1fa4a6a5` makes restore archive-binding ownership explicit for terminal dispatch outcomes. A claimed `Backup` binding remains owned by its first queued request; a distinct `AlreadyRunning`, queue-unavailable, thrown-dispatch, or pre-dispatch authorization failure releases only that rejected backup’s binding. Same-object duplicate dispatch remains safe, while an unclaimed denied object cleans its private snapshot. Focused `BackupManagerComContractTests` coverage is `26 passed, 0 failed, 0 skipped`; default full Net10 is `1926 passed, 0 failed, 26 skipped`.
+
+Legacy references are `BackupManager::StartRestore` (`hmailserver/source/Server/Common/Application/BackupManager.cpp:75-98`), `BackupTask::SetBackupToRestore` (`hmailserver/source/Server/Common/Application/BackupTask.cpp:44-49`), and `BackupTask::DoWork` (`hmailserver/source/Server/Common/Application/BackupTask.cpp:27-41`). The internal claim is a lifecycle hardening around the legacy shared-pointer ownership and does not alter installed COM identities, direct activation, authentication boundaries, SMTP trust, or live reconfiguration. Next slice: preserve archived account credential/encryption type during restore.
+
+## Current Authoritative Continuation
+
 Authoritative 2026-08-08 continuation: code/test commit `4864a4dba` isolates queued-abort cleanup failures. `BackupTaskQueue.CompleteAndAbortPending` logs a failing request callback and continues draining later requests; `BackupTaskHostedService` applies the same isolation when cancellation dequeues a request. `BackupTaskRequest.AbortPending` still guarantees idempotent `ThreadStopped` notification.
 
 Legacy `WorkQueue::Stop` stops pending work without a callback contract (`hmailserver/source/Server/Common/Threading/WorkQueue.cpp:128-181`); the .NET cleanup extension therefore continues after one cleanup failure and preserves evidence through tracing/logging. Focused queue/restore coverage is `30 passed, 0 failed, 0 skipped`; default full Net10 is `1924 passed, 0 failed, 26 skipped`. Next slice: close non-queued archive binding ownership on duplicate/denied dispatch.
