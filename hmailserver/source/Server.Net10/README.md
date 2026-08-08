@@ -1085,3 +1085,9 @@ Code/test commit `5d9ad666c` adds a transaction-scoped public-folder cleanup cap
 Legacy behavior is anchored by `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`), the public-folder `DeleteAll()` call (`BackupExecuter.cpp:287-289`), `PersistentIMAPFolder::DeleteObject`, and `Reinitializator::ReInitialize` (`Reinitializator.cpp:35-57`). DB-only restore intentionally does not invoke this capability because legacy skips public-folder deletion for `bMessagesDBOnly`; public message-file staging and full-restore reinitialization remain unimplemented.
 
 Focused store tests: `11 passed, 0 failed, 0 skipped`. Full Net10: `1937 passed, 0 failed, 29 skipped`. Release remains RED.
+
+## Current Completed Slice (2026-08-08, SOURCE-HANDLE-BACKED RESTORE SWAP)
+
+Code/test commit `3e912982a` routes the non-DB restore target swap and rollback through the internal Windows-only `WindowsBackupRestoreDataDirectoryMutation`. It opens the source directory with `CreateFileW` and applies a non-overwriting `FILE_RENAME_INFO` rename; `BackupRestoreDataDirectoryRuntime` uses the seam for both mutation directions. Focused runtime coverage is `17 passed, 0 failed, 0 skipped`; default full Net10 is `1939 passed, 0 failed, 29 skipped`.
+
+Legacy `BackupExecuter::RestoreDataDirectory_` and `FileUtilities::CopyDirectory` are path-based (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:339-388`, `hmailserver/source/Server/Common/Util/FileUtilities.cpp:370-402`). This is bounded hardening, not full handle-relative containment: absolute destination resolution, path-based `CopyTree`, and path-based cleanup remain residual risks. No COM/IDL, SQL, protocol, service, recovery-journal, or production state changed. Next slice: full-restore public-folder deletion with staged message-file cleanup and reinitialization ordering on isolated disposable SQL/Data.

@@ -1,19 +1,19 @@
 # Current State
-- UTC timestamp: 2026-08-08T19:00:29Z
-- Local timestamp: 2026-08-08T22:00:29+03:00
+- UTC timestamp: 2026-08-08T19:12:00Z
+- Local timestamp: 2026-08-08T22:12:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: verified clean relative to configured upstream after normal push; protected unrelated worktree changes remain
-- Current HEAD: `5d9ad666c`
-- Last successfully pushed commit: `d945f7d75`
-- Latest focused-test result: public-folder SQL store and transaction tests `11 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: default `1937 passed, 0 failed, 29 skipped`
+- Push status: code commit `3e912982a` is unpushed; documentation commit is pending
+- Current HEAD: `3e912982a`
+- Last successfully pushed commit: `f45d12604`
+- Latest focused-test result: restore runtime tests `17 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: default `1939 passed, 0 failed, 29 skipped`
 - Opt-in tests passed/skipped/blocked: SQL restore, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped
-- Current bounded slice: transaction-scoped public-folder cleanup capability, code/test commit `5d9ad666c`; not wired into restore orchestration
+- Current bounded slice: source-handle-backed restore swap/rollback, code/test commit `3e912982a`; not full handle-relative containment
 - Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, DB-only and non-DB restore authorization lease acceptance, queued restore pending cleanup, shutdown admission, active-task completion fence, abort-failure isolation, rejected archive ownership acceptance, archived account credential-type preservation, journal finalization durability hardening, final pre-staging containment revalidation, transaction-scoped domain cleanup capability, and DB-only cleanup wiring
-- Open production blockers: disposable populated-store SQL/Data acceptance, full legacy filesystem deletion/public-folder/settings/reinitialization ordering, path-based handle-relative TOCTOU, process-kill/power-loss evidence, credential metadata validation and live SQL restore evidence, crash-safe SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
+- Open production blockers: disposable populated-store SQL/Data acceptance, full legacy filesystem deletion/public-folder/settings/reinitialization ordering, destination/copy/delete path-based TOCTOU, process-kill/power-loss evidence, credential metadata validation and live SQL restore evidence, crash-safe SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: implement full-restore public-folder deletion with staged message-file cleanup and reinitialization ordering; run approved populated-store DB-only SQL/Data acceptance; implement native handle-relative restore swap/copy containment
+- Next three independent slices: implement full-restore public-folder deletion with staged message-file cleanup and reinitialization ordering; run approved populated-store DB-only SQL/Data acceptance; complete native destination-parent/copy/delete containment
 
 ## Historical State
 - UTC timestamp: 2026-08-08T15:19:08Z
