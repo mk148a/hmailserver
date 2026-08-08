@@ -1,5 +1,13 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-08, LOGIN SCRIPT ORDERING)
+
+Code/test commit `d2c24d2c8` restores the legacy normal `LOGIN` ordering in `SqlServerImapAccountAuthenticator`: the account is materialized, `IClientPasswordValidationScriptExecutor` runs first, script `Accept` can authorize an empty password, script `Reject` fails immediately, and only `Continue` reaches the empty-password rejection. The existing `AUTHENTICATE PLAIN` parser still rejects an empty password with `BAD Command is missing password.` before the authenticator. Focused SQL/IMAP coverage is `40 passed, 0 skipped`; the full Net10 run is `1882 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods.
+
+Legacy anchors are `hmailserver/source/Server/IMAP/IMAPCommandLogin.cpp:52-57`, `hmailserver/source/Server/IMAP/IMAPCommandAuthenticate.cpp:77-79`, and `hmailserver/source/Server/Common/Util/PasswordValidator.cpp:109-133`. No COM identity, SQL schema, AD native boundary, SMTP trust, live reconfiguration, production service, database, or Data directory changed. Remaining auth blockers are domain aliases/default-domain lookup and real domain-controller/native `LogonUser` evidence; release blockers remain SEC-18/COM/DCOM, installer build, migration/restore acceptance, and the 24-hour lifecycle soak.
+
+Next slice: legacy domain-alias/default-domain authentication lookup, preserving the current authenticated protocol and SQL boundaries.
+
 ## Current Completed Slice (2026-08-08, SQL ACTIVE DIRECTORY AUTHENTICATION EVIDENCE)
 
 Code/test commit `4072dbf50` completes the isolated SQL-backed portion of the AD authentication slice. The opt-in `SqlServerImapActiveDirectoryIntegrationTests` fixture creates a unique local SQL Server database, uses production-compatible MSSQL account types, proves active-account/active-domain filtering, records the exact `CORP`/username/password validator call, verifies success and rejection last-logon behavior, and proves inactive domains never reach the validator. Local SQL evidence is `7 passed, 0 skipped`; the normal full Net10 run is `1880 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods. The authenticator projection now explicitly converts MSSQL `tinyint` flags and `datetime` fields before materialization, matching the existing `SqlServerAccountAdministrationStore` projection pattern.

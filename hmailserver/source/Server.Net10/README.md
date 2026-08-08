@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Rewrite
 
+## Current Continuation (2026-08-08, LOGIN SCRIPT ORDERING)
+
+Code/test commit `d2c24d2c8` restores legacy normal `LOGIN` script ordering: the SQL account is materialized, the password-validation script runs before empty-password rejection, script `Accept` can authorize an empty password, and `Continue` still fails empty passwords. `AUTHENTICATE PLAIN` continues to reject empty passwords in the parser before the authenticator. Focused SQL/IMAP coverage is `40 passed, 0 skipped`; full Net10 is `1882 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods. Legacy anchors are `IMAPCommandLOGIN::ExecuteCommand` (`hmailserver/source/Server/IMAP/IMAPCommandLogin.cpp:52-57`), `IMAPCommandAUTHENTICATE::ExecuteCommand` (`hmailserver/source/Server/IMAP/IMAPCommandAuthenticate.cpp:77-79`), and `PasswordValidator::ValidatePassword` (`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:109-133`). Next slice: domain-alias/default-domain lookup; real AD/DC, SEC-18/COM/DCOM, installer, migration/restore, and soak gates remain open.
+
 ## Current Continuation (2026-08-08, AD VALIDATION CONNECTION LIFETIME)
 
 Code/test commit `eec9752e8` releases the SQL reader and connection before the synchronous AD validator and uses a separate connection for successful last-logon updates. The local SQL fixture constrains the pool to one connection and opens a probe connection inside the validator; focused coverage is `7 passed, 0 skipped`. This closes the AD validation connection-pool retention risk without changing credentials, COM identity, SMTP trust, or production state.

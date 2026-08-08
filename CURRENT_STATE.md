@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-08T07:37:00Z
-- Local timestamp: 2026-08-08T10:37:00+03:00
+- UTC timestamp: 2026-08-08T07:45:00Z
+- Local timestamp: 2026-08-08T10:45:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `eec9752e8`
-- Last successfully pushed commit: `664e6a650` (SQL Active Directory authentication evidence documentation)
-- Latest focused-test result: local SQL AD connection-lifetime fixture `7 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1880 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
-- Opt-in tests passed/skipped/blocked: `1/0/0` live local SQL AD fixture; native domain-controller LogonUser evidence blocked; full run includes 16 skipped opt-in/environment tests
-- Current bounded slice: release SQL reader/connection before synchronous AD validation, code/test commit `eec9752e8`
-- Completed milestones: offline COM/Admin parity, backup/restore evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path and connection-lifetime evidence
-- Open production blockers: real out-of-proc COM/DCOM activation, SEC-18 cutover, InnoSetup build, 24-hour service leak/lifecycle soak, AD native/DC evidence, alias/default-domain and LOGIN script-before-empty-password parity
-- Environment-blocked work: domain-controller credentials, isolated service/COM host, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC-18/benchmark artifacts remain untouched
+- Current HEAD: `d2c24d2c8`
+- Last successfully pushed commit: `a00850b7a` (AD validation connection lifetime documentation)
+- Latest focused-test result: SQL/IMAP script-ordering coverage `40 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `1882 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
+- Opt-in tests passed/skipped/blocked: `1/0/0` live local SQL fixture; native domain-controller LogonUser evidence blocked; full run includes 16 skipped opt-in/environment tests
+- Current bounded slice: legacy LOGIN script-before-empty-password ordering, code/test commit `d2c24d2c8`
+- Completed milestones: offline COM/Admin parity, backup/restore evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering
+- Open production blockers: real out-of-proc COM/DCOM activation, SEC-18 cutover, InnoSetup build, migration/restore acceptance, 24-hour service leak/lifecycle soak, AD native/DC and alias/default-domain parity
+- Environment-blocked work: domain-controller credentials, isolated service/COM host, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: legacy LOGIN script-before-empty-password ordering; legacy domain-alias/default-domain authentication lookup; isolated 24-hour service restart/COM lifecycle soak when a disposable host exists
+- Next three independent slices: legacy domain-alias/default-domain authentication lookup; isolated 24-hour service restart/COM lifecycle soak when a disposable host exists; real native AD/DC evidence when approved credentials exist
