@@ -2,6 +2,8 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-05 continuation: code/test commit ``c965cf2b0`` adds live IMAP and POP3 accept-latency acceptance harnesses mirroring the SMTP harness (200 loopback clients, banner assert, p95 budget). Focused listener coverage ``15/15``; full suite excluding the two AV-locked EICAR cleanup methods ``1868 passed, 0 failed, 14 opt-in skips`` (1882 total). Next action: 1k-concurrent loopback connection acceptance.
+
 Authoritative 2026-08-05 continuation: code/test commit ``21b63cd13`` adds the live SMTP accept-latency acceptance harness. ``SmtpAcceptLatencyIntegrationTests`` binds ``SmtpTcpListener`` on loopback, connects 200 clients, asserts the 220 banner, and measures p50/p95/p99 connect-to-banner latency against a 5s p95 budget. Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1866 passed, 0 failed, 14 opt-in skips`` (1880 total). Next action: IMAP/POP3 loopback accept-latency harnesses, then 1k-concurrent connection acceptance.
 
 Authoritative 2026-08-05 continuation: code/test commit ``98433db25`` adds isolated database version gate and upgrade rollback evidence. ``SqlServerDatabaseAdministrationStoreIntegrationTests`` seeds ``hm_dbversion`` at 5000, simulates the upgrade write to 5708 (gate clears), then rolls back to 5000 (gate returns, one version row). Live LocalDB ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1865 passed, 0 failed, 14 opt-in skips`` (1879 total). Data-directory message-file restore, protocol acceptance, real COM activation, SEC-18, and release gates remain open. Next action: live protocol acceptance harness.

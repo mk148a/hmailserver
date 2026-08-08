@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``c965cf2b0`` adds live IMAP and POP3 accept-latency acceptance harnesses mirroring the SMTP harness (200 loopback clients, banner assert, p95 budget). Focused listener coverage ``15/15``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1868 passed, 0 failed, 14 opt-in skips`` (1882 total). Next slice: 1k-concurrent loopback connection acceptance.
+
+
 Code/test commit ``21b63cd13`` adds the live SMTP accept-latency acceptance harness. ``SmtpAcceptLatencyIntegrationTests`` binds ``SmtpTcpListener`` on loopback, connects 200 clients, asserts the 220 banner, and measures p50/p95/p99 connect-to-banner latency against a 5s p95 budget. Focused ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1866 passed, 0 failed, 14 opt-in skips`` (1880 total). Next slice: IMAP/POP3 loopback accept-latency harnesses, then 1k-concurrent connection acceptance.
 
 

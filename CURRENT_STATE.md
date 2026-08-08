@@ -1,14 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-08T04:46:49Z
-- Local timestamp: 2026-08-08T07:46:49+03:00
+- UTC timestamp: 2026-08-08T05:00:48Z
+- Local timestamp: 2026-08-08T08:00:48+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `21b63cd13`
+- Current HEAD: `c965cf2b0`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: SMTP accept-latency harness `1 passed, 0 failed` (200 sequential loopback clients, banner asserted, p50/p95/p99 measured, p95 within 5s budget)
-- Latest full Net10 result: `1866 passed, 0 failed, 14 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
-- Opt-in tests passed/skipped/blocked: `10/14/0`
-- Current bounded slice: live SMTP accept latency acceptance harness, code/test commit `21b63cd13`; `SmtpAcceptLatencyIntegrationTests` binds `SmtpTcpListener` on loopback, connects 200 clients, measures connect→220-banner latency p50/p95/p99 and asserts the p95 budget
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection/restore round-trip/version-gate SQL evidence; restore writer + full XML parsers; live SMTP accept-latency harness
-- Open (environment-gated or large): data-directory message-file restore, IMAP/POP3 accept-latency + 1k-concurrency protocol acceptance, real COM activation, SEC-18, installer/release artifacts
+- Latest focused-test result: SMTP+IMAP+POP3 loopback accept-latency `15/15` (incl. 3 accept-latency harnesses with 200 clients each; banner asserted; p95 within 5s budget)
+- Latest full Net10 result: `1868 passed, 0 failed, 14 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: live IMAP/POP3 accept-latency acceptance harnesses, code/test commit `c965cf2b0`, mirroring the SMTP harness (200 sequential loopback clients, banner assert, p50/p95/p99, 5s p95 budget)
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection/restore round-trip/version-gate SQL evidence; restore writer + full XML parsers; SMTP/IMAP/POP3 live accept-latency harnesses
+- Open (environment-gated or large): 1k-concurrent connection acceptance, data-directory message-file restore, real COM activation, SEC-18, installer/release artifacts
 - Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime
-- Next three slices: IMAP/POP3 loopback accept-latency harnesses (mirroring SMTP); then 1k-concurrent connection acceptance; then real COM activation evidence
+- Next three slices: 1k-concurrent loopback connection acceptance; then real COM activation evidence; then installer/release artifact gate
