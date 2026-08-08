@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -62,7 +64,10 @@ public static class BackupRestoreRecoveryJournal
         }
     }
 
-    internal static void Persist(string journalPath, BackupRestoreRecoveryManifest manifest)
+    internal static void Persist(
+        string journalPath,
+        BackupRestoreRecoveryManifest manifest,
+        Action<string>? flushDirectory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(journalPath);
         ArgumentNullException.ThrowIfNull(manifest);
@@ -91,6 +96,7 @@ public static class BackupRestoreRecoveryJournal
             }
 
             File.Move(temporaryPath, fullJournalPath, overwrite: true);
+            FlushContainingDirectory(fullJournalPath, flushDirectory);
         }
         finally
         {
@@ -179,11 +185,140 @@ public static class BackupRestoreRecoveryJournal
         }
     }
 
-    internal static void Remove(string journalPath)
+    internal static void Remove(string journalPath, Action<string>? flushDirectory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(journalPath);
-        File.Delete(Path.GetFullPath(journalPath));
+        var fullJournalPath = Path.GetFullPath(journalPath);
+        var journalEvidence = File.Exists(fullJournalPath)
+            ? File.ReadAllBytes(fullJournalPath)
+            : null;
+        try
+        {
+            File.Delete(fullJournalPath);
+            FlushContainingDirectory(fullJournalPath, flushDirectory);
+        }
+        catch (Exception finalizationFailure) when (finalizationFailure is IOException
+            or UnauthorizedAccessException
+            or PlatformNotSupportedException
+            or ArgumentException
+            or NotSupportedException)
+        {
+            if (journalEvidence is not null && !File.Exists(fullJournalPath))
+            {
+                try
+                {
+                    RestoreJournalEvidence(fullJournalPath, journalEvidence, flushDirectory);
+                }
+                catch (Exception evidenceFailure)
+                {
+                    throw new AggregateException(
+                        "The restore recovery journal could not be finalized or preserved.",
+                        finalizationFailure,
+                        evidenceFailure);
+                }
+            }
+
+            throw;
+        }
     }
+
+    private static void FlushContainingDirectory(string journalPath, Action<string>? flushDirectory)
+    {
+        var directoryPath = Path.GetDirectoryName(journalPath)
+            ?? throw new IOException("The restore recovery journal has no containing directory.");
+        (flushDirectory ?? FlushDirectory)(directoryPath);
+    }
+
+    private static void FlushDirectory(string directoryPath)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            using var directoryHandle = File.OpenHandle(
+                directoryPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            RandomAccess.FlushToDisk(directoryHandle);
+            return;
+        }
+
+        using var windowsDirectoryHandle = CreateFileW(
+            directoryPath,
+            GenericRead | GenericWrite,
+            FileShareRead | FileShareWrite | FileShareDelete,
+            IntPtr.Zero,
+            OpenExisting,
+            FileFlagBackupSemantics,
+            IntPtr.Zero);
+        if (windowsDirectoryHandle.IsInvalid)
+        {
+            throw CreateWindowsIoException("The restore recovery journal directory could not be opened for durable finalization.");
+        }
+
+        if (!FlushFileBuffers(windowsDirectoryHandle))
+        {
+            throw CreateWindowsIoException("The restore recovery journal directory could not be flushed for durable finalization.");
+        }
+    }
+
+    private static void RestoreJournalEvidence(
+        string journalPath,
+        byte[] payload,
+        Action<string>? flushDirectory)
+    {
+        var temporaryPath = journalPath + ".preserve-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            using (var stream = new FileStream(
+                       temporaryPath,
+                       FileMode.CreateNew,
+                       FileAccess.Write,
+                       FileShare.None,
+                       bufferSize: 4096,
+                       options: FileOptions.WriteThrough))
+            {
+                stream.Write(payload);
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(temporaryPath, journalPath, overwrite: true);
+            FlushContainingDirectory(journalPath, flushDirectory);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
+    private static IOException CreateWindowsIoException(string message) =>
+        new(message, new Win32Exception(Marshal.GetLastWin32Error()));
+
+    private const uint GenericRead = 0x80000000;
+    private const uint GenericWrite = 0x40000000;
+    private const uint FileShareRead = 0x00000001;
+    private const uint FileShareWrite = 0x00000002;
+    private const uint FileShareDelete = 0x00000004;
+    private const uint OpenExisting = 3;
+    private const uint FileFlagBackupSemantics = 0x02000000;
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern SafeFileHandle CreateFileW(
+        string fileName,
+        uint desiredAccess,
+        uint shareMode,
+        IntPtr securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile);
+
+    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FlushFileBuffers(SafeFileHandle fileHandle);
 
     private static BackupRestorePendingRecovery InvalidRecovery(string reason) =>
         new(

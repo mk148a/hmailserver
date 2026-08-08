@@ -8,14 +8,17 @@ internal sealed class BackupRestoreDataDirectoryRuntime
 {
     private readonly string _sevenZipExecutablePath;
     private readonly Action<string, string, CancellationToken> _copyTree;
+    private readonly Action<string>? _flushJournalDirectory;
 
     internal BackupRestoreDataDirectoryRuntime(
         string sevenZipExecutablePath,
-        Action<string, string, CancellationToken>? copyTree = null)
+        Action<string, string, CancellationToken>? copyTree = null,
+        Action<string>? flushJournalDirectory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         _sevenZipExecutablePath = sevenZipExecutablePath;
         _copyTree = copyTree ?? CopyTree;
+        _flushJournalDirectory = flushJournalDirectory;
     }
 
     internal async ValueTask RestoreAsync(
@@ -87,45 +90,50 @@ internal sealed class BackupRestoreDataDirectoryRuntime
                 rollbackPath,
                 Path.GetFullPath(evidence.ArchivePath),
                 BackupRestoreRecoveryPhase.Prepared);
-            BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
+            BackupRestoreRecoveryJournal.Persist(journalPath, manifest, _flushJournalDirectory);
 
             var metadataCommitInvoked = false;
             var metadataCommitCompleted = false;
+            var rollbackArtifactDeleted = false;
             Directory.Move(targetPath, rollbackPath);
             try
             {
                 Directory.CreateDirectory(targetPath);
                 _copyTree(sourcePath, targetPath, cancellationToken);
                 manifest = manifest with { Phase = BackupRestoreRecoveryPhase.FilesystemSwapped };
-                BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
+                BackupRestoreRecoveryJournal.Persist(journalPath, manifest, _flushJournalDirectory);
                 if (commitAsync is not null)
                 {
                     manifest = manifest with { Phase = BackupRestoreRecoveryPhase.MetadataCommitStarted };
-                    BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
+                    BackupRestoreRecoveryJournal.Persist(journalPath, manifest, _flushJournalDirectory);
                     metadataCommitInvoked = true;
                     await commitAsync(cancellationToken).ConfigureAwait(false);
                     metadataCommitCompleted = true;
                     manifest = manifest with { Phase = BackupRestoreRecoveryPhase.MetadataCommitCompleted };
-                    BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
+                    BackupRestoreRecoveryJournal.Persist(journalPath, manifest, _flushJournalDirectory);
                 }
 
                 Directory.Delete(rollbackPath, recursive: true);
-                BackupRestoreRecoveryJournal.Remove(journalPath);
+                rollbackArtifactDeleted = true;
+                BackupRestoreRecoveryJournal.Remove(journalPath, _flushJournalDirectory);
             }
             catch (Exception mutationFailure)
             {
-                if (metadataCommitCompleted
+                if (rollbackArtifactDeleted
+                    || metadataCommitCompleted
                     || (metadataCommitInvoked && commitOutcomeMayBeAmbiguous))
                 {
                     throw new InvalidOperationException(
-                        "The restore metadata commit outcome is ambiguous; manual recovery is required.",
+                        rollbackArtifactDeleted
+                            ? "The restore rollback artifact was deleted before journal finalization completed; manual recovery is required."
+                            : "The restore metadata commit outcome is ambiguous; manual recovery is required.",
                         mutationFailure);
                 }
 
                 try
                 {
                     manifest = manifest with { Phase = BackupRestoreRecoveryPhase.RollbackStarted };
-                    BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
+                    BackupRestoreRecoveryJournal.Persist(journalPath, manifest, _flushJournalDirectory);
                     if (Directory.Exists(targetPath))
                     {
                         Directory.Delete(targetPath, recursive: true);
@@ -139,7 +147,7 @@ internal sealed class BackupRestoreDataDirectoryRuntime
                     try
                     {
                         manifest = manifest with { Phase = BackupRestoreRecoveryPhase.RollbackFailed };
-                        BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
+                        BackupRestoreRecoveryJournal.Persist(journalPath, manifest, _flushJournalDirectory);
                     }
                     catch
                     {

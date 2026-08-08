@@ -107,6 +107,63 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
     }
 
     [TestMethod]
+    public void RecoveryJournal_FinalizationFailureLeavesReadablePendingJournal()
+    {
+        using var fixture = new DataDirectoryFixture();
+        var journalPath = BackupRestoreRecoveryJournal.GetJournalPath(fixture.TargetPath);
+        var manifest = new BackupRestoreRecoveryManifest(
+            Path.GetFullPath(fixture.TargetPath),
+            Path.GetFullPath(fixture.RollbackPath),
+            Path.GetFullPath(fixture.ArchivePath),
+            BackupRestoreRecoveryPhase.Prepared);
+
+        Assert.ThrowsExactly<IOException>(
+            () => BackupRestoreRecoveryJournal.Persist(
+                journalPath,
+                manifest,
+                _ => throw new IOException("simulated directory flush failure")));
+
+        var pending = BackupRestoreRecoveryJournal.InspectPendingRecovery(fixture.TargetPath);
+        Assert.IsTrue(pending.IsPending);
+        Assert.IsNotNull(pending.Manifest);
+        Assert.AreEqual(BackupRestoreRecoveryPhase.Prepared, pending.Manifest!.Phase);
+        Assert.IsTrue(File.Exists(journalPath));
+    }
+
+    [TestMethod]
+    public void RecoveryJournal_RemoveFinalizationFailurePreservesReadablePendingJournal()
+    {
+        using var fixture = new DataDirectoryFixture();
+        var journalPath = BackupRestoreRecoveryJournal.GetJournalPath(fixture.TargetPath);
+        var manifest = new BackupRestoreRecoveryManifest(
+            Path.GetFullPath(fixture.TargetPath),
+            Path.GetFullPath(fixture.RollbackPath),
+            Path.GetFullPath(fixture.ArchivePath),
+            BackupRestoreRecoveryPhase.FilesystemSwapped);
+        BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
+
+        var flushCount = 0;
+        Assert.ThrowsExactly<IOException>(
+            () => BackupRestoreRecoveryJournal.Remove(
+                journalPath,
+                _ =>
+                {
+                    flushCount++;
+                    if (flushCount == 1)
+                    {
+                        throw new IOException("simulated directory flush failure");
+                    }
+                }));
+
+        var pending = BackupRestoreRecoveryJournal.InspectPendingRecovery(fixture.TargetPath);
+        Assert.IsTrue(pending.IsPending);
+        Assert.IsNotNull(pending.Manifest);
+        Assert.AreEqual(BackupRestoreRecoveryPhase.FilesystemSwapped, pending.Manifest!.Phase);
+        Assert.IsTrue(File.Exists(journalPath));
+        Assert.AreEqual(2, flushCount);
+    }
+
+    [TestMethod]
     public void RecoveryJournal_DetectsInterruptedMetadataCommitWithoutMutating()
     {
         using var fixture = new DataDirectoryFixture();
@@ -252,6 +309,37 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
         Assert.AreEqual(BackupRestoreRecoveryPhase.MetadataCommitStarted, pending.Manifest!.Phase);
         Assert.AreEqual("old", File.ReadAllText(Path.Combine(fixture.RollbackPath, "old.eml")));
         Assert.IsTrue(File.Exists(Path.Combine(fixture.TargetPath, "new.eml")));
+    }
+
+    [TestMethod]
+    public async Task RestoreAsync_PreservesNewTargetWhenFinalJournalFlushFailsAfterRollbackDeletion()
+    {
+        using var fixture = new DataDirectoryFixture();
+        File.WriteAllText(Path.Combine(fixture.SourcePath, "new.eml"), "new");
+        File.WriteAllText(Path.Combine(fixture.TargetPath, "old.eml"), "old");
+        File.WriteAllText(fixture.ArchivePath, "archive");
+        var evidence = CreateRawEvidence(fixture);
+        var plan = BackupRestoreContainmentPreflight.Plan(evidence, fixture.TargetPath, fixture.RollbackPath);
+        var flushCount = 0;
+        var runtime = new BackupRestoreDataDirectoryRuntime(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            flushJournalDirectory: _ =>
+            {
+                flushCount++;
+                if (flushCount == 3)
+                {
+                    throw new IOException("simulated final journal flush failure");
+                }
+            });
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => runtime.RestoreAsync(evidence, plan, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(4, flushCount);
+        Assert.IsTrue(File.Exists(Path.Combine(fixture.TargetPath, "new.eml")));
+        Assert.IsFalse(File.Exists(Path.Combine(fixture.TargetPath, "old.eml")));
+        Assert.IsFalse(Directory.Exists(fixture.RollbackPath));
+        Assert.IsTrue(File.Exists(BackupRestoreRecoveryJournal.GetJournalPath(fixture.TargetPath)));
     }
 
     [TestMethod]
