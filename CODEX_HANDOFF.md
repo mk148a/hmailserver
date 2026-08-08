@@ -2,6 +2,12 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-08 continuation: code/test commit `4864a4dba` isolates queued-abort cleanup failures. `BackupTaskQueue.CompleteAndAbortPending` logs a failing request callback and continues draining later requests; `BackupTaskHostedService` applies the same isolation when cancellation dequeues a request. `BackupTaskRequest.AbortPending` still guarantees idempotent `ThreadStopped` notification.
+
+Legacy `WorkQueue::Stop` stops pending work without a callback contract (`hmailserver/source/Server/Common/Threading/WorkQueue.cpp:128-181`); the .NET cleanup extension therefore continues after one cleanup failure and preserves evidence through tracing/logging. Focused queue/restore coverage is `30 passed, 0 failed, 0 skipped`; default full Net10 is `1924 passed, 0 failed, 26 skipped`. Next slice: close non-queued archive binding ownership on duplicate/denied dispatch.
+
+## Current Authoritative Continuation
+
 Authoritative 2026-08-08 continuation: code/test commit `3599ce44d` adds an active-task completion barrier to `BackupTaskHostedService`. Each dequeued request owns a completion source until its execute/abort path and idempotent `ThreadStopped` notification finish; `StopAsync` closes admission, cancels the worker, and waits for active completion before returning, even if its host cancellation timeout fires. This prevents a non-cooperative backup/restore delegate from continuing after service shutdown returns.
 
 Legacy `WorkQueue::Stop` interrupts and joins workers with a bounded wait (`hmailserver/source/Server/Common/Threading/WorkQueue.cpp:128-181`); the .NET test explicitly proves the stronger completion-fence behavior with a cancellation-ignoring delegate. Focused queue/restore coverage is `29 passed, 0 failed, 0 skipped`; default full Net10 is `1923 passed, 0 failed, 26 skipped`. COM identity, direct activation, authentication, SMTP trust, live reconfiguration, SQL schema, production service, and Data directory remain untouched.
