@@ -33,6 +33,7 @@ public sealed class BackupManager : IInterfaceBackupManager
     private readonly IBackupOperationRuntime? _operationRuntime;
     private readonly IBackupRestoreExecutor? _restoreExecutor;
     private readonly IBackupEventDispatcher _eventDispatcher;
+    private readonly Func<bool>? _authorizationGuard;
 
     public BackupManager()
     {
@@ -43,12 +44,14 @@ public sealed class BackupManager : IInterfaceBackupManager
         IBackupArchiveMetadataReader metadataReader,
         IBackupOperationRuntime? operationRuntime,
         IBackupRestoreExecutor? restoreExecutor,
-        IBackupEventDispatcher eventDispatcher)
+        IBackupEventDispatcher eventDispatcher,
+        Func<bool>? authorizationGuard)
     {
         _metadataReader = metadataReader;
         _operationRuntime = operationRuntime;
         _restoreExecutor = restoreExecutor;
         _eventDispatcher = eventDispatcher;
+        _authorizationGuard = authorizationGuard;
     }
 
     public void StartBackup()
@@ -78,19 +81,22 @@ public sealed class BackupManager : IInterfaceBackupManager
         return Backup.CreateAuthorized(
             containsOptions,
             Path.GetFullPath(xmlFile),
-            StartRestore);
+            StartRestore,
+            _authorizationGuard);
     }
 
     internal static BackupManager CreateAuthorized(
         IBackupArchiveMetadataReader? metadataReader = null,
         IBackupOperationRuntime? operationRuntime = null,
         IBackupEventDispatcher? eventDispatcher = null,
-        IBackupRestoreExecutor? restoreExecutor = null) =>
+        IBackupRestoreExecutor? restoreExecutor = null,
+        Func<bool>? authorizationGuard = null) =>
         new(
             metadataReader ?? SevenZipBackupArchiveMetadataReader.CreateDefault(),
             operationRuntime ?? BackupManagerRuntimeHost.Runtime,
             restoreExecutor ?? BackupRestoreRuntimeHost.Runtime,
-            eventDispatcher ?? BackupEventDispatcherRuntimeHost.Runtime ?? NoopBackupEventDispatcher.Instance);
+            eventDispatcher ?? BackupEventDispatcherRuntimeHost.Runtime ?? NoopBackupEventDispatcher.Instance,
+            authorizationGuard);
 
     internal void OnThreadStopped() => _operationRuntime?.OnThreadStopped();
 
@@ -143,7 +149,7 @@ public sealed class BackupManager : IInterfaceBackupManager
 
     private void EnsureAuthorized()
     {
-        if (_metadataReader is null)
+        if (_metadataReader is null || (_authorizationGuard is not null && !_authorizationGuard()))
         {
             throw new COMException(
                 "BackupManager access requires an authenticated server administrator.",

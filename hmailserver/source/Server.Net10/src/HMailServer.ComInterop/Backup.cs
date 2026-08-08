@@ -56,6 +56,7 @@ public sealed class Backup : IInterfaceBackup
     private const int MessagesFlag = 4;
 
     private readonly bool _authorized;
+    private readonly Func<bool>? _authorizationGuard;
     private readonly int _containsOptions;
     private readonly string? _archivePath;
     private readonly Action<Backup>? _startRestore;
@@ -65,9 +66,14 @@ public sealed class Backup : IInterfaceBackup
     {
     }
 
-    private Backup(int containsOptions, string? archivePath, Action<Backup>? startRestore)
+    private Backup(
+        int containsOptions,
+        string? archivePath,
+        Action<Backup>? startRestore,
+        Func<bool>? authorizationGuard)
     {
         _authorized = true;
+        _authorizationGuard = authorizationGuard;
         _containsOptions = containsOptions;
         _archivePath = archivePath;
         _startRestore = startRestore;
@@ -113,8 +119,9 @@ public sealed class Backup : IInterfaceBackup
     internal static Backup CreateAuthorized(
         int containsOptions,
         string? archivePath = null,
-        Action<Backup>? startRestore = null) =>
-        new(containsOptions, archivePath, startRestore);
+        Action<Backup>? startRestore = null,
+        Func<bool>? authorizationGuard = null) =>
+        new(containsOptions, archivePath, startRestore, authorizationGuard);
 
     internal string ArchivePath => _archivePath
         ?? throw new COMException(
@@ -145,7 +152,7 @@ public sealed class Backup : IInterfaceBackup
 
     private void EnsureAuthorized()
     {
-        if (!_authorized)
+        if (!_authorized || (_authorizationGuard is not null && !_authorizationGuard()))
         {
             throw new COMException(
                 "Backup access requires an authenticated server administrator.",

@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Xml;
 using HMailServer.ComInterop;
+using HMailServer.Core.Abstractions;
+using HMailServer.Security;
 using BackupComClass = HMailServer.ComInterop.Backup;
 
 namespace HMailServer.Net10.Tests;
@@ -101,6 +103,35 @@ public sealed class BackupComContractTests
         Assert.IsFalse(backup.RestoreDomains);
         Assert.IsTrue(backup.RestoreMessages);
         AssertPending(backup.StartRestore);
+    }
+
+    [TestMethod]
+    public void ApplicationCreatedBackup_IsInvalidatedAfterFailedReauthentication()
+    {
+        var reader = new RecordingBackupArchiveMetadataReader(13);
+        var application = CreateAuthenticatedApplication(reader);
+        var backup = application.BackupManager.LoadBackup(@"D:\Backups\stale.7z");
+
+        Assert.IsNull(application.Authenticate("administrator", "wrong"));
+        AssertAccessDenied(() => _ = backup.ContainsSettings);
+        AssertAccessDenied(() => backup.RestoreDomains = true);
+        AssertAccessDenied(backup.StartRestore);
+    }
+
+    [TestMethod]
+    public void ApplicationCreatedBackup_IsInvalidatedAfterSuccessfulReauthenticationAndNewBackupWorks()
+    {
+        var reader = new RecordingBackupArchiveMetadataReader(13);
+        var application = CreateAuthenticatedApplication(reader);
+        var retainedBackup = application.BackupManager.LoadBackup(@"D:\Backups\retained.7z");
+
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+        AssertAccessDenied(() => _ = retainedBackup.ContainsSettings);
+
+        var newBackup = application.BackupManager.LoadBackup(@"D:\Backups\fresh.7z");
+        Assert.IsTrue(newBackup.ContainsSettings);
+        newBackup.RestoreSettings = true;
+        Assert.IsTrue(newBackup.RestoreSettings);
     }
 
     [TestMethod]
@@ -212,5 +243,27 @@ public sealed class BackupComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private static void AssertAccessDenied(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+    }
+
+    private static Application CreateAuthenticatedApplication(RecordingBackupArchiveMetadataReader reader)
+    {
+        var application = new Application(
+            new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"),
+            reader);
+
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+        return application;
+    }
+
+    private sealed class RecordingBackupArchiveMetadataReader(int options) : IBackupArchiveMetadataReader
+    {
+        public int ReadContainsOptions(string archivePath) => options;
     }
 }

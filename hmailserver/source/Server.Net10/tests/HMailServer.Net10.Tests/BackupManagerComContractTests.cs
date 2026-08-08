@@ -398,11 +398,54 @@ public sealed class BackupManagerComContractTests
         Assert.AreEqual(@"D:\Backups\sample.7z", reader.ArchivePath);
     }
 
+    [TestMethod]
+    public void ApplicationCreatedBackupManager_IsInvalidatedAfterFailedReauthentication()
+    {
+        var reader = new RecordingBackupArchiveMetadataReader(2);
+        var application = new Application(
+            new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"),
+            reader);
+
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+        var manager = application.BackupManager;
+
+        Assert.IsNull(application.Authenticate("administrator", "wrong"));
+        AssertAccessDenied(manager.StartBackup);
+        AssertAccessDenied(() => manager.LoadBackup(@"D:\Backups\stale.7z"));
+        Assert.IsNull(reader.ArchivePath);
+    }
+
+    [TestMethod]
+    public void ApplicationCreatedBackupManager_IsInvalidatedAfterSuccessfulReauthenticationAndNewManagerWorks()
+    {
+        var reader = new RecordingBackupArchiveMetadataReader(2);
+        var application = new Application(
+            new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"),
+            reader);
+
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+        var retainedManager = application.BackupManager;
+
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+        AssertAccessDenied(retainedManager.StartBackup);
+
+        var newManager = application.BackupManager;
+        AssertPending(newManager.StartBackup);
+        Assert.IsTrue(newManager.LoadBackup(@"D:\Backups\fresh.7z").ContainsDomains);
+    }
+
     private static void AssertPending(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private static void AssertAccessDenied(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
     }
 
     private sealed class RecordingBackupArchiveMetadataReader(int options) : IBackupArchiveMetadataReader

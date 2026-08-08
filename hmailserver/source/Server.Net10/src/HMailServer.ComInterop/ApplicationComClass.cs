@@ -25,6 +25,7 @@ public sealed class Application : IInterfaceApplication
     private readonly IEmailAllAccountsRuntime? _emailAllAccountsRuntime;
     private readonly IImportMessageFromFileRuntime? _importMessageFromFileRuntime;
     private bool _isServerAdministrator;
+    private long _authenticationGeneration;
 
     public Application()
     {
@@ -156,7 +157,10 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return HMailServer.ComInterop.BackupManager.CreateAuthorized(_backupArchiveMetadataReader);
+            var generation = Volatile.Read(ref _authenticationGeneration);
+            return HMailServer.ComInterop.BackupManager.CreateAuthorized(
+                _backupArchiveMetadataReader,
+                authorizationGuard: () => IsCurrentAdministrator(generation));
         }
     }
 
@@ -206,11 +210,23 @@ public sealed class Application : IInterfaceApplication
                 "The hMailServer COM authentication runtime has not been initialized.",
                 CoENotInitialized);
 
-        _isServerAdministrator = provider.Authenticate(username, password);
-        return _isServerAdministrator
+        var generation = Interlocked.Increment(ref _authenticationGeneration);
+        Volatile.Write(ref _isServerAdministrator, false);
+        var isServerAdministrator = provider.Authenticate(username, password);
+        if (Volatile.Read(ref _authenticationGeneration) != generation)
+        {
+            return null;
+        }
+
+        Volatile.Write(ref _isServerAdministrator, isServerAdministrator);
+        return isServerAdministrator
             ? Account.CreateServerAdministrator(() => _isServerAdministrator)
             : null;
     }
+
+    private bool IsCurrentAdministrator(long generation) =>
+        Volatile.Read(ref _isServerAdministrator)
+        && Volatile.Read(ref _authenticationGeneration) == generation;
 
     private void EnsureServerAdministrator()
     {
