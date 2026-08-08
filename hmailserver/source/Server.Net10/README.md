@@ -1,3 +1,9 @@
+## Current Completed Slice (2026-08-08, RECOVERY JOURNAL FINALIZATION DURABILITY)
+
+Code/test commit `cc1d0f6a5` hardens the non-DB restore journal. `BackupRestoreRecoveryJournal.Persist` and `Remove` flush the containing directory after journal replacement/deletion; if removal finalization fails, the journal evidence is rewritten and flushed before the failure is surfaced. The runtime fences rollback after the rollback artifact has been deleted, leaving a pending journal for manual recovery rather than attempting an impossible rollback. Legacy anchors are `BackupExecuter::RestoreDataDirectory_`, `FileUtilities::CopyDirectory`, and `Reinitializator::ReInitialize`.
+
+Focused recovery coverage is `15 passed, 0 failed, 0 skipped`; default full Net10 is `1931 passed, 0 failed, 27 skipped`. Fault-injection tests prove readable pending evidence and no rollback attempt after final journal flush failure. No actual process-kill/power-loss restart or handle-relative directory-handle mutation test exists. Release status remains RED: handle-relative containment, SQL/filesystem atomicity, full deletion/reinitialization, service/COM, SEC-18, installer, AD/DC, migration, and 24-hour lifecycle gates remain open. Next slice: implement handle-relative restore swap/copy containment.
+
 ## Current Completed Slice (2026-08-08, ARCHIVED ACCOUNT CREDENTIAL RESTORE PARITY)
 
 Code/test commit `d039b8ed8` preserves legacy archived account `Password` and `PasswordEncryption` values during restore. Legacy `Account::XMLLoad` (`hmailserver/source/Server/Common/BO/Account.cpp:335-346`) reads both fields unchanged, and `PersistentAccount::SaveObject` (`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp:263-280`) persists them unchanged. The .NET restore writer now uses a restore-specific account-store operation; the SQL store writes the archived value and type as-is, while normal Administrator account insertion retains its existing Blowfish encryption path.
