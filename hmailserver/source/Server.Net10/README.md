@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Rewrite
 
+## Current Continuation (2026-08-08, IMAP DOMAIN-ALIAS LAST-AT PARSING)
+
+Corrective code/test commit `ea1299638` closes the quoted-local-part gap in the domain-alias authentication slice from `a5e250557`. The SQL lookup now uses the last `@`, matching legacy `StringParser::ExtractDomain`/`ExtractAddress` and C++ `ReverseFind`, while retaining deterministic `daid` ordering and culture-independent case-insensitive comparison. Focused SQL/shape coverage is `4 passed, 0 skipped`; full Net10 is `1884 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods. The disposable fixture covers case-insensitive alias input, a quoted local-part containing `@`, and ordinary non-AD password authentication through an alias. Next slice: isolated SQL/Data-directory restore execution and round-trip evidence; real AD/DC, 24-hour service/COM lifecycle, SEC-18, real COM/DCOM, and installer gates remain open.
+
 ## Current Continuation (2026-08-08, IMAP DOMAIN-ALIAS LOGIN LOOKUP)
 
 Code/test commit `a5e250557` implements legacy normal IMAP domain-alias lookup parity. `SqlServerImapAccountAuthenticator.AccountLookupSql` joins `hm_domain_aliases`, maps an alias mailbox to its owning domain, preserves direct-address lookup, and orders alias matches by `daid`. Explicit `Latin1_General_100_CI_AS` comparisons avoid culture-sensitive `LOWER()` behavior under a Turkish SQL collation and match the legacy case-insensitive alias contract. The disposable local SQL fixture proves case-insensitive `ALIASUSER@ALIAS.TEST` authentication returns `aliasuser@example.test`; focused SQL coverage is `4 passed, 0 skipped`, and full Net10 is `1884 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods.

@@ -1,5 +1,13 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-08, IMAP DOMAIN-ALIAS LAST-AT PARSING)
+
+Corrective code/test commit `ea1299638` closes the remaining quoted-local-part gap in the domain-alias authentication slice from `a5e250557`. The SQL lookup now splits the username at the last `@`, matching legacy `StringParser::ExtractDomain`/`ExtractAddress` and C++ `ReverseFind`, while preserving deterministic `daid` ordering and the explicit case-insensitive SQL comparison. Focused SQL/shape coverage is `4 passed, 0 skipped`; full Net10 is `1884 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods. The disposable fixture covers case-insensitive alias input, a quoted local-part containing `@`, and ordinary non-AD password authentication through an alias.
+
+Legacy anchors: `hmailserver/source/Server/Common/Util/StringParser.cpp` (`ExtractDomain`/`ExtractAddress`), `hmailserver/source/Server/Common/BO/DomainAliases.cpp:43-64`, and `hmailserver/source/Server/Common/Util/PasswordValidator.cpp:44-51`. No COM identity, SMTP trust, live reconfiguration, production service, database, or Data directory changed.
+
+Next slice: isolated SQL/Data-directory restore execution and round-trip evidence. Real native AD/DC validation, 24-hour service/COM lifecycle soak, SEC-18 cutover, real COM/DCOM activation, and installer build remain environment-gated.
+
 ## Current Completed Slice (2026-08-08, IMAP DOMAIN-ALIAS LOGIN LOOKUP)
 
 Code/test commit `a5e250557` implements legacy normal IMAP domain-alias lookup parity. `SqlServerImapAccountAuthenticator.AccountLookupSql` joins `hm_domain_aliases`, maps an alias mailbox to the owning `hm_domains.domainname`, preserves direct-address lookup, and orders alias matches deterministically by `daid`. SQL Server `Latin1_General_100_CI_AS` comparisons preserve the legacy case-insensitive behavior even under a Turkish database collation. The disposable local SQL fixture proves case-insensitive `ALIASUSER@ALIAS.TEST` authentication returns `aliasuser@example.test` and passes the owning AD validator boundary. Focused coverage is `4 passed, 0 skipped`; the full Net10 run is `1884 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods.
