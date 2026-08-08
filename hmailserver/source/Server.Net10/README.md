@@ -1,3 +1,9 @@
+## Current Completed Slice (2026-08-08, FINAL RESTORE CONTAINMENT REVALIDATION)
+
+Code/test commit `0d08e2c47` adds one final synchronous `BackupRestoreContainmentPreflight.Revalidate` after metadata parsing and the authorization lease, immediately before non-DB Data-directory staging. Focused negative tests mutate the raw source or target at the lease boundary and prove the restore fails before copy or domain mutation.
+
+Focused coverage is `13 passed, 0 failed, 0 skipped`; default full Net10 is `1933 passed, 0 failed, 27 skipped`. This is path-based last-mile hardening, not a handle-relative guarantee: `Directory.Move`, recursive enumeration, and `File.Copy` still have a check-then-use race. Release remains RED for native TOCTOU, process-kill/power-loss, SQL/filesystem atomicity, full deletion/reinitialization, service/COM, SEC-18, installer, AD/DC, migration, and lifecycle gates. Next slice: implement native handle-relative restore swap/copy containment.
+
 ## Current Completed Slice (2026-08-08, RECOVERY JOURNAL FINALIZATION DURABILITY)
 
 Code/test commit `cc1d0f6a5` hardens the non-DB restore journal. `BackupRestoreRecoveryJournal.Persist` and `Remove` flush the containing directory after journal replacement/deletion; if removal finalization fails, the journal evidence is rewritten and flushed before the failure is surfaced. The runtime fences rollback after the rollback artifact has been deleted, leaving a pending journal for manual recovery rather than attempting an impossible rollback. Legacy anchors are `BackupExecuter::RestoreDataDirectory_`, `FileUtilities::CopyDirectory`, and `Reinitializator::ReInitialize`.

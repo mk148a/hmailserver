@@ -1,3 +1,9 @@
+## Current Completed Slice (2026-08-08, FINAL RESTORE CONTAINMENT REVALIDATION)
+
+Code/test commit `0d08e2c47` adds a final path-based containment revalidation immediately before non-DB restore staging, after metadata parse and the authorization lease. `BackupRestoreExecutionTests` mutates the raw source or target at the lease boundary and verifies fail-closed behavior with zero data copy and zero domain mutation. The slice does not claim handle-relative safety and does not alter installed COM identity, direct activation, SMTP trust, or machine state.
+
+Focused coverage is `13 passed, 0 failed, 0 skipped`; default full Net10 is `1933 passed, 0 failed, 27 skipped`. The remaining path substitution race in `BackupRestoreDataDirectoryRuntime.Directory.Move`/`CopyTree` requires native handle-relative operations. Process-kill/power-loss, live SQL/Data, normal-installation deletion/reinitialization, service/COM, SEC-18, installer, AD/DC, migration, and soak gates remain open. Next slice: native handle-relative restore swap/copy containment on disposable targets.
+
 ## Current Completed Slice (2026-08-08, RECOVERY JOURNAL FINALIZATION DURABILITY)
 
 Code/test commit `cc1d0f6a5` closes the journal parent-directory finalization gap in the bounded non-DB restore runtime. `BackupRestoreRecoveryJournal.Persist` flushes after replacement; `Remove` flushes after deletion and restores/flushed evidence when finalization fails. `BackupRestoreDataDirectoryRuntime` tracks rollback-artifact deletion and fails closed with a pending journal instead of attempting rollback after the artifact is gone. The Windows implementation is private native `CreateFileW` with `FILE_FLAG_BACKUP_SEMANTICS` and `FlushFileBuffers`; no COM contract or machine-wide state changes.
