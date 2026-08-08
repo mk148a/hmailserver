@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-08T09:03:20Z
-- Local timestamp: 2026-08-08T12:03:20+03:00
+- UTC timestamp: 2026-08-08T10:18:00Z
+- Local timestamp: 2026-08-08T13:18:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `ea1299638`
-- Last successfully pushed commit: `74b588ae1` (IMAP domain-alias parity documentation)
-- Latest focused-test result: local SQL AD/default-domain/domain-alias authentication `4 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1884 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
-- Opt-in tests passed/skipped/blocked: `4/0/0` local SQL AD/default-domain/domain-alias fixture; native domain-controller LogonUser evidence blocked; full run includes 16 skipped opt-in/environment tests
-- Current bounded slice: normal IMAP `hm_domain_aliases` lookup with legacy last-`@` parsing, code/test commits `a5e250557`, `ea1299638`
-- Completed milestones: offline COM/Admin parity, backup/restore evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup
+- Current HEAD: `26b660ff8`
+- Last successfully pushed commit: `9090d5438` (IMAP domain-alias parity documentation)
+- Latest focused-test result: restore/COM and disposable Local SQL round-trip `24 passed, 0 skipped, 0 failed`; restore execution focus `25 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `1889 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
+- Opt-in tests passed/skipped/blocked: disposable Local SQL restore round-trip `1 passed, 0 skipped`; full run `16` opt-in/environment skips; native domain-controller LogonUser, installer, registry/COM, and live service evidence remain blocked
+- Current bounded slice: authenticated queued DB-only metadata restore, code/test commit `26b660ff8`
+- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup
 - Open production blockers: real out-of-proc COM/DCOM activation, SEC-18 cutover, InnoSetup build, migration/restore acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
-- Environment-blocked work: domain-controller credentials, isolated service/COM host, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
+- Environment-blocked work: isolated service/COM restore host and disposable end-to-end restore target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: isolated SQL/Data-directory restore execution and round-trip evidence; real native AD/DC evidence when approved credentials exist; isolated 24-hour service restart/COM lifecycle soak when disposable host exists
+- Next three independent slices: actual isolated service/COM queued DB-only restore against disposable SQL; raw/compressed DataBackup staging with containment and rollback; real native AD/DC evidence or isolated 24-hour service/COM lifecycle soak when the required host exists
