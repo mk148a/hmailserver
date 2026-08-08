@@ -1,19 +1,19 @@
 # Current State
-- UTC timestamp: 2026-08-09T00:00:00Z
-- Local timestamp: 2026-08-09T03:00:00+03:00
+- UTC timestamp: 2026-08-08T21:36:41.9698453Z
+- Local timestamp: 2026-08-09T00:36:41.9778294+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: verified normal push; local HEAD equals upstream; protected unrelated worktree changes remain
-- Current HEAD: `f924216b2`
-- Last successfully pushed commit: `f924216b2`
-- Latest focused-test result: benchmark tests `7 passed, 0 failed, 0 skipped`; Release benchmark gate p50 `6.695 ms`, p95 `7.261 ms`, p99 `7.322 ms`, `9091/9091`, threshold passed
-- Latest full Net10 result: default `1939 passed, 0 failed, 31 skipped`
+- Push status: code/test commit `2925427d2` is local and documentation commit is pending; protected unrelated worktree changes remain
+- Current HEAD: `2925427d2`
+- Last successfully pushed commit: `d0ec644ff`
+- Latest focused-test result: reinitialization admission `3 passed, 0 failed, 0 skipped`; benchmark gate remains Release p50 `6.695 ms`, p95 `7.261 ms`, p99 `7.322 ms`, `9091/9091`, threshold passed
+- Latest full Net10 result: default `1942 passed, 0 failed, 31 skipped`
 - Opt-in tests passed/skipped/blocked: live SQL/FTS, live protocol, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped
-- Current bounded slice: commandable offline SEARCH/SORT benchmark release gate, code/test commit `5d0e62192`
-- Completed milestones: benchmark artifact gate and all milestones recorded in the historical state below; no production release gate is claimed complete
-- Open production blockers: live SQL/FTS and protocol performance acceptance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, restore/migration/installer, SEC-18, service/COM, AD/DC, and crash/power-loss evidence
+- Current bounded slice: internal non-live reinitialization admission seam, code/test commit `2925427d2`
+- Completed milestones: internal reinitialization admission seam, commandable offline SEARCH/SORT benchmark gate, and all milestones recorded in the historical state below; no production release gate is claimed complete
+- Open production blockers: restartable runtime/service/COM reinitialization, approved SQL/Data restore acceptance, live SQL/FTS and protocol performance acceptance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, restore/migration/installer, SEC-18, AD/DC, and crash/power-loss evidence
 - Environment-blocked work: approved disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: run approved disposable SQL/FTS and live protocol benchmark acceptance; implement/test a supported native handle-relative restore path or document host prerequisite; implement archive-backed full public-folder/settings ordering with staged file cleanup and reinitialization on isolated targets
+- Next three independent slices: run approved disposable SQL/Data restore acceptance; add a restartable runtime coordinator only after lifecycle/rollback prerequisites are available; run approved disposable SQL/FTS and live protocol benchmark acceptance
 
 - UTC timestamp: 2026-08-08T20:18:00Z
 - Local timestamp: 2026-08-08T23:18:00+03:00

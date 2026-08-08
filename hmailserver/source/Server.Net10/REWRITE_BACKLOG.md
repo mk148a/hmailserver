@@ -1,3 +1,9 @@
+## Current Next Slice (2026-08-09, APPROVED DISPOSABLE SQL/DATA RESTORE ACCEPTANCE)
+
+Code/test commit `2925427d2` adds only the internal `ReinitializationAdmission` gate: atomic single-flight admission, duplicate suppression while running, and release after success or exception. It is not wired to COM or service lifecycle. Legacy anchors are `Application::Reinitialize` (`hmailserver/source/Server/Common/Application/Application.cpp:437-450`), `Reinitializator::ReInitialize`/`WorkerFunc` (`hmailserver/source/Server/Common/Application/Reinitializator.cpp:35-57`), and `InterfaceApplication::Reinitialize` (`hmailserver/source/Server/COM/InterfaceApplication.cpp:91-108`).
+
+The bounded seam is complete with `3 passed, 0 failed, 0 skipped`; default full Net10 is `1942 passed, 0 failed, 31 skipped`. The next slice is the existing raw non-DB and public-cleanup restore acceptance against an explicitly approved disposable SQL database and isolated Data directory. It must prove commit, rollback, populated-store scope, staged file cleanup, and failure containment without production resources. Do not wire actual reinitialization, stop listeners, reload SQL/configuration, reset readiness, change COM identity/ACLs, or claim full restore parity. Native handle-relative restore remains blocked on this host by `ERROR_INVALID_PARAMETER` for the safe relative rename path.
+
 ## Current Next Slice (2026-08-09, DISPOSABLE SQL/FTS AND LIVE PROTOCOL BENCHMARK ACCEPTANCE)
 
 Code/test commit `5d0e62192` adds `build/test-net10-benchmarks.ps1`, a commandable Release-mode gate around the existing offline synthetic IMAP SEARCH/SORT benchmark. The gate fixes the scenario to 100,000 messages, seed `5700`, search term `needle`, and `DATE DESC, UID ASC`; it validates JSON/CSV/Markdown presence and consistency, correctness, threshold, timestamps, runtime metadata, and exact pre-build Git commit identity.

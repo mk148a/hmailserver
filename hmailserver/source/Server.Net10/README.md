@@ -1,3 +1,11 @@
+## Current Completed Slice (2026-08-09, INTERNAL REINITIALIZATION ADMISSION SEAM)
+
+Code/test commit `2925427d2` adds the internal `ReinitializationAdmission` single-flight gate. It atomically admits one synchronous attempt, drops duplicate requests while that attempt is running, and releases admission after success or exception. Focused coverage proves first admission, duplicate suppression, and failure recovery.
+
+Legacy behavior is anchored by `Application::Reinitialize` (`hmailserver/source/Server/Common/Application/Application.cpp:437-450`), `Reinitializator::ReInitialize`/`WorkerFunc` (`hmailserver/source/Server/Common/Application/Reinitializator.cpp:35-57`), `InterfaceApplication::Reinitialize` (`hmailserver/source/Server/COM/InterfaceApplication.cpp:91-108`), and `IInterfaceApplication::Reinitialize` (`hmailserver/source/Server/hMailServer/hMailServer.idl:1491-1497`). Legacy performs a full stop/exit/init/start cycle and asynchronous single-flight admission; this slice establishes only the reusable admission seam and intentionally does not claim lifecycle parity.
+
+`ApplicationComClass.Reinitialize()` remains `E_NOTIMPL`; no COM call site, listener, SQL/configuration reload, readiness reset, restore orchestration, installed identity, DCOM, SMTP, or live reconfiguration changed. Focused coverage is `3 passed, 0 failed, 0 skipped`; default full Net10 is `1942 passed, 0 failed, 31 skipped`. Release remains RED for a restartable runtime coordinator, service/COM lifecycle, SQL/Data restore acceptance, SEC-18, migration/installer, live performance, and soak gates. Next slice: approved disposable SQL/Data acceptance for the existing restore path, when the isolated environment is available.
+
 ## Current Completed Slice (2026-08-09, COMMANDABLE OFFLINE BENCHMARK GATE)
 
 Code/test commit `5d0e62192` adds `build/test-net10-benchmarks.ps1`, a bounded Release-mode gate for the existing deterministic offline IMAP SEARCH/SORT benchmark. It builds the benchmark project, runs 100,000 messages with seed `5700`, validates JSON/CSV/Markdown artifacts, verifies `GitCommit` against the pre-build HEAD, and fails closed on missing or inconsistent results.
