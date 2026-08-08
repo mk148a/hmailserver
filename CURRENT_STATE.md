@@ -1,13 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-08T07:08:56Z
-- Local timestamp: 2026-08-08T10:08:56+03:00
+- UTC timestamp: 2026-08-08T07:16:22Z
+- Local timestamp: 2026-08-08T10:16:22+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `ef7e5ec65`
-- Last successfully pushed commit: `903f584d0` (short soak acceptance documentation)
-- Latest focused-test result: IMAP/master-user protocol and auth coverage `43 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1877 passed, 0 failed, 15 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
-- Current bounded slice: legacy IMAP AUTHENTICATE PLAIN master-user authzid/authcid parity, code/test commit `ef7e5ec65`; ordinary auth remains unchanged, master-user failures are protocol errors and do not feed auto-ban
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + short-soak artifacts; IMAP master-user authzid/authcid path; backup/restore/version-gate SQL evidence; restore writer + full XML parsers; SMTP/IMAP/POP3 accept-latency + 1k-concurrent acceptance; COM host activation feasibility; release artifact gate
-- Open (environment-gated): real out-of-proc COM activation (registration/DCOM), SEC-18, InnoSetup installer build, 24-hour service soak/leak release checks
+- Current HEAD: `69f52b5d6`
+- Last successfully pushed commit: `38fcf5f3b` (IMAP master-user parity documentation)
+- Latest focused-test result: AD/IMAP/auth coverage `46 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `1880 passed, 0 failed, 15 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: legacy Active Directory password validation boundary, code/test commit `69f52b5d6`; `LogonUser` uses network logon semantics, handles are closed, and native failures remain invalid credentials
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + short-soak artifacts; IMAP master-user authzid/authcid path; AD validation boundary; backup/restore/version-gate SQL evidence; restore writer + full XML parsers; SMTP/IMAP/POP3 accept-latency + 1k-concurrent acceptance; COM host activation feasibility; release artifact gate
+- Open (environment-gated): live SQL/AD authentication evidence, real out-of-proc COM activation (registration/DCOM), SEC-18, InnoSetup installer build, 24-hour service soak/leak release checks
 - Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime; MIDL regeneration transient-flaky
-- Next three slices: isolated SQL/AD authentication evidence for master-user and AD boundaries; then 24-hour service restart/COM lifecycle soak on an isolated host; then elevated SEC-18/COM activation evidence
+- Next three slices: isolated disposable SQL/AD authentication evidence; then 24-hour service restart/COM lifecycle soak on an isolated host; then elevated SEC-18/COM activation evidence
