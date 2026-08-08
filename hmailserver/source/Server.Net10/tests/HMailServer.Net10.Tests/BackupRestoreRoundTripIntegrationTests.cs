@@ -336,6 +336,82 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_RollsBackInsertedRecipientWhenSecondRecipientFails()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_executor_second_recipient_failure_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        var root = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-executor-second-recipient-failure-{Guid.NewGuid():N}");
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateTargetSchemaAsync(testConnectionString).ConfigureAwait(false);
+            var source = Path.Combine(root, "source");
+            var dataDirectory = Path.Combine(root, "data");
+            var dataBackup = Path.Combine(root, "DataBackup");
+            var archivePath = Path.Combine(root, "backup.7z");
+            Directory.CreateDirectory(source);
+            Directory.CreateDirectory(dataDirectory);
+            Directory.CreateDirectory(dataBackup);
+            File.WriteAllText(Path.Combine(dataDirectory, "original.txt"), "original");
+            File.WriteAllText(Path.Combine(dataBackup, "restored.txt"), "restored");
+            var archiveXml = NonDbArchiveXml.Replace(
+                "<Recipient Name=\"r1@example.test\" />",
+                "<Recipient Name=\"r1@example.test\" />\n                    <Recipient Name=\"r2@example.test\" />",
+                StringComparison.Ordinal);
+            File.WriteAllText(Path.Combine(source, "hMailServerBackup.xml"), archiveXml);
+            await CreateArchiveAsync(archivePath, source).ConfigureAwait(false);
+
+            var factory = new SqlServerConnectionFactory(testConnectionString);
+            var domainStore = new SqlServerDomainAdministrationStore(factory);
+            var accountStore = new SqlServerAccountAdministrationStore(factory);
+            var aliasStore = new SqlServerAliasAdministrationStore(factory);
+            var listStore = new SqlServerDistributionListAdministrationStore(factory);
+            var recipientStore = new SqlServerDistributionListRecipientAdministrationStore(factory);
+            var executor = new MetadataBackupRestoreExecutor(
+                Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+                dataDirectory,
+                domainStore,
+                accountStore,
+                aliasStore,
+                listStore,
+                new FailingOnSecondRecipientAdministrationStore(recipientStore));
+            using var binding = BackupArchiveBinding.TryCreate(archivePath);
+            Assert.IsNotNull(binding);
+            var backup = Backup.CreateAuthorized(
+                6,
+                binding.ArchivePath,
+                archiveIdentity: binding.Identity,
+                archiveBinding: binding,
+                rawDataBackupIdentity: binding.RawDataBackupIdentity);
+            backup.RestoreDomains = true;
+            backup.RestoreMessages = true;
+
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+            Assert.AreEqual("original", await File.ReadAllTextAsync(Path.Combine(dataDirectory, "original.txt")));
+            Assert.IsFalse(File.Exists(Path.Combine(dataDirectory, "restored.txt")));
+            Assert.AreEqual(0, (await domainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false)).Count);
+            Assert.AreEqual(0, (await accountStore.GetAccountsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+            Assert.AreEqual(0, (await aliasStore.GetAliasesAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+            Assert.AreEqual(0, (await listStore.GetDistributionListsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+            Assert.AreEqual(0, (await recipientStore.GetRecipientsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     private static async Task CreateArchiveAsync(string archivePath, string sourcePath)
     {
         var startInfo = new ProcessStartInfo
@@ -396,6 +472,38 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             DistributionListRecipientAdministrationSnapshot snapshot,
             CancellationToken cancellationToken) =>
             ValueTask.FromException<int>(new InvalidOperationException("Simulated recipient restore failure."));
+
+        public ValueTask<bool> UpdateDistributionListRecipientAsync(
+            DistributionListRecipientAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken) =>
+            inner.UpdateDistributionListRecipientAsync(snapshot, cancellationToken);
+
+        public ValueTask<bool> DeleteDistributionListRecipientAsync(
+            DistributionListRecipientAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken) =>
+            inner.DeleteDistributionListRecipientAsync(snapshot, cancellationToken);
+    }
+
+    private sealed class FailingOnSecondRecipientAdministrationStore(
+        IDistributionListRecipientAdministrationStore inner) : IDistributionListRecipientAdministrationStore
+    {
+        private int _insertCount;
+
+        public ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
+            int distributionListId,
+            CancellationToken cancellationToken) => inner.GetRecipientsAsync(distributionListId, cancellationToken);
+
+        public ValueTask<int> InsertDistributionListRecipientAsync(
+            DistributionListRecipientAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
+            if (++_insertCount == 2)
+            {
+                return ValueTask.FromException<int>(new InvalidOperationException("Simulated second recipient restore failure."));
+            }
+
+            return inner.InsertDistributionListRecipientAsync(snapshot, cancellationToken);
+        }
 
         public ValueTask<bool> UpdateDistributionListRecipientAsync(
             DistributionListRecipientAdministrationSnapshot snapshot,
