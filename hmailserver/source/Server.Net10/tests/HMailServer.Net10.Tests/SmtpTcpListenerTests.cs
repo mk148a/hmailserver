@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -153,6 +154,50 @@ public sealed class SmtpTcpListenerTests
         Assert.AreEqual("220 hMailServer .NET 10 ESMTP ready", await ReadLineAsync(acceptedReader, cts.Token));
 
         await StopListenerAsync(runTask, cts);
+    }
+
+    [TestMethod]
+    [TestCategory("LiveProtocolAcceptance")]
+    public async Task LoopbackConcurrency_AcceptsOneThousandClients()
+    {
+        const int clientCount = 1000;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        var listener = new SmtpTcpListener(
+            new SmtpSession(new SmtpSessionOptions { ServerName = "mx.example.test" }),
+            new PlainSmtpConnectionStreamFactory(),
+            new SmtpTcpListenerOptions
+            {
+                ListenAddress = IPAddress.Loopback,
+                Port = 0,
+                Backlog = 1024,
+                MaxConcurrentConnections = clientCount + 32,
+                ShutdownGracePeriod = TimeSpan.FromSeconds(1)
+            });
+        var runTask = listener.RunAsync(cts.Token);
+        var endpoint = await listener.Started.WaitAsync(cts.Token);
+
+        var banners = new ConcurrentQueue<string>();
+        var tasks = Enumerable.Range(0, clientCount).Select(
+            async _ =>
+            {
+                using var client = new TcpClient();
+                await client.ConnectAsync(endpoint.Address, endpoint.Port, cts.Token);
+                await using var stream = client.GetStream();
+                using var reader = CreateReader(stream);
+                banners.Enqueue(await ReadLineAsync(reader, cts.Token) ?? string.Empty);
+            }).ToArray();
+
+        try
+        {
+            await Task.WhenAll(tasks);
+        }
+        finally
+        {
+            await StopListenerAsync(runTask, cts);
+        }
+
+        Assert.AreEqual(clientCount, banners.Count);
+        Assert.IsTrue(banners.All(banner => banner == "220 hMailServer .NET 10 ESMTP ready"));
     }
 
     private static SmtpTcpListener CreateListener(
