@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``59623bb20`` adds live 1k-concurrent SMTP connection acceptance. ``SmtpTcpListenerTests.LoopbackConcurrency_AcceptsOneThousandClients`` opens 1000 concurrent loopback clients (backlog 1024) and asserts every one receives the 220 banner. Focused ``1/1`` (stable across repeated runs); the full suite excluding the two AV-locked EICAR cleanup methods is ``1869 passed, 0 failed, 14 opt-in skips`` (1883 total). Next slice: real COM activation evidence.
+
+
 Code/test commit ``c965cf2b0`` adds live IMAP and POP3 accept-latency acceptance harnesses mirroring the SMTP harness (200 loopback clients, banner assert, p95 budget). Focused listener coverage ``15/15``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1868 passed, 0 failed, 14 opt-in skips`` (1882 total). Next slice: 1k-concurrent loopback connection acceptance.
 
 

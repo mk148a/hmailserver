@@ -1,13 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-08T05:00:48Z
-- Local timestamp: 2026-08-08T08:00:48+03:00
+- UTC timestamp: 2026-08-08T05:19:31Z
+- Local timestamp: 2026-08-08T08:19:31+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `c965cf2b0`
+- Current HEAD: `59623bb20`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: SMTP+IMAP+POP3 loopback accept-latency `15/15` (incl. 3 accept-latency harnesses with 200 clients each; banner asserted; p95 within 5s budget)
-- Latest full Net10 result: `1868 passed, 0 failed, 14 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
-- Current bounded slice: live IMAP/POP3 accept-latency acceptance harnesses, code/test commit `c965cf2b0`, mirroring the SMTP harness (200 sequential loopback clients, banner assert, p50/p95/p99, 5s p95 budget)
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup-projection/restore round-trip/version-gate SQL evidence; restore writer + full XML parsers; SMTP/IMAP/POP3 live accept-latency harnesses
-- Open (environment-gated or large): 1k-concurrent connection acceptance, data-directory message-file restore, real COM activation, SEC-18, installer/release artifacts
-- Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime
-- Next three slices: 1k-concurrent loopback connection acceptance; then real COM activation evidence; then installer/release artifact gate
+- Latest focused-test result: 1k-concurrent SMTP connection acceptance `1 passed, 0 failed` (1000 concurrent loopback clients, each received the 220 banner; stable across repeated runs; backlog 1024)
+- Latest full Net10 result: `1869 passed, 0 failed, 14 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: live 1k-concurrent connection acceptance, code/test commit `59623bb20`; `SmtpTcpListenerTests.LoopbackConcurrency_AcceptsOneThousandClients` opens 1000 concurrent clients and asserts every one receives the 220 banner
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup/restore/version-gate SQL evidence; restore writer + full XML parsers; SMTP/IMAP/POP3 live accept-latency harnesses; 1k-concurrent SMTP acceptance
+- Open (environment-gated or large): data-directory message-file restore, real COM activation, SEC-18, installer/release artifacts
+- Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime; MIDL type-library regeneration is transient-flaky in this sandbox (uses system temp)
+- Next three slices: real COM activation evidence; then installer/release artifact gate; then remaining release-gate soak/leak checks
