@@ -22,7 +22,11 @@ public sealed class ClientAwareAuthenticationService : IClientAwareAuthenticatio
         ArgumentNullException.ThrowIfNull(request);
 
         var authentication = await _accountAuthenticator
-            .AuthenticateAsync(request.Username, request.Password, cancellationToken)
+            .AuthenticateAsync(
+                request.Username,
+                request.Password,
+                request.AuthorizationId,
+                cancellationToken)
             .ConfigureAwait(false);
         if (authentication.Succeeded && authentication.Account is not null)
         {
@@ -30,7 +34,9 @@ public sealed class ClientAwareAuthenticationService : IClientAwareAuthenticatio
         }
 
         var disconnect = false;
-        if (_autoBanLogonFailureRecorder is not null && request.ClientAddress is not null)
+        if (_autoBanLogonFailureRecorder is not null
+            && request.ClientAddress is not null
+            && !authentication.IsProtocolError)
         {
             try
             {

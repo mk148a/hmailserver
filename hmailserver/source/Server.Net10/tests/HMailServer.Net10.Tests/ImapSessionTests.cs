@@ -155,6 +155,47 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_AuthenticatePlainPassesAuthorizationIdentityToAuthenticator()
+    {
+        var token = EncodeSaslPlain("target@example.test", "master@example.test", "secret");
+        await using var stream = new DuplexMemoryStream(
+            $"A001 AUTHENTICATE PLAIN {token}\r\nA002 LOGOUT\r\n");
+        var authenticator = new MasterAwareAuthenticator();
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            authenticator);
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 OK LOGIN completed\r\n");
+        Assert.AreEqual("master@example.test", authenticator.Username);
+        Assert.AreEqual("target@example.test", authenticator.AuthorizationId);
+        Assert.AreEqual("secret", authenticator.Password);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_ReportsMasterUserProtocolFailuresAsBadWithoutAutoBan()
+    {
+        var token = EncodeSaslPlain("target@example.test", "wrong@example.test", "secret");
+        await using var stream = new DuplexMemoryStream(
+            $"A001 AUTHENTICATE PLAIN {token}\r\n");
+        var authenticator = new MasterAwareAuthenticator(protocolFailure: true);
+        var recorder = new CapturingAutoBanRecorder(disconnect: true);
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            authenticator,
+            autoBanLogonFailureRecorder: recorder);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(ClientIPAddress: "203.0.113.50"),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 BAD Invalid master user.\r\n");
+        Assert.AreEqual(0, recorder.Failures.Count);
+    }
+
+    [TestMethod]
     public async Task RunAsync_RunsOnClientLogonAfterSuccessfulLogin()
     {
         await using var stream = new DuplexMemoryStream(
@@ -1015,6 +1056,42 @@ public sealed class ImapSessionTests
             }
 
             return ValueTask.FromResult(ImapAuthenticationResult.Failure("Invalid user name or password."));
+        }
+    }
+
+    private sealed class MasterAwareAuthenticator : IImapAccountAuthenticator
+    {
+        private readonly bool _protocolFailure;
+
+        public MasterAwareAuthenticator(bool protocolFailure = false)
+        {
+            _protocolFailure = protocolFailure;
+        }
+
+        public string Username { get; private set; } = string.Empty;
+        public string Password { get; private set; } = string.Empty;
+        public string AuthorizationId { get; private set; } = string.Empty;
+
+        public ValueTask<ImapAuthenticationResult> AuthenticateAsync(
+            string username,
+            string password,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(ImapAuthenticationResult.Failure("Unexpected ordinary authentication."));
+
+        public ValueTask<ImapAuthenticationResult> AuthenticateAsync(
+            string username,
+            string password,
+            string authorizationId,
+            CancellationToken cancellationToken)
+        {
+            Username = username;
+            Password = password;
+            AuthorizationId = authorizationId;
+            return ValueTask.FromResult(
+                _protocolFailure
+                    ? ImapAuthenticationResult.Failure("Invalid master user.", isProtocolError: true)
+                    : ImapAuthenticationResult.Success(
+                        new ImapAuthenticatedAccount(88, authorizationId)));
         }
     }
 

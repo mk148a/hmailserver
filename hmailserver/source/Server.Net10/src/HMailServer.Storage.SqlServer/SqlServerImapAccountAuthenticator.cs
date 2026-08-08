@@ -51,20 +51,125 @@ SET accountlastlogontime = SYSUTCDATETIME()
 WHERE accountid = @AccountId;
 """;
 
+    private const string TargetLookupSql = """
+SELECT TOP (1)
+    a.accountid,
+    a.accountaddress
+FROM hm_accounts AS a
+INNER JOIN hm_domains AS d
+    ON d.domainid = a.accountdomainid
+WHERE
+    LOWER(a.accountaddress) = LOWER(@Username)
+    AND a.accountactive <> 0
+    AND d.domainactive <> 0;
+""";
+
     private const string InvalidUserNameOrPassword = "Invalid user name or password.";
 
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly IClientPasswordValidationScriptExecutor? _passwordValidationScriptExecutor;
+    private readonly ISettingsAdministrationStore? _settingsAdministrationStore;
 
     public SqlServerImapAccountAuthenticator(
         SqlServerConnectionFactory connectionFactory,
-        IClientPasswordValidationScriptExecutor? passwordValidationScriptExecutor = null)
+        IClientPasswordValidationScriptExecutor? passwordValidationScriptExecutor = null,
+        ISettingsAdministrationStore? settingsAdministrationStore = null)
     {
         _connectionFactory = connectionFactory;
         _passwordValidationScriptExecutor = passwordValidationScriptExecutor;
+        _settingsAdministrationStore = settingsAdministrationStore;
     }
 
+    public ValueTask<ImapAuthenticationResult> AuthenticateAsync(
+        string username,
+        string password,
+        CancellationToken cancellationToken)
+        => AuthenticateAsync(username, password, string.Empty, cancellationToken);
+
     public async ValueTask<ImapAuthenticationResult> AuthenticateAsync(
+        string username,
+        string password,
+        string authorizationId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(authorizationId))
+        {
+            return await AuthenticateNormalAsync(username, password, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (_settingsAdministrationStore is null)
+        {
+            return ImapAuthenticationResult.Failure("No master user defined.", isProtocolError: true);
+        }
+
+        var settings = await _settingsAdministrationStore
+            .GetSettingsAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if ((!username.Contains('@', StringComparison.Ordinal)
+                || !authorizationId.Contains('@', StringComparison.Ordinal))
+            && string.IsNullOrEmpty(settings.DefaultDomain))
+        {
+            return ImapAuthenticationResult.Failure(
+                "Invalid user name. Please use full email address as user name.",
+                isProtocolError: true);
+        }
+
+        var authenticationId = Canonicalize(username, settings.DefaultDomain);
+        var authorizationAddress = Canonicalize(authorizationId, settings.DefaultDomain);
+        var masterUser = settings.ImapMasterUser;
+        if (string.IsNullOrEmpty(masterUser))
+        {
+            return ImapAuthenticationResult.Failure("No master user defined.", isProtocolError: true);
+        }
+
+        if (authorizationId.Contains('@', StringComparison.Ordinal))
+        {
+            masterUser += "@" + ExtractDomain(authenticationId);
+        }
+        else
+        {
+            masterUser = Canonicalize(masterUser, settings.DefaultDomain);
+        }
+
+        if (!masterUser.Equals(authenticationId, StringComparison.Ordinal))
+        {
+            return ImapAuthenticationResult.Failure("Invalid master user.", isProtocolError: true);
+        }
+
+        var masterAuthentication = await AuthenticateNormalAsync(
+                authenticationId,
+                password,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!masterAuthentication.Succeeded)
+        {
+            return masterAuthentication;
+        }
+
+        await using var connection = await _connectionFactory
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await using var command = new SqlCommand(TargetLookupSql, connection);
+        command.Parameters.Add("@Username", SqlDbType.NVarChar, 255).Value = authorizationAddress;
+        await using var reader = await command
+            .ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken)
+            .ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
+        }
+
+        var targetAccountId = reader.GetInt32(0);
+        var targetAddress = reader.GetString(1);
+        await reader.DisposeAsync().ConfigureAwait(false);
+        await UpdateLastLogonAsync(connection, targetAccountId, cancellationToken)
+            .ConfigureAwait(false);
+        return ImapAuthenticationResult.Success(
+            new ImapAuthenticatedAccount(targetAccountId, targetAddress));
+    }
+
+    private async ValueTask<ImapAuthenticationResult> AuthenticateNormalAsync(
         string username,
         string password,
         CancellationToken cancellationToken)
@@ -180,6 +285,25 @@ WHERE accountid = @AccountId;
         await using var command = new SqlCommand(UpdateLastLogonSql, connection);
         command.Parameters.Add("@AccountId", SqlDbType.Int).Value = accountId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string Canonicalize(string value, string defaultDomain)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Contains('@', StringComparison.Ordinal) || string.IsNullOrEmpty(defaultDomain))
+        {
+            return trimmed;
+        }
+
+        return trimmed + "@" + defaultDomain;
+    }
+
+    private static string ExtractDomain(string value)
+    {
+        var at = value.IndexOf('@');
+        return at >= 0 && at + 1 < value.Length
+            ? value[(at + 1)..]
+            : string.Empty;
     }
 
     private static string GetStringOrEmpty(SqlDataReader reader, int ordinal) =>

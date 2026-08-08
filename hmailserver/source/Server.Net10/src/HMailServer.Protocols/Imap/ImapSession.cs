@@ -762,6 +762,7 @@ public sealed class ImapSession
             arguments[0],
             arguments[1],
             "OK LOGIN completed",
+            string.Empty,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -842,13 +843,6 @@ public sealed class ImapSession
             return false;
         }
 
-        if (!string.IsNullOrEmpty(authorizationId) &&
-            !authorizationId.Equals(username, StringComparison.OrdinalIgnoreCase))
-        {
-            await WriteTaggedAsync(stream, commandLine.Tag, "BAD Authorization identity is not supported", cancellationToken).ConfigureAwait(false);
-            return false;
-        }
-
         return await AuthenticateAndSetStateAsync(
             stream,
             state,
@@ -856,6 +850,7 @@ public sealed class ImapSession
             username,
             password,
             "OK LOGIN completed",
+            authorizationId,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -866,6 +861,7 @@ public sealed class ImapSession
         string username,
         string password,
         string successResponse,
+        string authorizationId,
         CancellationToken cancellationToken)
     {
         var clientAuthentication = await _clientAwareAuthenticationService!
@@ -876,7 +872,8 @@ public sealed class ImapSession
                     IPAddress.TryParse(state.ClientIPAddress, out var clientAddress)
                         ? clientAddress
                         : null,
-                    ClientAuthenticationCaller.Imap),
+                    ClientAuthenticationCaller.Imap,
+                    authorizationId),
                 cancellationToken)
             .ConfigureAwait(false);
         var result = clientAuthentication.Authentication;
@@ -888,7 +885,8 @@ public sealed class ImapSession
             var message = string.IsNullOrWhiteSpace(result.FailureMessage)
                 ? "Invalid user name or password."
                 : result.FailureMessage;
-            await WriteTaggedAsync(stream, tag, $"NO {SanitizeResponseText(message)}", cancellationToken).ConfigureAwait(false);
+            var responseCode = result.IsProtocolError ? "BAD" : "NO";
+            await WriteTaggedAsync(stream, tag, $"{responseCode} {SanitizeResponseText(message)}", cancellationToken).ConfigureAwait(false);
             return clientAuthentication.Disconnect;
         }
 
