@@ -24,8 +24,7 @@ public sealed class Application : IInterfaceApplication
     private readonly IServiceDependencyRuntime? _serviceDependencyRuntime;
     private readonly IEmailAllAccountsRuntime? _emailAllAccountsRuntime;
     private readonly IImportMessageFromFileRuntime? _importMessageFromFileRuntime;
-    private bool _isServerAdministrator;
-    private long _authenticationGeneration;
+    private readonly ApplicationAuthorizationAuthority _authorizationAuthority = new();
 
     public Application()
     {
@@ -83,7 +82,7 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return SettingsAdministrationRuntimeHost.CreateAuthorizedAdapter(() => _isServerAdministrator);
+            return SettingsAdministrationRuntimeHost.CreateAuthorizedAdapter(() => IsServerAdministrator);
         }
     }
 
@@ -92,7 +91,7 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return DomainAdministrationRuntimeHost.CreateAuthorizedAdapter(() => _isServerAdministrator);
+            return DomainAdministrationRuntimeHost.CreateAuthorizedAdapter(() => IsServerAdministrator);
         }
     }
 
@@ -106,11 +105,11 @@ public sealed class Application : IInterfaceApplication
     }
 
     public IInterfaceDatabase Database =>
-        DatabaseAdministrationRuntimeHost.CreateApplicationAdapter(() => _isServerAdministrator);
+        DatabaseAdministrationRuntimeHost.CreateApplicationAdapter(() => IsServerAdministrator);
 
     public IInterfaceUtilities Utilities =>
         HMailServer.ComInterop.Utilities.CreateForApplication(
-            () => _isServerAdministrator,
+            () => IsServerAdministrator,
             _legacyBlowfishCipher,
             _localHostRuntime,
             _mailServerResolver,
@@ -147,8 +146,8 @@ public sealed class Application : IInterfaceApplication
             EnsureServerAdministrator();
             return RuleAdministrationRuntimeHost.CreateAuthorizedAdapter(
                 accountId: 0,
-                isServerAdministrator: () => _isServerAdministrator,
-                isAuthenticated: () => _isServerAdministrator);
+                isServerAdministrator: () => IsServerAdministrator,
+                isAuthenticated: () => IsServerAdministrator);
         }
     }
 
@@ -157,10 +156,12 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            var generation = Volatile.Read(ref _authenticationGeneration);
+            var generation = _authorizationAuthority.CurrentGeneration;
             return HMailServer.ComInterop.BackupManager.CreateAuthorized(
                 _backupArchiveMetadataReader,
-                authorizationGuard: () => IsCurrentAdministrator(generation));
+                authorizationGuard: () => _authorizationAuthority.IsCurrentAdministrator(generation),
+                authorizationLeaseFactory: cancellationToken =>
+                    _authorizationAuthority.AcquireLeaseAsync(generation, cancellationToken));
         }
     }
 
@@ -210,27 +211,23 @@ public sealed class Application : IInterfaceApplication
                 "The hMailServer COM authentication runtime has not been initialized.",
                 CoENotInitialized);
 
-        var generation = Interlocked.Increment(ref _authenticationGeneration);
-        Volatile.Write(ref _isServerAdministrator, false);
+        var attempt = _authorizationAuthority.BeginAuthentication();
         var isServerAdministrator = provider.Authenticate(username, password);
-        if (Volatile.Read(ref _authenticationGeneration) != generation)
+        if (!_authorizationAuthority.CompleteAuthentication(attempt, isServerAdministrator))
         {
             return null;
         }
 
-        Volatile.Write(ref _isServerAdministrator, isServerAdministrator);
         return isServerAdministrator
-            ? Account.CreateServerAdministrator(() => _isServerAdministrator)
+            ? Account.CreateServerAdministrator(() => IsServerAdministrator)
             : null;
     }
 
-    private bool IsCurrentAdministrator(long generation) =>
-        Volatile.Read(ref _isServerAdministrator)
-        && Volatile.Read(ref _authenticationGeneration) == generation;
+    private bool IsServerAdministrator => _authorizationAuthority.IsServerAdministrator;
 
     private void EnsureServerAdministrator()
     {
-        if (!_isServerAdministrator)
+        if (!IsServerAdministrator)
         {
             throw new COMException(
                 "You do not have access to this property / method. Ensure that hMailServer.Application.Authenticate() is called with proper login credentials.",

@@ -62,6 +62,7 @@ public sealed class Backup : IInterfaceBackup
     private readonly Action<Backup>? _startRestore;
     private readonly BackupArchiveIdentity? _archiveIdentity;
     private BackupArchiveBinding? _archiveBinding;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private int _restoreOptions;
 
     public Backup()
@@ -75,7 +76,8 @@ public sealed class Backup : IInterfaceBackup
         Func<bool>? authorizationGuard,
         BackupArchiveIdentity? archiveIdentity,
         BackupArchiveBinding? archiveBinding,
-        BackupDataDirectoryIdentity? rawDataBackupIdentity)
+        BackupDataDirectoryIdentity? rawDataBackupIdentity,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _authorized = true;
         _authorizationGuard = authorizationGuard;
@@ -85,6 +87,7 @@ public sealed class Backup : IInterfaceBackup
         _archiveIdentity = archiveIdentity;
         _archiveBinding = archiveBinding;
         RawDataBackupIdentity = rawDataBackupIdentity;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public bool ContainsSettings => HasContainsFlag(SettingsFlag);
@@ -131,7 +134,8 @@ public sealed class Backup : IInterfaceBackup
         Func<bool>? authorizationGuard = null,
         BackupArchiveIdentity? archiveIdentity = null,
         BackupArchiveBinding? archiveBinding = null,
-        BackupDataDirectoryIdentity? rawDataBackupIdentity = null) =>
+        BackupDataDirectoryIdentity? rawDataBackupIdentity = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
         new(
             containsOptions,
             archivePath,
@@ -139,7 +143,8 @@ public sealed class Backup : IInterfaceBackup
             authorizationGuard,
             archiveIdentity,
             archiveBinding,
-            rawDataBackupIdentity);
+            rawDataBackupIdentity,
+            authorizationLeaseFactory);
 
     internal string ArchivePath => _archiveBinding?.ArchivePath ?? _archivePath
         ?? throw new COMException(
@@ -156,6 +161,26 @@ public sealed class Backup : IInterfaceBackup
         Interlocked.Exchange(ref _archiveBinding, null)?.Dispose();
 
     internal void EnsureAuthorizedForRestoreCommit() => EnsureAuthorized();
+
+    internal async ValueTask<IDisposable?> AcquireAuthorizationLeaseAsync(CancellationToken cancellationToken)
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            EnsureAuthorized();
+            return null;
+        }
+
+        var lease = await _authorizationLeaseFactory(cancellationToken).ConfigureAwait(false);
+        if (lease is null)
+        {
+            EnsureAuthorized();
+            throw new COMException(
+                "Backup access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+
+        return lease;
+    }
 
     ~Backup() => CleanupArchiveBinding();
 

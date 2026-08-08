@@ -172,7 +172,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             domains,
             requireEmptyStore: false,
             useSqlTransaction: true,
-            authorizationAdmission: backup.EnsureAuthorizedForRestoreCommit,
+            authorizationLeaseFactory: backup.AcquireAuthorizationLeaseAsync,
             cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
@@ -255,7 +255,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                     domains,
                     requireEmptyStore: true,
                     useSqlTransaction: false,
-                    authorizationAdmission: null,
+                    authorizationLeaseFactory: null,
                     cancellationToken: ct),
                 commitOutcomeMayBeAmbiguous: false)
             .ConfigureAwait(false);
@@ -265,7 +265,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<RestoreDomainEntry> domains,
         bool requireEmptyStore,
         bool useSqlTransaction,
-        Action? authorizationAdmission,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
         CancellationToken cancellationToken)
     {
         var existingDomains = await _domainStore
@@ -295,10 +295,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var insertedRecipientIds = new List<(int ListId, int RecipientId, string Address)>();
 
         IBackupRestoreMetadataTransaction? metadataTransaction = null;
+        using var authorizationLease = authorizationLeaseFactory is null
+            ? null
+            : await authorizationLeaseFactory(cancellationToken).ConfigureAwait(false);
         try
         {
-            authorizationAdmission?.Invoke();
-
             if (useSqlTransaction)
             {
                 if (_metadataTransactionFactory is null && _requireSqlTransaction)

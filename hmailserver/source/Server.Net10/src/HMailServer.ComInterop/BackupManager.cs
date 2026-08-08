@@ -34,6 +34,7 @@ public sealed class BackupManager : IInterfaceBackupManager
     private readonly IBackupRestoreExecutor? _restoreExecutor;
     private readonly IBackupEventDispatcher _eventDispatcher;
     private readonly Func<bool>? _authorizationGuard;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public BackupManager()
     {
@@ -45,13 +46,15 @@ public sealed class BackupManager : IInterfaceBackupManager
         IBackupOperationRuntime? operationRuntime,
         IBackupRestoreExecutor? restoreExecutor,
         IBackupEventDispatcher eventDispatcher,
-        Func<bool>? authorizationGuard)
+        Func<bool>? authorizationGuard,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _metadataReader = metadataReader;
         _operationRuntime = operationRuntime;
         _restoreExecutor = restoreExecutor;
         _eventDispatcher = eventDispatcher;
         _authorizationGuard = authorizationGuard;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public void StartBackup()
@@ -97,7 +100,8 @@ public sealed class BackupManager : IInterfaceBackupManager
                 _authorizationGuard,
                 archiveBinding?.Identity,
                 archiveBinding,
-                archiveBinding?.RawDataBackupIdentity);
+                archiveBinding?.RawDataBackupIdentity,
+                _authorizationLeaseFactory);
         }
         catch
         {
@@ -111,13 +115,15 @@ public sealed class BackupManager : IInterfaceBackupManager
         IBackupOperationRuntime? operationRuntime = null,
         IBackupEventDispatcher? eventDispatcher = null,
         IBackupRestoreExecutor? restoreExecutor = null,
-        Func<bool>? authorizationGuard = null) =>
+        Func<bool>? authorizationGuard = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
         new(
             metadataReader ?? SevenZipBackupArchiveMetadataReader.CreateDefault(),
             operationRuntime ?? BackupManagerRuntimeHost.Runtime,
             restoreExecutor ?? BackupRestoreRuntimeHost.Runtime,
             eventDispatcher ?? BackupEventDispatcherRuntimeHost.Runtime ?? NoopBackupEventDispatcher.Instance,
-            authorizationGuard);
+            authorizationGuard,
+            authorizationLeaseFactory);
 
     internal void OnThreadStopped() => _operationRuntime?.OnThreadStopped();
 
