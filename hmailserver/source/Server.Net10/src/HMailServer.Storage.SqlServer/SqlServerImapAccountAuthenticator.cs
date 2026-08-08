@@ -69,15 +69,19 @@ WHERE
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly IClientPasswordValidationScriptExecutor? _passwordValidationScriptExecutor;
     private readonly ISettingsAdministrationStore? _settingsAdministrationStore;
+    private readonly IActiveDirectoryPasswordValidator _activeDirectoryPasswordValidator;
 
     public SqlServerImapAccountAuthenticator(
         SqlServerConnectionFactory connectionFactory,
         IClientPasswordValidationScriptExecutor? passwordValidationScriptExecutor = null,
-        ISettingsAdministrationStore? settingsAdministrationStore = null)
+        ISettingsAdministrationStore? settingsAdministrationStore = null,
+        IActiveDirectoryPasswordValidator? activeDirectoryPasswordValidator = null)
     {
         _connectionFactory = connectionFactory;
         _passwordValidationScriptExecutor = passwordValidationScriptExecutor;
         _settingsAdministrationStore = settingsAdministrationStore;
+        _activeDirectoryPasswordValidator = activeDirectoryPasswordValidator
+            ?? new WindowsActiveDirectoryPasswordValidator();
     }
 
     public ValueTask<ImapAuthenticationResult> AuthenticateAsync(
@@ -194,6 +198,8 @@ WHERE
         var storedPassword = reader.GetString(2);
         var encryptionType = (LegacyPasswordEncryptionType)reader.GetByte(3);
         var isActiveDirectoryAccount = reader.GetInt32(4) != 0;
+        var activeDirectoryDomain = GetStringOrEmpty(reader, 7);
+        var activeDirectoryUsername = GetStringOrEmpty(reader, 8);
         var account = new ScriptAccount(
             accountId,
             accountAddress,
@@ -201,8 +207,8 @@ WHERE
             Active: reader.GetInt32(5) != 0,
             isActiveDirectoryAccount,
             DomainId: reader.GetInt32(6),
-            ActiveDirectoryDomain: GetStringOrEmpty(reader, 7),
-            ActiveDirectoryUsername: GetStringOrEmpty(reader, 8),
+            ActiveDirectoryDomain: activeDirectoryDomain,
+            ActiveDirectoryUsername: activeDirectoryUsername,
             MaxSizeMegabytes: reader.GetInt32(9),
             PersonFirstName: GetStringOrEmpty(reader, 10),
             PersonLastName: GetStringOrEmpty(reader, 11),
@@ -237,7 +243,28 @@ WHERE
 
         if (isActiveDirectoryAccount)
         {
-            return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
+            bool validated;
+            try
+            {
+                validated = _activeDirectoryPasswordValidator.Validate(
+                    activeDirectoryDomain,
+                    activeDirectoryUsername,
+                    password);
+            }
+            catch
+            {
+                validated = false;
+            }
+            if (!validated)
+            {
+                return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
+            }
+
+            await reader.DisposeAsync().ConfigureAwait(false);
+            await UpdateLastLogonAsync(connection, accountId, cancellationToken)
+                .ConfigureAwait(false);
+            return ImapAuthenticationResult.Success(
+                new ImapAuthenticatedAccount(accountId, accountAddress));
         }
 
         if (!LegacyPasswordVerifier.Verify(password, storedPassword, encryptionType))
