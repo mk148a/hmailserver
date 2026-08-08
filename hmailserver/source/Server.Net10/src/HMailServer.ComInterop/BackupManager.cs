@@ -170,6 +170,7 @@ public sealed class BackupManager : IInterfaceBackupManager
     {
         try
         {
+            EnsureAuthorized();
             await _restoreExecutor!.ExecuteAsync(backup, cancellationToken).ConfigureAwait(false);
         }
         finally

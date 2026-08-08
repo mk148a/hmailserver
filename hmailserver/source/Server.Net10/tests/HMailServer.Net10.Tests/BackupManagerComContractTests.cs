@@ -378,6 +378,41 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
+    public async Task QueuedRestore_DoesNotInvokeExecutorAfterAuthenticationInvalidation()
+    {
+        var runtime = new RecordingBackupOperationRuntime();
+        var executor = new RecordingBackupRestoreExecutor();
+        BackupManagerRuntimeHost.Configure(runtime);
+        BackupRestoreRuntimeHost.Configure(executor);
+
+        try
+        {
+            var application = new Application(
+                new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"),
+                new RecordingBackupArchiveMetadataReader(2));
+
+            Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+            var backup = application.BackupManager.LoadBackup(@"D:\Backups\delayed.7z");
+            backup.RestoreDomains = true;
+            backup.StartRestore();
+
+            Assert.IsNotNull(runtime.RestoreTask);
+            Assert.IsNull(application.Authenticate("administrator", "wrong"));
+
+            var error = await Assert.ThrowsExactlyAsync<COMException>(
+                () => runtime.RestoreTask!.ExecuteAsync(CancellationToken.None).AsTask());
+
+            Assert.AreEqual(EAccessDenied, error.ErrorCode);
+            Assert.AreEqual(0, executor.InvocationCount);
+        }
+        finally
+        {
+            BackupRestoreRuntimeHost.ResetForTests();
+            BackupManagerRuntimeHost.ResetForTests();
+        }
+    }
+
+    [TestMethod]
     public async Task DuplicateRestoreDispatch_DoesNotReleaseTheFirstTaskArchiveBinding()
     {
         var archivePath = Path.Combine(Path.GetTempPath(), $"hmailserver-binding-{Guid.NewGuid():N}.7z");
@@ -543,11 +578,13 @@ public sealed class BackupManagerComContractTests
 
     private sealed class RecordingBackupRestoreExecutor : IBackupRestoreExecutor
     {
+        public int InvocationCount { get; private set; }
         public string? ArchivePath { get; private set; }
         public int RestoreOptions { get; private set; }
 
         public ValueTask ExecuteAsync(Backup backup, CancellationToken cancellationToken)
         {
+            InvocationCount++;
             ArchivePath = backup.ArchivePath;
             RestoreOptions = backup.RestoreOptions;
             return ValueTask.CompletedTask;
