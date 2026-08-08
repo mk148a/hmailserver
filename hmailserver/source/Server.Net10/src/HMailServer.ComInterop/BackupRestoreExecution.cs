@@ -254,7 +254,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                     domains,
                     requireEmptyStore: true,
                     useSqlTransaction: false,
-                    ct))
+                    ct),
+                commitOutcomeMayBeAmbiguous: false)
             .ConfigureAwait(false);
     }
 

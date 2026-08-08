@@ -22,7 +22,8 @@ internal sealed class BackupRestoreDataDirectoryRuntime
         BackupRestoreIntegrityEvidence evidence,
         BackupRestoreContainmentPlan plan,
         CancellationToken cancellationToken,
-        Func<CancellationToken, ValueTask>? commitAsync = null)
+        Func<CancellationToken, ValueTask>? commitAsync = null,
+        bool commitOutcomeMayBeAmbiguous = true)
     {
         ArgumentNullException.ThrowIfNull(evidence);
         ArgumentNullException.ThrowIfNull(plan);
@@ -61,6 +62,14 @@ internal sealed class BackupRestoreDataDirectoryRuntime
             throw new InvalidOperationException("The restore target or rollback artifact is not ready.");
         }
 
+        var journalPath = BackupRestoreRecoveryJournal.GetJournalPath(targetPath);
+        var pendingRecovery = BackupRestoreRecoveryJournal.InspectPendingRecovery(targetPath);
+        if (pendingRecovery.IsPending)
+        {
+            throw new InvalidOperationException(
+                pendingRecovery.FailureReason ?? "A pending restore recovery requires manual review.");
+        }
+
         string? extractionPath = null;
         try
         {
@@ -73,31 +82,70 @@ internal sealed class BackupRestoreDataDirectoryRuntime
                     "DataBackup");
 
             cancellationToken.ThrowIfCancellationRequested();
+            var manifest = new BackupRestoreRecoveryManifest(
+                targetPath,
+                rollbackPath,
+                Path.GetFullPath(evidence.ArchivePath),
+                BackupRestoreRecoveryPhase.Prepared);
+            BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
+
+            var metadataCommitInvoked = false;
+            var metadataCommitCompleted = false;
             Directory.Move(targetPath, rollbackPath);
             try
             {
                 Directory.CreateDirectory(targetPath);
                 _copyTree(sourcePath, targetPath, cancellationToken);
+                manifest = manifest with { Phase = BackupRestoreRecoveryPhase.FilesystemSwapped };
+                BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
                 if (commitAsync is not null)
                 {
+                    manifest = manifest with { Phase = BackupRestoreRecoveryPhase.MetadataCommitStarted };
+                    BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
+                    metadataCommitInvoked = true;
                     await commitAsync(cancellationToken).ConfigureAwait(false);
+                    metadataCommitCompleted = true;
+                    manifest = manifest with { Phase = BackupRestoreRecoveryPhase.MetadataCommitCompleted };
+                    BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
                 }
 
                 Directory.Delete(rollbackPath, recursive: true);
+                BackupRestoreRecoveryJournal.Remove(journalPath);
             }
             catch (Exception mutationFailure)
             {
+                if (metadataCommitCompleted
+                    || (metadataCommitInvoked && commitOutcomeMayBeAmbiguous))
+                {
+                    throw new InvalidOperationException(
+                        "The restore metadata commit outcome is ambiguous; manual recovery is required.",
+                        mutationFailure);
+                }
+
                 try
                 {
+                    manifest = manifest with { Phase = BackupRestoreRecoveryPhase.RollbackStarted };
+                    BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
                     if (Directory.Exists(targetPath))
                     {
                         Directory.Delete(targetPath, recursive: true);
                     }
 
                     Directory.Move(rollbackPath, targetPath);
+                    BackupRestoreRecoveryJournal.Remove(journalPath);
                 }
                 catch (Exception rollbackFailure)
                 {
+                    try
+                    {
+                        manifest = manifest with { Phase = BackupRestoreRecoveryPhase.RollbackFailed };
+                        BackupRestoreRecoveryJournal.Persist(journalPath, manifest);
+                    }
+                    catch
+                    {
+                        // Preserve the existing journal when the failure-phase update is unavailable.
+                    }
+
                     throw new AggregateException(
                         "Data-directory restore rollback failed after the mutation failure.",
                         mutationFailure,

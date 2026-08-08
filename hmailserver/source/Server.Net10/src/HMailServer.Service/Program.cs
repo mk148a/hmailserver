@@ -25,6 +25,7 @@ if (TryHandleComRegistrationCommand(args))
 var hostComposition = HMailServer.Service.Host.Build(args);
 var host = hostComposition.Host;
 var dataDirectory = hostComposition.DataDirectory;
+BackupRestoreRecoveryJournal.EnsureNoPendingRecovery(dataDirectory);
 var backupMessagesDbOnly = hostComposition.BackupMessagesDbOnly;
 var userInterfaceLanguage = hostComposition.UserInterfaceLanguage;
 var rewriteEnvelopeFromWhenForwarding = hostComposition.RewriteEnvelopeFromWhenForwarding;
