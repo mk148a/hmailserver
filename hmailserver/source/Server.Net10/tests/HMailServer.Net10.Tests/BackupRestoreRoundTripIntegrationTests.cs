@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using System.Globalization;
 using HMailServer.ComInterop;
 using HMailServer.Storage.SqlServer;
@@ -12,6 +13,37 @@ public sealed class BackupRestoreRoundTripIntegrationTests
 {
     private const string ConnectionEnvironmentVariable = "HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION";
     private const string AllowDatabaseCreateEnvironmentVariable = "HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE";
+
+    private const string NonDbArchiveXml = """
+        <Backup>
+          <BackupInformation Mode="6">
+            <DataFiles Format="Raw" FolderName="DataBackup" />
+          </BackupInformation>
+          <Domains>
+            <Domain Name="roundtrip.example" Active="1" Postmaster="pm@roundtrip.example"
+                    MaxMessageSize="1024" UsePlusAddressing="1" PlusAddressingChar="+"
+                    AntiSpamOptions="1" MaxNoOfAccounts="2" MaxNoOfAliases="1" MaxNoOfLists="1"
+                    LimitationsEnabled="0" EnableSignature="0" SignatureMethod="1" MaxAccountSize="0"
+                    MaxSize="0">
+              <Accounts>
+                <Account Name="user@roundtrip.example" Active="1" Password="enc" PasswordEncryption="1"
+                         AdminLevel="1" MaxAccountSize="128" />
+              </Accounts>
+              <Aliases>
+                <Alias Name="alias@roundtrip.example" Value="target@example.test" Active="1" />
+              </Aliases>
+              <DistributionLists>
+                <DistributionList Name="team@roundtrip.example" Active="1" RequiresAuth="0"
+                                  RequiresAuthAddress="" ListMode="0">
+                  <Recipients>
+                    <Recipient Name="r1@example.test" />
+                  </Recipients>
+                </DistributionList>
+              </DistributionLists>
+            </Domain>
+          </Domains>
+        </Backup>
+        """;
 
     private const string ArchiveXml = """
         <Backup>
@@ -98,6 +130,95 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
         }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_RestoresBoundRawDataAndMetadataIntoDisposableTargets()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_executor_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        var root = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-executor-{Guid.NewGuid():N}");
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateTargetSchemaAsync(testConnectionString).ConfigureAwait(false);
+            var source = Path.Combine(root, "source");
+            var dataDirectory = Path.Combine(root, "data");
+            var dataBackup = Path.Combine(root, "DataBackup");
+            var archivePath = Path.Combine(root, "backup.7z");
+            Directory.CreateDirectory(source);
+            Directory.CreateDirectory(dataDirectory);
+            Directory.CreateDirectory(dataBackup);
+            File.WriteAllText(Path.Combine(dataDirectory, "original.txt"), "original");
+            File.WriteAllText(Path.Combine(dataBackup, "restored.txt"), "restored");
+            File.WriteAllText(Path.Combine(source, "hMailServerBackup.xml"), NonDbArchiveXml);
+            await CreateArchiveAsync(archivePath, source).ConfigureAwait(false);
+
+            var factory = new SqlServerConnectionFactory(testConnectionString);
+            var executor = new MetadataBackupRestoreExecutor(
+                Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+                dataDirectory,
+                new SqlServerDomainAdministrationStore(factory),
+                new SqlServerAccountAdministrationStore(factory),
+                new SqlServerAliasAdministrationStore(factory),
+                new SqlServerDistributionListAdministrationStore(factory),
+                new SqlServerDistributionListRecipientAdministrationStore(factory));
+            using var binding = BackupArchiveBinding.TryCreate(archivePath);
+            Assert.IsNotNull(binding);
+            var backup = Backup.CreateAuthorized(
+                6,
+                binding.ArchivePath,
+                archiveIdentity: binding.Identity,
+                archiveBinding: binding,
+                rawDataBackupIdentity: binding.RawDataBackupIdentity);
+            backup.RestoreDomains = true;
+            backup.RestoreMessages = true;
+
+            await executor.ExecuteAsync(backup, CancellationToken.None).ConfigureAwait(false);
+
+            Assert.AreEqual("restored", await File.ReadAllTextAsync(Path.Combine(dataDirectory, "restored.txt")));
+            Assert.IsFalse(File.Exists(Path.Combine(dataDirectory, "original.txt")));
+            var restoredDomains = await new SqlServerDomainAdministrationStore(factory)
+                .GetDomainsAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.AreEqual("roundtrip.example", restoredDomains.Single().Name);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private static async Task CreateArchiveAsync(string archivePath, string sourcePath)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            WorkingDirectory = sourcePath,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add("a");
+        startInfo.ArgumentList.Add(archivePath);
+        startInfo.ArgumentList.Add("hMailServerBackup.xml");
+        startInfo.ArgumentList.Add("-t7z");
+        startInfo.ArgumentList.Add("-mx1");
+        using var process = Process.Start(startInfo);
+        Assert.IsNotNull(process);
+        await process.StandardOutput.ReadToEndAsync().ConfigureAwait(false);
+        var error = await process.StandardError.ReadToEndAsync().ConfigureAwait(false);
+        await process.WaitForExitAsync().ConfigureAwait(false);
+        Assert.AreEqual(0, process.ExitCode, error);
     }
 
     private static string GetApprovedConnectionStringOrInconclusive()
