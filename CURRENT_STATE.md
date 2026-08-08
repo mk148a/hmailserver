@@ -2,17 +2,18 @@
 - UTC timestamp: 2026-08-08T15:57:28Z
 - Local timestamp: 2026-08-08T18:57:28+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `68a75427c` (code/test; documentation commit pending)
+- Push status: `PUSH-BLOCKED` because the configured GitHub remote was unreachable on the normal push attempt; do not retry until the next milestone
+- Current HEAD: `ba8390f2c` (code/test; documentation commit pending)
 - Last successfully pushed commit: `70dcb9621` (non-DB restore authorization lease documentation)
-- Latest focused-test result: queue shutdown/restore cleanup `4 + 24 passed, 0 skipped, 0 failed`
+- Latest focused-test result: queue shutdown/admission and restore cleanup `4 + 24 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: default `1922 passed, 0 failed, 26 skipped`
 - Opt-in tests passed/skipped/blocked: queue/restore contract focus `28 passed`; native AD/DC, installer, registry/COM, service/COM, and SQL/Data end-to-end remain blocked
-- Current bounded slice: deterministic service-cancellation drain/abort for queued backup/restore requests with idempotent callback cleanup, code/test commit `68a75427c`
-- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, DB-only and non-DB restore authorization lease acceptance, queued restore shutdown cleanup acceptance
-- Open production blockers: restored account ciphertext may be double-encrypted, journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
+- Current bounded slice: queue-owned shutdown admission fence linearized with enqueue, code/test commit `ba8390f2c`
+- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, DB-only and non-DB restore authorization lease acceptance, queued restore pending cleanup and shutdown admission acceptance
+- Open production blockers: non-cooperative active restore can outlive shutdown timeout, abort callback failures are not isolated per pending request, restored account ciphertext may be double-encrypted, non-queued archive binding ownership on duplicate/denied dispatch, journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: preserve archived account credential/encryption type during restore; harden recovery-journal durability and handle-relative containment; implement legacy full-restore deletion/reinitialization ordering on disposable targets
+- Next three independent slices: fence or explicitly retain non-cooperative active restore during shutdown; isolate pending-abort callback failures while draining; preserve archived account credential/encryption type during restore
 
 ## Historical State
 - UTC timestamp: 2026-08-08T15:19:08Z

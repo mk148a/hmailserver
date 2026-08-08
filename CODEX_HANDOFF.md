@@ -2,6 +2,14 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-08 continuation: code/test commit `ba8390f2c` closes the shutdown admission race left by the queued-cleanup slice. `BackupTaskQueue.StopAccepting` transitions the queue to stopping under the same lifecycle lock used by `TryEnqueue`, then completes the channel; `BackupTaskHostedService` performs this synchronously at `StopAsync` entry and drains after worker shutdown. The transition is linearized, so a dispatch either wins before shutdown or is rejected, and pending work is aborted without starting.
+
+Legacy references are `WorkQueue::Stop` (`hmailserver/source/Server/Common/Threading/WorkQueue.cpp:128-181`), `WorkQueueManager::RemoveQueue` (`hmailserver/source/Server/Common/Threading/WorkQueueManager.cpp:68-107`), and `Application::ExitInstance` (`hmailserver/source/Server/Common/Application/Application.cpp:222-244`). Focused queue/restore coverage is `28 passed, 0 failed, 0 skipped`; default full Net10 is `1922 passed, 0 failed, 26 skipped`.
+
+Remaining queue risks are explicitly open: a running task that ignores cancellation may outlive the host stop timeout, abort callback exceptions can stop a multi-item drain, and duplicate/denied restore dispatch still needs explicit archive-binding ownership. Push is currently `PUSH-BLOCKED` because the configured GitHub remote was unreachable; last verified upstream remains `70dcb9621`. Next slice: fence or explicitly retain non-cooperative active restore during shutdown.
+
+## Current Authoritative Continuation
+
 Authoritative 2026-08-08 continuation: code/test commit `68a75427c` adds deterministic shutdown cleanup for queued backup/restore work. `BackupTaskQueue.CompleteAndAbortPending` completes the channel and aborts pending requests once; `BackupTaskHostedService.StopAsync` drains after worker shutdown, and a request dequeued after cancellation is aborted before it can start. `BackupManager.StartRestore` supplies `Backup.CleanupArchiveBinding` as the pending-abort callback. `BackupTaskRequest.NotifyThreadStopped` is idempotent, preserving coordinator state under abort/dispose races.
 
 Legacy references are `WorkQueue::Stop` (`hmailserver/source/Server/Common/Threading/WorkQueue.cpp:128-181`), `BackupTask::DoWork` (`hmailserver/source/Server/Common/Application/BackupTask.cpp:27-41`), and `Application::ExitInstance` maintenance queue removal (`hmailserver/source/Server/Common/Application/Application.cpp:211-234`). The .NET behavior is intentionally fail-closed at service cancellation and preserves installed COM identities, direct activation denial, authenticated boundaries, SMTP trust, and live reconfiguration. Focused queue/restore coverage is `28 passed, 0 failed, 0 skipped`; default full Net10 is `1922 passed, 0 failed, 26 skipped`.
