@@ -1,5 +1,11 @@
 # hMailServer .NET 10 Rewrite
 
+## Current Continuation (2026-08-08, IMAP DOMAIN-ALIAS LOGIN LOOKUP)
+
+Code/test commit `a5e250557` implements legacy normal IMAP domain-alias lookup parity. `SqlServerImapAccountAuthenticator.AccountLookupSql` joins `hm_domain_aliases`, maps an alias mailbox to its owning domain, preserves direct-address lookup, and orders alias matches by `daid`. Explicit `Latin1_General_100_CI_AS` comparisons avoid culture-sensitive `LOWER()` behavior under a Turkish SQL collation and match the legacy case-insensitive alias contract. The disposable local SQL fixture proves case-insensitive `ALIASUSER@ALIAS.TEST` authentication returns `aliasuser@example.test`; focused SQL coverage is `4 passed, 0 skipped`, and full Net10 is `1884 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods.
+
+Legacy anchors are `PasswordValidator::ValidatePassword` (`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:44-51`), `DomainAliases::ApplyAliasesOnAddress` (`hmailserver/source/Server/Common/BO/DomainAliases.cpp:43-64`), and `CreateTablesMSSQL.sql:250-256`. No COM identity, SMTP trust, live reconfiguration, production service, database, or Data directory changed. Next slice: isolated SQL/Data-directory restore execution and round-trip evidence; real AD/DC, 24-hour service/COM lifecycle, SEC-18, real COM/DCOM, and installer gates remain open.
+
 ## Current Continuation (2026-08-08, DEFAULT DOMAIN LOGIN LOOKUP)
 
 Code/test commit `c0d9294b6` applies configured `Settings.DefaultDomain` to normal IMAP username lookup when the username has no `@`, through the existing settings-store boundary. Disposable local SQL evidence proves `default` authenticates as `default@example.test`; focused `1 passed, 0 skipped`; full Net10 `1882 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods. Legacy `PasswordValidator.cpp:44-51` applies aliases then default domain; domain-alias translation remains a separate open slice. Next slice: `hm_domain_aliases` lookup parity.

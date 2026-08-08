@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-08T07:55:00Z
-- Local timestamp: 2026-08-08T10:55:00+03:00
+- UTC timestamp: 2026-08-08T08:42:57Z
+- Local timestamp: 2026-08-08T11:42:57+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `c0d9294b6`
+- Current HEAD: `a5e250557`
 - Last successfully pushed commit: `4eb41823f` (LOGIN script ordering documentation)
-- Latest focused-test result: local SQL default-domain authentication `1 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1882 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
-- Opt-in tests passed/skipped/blocked: `1/0/0` local SQL default-domain fixture; native domain-controller LogonUser evidence blocked; full run includes 16 skipped opt-in/environment tests
-- Current bounded slice: configured default-domain canonicalization for normal IMAP lookup, code/test commit `c0d9294b6`
-- Completed milestones: offline COM/Admin parity, backup/restore evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup
-- Open production blockers: domain-alias lookup, real out-of-proc COM/DCOM activation, SEC-18 cutover, InnoSetup build, migration/restore acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
+- Latest focused-test result: local SQL AD/default-domain/domain-alias authentication `4 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `1884 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
+- Opt-in tests passed/skipped/blocked: `4/0/0` local SQL AD/default-domain/domain-alias fixture; native domain-controller LogonUser evidence blocked; full run includes 16 skipped opt-in/environment tests
+- Current bounded slice: normal IMAP `hm_domain_aliases` lookup parity, code/test commit `a5e250557`
+- Completed milestones: offline COM/Admin parity, backup/restore evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup
+- Open production blockers: real out-of-proc COM/DCOM activation, SEC-18 cutover, InnoSetup build, migration/restore acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: domain-controller credentials, isolated service/COM host, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: normal IMAP `hm_domain_aliases` lookup parity; real native AD/DC evidence when approved credentials exist; isolated 24-hour service restart/COM lifecycle soak when a disposable host exists
+- Next three independent slices: isolated SQL/Data-directory restore execution and round-trip evidence; real native AD/DC evidence when approved credentials exist; isolated 24-hour service restart/COM lifecycle soak when disposable host exists

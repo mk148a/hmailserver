@@ -1,5 +1,13 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-08, IMAP DOMAIN-ALIAS LOGIN LOOKUP)
+
+Code/test commit `a5e250557` implements legacy normal IMAP domain-alias lookup parity. `SqlServerImapAccountAuthenticator.AccountLookupSql` joins `hm_domain_aliases`, maps an alias mailbox to the owning `hm_domains.domainname`, preserves direct-address lookup, and orders alias matches deterministically by `daid`. SQL Server `Latin1_General_100_CI_AS` comparisons preserve the legacy case-insensitive behavior even under a Turkish database collation. The disposable local SQL fixture proves case-insensitive `ALIASUSER@ALIAS.TEST` authentication returns `aliasuser@example.test` and passes the owning AD validator boundary. Focused coverage is `4 passed, 0 skipped`; the full Net10 run is `1884 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods.
+
+Legacy anchors: `PasswordValidator::ValidatePassword` (`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:44-51`) applies aliases before default-domain lookup; `DomainAliases::ApplyAliasesOnAddress` (`hmailserver/source/Server/Common/BO/DomainAliases.cpp:43-64`) matches aliases case-insensitively and returns the owning domain address; `CreateTablesMSSQL.sql:250-256` defines `hm_domain_aliases`. No COM identity, SMTP trust, live reconfiguration, production service, database, or Data directory changed.
+
+Next slice: isolated SQL/Data-directory restore execution and round-trip evidence. Real native AD/DC validation, 24-hour service/COM lifecycle soak, SEC-18 cutover, real COM/DCOM activation, and installer build remain environment-gated.
+
 ## Current Completed Slice (2026-08-08, DEFAULT DOMAIN LOGIN LOOKUP)
 
 Code/test commit `c0d9294b6` applies the configured `Settings.DefaultDomain` to normal IMAP username lookup when the supplied username has no `@`, using the existing `ISettingsAdministrationStore` boundary and `Canonicalize` helper. The disposable local SQL test proves `default` authenticates as `default@example.test`; focused coverage is `1 passed, 0 skipped`, and the full Net10 run is `1882 passed, 0 failed, 16 skipped` excluding the two AV-locked EICAR cleanup methods. No domain-alias SQL behavior, COM identity, SMTP trust, production service, database, or Data directory changed.
