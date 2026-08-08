@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``21b63cd13`` adds the live SMTP accept-latency acceptance harness. ``SmtpAcceptLatencyIntegrationTests`` binds ``SmtpTcpListener`` on loopback, connects 200 clients, asserts the 220 banner, and measures p50/p95/p99 connect-to-banner latency against a 5s p95 budget. Focused ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1866 passed, 0 failed, 14 opt-in skips`` (1880 total). Next slice: IMAP/POP3 loopback accept-latency harnesses, then 1k-concurrent connection acceptance.
+
+
 Code/test commit ``98433db25`` adds isolated database version gate and upgrade rollback evidence. ``SqlServerDatabaseAdministrationStoreIntegrationTests`` seeds ``hm_dbversion`` at 5000, simulates the upgrade write to 5708 (gate clears), then rolls back to 5000 (gate returns, one version row). Live LocalDB ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1865 passed, 0 failed, 14 opt-in skips`` (1879 total). Next slice: live protocol acceptance harness.
 
 

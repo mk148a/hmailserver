@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-05, SMTP ACCEPT LATENCY)
+
+Live SMTP accept-latency acceptance harness is complete in code/test commit ``21b63cd13``. ``SmtpAcceptLatencyIntegrationTests`` binds ``SmtpTcpListener`` on loopback, connects 200 sequential clients, asserts each ``220 hMailServer .NET 10 ESMTP ready`` banner, and measures connect→banner p50/p95/p99 with a 5s p95 budget; the summary is emitted to the test log. Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1866 passed, 0 failed, 14 opt-in skips`` (1880 total). Next slice: IMAP/POP3 loopback accept-latency harnesses, then 1k-concurrent connection acceptance.
+
 ## Current Completed Slice (2026-08-05, DB VERSION GATE EVIDENCE)
 
 Isolated database version gate and upgrade rollback evidence is complete in code/test commit ``98433db25``. The opt-in ``SqlServerDatabaseAdministrationStoreIntegrationTests`` fixture seeds ``hm_dbversion`` at 5000 (``CurrentVersion < RequiredVersion``), simulates the upgrade write to 5708 (gate clears), then rolls back to 5000 (gate returns, exactly one version row remains). Live LocalDB ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1865 passed, 0 failed, 14 opt-in skips`` (1879 total). Data-directory message-file restore, protocol acceptance, real COM activation, SEC-18, and release gates remain open. Next slice: live protocol acceptance harness.
