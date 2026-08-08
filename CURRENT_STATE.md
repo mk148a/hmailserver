@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-08T14:30:18Z
-- Local timestamp: 2026-08-08T17:30:18+03:00
+- UTC timestamp: 2026-08-08T14:44:47Z
+- Local timestamp: 2026-08-08T17:44:47+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `342f95325` (code/test; documentation commit pending)
+- Current HEAD: `1e717bb1d` (code/test; documentation commit pending)
 - Last successfully pushed commit: `d2a4928bf` (non-DB recovery journal documentation)
-- Latest focused-test result: SQL restore transaction-scoped unsupported-member coverage `1 passed, 0 skipped, 0 failed`; restore round-trip group `11 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: default `1914 passed, 0 failed, 26 skipped`; SQL-enabled focused restore coverage `11 passed, 0 failed, 0 skipped`
-- Opt-in tests passed/skipped/blocked: SQL restore acceptance `11 passed`; default opt-in set `26 skipped`; native AD/DC, installer, registry/COM, and service/COM remain blocked
-- Current bounded slice: transaction-scoped SQL restore stores fail closed for unsupported non-transaction-aware members, code/test commit `342f95325`
+- Latest focused-test result: queued restore reauthentication denial `23 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: default `1915 passed, 0 failed, 26 skipped`; SQL-enabled restore acceptance remains `11 passed, 0 failed, 0 skipped`
+- Opt-in tests passed/skipped/blocked: queued restore/COM contract `23 passed`; SQL restore acceptance `11 passed`; native AD/DC, installer, registry/COM, and service/COM remain blocked
+- Current bounded slice: execution-time authorization revalidation before queued restore executor dispatch, code/test commit `1e717bb1d`
 - Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, non-DB recovery journal acceptance
-- Open production blockers: queued restore execution lacks authorization-generation revalidation, restored account ciphertext may be double-encrypted, journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe shared SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
+- Open production blockers: authorization may be invalidated during async preflight before final SQL/filesystem admission, abandoned queued restores lack deterministic shutdown cleanup, restored account ciphertext may be double-encrypted, journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe shared SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: revalidate authorization immediately before queued restore execution; preserve archived account credential/encryption type during restore; implement legacy domain/public-folder deletion and application reinitialization ordering only on disposable targets
+- Next three independent slices: add final authorization admission immediately before restore SQL/filesystem mutation; drain pending restore tasks on service cancellation with idempotent cleanup; preserve archived account credential/encryption type during restore
