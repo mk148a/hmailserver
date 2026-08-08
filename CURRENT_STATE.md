@@ -1,19 +1,19 @@
 # Current State
-- UTC timestamp: 2026-08-08T16:17:55Z
-- Local timestamp: 2026-08-08T19:17:55+03:00
+- UTC timestamp: 2026-08-08T16:40:00Z
+- Local timestamp: 2026-08-08T19:40:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: local code/test commit pending normal push; last verified upstream is `8ba54fc51`
-- Current HEAD: `d1fa4a6a5` (code/test; documentation commit pending)
-- Last successfully pushed commit: `aa3c3ab5b`
-- Latest focused-test result: archive ownership/restore COM contracts `26 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: default `1926 passed, 0 failed, 26 skipped`
-- Opt-in tests passed/skipped/blocked: queue/restore contract focus `32 passed`; native AD/DC, installer, registry/COM, service/COM, and SQL/Data end-to-end remain blocked
-- Current bounded slice: non-queued restore archive ownership cleanup on denied/duplicate dispatch, code/test commit `d1fa4a6a5`
-- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, DB-only and non-DB restore authorization lease acceptance, queued restore pending cleanup, shutdown admission, active-task completion fence, abort-failure isolation, and rejected archive ownership acceptance
-- Open production blockers: restored account ciphertext may be double-encrypted, journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
+- Push status: local code/test and docs commits pending normal push; last verified upstream is `cc413c07c`
+- Current HEAD: `d039b8ed8` (code/test; documentation commit pending)
+- Last successfully pushed commit: `cc413c07c`
+- Latest focused-test result: account restore credential propagation/store tests `26 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: default `1928 passed, 0 failed, 27 skipped`
+- Opt-in tests passed/skipped/blocked: SQL restore credential integration skipped because approved SQL environment variables are unset; native AD/DC, installer, registry/COM, and service/COM remain blocked
+- Current bounded slice: preserve archived account `Password` and `PasswordEncryption` during restore, code/test commit `d039b8ed8`
+- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, DB-only and non-DB restore authorization lease acceptance, queued restore pending cleanup, shutdown admission, active-task completion fence, abort-failure isolation, rejected archive ownership acceptance, and archived account credential-type preservation
+- Open production blockers: credential metadata validation and live SQL restore evidence, journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: preserve archived account credential/encryption type during restore; harden recovery-journal durability and handle-relative containment; implement legacy full-restore deletion/reinitialization ordering on disposable targets
+- Next three independent slices: harden recovery-journal durability and handle-relative containment; implement legacy full-restore deletion/reinitialization ordering on disposable targets; complete disposable SQL/Data restore acceptance for supported credential types
 
 ## Historical State
 - UTC timestamp: 2026-08-08T15:19:08Z

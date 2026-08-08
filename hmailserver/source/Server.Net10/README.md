@@ -1,3 +1,9 @@
+## Current Completed Slice (2026-08-08, ARCHIVED ACCOUNT CREDENTIAL RESTORE PARITY)
+
+Code/test commit `d039b8ed8` preserves legacy archived account `Password` and `PasswordEncryption` values during restore. Legacy `Account::XMLLoad` (`hmailserver/source/Server/Common/BO/Account.cpp:335-346`) reads both fields unchanged, and `PersistentAccount::SaveObject` (`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp:263-280`) persists them unchanged. The .NET restore writer now uses a restore-specific account-store operation; the SQL store writes the archived value and type as-is, while normal Administrator account insertion retains its existing Blowfish encryption path.
+
+Focused coverage is `26 passed, 0 failed, 0 skipped`; default full Net10 is `1928 passed, 0 failed, 27 skipped`. Disposable SQL credential round-trip remains skipped without approved SQL environment variables. The restore-specific store contract fails closed when archived-credential insertion is unsupported. Release status remains RED: recovery-journal durability, full restore ordering, crash-safe SQL/filesystem outcome, service/COM, SEC-18, installer, AD/DC, migration, and lifecycle gates remain open. Next slice: harden recovery-journal durability and handle-relative containment.
+
 ## Current Completed Slice (2026-08-08, NON-DB RESTORE RECOVERY JOURNAL)
 
 Code/test commit `904000f85` adds a durable, bounded recovery journal to the non-DB Data directory swap. It records phase transitions, cleans up after known success, preserves rollback evidence after rollback failure or uncertain metadata outcome, and blocks service startup and later restore attempts when a pending or malformed journal requires manual recovery. Focused coverage is `12 passed, 0 failed, 0 skipped`; default full Net10 is `1914 passed, 0 failed, 25 skipped`.
