@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-08T13:20:00Z
-- Local timestamp: 2026-08-08T16:20:00+03:00
+- UTC timestamp: 2026-08-08T12:14:37Z
+- Local timestamp: 2026-08-08T15:14:37+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `23d428569`
-- Last successfully pushed commit: `1b548ce1c` (queued restore archive snapshot binding documentation; current hardening pending push)
-- Latest focused-test result: archive binding duplicate-dispatch hardening `30 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1902 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
-- Opt-in tests passed/skipped/blocked: disposable Local SQL restore round-trip `1 passed, 0 skipped`; full run `16` opt-in/environment skips; native domain-controller LogonUser, installer, registry/COM, and live service evidence remain blocked
-- Current bounded slice: archive binding cleanup/fail-closed hardening, code/test commit `23d428569`
-- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup
-- Open production blockers: raw sibling DataBackup identity/full restore ordering and transactionality, real out-of-proc COM/DCOM activation, SEC-18 cutover, InnoSetup build, migration/restore acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
-- Environment-blocked work: isolated service/COM restore host and disposable end-to-end restore target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
+- Current HEAD: `68d447861` (code/test; documentation commit pending)
+- Last successfully pushed commit: `b174de320` (archive binding hardening documentation)
+- Latest focused-test result: bounded non-DB restore/runtime `13 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `1907 passed, 0 failed, 16 skipped`
+- Opt-in tests passed/skipped/blocked: Local SQL restore round-trip remains passed; full run has `16` environment/opt-in skips; native AD/DC, installer, registry/COM, live service/COM, and disposable end-to-end restore evidence remain blocked
+- Current bounded slice: bounded raw/compressed non-DB `RestoreDomains|RestoreMessages` staging, code/test commit `68d447861`
+- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging
+- Open production blockers: raw sibling snapshot/hash binding, normal-installation full restore ordering, crash-safe shared SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
+- Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: wire raw/compressed staging into authenticated non-DB-only restore with disposable target acceptance; actual isolated service/COM queued restore against disposable SQL; one shared SQL transaction/rollback boundary for restore mutations
+- Next three independent slices: snapshot/hash external raw `DataBackup` beside bound archives; run queued restore through isolated service/COM with disposable SQL/Data; add a shared SQL transaction or durable restore journal with recovery tests
