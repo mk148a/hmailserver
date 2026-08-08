@@ -90,6 +90,38 @@ public sealed class BackupTaskQueueTests
         Assert.IsFalse(queue.TryEnqueue(CreateRequest()));
     }
 
+    [TestMethod]
+    public async Task HostedServiceShutdownWaitsForActiveTaskAfterCancellationTimeout()
+    {
+        var runningStarted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseRunning = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var queue = new BackupTaskQueue();
+        Assert.IsTrue(queue.TryEnqueue(new BackupTaskRequest(
+            async _ =>
+            {
+                runningStarted.TrySetResult(null);
+                await releaseRunning.Task;
+            },
+            static _ => { },
+            static _ => { },
+            static () => { },
+            static () => { })));
+        using var service = new BackupTaskHostedService(
+            queue,
+            NullLogger<BackupTaskHostedService>.Instance);
+
+        await service.StartAsync(CancellationToken.None);
+        await runningStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        using var stopTimeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        var stopTask = service.StopAsync(stopTimeout.Token);
+
+        await Task.Delay(TimeSpan.FromMilliseconds(150));
+        Assert.IsFalse(stopTask.IsCompleted);
+
+        releaseRunning.SetResult(null);
+        await stopTask;
+    }
+
     private static BackupTaskRequest CreateRequest(
         Action? abort = null,
         Action? threadStopped = null) => new(

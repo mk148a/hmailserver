@@ -8,6 +8,8 @@ public sealed class BackupTaskHostedService : BackgroundService
 {
     private readonly IBackupTaskQueue _queue;
     private readonly ILogger<BackupTaskHostedService> _logger;
+    private readonly object _activeTaskGate = new();
+    private TaskCompletionSource<object?>? _activeTaskCompletion;
 
     public BackupTaskHostedService(
         IBackupTaskQueue queue,
@@ -23,29 +25,51 @@ public sealed class BackupTaskHostedService : BackgroundService
     {
         await foreach (var task in _queue.ReadAllAsync(stoppingToken).ConfigureAwait(false))
         {
-            if (stoppingToken.IsCancellationRequested)
+            var activeTaskCompletion = new TaskCompletionSource<object?>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_activeTaskGate)
             {
-                task.AbortPending();
-                continue;
+                _activeTaskCompletion = activeTaskCompletion;
             }
 
             try
             {
-                task.SetStatus("Loading backup settings....");
-                await task.ExecuteAsync(stoppingToken).ConfigureAwait(false);
-                task.Completed();
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(exception, "The queued hMailServer backup task failed.");
-                task.Failed(exception.Message);
+                if (stoppingToken.IsCancellationRequested)
+                {
+                    task.AbortPending();
+                    continue;
+                }
+
+                try
+                {
+                    task.SetStatus("Loading backup settings....");
+                    await task.ExecuteAsync(stoppingToken).ConfigureAwait(false);
+                    task.Completed();
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "The queued hMailServer backup task failed.");
+                    task.Failed(exception.Message);
+                }
+                finally
+                {
+                    task.NotifyThreadStopped();
+                }
             }
             finally
             {
-                task.NotifyThreadStopped();
+                lock (_activeTaskGate)
+                {
+                    if (ReferenceEquals(_activeTaskCompletion, activeTaskCompletion))
+                    {
+                        _activeTaskCompletion = null;
+                    }
+                }
+
+                activeTaskCompletion.TrySetResult(null);
             }
         }
     }
@@ -59,6 +83,17 @@ public sealed class BackupTaskHostedService : BackgroundService
         }
         finally
         {
+            Task? activeTask;
+            lock (_activeTaskGate)
+            {
+                activeTask = _activeTaskCompletion?.Task;
+            }
+
+            if (activeTask is not null)
+            {
+                await activeTask.ConfigureAwait(false);
+            }
+
             _queue.CompleteAndAbortPending();
         }
     }
