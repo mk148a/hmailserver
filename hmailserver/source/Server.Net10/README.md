@@ -1078,3 +1078,10 @@ Legacy pending `BackupTask` objects were discarded by `WorkQueue::Stop` without 
 Code/test commit `d1fa4a6a5` gives queued restore archive bindings explicit ownership. Same-object duplicate dispatch leaves the first queued snapshot intact; a distinct `AlreadyRunning`, queue-unavailable, thrown-dispatch, or pre-dispatch denied restore cleans only its own rejected binding. Focused BackupManager/COM coverage is `26 passed, 0 failed, 0 skipped`; default full Net10 is `1926 passed, 0 failed, 26 skipped`.
 
 Legacy ownership is anchored by `BackupManager::StartRestore` and `BackupTask::SetBackupToRestore` (`hmailserver/source/Server/Common/Application/BackupManager.cpp:75-98`, `hmailserver/source/Server/Common/Application/BackupTask.cpp:44-49`). The internal claim does not change COM identity, activation, SQL, SMTP trust, live reconfiguration, or production state. Next slice: preserve archived account credential/encryption type during restore.
+## Current Completed Slice (2026-08-08, PUBLIC-FOLDER RESTORE CLEANUP CAPABILITY)
+
+Code/test commit `5d9ad666c` adds a transaction-scoped public-folder cleanup capability without wiring it into restore orchestration. The SQL path preserves legacy public-folder ownership by selecting only `folderaccountid = 0` and `messageaccountid = 0`, removes recipients for non-Delivered messages plus search/metadata/ACL rows before messages and non-Inbox folders, and uses the existing caller-owned SQL transaction for commit or rollback.
+
+Legacy behavior is anchored by `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`), the public-folder `DeleteAll()` call (`BackupExecuter.cpp:287-289`), `PersistentIMAPFolder::DeleteObject`, and `Reinitializator::ReInitialize` (`Reinitializator.cpp:35-57`). DB-only restore intentionally does not invoke this capability because legacy skips public-folder deletion for `bMessagesDBOnly`; public message-file staging and full-restore reinitialization remain unimplemented.
+
+Focused store tests: `11 passed, 0 failed, 0 skipped`. Full Net10: `1937 passed, 0 failed, 29 skipped`. Release remains RED.
