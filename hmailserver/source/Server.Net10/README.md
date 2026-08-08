@@ -1,5 +1,11 @@
 # hMailServer .NET 10 Rewrite
 
+## Current Continuation (2026-08-08, AD VALIDATION CONNECTION LIFETIME)
+
+Code/test commit `eec9752e8` releases the SQL reader and connection before the synchronous AD validator and uses a separate connection for successful last-logon updates. The local SQL fixture constrains the pool to one connection and opens a probe connection inside the validator; focused coverage is `7 passed, 0 skipped`. This closes the AD validation connection-pool retention risk without changing credentials, COM identity, SMTP trust, or production state.
+
+Legacy anchors are `AccountLogon::Logon` in `hmailserver/source/Server/Common/Util/AccountLogon.cpp:37-75` and `PasswordValidator::ValidatePassword` in `hmailserver/source/Server/Common/Util/PasswordValidator.cpp:109-147`. Real domain-controller/native `LogonUser` evidence, domain aliases/default-domain lookup, and LOGIN script-before-empty-password ordering remain open. AUTHENTICATE PLAIN empty-password rejection remains protocol-parser behavior. Next slice: legacy LOGIN script-before-empty-password ordering.
+
 ## Current Continuation (2026-08-08, SQL ACTIVE DIRECTORY AUTHENTICATION EVIDENCE)
 
 Code/test commit `4072dbf50` adds an opt-in disposable SQL Server integration fixture for the AD IMAP authentication path. It uses a unique local database with the production MSSQL `hm_accounts` types, proves active account/domain filtering, exact AD validator arguments, successful and rejected credentials, last-logon updates, and no validator call for an inactive domain. Local SQL focused coverage is `7 passed, 0 skipped`; the normal full suite excluding the two AV-locked EICAR cleanup methods is `1880 passed, 0 failed, 16 skipped`. The SQL projection explicitly converts MSSQL `tinyint` and `datetime` columns before materialization.

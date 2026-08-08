@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-08T07:28:25Z
-- Local timestamp: 2026-08-08T10:28:25+03:00
+- UTC timestamp: 2026-08-08T07:37:00Z
+- Local timestamp: 2026-08-08T10:37:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `4072dbf50`
-- Last successfully pushed commit: `171aa0943` (AD authentication boundary documentation)
-- Latest focused-test result: local SQL AD/auth fixture `7 passed, 0 skipped, 0 failed`
+- Current HEAD: `eec9752e8`
+- Last successfully pushed commit: `664e6a650` (SQL Active Directory authentication evidence documentation)
+- Latest focused-test result: local SQL AD connection-lifetime fixture `7 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: `1880 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
 - Opt-in tests passed/skipped/blocked: `1/0/0` live local SQL AD fixture; native domain-controller LogonUser evidence blocked; full run includes 16 skipped opt-in/environment tests
-- Current bounded slice: SQL-backed Active Directory authentication evidence and MSSQL projection compatibility, code/test commit `4072dbf50`
-- Completed milestones: offline COM/Admin parity, backup/restore evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path evidence
-- Open production blockers: real out-of-proc COM/DCOM activation, SEC-18 cutover, InnoSetup build, 24-hour service leak/lifecycle soak, AD alias/default-domain and script-before-empty-password parity
+- Current bounded slice: release SQL reader/connection before synchronous AD validation, code/test commit `eec9752e8`
+- Completed milestones: offline COM/Admin parity, backup/restore evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path and connection-lifetime evidence
+- Open production blockers: real out-of-proc COM/DCOM activation, SEC-18 cutover, InnoSetup build, 24-hour service leak/lifecycle soak, AD native/DC evidence, alias/default-domain and LOGIN script-before-empty-password parity
 - Environment-blocked work: domain-controller credentials, isolated service/COM host, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC-18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: isolated 24-hour service restart/COM lifecycle soak; legacy domain-alias/default-domain authentication parity; legacy script-before-empty-password authentication parity
+- Next three independent slices: legacy LOGIN script-before-empty-password ordering; legacy domain-alias/default-domain authentication lookup; isolated 24-hour service restart/COM lifecycle soak when a disposable host exists

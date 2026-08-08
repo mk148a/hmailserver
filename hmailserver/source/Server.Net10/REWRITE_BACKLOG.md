@@ -8,6 +8,14 @@ Legacy anchors remain `hmailserver/source/Server/Common/Util/PasswordValidator.c
 
 Next slice: isolate the 24-hour service restart/COM lifecycle soak if a disposable host is available; otherwise continue with the next unblocked legacy authentication/parity slice. Keep SEC-18 registration/DCOM, installer build, and production replacement fenced.
 
+## Current Completed Slice (2026-08-08, AD VALIDATION CONNECTION LIFETIME)
+
+Code/test commit `eec9752e8` closes the SQL connection and reader before invoking the synchronous AD validator, and performs successful-authentication last-logon updates through a separate short-lived connection. The live SQL fixture sets `Max Pool Size=1` and opens a second SQL connection from the validator; focused local SQL coverage remains `7 passed, 0 skipped`, proving the validator no longer holds the account lookup connection. Master-user target lookup follows the same disposal-before-update boundary. No AD credentials, COM identity, SMTP trust, or production state changed.
+
+Legacy references are `hmailserver/source/Server/Common/Util/AccountLogon.cpp:37-75` and `hmailserver/source/Server/Common/Util/PasswordValidator.cpp:109-147`; the legacy path validates through `LogonUser` and updates last-logon only after successful validation. Security review found no credential-retention or projection-cast regression in this change. Remaining open gaps are real domain-controller/native AD evidence, legacy domain-alias/default-domain lookup, legacy LOGIN script-before-empty-password ordering, SEC-18/COM/DCOM, installer build, and 24-hour lifecycle soak.
+
+Next slice: legacy LOGIN script-before-empty-password ordering, preserving the existing AUTHENTICATE PLAIN parser rejection. Keep production service, database, Data directory, COM registration, DCOM ACL, and SMTP trust fenced.
+
 ## Current Completed Slice (2026-08-08, IMAP MASTER USER)
 
 Code/test commit `ef7e5ec65` implements the bounded legacy IMAP AUTHENTICATE PLAIN master-user path. Legacy references are `hmailserver/source/Server/IMAP/IMAPCommandAuthenticate.cpp:27-122`, `hmailserver/source/Server/Common/Util/AccountLogon.cpp:37-75`, and `hmailserver/source/Server/Common/Util/PasswordValidator.cpp:78-164`: authcid is the configured master user, authzid is the active target mailbox, only the master credential is checked, and master-policy failures do not enter auto-ban accounting. The .NET path carries authzid through `ClientAuthenticationRequest`/`IImapAccountAuthenticator`, validates the configured master identity through the SQL-backed authenticator, returns the target mailbox, preserves ordinary auth, and does not retain credentials. Focused coverage is `43 passed, 0 skipped`; full Net10 is `1877 passed, 0 failed, 15 skipped` excluding the two AV-locked EICAR cleanup methods. AD/SSPI authentication and live SQL master-user evidence remain separate gaps; no COM identity, SMTP behavior, settings setter, or live reconfiguration changed.
