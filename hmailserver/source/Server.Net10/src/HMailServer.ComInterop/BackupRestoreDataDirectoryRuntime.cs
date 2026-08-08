@@ -9,16 +9,19 @@ internal sealed class BackupRestoreDataDirectoryRuntime
     private readonly string _sevenZipExecutablePath;
     private readonly Action<string, string, CancellationToken> _copyTree;
     private readonly Action<string>? _flushJournalDirectory;
+    private readonly IBackupRestoreDataDirectoryMutation _filesystemMutation;
 
     internal BackupRestoreDataDirectoryRuntime(
         string sevenZipExecutablePath,
         Action<string, string, CancellationToken>? copyTree = null,
-        Action<string>? flushJournalDirectory = null)
+        Action<string>? flushJournalDirectory = null,
+        IBackupRestoreDataDirectoryMutation? filesystemMutation = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         _sevenZipExecutablePath = sevenZipExecutablePath;
         _copyTree = copyTree ?? CopyTree;
         _flushJournalDirectory = flushJournalDirectory;
+        _filesystemMutation = filesystemMutation ?? new WindowsBackupRestoreDataDirectoryMutation();
     }
 
     internal async ValueTask RestoreAsync(
@@ -95,7 +98,7 @@ internal sealed class BackupRestoreDataDirectoryRuntime
             var metadataCommitInvoked = false;
             var metadataCommitCompleted = false;
             var rollbackArtifactDeleted = false;
-            Directory.Move(targetPath, rollbackPath);
+            _filesystemMutation.MoveDirectory(targetPath, rollbackPath);
             try
             {
                 Directory.CreateDirectory(targetPath);
@@ -139,7 +142,7 @@ internal sealed class BackupRestoreDataDirectoryRuntime
                         Directory.Delete(targetPath, recursive: true);
                     }
 
-                    Directory.Move(rollbackPath, targetPath);
+                    _filesystemMutation.MoveDirectory(rollbackPath, targetPath);
                     BackupRestoreRecoveryJournal.Remove(journalPath);
                 }
                 catch (Exception rollbackFailure)

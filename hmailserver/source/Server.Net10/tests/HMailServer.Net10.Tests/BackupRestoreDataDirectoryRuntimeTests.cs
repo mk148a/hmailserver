@@ -378,6 +378,53 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
     }
 
     [TestMethod]
+    public async Task RestoreAsync_UsesInjectedFilesystemMutationForTargetSwapAndRollback()
+    {
+        using var fixture = new DataDirectoryFixture();
+        File.WriteAllText(Path.Combine(fixture.SourcePath, "new.eml"), "new");
+        File.WriteAllText(Path.Combine(fixture.TargetPath, "old.eml"), "old");
+        File.WriteAllText(fixture.ArchivePath, "archive");
+        var evidence = CreateRawEvidence(fixture);
+        var plan = BackupRestoreContainmentPreflight.Plan(evidence, fixture.TargetPath, fixture.RollbackPath);
+        var moves = new List<(string Source, string Destination)>();
+        var mutation = new RecordingFilesystemMutation(moves);
+        var runtime = new BackupRestoreDataDirectoryRuntime(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            (_, _, _) => throw new IOException("simulated staging failure"),
+            filesystemMutation: mutation);
+
+        await Assert.ThrowsExactlyAsync<IOException>(
+            () => runtime.RestoreAsync(evidence, plan, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(2, moves.Count);
+        Assert.AreEqual(Path.GetFullPath(fixture.TargetPath), moves[0].Source);
+        Assert.AreEqual(Path.GetFullPath(fixture.RollbackPath), moves[0].Destination);
+        Assert.AreEqual(Path.GetFullPath(fixture.RollbackPath), moves[1].Source);
+        Assert.AreEqual(Path.GetFullPath(fixture.TargetPath), moves[1].Destination);
+    }
+
+    [TestMethod]
+    public void WindowsFilesystemMutation_DoesNotReplaceExistingDestination()
+    {
+        using var fixture = new DataDirectoryFixture();
+        var destination = Path.Combine(fixture.RootPath, "destination");
+        Directory.CreateDirectory(destination);
+        var mutation = new WindowsBackupRestoreDataDirectoryMutation();
+
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.ThrowsExactly<PlatformNotSupportedException>(
+                () => mutation.MoveDirectory(fixture.TargetPath, destination));
+            return;
+        }
+
+        Assert.ThrowsExactly<IOException>(
+            () => mutation.MoveDirectory(fixture.TargetPath, destination));
+        Assert.IsTrue(Directory.Exists(fixture.TargetPath));
+        Assert.IsTrue(Directory.Exists(destination));
+    }
+
+    [TestMethod]
     public async Task RestoreAsync_PreservesJournalWhenRollbackFails()
     {
         using var fixture = new DataDirectoryFixture();
@@ -494,6 +541,16 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
             {
                 Directory.Delete(RootPath, recursive: true);
             }
+        }
+    }
+
+    private sealed class RecordingFilesystemMutation(List<(string Source, string Destination)> moves)
+        : IBackupRestoreDataDirectoryMutation
+    {
+        public void MoveDirectory(string sourcePath, string destinationPath)
+        {
+            moves.Add((sourcePath, destinationPath));
+            Directory.Move(sourcePath, destinationPath);
         }
     }
 }
