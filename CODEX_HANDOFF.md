@@ -2,6 +2,14 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-08 continuation: code/test commit `68a75427c` adds deterministic shutdown cleanup for queued backup/restore work. `BackupTaskQueue.CompleteAndAbortPending` completes the channel and aborts pending requests once; `BackupTaskHostedService.StopAsync` drains after worker shutdown, and a request dequeued after cancellation is aborted before it can start. `BackupManager.StartRestore` supplies `Backup.CleanupArchiveBinding` as the pending-abort callback. `BackupTaskRequest.NotifyThreadStopped` is idempotent, preserving coordinator state under abort/dispose races.
+
+Legacy references are `WorkQueue::Stop` (`hmailserver/source/Server/Common/Threading/WorkQueue.cpp:128-181`), `BackupTask::DoWork` (`hmailserver/source/Server/Common/Application/BackupTask.cpp:27-41`), and `Application::ExitInstance` maintenance queue removal (`hmailserver/source/Server/Common/Application/Application.cpp:211-234`). The .NET behavior is intentionally fail-closed at service cancellation and preserves installed COM identities, direct activation denial, authenticated boundaries, SMTP trust, and live reconfiguration. Focused queue/restore coverage is `28 passed, 0 failed, 0 skipped`; default full Net10 is `1922 passed, 0 failed, 26 skipped`.
+
+Residual risks: a running task must honor cancellation; this slice does not make SQL/filesystem restore crash-atomic, does not prove out-of-process service/COM restore, and does not address account credential encryption semantics. Next slice: inspect legacy account password encryption during archive restore and preserve the archived credential type without double encryption.
+
+## Current Authoritative Continuation
+
 Authoritative 2026-08-08 continuation: code/test commit `aae5137a9` adds `ApplicationAuthorizationAuthority`, which serializes authentication generation/state publication and DB-only restore admission. `Backup.AcquireAuthorizationLeaseAsync` holds the internal lease through `BeginAsync`, all metadata writes, commit, and disposal. `BackupRestoreExecutionTests` covers invalidation-before-lease and lease-before-invalidation interleavings; focused coverage is `9 passed, 0 failed, 0 skipped`; default full Net10 is `1917 passed, 0 failed, 26 skipped`.
 
 Legacy references: `COMAuthentication::Authenticate` (`hmailserver/source/Server/COM/COMAuthentication.cpp:30-68`), `InterfaceBackup::StartRestore` (`InterfaceBackup.cpp:16-33`), and `BackupTask::DoWork` (`hmailserver/source/Server/Common/Application/BackupTask.cpp:27-40`). Legacy has no equivalent lease; the new authority is deliberate internal security hardening and `[ComVisible(false)]`. Installed COM contracts, direct activation, SQL schema, SMTP behavior, non-DB path, and production state are unchanged.
