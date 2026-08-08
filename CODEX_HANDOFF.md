@@ -2,6 +2,15 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-08 continuation: test-only code/test commit `387589ce1` adds disposable LocalDB acceptance for a recipient-stage restore failure. The test injects failure on the first distribution-list recipient insert and verifies filesystem rollback plus compensation of the created distribution list, alias, account, and domain through the real SQL stores. Focused restore coverage is `4 passed, 0 failed, 0 skipped`; default full Net10 is `1908 passed, 0 failed, 18 skipped`; SQL-enabled full Net10 is `1919 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures.
+
+Legacy parity anchors: `BackupExecuter::StartRestore`, `Collection<T,P>::XMLLoad`/`DeleteAll`, `DistributionList::XMLLoad`/`XMLLoadSubItems`, `DistributionListRecipients::PreSaveObject`/`GetCollectionName`, and persistent list/list-recipient `SaveObject` implementations. Legacy writes the list before recipients and does not compensate a later recipient failure. Current .NET anchors are `BackupRestoreMetadataWriter.RestoreDistributionListsAsync`/`RestoreDistributionListRecipientsAsync` and `MetadataBackupRestoreExecutor.RollbackAsync`, which compensate in reverse dependency order.
+
+Residual gap: this test fails before any recipient ID is generated, so real recipient-delete rollback remains unproven. Next slice: pass the first recipient insert through, fail the second, and assert all restored rows are removed. No production or machine state changed.
+
+
+## Current Authoritative Continuation
+
 Authoritative 2026-08-08 continuation: code/test commit `23d428569` hardens `435532ad0`. Real-reader `BackupManager.LoadBackup` now fails closed when no private snapshot can be created; `BackupArchiveBinding` hashes while copying; and duplicate restore dispatch retains the snapshot for the first queued task. Focused archive/restore/COM coverage is `30 passed, 0 failed, 0 skipped`; full Net10 is `1902 passed, 0 failed, 16 skipped`. The new regression is `BackupManagerComContractTests.DuplicateRestoreDispatch_DoesNotReleaseTheFirstTaskArchiveBinding`.
 
 No COM identity, direct activation/authentication boundary, production service/SQL/Data directory, registration, DCOM, IIS, SMTP trust, or live reconfiguration changed. Residual risk: raw sibling `DataBackup` identity and full non-DB restore remain open, and a snapshot retained by an unused COM object relies on finalization for cleanup. Next slice: wire raw/7z `DataBackup` staging into bound non-DB-only restore on disposable targets with rollback/cancellation evidence.
