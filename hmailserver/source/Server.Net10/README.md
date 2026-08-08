@@ -1,3 +1,11 @@
+## Current Completed Slice (2026-08-09, COMMANDABLE OFFLINE BENCHMARK GATE)
+
+Code/test commit `5d0e62192` adds `build/test-net10-benchmarks.ps1`, a bounded Release-mode gate for the existing deterministic offline IMAP SEARCH/SORT benchmark. It builds the benchmark project, runs 100,000 messages with seed `5700`, validates JSON/CSV/Markdown artifacts, verifies `GitCommit` against the pre-build HEAD, and fails closed on missing or inconsistent results.
+
+Legacy parity is anchored by `IMAPCommandSEARCH::ExecuteCommand`/`DoesMessageMatch_` (`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40`), `IMAPSearchParser::ParseCommand` (`hmailserver/source/Server/IMAP/IMAPSearchParser.cpp:118`), `IMAPSortParser::Parse` (`hmailserver/source/Server/IMAP/IMAPSortParser.cpp:24`), and `IMAPSort::Sort`/`CacheHeaderFields_` (`hmailserver/source/Server/IMAP/IMAPSort.cpp:32`). The current benchmark remains an offline synthetic harness and does not claim live SQL FTS, protocol, or C++ timing equivalence.
+
+The verified Release run produced p50 `6.695 ms`, p95 `7.261 ms`, p99 `7.322 ms`, `9091/9091` correct matches, and `ThresholdPassed=True`; artifacts were written to a unique local temporary directory and were not committed. Focused benchmark tests are `7 passed, 0 failed, 0 skipped`; default full Net10 is `1939 passed, 0 failed, 31 skipped`. Release remains RED for live SQL/IMAP and legacy baseline evidence, 1,000-connection and 24-hour soak gates, restore/migration/installer, SEC-18, and service/COM lifecycle acceptance. Next slice: run the benchmark against an approved disposable SQL/FTS and live protocol target.
+
 ## Current Completed Slice (2026-08-08, DB-ONLY DOMAIN CLEANUP WIRING)
 
 Code/test commit `a2b030d82` wires the transaction-scoped `DeleteAllDomainsForRestoreAsync` capability into DB-only restore. After archive-internal duplicate validation, the existing authorization lease and SQL transaction are acquired; the existing domain graph is cleared exactly once; and archive domains/accounts/aliases/distribution lists/recipients are inserted through the same transaction. The non-DB path still requires an empty store and does not call this cleanup.

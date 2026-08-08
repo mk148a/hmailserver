@@ -1,3 +1,11 @@
+## Current Next Slice (2026-08-09, DISPOSABLE SQL/FTS AND LIVE PROTOCOL BENCHMARK ACCEPTANCE)
+
+Code/test commit `5d0e62192` adds `build/test-net10-benchmarks.ps1`, a commandable Release-mode gate around the existing offline synthetic IMAP SEARCH/SORT benchmark. The gate fixes the scenario to 100,000 messages, seed `5700`, search term `needle`, and `DATE DESC, UID ASC`; it validates JSON/CSV/Markdown presence and consistency, correctness, threshold, timestamps, runtime metadata, and exact pre-build Git commit identity.
+
+Legacy anchors are `IMAPCommandSEARCH::ExecuteCommand`/`DoesMessageMatch_` (`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40`), `IMAPSearchParser::ParseCommand` (`hmailserver/source/Server/IMAP/IMAPSearchParser.cpp:118`), `IMAPSortParser::Parse` (`hmailserver/source/Server/IMAP/IMAPSortParser.cpp:24`), and `IMAPSort::Sort`/`CacheHeaderFields_` (`hmailserver/source/Server/IMAP/IMAPSort.cpp:32`). The accepted run is only an offline correctness/performance gate: p50 `6.695 ms`, p95 `7.261 ms`, p99 `7.322 ms`, `9091/9091`, threshold passed. It is not evidence of live SQL FTS, live IMAP behavior, C++ equivalence, 1,000 concurrent connections, delivery performance, or long-duration leak freedom.
+
+The next bounded slice is to add an approved disposable SQL/FTS and live protocol acceptance path with explicit thresholds and JSON/CSV/Markdown hardware/runtime/configuration metadata. Do not use production SQL/Data, do not claim C++ parity without a comparable legacy run, and do not broaden into installer, restore, SEC-18, or service cutover work. Release remains RED. Native restore containment also remains blocked on this host because the safe RootDirectory-relative rename path returns `ERROR_INVALID_PARAMETER`; the unsafe absolute-path fallback was intentionally not retained.
+
 ## Current Next Slice (2026-08-08, FULL-RESTORE PUBLIC-FOLDER ORDERING)
 
 Code/test commit `3e912982a` adds a native Windows source-handle-backed directory swap seam to `BackupRestoreDataDirectoryRuntime`. `WindowsBackupRestoreDataDirectoryMutation.MoveDirectory` opens the source directory with `CreateFileW`, performs a non-overwriting `FILE_RENAME_INFO` rename, and is used for both the target-to-rollback swap and rollback. Focused runtime coverage is `17 passed, 0 failed, 0 skipped`; default full Net10 is `1939 passed, 0 failed, 29 skipped`.
