@@ -80,6 +80,14 @@ public sealed class BackupManager : IInterfaceBackupManager
         var archiveBinding = BackupArchiveBinding.TryCreate(xmlFile);
         try
         {
+            if (archiveBinding is null
+                && _metadataReader is SevenZipBackupArchiveMetadataReader)
+            {
+                throw new FileNotFoundException(
+                    "The restore archive could not be bound to a private snapshot.",
+                    xmlFile);
+            }
+
             var archivePath = archiveBinding?.ArchivePath ?? Path.GetFullPath(xmlFile);
             var containsOptions = _metadataReader!.ReadContainsOptions(archivePath);
             return Backup.CreateAuthorized(
@@ -148,7 +156,6 @@ public sealed class BackupManager : IInterfaceBackupManager
         }
         if (result == BackupStartDispatchResult.AlreadyRunning)
         {
-            backup.CleanupArchiveBinding();
             OnBackupFailed("Backup or restore operation is already started");
         }
         else if (result == BackupStartDispatchResult.QueueUnavailable)

@@ -378,6 +378,36 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
+    public async Task DuplicateRestoreDispatch_DoesNotReleaseTheFirstTaskArchiveBinding()
+    {
+        var archivePath = Path.Combine(Path.GetTempPath(), $"hmailserver-binding-{Guid.NewGuid():N}.7z");
+        File.WriteAllText(archivePath, "archive");
+        var runtime = new DuplicateRestoreOperationRuntime();
+        var executor = new RecordingBackupRestoreExecutor();
+        var manager = BackupManagerComClass.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(2),
+            runtime,
+            restoreExecutor: executor);
+
+        try
+        {
+            var backup = manager.LoadBackup(archivePath);
+            backup.RestoreDomains = true;
+            backup.StartRestore();
+            backup.StartRestore();
+
+            Assert.IsNotNull(runtime.RestoreTask);
+            await runtime.RestoreTask!.ExecuteAsync(CancellationToken.None);
+            Assert.IsNotNull(executor.ArchivePath);
+            Assert.IsFalse(File.Exists(executor.ArchivePath));
+        }
+        finally
+        {
+            File.Delete(archivePath);
+        }
+    }
+
+    [TestMethod]
     public void AuthenticatedApplication_ExposesAuthorizedBackupManagerChild()
     {
         var reader = new RecordingBackupArchiveMetadataReader(2);
@@ -479,6 +509,31 @@ public sealed class BackupManagerComContractTests
         {
             RestoreTask = taskFactory();
             return BackupStartDispatchResult.Queued;
+        }
+
+        public void OnThreadStopped()
+        {
+        }
+    }
+
+    private sealed class DuplicateRestoreOperationRuntime : IBackupOperationRuntime
+    {
+        private int _restoreCount;
+
+        public BackupTaskRequest? RestoreTask { get; private set; }
+
+        public BackupStartDispatchResult TryStartBackup(Func<BackupTaskRequest> taskFactory) =>
+            BackupStartDispatchResult.Queued;
+
+        public BackupStartDispatchResult TryStartRestore(Func<BackupTaskRequest> taskFactory)
+        {
+            if (Interlocked.Increment(ref _restoreCount) == 1)
+            {
+                RestoreTask = taskFactory();
+                return BackupStartDispatchResult.Queued;
+            }
+
+            return BackupStartDispatchResult.AlreadyRunning;
         }
 
         public void OnThreadStopped()

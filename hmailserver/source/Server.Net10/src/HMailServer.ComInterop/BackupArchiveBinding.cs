@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace HMailServer.ComInterop;
 
 internal sealed class BackupArchiveBinding : IDisposable
@@ -41,6 +43,7 @@ internal sealed class BackupArchiveBinding : IDisposable
         try
         {
             Directory.CreateDirectory(snapshotDirectory);
+            BackupArchiveIdentity identity;
             using (var source = BackupArchiveIdentity.OpenReadLock(fullSourcePath))
             using (var snapshot = new FileStream(
                 snapshotPath,
@@ -50,12 +53,20 @@ internal sealed class BackupArchiveBinding : IDisposable
                 bufferSize: 64 * 1024,
                 options: FileOptions.SequentialScan))
             {
-                source.CopyTo(snapshot);
+                using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                var buffer = new byte[64 * 1024];
+                int bytesRead;
+                while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    snapshot.Write(buffer, 0, bytesRead);
+                    hash.AppendData(buffer, 0, bytesRead);
+                }
+
                 snapshot.Flush(flushToDisk: true);
+                identity = new BackupArchiveIdentity(
+                    Convert.ToHexString(hash.GetHashAndReset()));
             }
 
-            var identity = BackupArchiveIdentity.TryCapture(snapshotPath)
-                ?? throw new IOException("The archive snapshot could not be identified.");
             var snapshotReadLock = BackupArchiveIdentity.OpenReadLock(snapshotPath);
             return new(snapshotDirectory, snapshotPath, identity, snapshotReadLock);
         }
