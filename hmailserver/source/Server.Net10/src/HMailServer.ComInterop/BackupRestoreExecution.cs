@@ -172,7 +172,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             domains,
             requireEmptyStore: false,
             useSqlTransaction: true,
-            cancellationToken).ConfigureAwait(false);
+            authorizationAdmission: backup.EnsureAuthorizedForRestoreCommit,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask ExecuteNonDbDataRestoreAsync(
@@ -254,7 +255,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                     domains,
                     requireEmptyStore: true,
                     useSqlTransaction: false,
-                    ct),
+                    authorizationAdmission: null,
+                    cancellationToken: ct),
                 commitOutcomeMayBeAmbiguous: false)
             .ConfigureAwait(false);
     }
@@ -263,6 +265,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<RestoreDomainEntry> domains,
         bool requireEmptyStore,
         bool useSqlTransaction,
+        Action? authorizationAdmission,
         CancellationToken cancellationToken)
     {
         var existingDomains = await _domainStore
@@ -294,6 +297,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IBackupRestoreMetadataTransaction? metadataTransaction = null;
         try
         {
+            authorizationAdmission?.Invoke();
+
             if (useSqlTransaction)
             {
                 if (_metadataTransactionFactory is null && _requireSqlTransaction)

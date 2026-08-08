@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 
@@ -60,6 +61,54 @@ public sealed class BackupRestoreExecutionTests
         Assert.AreEqual(1, stores.Recipients.Items.Count);
         Assert.AreEqual(0, stores.Domains.Deleted.Count);
         Assert.AreEqual(0, stores.Accounts.Deleted.Count);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_RejectsDbOnlyRestoreAfterReadOnlyPreflightWhenAuthorizationIsInvalidated()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(ArchiveXml);
+        var stores = new RecordingStores();
+        var readStarted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseRead = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gatedDomainStore = new GatedDomainStore(stores.Domains, readStarted, releaseRead);
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var authorized = true;
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            gatedDomainStore,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            stores.Recipients,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(
+            2,
+            fixture.ArchivePath,
+            authorizationGuard: () => authorized);
+        backup.RestoreDomains = true;
+
+        var restoreTask = executor.ExecuteAsync(backup, CancellationToken.None).AsTask();
+        await readStarted.Task;
+        authorized = false;
+        releaseRead.SetResult(null);
+
+        var error = await Assert.ThrowsExactlyAsync<COMException>(
+            () => restoreTask);
+
+        Assert.AreEqual(unchecked((int)0x80070005), error.ErrorCode);
+        Assert.AreEqual(0, transactionFactory.BeginCount);
+        Assert.AreEqual(0, stores.Domains.Items.Count);
+        Assert.AreEqual(0, stores.Accounts.Items.Count);
+        Assert.AreEqual(0, stores.Aliases.Items.Count);
+        Assert.AreEqual(0, stores.DistributionLists.Items.Count);
+        Assert.AreEqual(0, stores.Recipients.Items.Count);
     }
 
     [TestMethod]
@@ -230,6 +279,55 @@ public sealed class BackupRestoreExecutionTests
                 DistributionLists,
                 Recipients);
         }
+    }
+
+    private sealed class GatedDomainStore(
+        IDomainAdministrationStore inner,
+        TaskCompletionSource<object?> readStarted,
+        TaskCompletionSource<object?> releaseRead) : IDomainAdministrationStore
+    {
+        public async ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
+            CancellationToken cancellationToken)
+        {
+            readStarted.TrySetResult(null);
+            await releaseRead.Task.WaitAsync(cancellationToken);
+            return await inner.GetDomainsAsync(cancellationToken);
+        }
+
+        public ValueTask<int> InsertDomainAsync(
+            DomainAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken) =>
+            inner.InsertDomainAsync(snapshot, cancellationToken);
+
+        public ValueTask<bool> DeleteDomainByIdAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            inner.DeleteDomainByIdAsync(domainId, cancellationToken);
+    }
+
+    private sealed class RecordingMetadataTransactionFactory(RecordingStores stores) : IBackupRestoreMetadataTransactionFactory
+    {
+        public int BeginCount { get; private set; }
+
+        public ValueTask<IBackupRestoreMetadataTransaction> BeginAsync(CancellationToken cancellationToken)
+        {
+            BeginCount++;
+            return ValueTask.FromResult<IBackupRestoreMetadataTransaction>(
+                new RecordingMetadataTransaction(stores));
+        }
+    }
+
+    private sealed class RecordingMetadataTransaction(RecordingStores stores) : IBackupRestoreMetadataTransaction
+    {
+        public IDomainAdministrationStore DomainStore => stores.Domains;
+        public IAccountAdministrationStore AccountStore => stores.Accounts;
+        public IAliasAdministrationStore AliasStore => stores.Aliases;
+        public IDistributionListAdministrationStore DistributionListStore => stores.DistributionLists;
+        public IDistributionListRecipientAdministrationStore RecipientStore => stores.Recipients;
+
+        public ValueTask CommitAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class RecordingDomainStore : IDomainAdministrationStore

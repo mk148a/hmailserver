@@ -155,6 +155,8 @@ public sealed class Backup : IInterfaceBackup
     internal void CleanupArchiveBinding() =>
         Interlocked.Exchange(ref _archiveBinding, null)?.Dispose();
 
+    internal void EnsureAuthorizedForRestoreCommit() => EnsureAuthorized();
+
     ~Backup() => CleanupArchiveBinding();
 
     private bool HasContainsFlag(int flag)
