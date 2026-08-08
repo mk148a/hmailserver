@@ -24,6 +24,9 @@ public sealed class SqlServerImapAuthAndMailboxTests
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountforwardenabled");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountenablesignature");
         StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "a.accountlastlogontime");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "CONVERT(int, a.accountadminlevel)");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "CONVERT(varchar(10), a.accountvacationexpiredate, 23)");
+        StringAssert.Contains(SqlServerImapAccountAuthenticator.AccountLookupSql, "CONVERT(varchar(30), a.accountlastlogontime, 126)");
     }
 
     [TestMethod]
