@@ -101,6 +101,35 @@ public sealed class BackupArchiveXmlSnapshotParserTests
         Assert.AreEqual(1, store.Inserted.Count);
         Assert.AreEqual("a@d.example", store.Inserted[0].Address);
         Assert.AreEqual("encrypted", store.InsertedPassword);
+        Assert.AreEqual(1, store.InsertedPasswordEncryption);
+    }
+
+    [TestMethod]
+    public async Task RestoreAccountsAsync_PropagatesArchivePasswordAndEncryptionType()
+    {
+        var account = new AccountAdministrationSnapshot(
+            Id: 0,
+            DomainId: 7,
+            Address: "a@d.example",
+            Active: true,
+            AdminLevel: 0);
+        var entries = new[]
+        {
+            new RestoreAccountEntry(account, "encrypted-archive-value", 1),
+            new RestoreAccountEntry(account with { Address = "b@d.example" }, "plain-archive-value", 0)
+        };
+        var store = new RecordingAccountStore();
+
+        await BackupRestoreMetadataWriter.RestoreAccountsAsync(
+            entries,
+            domainId: 7,
+            store,
+            () => default,
+            CancellationToken.None).ConfigureAwait(false);
+
+        Assert.AreEqual(2, store.InsertedCredentials.Count);
+        Assert.AreEqual(("encrypted-archive-value", 1), store.InsertedCredentials[0]);
+        Assert.AreEqual(("plain-archive-value", 0), store.InsertedCredentials[1]);
     }
 
     private sealed class RecordingAccountStore : IAccountAdministrationStore
@@ -108,6 +137,8 @@ public sealed class BackupArchiveXmlSnapshotParserTests
         public int InsertDomainId { get; private set; }
         public List<AccountAdministrationSnapshot> Inserted { get; } = new();
         public string? InsertedPassword { get; private set; }
+        public int InsertedPasswordEncryption { get; private set; }
+        public List<(string Password, int PasswordEncryption)> InsertedCredentials { get; } = new();
 
         public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(int domainId, CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(Array.Empty<AccountAdministrationSnapshot>());
@@ -120,6 +151,21 @@ public sealed class BackupArchiveXmlSnapshotParserTests
             InsertDomainId = domainId;
             Inserted.Add(account);
             InsertedPassword = password;
+            return ValueTask.FromResult(Inserted.Count);
+        }
+
+        public ValueTask<int> InsertAccountForRestoreAsync(
+            int domainId,
+            AccountAdministrationSnapshot account,
+            string password,
+            int passwordEncryption,
+            CancellationToken cancellationToken)
+        {
+            InsertDomainId = domainId;
+            Inserted.Add(account);
+            InsertedPassword = password;
+            InsertedPasswordEncryption = passwordEncryption;
+            InsertedCredentials.Add((password, passwordEncryption));
             return ValueTask.FromResult(Inserted.Count);
         }
     }

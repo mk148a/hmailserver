@@ -56,7 +56,12 @@ public static class BackupRestoreMetadataWriter
             {
                 foreach (var entry in accounts)
                 {
-                    var insertedId = await store.InsertAccountAsync(domainId, entry.Account, entry.Password, ct).ConfigureAwait(false);
+                    var insertedId = await store.InsertAccountForRestoreAsync(
+                        domainId,
+                        entry.Account,
+                        entry.Password,
+                        entry.PasswordEncryption,
+                        ct).ConfigureAwait(false);
                     onInserted?.Invoke(insertedId);
                     restored++;
                 }

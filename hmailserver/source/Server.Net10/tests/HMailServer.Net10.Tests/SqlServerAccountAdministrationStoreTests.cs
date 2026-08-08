@@ -155,6 +155,16 @@ public sealed class SqlServerAccountAdministrationStoreTests
     }
 
     [TestMethod]
+    public void InsertAccountSql_ProvidesRestorePasswordAndEncryptionParameters()
+    {
+        var sql = SqlServerAccountAdministrationStore.InsertAccountSql;
+
+        StringAssert.Contains(sql, "@Password");
+        StringAssert.Contains(sql, "@PasswordEncryption");
+        Assert.IsFalse(sql.Contains("ENCRYPT(", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void DeleteAccountSql_IsTransactionalAndCascadesLegacyAccountDependents()
     {
         var sql = SqlServerAccountAdministrationStore.DeleteAccountSql;

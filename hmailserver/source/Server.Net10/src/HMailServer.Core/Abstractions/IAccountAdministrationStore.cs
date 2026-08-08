@@ -17,6 +17,14 @@ public interface IAccountAdministrationStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Account insertion is not available in this store.");
 
+    ValueTask<int> InsertAccountForRestoreAsync(
+        int domainId,
+        AccountAdministrationSnapshot snapshot,
+        string password,
+        int passwordEncryption,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Archived account credential insertion is not available in this store.");
+
     ValueTask<bool> DeleteAccountAsync(
         int domainId,
         int accountId,

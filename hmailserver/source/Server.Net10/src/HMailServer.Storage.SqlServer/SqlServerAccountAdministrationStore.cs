@@ -310,10 +310,40 @@ ORDER BY accountaddress ASC;
         var deleted = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return deleted is not null && Convert.ToInt32(deleted, CultureInfo.InvariantCulture) != 0;
     }
-    public async ValueTask<int> InsertAccountAsync(
+    public ValueTask<int> InsertAccountAsync(
         int domainId,
         AccountAdministrationSnapshot account,
         string password,
+        CancellationToken cancellationToken)
+    {
+        return InsertAccountCoreAsync(
+            domainId,
+            account,
+            LegacyBlowfishPasswordCipher.Encrypt(password),
+            passwordEncryption: 1,
+            cancellationToken);
+    }
+
+    public ValueTask<int> InsertAccountForRestoreAsync(
+        int domainId,
+        AccountAdministrationSnapshot account,
+        string password,
+        int passwordEncryption,
+        CancellationToken cancellationToken)
+    {
+        return InsertAccountCoreAsync(
+            domainId,
+            account,
+            password,
+            passwordEncryption,
+            cancellationToken);
+    }
+
+    private async ValueTask<int> InsertAccountCoreAsync(
+        int domainId,
+        AccountAdministrationSnapshot account,
+        string storedPassword,
+        int passwordEncryption,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(account);
@@ -323,8 +353,7 @@ ORDER BY accountaddress ASC;
         var command = commandLease.Command;
         command.Parameters.Add("@DomainId", SqlDbType.Int).Value = domainId;
         command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = account.Address;
-        command.Parameters.Add("@Password", SqlDbType.NVarChar, 255).Value =
-            LegacyBlowfishPasswordCipher.Encrypt(password);
+        command.Parameters.Add("@Password", SqlDbType.NVarChar, 255).Value = storedPassword;
         command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = account.Active ? 1 : 0;
         command.Parameters.Add("@IsAD", SqlDbType.TinyInt).Value = account.IsActiveDirectoryAccount ? 1 : 0;
         command.Parameters.Add("@ADDomain", SqlDbType.NVarChar, 255).Value = account.ActiveDirectoryDomain;
@@ -336,7 +365,7 @@ ORDER BY accountaddress ASC;
         command.Parameters.Add("@VacationExpires", SqlDbType.TinyInt).Value = account.VacationMessageExpires ? 1 : 0;
         command.Parameters.Add("@VacationExpiresDate", SqlDbType.NVarChar, 255).Value = account.VacationMessageExpiresDate;
         command.Parameters.Add("@VacationAbortSpamFlagged", SqlDbType.TinyInt).Value = account.VacationMessageAbortSpamFlagged ? 1 : 0;
-        command.Parameters.Add("@PasswordEncryption", SqlDbType.TinyInt).Value = 1;
+        command.Parameters.Add("@PasswordEncryption", SqlDbType.TinyInt).Value = passwordEncryption;
         command.Parameters.Add("@AdminLevel", SqlDbType.TinyInt).Value = account.AdminLevel;
         command.Parameters.Add("@ForwardEnabled", SqlDbType.TinyInt).Value = account.ForwardEnabled ? 1 : 0;
         command.Parameters.Add("@ForwardAddress", SqlDbType.NVarChar, 255).Value = account.ForwardAddress;

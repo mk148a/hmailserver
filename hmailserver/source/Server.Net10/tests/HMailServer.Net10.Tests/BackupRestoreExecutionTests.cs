@@ -615,6 +615,7 @@ public sealed class BackupRestoreExecutionTests
     {
         public List<AccountAdministrationSnapshot> Items { get; } = [];
         public List<(int DomainId, int AccountId)> Deleted { get; } = [];
+        public List<(string Password, int PasswordEncryption)> RestoredCredentials { get; } = [];
 
         public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(int domainId, CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(Items.Where(item => item.DomainId == domainId).ToArray());
@@ -627,6 +628,17 @@ public sealed class BackupRestoreExecutionTests
             var id = Items.Count + 1;
             Items.Add(snapshot with { Id = id, DomainId = domainId });
             return ValueTask.FromResult(id);
+        }
+
+        public ValueTask<int> InsertAccountForRestoreAsync(
+            int domainId,
+            AccountAdministrationSnapshot snapshot,
+            string password,
+            int passwordEncryption,
+            CancellationToken cancellationToken)
+        {
+            RestoredCredentials.Add((password, passwordEncryption));
+            return InsertAccountAsync(domainId, snapshot, password, cancellationToken);
         }
 
         public ValueTask<bool> DeleteAccountAsync(int domainId, int accountId, CancellationToken cancellationToken)

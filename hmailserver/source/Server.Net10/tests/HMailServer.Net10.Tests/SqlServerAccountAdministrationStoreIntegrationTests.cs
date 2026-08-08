@@ -170,6 +170,55 @@ public sealed class SqlServerAccountAdministrationStoreIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreInsert_PreservesArchivePasswordAndEncryptionType()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_restore_account_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var store = new SqlServerAccountAdministrationStore(
+                new SqlServerConnectionFactory(testConnectionString));
+            var account = new AccountAdministrationSnapshot(
+                Id: 0,
+                DomainId: 100,
+                Address: "archive-encrypted@example.test",
+                Active: true,
+                AdminLevel: 0,
+                LastLogonTime: new DateTime(2026, 1, 1));
+
+            var encryptedId = await store.InsertAccountForRestoreAsync(
+                100,
+                account,
+                "archive-encrypted-value",
+                1,
+                CancellationToken.None).ConfigureAwait(false);
+            var plainId = await store.InsertAccountForRestoreAsync(
+                100,
+                account with { Address = "archive-plain@example.test" },
+                "archive-plain-value",
+                0,
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.AreEqual(
+                ("archive-encrypted-value", 1),
+                await ReadPasswordAndEncryptionAsync(testConnectionString, encryptedId).ConfigureAwait(false));
+            Assert.AreEqual(
+                ("archive-plain-value", 0),
+                await ReadPasswordAndEncryptionAsync(testConnectionString, plainId).ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string GetApprovedConnectionStringOrInconclusive()
     {
         var rawConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -333,6 +382,23 @@ public sealed class SqlServerAccountAdministrationStoreIntegrationTests
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         var value = await command.ExecuteScalarAsync().ConfigureAwait(false);
         return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
+    private static async Task<(string Password, int PasswordEncryption)> ReadPasswordAndEncryptionAsync(
+        string connectionString,
+        int accountId)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT accountpassword, accountpwencryption FROM dbo.hm_accounts WHERE accountid = @AccountID;",
+            connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+        Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
+        return (
+            reader.GetString(0),
+            Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture));
     }
 
     private static async Task<long> CountRowsAsync(
