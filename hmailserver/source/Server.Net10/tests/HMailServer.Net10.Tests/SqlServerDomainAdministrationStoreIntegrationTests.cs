@@ -181,6 +181,90 @@ public sealed class SqlServerDomainAdministrationStoreIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task TransactionDeleteAllDomainsForRestore_CommitRemovesPopulatedDomainGraph()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_domain_restore_commit_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            await using (var transaction = await new SqlServerBackupRestoreMetadataTransactionFactory(
+                new SqlServerConnectionFactory(testConnectionString)).BeginAsync(CancellationToken.None))
+            {
+                await transaction.DeleteAllDomainsForRestoreAsync(CancellationToken.None).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            foreach (var (table, column) in DomainGraphRows())
+            {
+                Assert.AreEqual(0, await CountRowsAsync(testConnectionString, table, column, 1).ConfigureAwait(false), table);
+            }
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task TransactionDeleteAllDomainsForRestore_DisposalRollsBackPopulatedDomainGraph()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_domain_restore_rollback_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            await using (var transaction = await new SqlServerBackupRestoreMetadataTransactionFactory(
+                new SqlServerConnectionFactory(testConnectionString)).BeginAsync(CancellationToken.None))
+            {
+                await transaction.DeleteAllDomainsForRestoreAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            foreach (var (table, column) in DomainGraphRows())
+            {
+                Assert.AreEqual(1, await CountRowsAsync(testConnectionString, table, column, 1).ConfigureAwait(false), table);
+            }
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    private static IReadOnlyList<(string Table, string Column)> DomainGraphRows() =>
+    [
+        ("hm_domains", "domainid"),
+        ("hm_accounts", "accountdomainid"),
+        ("hm_aliases", "aliasdomainid"),
+        ("hm_distributionlists", "distributionlistdomainid"),
+        ("hm_distributionlistsrecipients", "distributionlistrecipientlistid"),
+        ("hm_domain_aliases", "dadomainid"),
+        ("hm_rules", "ruleaccountid"),
+        ("hm_rule_criterias", "criteriaruleid"),
+        ("hm_rule_actions", "actionruleid"),
+        ("hm_messages", "messageaccountid"),
+        ("hm_messagerecipients", "recipientmessageid"),
+        ("hm_message_metadata", "metadata_accountid"),
+        ("hm_message_search_queue", "messageid"),
+        ("hm_message_search_documents", "messageid"),
+        ("hm_acl", "aclpermissionaccountid"),
+        ("hm_group_members", "memberaccountid"),
+        ("hm_imapfolders", "folderaccountid"),
+        ("hm_fetchaccounts_uids", "uidfaid"),
+        ("hm_fetchaccounts", "faaccountid")
+    ];
+
     private static string GetApprovedConnectionStringOrInconclusive()
     {
         var rawConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -323,6 +407,61 @@ public sealed class SqlServerDomainAdministrationStoreIntegrationTests
                 metadata_id bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
                 metadata_accountid int NOT NULL
             );
+            CREATE TABLE dbo.hm_message_search_queue (
+                messageid bigint NOT NULL PRIMARY KEY,
+                queuedutc datetime2(3) NOT NULL,
+                attempts int NOT NULL,
+                lastattemptutc datetime2(3) NULL,
+                nextattemptutc datetime2(3) NULL,
+                searchleaseowner nvarchar(128) NULL,
+                searchleaseexpiresutc datetime2(3) NULL,
+                lasterror nvarchar(1024) NULL
+            );
+            CREATE TABLE dbo.hm_message_search_documents (
+                messageid bigint NOT NULL PRIMARY KEY,
+                messageaccountid int NOT NULL,
+                messagefolderid int NOT NULL,
+                messageuid bigint NOT NULL,
+                messageinternaldateutc datetime2(3) NOT NULL,
+                messagesize bigint NOT NULL,
+                messageflags tinyint NOT NULL,
+                search_header nvarchar(max) NOT NULL,
+                search_body nvarchar(max) NOT NULL,
+                search_combined nvarchar(max) NOT NULL,
+                updatedutc datetime2(3) NOT NULL
+            );
+            CREATE TABLE dbo.hm_imapfolders (
+                folderid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                folderaccountid int NOT NULL,
+                folderparentid int NOT NULL,
+                foldername nvarchar(255) NOT NULL,
+                folderissubscribed tinyint NOT NULL,
+                foldercreationtime datetime NOT NULL,
+                foldercurrentuid bigint NOT NULL
+            );
+            CREATE TABLE dbo.hm_group_members (
+                memberid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                membergroupid bigint NOT NULL,
+                memberaccountid bigint NOT NULL
+            );
+            CREATE TABLE dbo.hm_acl (
+                aclid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                aclsharefolderid bigint NOT NULL,
+                aclpermissiontype tinyint NOT NULL,
+                aclpermissiongroupid bigint NOT NULL,
+                aclpermissionaccountid bigint NOT NULL,
+                aclvalue bigint NOT NULL
+            );
+            CREATE TABLE dbo.hm_fetchaccounts (
+                faid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                faaccountid int NOT NULL
+            );
+            CREATE TABLE dbo.hm_fetchaccounts_uids (
+                uidid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                uidfaid int NOT NULL,
+                uidvalue nvarchar(255) NOT NULL,
+                uidtime datetime NOT NULL
+            );
             INSERT INTO dbo.hm_domains
                 (domainname, domainactive, domainpostmaster, domainmaxmessagesize, domainuseplusaddressing,
                  domainplusaddressingchar, domainaddomain, domainmaxsize, domainmaxnoofaccounts,
@@ -343,6 +482,27 @@ public sealed class SqlServerDomainAdministrationStoreIntegrationTests
             INSERT INTO dbo.hm_messages (messageaccountid, messagesize) VALUES (1, 100);
             INSERT INTO dbo.hm_messagerecipients (recipientmessageid) VALUES (1);
             INSERT INTO dbo.hm_message_metadata (metadata_accountid) VALUES (1);
+            INSERT INTO dbo.hm_message_search_queue
+                (messageid, queuedutc, attempts)
+            VALUES
+                (1, SYSUTCDATETIME(), 0);
+            INSERT INTO dbo.hm_message_search_documents
+                (messageid, messageaccountid, messagefolderid, messageuid, messageinternaldateutc,
+                 messagesize, messageflags, search_header, search_body, search_combined, updatedutc)
+            VALUES
+                (1, 1, 1, 1, SYSUTCDATETIME(), 100, 0, N'', N'', N'', SYSUTCDATETIME());
+            INSERT INTO dbo.hm_imapfolders
+                (folderaccountid, folderparentid, foldername, folderissubscribed, foldercreationtime, foldercurrentuid)
+            VALUES
+                (1, -1, N'INBOX', 1, SYSUTCDATETIME(), 1);
+            INSERT INTO dbo.hm_group_members (membergroupid, memberaccountid) VALUES (1, 1);
+            INSERT INTO dbo.hm_acl
+                (aclsharefolderid, aclpermissiontype, aclpermissiongroupid, aclpermissionaccountid, aclvalue)
+            VALUES
+                (1, 0, 0, 1, 1);
+            INSERT INTO dbo.hm_fetchaccounts (faaccountid) VALUES (1);
+            INSERT INTO dbo.hm_fetchaccounts_uids (uidfaid, uidvalue, uidtime)
+            VALUES (1, N'uid-1', SYSUTCDATETIME());
             """;
 
         await using var connection = new SqlConnection(connectionString);

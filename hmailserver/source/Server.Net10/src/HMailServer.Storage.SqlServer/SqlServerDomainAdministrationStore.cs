@@ -146,6 +146,93 @@ ORDER BY domainname ASC;
         IF @Deleted = 1 COMMIT TRANSACTION; ELSE ROLLBACK TRANSACTION;
         SELECT @Deleted;
         """;
+
+    public const string DeleteAllDomainsForRestoreSql = """
+        SET XACT_ABORT ON;
+
+        DECLARE @DomainIds TABLE (domainid int NOT NULL PRIMARY KEY);
+        DECLARE @AccountIds TABLE (accountid int NOT NULL PRIMARY KEY);
+        DECLARE @DistributionListIds TABLE (distributionlistid int NOT NULL PRIMARY KEY);
+        DECLARE @RuleIds TABLE (ruleid int NOT NULL PRIMARY KEY);
+        DECLARE @MessageIds TABLE (messageid bigint NOT NULL PRIMARY KEY);
+        DECLARE @FetchAccountIds TABLE (faid int NOT NULL PRIMARY KEY);
+        DECLARE @FolderIds TABLE (folderid int NOT NULL PRIMARY KEY);
+
+        INSERT INTO @DomainIds (domainid)
+        SELECT domainid
+        FROM hm_domains WITH (UPDLOCK, HOLDLOCK);
+
+        INSERT INTO @AccountIds (accountid)
+        SELECT accountid
+        FROM hm_accounts
+        WHERE accountdomainid IN (SELECT domainid FROM @DomainIds);
+
+        INSERT INTO @DistributionListIds (distributionlistid)
+        SELECT distributionlistid
+        FROM hm_distributionlists
+        WHERE distributionlistdomainid IN (SELECT domainid FROM @DomainIds);
+
+        INSERT INTO @RuleIds (ruleid)
+        SELECT ruleid
+        FROM hm_rules
+        WHERE ruleaccountid IN (SELECT accountid FROM @AccountIds);
+
+        INSERT INTO @MessageIds (messageid)
+        SELECT messageid
+        FROM hm_messages
+        WHERE messageaccountid IN (SELECT accountid FROM @AccountIds);
+
+        INSERT INTO @FetchAccountIds (faid)
+        SELECT faid
+        FROM hm_fetchaccounts
+        WHERE faaccountid IN (SELECT accountid FROM @AccountIds);
+
+        INSERT INTO @FolderIds (folderid)
+        SELECT folderid
+        FROM hm_imapfolders
+        WHERE folderaccountid IN (SELECT accountid FROM @AccountIds);
+
+        DELETE FROM hm_domain_aliases
+        WHERE dadomainid IN (SELECT domainid FROM @DomainIds);
+        DELETE FROM hm_distributionlistsrecipients
+        WHERE distributionlistrecipientlistid IN (
+            SELECT distributionlistid FROM @DistributionListIds);
+        DELETE FROM hm_distributionlists
+        WHERE distributionlistid IN (SELECT distributionlistid FROM @DistributionListIds);
+        DELETE FROM hm_aliases
+        WHERE aliasdomainid IN (SELECT domainid FROM @DomainIds);
+        DELETE FROM hm_rule_actions
+        WHERE actionruleid IN (SELECT ruleid FROM @RuleIds);
+        DELETE FROM hm_rule_criterias
+        WHERE criteriaruleid IN (SELECT ruleid FROM @RuleIds);
+        DELETE FROM hm_rules
+        WHERE ruleid IN (SELECT ruleid FROM @RuleIds);
+        DELETE FROM hm_messagerecipients
+        WHERE recipientmessageid IN (SELECT messageid FROM @MessageIds);
+        DELETE FROM hm_message_metadata
+        WHERE metadata_accountid IN (SELECT accountid FROM @AccountIds);
+        DELETE FROM hm_message_search_queue
+        WHERE messageid IN (SELECT messageid FROM @MessageIds);
+        DELETE FROM hm_message_search_documents
+        WHERE messageid IN (SELECT messageid FROM @MessageIds);
+        DELETE FROM hm_messages
+        WHERE messageid IN (SELECT messageid FROM @MessageIds);
+        DELETE FROM hm_acl
+        WHERE aclsharefolderid IN (SELECT folderid FROM @FolderIds)
+           OR (aclpermissiontype = 0 AND aclpermissionaccountid IN (SELECT accountid FROM @AccountIds));
+        DELETE FROM hm_group_members
+        WHERE memberaccountid IN (SELECT accountid FROM @AccountIds);
+        DELETE FROM hm_imapfolders
+        WHERE folderid IN (SELECT folderid FROM @FolderIds);
+        DELETE FROM hm_fetchaccounts_uids
+        WHERE uidfaid IN (SELECT faid FROM @FetchAccountIds);
+        DELETE FROM hm_fetchaccounts
+        WHERE faid IN (SELECT faid FROM @FetchAccountIds);
+        DELETE FROM hm_accounts
+        WHERE accountid IN (SELECT accountid FROM @AccountIds);
+        DELETE FROM hm_domains
+        WHERE domainid IN (SELECT domainid FROM @DomainIds);
+        """;
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
@@ -161,6 +248,19 @@ ORDER BY domainname ASC;
         ArgumentNullException.ThrowIfNull(transactionContext);
         _connectionFactory = null!;
         _transactionContext = transactionContext;
+    }
+
+    internal async ValueTask DeleteAllDomainsForRestoreAsync(
+        CancellationToken cancellationToken)
+    {
+        var transactionContext = _transactionContext
+            ?? throw new InvalidOperationException(
+                "Transaction-scoped domain deletion for restore requires a transaction-scoped SQL store.");
+        await using var command = new SqlCommand(
+            DeleteAllDomainsForRestoreSql,
+            transactionContext.Connection,
+            transactionContext.Transaction);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private SqlServerConnectionFactory GetStandaloneConnectionFactory() =>

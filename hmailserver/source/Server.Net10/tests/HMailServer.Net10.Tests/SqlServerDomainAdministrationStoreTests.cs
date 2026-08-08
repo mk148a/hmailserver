@@ -144,4 +144,53 @@ public sealed class SqlServerDomainAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteAllDomainsForRestoreSql_IsSetBasedAndKeepsLegacyOwnerOrder()
+    {
+        var sql = SqlServerDomainAdministrationStore.DeleteAllDomainsForRestoreSql;
+
+        foreach (var table in new[]
+        {
+            "hm_domain_aliases",
+            "hm_distributionlistsrecipients",
+            "hm_distributionlists",
+            "hm_aliases",
+            "hm_rule_actions",
+            "hm_rule_criterias",
+            "hm_rules",
+            "hm_messagerecipients",
+            "hm_message_metadata",
+            "hm_message_search_queue",
+            "hm_message_search_documents",
+            "hm_messages",
+            "hm_acl",
+            "hm_group_members",
+            "hm_imapfolders",
+            "hm_fetchaccounts_uids",
+            "hm_fetchaccounts",
+            "hm_accounts",
+            "hm_domains"
+        })
+        {
+            StringAssert.Contains(sql, $"DELETE FROM {table}");
+        }
+
+        StringAssert.Contains(sql, "WITH (UPDLOCK, HOLDLOCK)");
+        StringAssert.Contains(sql, "@DomainIds");
+        StringAssert.Contains(sql, "@AccountIds");
+        StringAssert.Contains(sql, "@DistributionListIds");
+        StringAssert.Contains(sql, "@RuleIds");
+        StringAssert.Contains(sql, "@MessageIds");
+        StringAssert.Contains(sql, "@FetchAccountIds");
+        StringAssert.Contains(sql, "@FolderIds");
+        Assert.IsTrue(sql.IndexOf("DELETE FROM hm_acl", StringComparison.OrdinalIgnoreCase)
+            < sql.IndexOf("DELETE FROM hm_accounts", StringComparison.OrdinalIgnoreCase));
+        Assert.IsTrue(sql.IndexOf("DELETE FROM hm_imapfolders", StringComparison.OrdinalIgnoreCase)
+            < sql.IndexOf("DELETE FROM hm_accounts", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("BEGIN TRANSACTION", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("COMMIT TRANSACTION", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("ROLLBACK TRANSACTION", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+    }
 }
