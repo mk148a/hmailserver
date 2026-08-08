@@ -82,6 +82,25 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
             Assert.IsNotNull(defaultDomainResult.Account);
             Assert.AreEqual("default@example.test", defaultDomainResult.Account!.Address);
 
+            var aliasCalls = new List<(string Domain, string Username)>();
+            var aliasAuthenticator = new SqlServerImapAccountAuthenticator(
+                new SqlServerConnectionFactory(authConnectionString),
+                activeDirectoryPasswordValidator: new DelegateActiveDirectoryPasswordValidator(
+                    (domain, username, _) =>
+                    {
+                        aliasCalls.Add((domain, username));
+                        return true;
+                    }));
+            var aliasResult = await aliasAuthenticator
+                .AuthenticateAsync("ALIASUSER@ALIAS.TEST", "directory-secret", CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsTrue(aliasResult.Succeeded, aliasResult.FailureMessage);
+            Assert.IsNotNull(aliasResult.Account);
+            Assert.AreEqual("aliasuser@example.test", aliasResult.Account!.Address);
+            CollectionAssert.AreEqual(
+                new[] { (Domain: "CORP", Username: "aliasuser") },
+                aliasCalls);
+
             var inactiveDomain = await authenticator
                 .AuthenticateAsync("inactive@example.test", "directory-secret", CancellationToken.None)
                 .ConfigureAwait(false);
@@ -208,6 +227,11 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
                 domainname nvarchar(255) NOT NULL,
                 domainactive tinyint NOT NULL
             );
+            CREATE TABLE dbo.hm_domain_aliases (
+                daid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                dadomainid int NOT NULL,
+                daalias nvarchar(255) NOT NULL
+            );
             CREATE TABLE dbo.hm_accounts (
                 accountid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
                 accountdomainid int NOT NULL,
@@ -239,6 +263,8 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
             );
             INSERT INTO dbo.hm_domains (domainid, domainname, domainactive)
             VALUES (10, N'example.test', 1), (20, N'inactive.test', 0);
+            INSERT INTO dbo.hm_domain_aliases (dadomainid, daalias)
+            VALUES (10, N'alias.test');
             INSERT INTO dbo.hm_accounts
                 (accountdomainid, accountaddress, accountpassword, accountactive, accountisad, accountaddomain,
                  accountadusername, accountmaxsize, accountvacationmessageon, accountvacationmessage,
@@ -257,6 +283,8 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
                 (10, N'script@example.test', N'', 1, 1, N'CORP', N'script', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
                  N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
                 (10, N'default@example.test', N'', 1, 1, N'CORP', N'default', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
+                 N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
+                (10, N'aliasuser@example.test', N'', 1, 1, N'CORP', N'aliasuser', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
                  N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N'');
             """;
 
