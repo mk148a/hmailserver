@@ -6,6 +6,12 @@ Legacy anchors: `COMAuthentication::Authenticate` (`hmailserver/source/Server/CO
 
 Remaining risk and next slice: queued operations already past method-entry authorization are not revoked, and archive replacement can still race after the current integrity/containment revalidation. Next implement archive-owned path/content identity binding for `LoadBackup`/restore execution, with deletion/replacement failure tests. Then wire the existing raw/7z `DataBackup` staging runtime into non-DB-only `RestoreDomains|RestoreMessages` against disposable targets. Settings, public folders, message restore, shared SQL transactionality, live reinitialization, SEC-18, out-of-proc COM/DCOM, installer, AD/DC, and 24-hour lifecycle gates remain open.
 
+## Current Completed Slice (2026-08-08, ARCHIVE BINDING HARDENING FOLLOW-UP)
+
+Code/test commit `23d428569` closes the remaining correctness findings in the archive snapshot binding: real-reader `LoadBackup` rejects missing/non-file sources without a binding, the SHA-256 is calculated in the source-to-snapshot copy, and a second `StartRestore` on the same Backup object cannot clean the snapshot used by the first queued task. Focused coverage is `30 passed, 0 failed, 0 skipped`; full Net10 is `1902 passed, 0 failed, 16 skipped`.
+
+Legacy behavior remains documented in the preceding snapshot entry: C++ retains a path and reopens it, while this is deliberate security hardening. The installed COM identities and direct activation boundary are unchanged. Next slice: connect `BackupRestoreDataDirectoryRuntime` to bound non-DB-only `RestoreDomains|RestoreMessages`, with raw/7z, containment, cancellation, SQL failure, and rollback tests against disposable targets. Settings, public folders, message restore, shared SQL transactionality, live reinitialization, SEC-18, COM/DCOM, installer, AD/DC, and 24-hour lifecycle gates remain open.
+
 ## Current Completed Slice (2026-08-08, QUEUED RESTORE ARCHIVE SNAPSHOT BINDING)
 
 Code/test commit `435532ad0` binds a loaded archive to a private snapshot before metadata parsing. `BackupArchiveBinding` copies the source while denying concurrent write/delete sharing, holds the snapshot under read-sharing lock through queued execution, carries a SHA-256 identity, and cleans the snapshot after dispatch failure or task completion. A replacement or deletion of the caller path after `LoadBackup` cannot change the archive consumed by the current DB-only restore executor. Focused coverage is `38 passed, 0 failed, 0 skipped`; full Net10 is `1901 passed, 0 failed, 16 skipped`.

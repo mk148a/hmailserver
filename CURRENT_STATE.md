@@ -1,13 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-08T12:45:00Z
-- Local timestamp: 2026-08-08T15:45:00+03:00
+- UTC timestamp: 2026-08-08T13:20:00Z
+- Local timestamp: 2026-08-08T16:20:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `435532ad0`
-- Last successfully pushed commit: `689893ccb` (backup authorization revalidation documentation; current slice pending push)
-- Latest focused-test result: archive snapshot binding and restore/COM `38 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1901 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
+- Current HEAD: `23d428569`
+- Last successfully pushed commit: `1b548ce1c` (queued restore archive snapshot binding documentation; current hardening pending push)
+- Latest focused-test result: archive binding duplicate-dispatch hardening `30 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `1902 passed, 0 failed, 16 skipped` excluding two AV-locked EICAR cleanup methods
 - Opt-in tests passed/skipped/blocked: disposable Local SQL restore round-trip `1 passed, 0 skipped`; full run `16` opt-in/environment skips; native domain-controller LogonUser, installer, registry/COM, and live service evidence remain blocked
-- Current bounded slice: private archive snapshot binding for queued restore, code/test commit `435532ad0`
+- Current bounded slice: archive binding cleanup/fail-closed hardening, code/test commit `23d428569`
 - Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup
 - Open production blockers: raw sibling DataBackup identity/full restore ordering and transactionality, real out-of-proc COM/DCOM activation, SEC-18 cutover, InnoSetup build, migration/restore acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: isolated service/COM restore host and disposable end-to-end restore target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
