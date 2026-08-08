@@ -151,23 +151,27 @@ WHERE
             return masterAuthentication;
         }
 
-        await using var connection = await _connectionFactory
+        int targetAccountId;
+        string targetAddress;
+        await using (var connection = await _connectionFactory
             .OpenAsync(cancellationToken)
-            .ConfigureAwait(false);
-        await using var command = new SqlCommand(TargetLookupSql, connection);
-        command.Parameters.Add("@Username", SqlDbType.NVarChar, 255).Value = authorizationAddress;
-        await using var reader = await command
-            .ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken)
-            .ConfigureAwait(false);
-        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            .ConfigureAwait(false))
         {
-            return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
+            await using var command = new SqlCommand(TargetLookupSql, connection);
+            command.Parameters.Add("@Username", SqlDbType.NVarChar, 255).Value = authorizationAddress;
+            await using var reader = await command
+                .ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken)
+                .ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
+            }
+
+            targetAccountId = reader.GetInt32(0);
+            targetAddress = reader.GetString(1);
         }
 
-        var targetAccountId = reader.GetInt32(0);
-        var targetAddress = reader.GetString(1);
-        await reader.DisposeAsync().ConfigureAwait(false);
-        await UpdateLastLogonAsync(connection, targetAccountId, cancellationToken)
+        await UpdateLastLogonAsync(targetAccountId, cancellationToken)
             .ConfigureAwait(false);
         return ImapAuthenticationResult.Success(
             new ImapAuthenticatedAccount(targetAccountId, targetAddress));
@@ -183,56 +187,69 @@ WHERE
             return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
         }
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(AccountLookupSql, connection);
-        command.Parameters.Add("@Username", SqlDbType.NVarChar, 255).Value = username.Trim();
-
-        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken).ConfigureAwait(false);
-        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        int accountId;
+        string accountAddress;
+        string storedPassword;
+        LegacyPasswordEncryptionType encryptionType;
+        bool isActiveDirectoryAccount;
+        string activeDirectoryDomain;
+        string activeDirectoryUsername;
+        ScriptAccount account;
+        await using (var connection = await _connectionFactory
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
-            return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
-        }
+            await using var command = new SqlCommand(AccountLookupSql, connection);
+            command.Parameters.Add("@Username", SqlDbType.NVarChar, 255).Value = username.Trim();
 
-        var accountId = reader.GetInt32(0);
-        var accountAddress = reader.GetString(1);
-        var storedPassword = reader.GetString(2);
-        var encryptionType = (LegacyPasswordEncryptionType)reader.GetByte(3);
-        var isActiveDirectoryAccount = reader.GetInt32(4) != 0;
-        var activeDirectoryDomain = GetStringOrEmpty(reader, 7);
-        var activeDirectoryUsername = GetStringOrEmpty(reader, 8);
-        var account = new ScriptAccount(
-            accountId,
-            accountAddress,
-            Password: storedPassword,
-            Active: reader.GetInt32(5) != 0,
-            isActiveDirectoryAccount,
-            DomainId: reader.GetInt32(6),
-            ActiveDirectoryDomain: activeDirectoryDomain,
-            ActiveDirectoryUsername: activeDirectoryUsername,
-            MaxSizeMegabytes: reader.GetInt32(9),
-            PersonFirstName: GetStringOrEmpty(reader, 10),
-            PersonLastName: GetStringOrEmpty(reader, 11),
-            AdminLevel: reader.GetInt32(12),
-            VacationMessageIsOn: reader.GetInt32(13) != 0,
-            VacationMessage: GetStringOrEmpty(reader, 14),
-            VacationSubject: GetStringOrEmpty(reader, 15),
-            VacationMessageExpires: reader.GetInt32(16) != 0,
-            VacationMessageExpiresDate: GetStringOrEmpty(reader, 17),
-            VacationMessageAbortSpamFlagged: reader.GetInt32(18) != 0,
-            ForwardEnabled: reader.GetInt32(19) != 0,
-            ForwardAddress: GetStringOrEmpty(reader, 20),
-            ForwardKeepOriginal: reader.GetInt32(21) != 0,
-            ForwardAbortSpamFlagged: reader.GetInt32(22) != 0,
-            SignatureEnabled: reader.GetInt32(23) != 0,
-            SignaturePlainText: GetStringOrEmpty(reader, 24),
-            SignatureHtml: GetStringOrEmpty(reader, 25),
-            LastLogonTime: GetStringOrEmpty(reader, 26));
+            await using var reader = await command
+                .ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken)
+                .ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
+            }
+
+            accountId = reader.GetInt32(0);
+            accountAddress = reader.GetString(1);
+            storedPassword = reader.GetString(2);
+            encryptionType = (LegacyPasswordEncryptionType)reader.GetByte(3);
+            isActiveDirectoryAccount = reader.GetInt32(4) != 0;
+            activeDirectoryDomain = GetStringOrEmpty(reader, 7);
+            activeDirectoryUsername = GetStringOrEmpty(reader, 8);
+            account = new ScriptAccount(
+                accountId,
+                accountAddress,
+                Password: storedPassword,
+                Active: reader.GetInt32(5) != 0,
+                isActiveDirectoryAccount,
+                DomainId: reader.GetInt32(6),
+                ActiveDirectoryDomain: activeDirectoryDomain,
+                ActiveDirectoryUsername: activeDirectoryUsername,
+                MaxSizeMegabytes: reader.GetInt32(9),
+                PersonFirstName: GetStringOrEmpty(reader, 10),
+                PersonLastName: GetStringOrEmpty(reader, 11),
+                AdminLevel: reader.GetInt32(12),
+                VacationMessageIsOn: reader.GetInt32(13) != 0,
+                VacationMessage: GetStringOrEmpty(reader, 14),
+                VacationSubject: GetStringOrEmpty(reader, 15),
+                VacationMessageExpires: reader.GetInt32(16) != 0,
+                VacationMessageExpiresDate: GetStringOrEmpty(reader, 17),
+                VacationMessageAbortSpamFlagged: reader.GetInt32(18) != 0,
+                ForwardEnabled: reader.GetInt32(19) != 0,
+                ForwardAddress: GetStringOrEmpty(reader, 20),
+                ForwardKeepOriginal: reader.GetInt32(21) != 0,
+                ForwardAbortSpamFlagged: reader.GetInt32(22) != 0,
+                SignatureEnabled: reader.GetInt32(23) != 0,
+                SignaturePlainText: GetStringOrEmpty(reader, 24),
+                SignatureHtml: GetStringOrEmpty(reader, 25),
+                LastLogonTime: GetStringOrEmpty(reader, 26));
+        }
 
         var scriptDecision = RunPasswordValidationScript(account, password, cancellationToken);
         if (scriptDecision == ClientPasswordValidationScriptDecision.Accept)
         {
-            await reader.DisposeAsync().ConfigureAwait(false);
-            await UpdateLastLogonAsync(connection, accountId, cancellationToken).ConfigureAwait(false);
+            await UpdateLastLogonAsync(accountId, cancellationToken).ConfigureAwait(false);
             return ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(accountId, accountAddress));
         }
 
@@ -260,8 +277,7 @@ WHERE
                 return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
             }
 
-            await reader.DisposeAsync().ConfigureAwait(false);
-            await UpdateLastLogonAsync(connection, accountId, cancellationToken)
+            await UpdateLastLogonAsync(accountId, cancellationToken)
                 .ConfigureAwait(false);
             return ImapAuthenticationResult.Success(
                 new ImapAuthenticatedAccount(accountId, accountAddress));
@@ -272,8 +288,7 @@ WHERE
             return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
         }
 
-        await reader.DisposeAsync().ConfigureAwait(false);
-        await UpdateLastLogonAsync(connection, accountId, cancellationToken).ConfigureAwait(false);
+        await UpdateLastLogonAsync(accountId, cancellationToken).ConfigureAwait(false);
 
         return ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(accountId, accountAddress));
     }
@@ -312,6 +327,17 @@ WHERE
         await using var command = new SqlCommand(UpdateLastLogonSql, connection);
         command.Parameters.Add("@AccountId", SqlDbType.Int).Value = accountId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask UpdateLastLogonAsync(
+        int accountId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await UpdateLastLogonAsync(connection, accountId, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static string Canonicalize(string value, string defaultDomain)

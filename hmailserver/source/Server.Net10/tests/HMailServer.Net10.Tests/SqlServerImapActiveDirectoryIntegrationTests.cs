@@ -24,14 +24,24 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
         try
         {
             await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var authConnectionBuilder = new SqlConnectionStringBuilder(testConnectionString)
+            {
+                MaxPoolSize = 1,
+                ConnectTimeout = 2
+            };
+            var authConnectionString = authConnectionBuilder.ConnectionString;
             var calls = new List<(string Domain, string Username, string Password)>();
             var validator = new DelegateActiveDirectoryPasswordValidator((domain, username, password) =>
             {
                 calls.Add((domain, username, password));
+                using var probeConnection = new SqlConnection(authConnectionString);
+                probeConnection.Open();
+                using var probeCommand = new SqlCommand("SELECT 1;", probeConnection);
+                _ = probeCommand.ExecuteScalar();
                 return username == "ada";
             });
             var authenticator = new SqlServerImapAccountAuthenticator(
-                new SqlServerConnectionFactory(testConnectionString),
+                new SqlServerConnectionFactory(authConnectionString),
                 activeDirectoryPasswordValidator: validator);
 
             var valid = await authenticator
