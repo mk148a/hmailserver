@@ -2,6 +2,14 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-08 continuation: code/test commit `aae5137a9` adds `ApplicationAuthorizationAuthority`, which serializes authentication generation/state publication and DB-only restore admission. `Backup.AcquireAuthorizationLeaseAsync` holds the internal lease through `BeginAsync`, all metadata writes, commit, and disposal. `BackupRestoreExecutionTests` covers invalidation-before-lease and lease-before-invalidation interleavings; focused coverage is `9 passed, 0 failed, 0 skipped`; default full Net10 is `1917 passed, 0 failed, 26 skipped`.
+
+Legacy references: `COMAuthentication::Authenticate` (`hmailserver/source/Server/COM/COMAuthentication.cpp:30-68`), `InterfaceBackup::StartRestore` (`InterfaceBackup.cpp:16-33`), and `BackupTask::DoWork` (`hmailserver/source/Server/Common/Application/BackupTask.cpp:27-40`). Legacy has no equivalent lease; the new authority is deliberate internal security hardening and `[ComVisible(false)]`. Installed COM contracts, direct activation, SQL schema, SMTP behavior, non-DB path, and production state are unchanged.
+
+Remaining RED blockers: non-DB filesystem restore has no final lease, queue cancellation does not deterministically drain pending tasks, credential preservation, crash-safe SQL/NTFS recovery, full deletion/reinitialization, isolated service/COM, SEC-18, installer, AD/DC, and lifecycle evidence remain incomplete. Next slice: apply the authority lease before non-DB filesystem staging.
+
+## Current Authoritative Continuation
+
 Authoritative 2026-08-08 continuation: code/test commit `2e9728452` adds an internal non-COM authorization admission to DB-only restore after read-only preflight and immediately before `IBackupRestoreMetadataTransactionFactory.BeginAsync`. `BackupRestoreExecutionTests.ExecuteAsync_RejectsDbOnlyRestoreAfterReadOnlyPreflightWhenAuthorizationIsInvalidated` gates the domain read, invalidates the generation, and proves zero transaction begins and zero inserts. Focused coverage is `8 passed, 0 failed, 0 skipped`; default full Net10 is `1916 passed, 0 failed, 26 skipped`.
 
 Legacy references: `BackupExecuter::StartRestore` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-335`) and `Collection<T,P>::XMLLoad`/`DeleteAll` (`hmailserver/source/Server/Common/BO/Collection.h:85-135,203-215`) have no worker-time COM authorization check. Current symbols: `Backup.EnsureAuthorizedForRestoreCommit`, `MetadataBackupRestoreExecutor.ExecuteDbOnlyMetadataRestoreAsync`, and `RestoreMetadataAsync`. This is deliberate security hardening; COM identity, direct activation, SQL schema, SMTP behavior, non-DB path, and production state remain unchanged.

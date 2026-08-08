@@ -1005,3 +1005,10 @@ Code/test commit `2e9728452` adds a non-COM authorization admission after DB-onl
 Legacy `BackupExecuter::StartRestore` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-335`) and `Collection<T,P>::XMLLoad`/`DeleteAll` (`hmailserver/source/Server/Common/BO/Collection.h:85-135,203-215`) do not perform worker-time COM authorization checks. The new internal check is intentional security hardening and preserves installed COM identity, direct activation boundaries, SQL schema, SMTP behavior, non-DB path, and production state.
 
 Release remains RED: plain generation checking is not an atomic admission lease, non-DB filesystem staging lacks final admission, and queue shutdown cleanup, credential preservation, crash-safe restore, deletion/reinitialization, service/COM, SEC-18, installer, AD/DC, and lifecycle gates remain open. Next slice: atomic authorization admission at the SQL mutation boundary.
+## Current Completed Slice (2026-08-08, ATOMIC DB-ONLY RESTORE AUTHORIZATION LEASE)
+
+Code/test commit `aae5137a9` adds an internal per-`Application` authorization authority and lease for DB-only restore. Authentication invalidation and SQL restore admission share a linearization point; the lease remains held through transaction begin, metadata mutation, commit, and disposal. Focused coverage is `9 passed, 0 failed, 0 skipped`; default full Net10 is `1917 passed, 0 failed, 26 skipped`.
+
+Legacy `COMAuthentication::Authenticate` (`hmailserver/source/Server/COM/COMAuthentication.cpp:30-68`) and queued `BackupTask::DoWork` (`hmailserver/source/Server/Common/Application/BackupTask.cpp:27-40`) have no generation/lease. The new authority is `[ComVisible(false)]` security hardening; COM identity, direct activation, SQL schema, SMTP behavior, non-DB path, and production state are unchanged.
+
+Release remains RED: non-DB filesystem staging lacks the lease, queued shutdown cleanup is incomplete, and credential preservation, crash-safe restore, deletion/reinitialization, service/COM, SEC-18, installer, AD/DC, and lifecycle gates remain open. Next slice: apply the lease before non-DB filesystem staging.
