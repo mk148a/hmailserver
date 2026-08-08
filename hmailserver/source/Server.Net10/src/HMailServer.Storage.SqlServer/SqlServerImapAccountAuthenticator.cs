@@ -187,6 +187,16 @@ WHERE
             return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
         }
 
+        var lookupUsername = username.Trim();
+        if (!lookupUsername.Contains('@', StringComparison.Ordinal)
+            && _settingsAdministrationStore is not null)
+        {
+            var settings = await _settingsAdministrationStore
+                .GetSettingsAsync(cancellationToken)
+                .ConfigureAwait(false);
+            lookupUsername = Canonicalize(lookupUsername, settings.DefaultDomain);
+        }
+
         int accountId;
         string accountAddress;
         string storedPassword;
@@ -200,7 +210,7 @@ WHERE
             .ConfigureAwait(false))
         {
             await using var command = new SqlCommand(AccountLookupSql, connection);
-            command.Parameters.Add("@Username", SqlDbType.NVarChar, 255).Value = username.Trim();
+            command.Parameters.Add("@Username", SqlDbType.NVarChar, 255).Value = lookupUsername;
 
             await using var reader = await command
                 .ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken)

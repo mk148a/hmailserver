@@ -70,6 +70,18 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
                 new DateTime(2000, 1, 1),
                 await ReadLastLogonAsync(testConnectionString, 2).ConfigureAwait(false));
 
+            var defaultDomainAuthenticator = new SqlServerImapAccountAuthenticator(
+                new SqlServerConnectionFactory(authConnectionString),
+                settingsAdministrationStore: new FixedSettingsAdministrationStore("example.test"),
+                activeDirectoryPasswordValidator: new DelegateActiveDirectoryPasswordValidator(
+                    (_, username, _) => username == "default"));
+            var defaultDomainResult = await defaultDomainAuthenticator
+                .AuthenticateAsync("default", "directory-secret", CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsTrue(defaultDomainResult.Succeeded);
+            Assert.IsNotNull(defaultDomainResult.Account);
+            Assert.AreEqual("default@example.test", defaultDomainResult.Account!.Address);
+
             var inactiveDomain = await authenticator
                 .AuthenticateAsync("inactive@example.test", "directory-secret", CancellationToken.None)
                 .ConfigureAwait(false);
@@ -243,6 +255,8 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
                 (20, N'inactive@example.test', N'', 1, 1, N'CORP', N'inactive', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
                  N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
                 (10, N'script@example.test', N'', 1, 1, N'CORP', N'script', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
+                 N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
+                (10, N'default@example.test', N'', 1, 1, N'CORP', N'default', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
                  N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N'');
             """;
 
@@ -300,5 +314,24 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
             ClientPasswordValidationScriptRequest request,
             CancellationToken cancellationToken) =>
             _execute(request);
+    }
+
+    private sealed class FixedSettingsAdministrationStore : ISettingsAdministrationStore
+    {
+        private readonly SettingsAdministrationSnapshot _settings;
+
+        public FixedSettingsAdministrationStore(string defaultDomain)
+        {
+            _settings = new SettingsAdministrationSnapshot(
+                "host",
+                "smtp",
+                "pop3",
+                "imap",
+                DefaultDomain: defaultDomain);
+        }
+
+        public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(_settings);
     }
 }
