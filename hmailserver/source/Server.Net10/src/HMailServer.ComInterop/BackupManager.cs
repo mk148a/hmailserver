@@ -145,6 +145,7 @@ public sealed class BackupManager : IInterfaceBackupManager
         }
 
         SetStatus("Restore started");
+        var ownsRestoreDispatch = backup.TryClaimRestoreDispatch();
         BackupStartDispatchResult result;
         try
         {
@@ -155,20 +156,40 @@ public sealed class BackupManager : IInterfaceBackupManager
                     OnBackupFailed,
                     OnBackupCompleted,
                     OnThreadStopped,
-                    backup.CleanupArchiveBinding));
+                    () =>
+                    {
+                        backup.CleanupArchiveBinding();
+                        backup.ReleaseRestoreDispatchClaim();
+                    }));
         }
         catch
         {
-            backup.CleanupArchiveBinding();
+            if (ownsRestoreDispatch)
+            {
+                backup.ReleaseRestoreDispatchClaim();
+                backup.CleanupArchiveBinding();
+            }
+
             throw;
         }
         if (result == BackupStartDispatchResult.AlreadyRunning)
         {
+            if (ownsRestoreDispatch)
+            {
+                backup.ReleaseRestoreDispatchClaim();
+                backup.CleanupArchiveBinding();
+            }
+
             OnBackupFailed("Backup or restore operation is already started");
         }
         else if (result == BackupStartDispatchResult.QueueUnavailable)
         {
-            backup.CleanupArchiveBinding();
+            if (ownsRestoreDispatch)
+            {
+                backup.ReleaseRestoreDispatchClaim();
+                backup.CleanupArchiveBinding();
+            }
+
             OnBackupFailed("Restore operation failed because random work queue did not exist.");
         }
     }
@@ -183,6 +204,7 @@ public sealed class BackupManager : IInterfaceBackupManager
         finally
         {
             backup.CleanupArchiveBinding();
+            backup.ReleaseRestoreDispatchClaim();
         }
     }
 

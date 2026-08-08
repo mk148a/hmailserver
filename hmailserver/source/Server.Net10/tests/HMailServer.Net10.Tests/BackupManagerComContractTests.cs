@@ -443,6 +443,74 @@ public sealed class BackupManagerComContractTests
     }
 
     [TestMethod]
+    public async Task AlreadyRunningDistinctBackup_CleansRejectedArchiveBinding()
+    {
+        var firstArchivePath = Path.Combine(Path.GetTempPath(), $"hmailserver-binding-first-{Guid.NewGuid():N}.7z");
+        var secondArchivePath = Path.Combine(Path.GetTempPath(), $"hmailserver-binding-second-{Guid.NewGuid():N}.7z");
+        File.WriteAllText(firstArchivePath, "first archive");
+        File.WriteAllText(secondArchivePath, "second archive");
+        var runtime = new DuplicateRestoreOperationRuntime();
+        var manager = BackupManagerComClass.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(2),
+            runtime,
+            restoreExecutor: new RecordingBackupRestoreExecutor());
+
+        try
+        {
+            var firstBackup = (Backup)manager.LoadBackup(firstArchivePath);
+            var firstBoundArchivePath = firstBackup.ArchivePath;
+            firstBackup.RestoreDomains = true;
+            firstBackup.StartRestore();
+
+            var secondBackup = (Backup)manager.LoadBackup(secondArchivePath);
+            var secondBoundArchivePath = secondBackup.ArchivePath;
+            secondBackup.RestoreDomains = true;
+            secondBackup.StartRestore();
+
+            Assert.IsTrue(File.Exists(firstBoundArchivePath));
+            Assert.IsFalse(File.Exists(secondBoundArchivePath));
+
+            Assert.IsNotNull(runtime.RestoreTask);
+            await runtime.RestoreTask!.ExecuteAsync(CancellationToken.None);
+            Assert.IsFalse(File.Exists(firstBoundArchivePath));
+        }
+        finally
+        {
+            File.Delete(firstArchivePath);
+            File.Delete(secondArchivePath);
+        }
+    }
+
+    [TestMethod]
+    public void DeniedRestoreStart_CleansUnclaimedArchiveBinding()
+    {
+        var archivePath = Path.Combine(Path.GetTempPath(), $"hmailserver-denied-restore-{Guid.NewGuid():N}.7z");
+        File.WriteAllText(archivePath, "archive");
+        var authorized = true;
+        var manager = BackupManagerComClass.CreateAuthorized(
+            new RecordingBackupArchiveMetadataReader(2),
+            new RecordingBackupOperationRuntime(),
+            restoreExecutor: new RecordingBackupRestoreExecutor(),
+            authorizationGuard: () => authorized);
+
+        try
+        {
+            var backup = (Backup)manager.LoadBackup(archivePath);
+            var boundArchivePath = backup.ArchivePath;
+            authorized = false;
+
+            var error = Assert.ThrowsExactly<COMException>(backup.StartRestore);
+
+            Assert.AreEqual(EAccessDenied, error.ErrorCode);
+            Assert.IsFalse(File.Exists(boundArchivePath));
+        }
+        finally
+        {
+            File.Delete(archivePath);
+        }
+    }
+
+    [TestMethod]
     public void PendingRestoreAbort_CleansArchiveBindingBeforeExecution()
     {
         var archivePath = Path.Combine(Path.GetTempPath(), $"hmailserver-pending-restore-{Guid.NewGuid():N}.7z");

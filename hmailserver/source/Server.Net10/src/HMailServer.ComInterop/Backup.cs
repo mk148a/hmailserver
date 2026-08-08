@@ -64,6 +64,7 @@ public sealed class Backup : IInterfaceBackup
     private BackupArchiveBinding? _archiveBinding;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private int _restoreOptions;
+    private int _restoreDispatchClaimed;
 
     public Backup()
     {
@@ -116,7 +117,19 @@ public sealed class Backup : IInterfaceBackup
 
     public void StartRestore()
     {
-        EnsureAuthorized();
+        try
+        {
+            EnsureAuthorized();
+        }
+        catch
+        {
+            if (Volatile.Read(ref _restoreDispatchClaimed) == 0)
+            {
+                CleanupArchiveBinding();
+            }
+
+            throw;
+        }
         if (_startRestore is null)
         {
             throw new COMException(
@@ -159,6 +172,12 @@ public sealed class Backup : IInterfaceBackup
 
     internal void CleanupArchiveBinding() =>
         Interlocked.Exchange(ref _archiveBinding, null)?.Dispose();
+
+    internal bool TryClaimRestoreDispatch() =>
+        Interlocked.CompareExchange(ref _restoreDispatchClaimed, 1, 0) == 0;
+
+    internal void ReleaseRestoreDispatchClaim() =>
+        Volatile.Write(ref _restoreDispatchClaimed, 0);
 
     internal void EnsureAuthorizedForRestoreCommit() => EnsureAuthorized();
 
