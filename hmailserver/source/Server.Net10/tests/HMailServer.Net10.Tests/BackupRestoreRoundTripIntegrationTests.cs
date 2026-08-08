@@ -760,6 +760,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         public IDistributionListRecipientAdministrationStore RecipientStore => failSecondRecipient
             ? new FailingOnSecondRecipientAdministrationStore(inner.RecipientStore)
             : inner.RecipientStore;
+        public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
+            inner.DeleteAllDomainsForRestoreAsync(cancellationToken);
         public ValueTask CommitAsync(CancellationToken cancellationToken) => inner.CommitAsync(cancellationToken);
         public ValueTask DisposeAsync() => inner.DisposeAsync();
     }

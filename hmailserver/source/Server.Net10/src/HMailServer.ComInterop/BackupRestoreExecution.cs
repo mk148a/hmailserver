@@ -291,15 +291,14 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 "Non-DB-only restore requires an empty disposable domain store.");
         }
 
-        var existingDomainNames = existingDomains
-            .Select(static domain => domain.Name)
+        var existingDomainNames = domains
+            .Select(static domain => domain.Domain.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (domains.Any(domain =>
                 string.IsNullOrWhiteSpace(domain.Domain.Name)
-                || !existingDomainNames.Add(domain.Domain.Name)))
+                || !existingDomainNames.Remove(domain.Domain.Name)))
         {
-            throw new InvalidOperationException(
-                "The restore would overwrite an existing or duplicate domain.");
+            throw new InvalidOperationException("The restore contains a duplicate or empty domain name.");
         }
 
         var insertedDomainIds = new List<int>();
@@ -346,6 +345,13 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                     insertedDistributionListIds,
                     insertedRecipientIds)
                 : static () => default;
+
+            if (useSqlTransaction && metadataTransaction is not null)
+            {
+                await metadataTransaction
+                    .DeleteAllDomainsForRestoreAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
 
             await BackupRestoreTransactionBoundary.ExecuteAsync(
                 mutateAsync: async ct =>

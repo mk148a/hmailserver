@@ -65,6 +65,76 @@ public sealed class BackupRestoreExecutionTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_DbOnlyRestoreDeletesExistingDomainsInsideTransactionBeforeInsert()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(ArchiveXml);
+        var stores = new RecordingStores();
+        stores.Events = [];
+        stores.Domains.EventSink = eventName => stores.Events.Add(eventName);
+        stores.Domains.Items.Add(new DomainAdministrationSnapshot(Id: 77, Name: "restore.example", Active: true));
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            stores.Domains,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            stores.Recipients,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(2, fixture.ArchivePath);
+        backup.RestoreDomains = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        CollectionAssert.AreEqual(new[] { "delete-all-domains", "insert-domain" }, stores.Events);
+        Assert.AreEqual(1, stores.Domains.Items.Count);
+        Assert.AreEqual("restore.example", stores.Domains.Items[0].Name);
+        Assert.AreEqual(1, transactionFactory.BeginCount);
+        Assert.AreEqual(1, transactionFactory.DeleteCount);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_DbOnlyRestoreDeleteFailureStopsBeforeMetadataInsertAndDisposesTransaction()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(ArchiveXml);
+        var stores = new RecordingStores();
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores) { FailDelete = true };
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            stores.Domains,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            stores.Recipients,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(2, fixture.ArchivePath);
+        backup.RestoreDomains = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, transactionFactory.BeginCount);
+        Assert.AreEqual(1, transactionFactory.DeleteCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+        Assert.AreEqual(0, stores.Domains.Items.Count);
+        Assert.AreEqual(0, stores.Accounts.Items.Count);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_RejectsDbOnlyRestoreWhenAuthorizationIsInvalidatedBeforeLease()
     {
         if (!OperatingSystem.IsWindows())
@@ -541,6 +611,7 @@ public sealed class BackupRestoreExecutionTests
         public RecordingAliasStore Aliases { get; } = new();
         public RecordingDistributionListStore DistributionLists { get; } = new();
         public RecordingRecipientStore Recipients { get; } = new();
+        public List<string> Events { get; set; } = [];
         public bool FailAliasInsert { get; init; }
         public bool FailDistributionListInsertAfterFirst { get; init; }
 
@@ -634,12 +705,33 @@ public sealed class BackupRestoreExecutionTests
     private sealed class RecordingMetadataTransactionFactory(RecordingStores stores) : IBackupRestoreMetadataTransactionFactory
     {
         public int BeginCount { get; private set; }
+        public int DeleteCount { get; private set; }
+        public bool FailDelete { get; set; }
+        public RecordingMetadataTransaction? LastTransaction { get; private set; }
 
         public ValueTask<IBackupRestoreMetadataTransaction> BeginAsync(CancellationToken cancellationToken)
         {
             BeginCount++;
+            LastTransaction = new RecordingMetadataTransaction(stores, this);
             return ValueTask.FromResult<IBackupRestoreMetadataTransaction>(
-                new RecordingMetadataTransaction(stores));
+                LastTransaction);
+        }
+
+        public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken)
+        {
+            DeleteCount++;
+            if (FailDelete)
+            {
+                throw new InvalidOperationException("Injected domain cleanup failure.");
+            }
+
+            stores.Events.Add("delete-all-domains");
+            stores.Domains.Items.Clear();
+            stores.Accounts.Items.Clear();
+            stores.Aliases.Items.Clear();
+            stores.DistributionLists.Items.Clear();
+            stores.Recipients.Items.Clear();
+            return ValueTask.CompletedTask;
         }
     }
 
@@ -664,6 +756,9 @@ public sealed class BackupRestoreExecutionTests
         public IDistributionListAdministrationStore DistributionListStore => stores.DistributionLists;
         public IDistributionListRecipientAdministrationStore RecipientStore => stores.Recipients;
 
+        public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
         public async ValueTask CommitAsync(CancellationToken cancellationToken)
         {
             commitStarted.TrySetResult(null);
@@ -673,7 +768,9 @@ public sealed class BackupRestoreExecutionTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class RecordingMetadataTransaction(RecordingStores stores) : IBackupRestoreMetadataTransaction
+    private sealed class RecordingMetadataTransaction(
+        RecordingStores stores,
+        RecordingMetadataTransactionFactory factory) : IBackupRestoreMetadataTransaction
     {
         public IDomainAdministrationStore DomainStore => stores.Domains;
         public IAccountAdministrationStore AccountStore => stores.Accounts;
@@ -681,21 +778,32 @@ public sealed class BackupRestoreExecutionTests
         public IDistributionListAdministrationStore DistributionListStore => stores.DistributionLists;
         public IDistributionListRecipientAdministrationStore RecipientStore => stores.Recipients;
 
+        public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
+            factory.DeleteAllDomainsForRestoreAsync(cancellationToken);
+
         public ValueTask CommitAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
+        }
+
+        public bool Disposed { get; private set; }
     }
 
     private sealed class RecordingDomainStore : IDomainAdministrationStore
     {
         public List<DomainAdministrationSnapshot> Items { get; } = [];
         public List<int> Deleted { get; } = [];
+        public Action<string>? EventSink { get; set; }
 
         public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<DomainAdministrationSnapshot>>(Items.ToArray());
 
         public ValueTask<int> InsertDomainAsync(DomainAdministrationSnapshot snapshot, CancellationToken cancellationToken)
         {
+            EventSink?.Invoke("insert-domain");
             var id = Items.Count + 1;
             Items.Add(snapshot with { Id = id });
             return ValueTask.FromResult(id);
