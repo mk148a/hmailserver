@@ -1,13 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-08T05:36:23Z
-- Local timestamp: 2026-08-08T08:36:23+03:00
+- UTC timestamp: 2026-08-08T06:05:00Z
+- Local timestamp: 2026-08-08T09:05:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `4191ac3d1`
+- Current HEAD: `8cc67112b`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: release artifact gate `1 passed, 0 failed` (13 required artifacts in the Service output + runtimeconfig targets Microsoft.NETCore.App)
-- Latest full Net10 result: `1871 passed, 0 failed, 14 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
-- Current bounded slice: release artifact gate, code/test commit `4191ac3d1`; `ReleaseArtifactGateTests` asserts the Net10 Service output contains the required executables/DLLs (hMailServer.exe, ComInterop + comhost, Core/Protocols/Storage/Delivery/Security, 7za, BouncyCastle) and the runtimeconfig framework
+- Latest focused-test result: installer source gate `1 passed, 1 skipped, 0 failed`; the actual InnoSetup build is skipped because its explicit prerequisites are absent
+- Latest full Net10 result: `1872 passed, 0 failed, 15 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: honest InnoSetup installer source/build gate, code/test commit `8cc67112b`; source include/payload wiring is checked, while the real build remains opt-in and inconclusive without `ISCC.exe` and the legacy x64 release binary
 - Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup/restore/version-gate SQL evidence; restore writer + full XML parsers; SMTP/IMAP/POP3 accept-latency + 1k-concurrent acceptance; COM host activation feasibility; release artifact gate
-- Open (environment-gated): real out-of-proc COM activation (registration/DCOM), SEC-18, InnoSetup installer build, soak/leak release checks
+- Open (environment-gated): real out-of-proc COM activation (registration/DCOM), SEC-18, InnoSetup installer build, 24-hour soak/leak release checks
 - Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime; MIDL regeneration transient-flaky
-- Next three slices: InnoSetup installer build gate; then soak/leak release checks; then elevated SEC-18/COM activation evidence
+- Next three slices: commandable short soak/leak acceptance with explicit thresholds and artifacts; then elevated SEC-18/COM activation evidence; then execute the InnoSetup build on a host with the approved legacy toolchain and binary

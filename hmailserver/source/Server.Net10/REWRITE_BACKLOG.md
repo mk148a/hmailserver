@@ -1,5 +1,11 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-08, INSTALLER SOURCE GATE)
+
+Code/test commit `8cc67112b` adds `InstallerSourceGateTests`. The source gate checks the legacy InnoSetup `hMailServer64.iss` include graph and the x64 C++ payload wiring in `hmailserver/installation/section_files_64.iss`. The real `ISCC.exe` build is explicit opt-in and is not reported as passed when prerequisites are absent. Focused coverage is `1 passed, 1 skipped`; the full suite excluding the two AV-locked EICAR cleanup methods is `1872 passed, 0 failed, 15 skipped`. This host has no `ISCC.exe` and no `hmailserver/source/server/hMailServer/x64/Release/hMailServer.exe`, so the actual installer build remains environment-blocked. No installer, service, registry, DCOM, database, or production state changed.
+
+Next slice: commandable short soak/leak acceptance with explicit thresholds and JSON/CSV/Markdown artifacts. Keep the 24-hour leak run, installer build, COM/DCOM activation, SEC-18, and production replacement fenced.
+
 ## Current Completed Slice (2026-08-05, RELEASE ARTIFACT GATE)
 
 The release artifact gate is complete in code/test commit ``4191ac3d1``. ``ReleaseArtifactGateTests`` asserts the Net10 Service output (``HMailServer.Service\bin\Debug\net10.0-windows``) contains the 13 required release artifacts (``hMailServer.exe``, ``HMailServer.ComInterop.dll`` + ``.comhost.dll``, ``Core``/``Protocols``/``Storage.SqlServer``/``Delivery``/``Security``, ``7za.exe``, ``BouncyCastle``) and that ``hMailServer.runtimeconfig.json`` targets ``Microsoft.NETCore.App``. Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1871 passed, 0 failed, 14 opt-in skips`` (1885 total). Next slice: InnoSetup installer build gate.

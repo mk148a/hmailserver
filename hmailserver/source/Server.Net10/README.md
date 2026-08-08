@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Rewrite
 
+## Current Continuation (2026-08-08)
+
+Code/test commit `8cc67112b` adds an honest InnoSetup installer source gate. `InstallerSourceGateTests` verifies the legacy `hMailServer64.iss` include graph and the C++ x64 payload references; the actual `ISCC.exe` build is explicit opt-in and reports `Inconclusive` when the toolchain or legacy release binary is unavailable. Focused coverage is `1 passed, 1 skipped`; the full suite excluding the two AV-locked EICAR cleanup methods is `1872 passed, 0 failed, 15 skipped` (1887 total). The installer build itself remains environment-blocked because this host has neither `ISCC.exe` nor `hmailserver/source/server/hMailServer/x64/Release/hMailServer.exe`; no installer or production state was changed. Next slice: commandable short soak/leak acceptance with explicit thresholds and artifact output. Real out-of-proc COM activation, SEC-18, the actual InnoSetup build, 24-hour soak, and final release gates remain open.
+
 This folder contains the side-by-side .NET 10 implementation track. The legacy C++/ATL server remains the production implementation until this tree reaches protocol, data, and COM compatibility.
 
 ## Current Continuation (2026-08-05)

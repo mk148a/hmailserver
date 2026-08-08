@@ -2,6 +2,10 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-08 continuation: code/test commit `8cc67112b` adds an honest InnoSetup installer source gate. `InstallerSourceGateTests` validates the legacy `hMailServer64.iss` include graph and C++ x64 payload references; the actual `ISCC.exe` build is opt-in and returns `Inconclusive` when its toolchain or legacy release binary is absent. Focused coverage is `1 passed, 1 skipped`; the full suite excluding the two AV-locked EICAR cleanup methods is `1872 passed, 0 failed, 15 skipped` (1887 total). The actual installer build is environment-blocked on this host because `ISCC.exe` and `hmailserver/source/server/hMailServer/x64/Release/hMailServer.exe` are absent. No installer, service, registry, DCOM, database, or production state changed. Next action: commandable short soak/leak acceptance with explicit thresholds and JSON/CSV/Markdown artifacts; 24-hour soak, COM/DCOM activation, SEC-18, and installer build remain open.
+
+## Current Authoritative Continuation
+
 Authoritative 2026-08-05 continuation: code/test commit ``4191ac3d1`` adds the release artifact gate. ``ReleaseArtifactGateTests`` asserts the 13 required Net10 Service artifacts and the runtimeconfig framework. Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1871 passed, 0 failed, 14 opt-in skips`` (1885 total). Next action: InnoSetup installer build gate.
 
 Authoritative 2026-08-05 continuation: code/test commit ``c09fcf435`` adds COM host activation feasibility evidence. ``ComHostActivationIntegrationTests`` loads the comhost DLL, verifies the ``DllGetClassObject`` export, and records HRESULT ``0x80008093`` (host-runtime dependency) for in-process invocation; genuine out-of-proc activation requires registration/DCOM (fenced). Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1870 passed, 0 failed, 14 opt-in skips`` (1884 total). Next action: installer/release artifact gate.
