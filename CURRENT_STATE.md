@@ -2,9 +2,9 @@
 - UTC timestamp: 2026-08-08T15:57:28Z
 - Local timestamp: 2026-08-08T18:57:28+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: `PUSH-BLOCKED` because the configured GitHub remote was unreachable on the normal push attempt; do not retry until the next milestone
-- Current HEAD: `ba8390f2c` (code/test; documentation commit pending)
-- Last successfully pushed commit: `70dcb9621` (non-DB restore authorization lease documentation)
+- Push status: verified normal push; local HEAD equals upstream
+- Current HEAD: `277e2005c` (queue shutdown admission fence documentation)
+- Last successfully pushed commit: `277e2005c`
 - Latest focused-test result: queue shutdown/admission and restore cleanup `4 + 24 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: default `1922 passed, 0 failed, 26 skipped`
 - Opt-in tests passed/skipped/blocked: queue/restore contract focus `28 passed`; native AD/DC, installer, registry/COM, service/COM, and SQL/Data end-to-end remain blocked
