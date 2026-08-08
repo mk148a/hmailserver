@@ -1,3 +1,11 @@
+## Current Audit Note (2026-08-09, RELEASE-GATE AND ACCOUNT PASSWORD PARITY REVIEW)
+
+The latest parity/security/reality audit found no independently executable production slice on this host. Legacy `InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`) calls `PasswordValidator::ValidatePassword` on an attached account, covering empty-password rejection, plaintext/MD5/SHA256/Blowfish verification, AD validation, and `OnClientValidatePassword`. The .NET `Account.ValidatePassword` (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/AccountComClass.cs:417-426`) correctly remains fenced at `E_NOTIMPL` for SQL-backed snapshots: implementing it requires a fresh domain-scoped credential verifier, retained-object reauthentication, and reviewed COM-specific AD/script behavior. Do not reuse the protocol authenticator or add credential fields to the normal administration snapshot as a shortcut.
+
+The existing short offline soak is intentionally not promoted to a release gate because it repeats an in-process synthetic LINQ workload and reports host-wide TCP snapshots. The commandable 100,000-message offline SEARCH/SORT gate remains valid only as offline evidence. No production code or benchmark gate was changed by this audit.
+
+The authoritative next slice remains approved disposable SQL/Data restore acceptance. Required evidence is isolated populated-store commit/rollback, staged file cleanup, and failure containment. The approved integration connection and isolated-create opt-in are unset; production SQL/Data remains prohibited.
+
 ## Current Audit Note (2026-08-09, SUPERSEDED COM/WEBADMIN NEXT-SLICE ENTRIES)
 
 Parity review confirms that older entries naming `RuleCriteria.MatchValue`, `hm_status.php`, `hm_backup.php`, `background_servermessage_save.php`, and DistributionLists Add/Save as next work are superseded by current code/tests. `RuleCriteria.MatchValue` is implemented in `d95ce9c69`; the status and backup handlers use POST-only mutation inputs plus `hmailRequirePostCsrfToken()`; the server-message handler has the same boundary; and `DistributionLists.Add()` plus new-item `DistributionList.Save()` is implemented with owner-scoped defaults, six-field parameterized insert, identity readback, failure retention, and direct activation denial. Do not restart these slices.

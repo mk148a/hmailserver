@@ -2,6 +2,14 @@
 
 ## Current Audit Continuation
 
+2026-08-09 release-gate audit: no independently executable production-parity slice remains unblocked on this host. Legacy `InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`) uses the attached account and legacy `PasswordValidator` branches; the .NET `Account.ValidatePassword` (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/AccountComClass.cs:417-426`) must remain `E_NOTIMPL` for SQL-backed snapshots until a fresh credential verifier, retained-object reauthentication, and reviewed COM/AD/script boundary exist. The protocol authenticator must not be reused as a shortcut.
+
+The offline short-soak mode is diagnostic only and was not promoted to the release gate. The commandable 100,000-message SEARCH/SORT gate passes but does not prove live SQL FTS, protocol, C++ equivalence, concurrency, delivery, or 24-hour soak behavior. Latest full Net10 is `1942 passed, 0 failed, 31 skipped`; release status is RED.
+
+Next execution remains approved disposable SQL/Data restore acceptance. Required SQL/Data opt-in is unset, so no production code change was made in this audit. Protected dirty source and untracked SEC18/benchmark artifacts remain untouched.
+
+## Current Audit Continuation
+
 2026-08-09 parity audit: do not restart the stale backlog entries for `RuleCriteria.MatchValue`, `hm_status.php`, `hm_backup.php`, `background_servermessage_save.php`, or DistributionLists Add/Save. Current source/tests already cover those boundaries. The distribution-list legacy anchors are `InterfaceDistributionLists::Add`, `InterfaceDistributionList::Save`, `PersistentDistributionList::SaveObject`, `hm_distributionlists`, and the installed IDL; the .NET path preserves owner-scoped defaults, six-field identity insert, failed-draft retention, authenticated access, and direct activation denial. Remaining evidence is isolated live SQL/COM acceptance only.
 
 The next authoritative slice remains approved disposable SQL/Data restore acceptance. Current evidence shows the SQL service running but all required integration environment variables unset. Do not access production SQL/Data or stage unrelated SEC-18/benchmark artifacts. The project remains release RED.
