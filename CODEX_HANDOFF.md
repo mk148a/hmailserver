@@ -1,5 +1,11 @@
 # CODEX_HANDOFF.md
 
+## Current Audit Continuation
+
+2026-08-09 parity audit: do not restart the stale backlog entries for `RuleCriteria.MatchValue`, `hm_status.php`, `hm_backup.php`, `background_servermessage_save.php`, or DistributionLists Add/Save. Current source/tests already cover those boundaries. The distribution-list legacy anchors are `InterfaceDistributionLists::Add`, `InterfaceDistributionList::Save`, `PersistentDistributionList::SaveObject`, `hm_distributionlists`, and the installed IDL; the .NET path preserves owner-scoped defaults, six-field identity insert, failed-draft retention, authenticated access, and direct activation denial. Remaining evidence is isolated live SQL/COM acceptance only.
+
+The next authoritative slice remains approved disposable SQL/Data restore acceptance. Current evidence shows the SQL service running but all required integration environment variables unset. Do not access production SQL/Data or stage unrelated SEC-18/benchmark artifacts. The project remains release RED.
+
 ## Current Authoritative Continuation
 
 Authoritative 2026-08-09 continuation: code/test commit `2925427d2` adds internal `ReinitializationAdmission` in `hmailserver/source/Server.Net10/src/HMailServer.ComInterop/ReinitializationAdmission.cs` with three focused tests. The gate uses atomic single-flight admission, drops duplicate requests while an attempt is running, and releases the gate in `finally` after success or exception.

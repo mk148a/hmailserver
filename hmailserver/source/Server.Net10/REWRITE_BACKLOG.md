@@ -1,3 +1,9 @@
+## Current Audit Note (2026-08-09, SUPERSEDED COM/WEBADMIN NEXT-SLICE ENTRIES)
+
+Parity review confirms that older entries naming `RuleCriteria.MatchValue`, `hm_status.php`, `hm_backup.php`, `background_servermessage_save.php`, and DistributionLists Add/Save as next work are superseded by current code/tests. `RuleCriteria.MatchValue` is implemented in `d95ce9c69`; the status and backup handlers use POST-only mutation inputs plus `hmailRequirePostCsrfToken()`; the server-message handler has the same boundary; and `DistributionLists.Add()` plus new-item `DistributionList.Save()` is implemented with owner-scoped defaults, six-field parameterized insert, identity readback, failure retention, and direct activation denial. Do not restart these slices.
+
+The authoritative next slice remains approved disposable SQL/Data restore acceptance. Required evidence is isolated populated-store commit/rollback, staged file cleanup and failure containment. The SQL service is present on this host, but the approved integration connection and isolated-create opt-in are unset; production SQL/Data remains prohibited. Live SQL identity/rollback, out-of-process COM activation, and connection-loss reconciliation for DistributionLists remain evidence gaps, not reasons to alter the already implemented path.
+
 ## Current Next Slice (2026-08-09, APPROVED DISPOSABLE SQL/DATA RESTORE ACCEPTANCE)
 
 Code/test commit `2925427d2` adds only the internal `ReinitializationAdmission` gate: atomic single-flight admission, duplicate suppression while running, and release after success or exception. It is not wired to COM or service lifecycle. Legacy anchors are `Application::Reinitialize` (`hmailserver/source/Server/Common/Application/Application.cpp:437-450`), `Reinitializator::ReInitialize`/`WorkerFunc` (`hmailserver/source/Server/Common/Application/Reinitializator.cpp:35-57`), and `InterfaceApplication::Reinitialize` (`hmailserver/source/Server/COM/InterfaceApplication.cpp:91-108`).
