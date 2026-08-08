@@ -200,13 +200,6 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 "The archive is not a non-DB-only RestoreDomains|RestoreMessages backup.");
         }
 
-        if (string.Equals(evidence.DataFilesFormat, "Raw", StringComparison.OrdinalIgnoreCase)
-            && backup.ArchiveIdentity is not null)
-        {
-            throw new InvalidOperationException(
-                "Raw DataBackup restore requires a bound external sibling snapshot.");
-        }
-
         using var boundary = _dataDirectoryBoundaryFactory();
         var containment = BackupRestoreContainmentPreflight.Plan(
             evidence,
@@ -436,6 +429,18 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         {
             throw new InvalidDataException(
                 "The restore archive changed after it was loaded.");
+        }
+
+        if (backup.RawDataBackupIdentity is not null)
+        {
+            var rawDataBackupPath = Path.Combine(
+                Path.GetDirectoryName(backup.ArchivePath)!,
+                "DataBackup");
+            if (!backup.RawDataBackupIdentity.Matches(rawDataBackupPath))
+            {
+                throw new InvalidDataException(
+                    "The bound raw DataBackup snapshot changed after it was loaded.");
+            }
         }
     }
 }

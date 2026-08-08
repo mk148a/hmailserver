@@ -12,17 +12,21 @@ internal sealed class BackupArchiveBinding : IDisposable
         string snapshotDirectory,
         string archivePath,
         BackupArchiveIdentity identity,
-        FileStream snapshotReadLock)
+        FileStream snapshotReadLock,
+        BackupDataDirectoryIdentity? rawDataBackupIdentity)
     {
         _snapshotDirectory = snapshotDirectory;
         ArchivePath = archivePath;
         Identity = identity;
         _snapshotReadLock = snapshotReadLock;
+        RawDataBackupIdentity = rawDataBackupIdentity;
     }
 
     internal string ArchivePath { get; }
 
     internal BackupArchiveIdentity Identity { get; }
+
+    internal BackupDataDirectoryIdentity? RawDataBackupIdentity { get; }
 
     internal static BackupArchiveBinding? TryCreate(string sourcePath)
     {
@@ -67,8 +71,24 @@ internal sealed class BackupArchiveBinding : IDisposable
                     Convert.ToHexString(hash.GetHashAndReset()));
             }
 
+            var rawSourcePath = Path.Combine(
+                Path.GetDirectoryName(fullSourcePath)!,
+                "DataBackup");
+            BackupDataDirectoryIdentity? rawDataBackupIdentity = null;
+            if (Directory.Exists(rawSourcePath))
+            {
+                rawDataBackupIdentity = BackupDataDirectoryIdentity.CopyStableSnapshot(
+                    rawSourcePath,
+                    Path.Combine(snapshotDirectory, "DataBackup"));
+            }
+
             var snapshotReadLock = BackupArchiveIdentity.OpenReadLock(snapshotPath);
-            return new(snapshotDirectory, snapshotPath, identity, snapshotReadLock);
+            return new(
+                snapshotDirectory,
+                snapshotPath,
+                identity,
+                snapshotReadLock,
+                rawDataBackupIdentity);
         }
         catch
         {

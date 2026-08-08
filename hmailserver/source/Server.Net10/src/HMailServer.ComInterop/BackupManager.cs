@@ -96,7 +96,8 @@ public sealed class BackupManager : IInterfaceBackupManager
                 StartRestore,
                 _authorizationGuard,
                 archiveBinding?.Identity,
-                archiveBinding);
+                archiveBinding,
+                archiveBinding?.RawDataBackupIdentity);
         }
         catch
         {

@@ -141,7 +141,14 @@ public sealed class BackupRestoreExecutionTests
         using var fixture = await ArchiveFixture.CreateNonDbAsync(compressed: false);
         var stores = new RecordingStores();
         var executor = stores.CreateExecutor(fixture.DataDirectory);
-        var backup = Backup.CreateAuthorized(6, fixture.ArchivePath);
+        using var binding = BackupArchiveBinding.TryCreate(fixture.ArchivePath);
+        Assert.IsNotNull(binding);
+        var backup = Backup.CreateAuthorized(
+            6,
+            binding.ArchivePath,
+            archiveIdentity: binding.Identity,
+            archiveBinding: binding,
+            rawDataBackupIdentity: binding.RawDataBackupIdentity);
         backup.RestoreDomains = true;
         backup.RestoreMessages = true;
 

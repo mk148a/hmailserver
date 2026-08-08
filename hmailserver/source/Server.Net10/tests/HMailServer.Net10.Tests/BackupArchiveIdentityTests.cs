@@ -71,6 +71,47 @@ public sealed class BackupArchiveIdentityTests
     }
 
     [TestMethod]
+    public void Binding_SnapshotsAndHashesTheRawDataBackupSibling()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "hmailserver-archive-raw-binding-" + Guid.NewGuid().ToString("N"));
+        var archivePath = Path.Combine(root, "backup.7z");
+        var rawPath = Path.Combine(root, "DataBackup");
+        Directory.CreateDirectory(rawPath);
+        File.WriteAllText(archivePath, "archive");
+        File.WriteAllText(Path.Combine(rawPath, "message.eml"), "first");
+        BackupArchiveBinding? binding = null;
+        try
+        {
+            binding = BackupArchiveBinding.TryCreate(archivePath);
+
+            Assert.IsNotNull(binding);
+            Assert.IsNotNull(binding.RawDataBackupIdentity);
+            var snapshotRawPath = Path.Combine(
+                Path.GetDirectoryName(binding.ArchivePath)!,
+                "DataBackup",
+                "message.eml");
+            Assert.AreEqual("first", File.ReadAllText(snapshotRawPath));
+            Assert.IsTrue(binding.RawDataBackupIdentity.Matches(Path.GetDirectoryName(snapshotRawPath)!));
+
+            File.WriteAllText(Path.Combine(rawPath, "message.eml"), "replacement");
+            Assert.AreEqual("first", File.ReadAllText(snapshotRawPath));
+
+            File.WriteAllText(snapshotRawPath, "tampered");
+            Assert.IsFalse(binding.RawDataBackupIdentity.Matches(Path.GetDirectoryName(snapshotRawPath)!));
+        }
+        finally
+        {
+            binding?.Dispose();
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void Manager_LoadBackupReadsTheSnapshotBeforeMetadataParsing()
     {
         var archivePath = CreateArchive("first");

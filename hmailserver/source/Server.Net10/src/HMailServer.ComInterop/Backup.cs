@@ -74,7 +74,8 @@ public sealed class Backup : IInterfaceBackup
         Action<Backup>? startRestore,
         Func<bool>? authorizationGuard,
         BackupArchiveIdentity? archiveIdentity,
-        BackupArchiveBinding? archiveBinding)
+        BackupArchiveBinding? archiveBinding,
+        BackupDataDirectoryIdentity? rawDataBackupIdentity)
     {
         _authorized = true;
         _authorizationGuard = authorizationGuard;
@@ -83,6 +84,7 @@ public sealed class Backup : IInterfaceBackup
         _startRestore = startRestore;
         _archiveIdentity = archiveIdentity;
         _archiveBinding = archiveBinding;
+        RawDataBackupIdentity = rawDataBackupIdentity;
     }
 
     public bool ContainsSettings => HasContainsFlag(SettingsFlag);
@@ -128,8 +130,16 @@ public sealed class Backup : IInterfaceBackup
         Action<Backup>? startRestore = null,
         Func<bool>? authorizationGuard = null,
         BackupArchiveIdentity? archiveIdentity = null,
-        BackupArchiveBinding? archiveBinding = null) =>
-        new(containsOptions, archivePath, startRestore, authorizationGuard, archiveIdentity, archiveBinding);
+        BackupArchiveBinding? archiveBinding = null,
+        BackupDataDirectoryIdentity? rawDataBackupIdentity = null) =>
+        new(
+            containsOptions,
+            archivePath,
+            startRestore,
+            authorizationGuard,
+            archiveIdentity,
+            archiveBinding,
+            rawDataBackupIdentity);
 
     internal string ArchivePath => _archiveBinding?.ArchivePath ?? _archivePath
         ?? throw new COMException(
@@ -139,6 +149,8 @@ public sealed class Backup : IInterfaceBackup
     internal int RestoreOptions => _restoreOptions;
 
     internal BackupArchiveIdentity? ArchiveIdentity => _archiveBinding?.Identity ?? _archiveIdentity;
+
+    internal BackupDataDirectoryIdentity? RawDataBackupIdentity { get; }
 
     internal void CleanupArchiveBinding() =>
         Interlocked.Exchange(ref _archiveBinding, null)?.Dispose();
