@@ -44,11 +44,20 @@ WHERE aliasdomainid = @OwningDomainID
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerAliasAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    internal SqlServerAliasAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
     }
 
     public async ValueTask<IReadOnlyList<AliasAdministrationSnapshot>> GetAliasesAsync(
@@ -83,8 +92,10 @@ WHERE aliasdomainid = @OwningDomainID
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(alias);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertAliasSql, connection);
+        await using var commandLease = await SqlServerCommandLease
+            .OpenAsync(_connectionFactory, _transactionContext, InsertAliasSql, cancellationToken)
+            .ConfigureAwait(false);
+        var command = commandLease.Command;
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = owningDomainId;
         command.Parameters.Add("@Name", SqlDbType.NVarChar, 255).Value = alias.Name;
         command.Parameters.Add("@Value", SqlDbType.NVarChar, 255).Value = alias.Value;

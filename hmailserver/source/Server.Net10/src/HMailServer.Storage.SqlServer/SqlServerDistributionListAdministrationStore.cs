@@ -53,11 +53,20 @@ WHERE distributionlistdomainid = @DomainID
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerDistributionListAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    internal SqlServerDistributionListAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
     }
 
     public async ValueTask<IReadOnlyList<DistributionListAdministrationSnapshot>> GetDistributionListsAsync(
@@ -94,8 +103,10 @@ WHERE distributionlistdomainid = @DomainID
     {
         ArgumentNullException.ThrowIfNull(distributionList);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertDistributionListSql, connection);
+        await using var commandLease = await SqlServerCommandLease
+            .OpenAsync(_connectionFactory, _transactionContext, InsertDistributionListSql, cancellationToken)
+            .ConfigureAwait(false);
+        var command = commandLease.Command;
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = distributionList.DomainId;
         command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = distributionList.Active ? 1 : 0;
         command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = distributionList.Address;

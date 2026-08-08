@@ -66,7 +66,10 @@ BackupManagerRuntimeHost.Configure(
                 ruleCriteriaStore: host.Services.GetRequiredService<IRuleCriteriaAdministrationStore>(),
                 ruleActionStore: host.Services.GetRequiredService<IRuleActionAdministrationStore>(),
                 folderStore: host.Services.GetRequiredService<IImapFolderAdministrationStore>(),
-                messageStore: host.Services.GetRequiredService<IMessageAdministrationStore>())
+                messageStore: host.Services.GetRequiredService<IMessageAdministrationStore>(),
+                metadataTransactionFactory: host.Services
+                    .GetRequiredService<IBackupRestoreMetadataTransactionFactory>(),
+                requireSqlTransaction: true)
                 .GetPayloadAsync,
             dataDirectory: dataDirectory)
             .CreateAsync));

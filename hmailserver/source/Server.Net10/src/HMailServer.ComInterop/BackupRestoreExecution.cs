@@ -42,6 +42,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
     private readonly SevenZipBackupArchiveMetadataReader _metadataReader;
     private readonly BackupRestoreDataDirectoryRuntime _dataDirectoryRuntime;
     private readonly Func<BackupRestoreDataDirectoryBoundary> _dataDirectoryBoundaryFactory;
+    private readonly IBackupRestoreMetadataTransactionFactory? _metadataTransactionFactory;
+    private readonly bool _requireSqlTransaction;
 
     internal MetadataBackupRestoreExecutor(
         string sevenZipExecutablePath,
@@ -52,7 +54,9 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IDistributionListAdministrationStore distributionListStore,
         IDistributionListRecipientAdministrationStore recipientStore,
         BackupRestoreDataDirectoryRuntime? dataDirectoryRuntime = null,
-        Func<BackupRestoreDataDirectoryBoundary>? dataDirectoryBoundaryFactory = null)
+        Func<BackupRestoreDataDirectoryBoundary>? dataDirectoryBoundaryFactory = null,
+        IBackupRestoreMetadataTransactionFactory? metadataTransactionFactory = null,
+        bool requireSqlTransaction = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
@@ -75,6 +79,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             ?? (() => new BackupRestoreDataDirectoryBoundary(
                 _dataDirectory,
                 Path.Combine(Path.GetTempPath(), $"hmailserver-restore-{Guid.NewGuid():N}.rollback")));
+        _metadataTransactionFactory = metadataTransactionFactory;
+        _requireSqlTransaction = requireSqlTransaction;
     }
 
     public async ValueTask ExecuteAsync(Backup backup, CancellationToken cancellationToken)
@@ -162,7 +168,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             throw new InvalidDataException("The backup contains no domain metadata to restore.");
         }
 
-        await RestoreMetadataAsync(domains, requireEmptyStore: false, cancellationToken).ConfigureAwait(false);
+        await RestoreMetadataAsync(
+            domains,
+            requireEmptyStore: false,
+            useSqlTransaction: true,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask ExecuteNonDbDataRestoreAsync(
@@ -240,13 +250,18 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 evidence,
                 revalidatedContainment,
                 cancellationToken,
-                commitAsync: ct => RestoreMetadataAsync(domains, requireEmptyStore: true, ct))
+                commitAsync: ct => RestoreMetadataAsync(
+                    domains,
+                    requireEmptyStore: true,
+                    useSqlTransaction: false,
+                    ct))
             .ConfigureAwait(false);
     }
 
     private async ValueTask RestoreMetadataAsync(
         IReadOnlyList<RestoreDomainEntry> domains,
         bool requireEmptyStore,
+        bool useSqlTransaction,
         CancellationToken cancellationToken)
     {
         var existingDomains = await _domainStore
@@ -275,87 +290,126 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var insertedDistributionListIds = new List<(int DomainId, int ListId)>();
         var insertedRecipientIds = new List<(int ListId, int RecipientId, string Address)>();
 
-        await BackupRestoreTransactionBoundary.ExecuteAsync(
-            mutateAsync: async ct =>
+        IBackupRestoreMetadataTransaction? metadataTransaction = null;
+        try
+        {
+            if (useSqlTransaction)
             {
-                await BackupRestoreMetadataWriter.RestoreDomainsAsync(
-                    domains.Select(static entry => entry.Domain).ToArray(),
-                    _domainStore,
-                    static () => default,
-                    ct,
-                    insertedDomainIds.Add).ConfigureAwait(false);
-
-                if (insertedDomainIds.Count != domains.Count)
+                if (_metadataTransactionFactory is null && _requireSqlTransaction)
                 {
-                    throw new InvalidOperationException("The domain restore did not return all inserted IDs.");
+                    throw new InvalidOperationException(
+                        "DB-only restore requires a SQL metadata transaction factory.");
                 }
 
-                for (var index = 0; index < domains.Count; index++)
+                if (_metadataTransactionFactory is not null)
                 {
-                    var domainEntry = domains[index];
-                    var domainId = insertedDomainIds[index];
-                    var accounts = domainEntry.Accounts
-                        .Select(account => account with
-                        {
-                            Account = account.Account with { DomainId = domainId }
-                        })
-                        .ToArray();
-                    var aliases = domainEntry.Aliases
-                        .Select(alias => alias with { DomainId = domainId })
-                        .ToArray();
+                    metadataTransaction = await _metadataTransactionFactory
+                        .BeginAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
+            }
 
-                    await BackupRestoreMetadataWriter.RestoreAccountsAsync(
-                        accounts,
-                        domainId,
-                        _accountStore,
+            var domainStore = metadataTransaction?.DomainStore ?? _domainStore;
+            var accountStore = metadataTransaction?.AccountStore ?? _accountStore;
+            var aliasStore = metadataTransaction?.AliasStore ?? _aliasStore;
+            var distributionListStore = metadataTransaction?.DistributionListStore ?? _distributionListStore;
+            var recipientStore = metadataTransaction?.RecipientStore ?? _recipientStore;
+            Func<CancellationToken, ValueTask> commitAsync = metadataTransaction is null
+                ? static _ => default
+                : metadataTransaction.CommitAsync;
+            Func<ValueTask> rollbackAsync = metadataTransaction is null
+                ? () => RollbackAsync(
+                    insertedDomainIds,
+                    insertedAccountIds,
+                    insertedAliasIds,
+                    insertedDistributionListIds,
+                    insertedRecipientIds)
+                : static () => default;
+
+            await BackupRestoreTransactionBoundary.ExecuteAsync(
+                mutateAsync: async ct =>
+                {
+                    await BackupRestoreMetadataWriter.RestoreDomainsAsync(
+                        domains.Select(static entry => entry.Domain).ToArray(),
+                        domainStore,
                         static () => default,
                         ct,
-                        accountId => insertedAccountIds.Add((domainId, accountId))).ConfigureAwait(false);
-                    await BackupRestoreMetadataWriter.RestoreAliasesAsync(
-                        aliases,
-                        domainId,
-                        _aliasStore,
-                        static () => default,
-                        ct,
-                        aliasId => insertedAliasIds.Add((domainId, aliasId))).ConfigureAwait(false);
+                        insertedDomainIds.Add).ConfigureAwait(false);
 
-                    foreach (var listEntry in domainEntry.DistributionLists)
+                    if (insertedDomainIds.Count != domains.Count)
                     {
-                        var distributionList = listEntry.DistributionList with { DomainId = domainId };
-                        await BackupRestoreMetadataWriter.RestoreDistributionListsAsync(
-                            new[] { distributionList },
-                            domainId,
-                            _distributionListStore,
-                            static () => default,
-                            ct,
-                            listId => insertedDistributionListIds.Add((domainId, listId))).ConfigureAwait(false);
-
-                        if (insertedDistributionListIds.Count == 0)
-                        {
-                            throw new InvalidOperationException("The distribution-list restore did not return an inserted ID.");
-                        }
-
-                        var listId = insertedDistributionListIds[^1].ListId;
-                        var recipientIndex = 0;
-                        await BackupRestoreMetadataWriter.RestoreDistributionListRecipientsAsync(
-                            listEntry.Recipients,
-                            listId,
-                            _recipientStore,
-                            static () => default,
-                            ct,
-                            recipientId => insertedRecipientIds.Add(
-                                (listId, recipientId, listEntry.Recipients[recipientIndex++].Address))).ConfigureAwait(false);
+                        throw new InvalidOperationException("The domain restore did not return all inserted IDs.");
                     }
-                }
-            },
-            commitAsync: static _ => default,
-            rollbackAsync: () => RollbackAsync(
-                insertedDomainIds,
-                insertedAccountIds,
-                insertedAliasIds,
-                insertedDistributionListIds,
-                insertedRecipientIds),
-            cancellationToken).ConfigureAwait(false);
+
+                    for (var index = 0; index < domains.Count; index++)
+                    {
+                        var domainEntry = domains[index];
+                        var domainId = insertedDomainIds[index];
+                        var accounts = domainEntry.Accounts
+                            .Select(account => account with
+                            {
+                                Account = account.Account with { DomainId = domainId }
+                            })
+                            .ToArray();
+                        var aliases = domainEntry.Aliases
+                            .Select(alias => alias with { DomainId = domainId })
+                            .ToArray();
+
+                        await BackupRestoreMetadataWriter.RestoreAccountsAsync(
+                            accounts,
+                            domainId,
+                            accountStore,
+                            static () => default,
+                            ct,
+                            accountId => insertedAccountIds.Add((domainId, accountId))).ConfigureAwait(false);
+                        await BackupRestoreMetadataWriter.RestoreAliasesAsync(
+                            aliases,
+                            domainId,
+                            aliasStore,
+                            static () => default,
+                            ct,
+                            aliasId => insertedAliasIds.Add((domainId, aliasId))).ConfigureAwait(false);
+
+                        foreach (var listEntry in domainEntry.DistributionLists)
+                        {
+                            var distributionList = listEntry.DistributionList with { DomainId = domainId };
+                            await BackupRestoreMetadataWriter.RestoreDistributionListsAsync(
+                                new[] { distributionList },
+                                domainId,
+                                distributionListStore,
+                                static () => default,
+                                ct,
+                                listId => insertedDistributionListIds.Add((domainId, listId))).ConfigureAwait(false);
+
+                            if (insertedDistributionListIds.Count == 0)
+                            {
+                                throw new InvalidOperationException("The distribution-list restore did not return an inserted ID.");
+                            }
+
+                            var listId = insertedDistributionListIds[^1].ListId;
+                            var recipientIndex = 0;
+                            await BackupRestoreMetadataWriter.RestoreDistributionListRecipientsAsync(
+                                listEntry.Recipients,
+                                listId,
+                                recipientStore,
+                                static () => default,
+                                ct,
+                                recipientId => insertedRecipientIds.Add(
+                                    (listId, recipientId, listEntry.Recipients[recipientIndex++].Address))).ConfigureAwait(false);
+                        }
+                    }
+                },
+                commitAsync,
+                rollbackAsync,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (metadataTransaction is not null)
+            {
+                await metadataTransaction.DisposeAsync().ConfigureAwait(false);
+            }
+        }
     }
 
     private async ValueTask RollbackAsync(

@@ -1107,6 +1107,8 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IAliasAdministrationStore _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore? _distributionListRecipientStore;
+    private readonly IBackupRestoreMetadataTransactionFactory? _metadataTransactionFactory;
+    private readonly bool _requireSqlTransaction;
 
     public BackupXmlPayloadRuntime(
         ISettingsAdministrationStore settingsStore,
@@ -1129,7 +1131,9 @@ public sealed class BackupXmlPayloadRuntime
             ruleCriteriaStore: null,
             ruleActionStore: null,
             folderStore: null,
-            messageStore: null)
+            messageStore: null,
+            metadataTransactionFactory: null,
+            requireSqlTransaction: false)
     {
     }
 
@@ -1148,7 +1152,9 @@ public sealed class BackupXmlPayloadRuntime
         IRuleCriteriaAdministrationStore? ruleCriteriaStore = null,
         IRuleActionAdministrationStore? ruleActionStore = null,
         IImapFolderAdministrationStore? folderStore = null,
-        IMessageAdministrationStore? messageStore = null)
+        IMessageAdministrationStore? messageStore = null,
+        IBackupRestoreMetadataTransactionFactory? metadataTransactionFactory = null,
+        bool requireSqlTransaction = false)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -1170,6 +1176,8 @@ public sealed class BackupXmlPayloadRuntime
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _distributionListRecipientStore = distributionListRecipientStore;
+        _metadataTransactionFactory = metadataTransactionFactory;
+        _requireSqlTransaction = requireSqlTransaction;
     }
 
     public async ValueTask<BackupArchiveXmlPayload> GetPayloadAsync(
@@ -1435,6 +1443,8 @@ public sealed class BackupXmlPayloadRuntime
                 _accountStore,
                 _aliasStore,
                 _distributionListStore,
-                _distributionListRecipientStore));
+                _distributionListRecipientStore,
+                metadataTransactionFactory: _metadataTransactionFactory,
+                requireSqlTransaction: _requireSqlTransaction));
     }
 }

@@ -170,11 +170,20 @@ ORDER BY accountaddress ASC;
         IF @Deleted = 1 COMMIT TRANSACTION; ELSE ROLLBACK TRANSACTION;
         SELECT @Deleted;
         """;    private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerAccountAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    internal SqlServerAccountAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
     }
 
     public async ValueTask<bool> UpdateAccountAsync(
@@ -300,8 +309,10 @@ ORDER BY accountaddress ASC;
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(account);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertAccountSql, connection);
+        await using var commandLease = await SqlServerCommandLease
+            .OpenAsync(_connectionFactory, _transactionContext, InsertAccountSql, cancellationToken)
+            .ConfigureAwait(false);
+        var command = commandLease.Command;
         command.Parameters.Add("@DomainId", SqlDbType.Int).Value = domainId;
         command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = account.Address;
         command.Parameters.Add("@Password", SqlDbType.NVarChar, 255).Value =

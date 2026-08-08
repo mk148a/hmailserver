@@ -937,6 +937,8 @@ public static class Host
     builder.Services.AddSingleton<IGreyListingTripletAdministrationStore, SqlServerGreyListingTripletAdministrationStore>();
     builder.Services.AddSingleton<IWhiteListAddressAdministrationStore, SqlServerWhiteListAddressAdministrationStore>();
     builder.Services.AddSingleton<IDomainAdministrationStore, SqlServerDomainAdministrationStore>();
+    builder.Services.AddSingleton<IBackupRestoreMetadataTransactionFactory,
+        SqlServerBackupRestoreMetadataTransactionFactory>();
     builder.Services.AddSingleton<SqlServerAccountAdministrationStore>();
     builder.Services.AddSingleton<IAccountAdministrationStore>(
         serviceProvider => serviceProvider.GetRequiredService<SqlServerAccountAdministrationStore>());

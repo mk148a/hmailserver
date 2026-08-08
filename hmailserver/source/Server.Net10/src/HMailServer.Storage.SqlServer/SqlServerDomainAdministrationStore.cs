@@ -147,11 +147,20 @@ ORDER BY domainname ASC;
         SELECT @Deleted;
         """;
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerDomainAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    internal SqlServerDomainAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
     }
 
     public async ValueTask<bool> DeleteDomainByIdAsync(
@@ -211,8 +220,10 @@ ORDER BY domainname ASC;
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(domain);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertDomainSql, connection);
+        await using var commandLease = await SqlServerCommandLease
+            .OpenAsync(_connectionFactory, _transactionContext, InsertDomainSql, cancellationToken)
+            .ConfigureAwait(false);
+        var command = commandLease.Command;
         command.Parameters.Add("@Name", SqlDbType.NVarChar, 255).Value = domain.Name;
         command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = domain.Active ? 1 : 0;
         command.Parameters.Add("@Postmaster", SqlDbType.NVarChar, 255).Value = domain.Postmaster;
@@ -250,8 +261,10 @@ ORDER BY domainname ASC;
     public async ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetDomainsSql, connection);
+        await using var commandLease = await SqlServerCommandLease
+            .OpenAsync(_connectionFactory, _transactionContext, GetDomainsSql, cancellationToken)
+            .ConfigureAwait(false);
+        var command = commandLease.Command;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
             cancellationToken).ConfigureAwait(false);

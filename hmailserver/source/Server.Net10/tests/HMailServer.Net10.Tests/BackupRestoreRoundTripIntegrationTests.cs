@@ -412,6 +412,253 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_CommitsDbOnlyMetadataInOneTransaction()
+    {
+        await WithDbOnlyRestoreTargetAsync(
+            "db_only_transaction",
+            ToDbOnlyArchiveXml(NonDbArchiveXml),
+            async fixture =>
+            {
+                var executor = fixture.CreateExecutor();
+                await executor.ExecuteAsync(fixture.Backup, CancellationToken.None).ConfigureAwait(false);
+
+                Assert.AreEqual(1, (await fixture.DomainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false)).Count);
+                Assert.AreEqual(1, (await fixture.AccountStore.GetAccountsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+                Assert.AreEqual(1, (await fixture.AliasStore.GetAliasesAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+                Assert.AreEqual(1, (await fixture.ListStore.GetDistributionListsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+                Assert.AreEqual(1, (await fixture.RecipientStore.GetRecipientsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_RollsBackDbOnlyMetadataWhenAliasInsertFails()
+    {
+        await WithDbOnlyRestoreTargetAsync(
+            "db_only_alias_failure",
+            ToDbOnlyArchiveXml(NonDbArchiveXml),
+            async fixture =>
+            {
+                var executor = fixture.CreateExecutor(
+                    new FailingMetadataTransactionFactory(fixture.TransactionFactory, failAlias: true));
+
+                await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                    () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask());
+
+                await AssertAllMetadataTablesEmptyAsync(fixture).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_RollsBackDbOnlyMetadataWhenSecondRecipientInsertFails()
+    {
+        var archiveXml = ToDbOnlyArchiveXml(
+            NonDbArchiveXml.Replace(
+                "<Recipient Name=\"r1@example.test\" />",
+                "<Recipient Name=\"r1@example.test\" />\n                    <Recipient Name=\"r2@example.test\" />",
+                StringComparison.Ordinal));
+        await WithDbOnlyRestoreTargetAsync(
+            "db_only_second_recipient_failure",
+            archiveXml,
+            async fixture =>
+            {
+                var executor = fixture.CreateExecutor(
+                    new FailingMetadataTransactionFactory(fixture.TransactionFactory, failSecondRecipient: true));
+
+                await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                    () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask());
+
+                await AssertAllMetadataTablesEmptyAsync(fixture).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_FailsClosedWhenDbOnlyTransactionFactoryIsMissing()
+    {
+        await WithDbOnlyRestoreTargetAsync(
+            "db_only_missing_transaction_factory",
+            ToDbOnlyArchiveXml(NonDbArchiveXml),
+            async fixture =>
+            {
+                var executor = fixture.CreateExecutorWithoutTransactionFactory();
+
+                await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                    () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask());
+
+                await AssertAllMetadataTablesEmptyAsync(fixture).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task SqlServerBackupRestoreMetadataTransaction_DisposalWithoutCommitRollsBack()
+    {
+        await WithDbOnlyRestoreTargetAsync(
+            "db_only_disposal_rollback",
+            ToDbOnlyArchiveXml(NonDbArchiveXml),
+            async fixture =>
+            {
+                var domain = BackupArchiveXmlSnapshotParser.ParseDomains(NonDbArchiveXml).Single();
+                await using (var transaction = await fixture.TransactionFactory
+                    .BeginAsync(CancellationToken.None)
+                    .ConfigureAwait(false))
+                {
+                    _ = await transaction.DomainStore.InsertDomainAsync(
+                        domain,
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+
+                Assert.AreEqual(0, (await fixture.DomainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false)).Count);
+            }).ConfigureAwait(false);
+    }
+
+    private static async Task AssertAllMetadataTablesEmptyAsync(DbOnlyRestoreFixture fixture)
+    {
+        Assert.AreEqual(0, (await fixture.DomainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false)).Count);
+        Assert.AreEqual(0, (await fixture.AccountStore.GetAccountsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+        Assert.AreEqual(0, (await fixture.AliasStore.GetAliasesAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+        Assert.AreEqual(0, (await fixture.ListStore.GetDistributionListsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+        Assert.AreEqual(0, (await fixture.RecipientStore.GetRecipientsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+    }
+
+    private static string ToDbOnlyArchiveXml(string archiveXml) =>
+        archiveXml
+            .Replace("Mode=\"6\"", "Mode=\"2\"", StringComparison.Ordinal)
+            .Replace("<DataFiles Format=\"Raw\" FolderName=\"DataBackup\" />", string.Empty, StringComparison.Ordinal);
+
+    private static async Task WithDbOnlyRestoreTargetAsync(
+        string name,
+        string archiveXml,
+        Func<DbOnlyRestoreFixture, Task> action)
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_{name}_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        var root = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-{name}-{Guid.NewGuid():N}");
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateTargetSchemaAsync(testConnectionString).ConfigureAwait(false);
+            var source = Path.Combine(root, "source");
+            var dataDirectory = Path.Combine(root, "data");
+            var archivePath = Path.Combine(root, "backup.7z");
+            Directory.CreateDirectory(source);
+            Directory.CreateDirectory(dataDirectory);
+            File.WriteAllText(Path.Combine(source, "hMailServerBackup.xml"), archiveXml);
+            await CreateArchiveAsync(archivePath, source).ConfigureAwait(false);
+
+            var factory = new SqlServerConnectionFactory(testConnectionString);
+            using var binding = BackupArchiveBinding.TryCreate(archivePath);
+            Assert.IsNotNull(binding);
+            var backup = Backup.CreateAuthorized(
+                2,
+                binding.ArchivePath,
+                archiveIdentity: binding.Identity,
+                archiveBinding: binding,
+                rawDataBackupIdentity: binding.RawDataBackupIdentity);
+            backup.RestoreDomains = true;
+            await action(new DbOnlyRestoreFixture(
+                Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+                dataDirectory,
+                backup,
+                new SqlServerDomainAdministrationStore(factory),
+                new SqlServerAccountAdministrationStore(factory),
+                new SqlServerAliasAdministrationStore(factory),
+                new SqlServerDistributionListAdministrationStore(factory),
+                new SqlServerDistributionListRecipientAdministrationStore(factory),
+                new SqlServerBackupRestoreMetadataTransactionFactory(factory))).ConfigureAwait(false);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private sealed class DbOnlyRestoreFixture(
+        string sevenZipExecutablePath,
+        string dataDirectory,
+        Backup backup,
+        SqlServerDomainAdministrationStore domainStore,
+        SqlServerAccountAdministrationStore accountStore,
+        SqlServerAliasAdministrationStore aliasStore,
+        SqlServerDistributionListAdministrationStore listStore,
+        SqlServerDistributionListRecipientAdministrationStore recipientStore,
+        SqlServerBackupRestoreMetadataTransactionFactory transactionFactory)
+    {
+        internal Backup Backup { get; } = backup;
+        internal SqlServerDomainAdministrationStore DomainStore { get; } = domainStore;
+        internal SqlServerAccountAdministrationStore AccountStore { get; } = accountStore;
+        internal SqlServerAliasAdministrationStore AliasStore { get; } = aliasStore;
+        internal SqlServerDistributionListAdministrationStore ListStore { get; } = listStore;
+        internal SqlServerDistributionListRecipientAdministrationStore RecipientStore { get; } = recipientStore;
+        internal SqlServerBackupRestoreMetadataTransactionFactory TransactionFactory { get; } = transactionFactory;
+
+        internal MetadataBackupRestoreExecutor CreateExecutor(
+            IBackupRestoreMetadataTransactionFactory? transactionFactory = null) =>
+            new(
+                sevenZipExecutablePath,
+                dataDirectory,
+                DomainStore,
+                AccountStore,
+                AliasStore,
+                ListStore,
+                RecipientStore,
+                metadataTransactionFactory: transactionFactory ?? TransactionFactory);
+
+        internal MetadataBackupRestoreExecutor CreateExecutorWithoutTransactionFactory() =>
+            new(
+                sevenZipExecutablePath,
+                dataDirectory,
+                DomainStore,
+                AccountStore,
+                AliasStore,
+                ListStore,
+                RecipientStore,
+                metadataTransactionFactory: null,
+                requireSqlTransaction: true);
+    }
+
+    private sealed class FailingMetadataTransactionFactory(
+        IBackupRestoreMetadataTransactionFactory inner,
+        bool failAlias = false,
+        bool failSecondRecipient = false) : IBackupRestoreMetadataTransactionFactory
+    {
+        public async ValueTask<IBackupRestoreMetadataTransaction> BeginAsync(
+            CancellationToken cancellationToken)
+        {
+            var transaction = await inner.BeginAsync(cancellationToken).ConfigureAwait(false);
+            return new FailingMetadataTransaction(transaction, failAlias, failSecondRecipient);
+        }
+    }
+
+    private sealed class FailingMetadataTransaction(
+        IBackupRestoreMetadataTransaction inner,
+        bool failAlias,
+        bool failSecondRecipient) : IBackupRestoreMetadataTransaction
+    {
+        public IDomainAdministrationStore DomainStore => inner.DomainStore;
+        public IAccountAdministrationStore AccountStore => inner.AccountStore;
+        public IAliasAdministrationStore AliasStore => failAlias
+            ? new FailingAliasAdministrationStore(inner.AliasStore)
+            : inner.AliasStore;
+        public IDistributionListAdministrationStore DistributionListStore => inner.DistributionListStore;
+        public IDistributionListRecipientAdministrationStore RecipientStore => failSecondRecipient
+            ? new FailingOnSecondRecipientAdministrationStore(inner.RecipientStore)
+            : inner.RecipientStore;
+        public ValueTask CommitAsync(CancellationToken cancellationToken) => inner.CommitAsync(cancellationToken);
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+    }
+
     private static async Task CreateArchiveAsync(string archivePath, string sourcePath)
     {
         var startInfo = new ProcessStartInfo

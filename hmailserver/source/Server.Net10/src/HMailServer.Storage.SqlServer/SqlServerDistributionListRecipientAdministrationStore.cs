@@ -40,11 +40,20 @@ WHERE distributionlistrecipientid = @ID
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerDistributionListRecipientAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    internal SqlServerDistributionListRecipientAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
     }
 
     public async ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
@@ -77,8 +86,10 @@ WHERE distributionlistrecipientid = @ID
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertDistributionListRecipientSql, connection);
+        await using var commandLease = await SqlServerCommandLease
+            .OpenAsync(_connectionFactory, _transactionContext, InsertDistributionListRecipientSql, cancellationToken)
+            .ConfigureAwait(false);
+        var command = commandLease.Command;
         command.Parameters.Add("@ListId", SqlDbType.Int).Value = snapshot.ListId;
         command.Parameters.Add("@Address", SqlDbType.NVarChar, 255).Value = snapshot.Address;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
