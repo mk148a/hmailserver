@@ -4,6 +4,9 @@ This folder contains the side-by-side .NET 10 implementation track. The legacy C
 
 ## Current Continuation (2026-08-05)
 
+Code/test commit ``c09fcf435`` adds COM host activation feasibility evidence. ``ComHostActivationIntegrationTests`` loads the comhost DLL, verifies the ``DllGetClassObject`` export, and records HRESULT ``0x80008093`` (host-runtime dependency) for in-process invocation; genuine out-of-proc activation requires registration/DCOM (fenced). Focused ``1/1``; the full suite excluding the two AV-locked EICAR cleanup methods is ``1870 passed, 0 failed, 14 opt-in skips`` (1884 total). Next slice: installer/release artifact gate.
+
+
 Code/test commit ``59623bb20`` adds live 1k-concurrent SMTP connection acceptance. ``SmtpTcpListenerTests.LoopbackConcurrency_AcceptsOneThousandClients`` opens 1000 concurrent loopback clients (backlog 1024) and asserts every one receives the 220 banner. Focused ``1/1`` (stable across repeated runs); the full suite excluding the two AV-locked EICAR cleanup methods is ``1869 passed, 0 failed, 14 opt-in skips`` (1883 total). Next slice: real COM activation evidence.
 
 

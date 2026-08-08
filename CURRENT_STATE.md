@@ -1,13 +1,13 @@
 # Current State
-- UTC timestamp: 2026-08-08T05:19:31Z
-- Local timestamp: 2026-08-08T08:19:31+03:00
+- UTC timestamp: 2026-08-08T05:29:48Z
+- Local timestamp: 2026-08-08T08:29:48+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `59623bb20`
+- Current HEAD: `c09fcf435`
 - Last successfully pushed commit: `fdd656539` (recipient UPDATE documentation; current code/docs commits not pushed yet)
-- Latest focused-test result: 1k-concurrent SMTP connection acceptance `1 passed, 0 failed` (1000 concurrent loopback clients, each received the 220 banner; stable across repeated runs; backlog 1024)
-- Latest full Net10 result: `1869 passed, 0 failed, 14 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
-- Current bounded slice: live 1k-concurrent connection acceptance, code/test commit `59623bb20`; `SmtpTcpListenerTests.LoopbackConcurrency_AcceptsOneThousandClients` opens 1000 concurrent clients and asserts every one receives the 220 banner
-- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup/restore/version-gate SQL evidence; restore writer + full XML parsers; SMTP/IMAP/POP3 live accept-latency harnesses; 1k-concurrent SMTP acceptance
-- Open (environment-gated or large): data-directory message-file restore, real COM activation, SEC-18, installer/release artifacts
-- Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime; MIDL type-library regeneration is transient-flaky in this sandbox (uses system temp)
-- Next three slices: real COM activation evidence; then installer/release artifact gate; then remaining release-gate soak/leak checks
+- Latest focused-test result: COM host activation evidence `1 passed, 0 failed` (`HMailServer.ComInterop.comhost.dll` loads, exports `DllGetClassObject`, and records HRESULT `0x80008093` proving the host-runtime dependency for out-of-proc activation)
+- Latest full Net10 result: `1870 passed, 0 failed, 14 skipped` excluding two AV-locked EICAR cleanup methods (SQL connection unset)
+- Current bounded slice: COM host activation feasibility evidence, code/test commit `c09fcf435`; registration-free in-process `DllGetClassObject` from another .NET process cannot bootstrap the comhost runtime by design; genuine activation requires the service host/registration (registry/DCOM state fenced)
+- Completed offline-verifiable tracks: full C++-to-.NET COM/Admin mutation parity + live SQL evidence; WebAdmin POST/CSRF + AJAX scanner CSRF; COM scanner SSRF guard; offline 100k SEARCH/SORT benchmark + artifact seam; backup/restore/version-gate SQL evidence; restore writer + full XML parsers; SMTP/IMAP/POP3 accept-latency + 1k-concurrent acceptance; COM host export/host-runtime dependency evidence
+- Open (environment-gated): real out-of-proc COM activation (service host + registration/DCOM), SEC-18, installer/release artifacts
+- Environment-blocked: `artifacts/benchmarks/` `artifacts/sec18-staging/`; `AGENTS.md` dirty/do-not-touch; EICAR cleanup; PHP runtime; MIDL regeneration transient-flaky
+- Next three slices: installer/release artifact gate; then release-gate soak/leak checks; then elevated SEC-18/COM activation evidence

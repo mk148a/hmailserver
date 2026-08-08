@@ -1,5 +1,9 @@
 # hMailServer .NET 10 Remaining Work
 
+## Current Completed Slice (2026-08-05, COM HOST ACTIVATION EVIDENCE)
+
+COM host activation feasibility evidence is complete in code/test commit ``c09fcf435``. ``ComHostActivationIntegrationTests`` loads ``HMailServer.ComInterop.comhost.dll`` next to the test host, verifies the ``DllGetClassObject`` export exists, and records HRESULT ``0x80008093`` when invoked in-process — the .NET comhost cannot bootstrap its runtime from inside another .NET process, so genuine activation requires the service host/registration (registry/DCOM state, fenced). Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1870 passed, 0 failed, 14 opt-in skips`` (1884 total). Next slice: installer/release artifact gate.
+
 ## Current Completed Slice (2026-08-05, 1K-CONCURRENT SMTP ACCEPTANCE)
 
 Live 1k-concurrent connection acceptance is complete in code/test commit ``59623bb20``. ``SmtpTcpListenerTests.LoopbackConcurrency_AcceptsOneThousandClients`` opens 1000 concurrent loopback clients against ``SmtpTcpListener`` (backlog 1024) and asserts every client receives the ``220 hMailServer .NET 10 ESMTP ready`` banner. Focused ``1/1`` (stable across repeated runs); full suite excluding the two AV-locked EICAR cleanup methods ``1869 passed, 0 failed, 14 opt-in skips`` (1883 total). Next slice: real COM activation evidence.

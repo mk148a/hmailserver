@@ -2,6 +2,8 @@
 
 ## Current Authoritative Continuation
 
+Authoritative 2026-08-05 continuation: code/test commit ``c09fcf435`` adds COM host activation feasibility evidence. ``ComHostActivationIntegrationTests`` loads the comhost DLL, verifies the ``DllGetClassObject`` export, and records HRESULT ``0x80008093`` (host-runtime dependency) for in-process invocation; genuine out-of-proc activation requires registration/DCOM (fenced). Focused ``1/1``; full suite excluding the two AV-locked EICAR cleanup methods ``1870 passed, 0 failed, 14 opt-in skips`` (1884 total). Next action: installer/release artifact gate.
+
 Authoritative 2026-08-05 continuation: code/test commit ``59623bb20`` adds live 1k-concurrent SMTP connection acceptance. ``SmtpTcpListenerTests.LoopbackConcurrency_AcceptsOneThousandClients`` opens 1000 concurrent loopback clients (backlog 1024) and asserts every one receives the 220 banner. Focused ``1/1`` (stable across repeated runs); full suite excluding the two AV-locked EICAR cleanup methods ``1869 passed, 0 failed, 14 opt-in skips`` (1883 total). Next action: real COM activation evidence.
 
 Authoritative 2026-08-05 continuation: code/test commit ``c965cf2b0`` adds live IMAP and POP3 accept-latency acceptance harnesses mirroring the SMTP harness (200 loopback clients, banner assert, p95 budget). Focused listener coverage ``15/15``; full suite excluding the two AV-locked EICAR cleanup methods ``1868 passed, 0 failed, 14 opt-in skips`` (1882 total). Next action: 1k-concurrent loopback connection acceptance.
