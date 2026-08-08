@@ -1,4 +1,12 @@
-## Current Completed Slice (2026-08-08, PARTIAL RECIPIENT ROLLBACK ACCEPTANCE)
+## Current Completed Slice (2026-08-08, DB-ONLY RESTORE SQL TRANSACTION)
+
+Code/test commit `41d81cca0` adds a production-wired SQL transaction boundary for the bounded DB-only `RestoreDomains` metadata restore. `IBackupRestoreMetadataTransactionFactory` opens one `SqlConnection`/`SqlTransaction`; domain, account, alias, distribution-list, and recipient inserts share it; successful restore commits once, failure/disposal rolls back, and the service composition fails closed if the factory is absent. The installed COM identity and authenticated Backup/BackupManager access boundary are unchanged.
+
+Legacy anchors are `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`) and `Collection<T,P>::XMLLoad`/`DeleteAll` (`hmailserver/source/Server/Common/BO/Collection.h:85`); legacy has no equivalent shared SQL/filesystem transaction. Current anchors are `MetadataBackupRestoreExecutor.RestoreMetadataAsync`, `BackupXmlPayloadRuntime`, `SqlServerBackupRestoreMetadataTransactionFactory`, and service wiring in `Host.cs`/`Program.cs`. Focused LocalDB coverage is `10 passed, 0 failed, 0 skipped`; default full Net10 is `1908 passed, 0 failed, 25 skipped`; SQL-enabled full is `1926 passed, 5 failed, 2 skipped`, with five unrelated message-indexing fixture failures.
+
+This closes only DB-only metadata atomicity. Non-DB restore still compensates across SQL and NTFS without crash recovery; the transaction-scoped adapter is intentionally used for inserts only. Commit-failure/connection-loss/process-kill evidence, full schema constraints, normal-installation deletion/reinitialization, queued service/COM, SEC-18, installer, AD/DC, and lifecycle gates remain open. Release status remains RED. Next slice: durable non-DB restore journal/recovery evidence, then legacy deletion/reinitialization ordering.
+
+## Historical Slice (2026-08-08, PARTIAL RECIPIENT ROLLBACK ACCEPTANCE)
 
 Test-only code/test commit `ec9b71ed0` adds disposable LocalDB acceptance for a failure after one real distribution-list recipient is inserted. The second recipient insert is injected to fail; the test verifies the first recipient, list, alias, account, and domain are removed through the real SQL stores and that the original Data directory is restored. Focused restore coverage is `5 passed, 0 failed, 0 skipped`; default full Net10 is `1908 passed, 0 failed, 20 skipped`; SQL-enabled full Net10 is `1921 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures.
 

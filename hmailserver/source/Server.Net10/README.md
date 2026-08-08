@@ -1,4 +1,12 @@
-## Current Completed Slice (2026-08-08, PARTIAL RECIPIENT ROLLBACK ACCEPTANCE)
+## Current Completed Slice (2026-08-08, DB-ONLY RESTORE SQL TRANSACTION)
+
+Code/test commit `41d81cca0` adds a production-wired SQL transaction boundary for DB-only `RestoreDomains` metadata restore. Domain, account, alias, distribution-list, and recipient inserts share one SQL connection and transaction; commit and rollback/disposal behavior are covered by disposable LocalDB tests. Focused coverage is `10 passed, 0 failed, 0 skipped`; default full Net10 is `1908 passed, 0 failed, 25 skipped`; SQL-enabled full is `1926 passed, 5 failed, 2 skipped`, with five unrelated message-indexing fixture failures.
+
+Legacy behavior is anchored by `BackupExecuter::StartRestore`/`RestoreDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-388`) and `Collection<T,P>::XMLLoad`/`DeleteAll` (`hmailserver/source/Server/Common/BO/Collection.h:85`). Current implementation symbols are `MetadataBackupRestoreExecutor.RestoreMetadataAsync`, `IBackupRestoreMetadataTransactionFactory`, `SqlServerBackupRestoreMetadataTransactionFactory`, `BackupXmlPayloadRuntime`, `Host.cs`, and `Program.cs`.
+
+Scope is deliberately limited to DB-only metadata atomicity. Non-DB SQL/filesystem restore still lacks durable crash recovery; transaction-scoped stores support the insert path used by this slice only. Full restore ordering, commit-failure/connection-loss/process-kill evidence, queued service/COM, SEC-18, installer, AD/DC, and lifecycle gates remain open. Release status is RED. Next slice: durable non-DB restore journal/recovery evidence.
+
+## Historical Slice (2026-08-08, PARTIAL RECIPIENT ROLLBACK ACCEPTANCE)
 
 Test-only code/test commit `ec9b71ed0` proves rollback after one real distribution-list recipient insert. The second recipient insert fails, and the test verifies cleanup of the generated recipient/list/alias/account/domain rows through the real SQL stores plus Data-directory restoration. Focused LocalDB coverage is `5 passed, 0 failed, 0 skipped`; default full Net10 is `1908 passed, 0 failed, 20 skipped`; SQL-enabled full Net10 is `1921 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures.
 

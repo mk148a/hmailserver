@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-08T12:48:31Z
-- Local timestamp: 2026-08-08T15:48:31+03:00
+- UTC timestamp: 2026-08-08T13:40:24Z
+- Local timestamp: 2026-08-08T16:40:24+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `ec9b71ed0` (code/test; documentation commit pending)
-- Last successfully pushed commit: `5970f865f` (disposable executor acceptance documentation)
-- Latest focused-test result: disposable LocalDB restore round-trip plus partial-recipient failure rollback `5 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: default `1908 passed, 0 failed, 20 skipped`; SQL-enabled run `1921 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures
-- Opt-in tests passed/skipped/blocked: restore acceptance `5 passed`; SQL-enabled full run has `5` unrelated `SqlServerMessageIndexingIntegrationTests` failures; native AD/DC, installer, registry/COM, and service/COM remain blocked
-- Current bounded slice: disposable LocalDB partial-recipient rollback acceptance, code/test commit `ec9b71ed0`
-- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance
+- Current HEAD: `41d81cca0` (code/test; documentation commit pending)
+- Last successfully pushed commit: `6a0926f89` (partial-recipient rollback documentation)
+- Latest focused-test result: DB-only LocalDB transaction commit/rollback/disposal/fail-closed coverage `10 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: default `1908 passed, 0 failed, 25 skipped`; SQL-enabled run `1926 passed, 5 failed, 2 skipped` with five unrelated message-indexing fixture failures
+- Opt-in tests passed/skipped/blocked: DB-only restore acceptance `10 passed`; SQL-enabled full run has `5` unrelated `SqlServerMessageIndexingIntegrationTests` failures; native AD/DC, installer, registry/COM, and service/COM remain blocked
+- Current bounded slice: SQL transaction boundary for DB-only `RestoreDomains` metadata, code/test commit `41d81cca0`
+- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance
 - Open production blockers: private binding ACL/handle-relative TOCTOU, normal-installation full restore ordering, crash-safe shared SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
 - Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: add a shared SQL transaction or durable restore journal with recovery tests; implement legacy domain/public-folder deletion and application reinitialization ordering; complete isolated service/COM queued restore once approved composition is available
+- Next three independent slices: add durable non-DB restore journal/recovery or prove crash compensation boundaries; implement legacy domain/public-folder deletion and application reinitialization ordering; complete isolated service/COM queued restore once approved composition is available
