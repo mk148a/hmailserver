@@ -2,6 +2,12 @@
 
 ## Current Authoritative Continuation
 
+2026-08-09 code/test commit `e5b441b36` completes root retained `Links` authorization parity. Legacy anchors are `InterfaceApplication::get_Links` (`hmailserver/source/Server/COM/InterfaceApplication.cpp:457-479`) and `InterfaceLinks` getters (`InterfaceLinks.cpp:22-138`), which recheck shared authentication before each store lookup. The .NET path passes a live admin guard into `Links`, preserves legacy `0x800403E9` plus the standard access-denied message, performs no store reads after failed reauthentication, and restores access after successful reauthentication. Focused `LinksComContractTests` is `8 passed, 0 failed, 0 skipped`; full Net10 is `1944 passed, 0 failed, 31 skipped`.
+
+The slice preserves direct activation denial and installed Links COM identity. It deliberately stops at root `Links` getters; child facades returned by Links still need a separate authorization-propagation slice, especially `Account` nested access. No SQL, SMTP, service, registry, DCOM, or production state changed. Next code candidate: child-facade reauthentication parity; highest-priority environment-gated work remains disposable SQL/Data restore acceptance. Release remains RED.
+
+## Current Authoritative Continuation
+
 2026-08-09 code/test commit `89cc2c860` implements retained `GlobalObjects`/`DeliveryQueue` authorization parity. Legacy anchors are `InterfaceApplication::get_GlobalObjects` (`hmailserver/source/Server/COM/InterfaceApplication.cpp:163`), `InterfaceGlobalObjects::get_DeliveryQueue` (`InterfaceGlobalObjects.cpp:34-54`), and `InterfaceDeliveryQueue::{Clear,ResetDeliveryTime,Remove,StartDelivery}` (`InterfaceDeliveryQueue.cpp:14-91`). The .NET path passes a live `ApplicationAuthorizationAuthority.IsServerAdministrator` guard into retained objects. Focused coverage is `8 passed, 0 failed, 0 skipped`; full Net10 is `1943 passed, 0 failed, 31 skipped`.
 
 The slice preserves COM identity, direct activation denial, legacy `Clear` HRESULT/message, and `S_FALSE` for unauthorized `ResetDeliveryTime`, `Remove`, and `StartDelivery`. It is method-entry authorization, so check-then-use invalidation races and asynchronous `Clear` scheduling remain residual risks. No SQL, SMTP, service, registry, DCOM, or production state changed. Next code candidate: parity-confirm retained `Links` live authorization; highest-priority environment-gated work remains disposable SQL/Data restore acceptance. Release remains RED.
