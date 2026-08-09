@@ -11,7 +11,9 @@ public sealed class GlobalObjectsComContractTests
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
+    private const int SFalse = 1;
 
     [TestInitialize]
     public void ResetRuntimeHost()
@@ -202,6 +204,53 @@ public sealed class GlobalObjectsComContractTests
         Assert.IsInstanceOfType<DeliveryQueue>(application.GlobalObjects.DeliveryQueue);
         Assert.IsInstanceOfType<Languages>(application.GlobalObjects.Languages);
         Assert.AreEqual(1, application.GlobalObjects.Languages.Count);
+    }
+
+    [TestMethod]
+    public void AuthenticatedApplication_RetainedGlobalObjectsAndQueueFollowLiveAuthentication()
+    {
+        var store = new RecordingDeliveryQueueAdministrationStore();
+        var wakeSignal = new RecordingDeliveryQueueWakeSignal();
+        var clearCoordinator = new RecordingDeliveryQueueClearCoordinator();
+        DeliveryQueueAdministrationRuntimeHost.Configure(store, wakeSignal, clearCoordinator);
+        var application = new Application(
+            new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));
+
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+        var globalObjects = application.GlobalObjects;
+        var queue = globalObjects.DeliveryQueue;
+
+        Assert.IsNull(application.Authenticate("administrator", "wrong"));
+
+        var globalObjectsError = Assert.ThrowsExactly<COMException>(() => _ = globalObjects.DeliveryQueue);
+        Assert.AreEqual(EAccessDenied, globalObjectsError.ErrorCode);
+
+        var clearError = Assert.ThrowsExactly<COMException>(queue.Clear);
+        var resetError = Assert.ThrowsExactly<COMException>(() => queue.ResetDeliveryTime(1));
+        var startError = Assert.ThrowsExactly<COMException>(queue.StartDelivery);
+        var removeError = Assert.ThrowsExactly<COMException>(() => queue.Remove(1));
+
+        Assert.AreEqual(ELegacyComError, clearError.ErrorCode);
+        Assert.AreEqual("Server admin privileges are required to clear queue.", clearError.Message);
+        Assert.AreEqual(SFalse, resetError.ErrorCode);
+        Assert.AreEqual(SFalse, startError.ErrorCode);
+        Assert.AreEqual(SFalse, removeError.ErrorCode);
+        Assert.AreEqual(0, clearCoordinator.ScheduleCount);
+        Assert.AreEqual(0, wakeSignal.SignalCount);
+        Assert.IsNull(store.MessageId);
+        Assert.IsNull(store.RemovedMessageId);
+
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+
+        queue.Clear();
+        queue.ResetDeliveryTime(2);
+        queue.StartDelivery();
+        queue.Remove(3);
+
+        Assert.AreEqual(1, clearCoordinator.ScheduleCount);
+        Assert.AreEqual(1, wakeSignal.SignalCount);
+        Assert.AreEqual(2, store.MessageId);
+        Assert.AreEqual(3, store.RemovedMessageId);
     }
 
     [TestMethod]

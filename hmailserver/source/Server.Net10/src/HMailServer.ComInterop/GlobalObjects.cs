@@ -46,14 +46,16 @@ public sealed class GlobalObjects : IInterfaceGlobalObjects
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly bool _authorized;
+    private readonly Func<bool>? _authorizationGuard;
 
     public GlobalObjects()
     {
     }
 
-    private GlobalObjects(bool authorized)
+    private GlobalObjects(bool authorized, Func<bool>? authorizationGuard = null)
     {
         _authorized = authorized;
+        _authorizationGuard = authorizationGuard;
     }
 
     public IInterfaceDeliveryQueue DeliveryQueue
@@ -61,7 +63,7 @@ public sealed class GlobalObjects : IInterfaceGlobalObjects
         get
         {
             EnsureAuthorized();
-            return DeliveryQueueAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            return DeliveryQueueAdministrationRuntimeHost.CreateAuthorizedAdapter(_authorizationGuard);
         }
     }
 
@@ -74,11 +76,12 @@ public sealed class GlobalObjects : IInterfaceGlobalObjects
         }
     }
 
-    internal static GlobalObjects CreateAuthorized() => new(authorized: true);
+    internal static GlobalObjects CreateAuthorized(Func<bool>? authorizationGuard = null) =>
+        new(authorized: true, authorizationGuard);
 
     private void EnsureAuthorized()
     {
-        if (!_authorized)
+        if (!_authorized || (_authorizationGuard is not null && !_authorizationGuard()))
         {
             throw new COMException(
                 "GlobalObjects access requires an authenticated server administrator.",
@@ -95,12 +98,15 @@ public sealed class GlobalObjects : IInterfaceGlobalObjects
 public sealed class DeliveryQueue : IInterfaceDeliveryQueue
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
+    private const int SFalse = 1;
 
     private readonly bool _authorized;
     private readonly IDeliveryQueueAdministrationStore? _store;
     private readonly IDeliveryQueueWakeSignal? _wakeSignal;
     private readonly IDeliveryQueueClearCoordinator? _clearCoordinator;
+    private readonly Func<bool>? _authorizationGuard;
 
     public DeliveryQueue()
     {
@@ -110,17 +116,26 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
         bool authorized,
         IDeliveryQueueAdministrationStore? store = null,
         IDeliveryQueueWakeSignal? wakeSignal = null,
-        IDeliveryQueueClearCoordinator? clearCoordinator = null)
+        IDeliveryQueueClearCoordinator? clearCoordinator = null,
+        Func<bool>? authorizationGuard = null)
     {
         _authorized = authorized;
         _store = store;
         _wakeSignal = wakeSignal;
         _clearCoordinator = clearCoordinator;
+        _authorizationGuard = authorizationGuard;
     }
 
     public void Clear()
     {
-        EnsureAuthorized();
+        EnsureDirectActivationAuthorized();
+        if (!IsCurrentlyAuthorized())
+        {
+            throw new COMException(
+                "Server admin privileges are required to clear queue.",
+                ELegacyComError);
+        }
+
         if (_clearCoordinator is null)
         {
             throw NotImplemented();
@@ -131,7 +146,12 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
 
     public void ResetDeliveryTime(long messageId)
     {
-        EnsureAuthorized();
+        EnsureDirectActivationAuthorized();
+        if (!IsCurrentlyAuthorized())
+        {
+            throw UnauthorizedWithSFalse();
+        }
+
         if (_store is null)
         {
             throw NotImplemented();
@@ -146,7 +166,12 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
 
     public void StartDelivery()
     {
-        EnsureAuthorized();
+        EnsureDirectActivationAuthorized();
+        if (!IsCurrentlyAuthorized())
+        {
+            throw UnauthorizedWithSFalse();
+        }
+
         if (_wakeSignal is null)
         {
             throw NotImplemented();
@@ -157,7 +182,12 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
 
     public void Remove(long messageId)
     {
-        EnsureAuthorized();
+        EnsureDirectActivationAuthorized();
+        if (!IsCurrentlyAuthorized())
+        {
+            throw UnauthorizedWithSFalse();
+        }
+
         if (_store is null)
         {
             throw NotImplemented();
@@ -173,17 +203,14 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
     internal static DeliveryQueue CreateAuthorized(
         IDeliveryQueueAdministrationStore? store = null,
         IDeliveryQueueWakeSignal? wakeSignal = null,
-        IDeliveryQueueClearCoordinator? clearCoordinator = null) =>
-        new(authorized: true, store, wakeSignal, clearCoordinator);
+        IDeliveryQueueClearCoordinator? clearCoordinator = null,
+        Func<bool>? authorizationGuard = null) =>
+        new(authorized: true, store, wakeSignal, clearCoordinator, authorizationGuard);
 
-    private void Unavailable()
-    {
-        EnsureAuthorized();
+    private bool IsCurrentlyAuthorized() =>
+        _authorized && (_authorizationGuard is null || _authorizationGuard());
 
-        throw NotImplemented();
-    }
-
-    private void EnsureAuthorized()
+    private void EnsureDirectActivationAuthorized()
     {
         if (!_authorized)
         {
@@ -192,6 +219,8 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
                 EAccessDenied);
         }
     }
+
+    private static COMException UnauthorizedWithSFalse() => new(string.Empty, SFalse);
 
     private static COMException NotImplemented() => new(
         "This DeliveryQueue member is not implemented by the .NET 10 rewrite yet.",
@@ -216,11 +245,12 @@ public static class DeliveryQueueAdministrationRuntimeHost
         Volatile.Write(ref _clearCoordinator, clearCoordinator);
     }
 
-    internal static DeliveryQueue CreateAuthorizedAdapter() =>
+    internal static DeliveryQueue CreateAuthorizedAdapter(Func<bool>? authorizationGuard = null) =>
         DeliveryQueue.CreateAuthorized(
             Volatile.Read(ref _store),
             Volatile.Read(ref _wakeSignal),
-            Volatile.Read(ref _clearCoordinator));
+            Volatile.Read(ref _clearCoordinator),
+            authorizationGuard);
 
     internal static void ResetForTests()
     {

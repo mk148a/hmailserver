@@ -170,7 +170,7 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return HMailServer.ComInterop.GlobalObjects.CreateAuthorized();
+            return HMailServer.ComInterop.GlobalObjects.CreateAuthorized(() => IsServerAdministrator);
         }
     }
 
