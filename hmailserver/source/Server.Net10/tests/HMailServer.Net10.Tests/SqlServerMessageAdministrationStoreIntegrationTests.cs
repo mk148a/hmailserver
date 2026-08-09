@@ -180,6 +180,22 @@ public sealed class SqlServerMessageAdministrationStoreIntegrationTests
                 messageuid bigint NOT NULL,
                 CONSTRAINT u_hm_messages_filename UNIQUE (messagefilename)
             );
+            CREATE TABLE dbo.hm_imapfolders (
+                folderid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                folderaccountid int NOT NULL,
+                folderparentid int NOT NULL,
+                foldername nvarchar(255) NOT NULL,
+                folderissubscribed tinyint NOT NULL,
+                foldercreationtime datetime NOT NULL,
+                foldercurrentuid bigint NOT NULL
+            );
+            SET IDENTITY_INSERT dbo.hm_imapfolders ON;
+            INSERT INTO dbo.hm_imapfolders
+                (folderid, folderaccountid, folderparentid, foldername, folderissubscribed,
+                 foldercreationtime, foldercurrentuid)
+            VALUES
+                (20, 10, -1, N'Inbox', 1, '2026-01-01T00:00:00', 1);
+            SET IDENTITY_INSERT dbo.hm_imapfolders OFF;
             INSERT INTO dbo.hm_messages
                 (messageaccountid, messagefolderid, messagefilename, messagetype, messagefrom,
                  messagesize, messagecurnooftries, messagenexttrytime, messageflags,

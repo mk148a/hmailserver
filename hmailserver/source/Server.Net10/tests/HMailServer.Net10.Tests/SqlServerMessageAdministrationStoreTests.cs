@@ -114,11 +114,14 @@ public sealed class SqlServerMessageAdministrationStoreTests
         }
 
         StringAssert.Contains(sql, "OUTPUT INSERTED.messageid");
+        StringAssert.Contains(sql, "SELECT");
+        StringAssert.Contains(sql, "FROM hm_imapfolders");
+        StringAssert.Contains(sql, "folderid = @FolderID");
+        StringAssert.Contains(sql, "folderaccountid = @AccountID");
         StringAssert.Contains(sql, "@AccountID");
         StringAssert.Contains(sql, "@FolderID");
         StringAssert.Contains(sql, "@FileName");
         StringAssert.Contains(sql, "@Uid");
-        Assert.IsFalse(sql.Contains("WHERE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }

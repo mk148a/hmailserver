@@ -1,5 +1,7 @@
 using System.Data;
 using System.Globalization;
+using System.Runtime.InteropServices;
+using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
@@ -13,6 +15,83 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
     private const string ConnectionEnvironmentVariable = "HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION";
     private const string AllowDatabaseCreateEnvironmentVariable =
         "HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE";
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RetainedFolderMessages_AddFailsAfterNonInboxDeletionButRootInboxRemainsInsertable()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_imap_message_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+
+            var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
+            var folderStore = new SqlServerImapFolderAdministrationStore(connectionFactory);
+            var messageStore = new SqlServerMessageAdministrationStore(connectionFactory);
+            MessageAdministrationRuntimeHost.Configure(messageStore);
+            ImapFolderAdministrationRuntimeHost.Configure(folderStore);
+
+            var archive = await folderStore.InsertFolderAsync(
+                10,
+                -1,
+                "Archive",
+                subscribed: true,
+                CancellationToken.None).ConfigureAwait(false);
+            var live = await folderStore.InsertFolderAsync(
+                10,
+                -1,
+                "Live",
+                subscribed: true,
+                CancellationToken.None).ConfigureAwait(false);
+            var account = Account.CreateAuthorized(
+                new AccountAdministrationSnapshot(10, 1, "owner@example.test", true, 2));
+
+            var retainedArchive = account.IMAPFolders.get_ItemByDBID(archive.Id);
+            var archiveMessages = retainedArchive.Messages;
+            Assert.AreEqual(0, archiveMessages.Count);
+            retainedArchive.Delete();
+
+            var deletedDraft = archiveMessages.Add();
+            var deletedError = Assert.ThrowsExactly<COMException>(deletedDraft.Save);
+            Assert.AreEqual(unchecked((int)0x80004005), deletedError.ErrorCode);
+            Assert.AreEqual(0, archiveMessages.Count);
+
+            var liveMessages = account.IMAPFolders.get_ItemByDBID(live.Id).Messages;
+            var liveDraft = liveMessages.Add();
+            liveDraft.Save();
+            Assert.IsTrue(liveDraft.ID > 0);
+            Assert.AreEqual(1, liveMessages.Count);
+
+            var retainedInbox = account.IMAPFolders.get_ItemByDBID(100);
+            var inboxMessages = retainedInbox.Messages;
+            Assert.AreEqual(0, inboxMessages.Count);
+            retainedInbox.Delete();
+
+            var inboxDraft = inboxMessages.Add();
+            inboxDraft.Save();
+            Assert.IsTrue(inboxDraft.ID > 0);
+            Assert.AreEqual(1, inboxMessages.Count);
+
+            var remainingFolders = await folderStore
+                .GetFoldersForAccountAsync(10, CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.AreEqual(1, remainingFolders.Count);
+            Assert.AreEqual(100, remainingFolders[0].Id);
+
+            // This slice proves owner-qualified insertion. Message state/UID
+            // publication remains a separate legacy parity item.
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]

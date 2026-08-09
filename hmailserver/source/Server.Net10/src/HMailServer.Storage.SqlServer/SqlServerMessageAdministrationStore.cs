@@ -50,10 +50,13 @@ ORDER BY messageuid ASC, messageid ASC;
              messagesize, messagecurnooftries, messagenexttrytime, messageflags,
              messagecreatetime, messagelocked, messageuid)
         OUTPUT INSERTED.messageid
-        VALUES
-            (@AccountID, @FolderID, @FileName, @State, @From,
-             @Size, @CurrentNumberOfTries, @NextTryTime, @Flags,
-             @CreateTime, @Locked, @Uid);
+        SELECT
+            @AccountID, @FolderID, @FileName, @State, @From,
+            @Size, @CurrentNumberOfTries, @NextTryTime, @Flags,
+            @CreateTime, @Locked, @Uid
+        FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)
+        WHERE folderid = @FolderID
+          AND folderaccountid = @AccountID;
         """;    public const string UpdateMessageSql = """
         UPDATE hm_messages
         SET messagefolderid = @FolderID,

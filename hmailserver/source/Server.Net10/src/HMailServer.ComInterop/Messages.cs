@@ -1075,6 +1075,7 @@ public static class MessageAdministrationRuntimeHost
 
     internal static Messages CreateAuthorizedFolderAdapter(
         int folderId,
+        int accountId,
         Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
@@ -1087,8 +1088,6 @@ public static class MessageAdministrationRuntimeHost
             .AsTask()
             .GetAwaiter()
             .GetResult();
-
-        int accountId = messages.Count == 0 ? -1 : (int)messages[0].AccountId;
 
         long InsertMessage(MessageAdministrationSnapshot message) => store
             .InsertMessageAsync(accountId, folderId, message, CancellationToken.None)

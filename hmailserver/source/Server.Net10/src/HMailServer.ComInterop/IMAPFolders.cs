@@ -362,7 +362,10 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
         }
     }
 
-    public IInterfaceMessages Messages => MessageAdministrationRuntimeHost.CreateAuthorizedFolderAdapter(Snapshot.Id, _isAuthenticated);
+    public IInterfaceMessages Messages => MessageAdministrationRuntimeHost.CreateAuthorizedFolderAdapter(
+        Snapshot.Id,
+        Snapshot.AccountId,
+        _isAuthenticated);
 
     public IInterfaceIMAPFolders SubFolders =>
         _foldersState is { } state

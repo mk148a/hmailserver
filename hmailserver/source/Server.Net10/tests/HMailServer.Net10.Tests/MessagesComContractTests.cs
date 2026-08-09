@@ -483,6 +483,32 @@ SGVsbG8=
     }
 
     [TestMethod]
+    public void EmptyImapFolderMessages_AddUsesOwningFolderAccountId()
+    {
+        int? insertedAccountId = null;
+        int? insertedFolderId = null;
+        MessageAdministrationRuntimeHost.Configure(
+            new FixedMessageAdministrationStore(
+                Array.Empty<MessageAdministrationSnapshot>(),
+                (accountId, folderId, _) =>
+                {
+                    insertedAccountId = accountId;
+                    insertedFolderId = folderId;
+                    return 1001;
+                }));
+        var folders = IMAPFolders.CreateAuthorized(
+            new[] { new ImapFolderAdministrationSnapshot(50, 100, -1, "Inbox", true, 42, "2026-07-01 00:00:00") });
+
+        var messages = folders[0].Messages;
+        var draft = messages.Add();
+        draft.Save();
+
+        Assert.AreEqual(100, insertedAccountId);
+        Assert.AreEqual(50, insertedFolderId);
+        Assert.AreEqual(1001, draft.ID);
+    }
+
+    [TestMethod]
     public void AddStagesFolderScopedDraftAndSavePublishesInsertedIdentity()
     {
         MessageAdministrationSnapshot? inserted = null;
@@ -735,9 +761,13 @@ SGVsbG8=
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
     }
 
-    private sealed class FixedMessageAdministrationStore(IReadOnlyList<MessageAdministrationSnapshot> messages)
+    private sealed class FixedMessageAdministrationStore(
+        IReadOnlyList<MessageAdministrationSnapshot> messages,
+        Func<int, int, MessageAdministrationSnapshot, long>? insert = null)
         : IMessageAdministrationStore
     {
+        private readonly Func<int, int, MessageAdministrationSnapshot, long>? _insert = insert;
+
         public int AccountReadCount { get; private set; }
 
         public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetAccountMessagesAsync(
@@ -754,6 +784,15 @@ SGVsbG8=
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(
                 messages.Where(message => message.FolderId == folderId).OrderBy(message => message.Uid).ToArray());
+
+        public ValueTask<long> InsertMessageAsync(
+            int accountId,
+            int folderId,
+            MessageAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(_insert is null
+                ? throw new NotSupportedException("Message insertion is not available in this store.")
+                : _insert(accountId, folderId, snapshot));
     }
 
     private sealed class FixedMessageContentSource(IReadOnlyDictionary<long, byte[]> contentById)
