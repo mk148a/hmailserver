@@ -1,16 +1,16 @@
 # Current State
-- UTC timestamp: 2026-08-09T18:13:25Z
-- Local timestamp: 2026-08-09T21:13:25+03:00
+- UTC timestamp: 2026-08-09T18:35:00Z
+- Local timestamp: 2026-08-09T21:35:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: code/test `e2109f422` and this docs commit pending normal push; protected unrelated worktree changes remain
-- Current HEAD: `e2109f422` before the docs commit
-- Last successfully pushed commit: `ffcbd4d30`
+- Push status: docs audit update pending normal push; protected unrelated worktree changes remain
+- Current HEAD: `565175aff` before the docs commit
+- Last successfully pushed commit: `565175aff`
 - Latest focused-test result: MessageIndexing/Settings retained authorization `25 passed, 0 failed, 0 skipped`
 - Latest full Net10 result: filtered `1949 passed, 0 failed, 31 skipped`; default `1954 passed, 2 failed, 31 skipped` because host AV locked generated scanner `.eml` files
 - Opt-in tests passed/skipped/blocked: live SQL/FTS, live protocol, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped; two scanner cleanup tests are host-AV blocked
-- Current bounded slice: retained MessageIndexing authorization through `Settings.MessageIndexing`; code/test commit `e2109f422`
+- Current bounded slice: no new code slice after the MessageIndexing authorization commit; parity audit rejected ServerMessages and Languages changes as non-parity; offline benchmark rerun passed diagnostically
 - Completed milestones: internal reinitialization admission seam, commandable offline SEARCH/SORT benchmark gate, stale backlog reconciliation, Account.ValidatePassword safety fence, retained delivery-queue authorization parity, Links and nested child authorization parity, Message/Rule child authorization parity, GroupMember/IMAP permission child authorization parity, and retained MessageIndexing authorization; no production release gate is claimed complete
-- Open production blockers: fresh COM/Admin child parity audit, restartable runtime/service/COM reinitialization, approved SQL/Data restore acceptance, live SQL/FTS and protocol performance acceptance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, restore/migration/installer, SEC-18, AD/DC, crash/power-loss evidence, and authenticated mailbox Account.ValidatePassword parity
+- Open production blockers: approved SQL/Data restore acceptance, restartable runtime/service/COM reinitialization, live SQL/FTS and protocol performance acceptance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, restore/migration/installer, SEC-18, AD/DC, crash/power-loss evidence, and authenticated mailbox Account.ValidatePassword parity
 - Environment-blocked work: approved disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: parity-audit remaining COM/Admin child-facade paths; run approved disposable SQL/Data restore acceptance when isolated prerequisites exist; rerun scanner cleanup on an AV-compatible isolated path
+- Next three independent slices: run approved disposable SQL/Data restore acceptance when isolated prerequisites exist; add live SQL/FTS or protocol performance acceptance on an approved isolated host; rerun scanner cleanup on an AV-compatible isolated path
