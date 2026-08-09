@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Net;
 using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
@@ -484,6 +485,35 @@ public sealed class AntiVirusComContractTests
         Assert.AreEqual(EFail, error.ErrorCode);
         Assert.AreEqual(string.Empty, runtime.Hostname);
     }
+
+    [TestMethod]
+    public void TestClamAVScanner_ReplacesLocalHostnameWithValidatedIpBeforeRuntime()
+    {
+        var runtime = new FakeClamAvScannerTestRuntime(new ClamAvScannerTestResult(true, "OK"));
+        IInterfaceAntiVirus antivirus = AntiVirus.CreateAuthorized(
+            new AntiVirusAdministrationSnapshot(
+                ClamWinEnabled: false,
+                ClamWinExecutable: string.Empty,
+                ClamWinDatabase: string.Empty,
+                Action: 0,
+                NotifyReceiver: false,
+                NotifySender: false,
+                CustomScannerEnabled: false,
+                CustomScannerExecutable: string.Empty,
+                CustomScannerReturnValue: 0,
+                MaximumMessageSize: 0,
+                EnableAttachmentBlocking: false,
+                ClamAvEnabled: true,
+                ClamAvHost: "localhost",
+                ClamAvPort: 3310),
+            clamAvScannerTestRuntime: runtime);
+
+        Assert.IsTrue(antivirus.TestClamAVScanner("localhost", 3310, out _));
+        Assert.IsTrue(IPAddress.TryParse(runtime.Hostname, out var address));
+        Assert.IsTrue(LegacyLocalScannerTargetGuard.IsLocalAddress(address));
+        Assert.AreNotEqual("localhost", runtime.Hostname);
+    }
+
     private static void AssertPending(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);

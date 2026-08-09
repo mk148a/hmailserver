@@ -13,6 +13,12 @@ public static class LegacyLocalScannerTargetGuard
 
     public static bool IsLocalTarget(string hostname)
     {
+        return TryGetValidatedLocalAddress(hostname, out _);
+    }
+
+    public static bool TryGetValidatedLocalAddress(string hostname, out IPAddress address)
+    {
+        address = IPAddress.None;
         if (string.IsNullOrWhiteSpace(hostname))
         {
             return false;
@@ -35,8 +41,13 @@ public static class LegacyLocalScannerTargetGuard
             }
         }
 
-        return addresses.Count != 0 &&
-            addresses.All(IsLocalAddress);
+        if (addresses.Count == 0 || !addresses.All(IsLocalAddress))
+        {
+            return false;
+        }
+
+        address = addresses[0];
+        return true;
     }
 
     public static bool IsLocalAddress(IPAddress address)

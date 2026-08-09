@@ -23,4 +23,25 @@ public sealed class LegacyLocalScannerTargetGuardTests
         Assert.IsTrue(LegacyLocalScannerTargetGuard.IsLocalTarget("127.0.0.1"));
         Assert.IsFalse(LegacyLocalScannerTargetGuard.IsLocalTarget("203.0.113.1"));
     }
+
+    [TestMethod]
+    public void TryGetValidatedLocalAddress_ResolvesLocalHostnameToAnIpLiteral()
+    {
+        Assert.IsTrue(
+            LegacyLocalScannerTargetGuard.TryGetValidatedLocalAddress(
+                "localhost",
+                out var address));
+
+        Assert.IsTrue(LegacyLocalScannerTargetGuard.IsLocalAddress(address));
+        Assert.AreNotEqual("localhost", address.ToString());
+    }
+
+    [TestMethod]
+    public void TryGetValidatedLocalAddress_RejectsNonLocalAddress()
+    {
+        Assert.IsFalse(
+            LegacyLocalScannerTargetGuard.TryGetValidatedLocalAddress(
+                "203.0.113.1",
+                out _));
+    }
 }

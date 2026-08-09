@@ -252,7 +252,9 @@ public sealed class AntiVirus : IInterfaceAntiVirus
             return Unavailable<bool>();
         }
 
-        if (!LegacyLocalScannerTargetGuard.IsLocalTarget(clamAVHostName ?? string.Empty))
+        if (!LegacyLocalScannerTargetGuard.TryGetValidatedLocalAddress(
+                clamAVHostName ?? string.Empty,
+                out var validatedAddress))
         {
             throw new COMException(
                 "It was not possible to test the ClamAV connection.",
@@ -262,7 +264,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         try
         {
             var result = _clamAvScannerTestRuntime.TestConnection(
-                clamAVHostName ?? string.Empty,
+                validatedAddress.ToString(),
                 clamAVPort);
             resultText = result.ResultText ?? string.Empty;
             return result.Succeeded;
