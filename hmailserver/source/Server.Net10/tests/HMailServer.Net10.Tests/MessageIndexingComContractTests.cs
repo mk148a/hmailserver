@@ -137,6 +137,39 @@ public sealed class MessageIndexingComContractTests
         Assert.AreEqual(17, adapter.TotalMessageCount);
     }
 
+    [TestMethod]
+    public void SettingsMessageIndexing_ReauthenticatesRetainedOperationsButNotEnabled()
+    {
+        var runtime = new RecordingMessageIndexingRuntime
+        {
+            TotalMessageCount = 17,
+            TotalIndexedCount = 9
+        };
+        MessageIndexingRuntimeHost.Configure(runtime);
+
+        var isServerAdministrator = true;
+        var settings = Settings.CreateAuthorized(() => isServerAdministrator);
+        var adapter = settings.MessageIndexing;
+
+        isServerAdministrator = false;
+
+        Assert.IsFalse(adapter.Enabled);
+        adapter.Enabled = true;
+        Assert.IsTrue(runtime.Enabled);
+
+        AssertAccessDenied(() => _ = adapter.TotalMessageCount);
+        AssertAccessDenied(() => _ = adapter.TotalIndexedCount);
+        AssertAccessDenied(adapter.Clear);
+        AssertAccessDenied(adapter.Index);
+
+        var extended = (IInterfaceMessageIndexing2)adapter;
+        AssertAccessDenied(() => _ = extended.Backend);
+        AssertAccessDenied(() => _ = extended.IsFullTextReady);
+        AssertAccessDenied(() => _ = extended.BackfillStatus);
+        AssertAccessDenied(() => _ = extended.LastError);
+        AssertAccessDenied(extended.Rebuild);
+    }
+
     private static void AssertMember(
         Type contract,
         string name,
@@ -160,6 +193,12 @@ public sealed class MessageIndexingComContractTests
         Assert.AreEqual(dispatchId, method.GetCustomAttribute<DispIdAttribute>()?.Value);
         Assert.AreEqual(typeof(void), method.ReturnType);
         Assert.AreEqual(0, method.GetParameters().Length);
+    }
+
+    private static void AssertAccessDenied(Action operation)
+    {
+        var error = Assert.ThrowsExactly<COMException>(operation);
+        Assert.AreEqual(unchecked((int)0x80070005), error.ErrorCode);
     }
 
     private sealed class RecordingMessageIndexingRuntime : IMessageIndexingRuntime

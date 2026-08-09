@@ -954,7 +954,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
-            return MessageIndexingRuntimeHost.CreateAuthorizedAdapter();
+            EnsureServerAdministrator();
+            return MessageIndexingRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
         }
     }
 

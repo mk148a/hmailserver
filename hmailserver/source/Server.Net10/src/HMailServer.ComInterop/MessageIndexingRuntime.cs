@@ -47,6 +47,6 @@ public static class MessageIndexingRuntimeHost
                 CoENotInitialized);
     }
 
-    internal static MessageIndexing CreateAuthorizedAdapter() =>
-        new(GetRequiredRuntime());
+    internal static MessageIndexing CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null) =>
+        new(GetRequiredRuntime(), isServerAdministrator);
 }
