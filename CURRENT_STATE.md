@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-09T20:48:06Z
-- Local timestamp: 2026-08-09T23:48:06+03:00
+- UTC timestamp: 2026-08-09T21:50:36Z
+- Local timestamp: 2026-08-10T00:50:36+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `e279ac725` (code/test; docs commit follows)
+- Current HEAD: `e311058e8` (code/test; docs commit follows)
 - Last successfully pushed commit: `5c6265b4b`
-- Latest focused-test result: `DnsBlackListsComContractTests`: `15 passed, 0 failed, 0 skipped`; related DNSBL/SQL filter: `27 passed, 0 failed, 0 skipped`
-- Latest full Net10 result: `1961 passed, 31 skipped, 2 failed`; failures are host-AV locks on generated scanner `.eml` cleanup
-- Opt-in tests passed/skipped/blocked: live SQL/Data restore, live SQL/FTS, live protocol/load, process-kill/power-loss, native AD/DC, installer, registry/COM, service/COM, and SEC-18 acceptance blocked or skipped; scanner cleanup is host-AV blocked
-- Current bounded slice: legacy `DNSBlackLists.ItemByDNSHost` missing-host `S_FALSE` parity, completed in `e279ac725`
-- Completed milestones: backup creation matrix/raw staging, internal reinitialization admission seam, offline SEARCH/SORT benchmark gate, retained COM authorization slices, ClamAV COM test-target hardening, obsolete AntiSpam tarpit setter parity, Language.Download HRESULT parity, and DNSBL missing-host HRESULT parity; no production release gate claimed complete
-- Open production blockers: disposable SQL/Data restore, live SQL/FTS and protocol performance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, service/COM lifecycle, migration/installer rollback, SEC-18, AD/DC, crash/power-loss evidence, authenticated mailbox `Account.ValidatePassword`, and configured-message ClamAV hostname hardening
-- Environment-blocked work: approved disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
+- Latest focused-test result: IMAP message/store ownership filter: `36 passed, 5 skipped, 0 failed`
+- Latest full Net10 result: `1962 passed, 32 skipped, 2 failed`; failures are host-AV locks on generated scanner `.eml` cleanup
+- Opt-in tests passed/skipped/blocked: retained-folder SQL acceptance, populated SQL/Data restore, live SQL/FTS, live protocol/load, process-kill/power-loss, native AD/DC, installer, registry/COM, service/COM, and SEC-18 acceptance blocked or skipped; scanner cleanup is host-AV blocked
+- Current bounded slice: empty IMAP-folder owner account propagation and atomic retained-folder owner/existence guard, completed in `e311058e8`
+- Completed milestones: backup creation matrix/raw staging, internal reinitialization admission seam, offline SEARCH/SORT benchmark gate, retained COM authorization slices, ClamAV COM test-target hardening, obsolete AntiSpam tarpit setter parity, Language.Download HRESULT parity, DNSBL missing-host HRESULT parity, and IMAP folder message ownership/stale-handle parity; no production release gate claimed complete
+- Open production blockers: IMAP Message.Save delivered-state/folder-UID publication, disposable SQL/Data restore, live SQL/FTS and protocol performance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, service/COM lifecycle, migration/installer rollback, SEC-18, AD/DC, crash/power-loss evidence, authenticated mailbox `Account.ValidatePassword`, and configured-message ClamAV hostname hardening
+- Environment-blocked work: approved disposable SQL/FTS target, retained-folder SQL acceptance, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and untracked `artifacts/sec18-staging/`/`artifacts/benchmarks/`
-- Next three independent slices: run populated SQL/Data restore acceptance on an approved disposable target; run live SQL/FTS or protocol performance acceptance on an approved isolated host; rerun scanner cleanup on an AV-compatible isolated path
+- Next three independent slices: parity-confirm IMAP Message.Save delivered-state/folder-UID publication; run populated SQL/Data restore acceptance on an approved disposable target; rerun scanner cleanup on an AV-compatible isolated path
