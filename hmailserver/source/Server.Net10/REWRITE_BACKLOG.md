@@ -1,4 +1,13 @@
-## Current Audit Note (2026-08-09, RETAINED ACCOUNT CHILD AUTHORIZATION PARITY)
+
+## Current Audit Note (2026-08-09, RETAINED GROUP/IMAP CHILD AUTHORIZATION PARITY)
+
+Code/test commit `44e41839f` completes one bounded retained child-facade authorization slice. Legacy `InterfaceGroupMember::get_Account` (`hmailserver/source/Server/COM/InterfaceGroupMember.cpp:125-145`), `InterfaceIMAPFolderPermission::get_Account/get_Group` (`hmailserver/source/Server/COM/InterfaceIMAPFolderPermission.cpp:265-315`), `InterfaceSettings::get_PublicFolders` (`hmailserver/source/Server/COM/InterfaceSettings.cpp:1865-1884`), `InterfaceIMAPFolders` item factories (`hmailserver/source/Server/COM/InterfaceIMAPFolders.cpp:55-133`), and `InterfaceIMAPFolder::get_Permissions` (`hmailserver/source/Server/COM/InterfaceIMAPFolder.cpp:218-244`) attach the shared `COMAuthentication`. The .NET implementation propagates the live callback through GroupMember Account, IMAP permission Account/Group, snapshot-only PublicFolders, and child-folder factories without changing installed COM identity or direct activation boundaries.
+
+Focused GroupMember/IMAP coverage is `32 passed, 0 failed, 0 skipped`; filtered full Net10 is `1948 passed, 0 failed, 31 skipped`; default full is `1953 passed, 2 failed, 31 skipped`. The two default failures are host-AV cleanup locks in the ClamWin and custom scanner tests, not this slice. Security review found no actionable issue after the PublicFolders gap was closed; reality status is RED for release. No SQL/Data, SMTP trust, live reconfiguration, service, registry, DCOM, IIS, or production state changed.
+
+The next code slice is a fresh parity audit of remaining COM/Admin child-facade paths; do not restart older Domain-callback entries without confirming an actual gap. The highest-priority environment-gated slice remains approved disposable SQL/Data restore acceptance, whose required integration connection and isolated-create opt-in are still unset. Release remains RED.
+
+## Historical Audit Note (2026-08-09, RETAINED ACCOUNT CHILD AUTHORIZATION PARITY)
 
 Code/test commit `9b93e9c34` completes the bounded retained Account child-facade guard. Legacy `InterfaceAccount::SetAuthentication` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:53-56`) is attached to `get_Messages` (`:420-445`), `get_FetchAccounts` (`:694-721`), `get_Rules` (`:790-815`), `get_IMAPFolders` (`:817-845`), and scalar `get_AdminLevel` (`:723-738`). The .NET path now carries the live authentication callback through Account `AdminLevel`, Messages and returned Message facades, FetchAccounts and returned FetchAccount facades/drafts, Rules, and folder Messages.
 
