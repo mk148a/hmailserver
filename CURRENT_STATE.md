@@ -1,10 +1,10 @@
 # Current State
-- UTC timestamp: 2026-08-09T19:45:00Z
-- Local timestamp: 2026-08-09T22:45:00+03:00
+- UTC timestamp: 2026-08-09T20:05:00Z
+- Local timestamp: 2026-08-09T23:05:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
 - Push status: verified normal push; protected unrelated worktree changes remain
-- Current HEAD: `414b1e9e0` (code/test commit; documentation commit is the local successor)
-- Last successfully pushed commit: `28d364cdb`
+- Current HEAD: `c3b592f60`
+- Last successfully pushed commit: `c3b592f60`
 - Latest focused-test result: ClamAV guard/runtime/AntiVirus `20 passed, 0 failed, 0 skipped`
 - Latest full Net10 result: filtered `1954 passed, 0 failed, 31 skipped`; default `1959 passed, 2 failed, 31 skipped` because host AV locked generated scanner `.eml` files
 - Opt-in tests passed/skipped/blocked: live SQL/FTS, live protocol, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped; two scanner cleanup tests are host-AV blocked
