@@ -160,7 +160,7 @@ public sealed class Messages : IInterfaceMessages
     private readonly IMessageAdministrationContentSource? _contentSource;
     private readonly int _accountId;
     private readonly int _folderId;
-    private readonly Func<MessageAdministrationSnapshot, long>? _insert;
+    private readonly Func<MessageAdministrationSnapshot, MessageAdministrationInsertResult>? _insert;
     private readonly Func<MessageAdministrationSnapshot, bool>? _update;
     private readonly Func<long, bool>? _delete;
     private readonly Action? _clear;
@@ -175,7 +175,7 @@ public sealed class Messages : IInterfaceMessages
         IMessageAdministrationContentSource? contentSource,
         int accountId,
         int folderId,
-        Func<MessageAdministrationSnapshot, long>? insert,
+        Func<MessageAdministrationSnapshot, MessageAdministrationInsertResult>? insert,
         Func<MessageAdministrationSnapshot, bool>? update = null,
         Func<long, bool>? delete = null,
         Action? clear = null,
@@ -199,7 +199,7 @@ public sealed class Messages : IInterfaceMessages
         IMessageAdministrationContentSource? contentSource = null,
         int accountId = 0,
         int folderId = 0,
-        Func<MessageAdministrationSnapshot, long>? insert = null,
+        Func<MessageAdministrationSnapshot, MessageAdministrationInsertResult>? insert = null,
         Func<MessageAdministrationSnapshot, bool>? update = null,
         Func<long, bool>? delete = null,
         Action? clear = null,
@@ -287,7 +287,7 @@ public sealed class Messages : IInterfaceMessages
 
     public IInterfaceMessage Add()
     {
-        var messages = GetMessages();
+        _ = GetMessages();
         if (_folderId <= 0 || _insert is null)
         {
             throw new COMException("Message index was outside the collection.", DispEBadIndex);
@@ -309,7 +309,7 @@ public sealed class Messages : IInterfaceMessages
             SaveMessage,
             publish: saved =>
             {
-                Volatile.Write(ref _messages, messages.Append(saved).ToArray());
+                Volatile.Write(ref _messages, GetMessages().Append(saved).ToArray());
             },
             isAuthenticated: _isAuthenticated);
     }
@@ -353,27 +353,23 @@ public sealed class Messages : IInterfaceMessages
         }
     }
 
-    private long SaveMessage(MessageAdministrationSnapshot message)
+    private MessageAdministrationInsertResult SaveMessage(MessageAdministrationSnapshot message)
     {
-        var messages = GetMessages();
         if (_insert is null)
         {
             Unavailable();
-            return 0;
+            return Unavailable<MessageAdministrationInsertResult>();
         }
 
         try
         {
-            var insertedId = _insert(message);
-            if (insertedId <= 0)
+            var insertResult = _insert(message);
+            if (insertResult.MessageId <= 0 || insertResult.Uid <= 0)
             {
-                throw new InvalidOperationException(
-                    "The message insert did not return a valid generated identity.");
+                throw new InvalidOperationException("The message insert did not return valid generated values.");
             }
 
-            var saved = message with { Id = insertedId };
-            Volatile.Write(ref _messages, messages.Append(saved).ToArray());
-            return insertedId;
+            return insertResult;
         }
         catch (COMException)
         {
@@ -462,7 +458,7 @@ public sealed class Message : IInterfaceMessage
     private MessageAdministrationSnapshot? _message;
     private readonly IMessageAdministrationContentSource? _contentSource;
     private MessageContentSnapshot? _content;
-    private readonly Func<MessageAdministrationSnapshot, long>? _save;
+    private readonly Func<MessageAdministrationSnapshot, MessageAdministrationInsertResult>? _save;
     private readonly Func<MessageAdministrationSnapshot, bool>? _update;
     private readonly Action<MessageAdministrationSnapshot>? _publish;
     private readonly Action<long>? _delete;
@@ -476,7 +472,7 @@ public sealed class Message : IInterfaceMessage
     private Message(
         MessageAdministrationSnapshot message,
         IMessageAdministrationContentSource? contentSource,
-        Func<MessageAdministrationSnapshot, long>? save = null,
+        Func<MessageAdministrationSnapshot, MessageAdministrationInsertResult>? save = null,
         Func<MessageAdministrationSnapshot, bool>? update = null,
         Action<MessageAdministrationSnapshot>? publish = null,
         Action<long>? delete = null,
@@ -560,7 +556,7 @@ public sealed class Message : IInterfaceMessage
 
     internal static Message CreateAuthorizedDraft(
         MessageAdministrationSnapshot message,
-        Func<MessageAdministrationSnapshot, long> save,
+        Func<MessageAdministrationSnapshot, MessageAdministrationInsertResult> save,
         Action<MessageAdministrationSnapshot> publish,
         Func<bool>? isAuthenticated = null) =>
         new(message, contentSource: null, save, update: null, publish, isAuthenticated: isAuthenticated);
@@ -619,14 +615,18 @@ public sealed class Message : IInterfaceMessage
                 FileName = string.Concat(Guid.NewGuid().ToString("N"), ".eml"),
                 FromAddress = from
             };
-            var insertedId = _save(insertSnapshot);
-            if (insertedId <= 0)
+            var insertResult = _save(insertSnapshot);
+            if (insertResult.MessageId <= 0 || insertResult.Uid <= 0)
             {
-                throw new InvalidOperationException(
-                    "The message insert did not return a valid generated identity.");
+                throw new InvalidOperationException("The message insert did not return valid generated values.");
             }
 
-            var saved = insertSnapshot with { Id = insertedId };
+            var saved = insertSnapshot with
+            {
+                Id = insertResult.MessageId,
+                State = insertResult.State,
+                Uid = insertResult.Uid
+            };
             _message = saved;
             _publish?.Invoke(saved);
         }
@@ -1084,12 +1084,12 @@ public static class MessageAdministrationRuntimeHost
                 CoENotInitialized);
 
         var messages = store
-            .GetFolderMessagesAsync(folderId, CancellationToken.None)
+            .GetFolderMessagesAsync(accountId, folderId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
 
-        long InsertMessage(MessageAdministrationSnapshot message) => store
+        MessageAdministrationInsertResult InsertMessage(MessageAdministrationSnapshot message) => store
             .InsertMessageAsync(accountId, folderId, message, CancellationToken.None)
             .AsTask()
             .GetAwaiter()

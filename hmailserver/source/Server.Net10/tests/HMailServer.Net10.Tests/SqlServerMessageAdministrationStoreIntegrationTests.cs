@@ -28,7 +28,7 @@ public sealed class SqlServerMessageAdministrationStoreIntegrationTests
             var store = new SqlServerMessageAdministrationStore(
                 new SqlServerConnectionFactory(testConnectionString));
 
-            var insertedId = await store.InsertMessageAsync(
+            var firstInsert = await store.InsertMessageAsync(
                 10,
                 20,
                 new MessageAdministrationSnapshot(
@@ -44,19 +44,21 @@ public sealed class SqlServerMessageAdministrationStoreIntegrationTests
                     InternalDate: new DateTime(2026, 1, 2, 3, 4, 5),
                     Uid: 1),
                 CancellationToken.None).ConfigureAwait(false);
-            Assert.IsTrue(insertedId > 0);
+            Assert.IsTrue(firstInsert.MessageId > 0);
+            Assert.AreEqual(2, firstInsert.Uid);
+            Assert.AreEqual(2, firstInsert.State);
 
-            var readBack = await store.GetFolderMessagesAsync(20, CancellationToken.None).ConfigureAwait(false);
-            var inserted = readBack.Single(message => message.Id == insertedId);
+            var readBack = await store.GetFolderMessagesAsync(10, 20, CancellationToken.None).ConfigureAwait(false);
+            var inserted = readBack.Single(message => message.Id == firstInsert.MessageId);
             Assert.AreEqual(10, inserted.AccountId);
             Assert.AreEqual(20, inserted.FolderId);
             Assert.AreEqual("00000000-0000-0000-0000-000000000001.eml", inserted.FileName);
             Assert.AreEqual(2, inserted.State);
             Assert.AreEqual("sender@example.test", inserted.FromAddress);
             Assert.AreEqual(2048, inserted.SizeBytes);
-            Assert.AreEqual(1, inserted.Uid);
+            Assert.AreEqual(2, inserted.Uid);
 
-            var secondId = await store.InsertMessageAsync(
+            var secondInsert = await store.InsertMessageAsync(
                 10,
                 20,
                 new MessageAdministrationSnapshot(
@@ -72,8 +74,10 @@ public sealed class SqlServerMessageAdministrationStoreIntegrationTests
                     InternalDate: new DateTime(2026, 1, 3, 3, 4, 5),
                     Uid: 2),
                 CancellationToken.None).ConfigureAwait(false);
-            Assert.AreNotEqual(insertedId, secondId);
-            Assert.AreEqual(3, (await store.GetFolderMessagesAsync(20, CancellationToken.None).ConfigureAwait(false)).Count);
+            Assert.AreNotEqual(firstInsert.MessageId, secondInsert.MessageId);
+            Assert.AreEqual(3, secondInsert.Uid);
+            Assert.AreEqual(2, secondInsert.State);
+            Assert.AreEqual(3, (await store.GetFolderMessagesAsync(10, 20, CancellationToken.None).ConfigureAwait(false)).Count);
 
             await Assert.ThrowsExactlyAsync<SqlException>(
                 () => store.InsertMessageAsync(
@@ -92,7 +96,26 @@ public sealed class SqlServerMessageAdministrationStoreIntegrationTests
                         InternalDate: new DateTime(2026, 1, 4),
                         Uid: 3),
                     CancellationToken.None).AsTask()).ConfigureAwait(false);
-            Assert.AreEqual(3, (await store.GetFolderMessagesAsync(20, CancellationToken.None).ConfigureAwait(false)).Count);
+            Assert.AreEqual(3, (await store.GetFolderMessagesAsync(10, 20, CancellationToken.None).ConfigureAwait(false)).Count);
+            Assert.AreEqual(3, await GetFolderCurrentUidAsync(testConnectionString, 20).ConfigureAwait(false));
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => store.InsertMessageAsync(
+                    10,
+                    999,
+                    new MessageAdministrationSnapshot(
+                        Id: 0,
+                        AccountId: 10,
+                        FolderId: 999,
+                        FileName: "missing-folder.eml",
+                        State: 0,
+                        FromAddress: string.Empty,
+                        SizeBytes: 0,
+                        CurrentNumberOfTries: 0,
+                        Flags: 0,
+                        InternalDate: new DateTime(2026, 1, 5),
+                        Uid: 0),
+                    CancellationToken.None).AsTask()).ConfigureAwait(false);
+            Assert.AreEqual(3, (await store.GetFolderMessagesAsync(10, 20, CancellationToken.None).ConfigureAwait(false)).Count);
         }
         finally
         {
@@ -208,6 +231,17 @@ public sealed class SqlServerMessageAdministrationStoreIntegrationTests
         await connection.OpenAsync().ConfigureAwait(false);
         await using var command = new SqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<long> GetFolderCurrentUidAsync(string connectionString, int folderId)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT foldercurrentuid FROM dbo.hm_imapfolders WHERE folderid = @FolderID;",
+            connection);
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        return Convert.ToInt64(await command.ExecuteScalarAsync().ConfigureAwait(false), CultureInfo.InvariantCulture);
     }
 
     private static async Task DropDatabaseAsync(string connectionString, string databaseName)

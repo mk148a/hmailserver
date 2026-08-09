@@ -7,10 +7,11 @@ public interface IMessageAdministrationStore
         CancellationToken cancellationToken);
 
     ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesAsync(
+        int accountId,
         int folderId,
         CancellationToken cancellationToken);
 
-    ValueTask<long> InsertMessageAsync(
+    ValueTask<MessageAdministrationInsertResult> InsertMessageAsync(
         int accountId,
         int folderId,
         MessageAdministrationSnapshot snapshot,

@@ -39,8 +39,16 @@ SELECT
     messagecreatetime,
     messageuid
 FROM hm_messages
-WHERE messagefolderid = @FolderID
+WHERE messageaccountid = @AccountID
+  AND messagefolderid = @FolderID
   AND messagetype = 2
+  AND EXISTS
+  (
+      SELECT 1
+      FROM hm_imapfolders
+      WHERE folderid = @FolderID
+        AND folderaccountid = @AccountID
+  )
 ORDER BY messageuid ASC, messageid ASC;
 """;
 
@@ -57,7 +65,19 @@ ORDER BY messageuid ASC, messageid ASC;
         FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)
         WHERE folderid = @FolderID
           AND folderaccountid = @AccountID;
-        """;    public const string UpdateMessageSql = """
+        """;
+
+    public const string AllocateFolderUidSql = """
+        UPDATE hm_imapfolders
+        SET foldercurrentuid = foldercurrentuid + 1
+        OUTPUT INSERTED.foldercurrentuid
+        WHERE folderid = @FolderID
+          AND folderaccountid = @AccountID;
+        """;
+
+    private const int DeliveredState = 2;
+
+    public const string UpdateMessageSql = """
         UPDATE hm_messages
         SET messagefolderid = @FolderID,
             messagefilename = @FileName,
@@ -138,7 +158,7 @@ ORDER BY messageuid ASC, messageid ASC;
         var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return affected == 1;
     }
-    public async ValueTask<long> InsertMessageAsync(
+    public async ValueTask<MessageAdministrationInsertResult> InsertMessageAsync(
         int accountId,
         int folderId,
         MessageAdministrationSnapshot snapshot,
@@ -146,11 +166,24 @@ ORDER BY messageuid ASC, messageid ASC;
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertMessageSql, connection);
+        await using var transaction = (SqlTransaction)await connection
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await using var allocateCommand = new SqlCommand(AllocateFolderUidSql, connection, transaction);
+        allocateCommand.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        allocateCommand.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        var allocatedUid = await allocateCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        if (allocatedUid is null || allocatedUid == DBNull.Value)
+        {
+            throw new InvalidOperationException("The message folder does not exist for the selected account.");
+        }
+
+        await using var command = new SqlCommand(InsertMessageSql, connection, transaction);
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
         command.Parameters.Add("@FileName", SqlDbType.NVarChar, 255).Value = snapshot.FileName;
-        command.Parameters.Add("@State", SqlDbType.TinyInt).Value = snapshot.State;
+        command.Parameters.Add("@State", SqlDbType.TinyInt).Value = DeliveredState;
         command.Parameters.Add("@From", SqlDbType.NVarChar, 255).Value = snapshot.FromAddress;
         command.Parameters.Add("@Size", SqlDbType.BigInt).Value = snapshot.SizeBytes;
         command.Parameters.Add("@CurrentNumberOfTries", SqlDbType.Int).Value = snapshot.CurrentNumberOfTries;
@@ -158,29 +191,45 @@ ORDER BY messageuid ASC, messageid ASC;
         command.Parameters.Add("@Flags", SqlDbType.TinyInt).Value = snapshot.Flags;
         command.Parameters.Add("@CreateTime", SqlDbType.DateTime).Value = snapshot.InternalDate;
         command.Parameters.Add("@Locked", SqlDbType.TinyInt).Value = 0;
-        command.Parameters.Add("@Uid", SqlDbType.BigInt).Value = snapshot.Uid;
+        command.Parameters.Add("@Uid", SqlDbType.BigInt).Value = allocatedUid;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-        return Convert.ToInt64(insertedId, CultureInfo.InvariantCulture);
+        if (insertedId is null || insertedId == DBNull.Value)
+        {
+            throw new InvalidOperationException("The message insert did not return a generated identity.");
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return new MessageAdministrationInsertResult(
+            Convert.ToInt64(insertedId, CultureInfo.InvariantCulture),
+            Convert.ToInt64(allocatedUid, CultureInfo.InvariantCulture),
+            DeliveredState);
     }
     public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetAccountMessagesAsync(
         int accountId,
         CancellationToken cancellationToken) =>
-        GetMessagesAsync(GetAccountMessagesSql, "@AccountID", accountId, cancellationToken);
+        GetMessagesAsync(GetAccountMessagesSql, cancellationToken, ("@AccountID", accountId));
 
     public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesAsync(
+        int accountId,
         int folderId,
         CancellationToken cancellationToken) =>
-        GetMessagesAsync(GetFolderMessagesSql, "@FolderID", folderId, cancellationToken);
+        GetMessagesAsync(
+            GetFolderMessagesSql,
+            cancellationToken,
+            ("@AccountID", accountId),
+            ("@FolderID", folderId));
 
     private async ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetMessagesAsync(
         string sql,
-        string parameterName,
-        int parameterValue,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        params (string Name, int Value)[] parameters)
     {
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(sql, connection);
-        command.Parameters.Add(parameterName, SqlDbType.Int).Value = parameterValue;
+        foreach (var parameter in parameters)
+        {
+            command.Parameters.Add(parameter.Name, SqlDbType.Int).Value = parameter.Value;
+        }
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
             cancellationToken).ConfigureAwait(false);

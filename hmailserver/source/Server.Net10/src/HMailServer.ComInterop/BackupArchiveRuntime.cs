@@ -1349,7 +1349,7 @@ public sealed class BackupXmlPayloadRuntime
                                     if (!folderMessagesByFolderId.ContainsKey(folder.Id))
                                     {
                                         folderMessagesByFolderId[folder.Id] = await _messageStore!
-                                            .GetFolderMessagesAsync(folder.Id, cancellationToken)
+                                            .GetFolderMessagesAsync(account.Id, folder.Id, cancellationToken)
                                             .ConfigureAwait(false);
                                     }
                                 }

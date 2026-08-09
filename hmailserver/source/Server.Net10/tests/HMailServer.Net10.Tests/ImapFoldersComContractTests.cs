@@ -879,6 +879,7 @@ public sealed class ImapFoldersComContractTests
             ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(Array.Empty<MessageAdministrationSnapshot>());
 
         public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesAsync(
+            int accountId,
             int folderId,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(Array.Empty<MessageAdministrationSnapshot>());

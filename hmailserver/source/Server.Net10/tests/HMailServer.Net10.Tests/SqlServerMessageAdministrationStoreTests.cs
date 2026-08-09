@@ -27,8 +27,12 @@ public sealed class SqlServerMessageAdministrationStoreTests
 
         AssertMessageProjection(sql);
         StringAssert.Contains(sql, "FROM hm_messages");
+        StringAssert.Contains(sql, "messageaccountid = @AccountID");
         StringAssert.Contains(sql, "messagefolderid = @FolderID");
         StringAssert.Contains(sql, "messagetype = 2");
+        StringAssert.Contains(sql, "FROM hm_imapfolders");
+        StringAssert.Contains(sql, "folderid = @FolderID");
+        StringAssert.Contains(sql, "folderaccountid = @AccountID");
         StringAssert.Contains(sql, "ORDER BY messageuid ASC, messageid ASC");
         AssertNoOutOfScopeMessageAccess(sql);
     }
@@ -124,6 +128,19 @@ public sealed class SqlServerMessageAdministrationStoreTests
         StringAssert.Contains(sql, "@Uid");
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void AllocateFolderUidSql_IsOwnerScopedAndReturnsIncrementedFolderUid()
+    {
+        var sql = SqlServerMessageAdministrationStore.AllocateFolderUidSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_imapfolders");
+        StringAssert.Contains(sql, "SET foldercurrentuid = foldercurrentuid + 1");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.foldercurrentuid");
+        StringAssert.Contains(sql, "folderid = @FolderID");
+        StringAssert.Contains(sql, "folderaccountid = @AccountID");
+        Assert.IsFalse(sql.Contains("hm_messages", StringComparison.OrdinalIgnoreCase));
     }
     [TestMethod]
     public void UpdateMessageSql_UsesLegacyMessageColumnsAndOwnerScopedIdentityPredicate()

@@ -453,7 +453,7 @@ SGVsbG8=
             Array.Empty<MessageAdministrationSnapshot>(),
             accountId: 100,
             folderId: 50,
-            insert: _ => 1001,
+            insert: _ => new MessageAdministrationInsertResult(1001, 1, 2),
             isAuthenticated: () => authenticated);
         var draft = messages.Add();
         authenticated = false;
@@ -487,25 +487,29 @@ SGVsbG8=
     {
         int? insertedAccountId = null;
         int? insertedFolderId = null;
-        MessageAdministrationRuntimeHost.Configure(
-            new FixedMessageAdministrationStore(
-                Array.Empty<MessageAdministrationSnapshot>(),
-                (accountId, folderId, _) =>
-                {
-                    insertedAccountId = accountId;
-                    insertedFolderId = folderId;
-                    return 1001;
-                }));
+        var store = new FixedMessageAdministrationStore(
+            Array.Empty<MessageAdministrationSnapshot>(),
+            (accountId, folderId, _) =>
+            {
+                insertedAccountId = accountId;
+                insertedFolderId = folderId;
+                return new MessageAdministrationInsertResult(1001, 42, 2);
+            });
+        MessageAdministrationRuntimeHost.Configure(store);
         var folders = IMAPFolders.CreateAuthorized(
             new[] { new ImapFolderAdministrationSnapshot(50, 100, -1, "Inbox", true, 42, "2026-07-01 00:00:00") });
 
         var messages = folders[0].Messages;
+        Assert.AreEqual(100, store.FolderReadAccountId);
+        Assert.AreEqual(50, store.FolderReadId);
         var draft = messages.Add();
         draft.Save();
 
         Assert.AreEqual(100, insertedAccountId);
         Assert.AreEqual(50, insertedFolderId);
         Assert.AreEqual(1001, draft.ID);
+        Assert.AreEqual(2, draft.State);
+        Assert.AreEqual(42, draft.UID);
     }
 
     [TestMethod]
@@ -519,13 +523,15 @@ SGVsbG8=
             insert: message =>
             {
                 inserted = message;
-                return 11;
+                return new MessageAdministrationInsertResult(11, 42, 2);
             });
 
         var draft = messages.Add();
 
         Assert.AreEqual(0, draft.ID);
         Assert.AreEqual(string.Empty, draft.Filename);
+        Assert.AreEqual(0, draft.State);
+        Assert.AreEqual(0, draft.UID);
 
         draft.Subject = "Hello";
         draft.From = "sender@example.test";
@@ -536,13 +542,18 @@ SGVsbG8=
 
         Assert.AreEqual(2, messages.Count);
         Assert.AreEqual(11, draft.ID);
+        Assert.AreEqual(2, draft.State);
+        Assert.AreEqual(42, draft.UID);
         Assert.IsNotNull(inserted);
         Assert.AreEqual(0, inserted.Id);
         Assert.AreEqual(100, inserted.AccountId);
         Assert.AreEqual(20, inserted.FolderId);
         Assert.AreEqual("sender@example.test", inserted.FromAddress);
         Assert.IsTrue(inserted.FileName.EndsWith(".eml", StringComparison.OrdinalIgnoreCase));
-        Assert.AreEqual("sender@example.test", messages.get_ItemByDBID(11).FromAddress);
+        var published = messages.get_ItemByDBID(11);
+        Assert.AreEqual("sender@example.test", published.FromAddress);
+        Assert.AreEqual(2, published.State);
+        Assert.AreEqual(42, published.UID);
     }
 
     [TestMethod]
@@ -555,7 +566,7 @@ SGVsbG8=
             folderId: 20,
             insert: _ => fail
                 ? throw new InvalidOperationException("Simulated store failure.")
-                : 1);
+                : new MessageAdministrationInsertResult(1, 1, 2));
 
         var draft = messages.Add();
         draft.Subject = "Hello";
@@ -565,6 +576,8 @@ SGVsbG8=
         Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
         Assert.AreEqual(0, messages.Count);
         Assert.AreEqual(0, draft.ID);
+        Assert.AreEqual(0, draft.State);
+        Assert.AreEqual(0, draft.UID);
 
         draft.Subject = "Other";
         fail = false;
@@ -572,7 +585,70 @@ SGVsbG8=
 
         Assert.AreEqual(1, messages.Count);
         Assert.AreEqual(1, draft.ID);
+        Assert.AreEqual(2, draft.State);
+        Assert.AreEqual(1, draft.UID);
     }
+
+    [TestMethod]
+    public void FolderScopedSavesReceiveSequentialFolderLocalUids()
+    {
+        var nextUid = 40L;
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            Array.Empty<MessageAdministrationSnapshot>(),
+            accountId: 100,
+            folderId: 20,
+            insert: _ => new MessageAdministrationInsertResult(nextUid == 40 ? 11 : 12, nextUid++, 2));
+
+        var first = messages.Add();
+        first.Save();
+        var second = messages.Add();
+        second.Save();
+
+        Assert.AreEqual(40, first.UID);
+        Assert.AreEqual(41, second.UID);
+        Assert.AreEqual(2, first.State);
+        Assert.AreEqual(2, second.State);
+        Assert.AreEqual(2, messages.Count);
+    }
+
+    [TestMethod]
+    public void UnsavedDraftsPublishExactlyOnceWhenSavedInReverseOrder()
+    {
+        var inserted = new List<(long MessageId, long Uid)>();
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            Array.Empty<MessageAdministrationSnapshot>(),
+            accountId: 100,
+            folderId: 20,
+            insert: _ =>
+            {
+                var result = new MessageAdministrationInsertResult(
+                    MessageId: inserted.Count + 11,
+                    Uid: inserted.Count + 40,
+                    State: 2);
+                inserted.Add((result.MessageId, result.Uid));
+                return result;
+            });
+
+        var first = messages.Add();
+        var second = messages.Add();
+
+        second.Save();
+        first.Save();
+
+        Assert.AreEqual(2, inserted.Count);
+        Assert.AreEqual(2, messages.Count);
+        Assert.AreNotEqual(second.ID, first.ID);
+        Assert.AreNotEqual(second.UID, first.UID);
+        Assert.AreEqual(2, second.State);
+        Assert.AreEqual(2, first.State);
+        CollectionAssert.AreEquivalent(
+            new[] { first.ID, second.ID },
+            new[] { messages[0].ID, messages[1].ID });
+        CollectionAssert.AreEquivalent(
+            new[] { first.UID, second.UID },
+            new[] { messages[0].UID, messages[1].UID });
+    }
+
     [TestMethod]
     public void ExistingRowSave_PersistsStagedFromAndReplacesCollectionSnapshot()
     {
@@ -581,7 +657,7 @@ SGVsbG8=
             new[] { Snapshot(10, 100, 20, "one.eml", 2, "one@example.test", 1024, 0, 0, Date(2026, 1, 1), 1) },
             accountId: 100,
             folderId: 20,
-            insert: _ => 11,
+            insert: _ => new MessageAdministrationInsertResult(11, 1, 2),
             update: message =>
             {
                 updated = message;
@@ -763,12 +839,14 @@ SGVsbG8=
 
     private sealed class FixedMessageAdministrationStore(
         IReadOnlyList<MessageAdministrationSnapshot> messages,
-        Func<int, int, MessageAdministrationSnapshot, long>? insert = null)
+        Func<int, int, MessageAdministrationSnapshot, MessageAdministrationInsertResult>? insert = null)
         : IMessageAdministrationStore
     {
-        private readonly Func<int, int, MessageAdministrationSnapshot, long>? _insert = insert;
+        private readonly Func<int, int, MessageAdministrationSnapshot, MessageAdministrationInsertResult>? _insert = insert;
 
         public int AccountReadCount { get; private set; }
+        public int? FolderReadAccountId { get; private set; }
+        public int? FolderReadId { get; private set; }
 
         public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetAccountMessagesAsync(
             int accountId,
@@ -780,12 +858,17 @@ SGVsbG8=
         }
 
         public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesAsync(
+            int accountId,
             int folderId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(
+            CancellationToken cancellationToken)
+        {
+            FolderReadAccountId = accountId;
+            FolderReadId = folderId;
+            return ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(
                 messages.Where(message => message.FolderId == folderId).OrderBy(message => message.Uid).ToArray());
+        }
 
-        public ValueTask<long> InsertMessageAsync(
+        public ValueTask<MessageAdministrationInsertResult> InsertMessageAsync(
             int accountId,
             int folderId,
             MessageAdministrationSnapshot snapshot,

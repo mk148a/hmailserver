@@ -2371,6 +2371,7 @@ public sealed class BackupArchiveRuntimeTests
                 Array.Empty<MessageAdministrationSnapshot>());
 
         public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesAsync(
+            int accountId,
             int folderId,
             CancellationToken cancellationToken)
         {

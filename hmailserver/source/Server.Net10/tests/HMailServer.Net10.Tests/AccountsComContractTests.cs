@@ -1109,6 +1109,7 @@ public sealed class AccountsComContractTests
         }
 
         public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesAsync(
+            int accountId,
             int folderId,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(Array.Empty<MessageAdministrationSnapshot>());
