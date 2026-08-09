@@ -183,7 +183,7 @@ public sealed class GlobalObjectsComContractTests
         Assert.AreEqual("No translation", turkish.get_String("No translation"));
         Assert.AreEqual(DispEBadIndex, missingNameError.ErrorCode);
         Assert.AreEqual(DispEBadIndex, badIndexError.ErrorCode);
-        Assert.AreEqual(ENotImplemented, downloadError.ErrorCode);
+        Assert.AreEqual(ELegacyComError, downloadError.ErrorCode);
         Assert.AreEqual(1, store.CallCount);
     }
 

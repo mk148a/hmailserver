@@ -118,7 +118,7 @@ public sealed class Languages : IInterfaceLanguages
 public sealed class Language : IInterfaceLanguage
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
-    private const int ENotImplemented = unchecked((int)0x80004001);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
 
     private readonly LanguageAdministrationSnapshot? _language;
 
@@ -141,7 +141,7 @@ public sealed class Language : IInterfaceLanguage
     public void Download()
     {
         _ = Snapshot;
-        throw new COMException("Not implemented.", ENotImplemented);
+        throw new COMException("Not implemented.", ELegacyComError);
     }
 
     internal static Language CreateAuthorized(LanguageAdministrationSnapshot language) => new(language);
