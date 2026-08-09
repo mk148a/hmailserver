@@ -1,3 +1,11 @@
+## Current Audit Note (2026-08-09, RETAINED ACCOUNT CHILD AUTHORIZATION PARITY)
+
+Code/test commit `9b93e9c34` completes the bounded retained Account child-facade guard. Legacy `InterfaceAccount::SetAuthentication` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:53-56`) is attached to `get_Messages` (`:420-445`), `get_FetchAccounts` (`:694-721`), `get_Rules` (`:790-815`), `get_IMAPFolders` (`:817-845`), and scalar `get_AdminLevel` (`:723-738`). The .NET path now carries the live authentication callback through Account `AdminLevel`, Messages and returned Message facades, FetchAccounts and returned FetchAccount facades/drafts, Rules, and folder Messages.
+
+Focused Account/Links coverage is `123 passed, 0 failed, 0 skipped`; `git diff --check` passed. The default full run reached `1947 passed, 2 failed, 31 skipped`; both failures are scanner cleanup `UnauthorizedAccessException` caused by host AV locking generated `.eml` files in `ClamWinScannerTestRuntimeTests` and `CustomScannerTestRuntimeTests`. Excluding those two scanner classes, the full assembly is `1942 passed, 0 failed, 31 skipped`. Installed COM identity, direct activation, standalone callback-null factories, SQL ownership, SMTP trust, and live reconfiguration are unchanged.
+
+Residual test gap for the next slice: explicit retained-child denial for Rules and IMAPFolders, post-logout draft setter denial, and a clean scanner run on a host where AV does not lock test files. Nested Domain collection callback propagation, SQL/Data restore, service/COM, SEC-18, live performance, and soak gates remain open; release is RED.
+
 ## Current Audit Note (2026-08-09, RETAINED LINKS CHILD AUTHORIZATION PARITY)
 
 Code/test commit `52d000029` closes the bounded direct-child propagation gap left by root retained `Links`. Legacy `InterfaceLinks::{get_Domain,get_Account,get_Alias,get_DistributionList}` (`hmailserver/source/Server/COM/InterfaceLinks.cpp:22-138`) attaches the shared `COMAuthentication` object to each child; the corresponding .NET `Links` factories now pass the live `ApplicationAuthorizationAuthority.IsServerAdministrator` guard into Domain, Alias, DistributionList, and Account facades. `DistributionList` uses a separate read callback so existing standalone collection scalar-read semantics are unchanged while direct Links children deny retained reads after logout.

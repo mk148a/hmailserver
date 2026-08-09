@@ -1,19 +1,19 @@
 # Current State
-- UTC timestamp: 2026-08-09T07:00:00Z
-- Local timestamp: 2026-08-09T10:00:00+03:00
+- UTC timestamp: 2026-08-09T08:00:00Z
+- Local timestamp: 2026-08-09T11:00:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: code commit `52d000029` is local; documentation commit is pending; protected unrelated worktree changes remain
-- Current HEAD: `52d000029`
-- Last successfully pushed commit: `fbf5ba0cf`
-- Latest focused-test result: Links/DistributionLists/Accounts `78 passed, 0 failed, 0 skipped`; Release offline benchmark p50 `7.166 ms`, p95 `7.838 ms`, p99 `7.987 ms`, `9091/9091`, threshold passed
-- Latest full Net10 result: default `1945 passed, 0 failed, 31 skipped` (revalidated after `52d000029`)
-- Opt-in tests passed/skipped/blocked: live SQL/FTS, live protocol, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped
-- Current bounded slice: retained direct child-facade authorization from `Links`, code/test commit `52d000029`; documentation commit pending
-- Completed milestones: internal reinitialization admission seam, commandable offline SEARCH/SORT benchmark gate, stale backlog reconciliation, Account.ValidatePassword safety fence, retained delivery-queue authorization parity, root Links authorization parity, and direct Links child authorization propagation; no production release gate is claimed complete
-- Open production blockers: retained nested Account/Domain authorization propagation, restartable runtime/service/COM reinitialization, approved SQL/Data restore acceptance, live SQL/FTS and protocol performance acceptance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, restore/migration/installer, SEC-18, AD/DC, crash/power-loss evidence, and authenticated mailbox Account.ValidatePassword parity
+- Push status: code commit `9b93e9c34` is local; documentation commit is pending; protected unrelated worktree changes remain
+- Current HEAD: `9b93e9c34`
+- Last successfully pushed commit: `72caddf2e`
+- Latest focused-test result: Account/Links nested authorization `123 passed, 0 failed, 0 skipped`; Release offline benchmark p50 `7.166 ms`, p95 `7.838 ms`, p99 `7.987 ms`, `9091/9091`, threshold passed
+- Latest full Net10 result: default `1947 passed, 2 failed, 31 skipped`; scanner classes excluded for AV-lock diagnosis: `1942 passed, 0 failed, 31 skipped`
+- Opt-in tests passed/skipped/blocked: live SQL/FTS, live protocol, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped; two scanner cleanup tests are host-AV blocked
+- Current bounded slice: retained Account child-facade authorization from `Links`, code/test commit `9b93e9c34`; documentation commit pending
+- Completed milestones: internal reinitialization admission seam, commandable offline SEARCH/SORT benchmark gate, stale backlog reconciliation, Account.ValidatePassword safety fence, retained delivery-queue authorization parity, root Links authorization parity, direct Links child authorization propagation, and Account nested child authorization propagation; no production release gate is claimed complete
+- Open production blockers: negative Rules/IMAP/draft coverage and nested Domain authorization propagation, restartable runtime/service/COM reinitialization, approved SQL/Data restore acceptance, live SQL/FTS and protocol performance acceptance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, restore/migration/installer, SEC-18, AD/DC, crash/power-loss evidence, and authenticated mailbox Account.ValidatePassword parity
 - Environment-blocked work: approved disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: propagate reauthentication through nested Account and Domain collection facades; run approved disposable SQL/Data restore acceptance; design a reviewed authoritative COM credential-verifier boundary before Account.ValidatePassword
+- Next three independent slices: add retained Rules/IMAPFolders/draft negative coverage and clean scanner execution; propagate reauthentication through nested Domain collections; run approved disposable SQL/Data restore acceptance
 
 - UTC timestamp: 2026-08-08T20:18:00Z
 - Local timestamp: 2026-08-08T23:18:00+03:00
