@@ -2,6 +2,14 @@
 
 ## Current Authoritative Continuation
 
+2026-08-09 code/test commit `e279ac725` closes the bounded DNSBL missing-host COM status gap. Legacy `InterfaceDNSBlackLists::get_ItemByDNSHost` (`hmailserver/source/Server/COM/InterfaceDNSBlackLists.cpp:168-184`) performs a case-insensitive lookup and explicitly returns `S_FALSE` (`0x00000001`) when no DNS host matches. The .NET `DNSBlackLists.get_ItemByDNSHost` (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/DnsBlackLists.cs:208-222`) now preserves that HRESULT; hit lookup, owner snapshot, authenticated Settings access, direct activation denial, and SMTP DNSBL paths are unchanged. IDL `IInterfaceDNSBlackLists` DISPID 7 and installed COM identity remain unchanged.
+
+Focused `DnsBlackListsComContractTests`: `15 passed, 0 failed, 0 skipped`. DNSBL plus the related SQL integration class: `27 passed, 0 failed, 0 skipped`. Full Net10: `1961 passed, 31 skipped, 2 failed`; both failures are host-AV locks deleting generated scanner `.eml` files. Security review is GREEN for the bounded slice; reality review is RED for release. No production SQL/Data, service, COM registration, DCOM, IIS, or firewall state was touched.
+
+The next independent gates are approved populated SQL/Data restore acceptance, live SQL/FTS or protocol performance acceptance, and AV-compatible scanner cleanup. The required SQL/Data connection and isolated-create opt-in remain unset. Do not restart the stale IMAP alias/default-domain or `FetchAccount.DownloadNow` entries; both are already implemented.
+
+## Current Authoritative Continuation
+
 2026-08-09 code/test commit `23fd5ef74` closes a small COM error-contract parity gap. Legacy `InterfaceLanguage::Download` (`hmailserver/source/Server/COM/InterfaceLanguage.cpp:67`) calls `COMError::GenerateError("Not implemented.")` (`COMError.cpp:24`), returning HRESULT `0x800403E9`; the .NET `Language.Download` (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/Languages.cs:141`) previously returned `E_NOTIMPL` and now matches the legacy HRESULT/message. `GlobalObjectsComContractTests` passes `8/8`; full Net10 is `1961 passed, 31 skipped, 2 failed`, with the two known host-AV `.eml` cleanup failures. No COM identity, direct activation, SQL/Data, IIS, service, or production state changed.
 
 The earlier IMAP domain-alias/default-domain item and `FetchAccount.DownloadNow` item were rechecked and are already implemented; do not restart those stale entries. The next independent slices are approved disposable SQL/Data restore acceptance, live SQL/FTS or protocol performance acceptance, and AV-compatible scanner cleanup. Release remains RED.

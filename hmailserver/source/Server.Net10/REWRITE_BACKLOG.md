@@ -1,4 +1,12 @@
 
+## Current Audit Note (2026-08-09, DNSBL MISSING-HOST HRESULT PARITY)
+
+Code/test commit `e279ac725` closes the bounded COM status gap for `DNSBlackLists.ItemByDNSHost`. Legacy `InterfaceDNSBlackLists::get_ItemByDNSHost` (`hmailserver/source/Server/COM/InterfaceDNSBlackLists.cpp:168-184`) uses the case-insensitive `Collection::GetItemByName` path and explicitly returns `S_FALSE` (`0x00000001`) when the DNS host is absent. The .NET `DNSBlackLists.get_ItemByDNSHost` (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/DnsBlackLists.cs:208-222`) now throws the existing COM interop representation of `S_FALSE` for that branch and preserves the existing case-insensitive hit behavior.
+
+Focused `DnsBlackListsComContractTests` coverage is `15 passed, 0 failed, 0 skipped`; the DNSBL plus related SQL integration filter is `27 passed, 0 failed, 0 skipped`. Full Net10 is `1961 passed, 31 skipped, 2 failed`, with the two known host-AV `.eml` cleanup failures. The changed SQL integration assertion only tracks the COM HRESULT; no SQL schema or live DNSBL/SMTP behavior changed. IDL/IID/vtable/DISPID/class identity, authenticated Settings access, direct activation denial, owner-scoped lookup, and production state are unchanged.
+
+Security review is GREEN for this bounded slice. Reality review accepts the slice conditionally but remains RED for release. The approved SQL/Data connection and isolated-create opt-in remain unset; do not use production SQL/Data. The next independent gates remain populated disposable SQL/Data restore acceptance, live SQL/FTS or protocol performance acceptance, and an AV-compatible scanner cleanup run.
+
 ## Current Audit Note (2026-08-09, LANGUAGE DOWNLOAD HRESULT PARITY)
 
 Code/test commit `23fd5ef74` aligns authorized `Language.Download()` with legacy `InterfaceLanguage::Download` (`hmailserver/source/Server/COM/InterfaceLanguage.cpp:67`), which returns `COMError::GenerateError("Not implemented.")` (`hmailserver/source/Server/COM/COMError.cpp:24`) with HRESULT `0x800403E9`. The .NET implementation (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/Languages.cs:141`) now preserves that HRESULT and message without changing `IInterfaceLanguage` identity, DISPID 4, direct activation denial, or language store behavior.
