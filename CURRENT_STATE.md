@@ -1,48 +1,16 @@
 # Current State
-- UTC timestamp: 2026-08-09T17:48:59Z
-- Local timestamp: 2026-08-09T20:48:59+03:00
+- UTC timestamp: 2026-08-09T18:13:25Z
+- Local timestamp: 2026-08-09T21:13:25+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: code/test `44e41839f` and docs commit are local pending normal push; protected unrelated worktree changes remain
-- Current HEAD: `44e41839f`
-- Last successfully pushed commit: `0ab81ab90`
-- Latest focused-test result: GroupMember/IMAP retained child authorization `32 passed, 0 failed, 0 skipped`
-- Latest full Net10 result: filtered `1948 passed, 0 failed, 31 skipped`; default `1953 passed, 2 failed, 31 skipped` because host AV locked generated scanner `.eml` files during cleanup
+- Push status: code/test `e2109f422` and this docs commit pending normal push; protected unrelated worktree changes remain
+- Current HEAD: `e2109f422` before the docs commit
+- Last successfully pushed commit: `ffcbd4d30`
+- Latest focused-test result: MessageIndexing/Settings retained authorization `25 passed, 0 failed, 0 skipped`
+- Latest full Net10 result: filtered `1949 passed, 0 failed, 31 skipped`; default `1954 passed, 2 failed, 31 skipped` because host AV locked generated scanner `.eml` files
 - Opt-in tests passed/skipped/blocked: live SQL/FTS, live protocol, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped; two scanner cleanup tests are host-AV blocked
-- Current bounded slice: retained GroupMember/IMAP permission child authorization, including Settings.PublicFolders snapshot propagation; code/test commit `44e41839f`
-- Completed milestones: internal reinitialization admission seam, commandable offline SEARCH/SORT benchmark gate, stale backlog reconciliation, Account.ValidatePassword safety fence, retained delivery-queue authorization parity, root Links authorization parity, direct Links child authorization propagation, Account nested child authorization propagation, Message/Rule child authorization propagation, and GroupMember/IMAP permission child authorization propagation; no production release gate is claimed complete
+- Current bounded slice: retained MessageIndexing authorization through `Settings.MessageIndexing`; code/test commit `e2109f422`
+- Completed milestones: internal reinitialization admission seam, commandable offline SEARCH/SORT benchmark gate, stale backlog reconciliation, Account.ValidatePassword safety fence, retained delivery-queue authorization parity, Links and nested child authorization parity, Message/Rule child authorization parity, GroupMember/IMAP permission child authorization parity, and retained MessageIndexing authorization; no production release gate is claimed complete
 - Open production blockers: fresh COM/Admin child parity audit, restartable runtime/service/COM reinitialization, approved SQL/Data restore acceptance, live SQL/FTS and protocol performance acceptance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, restore/migration/installer, SEC-18, AD/DC, crash/power-loss evidence, and authenticated mailbox Account.ValidatePassword parity
 - Environment-blocked work: approved disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
 - Next three independent slices: parity-audit remaining COM/Admin child-facade paths; run approved disposable SQL/Data restore acceptance when isolated prerequisites exist; rerun scanner cleanup on an AV-compatible isolated path
-
-- UTC timestamp: 2026-08-08T20:18:00Z
-- Local timestamp: 2026-08-08T23:18:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: verified clean relative to configured upstream after normal push; protected unrelated worktree changes remain
-- Current HEAD: `6f598092b`
-- Last successfully pushed commit: `6f598092b`
-- Latest focused-test result: public restore SQL shape `11 passed, 0 skipped, 0 failed`; related SQL integration `0 passed, 3 skipped, 0 failed`
-- Latest full Net10 result: default `1939 passed, 0 failed, 31 skipped`
-- Opt-in tests passed/skipped/blocked: SQL restore manifest/commit/rollback, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped
-- Current bounded slice: additive transaction-scoped public restore deletion manifest, code/test commit `4cc66396a`; not wired to full restore orchestration
-- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, DB-only and non-DB restore authorization lease acceptance, queued restore pending cleanup, shutdown admission, active-task completion fence, abort-failure isolation, rejected archive ownership acceptance, archived account credential-type preservation, journal finalization durability hardening, final pre-staging containment revalidation, transaction-scoped domain cleanup capability, and DB-only cleanup wiring
-- Open production blockers: approved populated-store SQL/Data acceptance for manifest/no-return cleanup, full legacy filesystem deletion/public-folder/settings/reinitialization ordering, destination/copy/delete path-based TOCTOU, process-kill/power-loss evidence, credential metadata validation and live SQL restore evidence, crash-safe SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
-- Environment-blocked work: approved disposable SQL connection/database-create opt-in, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
-- Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: run approved populated-store SQL/Data acceptance for manifest and no-return public cleanup; complete native destination-parent/copy/delete containment; implement archive-backed full public-folder/settings ordering with staged file cleanup and reinitialization only after the archive surface is complete
-
-## Historical State
-- UTC timestamp: 2026-08-08T15:19:08Z
-- Local timestamp: 2026-08-08T18:19:08+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `aae5137a9` (code/test; documentation commit pending)
-- Last successfully pushed commit: `c6e35b6e9` (DB restore authorization admission documentation)
-- Latest focused-test result: atomic DB-only restore authorization lease `9 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: default `1917 passed, 0 failed, 26 skipped`; SQL-enabled restore acceptance remains `11 passed, 0 failed, 0 skipped`
-- Opt-in tests passed/skipped/blocked: DB-only restore execution `9 passed`; SQL restore acceptance `11 passed`; native AD/DC, installer, registry/COM, and service/COM remain blocked
-- Current bounded slice: atomic per-Application authorization lease held through DB-only restore transaction and commit, code/test commit `aae5137a9`
-- Completed milestones: offline COM/Admin parity, backup creation matrix evidence, metadata restore writer/round-trip evidence, protocol acceptance, benchmark short soak, AD validator boundary, SQL AD path/resource lifetime, LOGIN script ordering, default-domain lookup, domain-alias lookup, archive snapshot binding, bounded non-DB staging, raw sibling binding, disposable executor success and rollback acceptance, distribution-list and partial-recipient rollback acceptance, DB-only SQL transaction acceptance, non-DB recovery journal acceptance
-- Open production blockers: non-DB restore lacks an equivalent final authorization lease, abandoned queued restores lack deterministic shutdown cleanup, restored account ciphertext may be double-encrypted, journal power-loss/ACL/handle-relative TOCTOU and automatic reconciliation, normal-installation full restore ordering, crash-safe shared SQL/filesystem transaction, isolated service/COM queued restore, SEC-18 cutover, InnoSetup build, migration/rollback acceptance, 24-hour service leak/lifecycle soak, AD native/DC evidence
-- Environment-blocked work: isolated service/COM restore host and disposable end-to-end SQL/Data target, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
-- Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: add the same authorization lease before non-DB filesystem staging; drain pending restore tasks on service cancellation with idempotent cleanup; preserve archived account credential/encryption type during restore
