@@ -1,14 +1,14 @@
 # Current State
-- UTC timestamp: 2026-08-09T20:05:00Z
-- Local timestamp: 2026-08-09T23:05:00+03:00
+- UTC timestamp: 2026-08-09T20:35:00Z
+- Local timestamp: 2026-08-09T23:35:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
 - Push status: verified normal push; protected unrelated worktree changes remain
-- Current HEAD: `c3b592f60`
-- Last successfully pushed commit: `c3b592f60`
-- Latest focused-test result: ClamAV guard/runtime/AntiVirus `20 passed, 0 failed, 0 skipped`
+- Current HEAD: `f63d578d8`
+- Last successfully pushed commit: `f63d578d8`
+- Latest focused-test result: backup creation/restore containment `150 passed, 0 failed, 0 skipped`
 - Latest full Net10 result: filtered `1954 passed, 0 failed, 31 skipped`; default `1959 passed, 2 failed, 31 skipped` because host AV locked generated scanner `.eml` files
 - Opt-in tests passed/skipped/blocked: live SQL/FTS, live protocol, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped; two scanner cleanup tests are host-AV blocked
-- Current bounded slice: ClamAV local-target DNS-rebind hardening (`414b1e9e0`); next slice is approved disposable SQL/Data restore acceptance when the isolated opt-in exists
+- Current bounded slice: backup creation revalidation; raw staging and full option matrix are confirmed complete; next slice is approved disposable SQL/Data restore acceptance when the isolated opt-in exists
 - Completed milestones: internal reinitialization admission seam, commandable offline SEARCH/SORT benchmark gate, stale backlog reconciliation, Account.ValidatePassword safety fence, retained delivery-queue authorization parity, Links and nested child authorization parity, Message/Rule child authorization parity, GroupMember/IMAP permission child authorization parity, retained MessageIndexing authorization, retained AntiVirus authorization, and ClamAV COM test-target rebind hardening; no production release gate is claimed complete
 - Open production blockers: approved SQL/Data restore acceptance, restartable runtime/service/COM reinitialization, live SQL/FTS and protocol performance acceptance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, restore/migration/installer, SEC-18, AD/DC, crash/power-loss evidence, authenticated mailbox Account.ValidatePassword parity, and the unchanged configured-message ClamAV hostname path
 - Environment-blocked work: approved disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched

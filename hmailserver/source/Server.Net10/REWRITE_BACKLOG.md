@@ -1,4 +1,10 @@
 
+## Current Audit Note (2026-08-09, BACKUP CREATION REVALIDATION)
+
+The formerly recorded raw non-DB-only `BODomains|BOMessages` `DataBackup` staging item is complete in `50d8cefc3`, and the full option matrix is covered by `d210c5611`. Legacy anchors are `BackupExecuter::StartBackup`/`BackupDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-147,172-217`), `FileUtilities::CopyDirectory`/`DeleteFilesInDirectory`, and `Compression::AddDirectory`; current implementation is `SevenZipBackupArchiveRuntime.CreateAsync`. Raw mode leaves the external sibling `DataBackup`, compressed mode archives staged content, and DB-only mode emits metadata without physical message staging.
+
+Focused backup creation/restore containment revalidation passed `150/150`; `build/check-net10-prereqs.ps1 -RequireMsBuild` passed. This is evidence refresh only; no production code changed. Do not restart the stale raw staging backlog item. The next gate is disposable SQL/Data restore acceptance when its approved isolated connection and opt-in are available.
+
 ## Current Audit Note (2026-08-09, CLAMAV LOCAL-TARGET REBIND HARDENING)
 
 Code/test commit `414b1e9e0` closes the bounded ClamAV hostname re-resolution window in the COM test path. Legacy `InterfaceAntiVirus::TestClamAVScanner` (`hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:577-596`) passes the hostname through `VirusScannerTester::TestClamAVConnect` (`hmailserver/source/Server/Common/AntiVirus/VirusScannerTester.cpp:22-45`) to `ClamAVVirusScanner::Scan`/`SynchronousConnection::Connect` (`hmailserver/source/Server/Common/AntiVirus/ClamAVVirusScanner.cpp:48-64`). The .NET `LegacyLocalScannerTargetGuard.TryGetValidatedLocalAddress` resolves once and proves all answers are local, then `AntiVirus.TestClamAVScanner` passes the selected validated IP literal to `IClamAvScannerTestRuntime`. This prevents the existing `ClamAvInstreamClient` from performing a second hostname lookup in this COM test flow.
