@@ -289,9 +289,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
     }
 
-    public int TarpitDelay { get { _ = Snapshot; return 0; } set => Unavailable(); }
+    public int TarpitDelay { get { _ = Snapshot; return 0; } set => IgnoreObsoleteTarpitSetter(); }
 
-    public int TarpitCount { get { _ = Snapshot; return 0; } set => Unavailable(); }
+    public int TarpitCount { get { _ = Snapshot; return 0; } set => IgnoreObsoleteTarpitSetter(); }
 
     public bool SpamAssassinEnabled { get => Snapshot.SpamAssassinEnabled; set => Unavailable(); }
 
@@ -405,6 +405,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _snapshot ?? throw new COMException(
             "AntiSpam access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private void IgnoreObsoleteTarpitSetter() => _ = Snapshot;
 
     private void Unavailable()
     {

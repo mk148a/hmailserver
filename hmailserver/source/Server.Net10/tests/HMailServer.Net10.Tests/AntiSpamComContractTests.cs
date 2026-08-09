@@ -304,8 +304,6 @@ public sealed class AntiSpamComContractTests
         AssertPending(() => antiSpam.UseSPFScore = 1);
         AssertPending(() => antiSpam.UseMXChecks = false);
         AssertPending(() => antiSpam.UseMXChecksScore = 1);
-        AssertPending(() => antiSpam.TarpitDelay = 1);
-        AssertPending(() => antiSpam.TarpitCount = 1);
         AssertPending(() => antiSpam.SpamAssassinEnabled = false);
         AssertPending(() => antiSpam.SpamAssassinScore = 5);
         AssertPending(() => antiSpam.SpamAssassinMergeScore = true);
@@ -316,6 +314,30 @@ public sealed class AntiSpamComContractTests
         AssertPending(() => antiSpam.DKIMVerificationFailureScore = 4);
         AssertPending(() => antiSpam.BypassGreylistingOnSPFSuccess = false);
         AssertPending(() => antiSpam.BypassGreylistingOnMailFromMX = true);
+    }
+
+    [TestMethod]
+    public void ObsoleteTarpitSetters_PreserveLegacyAuthenticatedNoOp()
+    {
+        IInterfaceAntiSpam antiSpam = AntiSpam.CreateAuthorized(new AntiSpamAdministrationSnapshot());
+
+        antiSpam.TarpitDelay = 123;
+        antiSpam.TarpitCount = 456;
+
+        Assert.AreEqual(0, antiSpam.TarpitDelay);
+        Assert.AreEqual(0, antiSpam.TarpitCount);
+    }
+
+    [TestMethod]
+    public void ObsoleteTarpitSetters_PreserveDirectActivationAccessDenied()
+    {
+        IInterfaceAntiSpam antiSpam = new AntiSpam();
+
+        var delayError = Assert.ThrowsExactly<COMException>(() => antiSpam.TarpitDelay = 1);
+        var countError = Assert.ThrowsExactly<COMException>(() => antiSpam.TarpitCount = 1);
+
+        Assert.AreEqual(EAccessDenied, delayError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, countError.ErrorCode);
     }
 
     [TestMethod]
