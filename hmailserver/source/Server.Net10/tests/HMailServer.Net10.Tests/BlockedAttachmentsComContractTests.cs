@@ -241,6 +241,9 @@ public sealed class BlockedAttachmentsComContractTests
 
         Assert.AreEqual(EAccessDenied, error.ErrorCode);
         Assert.AreEqual(0, inserts);
+
+        AssertAccessDenied(() => _ = attachments.Count);
+        isServerAdministrator = true;
         Assert.AreEqual(0, attachments.Count);
     }
 
@@ -336,6 +339,9 @@ public sealed class BlockedAttachmentsComContractTests
 
         Assert.AreEqual(EAccessDenied, error.ErrorCode);
         Assert.AreEqual(0, deleted);
+
+        AssertAccessDenied(() => _ = attachments.Count);
+        isServerAdministrator = true;
         Assert.AreEqual(1, attachments.Count);
     }
 
@@ -392,6 +398,29 @@ public sealed class BlockedAttachmentsComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = attachments.get_ItemByDBID(10)).ErrorCode);
     }
 
+    [TestMethod]
+    public void RetainedCollection_DeleteByDbIdRechecksLiveAdministratorAuthentication()
+    {
+        var isServerAdministrator = true;
+        var deleted = 0;
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[] { Snapshot(10, "*.exe", "Executable file") },
+            deleteById: _ => deleted++,
+            isServerAdministrator: () => isServerAdministrator);
+
+        Assert.AreEqual(1, attachments.Count);
+
+        isServerAdministrator = false;
+
+        var error = Assert.ThrowsExactly<COMException>(() => attachments.DeleteByDBID(10));
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, deleted);
+        AssertAccessDenied(() => _ = attachments.Count);
+        isServerAdministrator = true;
+        Assert.AreEqual(1, attachments.Count);
+    }
+
     private static BlockedAttachmentAdministrationSnapshot Snapshot(
         int id,
         string wildcard,
@@ -407,6 +436,13 @@ public sealed class BlockedAttachmentsComContractTests
         Assert.AreEqual(id, attachment.ID);
         Assert.AreEqual(wildcard, attachment.Wildcard);
         Assert.AreEqual(description, attachment.Description);
+    }
+
+    private static void AssertAccessDenied(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)

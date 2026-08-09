@@ -286,6 +286,7 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
 
     private IReadOnlyList<BlockedAttachmentAdministrationSnapshot> GetBlockedAttachments()
     {
+        EnsureServerAdministrator();
         return Volatile.Read(ref _blockedAttachments)
             ?? throw new COMException(
                 "BlockedAttachments access requires an authenticated server administrator.",

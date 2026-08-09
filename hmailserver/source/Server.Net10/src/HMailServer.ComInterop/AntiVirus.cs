@@ -291,10 +291,22 @@ public sealed class AntiVirus : IInterfaceAntiVirus
             isServerAdministrator);
     }
 
-    private AntiVirusAdministrationSnapshot Snapshot =>
-        _snapshot ?? throw new COMException(
-            "AntiVirus access requires an authenticated server administrator.",
-            EAccessDenied);
+    private AntiVirusAdministrationSnapshot Snapshot
+    {
+        get
+        {
+            if (_isServerAdministrator is not null && !_isServerAdministrator())
+            {
+                throw new COMException(
+                    "AntiVirus access requires an authenticated server administrator.",
+                    EAccessDenied);
+            }
+
+            return _snapshot ?? throw new COMException(
+                "AntiVirus access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private void Unavailable()
     {

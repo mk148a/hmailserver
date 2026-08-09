@@ -210,6 +210,54 @@ public sealed class AntiVirusComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_RetainedAntiVirusRechecksLiveAdministratorAuthentication()
+    {
+        var isAuthenticated = true;
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamWinEnabled: true,
+                AntiVirusClamWinExecutable: string.Empty,
+                AntiVirusClamWinDatabase: string.Empty,
+                AntiVirusAction: 0,
+                AntiVirusNotifyReceiver: false,
+                AntiVirusNotifySender: false,
+                AntiVirusCustomScannerEnabled: false,
+                AntiVirusCustomScannerExecutable: string.Empty,
+                AntiVirusCustomScannerReturnValue: 0,
+                AntiVirusMaximumMessageSize: 0,
+                AntiVirusEnableAttachmentBlocking: false,
+                AntiVirusClamAvEnabled: false,
+                AntiVirusClamAvHost: string.Empty,
+                AntiVirusClamAvPort: 0),
+            isServerAdministrator: () => isAuthenticated);
+
+        var antivirus = settings.AntiVirus;
+
+        Assert.IsTrue(antivirus.ClamWinEnabled);
+
+        isAuthenticated = false;
+
+        AssertAccessDenied(() => _ = antivirus.ClamWinEnabled);
+        AssertAccessDenied(() => antivirus.ClamWinEnabled = false);
+        AssertAccessDenied(() => _ = antivirus.BlockedAttachments);
+        AssertAccessDenied(
+            () => antivirus.TestCustomerScanner(string.Empty, 0, out _));
+        AssertAccessDenied(
+            () => antivirus.TestClamWinScanner(string.Empty, string.Empty, out _));
+        AssertAccessDenied(
+            () => antivirus.TestClamAVScanner("127.0.0.1", 3310, out _));
+
+        isAuthenticated = true;
+
+        Assert.IsTrue(antivirus.ClamWinEnabled);
+        AssertPending(() => antivirus.ClamWinEnabled = false);
+    }
+
+    [TestMethod]
     public void AuthorizedAntiVirus_KeepsScannerTestsPendingWithoutRuntimes()
     {
         IInterfaceAntiVirus antivirus = AntiVirus.CreateAuthorized(
@@ -441,6 +489,13 @@ public sealed class AntiVirusComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private static void AssertAccessDenied(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
     }
 
     private sealed class FakeClamAvScannerTestRuntime(
