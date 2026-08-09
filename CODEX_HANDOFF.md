@@ -2,6 +2,12 @@
 
 ## Current Authoritative Continuation
 
+2026-08-09 code/test commit `23fd5ef74` closes a small COM error-contract parity gap. Legacy `InterfaceLanguage::Download` (`hmailserver/source/Server/COM/InterfaceLanguage.cpp:67`) calls `COMError::GenerateError("Not implemented.")` (`COMError.cpp:24`), returning HRESULT `0x800403E9`; the .NET `Language.Download` (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/Languages.cs:141`) previously returned `E_NOTIMPL` and now matches the legacy HRESULT/message. `GlobalObjectsComContractTests` passes `8/8`; full Net10 is `1961 passed, 31 skipped, 2 failed`, with the two known host-AV `.eml` cleanup failures. No COM identity, direct activation, SQL/Data, IIS, service, or production state changed.
+
+The earlier IMAP domain-alias/default-domain item and `FetchAccount.DownloadNow` item were rechecked and are already implemented; do not restart those stale entries. The next independent slices are approved disposable SQL/Data restore acceptance, live SQL/FTS or protocol performance acceptance, and AV-compatible scanner cleanup. Release remains RED.
+
+## Current Authoritative Continuation
+
 2026-08-09 code/test commit `508d35d17` implements the parity-confirmed obsolete AntiSpam setter slice. Legacy `InterfaceAntiSpam::get_TarpitDelay`, `put_TarpitDelay`, `get_TarpitCount`, and `put_TarpitCount` (`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:729-792`) return `0` for getters and authenticated `S_OK` no-op for setters. The .NET `AntiSpam` setters (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/AntiSpam.cs:292-294`) now check the authorized facade and ignore the obsolete values. `AntiSpamComContractTests` covers authorized no-op behavior and direct-activation `E_ACCESSDENIED`; no SQL, protocol, COM identity, or production state changed.
 
 Focused result: `15 passed, 0 failed, 0 skipped`. Full Net10: `1961 passed, 31 skipped, 2 failed`; both failures are host-AV locks on generated scanner `.eml` cleanup. Security review found no COM identity or direct-activation regression. The review’s retained AntiSpam concern was compared with legacy `InterfaceAntiSpam::LoadSettings` (`InterfaceAntiSpam.cpp:28-35`): the cached `config_` lifetime and retained-operation test intentionally match legacy behavior, so it is not part of this slice. Release reality remains RED.

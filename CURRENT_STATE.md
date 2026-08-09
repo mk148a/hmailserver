@@ -1,14 +1,14 @@
 # Current State
-- UTC timestamp: 2026-08-09T20:07:48Z
-- Local timestamp: 2026-08-09T23:07:48+03:00
+- UTC timestamp: 2026-08-09T20:22:16Z
+- Local timestamp: 2026-08-09T23:22:16+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `508d35d17`
-- Last successfully pushed commit: `508d35d17`
-- Latest focused-test result: `AntiSpamComContractTests`: `15 passed, 0 failed, 0 skipped`
+- Current HEAD: `23fd5ef74`
+- Last successfully pushed commit: `23fd5ef74`
+- Latest focused-test result: `GlobalObjectsComContractTests`: `8 passed, 0 failed, 0 skipped`
 - Latest full Net10 result: `1961 passed, 31 skipped, 2 failed`; failures are host-AV locks on generated scanner `.eml` cleanup
 - Opt-in tests passed/skipped/blocked: live SQL/Data restore, live SQL/FTS, live protocol/load, process-kill/power-loss, native AD/DC, installer, registry/COM, service/COM, and SEC-18 acceptance blocked or skipped; scanner cleanup is host-AV blocked
-- Current bounded slice: obsolete AntiSpam `TarpitDelay`/`TarpitCount` setter parity, completed in `508d35d17`
-- Completed milestones: backup creation matrix/raw staging, internal reinitialization admission seam, offline SEARCH/SORT benchmark gate, retained COM authorization slices, ClamAV COM test-target hardening, and obsolete AntiSpam tarpit setter parity; no production release gate claimed complete
+- Current bounded slice: legacy `Language.Download()` HRESULT parity, completed in `23fd5ef74`
+- Completed milestones: backup creation matrix/raw staging, internal reinitialization admission seam, offline SEARCH/SORT benchmark gate, retained COM authorization slices, ClamAV COM test-target hardening, obsolete AntiSpam tarpit setter parity, and Language.Download HRESULT parity; no production release gate claimed complete
 - Open production blockers: disposable SQL/Data restore, live SQL/FTS and protocol performance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, service/COM lifecycle, migration/installer rollback, SEC-18, AD/DC, crash/power-loss evidence, authenticated mailbox `Account.ValidatePassword`, and configured-message ClamAV hostname hardening
 - Environment-blocked work: approved disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and untracked `artifacts/sec18-staging/`/`artifacts/benchmarks/`

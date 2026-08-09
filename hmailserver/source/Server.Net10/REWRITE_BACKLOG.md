@@ -1,4 +1,10 @@
 
+## Current Audit Note (2026-08-09, LANGUAGE DOWNLOAD HRESULT PARITY)
+
+Code/test commit `23fd5ef74` aligns authorized `Language.Download()` with legacy `InterfaceLanguage::Download` (`hmailserver/source/Server/COM/InterfaceLanguage.cpp:67`), which returns `COMError::GenerateError("Not implemented.")` (`hmailserver/source/Server/COM/COMError.cpp:24`) with HRESULT `0x800403E9`. The .NET implementation (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/Languages.cs:141`) now preserves that HRESULT and message without changing `IInterfaceLanguage` identity, DISPID 4, direct activation denial, or language store behavior.
+
+Focused `GlobalObjectsComContractTests` coverage is `8 passed, 0 failed, 0 skipped`; full Net10 is `1961 passed, 31 skipped, 2 failed`, with the known host-AV locks in scanner `.eml` cleanup. This is a narrow COM error-contract slice only. The next independent work remains environment-gated populated SQL/Data restore acceptance, live SQL/FTS or protocol performance acceptance, and AV-compatible scanner cleanup. Release remains RED.
+
 ## Current Audit Note (2026-08-09, OBSOLETE ANTISPAM TARPIT SETTER PARITY)
 
 Code/test commit `508d35d17` closes the bounded legacy `AntiSpam.TarpitDelay`/`TarpitCount` setter gap. Legacy `InterfaceAntiSpam::get_TarpitDelay`, `put_TarpitDelay`, `get_TarpitCount`, and `put_TarpitCount` (`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:729-792`) return `0` for getters and authenticated `S_OK` no-op for setters; the historical settings were removed by `Upgrade5320to5400MSSQL.sql`. The .NET `AntiSpam` facade (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/AntiSpam.cs:292-294,406-408`) now preserves that behavior without adding SQL fields, persistence, protocol behavior, or broader AntiSpam mutation.
