@@ -97,6 +97,7 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
     private readonly Func<int, RuleCriteriaAdministrationSnapshot, int>? _insert;
     private readonly Action<RuleCriteriaAdministrationSnapshot>? _save;
     private readonly int? _owningRuleId;
+    private readonly Func<bool>? _isAuthenticated;
 
     public RuleCriterias()
     {
@@ -108,7 +109,8 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
         Action<int>? deleteById,
         Action<RuleCriteriaAdministrationSnapshot>? save,
         int? owningRuleId,
-        Func<int, RuleCriteriaAdministrationSnapshot, int>? insert)
+        Func<int, RuleCriteriaAdministrationSnapshot, int>? insert,
+        Func<bool>? isAuthenticated)
     {
         _criteria = criteria.ToArray();
         _reload = reload;
@@ -116,6 +118,7 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
         _insert = insert;
         _save = save;
         _owningRuleId = owningRuleId ?? criteria.FirstOrDefault()?.RuleId;
+        _isAuthenticated = isAuthenticated;
     }
 
     public IInterfaceRuleCriteria this[int index]
@@ -132,7 +135,8 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
             return RuleCriteria.CreateAuthorized(
                 criterion,
                 () => DeleteByDBID(criterion.Id),
-                _save is null ? null : SaveCriterion);
+                _save is null ? null : SaveCriterion,
+                isAuthenticated: _isAuthenticated);
         }
     }
 
@@ -147,7 +151,8 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
             : RuleCriteria.CreateAuthorized(
                 match,
                 () => DeleteByDBID(match.Id),
-                _save is null ? null : SaveCriterion);
+                _save is null ? null : SaveCriterion,
+                isAuthenticated: _isAuthenticated);
     }
 
     public int Count => GetCriteria().Count;
@@ -170,7 +175,8 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
                 MatchType: (int)ComRuleMatchType.Equals,
                 HeaderField: string.Empty),
             save: _save is null ? null : SaveCriterion,
-            saveNew: SaveNewCriterion);
+            saveNew: SaveNewCriterion,
+            isAuthenticated: _isAuthenticated);
 
         return criterion;
     }
@@ -264,14 +270,16 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
         Action<int>? deleteById = null,
         Action<RuleCriteriaAdministrationSnapshot>? save = null,
         int? owningRuleId = null,
-        Func<int, RuleCriteriaAdministrationSnapshot, int>? insert = null)
+        Func<int, RuleCriteriaAdministrationSnapshot, int>? insert = null,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(criteria);
-        return new RuleCriterias(criteria, reload, deleteById, save, owningRuleId, insert);
+        return new RuleCriterias(criteria, reload, deleteById, save, owningRuleId, insert, isAuthenticated);
     }
 
     private void SaveCriterion(RuleCriteriaAdministrationSnapshot criterion)
     {
+        EnsureAuthenticated();
         if (_save is null)
         {
             Unavailable();
@@ -283,6 +291,7 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
 
     private RuleCriteriaAdministrationSnapshot SaveNewCriterion(RuleCriteriaAdministrationSnapshot criterion)
     {
+        EnsureAuthenticated();
         if (_insert is null || _owningRuleId is null)
         {
             Unavailable();
@@ -304,10 +313,21 @@ public sealed class RuleCriterias : IInterfaceRuleCriterias
 
     private IReadOnlyList<RuleCriteriaAdministrationSnapshot> GetCriteria()
     {
+        EnsureAuthenticated();
         return Volatile.Read(ref _criteria)
             ?? throw new COMException(
                 "RuleCriterias access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "RuleCriterias access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private T Unavailable<T>()
@@ -342,6 +362,7 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     private readonly Action? _delete;
     private readonly Action<RuleCriteriaAdministrationSnapshot>? _save;
     private readonly Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot>? _saveNew;
+    private readonly Func<bool>? _isAuthenticated;
 
     public RuleCriteria()
     {
@@ -351,12 +372,14 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
         RuleCriteriaAdministrationSnapshot criterion,
         Action? delete,
         Action<RuleCriteriaAdministrationSnapshot>? save,
-        Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot>? saveNew)
+        Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot>? saveNew,
+        Func<bool>? isAuthenticated)
     {
         _criterion = criterion;
         _delete = delete;
         _save = save;
         _saveNew = saveNew;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int ID => Snapshot.Id;
@@ -429,11 +452,13 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
         RuleCriteriaAdministrationSnapshot criterion,
         Action? delete = null,
         Action<RuleCriteriaAdministrationSnapshot>? save = null,
-        Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot>? saveNew = null) =>
-        new(criterion, delete, save, saveNew);
+        Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot>? saveNew = null,
+        Func<bool>? isAuthenticated = null) =>
+        new(criterion, delete, save, saveNew, isAuthenticated);
 
     private void Mutate(Func<RuleCriteriaAdministrationSnapshot, RuleCriteriaAdministrationSnapshot> mutation)
     {
+        EnsureAuthenticated();
         if (_save is null && _saveNew is null)
         {
             Unavailable();
@@ -444,9 +469,25 @@ public sealed class RuleCriteria : IInterfaceRuleCriteria
     }
 
     private RuleCriteriaAdministrationSnapshot Snapshot =>
-        _criterion ?? throw new COMException(
+        GetAuthenticatedSnapshot();
+
+    private RuleCriteriaAdministrationSnapshot GetAuthenticatedSnapshot()
+    {
+        EnsureAuthenticated();
+        return _criterion ?? throw new COMException(
             "RuleCriteria access requires an authenticated server administrator.",
             EAccessDenied);
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "RuleCriteria access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private void Unavailable()
     {
@@ -470,7 +511,7 @@ public static class RuleCriteriaAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static RuleCriterias CreateAuthorizedAdapter(int ruleId)
+    internal static RuleCriterias CreateAuthorizedAdapter(int ruleId, Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -507,6 +548,7 @@ public static class RuleCriteriaAdministrationRuntimeHost
             DeleteCriterionById,
             SaveCriterion,
             owningRuleId: ruleId,
-            insert: InsertCriterion);
+            insert: InsertCriterion,
+            isAuthenticated: isAuthenticated);
     }
 }

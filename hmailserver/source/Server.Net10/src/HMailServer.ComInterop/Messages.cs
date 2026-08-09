@@ -517,7 +517,7 @@ public sealed class Message : IInterfaceMessage
 
     public string HTMLBody { get => Content.HtmlBody; set => Unavailable(); }
 
-    public IInterfaceAttachments Attachments => HMailServer.ComInterop.Attachments.CreateAuthorized(Content.Attachments);
+    public IInterfaceAttachments Attachments => HMailServer.ComInterop.Attachments.CreateAuthorized(Content.Attachments, _isAuthenticated);
 
     public string To => Content.HeaderValue("To");
 
@@ -536,7 +536,7 @@ public sealed class Message : IInterfaceMessage
         }
     }
 
-    public IInterfaceRecipients Recipients => HMailServer.ComInterop.Recipients.CreateAuthorized(Content.Recipients);
+    public IInterfaceRecipients Recipients => HMailServer.ComInterop.Recipients.CreateAuthorized(Content.Recipients, _isAuthenticated);
 
     public bool EncodeFields { get => Unavailable<bool>(); set => Unavailable(); }
 

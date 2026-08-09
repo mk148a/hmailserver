@@ -401,6 +401,51 @@ Body
     }
 
     [TestMethod]
+    public void MessageContentChildren_RecheckAuthenticationAfterReauthentication()
+    {
+        var contentSource = new FixedMessageContentSource(
+            new Dictionary<long, byte[]>
+            {
+                [1000] = """
+From: sender@example.test
+To: recipient@example.test
+Subject: retained
+Content-Type: multipart/mixed; boundary="outer"
+
+--outer
+Content-Type: text/plain
+
+body
+--outer
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename="report.txt"
+Content-Transfer-Encoding: base64
+
+SGVsbG8=
+--outer--
+"""u8.ToArray()
+            });
+        var authenticated = true;
+        var message = Message.CreateAuthorized(
+            Snapshot(1000, 100, 50, "account.eml", 2, "sender@example.test", 2048, 0, 1, Date(2026, 7, 1), 10),
+            contentSource,
+            isAuthenticated: () => authenticated);
+
+        var attachments = message.Attachments;
+        var attachment = attachments[0];
+        var recipients = message.Recipients;
+        var recipient = recipients[0];
+
+        authenticated = false;
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = attachments.Count).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = attachment.Filename).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(attachments.Clear).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = recipients.Count).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = recipient.Address).ErrorCode);
+    }
+
+    [TestMethod]
     public void MessageDraft_SettersRecheckAuthenticationBeforeStaging()
     {
         var authenticated = true;

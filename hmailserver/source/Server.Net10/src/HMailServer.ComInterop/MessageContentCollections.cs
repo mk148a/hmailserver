@@ -115,19 +115,23 @@ public sealed class Attachments : IInterfaceAttachments
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly IReadOnlyList<MessageAttachmentSnapshot>? _attachments;
+    private readonly Func<bool>? _isAuthenticated;
 
     public Attachments()
     {
     }
 
-    private Attachments(IReadOnlyList<MessageAttachmentSnapshot> attachments)
+    private Attachments(IReadOnlyList<MessageAttachmentSnapshot> attachments, Func<bool>? isAuthenticated)
     {
         _attachments = attachments.ToArray();
+        _isAuthenticated = isAuthenticated;
     }
 
     public int Count => GetAttachments().Count;
 
-    internal static Attachments CreateAuthorized(IReadOnlyList<MessageAttachmentSnapshot> attachments) => new(attachments);
+    internal static Attachments CreateAuthorized(
+        IReadOnlyList<MessageAttachmentSnapshot> attachments,
+        Func<bool>? isAuthenticated = null) => new(attachments, isAuthenticated);
 
     public IInterfaceAttachment this[int index]
     {
@@ -139,7 +143,7 @@ public sealed class Attachments : IInterfaceAttachments
                 throw new COMException("Attachment index was outside the collection.", DispEBadIndex);
             }
 
-            return Attachment.CreateAuthorized(attachments[index]);
+            return Attachment.CreateAuthorized(attachments[index], _isAuthenticated);
         }
     }
 
@@ -147,10 +151,23 @@ public sealed class Attachments : IInterfaceAttachments
 
     public void Add(string filename) => Unavailable();
 
-    private IReadOnlyList<MessageAttachmentSnapshot> GetAttachments() =>
-        _attachments ?? throw new COMException(
+    private IReadOnlyList<MessageAttachmentSnapshot> GetAttachments()
+    {
+        EnsureAuthenticated();
+        return _attachments ?? throw new COMException(
             "Attachments access requires an authenticated server administrator.",
             EAccessDenied);
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "Attachments access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private void Unavailable()
     {
@@ -172,30 +189,46 @@ public sealed class Attachment : IInterfaceAttachment
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly MessageAttachmentSnapshot? _attachment;
+    private readonly Func<bool>? _isAuthenticated;
 
     public Attachment()
     {
     }
 
-    private Attachment(MessageAttachmentSnapshot attachment)
+    private Attachment(MessageAttachmentSnapshot attachment, Func<bool>? isAuthenticated)
     {
         _attachment = attachment;
+        _isAuthenticated = isAuthenticated;
     }
 
     public string Filename => Snapshot.FileName;
 
     public int Size => Snapshot.Size;
 
-    internal static Attachment CreateAuthorized(MessageAttachmentSnapshot attachment) => new(attachment);
+    internal static Attachment CreateAuthorized(
+        MessageAttachmentSnapshot attachment,
+        Func<bool>? isAuthenticated = null) => new(attachment, isAuthenticated);
 
     public void SaveAs(string name) => Unavailable();
 
     public void Delete() => Unavailable();
 
-    private MessageAttachmentSnapshot Snapshot =>
-        _attachment ?? throw new COMException(
-            "Attachment access requires an authenticated server administrator.",
-            EAccessDenied);
+    private MessageAttachmentSnapshot Snapshot
+    {
+        get
+        {
+            if (_isAuthenticated is not null && !_isAuthenticated())
+            {
+                throw new COMException(
+                    "Attachment access requires an authenticated server administrator.",
+                    EAccessDenied);
+            }
+
+            return _attachment ?? throw new COMException(
+                "Attachment access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private void Unavailable()
     {
@@ -217,19 +250,23 @@ public sealed class Recipients : IInterfaceRecipients
     private const int EAccessDenied = unchecked((int)0x80070005);
 
     private readonly IReadOnlyList<MessageRecipientSnapshot>? _recipients;
+    private readonly Func<bool>? _isAuthenticated;
 
     public Recipients()
     {
     }
 
-    private Recipients(IReadOnlyList<MessageRecipientSnapshot> recipients)
+    private Recipients(IReadOnlyList<MessageRecipientSnapshot> recipients, Func<bool>? isAuthenticated)
     {
         _recipients = recipients.ToArray();
+        _isAuthenticated = isAuthenticated;
     }
 
     public int Count => GetRecipients().Count;
 
-    internal static Recipients CreateAuthorized(IReadOnlyList<MessageRecipientSnapshot> recipients) => new(recipients);
+    internal static Recipients CreateAuthorized(
+        IReadOnlyList<MessageRecipientSnapshot> recipients,
+        Func<bool>? isAuthenticated = null) => new(recipients, isAuthenticated);
 
     public IInterfaceRecipient this[int index]
     {
@@ -241,14 +278,23 @@ public sealed class Recipients : IInterfaceRecipients
                 throw new COMException("Recipient index was outside the collection.", DispEBadIndex);
             }
 
-            return Recipient.CreateAuthorized(recipients[index]);
+            return Recipient.CreateAuthorized(recipients[index], _isAuthenticated);
         }
     }
 
-    private IReadOnlyList<MessageRecipientSnapshot> GetRecipients() =>
-        _recipients ?? throw new COMException(
+    private IReadOnlyList<MessageRecipientSnapshot> GetRecipients()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "Recipients access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+
+        return _recipients ?? throw new COMException(
             "Recipients access requires an authenticated server administrator.",
             EAccessDenied);
+    }
 }
 
 [ComVisible(true)]
@@ -261,14 +307,16 @@ public sealed class Recipient : IInterfaceRecipient
     private const int EAccessDenied = unchecked((int)0x80070005);
 
     private readonly MessageRecipientSnapshot? _recipient;
+    private readonly Func<bool>? _isAuthenticated;
 
     public Recipient()
     {
     }
 
-    private Recipient(MessageRecipientSnapshot recipient)
+    private Recipient(MessageRecipientSnapshot recipient, Func<bool>? isAuthenticated)
     {
         _recipient = recipient;
+        _isAuthenticated = isAuthenticated;
     }
 
     public string Address => Snapshot.Address;
@@ -277,12 +325,26 @@ public sealed class Recipient : IInterfaceRecipient
 
     public string OriginalAddress => Snapshot.OriginalAddress;
 
-    internal static Recipient CreateAuthorized(MessageRecipientSnapshot recipient) => new(recipient);
+    internal static Recipient CreateAuthorized(
+        MessageRecipientSnapshot recipient,
+        Func<bool>? isAuthenticated = null) => new(recipient, isAuthenticated);
 
-    private MessageRecipientSnapshot Snapshot =>
-        _recipient ?? throw new COMException(
-            "Recipient access requires an authenticated server administrator.",
-            EAccessDenied);
+    private MessageRecipientSnapshot Snapshot
+    {
+        get
+        {
+            if (_isAuthenticated is not null && !_isAuthenticated())
+            {
+                throw new COMException(
+                    "Recipient access requires an authenticated server administrator.",
+                    EAccessDenied);
+            }
+
+            return _recipient ?? throw new COMException(
+                "Recipient access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 }
 
 [ComVisible(true)]

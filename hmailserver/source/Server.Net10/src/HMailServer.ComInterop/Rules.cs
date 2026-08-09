@@ -340,7 +340,8 @@ public sealed class Rule : IInterfaceRule
     {
         get
         {
-            return RuleCriteriaAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id);
+            EnsureAuthenticated();
+            return RuleCriteriaAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _isAuthenticated);
         }
     }
 

@@ -1029,7 +1029,7 @@ public sealed class RuleCriteriasComContractTests
     }
 
     [TestMethod]
-    public void FailedReauthentication_DeniesNewRulesAccessButRetainedCriteriasCanDelete()
+    public void FailedReauthentication_DeniesNewRulesAccessAndRetainedCriteriaAccess()
     {
         var ruleStore = new FixedRuleAdministrationStore(
             new[]
@@ -1057,11 +1057,16 @@ public sealed class RuleCriteriasComContractTests
 
         Assert.AreEqual(EAccessDenied, newRulesError.ErrorCode);
         Assert.AreEqual(1, ruleStore.ReadCount);
-        criteria.DeleteByDBID(100);
-        CollectionAssert.AreEqual(
-            new[] { (RuleId: 10, DatabaseId: 100) },
-            criteriaStore.DeletedCriteria);
-        Assert.AreEqual(0, criteria.Count);
+        var retainedCountError = Assert.ThrowsExactly<COMException>(() => _ = criteria.Count);
+        var retainedDeleteError = Assert.ThrowsExactly<COMException>(() => criteria.DeleteByDBID(100));
+        var retainedCriterionError = Assert.ThrowsExactly<COMException>(() => _ = criteria[0].MatchValue);
+
+        Assert.AreEqual(EAccessDenied, retainedCountError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, retainedDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, retainedCriterionError.ErrorCode);
+        Assert.IsEmpty(criteriaStore.DeletedCriteria);
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        Assert.AreEqual(1, criteria.Count);
     }
 
     [TestMethod]
