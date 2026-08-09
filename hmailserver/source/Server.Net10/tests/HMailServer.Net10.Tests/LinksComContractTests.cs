@@ -10,6 +10,9 @@ public sealed class LinksComContractTests
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
+    private const string LegacyAccessDeniedMessage =
+        "You do not have access to this property / method. Ensure that hMailServer.Application.Authenticate() is called with proper login credentials.";
 
     [TestMethod]
     public void Interface_PreservesLegacyIidDispatchIdsAndCompleteVtableOrder()
@@ -145,6 +148,48 @@ public sealed class LinksComContractTests
     }
 
     [TestMethod]
+    public void ApplicationLinks_RetainedObjectRechecksAuthorizationAcrossFailedAndSuccessfulReauthentication()
+    {
+        var domains = new RecordingDomainStore(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) });
+        var accounts = new RecordingAccountStore(
+            new AccountAdministrationSnapshot(20, 10, "user@alpha.example", true, AdminLevel: 0));
+        var aliases = new RecordingAliasStore(
+            new AliasAdministrationSnapshot(30, 10, "sales@alpha.example", "user@alpha.example", true));
+        var lists = new RecordingDistributionListStore(
+            new DistributionListAdministrationSnapshot(
+                40,
+                10,
+                "team@alpha.example",
+                true,
+                RequireSmtpAuth: false,
+                RequireSenderAddress: string.Empty,
+                Mode: 0));
+        LinksAdministrationRuntimeHost.Configure(domains, accounts, aliases, lists);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        IInterfaceLinks links = application.Links;
+
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        AssertLegacyComError(() => _ = links.get_Domain(10));
+        AssertLegacyComError(() => _ = links.get_Account(20));
+        AssertLegacyComError(() => _ = links.get_Alias(30));
+        AssertLegacyComError(() => _ = links.get_DistributionList(40));
+        Assert.AreEqual(0, domains.ReadCount);
+        CollectionAssert.AreEqual(Array.Empty<int>(), accounts.DomainIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<int>(), aliases.DomainIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<int>(), lists.DomainIds.ToArray());
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        Assert.AreEqual(10, links.get_Domain(10).ID);
+        Assert.AreEqual(20, links.get_Account(20).ID);
+        Assert.AreEqual(30, links.get_Alias(30).ID);
+        Assert.AreEqual(40, links.get_DistributionList(40).ID);
+    }
+
+    [TestMethod]
     public void ApplicationLinks_AccountUsesSharedAccountSizeInvalidation()
     {
         var accountStore = new RecordingAccountStore(
@@ -192,6 +237,13 @@ public sealed class LinksComContractTests
         Assert.AreEqual(EAccessDenied, error.ErrorCode);
     }
 
+    private static void AssertLegacyComError(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+        Assert.AreEqual(ELegacyComError, error.ErrorCode);
+        Assert.AreEqual(LegacyAccessDeniedMessage, error.Message);
+    }
+
     private static void AssertBadIndex(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
@@ -209,9 +261,14 @@ public sealed class LinksComContractTests
     private sealed class RecordingDomainStore(IReadOnlyList<DomainAdministrationSnapshot>? domains = null)
         : IDomainAdministrationStore
     {
+        public int ReadCount { get; private set; }
+
         public ValueTask<IReadOnlyList<DomainAdministrationSnapshot>> GetDomainsAsync(
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(domains ?? Array.Empty<DomainAdministrationSnapshot>());
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return ValueTask.FromResult(domains ?? Array.Empty<DomainAdministrationSnapshot>());
+        }
     }
 
     private sealed class RecordingAccountStore(params AccountAdministrationSnapshot[] accounts)

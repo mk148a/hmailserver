@@ -179,7 +179,7 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return LinksAdministrationRuntimeHost.CreateAuthorizedAdapter();
+            return LinksAdministrationRuntimeHost.CreateAuthorizedAdapter(() => IsServerAdministrator);
         }
     }
 

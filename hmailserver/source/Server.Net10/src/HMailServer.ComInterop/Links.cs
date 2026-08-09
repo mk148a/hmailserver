@@ -36,12 +36,14 @@ public sealed class Links : IInterfaceLinks
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
 
     private readonly IDomainAdministrationStore? _domainStore;
     private readonly IAccountAdministrationStore? _accountStore;
     private readonly IAliasAdministrationStore? _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly Func<int, IInterfaceAccount>? _accountFactory;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public Links()
     {
@@ -52,13 +54,15 @@ public sealed class Links : IInterfaceLinks
         IAccountAdministrationStore accountStore,
         IAliasAdministrationStore aliasStore,
         IDistributionListAdministrationStore distributionListStore,
-        Func<int, IInterfaceAccount>? accountFactory)
+        Func<int, IInterfaceAccount>? accountFactory,
+        Func<bool>? isServerAdministrator)
     {
         _domainStore = domainStore;
         _accountStore = accountStore;
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _accountFactory = accountFactory;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     internal static Links CreateAuthorized(
@@ -66,18 +70,26 @@ public sealed class Links : IInterfaceLinks
         IAccountAdministrationStore accountStore,
         IAliasAdministrationStore aliasStore,
         IDistributionListAdministrationStore distributionListStore,
-        Func<int, IInterfaceAccount>? accountFactory = null)
+        Func<int, IInterfaceAccount>? accountFactory = null,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(domainStore);
         ArgumentNullException.ThrowIfNull(accountStore);
         ArgumentNullException.ThrowIfNull(aliasStore);
         ArgumentNullException.ThrowIfNull(distributionListStore);
 
-        return new Links(domainStore, accountStore, aliasStore, distributionListStore, accountFactory);
+        return new Links(
+            domainStore,
+            accountStore,
+            aliasStore,
+            distributionListStore,
+            accountFactory,
+            isServerAdministrator);
     }
 
     public IInterfaceDomain get_Domain(int databaseId)
     {
+        EnsureAuthorized();
         var domain = GetDomains().FirstOrDefault(candidate => candidate.Id == databaseId);
         return domain is null
             ? throw BadIndex("domain")
@@ -86,6 +98,7 @@ public sealed class Links : IInterfaceLinks
 
     public IInterfaceAccount get_Account(int databaseId)
     {
+        EnsureAuthorized();
         var stores = GetStores();
         foreach (var domain in GetDomains(stores.DomainStore))
         {
@@ -102,6 +115,7 @@ public sealed class Links : IInterfaceLinks
 
     public IInterfaceAlias get_Alias(int databaseId)
     {
+        EnsureAuthorized();
         var stores = GetStores();
         foreach (var domain in GetDomains(stores.DomainStore))
         {
@@ -118,6 +132,7 @@ public sealed class Links : IInterfaceLinks
 
     public IInterfaceDistributionList get_DistributionList(int databaseId)
     {
+        EnsureAuthorized();
         var stores = GetStores();
         foreach (var domain in GetDomains(stores.DomainStore))
         {
@@ -142,6 +157,16 @@ public sealed class Links : IInterfaceLinks
     private static IReadOnlyList<DomainAdministrationSnapshot> GetDomains(
         IDomainAdministrationStore domainStore) =>
         GetResult(domainStore.GetDomainsAsync(CancellationToken.None));
+
+    private void EnsureAuthorized()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "You do not have access to this property / method. Ensure that hMailServer.Application.Authenticate() is called with proper login credentials.",
+                ELegacyComError);
+        }
+    }
 
     private Stores GetStores()
     {
@@ -194,8 +219,10 @@ public static class LinksAdministrationRuntimeHost
             new Stores(domainStore, accountStore, aliasStore, distributionListStore));
     }
 
-    internal static Links CreateAuthorizedAdapter()
+    internal static Links CreateAuthorizedAdapter(Func<bool> isServerAdministrator)
     {
+        ArgumentNullException.ThrowIfNull(isServerAdministrator);
+
         var stores = Volatile.Read(ref _stores)
             ?? throw new COMException(
                 "The hMailServer links administration runtime has not been initialized.",
@@ -206,9 +233,10 @@ public static class LinksAdministrationRuntimeHost
             stores.AccountStore,
             stores.AliasStore,
             stores.DistributionListStore,
-            accountId => AccountAdministrationRuntimeHost.CreateAuthorizedAccountAdapter(
+            accountFactory: accountId => AccountAdministrationRuntimeHost.CreateAuthorizedAccountAdapter(
                 stores.AccountStore,
-                accountId));
+                accountId),
+            isServerAdministrator: isServerAdministrator);
     }
 
     private sealed record Stores(
