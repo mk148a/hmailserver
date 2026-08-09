@@ -2,9 +2,9 @@
 - UTC timestamp: 2026-08-09T18:35:00Z
 - Local timestamp: 2026-08-09T21:35:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: docs audit update pending normal push; protected unrelated worktree changes remain
-- Current HEAD: `565175aff` before the docs commit
-- Last successfully pushed commit: `565175aff`
+- Push status: verified normal push; protected unrelated worktree changes remain
+- Current HEAD: `e96b094a7`
+- Last successfully pushed commit: `e96b094a7`
 - Latest focused-test result: MessageIndexing/Settings retained authorization `25 passed, 0 failed, 0 skipped`
 - Latest full Net10 result: filtered `1949 passed, 0 failed, 31 skipped`; default `1954 passed, 2 failed, 31 skipped` because host AV locked generated scanner `.eml` files
 - Opt-in tests passed/skipped/blocked: live SQL/FTS, live protocol, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped; two scanner cleanup tests are host-AV blocked
