@@ -440,14 +440,29 @@ public sealed class Account : IInterfaceAccount
         _delete(ID);
     }
 
-    private AccountAdministrationSnapshot? CurrentSnapshot =>
-        _currentSaveSnapshot ?? _administrationSnapshot;
+    private AccountAdministrationSnapshot? CurrentSnapshot
+    {
+        get
+        {
+            if (_administrationSnapshot is not null)
+            {
+                EnsureAuthenticated();
+            }
+
+            return _currentSaveSnapshot ?? _administrationSnapshot;
+        }
+    }
 
     private void Set(
         Action assign,
         Func<AccountAdministrationSnapshot, AccountAdministrationSnapshot> morph)
     {
         EnsureAttached();
+        if (_administrationSnapshot is not null)
+        {
+            EnsureAuthenticated();
+        }
+
         assign();
         if (_administrationSnapshot is not null)
         {
@@ -468,6 +483,7 @@ public sealed class Account : IInterfaceAccount
 
     private AccountSizeState GetAccountSize()
     {
+        EnsureAuthenticated();
         lock (_accountSizeGate)
         {
             var account = _administrationSnapshot!;

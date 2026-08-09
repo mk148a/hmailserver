@@ -373,6 +373,7 @@ public sealed class DistributionList : IInterfaceDistributionList
     private readonly Action<DistributionListAdministrationSnapshot>? _replace;
     private readonly Action<int>? _delete;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<bool>? _readAuthorization;
 
     public DistributionList()
     {
@@ -385,7 +386,8 @@ public sealed class DistributionList : IInterfaceDistributionList
         Action<DistributionListAdministrationSnapshot>? append,
         Action<DistributionListAdministrationSnapshot>? replace,
         Action<int>? delete,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        Func<bool>? readAuthorization)
     {
         _list = list;
         _insert = insert;
@@ -394,6 +396,7 @@ public sealed class DistributionList : IInterfaceDistributionList
         _replace = replace;
         _delete = delete;
         _isAuthenticated = isAuthenticated;
+        _readAuthorization = readAuthorization;
     }
 
     public int ID => Snapshot.Id;
@@ -446,8 +449,9 @@ public sealed class DistributionList : IInterfaceDistributionList
         Action<DistributionListAdministrationSnapshot>? append = null,
         Action<DistributionListAdministrationSnapshot>? replace = null,
         Action<int>? delete = null,
-        Func<bool>? isAuthenticated = null) =>
-        new(list, insert, update, append, replace, delete, isAuthenticated);
+        Func<bool>? isAuthenticated = null,
+        Func<bool>? readAuthorization = null) =>
+        new(list, insert, update, append, replace, delete, isAuthenticated, readAuthorization);
 
     public void Delete()
     {
@@ -522,10 +526,16 @@ public sealed class DistributionList : IInterfaceDistributionList
         }
     }
 
-    private DistributionListAdministrationSnapshot Snapshot =>
-        _list ?? throw new COMException(
-            "DistributionList access requires an authenticated server administrator.",
-            EAccessDenied);
+    private DistributionListAdministrationSnapshot Snapshot
+    {
+        get
+        {
+            EnsureReadAuthorized();
+            return _list ?? throw new COMException(
+                "DistributionList access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private T Unavailable<T>()
     {
@@ -561,6 +571,16 @@ public sealed class DistributionList : IInterfaceDistributionList
     private void EnsureAuthenticated()
     {
         if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "DistributionList access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
+    private void EnsureReadAuthorized()
+    {
+        if (_readAuthorization is not null && !_readAuthorization())
         {
             throw new COMException(
                 "DistributionList access requires an authenticated server administrator.",

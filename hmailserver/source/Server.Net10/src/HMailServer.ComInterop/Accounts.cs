@@ -479,7 +479,8 @@ public static class AccountAdministrationRuntimeHost
 
     internal static Account CreateAuthorizedAccountAdapter(
         IAccountAdministrationStore store,
-        int accountId)
+        int accountId,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(store);
 
@@ -500,7 +501,7 @@ public static class AccountAdministrationRuntimeHost
             RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
             MessageAdministrationRuntimeHost.CreateAuthorizedAccountState(account.Id),
             ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
-            null,
+            isAuthenticated,
             _accountSizeInvalidator,
             accountId => store
                 .GetAccountByIdAsync(accountId, CancellationToken.None)

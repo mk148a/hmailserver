@@ -190,6 +190,82 @@ public sealed class LinksComContractTests
     }
 
     [TestMethod]
+    public void ApplicationLinks_RetainedChildrenRecheckAuthorizationWithoutChildStoreAccess()
+    {
+        var domains = new RecordingDomainStore(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) });
+        var accounts = new RecordingAccountStore(
+            new AccountAdministrationSnapshot(20, 10, "user@alpha.example", true, AdminLevel: 0));
+        var aliases = new RecordingAliasStore(
+            new AliasAdministrationSnapshot(30, 10, "sales@alpha.example", "user@alpha.example", true));
+        var lists = new RecordingDistributionListStore(
+            new DistributionListAdministrationSnapshot(
+                40,
+                10,
+                "team@alpha.example",
+                true,
+                RequireSmtpAuth: false,
+                RequireSenderAddress: string.Empty,
+                Mode: 0));
+        AccountAdministrationRuntimeHost.Configure(accounts);
+        LinksAdministrationRuntimeHost.Configure(domains, accounts, aliases, lists);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        IInterfaceDomain domain = application.Links.get_Domain(10);
+        IInterfaceAccount account = application.Links.get_Account(20);
+        IInterfaceAlias alias = application.Links.get_Alias(30);
+        IInterfaceDistributionList list = application.Links.get_DistributionList(40);
+        var domainReads = domains.ReadCount;
+        var accountDomainReads = accounts.DomainIds.Count;
+        var accountByIdReads = accounts.AccountByIdReadCount;
+        var aliasDomainReads = aliases.DomainIds.Count;
+        var listDomainReads = lists.DomainIds.Count;
+
+        var standaloneAuthenticated = true;
+        var standaloneList = DistributionLists.CreateAuthorized(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    40,
+                    10,
+                    "team@alpha.example",
+                    true,
+                    RequireSmtpAuth: false,
+                    RequireSenderAddress: string.Empty,
+                    Mode: 0)
+            },
+            isAuthenticated: () => standaloneAuthenticated)[0];
+        standaloneAuthenticated = false;
+        Assert.AreEqual("team@alpha.example", standaloneList.Address);
+
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        AssertAccessDenied(() => _ = domain.Name);
+        AssertAccessDenied(() => domain.Active = false);
+        AssertAccessDenied(() => _ = account.Address);
+        AssertAccessDenied(() => account.Active = false);
+        AssertAccessDenied(() => _ = account.Size);
+        AssertAccessDenied(() => _ = alias.Name);
+        AssertAccessDenied(() => alias.Active = false);
+        AssertAccessDenied(() => _ = list.Address);
+        AssertAccessDenied(() => list.Active = false);
+
+        Assert.AreEqual(domainReads, domains.ReadCount);
+        Assert.AreEqual(accountDomainReads, accounts.DomainIds.Count);
+        Assert.AreEqual(accountByIdReads, accounts.AccountByIdReadCount);
+        Assert.AreEqual(aliasDomainReads, aliases.DomainIds.Count);
+        Assert.AreEqual(listDomainReads, lists.DomainIds.Count);
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        Assert.AreEqual("alpha.example", domain.Name);
+        Assert.AreEqual("user@alpha.example", account.Address);
+        Assert.AreEqual("sales@alpha.example", alias.Name);
+        Assert.AreEqual("team@alpha.example", list.Address);
+    }
+
+    [TestMethod]
     public void ApplicationLinks_AccountUsesSharedAccountSizeInvalidation()
     {
         var accountStore = new RecordingAccountStore(
@@ -276,6 +352,8 @@ public sealed class LinksComContractTests
     {
         public List<int> DomainIds { get; } = new();
 
+        public int AccountByIdReadCount { get; private set; }
+
         public IReadOnlyList<AccountAdministrationSnapshot> Accounts { get; set; } = accounts;
 
         public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
@@ -289,8 +367,11 @@ public sealed class LinksComContractTests
 
         public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
             int accountId,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(Accounts.FirstOrDefault(account => account.Id == accountId));
+            CancellationToken cancellationToken)
+        {
+            AccountByIdReadCount++;
+            return ValueTask.FromResult(Accounts.FirstOrDefault(account => account.Id == accountId));
+        }
     }
 
     private sealed class RecordingAliasStore(params AliasAdministrationSnapshot[] aliases)

@@ -93,7 +93,7 @@ public sealed class Links : IInterfaceLinks
         var domain = GetDomains().FirstOrDefault(candidate => candidate.Id == databaseId);
         return domain is null
             ? throw BadIndex("domain")
-            : Domain.CreateAuthorized(domain);
+            : Domain.CreateAuthorized(domain, _isServerAdministrator);
     }
 
     public IInterfaceAccount get_Account(int databaseId)
@@ -106,7 +106,8 @@ public sealed class Links : IInterfaceLinks
                 .FirstOrDefault(candidate => candidate.Id == databaseId);
             if (account is not null)
             {
-                return _accountFactory?.Invoke(databaseId) ?? Account.CreateAuthorized(account);
+                return _accountFactory?.Invoke(databaseId)
+                    ?? Account.CreateAuthorized(account, _isServerAdministrator);
             }
         }
 
@@ -123,7 +124,7 @@ public sealed class Links : IInterfaceLinks
                 .FirstOrDefault(candidate => candidate.Id == databaseId);
             if (alias is not null)
             {
-                return Alias.CreateAuthorized(alias);
+                return Alias.CreateAuthorized(alias, _isServerAdministrator);
             }
         }
 
@@ -141,7 +142,10 @@ public sealed class Links : IInterfaceLinks
                 .FirstOrDefault(candidate => candidate.Id == databaseId);
             if (list is not null)
             {
-                return DistributionList.CreateAuthorized(list);
+                return DistributionList.CreateAuthorized(
+                    list,
+                    isAuthenticated: _isServerAdministrator,
+                    readAuthorization: _isServerAdministrator);
             }
         }
 
@@ -235,7 +239,8 @@ public static class LinksAdministrationRuntimeHost
             stores.DistributionListStore,
             accountFactory: accountId => AccountAdministrationRuntimeHost.CreateAuthorizedAccountAdapter(
                 stores.AccountStore,
-                accountId),
+                accountId,
+                isServerAdministrator),
             isServerAdministrator: isServerAdministrator);
     }
 
