@@ -753,7 +753,10 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual("Rejected by example DNSBL.", dnsBlackLists.get_ItemByDBID(30).RejectMessage);
             Assert.AreEqual("127.0.0.9", dnsBlackLists.get_ItemByDBID(30).ExpectedResult);
             Assert.AreEqual(5, dnsBlackLists.get_ItemByDBID(30).Score);
-            Assert.IsNull(dnsBlackLists.get_ItemByDNSHost("zen.spamhaus.org"));
+            Assert.AreEqual(
+                1,
+                Assert.ThrowsExactly<COMException>(
+                    () => dnsBlackLists.get_ItemByDNSHost("zen.spamhaus.org")).ErrorCode);
             Assert.AreEqual(
                 unchecked((int)0x8002000B),
                 Assert.ThrowsExactly<COMException>(

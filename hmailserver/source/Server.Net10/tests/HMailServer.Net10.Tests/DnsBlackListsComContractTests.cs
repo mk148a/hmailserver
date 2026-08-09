@@ -12,6 +12,7 @@ public sealed class DnsBlackListsComContractTests
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
     private const int DispEBadIndex = unchecked((int)0x8002000B);
+    private const int SFalse = 1;
 
     [TestMethod]
     public void Interfaces_PreserveLegacyIidsDispatchIdsAndCompleteVtableOrder()
@@ -105,7 +106,9 @@ public sealed class DnsBlackListsComContractTests
         AssertBlackList(blackLists[0], 10, true, "zen.spamhaus.org", "Rejected by Spamhaus.", "127.0.0.2-8", 4);
         AssertBlackList(blackLists.get_ItemByDBID(20), 20, false, "bl.spamcop.net", "Rejected by SpamCop.", "127.0.0.2", 3);
         Assert.AreEqual(10, blackLists.get_ItemByDNSHost("ZEN.SPAMHAUS.ORG").ID);
-        Assert.IsNull(blackLists.get_ItemByDNSHost("missing.example.test"));
+        var missingHost = Assert.ThrowsExactly<COMException>(
+            () => _ = blackLists.get_ItemByDNSHost("missing.example.test"));
+        Assert.AreEqual(SFalse, missingHost.ErrorCode);
 
         var badIndex = Assert.ThrowsExactly<COMException>(() => _ = blackLists[2]);
         var badDatabaseId = Assert.ThrowsExactly<COMException>(() => _ = blackLists.get_ItemByDBID(30));
@@ -362,7 +365,9 @@ public sealed class DnsBlackListsComContractTests
         Assert.AreEqual(2, blackLists.Count);
         AssertBlackList(blackLists[0], 20, false, "bl.spamcop.net", "Rejected by SpamCop.", "127.0.0.2", 3);
         Assert.AreEqual(30, blackLists.get_ItemByDNSHost("DNSBL.EXAMPLE.TEST").ID);
-        Assert.IsNull(blackLists.get_ItemByDNSHost("zen.spamhaus.org"));
+        var missingHost = Assert.ThrowsExactly<COMException>(
+            () => _ = blackLists.get_ItemByDNSHost("zen.spamhaus.org"));
+        Assert.AreEqual(SFalse, missingHost.ErrorCode);
         Assert.AreEqual(
             DispEBadIndex,
             Assert.ThrowsExactly<COMException>(() => _ = blackLists.get_ItemByDBID(10)).ErrorCode);
@@ -409,7 +414,9 @@ public sealed class DnsBlackListsComContractTests
         Assert.AreEqual(2, blackLists.Count);
         Assert.AreEqual(20, blackLists[0].ID);
         Assert.AreEqual(30, blackLists.get_ItemByDNSHost("dnsbl.example.test").ID);
-        Assert.IsNull(blackLists.get_ItemByDNSHost("zen.spamhaus.org"));
+        var missingHost = Assert.ThrowsExactly<COMException>(
+            () => _ = blackLists.get_ItemByDNSHost("zen.spamhaus.org"));
+        Assert.AreEqual(SFalse, missingHost.ErrorCode);
         Assert.AreEqual(
             DispEBadIndex,
             Assert.ThrowsExactly<COMException>(() => _ = blackLists.get_ItemByDBID(10)).ErrorCode);

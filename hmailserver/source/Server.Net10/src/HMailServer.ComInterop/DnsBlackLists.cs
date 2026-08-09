@@ -92,6 +92,7 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
+    private const int SFalse = 1;
 
     private DnsBlackListAdministrationSnapshot[]? _blackLists;
     private readonly Func<IReadOnlyList<DnsBlackListAdministrationSnapshot>>? _reload;
@@ -209,14 +210,17 @@ public sealed class DNSBlackLists : IInterfaceDNSBlackLists
         var match = GetBlackLists().FirstOrDefault(
             blackList => string.Equals(blackList.DnsHost, dnsHost, StringComparison.OrdinalIgnoreCase));
 
-        return match is null
-            ? null!
-            : DNSBlackList.CreateAuthorized(
-                match,
-                update: _update,
-                delete: _delete,
-                replace: _replace,
-                isServerAdministrator: _isServerAdministrator);
+        if (match is null)
+        {
+            throw new COMException(string.Empty, SFalse);
+        }
+
+        return DNSBlackList.CreateAuthorized(
+            match,
+            update: _update,
+            delete: _delete,
+            replace: _replace,
+            isServerAdministrator: _isServerAdministrator);
     }
 
     internal static DNSBlackLists CreateAuthorized(
