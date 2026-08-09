@@ -13,11 +13,13 @@ No active development
 .NET 10 rewrite continuation audit (2026-08-09)
 -------------------------------------------------
 
-The .NET 10 branch is a side-by-side rewrite and is not a production release. The latest full test run is `1942 passed, 0 failed, 31 skipped`; the offline 100,000-message SEARCH/SORT benchmark passes, but it is not evidence of live SQL FTS, protocol, concurrency, C++ equivalence, or soak acceptance.
+The .NET 10 branch is a side-by-side rewrite and is not a production release. Code/test commit `89cc2c860` closes the retained `GlobalObjects`/`DeliveryQueue` authorization gap: legacy `InterfaceDeliveryQueue` checks the shared administrator state at each method entry, with `Clear` returning the legacy `0x800403E9` error and `ResetDeliveryTime`, `Remove`, and `StartDelivery` returning `S_FALSE` when unauthorized. Focused coverage is `8 passed, 0 failed, 0 skipped`; the latest full run is `1943 passed, 0 failed, 31 skipped`.
+
+The offline 100,000-message SEARCH/SORT benchmark passes, but it is not evidence of live SQL FTS, protocol, concurrency, C++ equivalence, or soak acceptance. The next code candidate is retained `Links` live authorization parity; the approved disposable SQL/Data restore acceptance remains the highest-priority environment-gated slice.
 
 Legacy `InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`) validates the attached account through `PasswordValidator::ValidatePassword`, including legacy hash modes, AD validation, and the client password event. The current `Account.ValidatePassword` (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/AccountComClass.cs:417-426`) remains deliberately fenced for SQL-backed snapshots because a safe implementation needs an authoritative credential lookup, retained-object reauthentication, and separately reviewed COM/AD/script boundaries. Do not remove the `E_NOTIMPL` fence as a mechanical parity change.
 
-The authoritative next execution is approved disposable SQL/Data restore acceptance. Production SQL/Data, service/COM, SEC-18, installer, AD/DC, native restore containment, live protocol, and 24-hour soak evidence remain blocked or incomplete. Release status is RED.
+Production SQL/Data, service/COM, SEC-18, installer, AD/DC, native restore containment, live protocol, and 24-hour soak evidence remain blocked or incomplete. Release status is RED.
 
 hMailServer is no longer being actively developed or maintained. The latest major version was released several years ago. hMailServer relies on algorithms which are considered insecure by modern standards, such as SHA1 and outdated versions of OpenSSL. For that reason, it's recommended that you migrate to an alternative software or service.
 

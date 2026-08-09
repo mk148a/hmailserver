@@ -1,5 +1,11 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation
+
+2026-08-09 code/test commit `89cc2c860` implements retained `GlobalObjects`/`DeliveryQueue` authorization parity. Legacy anchors are `InterfaceApplication::get_GlobalObjects` (`hmailserver/source/Server/COM/InterfaceApplication.cpp:163`), `InterfaceGlobalObjects::get_DeliveryQueue` (`InterfaceGlobalObjects.cpp:34-54`), and `InterfaceDeliveryQueue::{Clear,ResetDeliveryTime,Remove,StartDelivery}` (`InterfaceDeliveryQueue.cpp:14-91`). The .NET path passes a live `ApplicationAuthorizationAuthority.IsServerAdministrator` guard into retained objects. Focused coverage is `8 passed, 0 failed, 0 skipped`; full Net10 is `1943 passed, 0 failed, 31 skipped`.
+
+The slice preserves COM identity, direct activation denial, legacy `Clear` HRESULT/message, and `S_FALSE` for unauthorized `ResetDeliveryTime`, `Remove`, and `StartDelivery`. It is method-entry authorization, so check-then-use invalidation races and asynchronous `Clear` scheduling remain residual risks. No SQL, SMTP, service, registry, DCOM, or production state changed. Next code candidate: parity-confirm retained `Links` live authorization; highest-priority environment-gated work remains disposable SQL/Data restore acceptance. Release remains RED.
+
 ## Current Audit Continuation
 
 2026-08-09 release-gate audit: no independently executable production-parity slice remains unblocked on this host. Legacy `InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`) uses the attached account and legacy `PasswordValidator` branches; the .NET `Account.ValidatePassword` (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/AccountComClass.cs:417-426`) must remain `E_NOTIMPL` for SQL-backed snapshots until a fresh credential verifier, retained-object reauthentication, and reviewed COM/AD/script boundary exist. The protocol authenticator must not be reused as a shortcut.
