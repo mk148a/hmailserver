@@ -744,6 +744,7 @@ public sealed class Message : IInterfaceMessage
 
     private void SetDraftHeader(string fieldName, string value)
     {
+        EnsureAuthenticated();
         if (_message is null || (_save is null && _update is null))
         {
             Unavailable();
@@ -760,6 +761,16 @@ public sealed class Message : IInterfaceMessage
         else
         {
             _draftHeaders.Add(new MessageHeaderSnapshot(fieldName, value));
+        }
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "Message access requires an authenticated server administrator.",
+                EAccessDenied);
         }
     }
 

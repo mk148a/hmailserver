@@ -125,7 +125,14 @@ public sealed class Account : IInterfaceAccount
         set => Set(() => _domainId = value, s => s with { DomainId = value });
     }
 
-    public int ID => CurrentSnapshot?.Id ?? _id;
+    public int ID
+    {
+        get
+        {
+            EnsureAttached();
+            return CurrentSnapshot?.Id ?? _id;
+        }
+    }
 
     public bool IsAD { get => CurrentSnapshot?.IsActiveDirectoryAccount ?? Read(_isActiveDirectoryAccount); set => Set(() => _isActiveDirectoryAccount = value, s => s with { IsActiveDirectoryAccount = value }); }
 

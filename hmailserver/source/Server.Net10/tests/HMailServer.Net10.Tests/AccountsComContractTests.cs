@@ -52,6 +52,7 @@ public sealed class AccountsComContractTests
         var accountsError = Assert.ThrowsExactly<COMException>(() => _ = new Accounts().Count);
         var refreshError = Assert.ThrowsExactly<COMException>(new Accounts().Refresh);
         var accountError = Assert.ThrowsExactly<COMException>(() => _ = new Account().Address);
+        var idError = Assert.ThrowsExactly<COMException>(() => _ = new Account().ID);
         var adDomainError = Assert.ThrowsExactly<COMException>(() => _ = new Account().ADDomain);
         var isAdError = Assert.ThrowsExactly<COMException>(() => _ = new Account().IsAD);
         var adUsernameError = Assert.ThrowsExactly<COMException>(() => _ = new Account().ADUsername);
@@ -66,6 +67,7 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(EAccessDenied, accountsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, refreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, accountError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, idError.ErrorCode);
         Assert.AreEqual(EAccessDenied, adDomainError.ErrorCode);
         Assert.AreEqual(EAccessDenied, isAdError.ErrorCode);
         Assert.AreEqual(EAccessDenied, adUsernameError.ErrorCode);

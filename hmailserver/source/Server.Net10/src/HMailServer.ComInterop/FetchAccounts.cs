@@ -636,6 +636,7 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         T value,
         Func<FetchAccountAdministrationDraft, T, FetchAccountAdministrationDraft> update)
     {
+        EnsureAuthenticated();
         var draft = _draft;
         if (draft is null)
         {

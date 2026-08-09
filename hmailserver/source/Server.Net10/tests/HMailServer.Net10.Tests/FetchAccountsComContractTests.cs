@@ -405,6 +405,22 @@ public sealed class FetchAccountsComContractTests
     }
 
     [TestMethod]
+    public void FetchAccountDraft_SettersRecheckAuthenticationBeforeStaging()
+    {
+        var authenticated = true;
+        IInterfaceFetchAccounts accounts = FetchAccounts.CreateAuthorized(
+            Array.Empty<FetchAccountAdministrationSnapshot>(),
+            insert: _ => ValueTask.FromResult(100),
+            accountId: 100,
+            isAuthenticated: () => authenticated);
+        var draft = accounts.Add();
+        authenticated = false;
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => draft.Name = "blocked").ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(draft.Save).ErrorCode);
+    }
+
+    [TestMethod]
     public void AuthorizedDownloadNow_UsesOwningParentAndSelectedFetchAccountIds()
     {
         var store = new MutableFetchAccountAdministrationStore(

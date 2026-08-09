@@ -401,6 +401,23 @@ Body
     }
 
     [TestMethod]
+    public void MessageDraft_SettersRecheckAuthenticationBeforeStaging()
+    {
+        var authenticated = true;
+        IInterfaceMessages messages = Messages.CreateAuthorized(
+            Array.Empty<MessageAdministrationSnapshot>(),
+            accountId: 100,
+            folderId: 50,
+            insert: _ => 1001,
+            isAuthenticated: () => authenticated);
+        var draft = messages.Add();
+        authenticated = false;
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => draft.Subject = "blocked").ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(draft.Save).ErrorCode);
+    }
+
+    [TestMethod]
     public void ImapFolderMessages_UsesConfiguredRuntimeForSelectedFolder()
     {
         MessageAdministrationRuntimeHost.Configure(
