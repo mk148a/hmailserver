@@ -118,6 +118,35 @@ public sealed class GroupMembersComContractTests
     }
 
     [TestMethod]
+    public void RetainedGroupMemberAccount_RechecksLiveAdministrator()
+    {
+        var isServerAdministrator = true;
+        AccountAdministrationRuntimeHost.Configure(
+            new FixedAccountAdministrationStore(
+                new[]
+                {
+                    new AccountAdministrationSnapshot(1000, 10, "member@example.test", true, 0)
+                }));
+        IInterfaceGroupMembers members = GroupMembers.CreateAuthorized(
+            new[] { Snapshot(100, 10, 1000) },
+            isServerAdministrator: () => isServerAdministrator);
+
+        var retainedAccount = members[0].Account;
+
+        Assert.AreEqual(1000, retainedAccount.ID);
+        Assert.AreEqual("member@example.test", retainedAccount.Address);
+
+        isServerAdministrator = false;
+
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => _ = retainedAccount.ID).ErrorCode);
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => _ = members[0].Account.ID).ErrorCode);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_RefreshAtomicallyReplacesSnapshotAndRetainsItOnFailure()
     {
         var failReload = false;

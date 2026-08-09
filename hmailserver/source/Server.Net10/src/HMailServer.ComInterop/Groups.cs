@@ -518,7 +518,9 @@ public static class GroupAdministrationRuntimeHost
             DeleteGroup);
     }
 
-    internal static Group CreateAuthorizedGroupByIdAdapter(int groupId)
+    internal static Group CreateAuthorizedGroupByIdAdapter(
+        int groupId,
+        Func<bool>? isServerAdministrator = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -534,6 +536,6 @@ public static class GroupAdministrationRuntimeHost
 
         return group is null
             ? throw new COMException("No group with the specified database identifier exists.", DispEBadIndex)
-            : Group.CreateAuthorized(group);
+            : Group.CreateAuthorized(group, isServerAdministrator: isServerAdministrator);
     }
 }

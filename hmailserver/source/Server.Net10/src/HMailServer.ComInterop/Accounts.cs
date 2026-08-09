@@ -467,14 +467,16 @@ public static class AccountAdministrationRuntimeHost
             ReadAccount);
     }
 
-    internal static Account CreateAuthorizedAccountByIdAdapter(int accountId)
+    internal static Account CreateAuthorizedAccountByIdAdapter(
+        int accountId,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
                 "The hMailServer account administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        return CreateAuthorizedAccountAdapter(store, accountId);
+        return CreateAuthorizedAccountAdapter(store, accountId, isAuthenticated);
     }
 
     internal static Account CreateAuthorizedAccountAdapter(

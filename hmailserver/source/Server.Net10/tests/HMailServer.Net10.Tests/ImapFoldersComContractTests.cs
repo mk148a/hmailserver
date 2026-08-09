@@ -541,6 +541,133 @@ public sealed class ImapFoldersComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = permissions.get_ItemByDBID(500)).ErrorCode);
     }
 
+    [TestMethod]
+    public void RetainedPermissionChildren_RecheckLiveAuthentication()
+    {
+        var isAuthenticated = true;
+        AccountAdministrationRuntimeHost.Configure(
+            new FixedAccountAdministrationStore(
+                new[]
+                {
+                    new AccountAdministrationSnapshot(100, 1, "account@example.test", true, 0)
+                }));
+        GroupAdministrationRuntimeHost.Configure(
+            new FixedGroupAdministrationStore(
+                new[] { new GroupAdministrationSnapshot(200, "Support") }));
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(50, 0, -1, "Public", true, 5, "2026-06-27 00:02:03")
+            },
+            new[]
+            {
+                new ImapFolderPermissionAdministrationSnapshot(
+                    500,
+                    50,
+                    (int)ComAclPermissionType.User,
+                    0,
+                    100,
+                    (int)ComAclPermission.Lookup),
+                new ImapFolderPermissionAdministrationSnapshot(
+                    600,
+                    50,
+                    (int)ComAclPermissionType.Group,
+                    200,
+                    0,
+                    (int)ComAclPermission.Read)
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        var state = ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(0);
+        var folder = IMAPFolder.CreateAuthorized(
+            new ImapFolderAdministrationSnapshot(50, 0, -1, "Public", true, 5, "2026-06-27 00:02:03"),
+            state,
+            () => isAuthenticated);
+
+        var permissions = folder.Permissions;
+        var retainedAccount = permissions[0].Account;
+        var retainedGroup = permissions[1].Group;
+
+        Assert.AreEqual(100, retainedAccount.ID);
+        Assert.AreEqual(200, retainedGroup.ID);
+
+        isAuthenticated = false;
+
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => _ = retainedAccount.ID).ErrorCode);
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => retainedGroup.Name = "Changed").ErrorCode);
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => _ = permissions[0].Account.ID).ErrorCode);
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => permissions[1].Group.Name = "Changed").ErrorCode);
+    }
+
+    [TestMethod]
+    public void SettingsPublicFolders_PropagatesAuthenticationToPermissionChildren()
+    {
+        var isAuthenticated = true;
+        AccountAdministrationRuntimeHost.Configure(
+            new FixedAccountAdministrationStore(
+                new[]
+                {
+                    new AccountAdministrationSnapshot(100, 1, "account@example.test", true, 0)
+                }));
+        GroupAdministrationRuntimeHost.Configure(
+            new FixedGroupAdministrationStore(
+                new[] { new GroupAdministrationSnapshot(200, "Support") }));
+        ImapFolderAdministrationRuntimeHost.Configure(
+            new FixedImapFolderAdministrationStore(
+                new[]
+                {
+                    new ImapFolderAdministrationSnapshot(50, 0, -1, "Public", true, 5, "2026-06-27 00:02:03")
+                },
+                new[]
+                {
+                    new ImapFolderPermissionAdministrationSnapshot(
+                        500,
+                        50,
+                        (int)ComAclPermissionType.User,
+                        0,
+                        100,
+                        (int)ComAclPermission.Lookup),
+                    new ImapFolderPermissionAdministrationSnapshot(
+                        600,
+                        50,
+                        (int)ComAclPermissionType.Group,
+                        200,
+                        0,
+                        (int)ComAclPermission.Read)
+                }));
+
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            isServerAdministrator: () => isAuthenticated);
+        var permissions = settings.PublicFolders[0].Permissions;
+        var retainedAccount = permissions[0].Account;
+        var retainedGroup = permissions[1].Group;
+
+        Assert.AreEqual(100, retainedAccount.ID);
+        Assert.AreEqual(200, retainedGroup.ID);
+
+        isAuthenticated = false;
+
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => _ = retainedAccount.ID).ErrorCode);
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => retainedGroup.Name = "Changed").ErrorCode);
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => _ = permissions[0].Account.ID).ErrorCode);
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => permissions[1].Group.Name = "Changed").ErrorCode);
+    }
+
     private static void AssertFolder(
         IInterfaceIMAPFolder folder,
         int id,
@@ -556,6 +683,29 @@ public sealed class ImapFoldersComContractTests
         Assert.AreEqual(subscribed, folder.Subscribed);
         Assert.AreEqual(currentUid, folder.CurrentUID);
         Assert.AreEqual(creationTime, folder.CreationTime);
+    }
+
+    private sealed class FixedAccountAdministrationStore(
+        IReadOnlyList<AccountAdministrationSnapshot> accounts) : IAccountAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
+                accounts.Where(account => account.DomainId == domainId).ToArray());
+
+        public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(accounts.FirstOrDefault(account => account.Id == accountId));
+    }
+
+    private sealed class FixedGroupAdministrationStore(
+        IReadOnlyList<GroupAdministrationSnapshot> groups) : IGroupAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(groups);
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)

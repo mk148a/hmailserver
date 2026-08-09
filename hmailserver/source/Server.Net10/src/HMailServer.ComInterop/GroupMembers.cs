@@ -396,7 +396,9 @@ public sealed class GroupMember : IInterfaceGroupMember
     }
 
     public IInterfaceAccount Account =>
-        AccountAdministrationRuntimeHost.CreateAuthorizedAccountByIdAdapter(Snapshot.AccountId);
+        AccountAdministrationRuntimeHost.CreateAuthorizedAccountByIdAdapter(
+            Snapshot.AccountId,
+            _isServerAdministrator);
 
     internal static GroupMember CreateAuthorized(
         GroupMemberAdministrationSnapshot member,

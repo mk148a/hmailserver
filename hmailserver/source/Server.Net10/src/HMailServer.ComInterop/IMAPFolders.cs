@@ -103,9 +103,12 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
     {
     }
 
-    private IMAPFolders(IReadOnlyList<ImapFolderAdministrationSnapshot> folders)
+    private IMAPFolders(
+        IReadOnlyList<ImapFolderAdministrationSnapshot> folders,
+        Func<bool>? isAuthenticated = null)
     {
         _folders = folders.ToArray();
+        _isAuthenticated = isAuthenticated;
     }
 
     private IMAPFolders(
@@ -122,10 +125,12 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
 
     public int Count => GetFolders().Count;
 
-    internal static IMAPFolders CreateAuthorized(IReadOnlyList<ImapFolderAdministrationSnapshot> folders)
+    internal static IMAPFolders CreateAuthorized(
+        IReadOnlyList<ImapFolderAdministrationSnapshot> folders,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(folders);
-        return new IMAPFolders(folders);
+        return new IMAPFolders(folders, isAuthenticated);
     }
 
     public IInterfaceIMAPFolder this[int index]
@@ -140,7 +145,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
 
             return _state is { } state
                 ? IMAPFolder.CreateAuthorized(folders[index], state, _isAuthenticated)
-                : IMAPFolder.CreateAuthorized(folders[index]);
+                : IMAPFolder.CreateAuthorized(folders[index], _isAuthenticated);
         }
     }
 
@@ -154,7 +159,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
                 DispEBadIndex)
             : _state is { } state
                 ? IMAPFolder.CreateAuthorized(match, state, _isAuthenticated)
-                : IMAPFolder.CreateAuthorized(match);
+                : IMAPFolder.CreateAuthorized(match, _isAuthenticated);
     }
 
     public IInterfaceIMAPFolder get_ItemByName(string name)
@@ -167,7 +172,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
             ? throw new COMException("No IMAP folder with the specified name exists.", DispEBadIndex)
             : _state is { } state
                 ? IMAPFolder.CreateAuthorized(match, state, _isAuthenticated)
-                : IMAPFolder.CreateAuthorized(match);
+                : IMAPFolder.CreateAuthorized(match, _isAuthenticated);
     }
 
     public IInterfaceIMAPFolder Add(string name)
@@ -362,7 +367,10 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
     public IInterfaceIMAPFolders SubFolders =>
         _foldersState is { } state
             ? IMAPFolders.CreateAuthorized(state, Snapshot.AccountId, Snapshot.Id, _isAuthenticated)
-            : ImapFolderAdministrationRuntimeHost.CreateAuthorizedChildAdapter(Snapshot.Id, Snapshot.AccountId);
+            : ImapFolderAdministrationRuntimeHost.CreateAuthorizedChildAdapter(
+                Snapshot.Id,
+                Snapshot.AccountId,
+                _isAuthenticated);
 
     public int ParentID => Snapshot.ParentId;
 
@@ -378,7 +386,9 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
                     ELegacyComError);
             }
 
-            return ImapFolderAdministrationRuntimeHost.CreateAuthorizedPermissionsAdapter(snapshot.Id);
+            return ImapFolderAdministrationRuntimeHost.CreateAuthorizedPermissionsAdapter(
+                snapshot.Id,
+                _isAuthenticated);
         }
     }
 
@@ -386,7 +396,10 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
     public string CreationTime => Snapshot.CreationTime;
 
-    internal static IMAPFolder CreateAuthorized(ImapFolderAdministrationSnapshot folder) => new(folder);
+    internal static IMAPFolder CreateAuthorized(
+        ImapFolderAdministrationSnapshot folder,
+        Func<bool>? isAuthenticated = null) =>
+        new(folder, isAuthenticated: isAuthenticated);
 
     internal static IMAPFolder CreateAuthorized(
         ImapFolderAdministrationSnapshot folder,
@@ -750,7 +763,9 @@ public static class ImapFolderAdministrationRuntimeHost
                 .GetResult();
         });
 
-    internal static IMAPFolders CreateAuthorizedAdapter(int accountId)
+    internal static IMAPFolders CreateAuthorizedAdapter(
+        int accountId,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -763,10 +778,13 @@ public static class ImapFolderAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return IMAPFolders.CreateAuthorized(folders);
+        return IMAPFolders.CreateAuthorized(folders, isAuthenticated);
     }
 
-    internal static IMAPFolders CreateAuthorizedChildAdapter(int parentFolderId, int accountId)
+    internal static IMAPFolders CreateAuthorizedChildAdapter(
+        int parentFolderId,
+        int accountId,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -779,10 +797,12 @@ public static class ImapFolderAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return IMAPFolders.CreateAuthorized(folders);
+        return IMAPFolders.CreateAuthorized(folders, isAuthenticated);
     }
 
-    internal static IMAPFolderPermissions CreateAuthorizedPermissionsAdapter(int folderId)
+    internal static IMAPFolderPermissions CreateAuthorizedPermissionsAdapter(
+        int folderId,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -829,7 +849,8 @@ public static class ImapFolderAdministrationRuntimeHost
             LoadPermissions,
             permissionStore is null ? null : DeletePermissionAsync,
             permissionMutationStore is null ? null : InsertPermissionAsync,
-            permissionMutationStore is null ? null : UpdatePermissionAsync);
+            permissionMutationStore is null ? null : UpdatePermissionAsync,
+            isAuthenticated);
     }
 }
 

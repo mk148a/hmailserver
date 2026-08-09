@@ -1334,7 +1334,9 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
-            return ImapFolderAdministrationRuntimeHost.CreateAuthorizedAdapter(accountId: 0);
+            return ImapFolderAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                accountId: 0,
+                isAuthenticated: _isServerAdministrator);
         }
     }
 
