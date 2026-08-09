@@ -244,6 +244,7 @@ public sealed class LinksComContractTests
         AssertAccessDenied(() => _ = domain.Name);
         AssertAccessDenied(() => domain.Active = false);
         AssertAccessDenied(() => _ = account.Address);
+        AssertAccessDenied(() => _ = account.AdminLevel);
         AssertAccessDenied(() => account.Active = false);
         AssertAccessDenied(() => _ = account.Size);
         AssertAccessDenied(() => _ = alias.Name);
@@ -261,6 +262,7 @@ public sealed class LinksComContractTests
 
         Assert.AreEqual("alpha.example", domain.Name);
         Assert.AreEqual("user@alpha.example", account.Address);
+        Assert.AreEqual(ComAdminLevel.Normal, account.AdminLevel);
         Assert.AreEqual("sales@alpha.example", alias.Name);
         Assert.AreEqual("team@alpha.example", list.Address);
     }

@@ -164,6 +164,7 @@ public sealed class Messages : IInterfaceMessages
     private readonly Func<MessageAdministrationSnapshot, bool>? _update;
     private readonly Func<long, bool>? _delete;
     private readonly Action? _clear;
+    private readonly Func<bool>? _isAuthenticated;
 
     public Messages()
     {
@@ -177,7 +178,8 @@ public sealed class Messages : IInterfaceMessages
         Func<MessageAdministrationSnapshot, long>? insert,
         Func<MessageAdministrationSnapshot, bool>? update = null,
         Func<long, bool>? delete = null,
-        Action? clear = null)
+        Action? clear = null,
+        Func<bool>? isAuthenticated = null)
     {
         _messages = messages.ToArray();
         _contentSource = contentSource;
@@ -187,6 +189,7 @@ public sealed class Messages : IInterfaceMessages
         _update = update;
         _delete = delete;
         _clear = clear;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int Count => GetMessages().Count;
@@ -199,10 +202,11 @@ public sealed class Messages : IInterfaceMessages
         Func<MessageAdministrationSnapshot, long>? insert = null,
         Func<MessageAdministrationSnapshot, bool>? update = null,
         Func<long, bool>? delete = null,
-        Action? clear = null)
+        Action? clear = null,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(messages);
-        return new Messages(messages, contentSource, accountId, folderId, insert, update, delete, clear);
+        return new Messages(messages, contentSource, accountId, folderId, insert, update, delete, clear, isAuthenticated);
     }
 
     public IInterfaceMessage this[int index]
@@ -219,7 +223,8 @@ public sealed class Messages : IInterfaceMessages
                 messages[index],
                 _contentSource,
                 update: _update is null ? null : UpdateMessage,
-                delete: _delete is null ? null : DeleteMessage);
+                delete: _delete is null ? null : DeleteMessage,
+                isAuthenticated: _isAuthenticated);
         }
     }
 
@@ -235,7 +240,8 @@ public sealed class Messages : IInterfaceMessages
                 match,
                 _contentSource,
                 update: _update is null ? null : UpdateMessage,
-                delete: _delete is null ? null : DeleteMessage);
+                delete: _delete is null ? null : DeleteMessage,
+                isAuthenticated: _isAuthenticated);
     }
 
     public void DeleteByDBID(long databaseId)
@@ -304,7 +310,8 @@ public sealed class Messages : IInterfaceMessages
             publish: saved =>
             {
                 Volatile.Write(ref _messages, messages.Append(saved).ToArray());
-            });
+            },
+            isAuthenticated: _isAuthenticated);
     }
 
     private bool UpdateMessage(MessageAdministrationSnapshot message)
@@ -410,6 +417,13 @@ public sealed class Messages : IInterfaceMessages
 
     private IReadOnlyList<MessageAdministrationSnapshot> GetMessages()
     {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "Messages access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+
         return _messages
             ?? throw new COMException(
                 "Messages access requires an authenticated server administrator.",
@@ -452,6 +466,7 @@ public sealed class Message : IInterfaceMessage
     private readonly Func<MessageAdministrationSnapshot, bool>? _update;
     private readonly Action<MessageAdministrationSnapshot>? _publish;
     private readonly Action<long>? _delete;
+    private readonly Func<bool>? _isAuthenticated;
     private List<MessageHeaderSnapshot>? _draftHeaders;
 
     public Message()
@@ -464,7 +479,8 @@ public sealed class Message : IInterfaceMessage
         Func<MessageAdministrationSnapshot, long>? save = null,
         Func<MessageAdministrationSnapshot, bool>? update = null,
         Action<MessageAdministrationSnapshot>? publish = null,
-        Action<long>? delete = null)
+        Action<long>? delete = null,
+        Func<bool>? isAuthenticated = null)
     {
         _message = message;
         _contentSource = contentSource;
@@ -472,6 +488,7 @@ public sealed class Message : IInterfaceMessage
         _update = update;
         _publish = publish;
         _delete = delete;
+        _isAuthenticated = isAuthenticated;
     }
 
     public long ID => Snapshot.Id;
@@ -537,14 +554,16 @@ public sealed class Message : IInterfaceMessage
         MessageAdministrationSnapshot message,
         IMessageAdministrationContentSource? contentSource = null,
         Func<MessageAdministrationSnapshot, bool>? update = null,
-        Action<long>? delete = null) =>
-        new(message, contentSource, update: update, delete: delete);
+        Action<long>? delete = null,
+        Func<bool>? isAuthenticated = null) =>
+        new(message, contentSource, update: update, delete: delete, isAuthenticated: isAuthenticated);
 
     internal static Message CreateAuthorizedDraft(
         MessageAdministrationSnapshot message,
         Func<MessageAdministrationSnapshot, long> save,
-        Action<MessageAdministrationSnapshot> publish) =>
-        new(message, contentSource: null, save, update: null, publish);
+        Action<MessageAdministrationSnapshot> publish,
+        Func<bool>? isAuthenticated = null) =>
+        new(message, contentSource: null, save, update: null, publish, isAuthenticated: isAuthenticated);
 
     public void Save()
     {
@@ -662,10 +681,22 @@ public sealed class Message : IInterfaceMessage
 
     public void Copy(int destinationFolderId) => Unavailable();
 
-    private MessageAdministrationSnapshot Snapshot =>
-        _message ?? throw new COMException(
-            "Message access requires an authenticated server administrator.",
-            EAccessDenied);
+    private MessageAdministrationSnapshot Snapshot
+    {
+        get
+        {
+            if (_isAuthenticated is not null && !_isAuthenticated())
+            {
+                throw new COMException(
+                    "Message access requires an authenticated server administrator.",
+                    EAccessDenied);
+            }
+
+            return _message ?? throw new COMException(
+                "Message access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private MessageContentSnapshot Content
     {
@@ -1004,7 +1035,9 @@ public static class MessageAdministrationRuntimeHost
     internal static AccountMessageAdministrationState CreateAuthorizedAccountState(int accountId) =>
         new(accountId);
 
-    internal static Messages CreateAuthorizedAccountAdapter(AccountMessageAdministrationState state)
+    internal static Messages CreateAuthorizedAccountAdapter(
+        AccountMessageAdministrationState state,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -1025,10 +1058,13 @@ public static class MessageAdministrationRuntimeHost
             insert: _ => throw new NotSupportedException("Account message cache does not support message insertion."),
             update: _ => throw new NotSupportedException("Account message cache does not support message updates."),
             delete: _ => throw new NotSupportedException("Account message cache does not support message deletion."),
-            clear: () => throw new NotSupportedException("Account message cache does not support message clear."));
+            clear: () => throw new NotSupportedException("Account message cache does not support message clear."),
+            isAuthenticated: isAuthenticated);
     }
 
-    internal static Messages CreateAuthorizedFolderAdapter(int folderId)
+    internal static Messages CreateAuthorizedFolderAdapter(
+        int folderId,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -1075,6 +1111,7 @@ public static class MessageAdministrationRuntimeHost
             InsertMessage,
             UpdateMessage,
             DeleteMessage,
-            ClearMessages);
+            ClearMessages,
+            isAuthenticated);
     }
 }

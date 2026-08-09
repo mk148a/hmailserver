@@ -359,6 +359,52 @@ public sealed class FetchAccountsComContractTests
     }
 
     [TestMethod]
+    public void AccountFetchAccounts_RetainedCollectionRechecksAuthenticationAfterReauthentication()
+    {
+        FetchAccountAdministrationRuntimeHost.Configure(
+            new MutableFetchAccountAdministrationStore(
+                new[] { CreateSnapshot(10, 100, "External POP3") }));
+        var authenticated = true;
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            () => authenticated);
+        var fetchAccounts = account.FetchAccounts;
+
+        Assert.AreEqual(1, fetchAccounts.Count);
+        authenticated = false;
+
+        var readFailure = Assert.ThrowsExactly<COMException>(() => _ = fetchAccounts.Count);
+        var mutationFailure = Assert.ThrowsExactly<COMException>(() => fetchAccounts.Delete(0));
+        Assert.AreEqual(EAccessDenied, readFailure.ErrorCode);
+        Assert.AreEqual(EAccessDenied, mutationFailure.ErrorCode);
+
+        authenticated = true;
+        Assert.AreEqual(1, fetchAccounts.Count);
+    }
+
+    [TestMethod]
+    public void FetchAccount_RetainedChildRechecksAuthenticationAfterReauthentication()
+    {
+        FetchAccountAdministrationRuntimeHost.Configure(
+            new MutableFetchAccountAdministrationStore(
+                new[] { CreateSnapshot(10, 100, "External POP3") }));
+        var authenticated = true;
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            () => authenticated);
+        var fetchAccount = account.FetchAccounts[0];
+
+        Assert.AreEqual(10, fetchAccount.ID);
+        authenticated = false;
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = fetchAccount.ID).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(fetchAccount.Save).ErrorCode);
+
+        authenticated = true;
+        Assert.AreEqual(10, fetchAccount.ID);
+    }
+
+    [TestMethod]
     public void AuthorizedDownloadNow_UsesOwningParentAndSelectedFetchAccountIds()
     {
         var store = new MutableFetchAccountAdministrationStore(

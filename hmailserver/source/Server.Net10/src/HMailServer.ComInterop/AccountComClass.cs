@@ -144,7 +144,7 @@ public sealed class Account : IInterfaceAccount
             EnsureAttached();
 
             return _messagesState is { } messagesState
-                ? MessageAdministrationRuntimeHost.CreateAuthorizedAccountAdapter(messagesState)
+                ? MessageAdministrationRuntimeHost.CreateAuthorizedAccountAdapter(messagesState, _isAuthenticated)
                 : NotImplemented<IInterfaceMessages>();
         }
     }
@@ -164,14 +164,14 @@ public sealed class Account : IInterfaceAccount
             EnsureAttached();
 
             return _administrationSnapshot is { } account
-                ? FetchAccountAdministrationRuntimeHost.CreateAuthorizedAdapter(account.Id)
+                ? FetchAccountAdministrationRuntimeHost.CreateAuthorizedAdapter(account.Id, _isAuthenticated)
                 : NotImplemented<IInterfaceFetchAccounts>();
         }
     }
 
     public ComAdminLevel AdminLevel
     {
-        get => _administrationSnapshot is { } account
+        get => CurrentSnapshot is { } account
             ? (ComAdminLevel)account.AdminLevel
             : Read(_adminLevel);
         set => Set(() => _adminLevel = value, s => s with { AdminLevel = (int)value });
@@ -192,7 +192,7 @@ public sealed class Account : IInterfaceAccount
             return HMailServer.ComInterop.Rules.CreateAuthorized(
                 _rulesState,
                 _isServerAdministrator,
-                _isServerAdministrator);
+                _isAuthenticated);
         }
     }
 

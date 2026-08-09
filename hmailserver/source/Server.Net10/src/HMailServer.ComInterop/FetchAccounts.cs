@@ -183,6 +183,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
     private readonly Func<int, int, ValueTask>? _delete;
     private readonly Func<FetchAccountAdministrationDraft, ValueTask<int>>? _insert;
     private readonly int _accountId;
+    private readonly Func<bool>? _isAuthenticated;
 
     public FetchAccounts()
     {
@@ -194,7 +195,8 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         Func<int, int, ValueTask>? retryNow,
         Func<int, int, ValueTask>? delete,
         Func<FetchAccountAdministrationDraft, ValueTask<int>>? insert,
-        int accountId)
+        int accountId,
+        Func<bool>? isAuthenticated)
     {
         _accounts = accounts.ToArray();
         _reload = reload;
@@ -202,6 +204,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         _delete = delete;
         _insert = insert;
         _accountId = accountId;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int Count => GetAccounts().Count;
@@ -212,10 +215,11 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         Func<int, int, ValueTask>? retryNow = null,
         Func<int, int, ValueTask>? delete = null,
         Func<FetchAccountAdministrationDraft, ValueTask<int>>? insert = null,
-        int accountId = 0)
+        int accountId = 0,
+        Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
-        return new FetchAccounts(accounts, reload, retryNow, delete, insert, accountId);
+        return new FetchAccounts(accounts, reload, retryNow, delete, insert, accountId, isAuthenticated);
     }
 
     public IInterfaceFetchAccount get_ItemByDBID(int databaseId)
@@ -224,7 +228,11 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
 
         return match is null
             ? throw new COMException("No fetch account with the specified database identifier exists.", DispEBadIndex)
-            : FetchAccount.CreateAuthorized(match, _retryNow, _delete is null ? null : DeleteSelectedAsync);
+            : FetchAccount.CreateAuthorized(
+                match,
+                _retryNow,
+                _delete is null ? null : DeleteSelectedAsync,
+                _isAuthenticated);
     }
 
     public IInterfaceFetchAccount this[int index]
@@ -240,7 +248,8 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
             return FetchAccount.CreateAuthorized(
                 accounts[index],
                 _retryNow,
-                _delete is null ? null : DeleteSelectedAsync);
+                _delete is null ? null : DeleteSelectedAsync,
+                _isAuthenticated);
         }
     }
 
@@ -354,7 +363,8 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
 
         return FetchAccount.CreateAuthorized(
             new FetchAccountAdministrationDraft(_accountId),
-            InsertSelectedAsync);
+            InsertSelectedAsync,
+            _isAuthenticated);
     }
 
     private async ValueTask<FetchAccountAdministrationSnapshot> InsertSelectedAsync(
@@ -398,6 +408,13 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
 
     private IReadOnlyList<FetchAccountAdministrationSnapshot> GetAccounts()
     {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "FetchAccounts access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+
         return Volatile.Read(ref _accounts)
             ?? throw new COMException(
                 "FetchAccounts access requires an authenticated server administrator.",
@@ -437,6 +454,7 @@ public sealed class FetchAccount : IInterfaceFetchAccount
     private readonly Func<int, int, ValueTask>? _retryNow;
     private readonly Func<int, int, ValueTask>? _delete;
     private readonly Func<FetchAccountAdministrationDraft, ValueTask<FetchAccountAdministrationSnapshot>>? _insert;
+    private readonly Func<bool>? _isAuthenticated;
 
     public FetchAccount()
     {
@@ -445,19 +463,23 @@ public sealed class FetchAccount : IInterfaceFetchAccount
     private FetchAccount(
         FetchAccountAdministrationSnapshot account,
         Func<int, int, ValueTask>? retryNow,
-        Func<int, int, ValueTask>? delete)
+        Func<int, int, ValueTask>? delete,
+        Func<bool>? isAuthenticated)
     {
         _account = account;
         _retryNow = retryNow;
         _delete = delete;
+        _isAuthenticated = isAuthenticated;
     }
 
     private FetchAccount(
         FetchAccountAdministrationDraft draft,
-        Func<FetchAccountAdministrationDraft, ValueTask<FetchAccountAdministrationSnapshot>> insert)
+        Func<FetchAccountAdministrationDraft, ValueTask<FetchAccountAdministrationSnapshot>> insert,
+        Func<bool>? isAuthenticated)
     {
         _draft = draft;
         _insert = insert;
+        _isAuthenticated = isAuthenticated;
     }
 
     public int ID => _draft is { } ? 0 : Snapshot.Id;
@@ -515,15 +537,18 @@ public sealed class FetchAccount : IInterfaceFetchAccount
     internal static FetchAccount CreateAuthorized(
         FetchAccountAdministrationSnapshot account,
         Func<int, int, ValueTask>? retryNow = null,
-        Func<int, int, ValueTask>? delete = null) => new(account, retryNow, delete);
+        Func<int, int, ValueTask>? delete = null,
+        Func<bool>? isAuthenticated = null) => new(account, retryNow, delete, isAuthenticated);
 
     internal static FetchAccount CreateAuthorized(
         FetchAccountAdministrationDraft draft,
-        Func<FetchAccountAdministrationDraft, ValueTask<FetchAccountAdministrationSnapshot>> insert) =>
-        new(draft, insert);
+        Func<FetchAccountAdministrationDraft, ValueTask<FetchAccountAdministrationSnapshot>> insert,
+        Func<bool>? isAuthenticated = null) =>
+        new(draft, insert, isAuthenticated);
 
     public void Save()
     {
+        EnsureAuthenticated();
         var draft = _draft;
         if (draft is null || _insert is null)
         {
@@ -586,10 +611,26 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         }
     }
 
-    private FetchAccountAdministrationSnapshot Snapshot =>
-        _account ?? throw new COMException(
-            "FetchAccount access requires an authenticated server administrator.",
-            EAccessDenied);
+    private FetchAccountAdministrationSnapshot Snapshot
+    {
+        get
+        {
+            EnsureAuthenticated();
+            return _account ?? throw new COMException(
+                "FetchAccount access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "FetchAccount access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private void Stage<T>(
         T value,
@@ -639,7 +680,9 @@ public static class FetchAccountAdministrationRuntimeHost
         Volatile.Write(ref _wakeSignal, wakeSignal);
     }
 
-    internal static FetchAccounts CreateAuthorizedAdapter(int accountId)
+    internal static FetchAccounts CreateAuthorizedAdapter(
+        int accountId,
+        Func<bool>? isAuthenticated = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -687,6 +730,7 @@ public static class FetchAccountAdministrationRuntimeHost
             RetryNow,
             DeleteFetchAccount,
             InsertFetchAccount,
-            accountId);
+            accountId,
+            isAuthenticated);
     }
 }

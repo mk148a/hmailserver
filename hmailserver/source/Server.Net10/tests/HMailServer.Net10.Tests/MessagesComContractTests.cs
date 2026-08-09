@@ -355,6 +355,52 @@ Body
     }
 
     [TestMethod]
+    public void AccountMessages_RetainedCollectionRechecksAuthenticationAfterReauthentication()
+    {
+        MessageAdministrationRuntimeHost.Configure(
+            new FixedMessageAdministrationStore(
+                new[] { Snapshot(1000, 100, 50, "account.eml", 2, "sender@example.test", 2048, 0, 1, Date(2026, 7, 1), 10) }));
+        var authenticated = true;
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            () => authenticated);
+        var messages = account.Messages;
+
+        Assert.AreEqual(1, messages.Count);
+        authenticated = false;
+
+        var readFailure = Assert.ThrowsExactly<COMException>(() => _ = messages.Count);
+        var mutationFailure = Assert.ThrowsExactly<COMException>(messages.Clear);
+        Assert.AreEqual(EAccessDenied, readFailure.ErrorCode);
+        Assert.AreEqual(EAccessDenied, mutationFailure.ErrorCode);
+
+        authenticated = true;
+        Assert.AreEqual(1, messages.Count);
+    }
+
+    [TestMethod]
+    public void AccountMessage_RetainedChildRechecksAuthenticationAfterReauthentication()
+    {
+        MessageAdministrationRuntimeHost.Configure(
+            new FixedMessageAdministrationStore(
+                new[] { Snapshot(1000, 100, 50, "account.eml", 2, "sender@example.test", 2048, 0, 1, Date(2026, 7, 1), 10) }));
+        var authenticated = true;
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            () => authenticated);
+        var message = account.Messages[0];
+
+        Assert.AreEqual(1000L, message.ID);
+        authenticated = false;
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => _ = message.ID).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(message.Save).ErrorCode);
+
+        authenticated = true;
+        Assert.AreEqual(1000L, message.ID);
+    }
+
+    [TestMethod]
     public void ImapFolderMessages_UsesConfiguredRuntimeForSelectedFolder()
     {
         MessageAdministrationRuntimeHost.Configure(
