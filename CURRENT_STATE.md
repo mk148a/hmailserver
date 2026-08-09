@@ -1,19 +1,19 @@
 # Current State
-- UTC timestamp: 2026-08-09T16:56:19Z
-- Local timestamp: 2026-08-09T19:56:19+03:00
+- UTC timestamp: 2026-08-09T17:15:16Z
+- Local timestamp: 2026-08-09T20:15:16+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Push status: code commit `1bbffd74d` and documentation commit are local pending normal push; protected unrelated worktree changes remain
-- Current HEAD: `1bbffd74d`
+- Push status: code commit `5542ced99` is local; documentation commit is pending; protected unrelated worktree changes remain
+- Current HEAD: `5542ced99`
 - Last successfully pushed commit: `72caddf2e`
-- Latest focused-test result: Account/FetchAccount/Message retained authorization `81 passed, 0 failed, 0 skipped`
-- Latest full Net10 result: filtered scanner classes `1944 passed, 0 failed, 31 skipped`; default `1947 passed, 2 failed, 31 skipped` because host AV locked generated scanner `.eml` files during cleanup
+- Latest focused-test result: Message/RuleCriteria retained authorization `60 passed, 0 failed, 0 skipped`
+- Latest full Net10 result: filtered scanner classes `1945 passed, 0 failed, 31 skipped`; default `1947 passed, 2 failed, 31 skipped` because host AV locked generated scanner `.eml` files during cleanup
 - Opt-in tests passed/skipped/blocked: live SQL/FTS, live protocol, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance remain blocked or skipped; two scanner cleanup tests are host-AV blocked
-- Current bounded slice: retained draft mutation and direct Account identity authorization, code/test commit `1bbffd74d`
+- Current bounded slice: retained Message/Rule child authorization, code/test commit `5542ced99`
 - Completed milestones: internal reinitialization admission seam, commandable offline SEARCH/SORT benchmark gate, stale backlog reconciliation, Account.ValidatePassword safety fence, retained delivery-queue authorization parity, root Links authorization parity, direct Links child authorization propagation, and Account nested child authorization propagation; no production release gate is claimed complete
-- Open production blockers: Message/Rule grandchild authorization propagation, nested Domain authorization propagation, restartable runtime/service/COM reinitialization, approved SQL/Data restore acceptance, live SQL/FTS and protocol performance acceptance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, restore/migration/installer, SEC-18, AD/DC, crash/power-loss evidence, and authenticated mailbox Account.ValidatePassword parity
+- Open production blockers: nested Domain authorization propagation, restartable runtime/service/COM reinitialization, approved SQL/Data restore acceptance, live SQL/FTS and protocol performance acceptance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, restore/migration/installer, SEC-18, AD/DC, crash/power-loss evidence, MessageHeaders legacy security semantics, and authenticated mailbox Account.ValidatePassword parity
 - Environment-blocked work: approved disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV EICAR cleanup, PHP runtime; protected `AGENTS.md` and untracked SEC18/benchmark artifacts remain untouched
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, untracked `artifacts/sec18-staging/` and `artifacts/benchmarks/`
-- Next three independent slices: propagate retained authorization through Message grandchild facades and Rule criteria; propagate reauthentication through nested Domain collections; run approved disposable SQL/Data restore acceptance
+- Next three independent slices: parity-confirm nested Domain collection authorization; run approved disposable SQL/Data restore acceptance; rerun scanner cleanup on an AV-compatible isolated path
 
 - UTC timestamp: 2026-08-08T20:18:00Z
 - Local timestamp: 2026-08-08T23:18:00+03:00
