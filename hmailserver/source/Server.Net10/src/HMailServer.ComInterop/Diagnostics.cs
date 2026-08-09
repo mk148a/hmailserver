@@ -66,9 +66,12 @@ public interface IInterfaceDiagnosticResult
 [ComDefaultInterface(typeof(IInterfaceDiagnostics))]
 public sealed class Diagnostics : IInterfaceDiagnostics
 {
-    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
+    private const string LegacyAccessDeniedMessage =
+        "You do not have access to this property / method. Ensure that hMailServer.Application.Authenticate() is called with proper login credentials.";
 
     private readonly IDiagnosticsRuntime? _runtime;
+    private readonly Func<bool>? _isServerAdministrator;
     private string _localDomainName = string.Empty;
     private string _testDomainName = string.Empty;
 
@@ -76,9 +79,10 @@ public sealed class Diagnostics : IInterfaceDiagnostics
     {
     }
 
-    private Diagnostics(IDiagnosticsRuntime runtime)
+    private Diagnostics(IDiagnosticsRuntime runtime, Func<bool>? isServerAdministrator)
     {
         _runtime = runtime;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public string LocalDomainName
@@ -117,19 +121,33 @@ public sealed class Diagnostics : IInterfaceDiagnostics
             .GetAwaiter()
             .GetResult();
 
-        return DiagnosticResults.CreateAuthorized(results);
+        return DiagnosticResults.CreateAuthorized(results, _isServerAdministrator);
     }
 
-    internal static Diagnostics CreateAuthorized(IDiagnosticsRuntime runtime)
+    internal static Diagnostics CreateAuthorized(
+        IDiagnosticsRuntime runtime,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-        return new Diagnostics(runtime);
+        return new Diagnostics(runtime, isServerAdministrator);
     }
 
-    private IDiagnosticsRuntime Runtime =>
-        _runtime ?? throw new COMException(
-            "Diagnostics access requires an authenticated server administrator.",
-            EAccessDenied);
+    private void EnsureAuthorized()
+    {
+        if (_runtime is null || (_isServerAdministrator is not null && !_isServerAdministrator()))
+        {
+            throw new COMException(LegacyAccessDeniedMessage, ELegacyComError);
+        }
+    }
+
+    private IDiagnosticsRuntime Runtime
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _runtime!;
+        }
+    }
 }
 
 [ComVisible(true)]
@@ -140,17 +158,23 @@ public sealed class Diagnostics : IInterfaceDiagnostics
 public sealed class DiagnosticResults : IInterfaceDiagnosticResults
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
-    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
+    private const string LegacyAccessDeniedMessage =
+        "You do not have access to this property / method. Ensure that hMailServer.Application.Authenticate() is called with proper login credentials.";
 
     private readonly IReadOnlyList<DiagnosticResultSnapshot>? _results;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public DiagnosticResults()
     {
     }
 
-    private DiagnosticResults(IReadOnlyList<DiagnosticResultSnapshot> results)
+    private DiagnosticResults(
+        IReadOnlyList<DiagnosticResultSnapshot> results,
+        Func<bool>? isServerAdministrator)
     {
         _results = results.ToArray();
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public int Count => Results.Count;
@@ -165,20 +189,30 @@ public sealed class DiagnosticResults : IInterfaceDiagnosticResults
                 throw new COMException("Diagnostic result index was outside the collection.", DispEBadIndex);
             }
 
-            return DiagnosticResult.CreateAuthorized(results[index]);
+            return DiagnosticResult.CreateAuthorized(results[index], _isServerAdministrator);
         }
     }
 
-    internal static DiagnosticResults CreateAuthorized(IReadOnlyList<DiagnosticResultSnapshot> results)
+    internal static DiagnosticResults CreateAuthorized(
+        IReadOnlyList<DiagnosticResultSnapshot> results,
+        Func<bool>? isServerAdministrator = null)
     {
         ArgumentNullException.ThrowIfNull(results);
-        return new DiagnosticResults(results);
+        return new DiagnosticResults(results, isServerAdministrator);
     }
 
-    private IReadOnlyList<DiagnosticResultSnapshot> Results =>
-        _results ?? throw new COMException(
-            "DiagnosticResults access requires an authenticated server administrator.",
-            EAccessDenied);
+    private IReadOnlyList<DiagnosticResultSnapshot> Results
+    {
+        get
+        {
+            if (_results is null || (_isServerAdministrator is not null && !_isServerAdministrator()))
+            {
+                throw new COMException(LegacyAccessDeniedMessage, ELegacyComError);
+            }
+
+            return _results;
+        }
+    }
 }
 
 [ComVisible(true)]
@@ -188,17 +222,23 @@ public sealed class DiagnosticResults : IInterfaceDiagnosticResults
 [ComDefaultInterface(typeof(IInterfaceDiagnosticResult))]
 public sealed class DiagnosticResult : IInterfaceDiagnosticResult
 {
-    private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
+    private const string LegacyAccessDeniedMessage =
+        "You do not have access to this property / method. Ensure that hMailServer.Application.Authenticate() is called with proper login credentials.";
 
     private readonly DiagnosticResultSnapshot? _result;
+    private readonly Func<bool>? _isServerAdministrator;
 
     public DiagnosticResult()
     {
     }
 
-    private DiagnosticResult(DiagnosticResultSnapshot result)
+    private DiagnosticResult(
+        DiagnosticResultSnapshot result,
+        Func<bool>? isServerAdministrator)
     {
         _result = result;
+        _isServerAdministrator = isServerAdministrator;
     }
 
     public string Name => ResultSnapshot.Name;
@@ -209,12 +249,23 @@ public sealed class DiagnosticResult : IInterfaceDiagnosticResult
 
     public bool Result => ResultSnapshot.Result;
 
-    internal static DiagnosticResult CreateAuthorized(DiagnosticResultSnapshot result) => new(result);
+    internal static DiagnosticResult CreateAuthorized(
+        DiagnosticResultSnapshot result,
+        Func<bool>? isServerAdministrator = null) =>
+        new(result, isServerAdministrator);
 
-    private DiagnosticResultSnapshot ResultSnapshot =>
-        _result ?? throw new COMException(
-            "DiagnosticResult access requires an authenticated server administrator.",
-            EAccessDenied);
+    private DiagnosticResultSnapshot ResultSnapshot
+    {
+        get
+        {
+            if (_result is null || (_isServerAdministrator is not null && !_isServerAdministrator()))
+            {
+                throw new COMException(LegacyAccessDeniedMessage, ELegacyComError);
+            }
+
+            return _result;
+        }
+    }
 }
 
 [ComVisible(false)]
@@ -228,8 +279,8 @@ public static class DiagnosticsRuntimeHost
         Volatile.Write(ref _runtime, runtime);
     }
 
-    internal static Diagnostics CreateAuthorizedAdapter() =>
-        Diagnostics.CreateAuthorized(Volatile.Read(ref _runtime));
+    internal static Diagnostics CreateAuthorizedAdapter(Func<bool> isServerAdministrator) =>
+        Diagnostics.CreateAuthorized(Volatile.Read(ref _runtime), isServerAdministrator);
 
     private sealed class EmptyDiagnosticsRuntime : IDiagnosticsRuntime
     {

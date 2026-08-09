@@ -11,6 +11,7 @@ public sealed class DiagnosticsComContractTests
 {
     private const int DispEBadIndex = unchecked((int)0x8002000B);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
 
     [TestMethod]
     public void Interfaces_PreserveLegacyIidsDispatchIdsMarshalingAndCompleteVtableOrder()
@@ -88,11 +89,11 @@ public sealed class DiagnosticsComContractTests
         var applicationError = Assert.ThrowsExactly<COMException>(
             () => _ = new Application(new RecordingAdministratorAuthenticationProvider("secret")).Diagnostics);
 
-        Assert.AreEqual(EAccessDenied, diagnosticsGetError.ErrorCode);
-        Assert.AreEqual(EAccessDenied, diagnosticsSetError.ErrorCode);
-        Assert.AreEqual(EAccessDenied, performError.ErrorCode);
-        Assert.AreEqual(EAccessDenied, resultsError.ErrorCode);
-        Assert.AreEqual(EAccessDenied, resultError.ErrorCode);
+        Assert.AreEqual(ELegacyComError, diagnosticsGetError.ErrorCode);
+        Assert.AreEqual(ELegacyComError, diagnosticsSetError.ErrorCode);
+        Assert.AreEqual(ELegacyComError, performError.ErrorCode);
+        Assert.AreEqual(ELegacyComError, resultsError.ErrorCode);
+        Assert.AreEqual(ELegacyComError, resultError.ErrorCode);
         Assert.AreEqual(EAccessDenied, applicationError.ErrorCode);
     }
 
@@ -173,6 +174,80 @@ public sealed class DiagnosticsComContractTests
         Assert.AreEqual("test.example.test", runtime.TestDomainName);
         Assert.AreEqual(1, results.Count);
         Assert.IsTrue(results[0].Result);
+    }
+
+    [TestMethod]
+    public void RetainedDiagnostics_LocalDomainNameRechecksLiveAuthorization()
+    {
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+
+        var diagnostics = application.Diagnostics;
+        diagnostics.LocalDomainName = "local.example.test";
+        Assert.AreEqual("local.example.test", diagnostics.LocalDomainName);
+
+        Assert.IsNull(application.Authenticate("administrator", "wrong"));
+
+        var getterError = Assert.ThrowsExactly<COMException>(() => _ = diagnostics.LocalDomainName);
+        var setterError = Assert.ThrowsExactly<COMException>(() => diagnostics.LocalDomainName = "denied.example.test");
+        Assert.AreEqual(ELegacyComError, getterError.ErrorCode);
+        Assert.AreEqual(ELegacyComError, setterError.ErrorCode);
+
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+        Assert.AreEqual("local.example.test", diagnostics.LocalDomainName);
+        diagnostics.LocalDomainName = "restored.example.test";
+        Assert.AreEqual("restored.example.test", diagnostics.LocalDomainName);
+    }
+
+    [TestMethod]
+    public void RetainedDiagnostics_AllMembersRecheckLiveAuthorization()
+    {
+        var runtime = new RecordingDiagnosticsRuntime(
+            new[]
+            {
+                new DiagnosticResultSnapshot("Runtime", "Injected boundary", "Executed.", true)
+            });
+        DiagnosticsRuntimeHost.Configure(runtime);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+
+        var diagnostics = application.Diagnostics;
+        diagnostics.LocalDomainName = "local.example.test";
+        diagnostics.TestDomainName = "test.example.test";
+        var results = diagnostics.PerformTests();
+        var result = results[0];
+
+        Assert.AreEqual("test.example.test", diagnostics.TestDomainName);
+        Assert.AreEqual(1, results.Count);
+        AssertResult(result, "Runtime", "Injected boundary", "Executed.", true);
+
+        Assert.IsNull(application.Authenticate("administrator", "wrong"));
+
+        AssertLegacyDenied(() => _ = diagnostics.LocalDomainName);
+        AssertLegacyDenied(() => diagnostics.LocalDomainName = "denied-local.example.test");
+        AssertLegacyDenied(() => _ = diagnostics.TestDomainName);
+        AssertLegacyDenied(() => diagnostics.TestDomainName = "denied-test.example.test");
+        AssertLegacyDenied(() => _ = diagnostics.PerformTests());
+        AssertLegacyDenied(() => _ = results.Count);
+        AssertLegacyDenied(() => _ = results[0]);
+        AssertLegacyDenied(() => _ = result.Name);
+        AssertLegacyDenied(() => _ = result.Description);
+        AssertLegacyDenied(() => _ = result.ExecutionDetails);
+        AssertLegacyDenied(() => _ = result.Result);
+
+        Assert.IsNotNull(application.Authenticate("administrator", "secret"));
+        Assert.AreEqual("test.example.test", diagnostics.TestDomainName);
+        diagnostics.TestDomainName = "restored-test.example.test";
+        Assert.AreEqual("restored-test.example.test", diagnostics.TestDomainName);
+        Assert.AreEqual(1, results.Count);
+        AssertResult(results[0], "Runtime", "Injected boundary", "Executed.", true);
+        AssertResult(result, "Runtime", "Injected boundary", "Executed.", true);
+    }
+
+    private static void AssertLegacyDenied(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+        Assert.AreEqual(ELegacyComError, error.ErrorCode);
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)

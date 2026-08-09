@@ -188,7 +188,7 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return DiagnosticsRuntimeHost.CreateAuthorizedAdapter();
+            return DiagnosticsRuntimeHost.CreateAuthorizedAdapter(() => IsServerAdministrator);
         }
     }
 
