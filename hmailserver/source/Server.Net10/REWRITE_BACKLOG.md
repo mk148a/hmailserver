@@ -1,4 +1,14 @@
 
+## Current Audit Note (2026-08-09, OBSOLETE ANTISPAM TARPIT SETTER PARITY)
+
+Code/test commit `508d35d17` closes the bounded legacy `AntiSpam.TarpitDelay`/`TarpitCount` setter gap. Legacy `InterfaceAntiSpam::get_TarpitDelay`, `put_TarpitDelay`, `get_TarpitCount`, and `put_TarpitCount` (`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:729-792`) return `0` for getters and authenticated `S_OK` no-op for setters; the historical settings were removed by `Upgrade5320to5400MSSQL.sql`. The .NET `AntiSpam` facade (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/AntiSpam.cs:292-294,406-408`) now preserves that behavior without adding SQL fields, persistence, protocol behavior, or broader AntiSpam mutation.
+
+Focused `AntiSpamComContractTests` coverage is `15 passed, 0 failed, 0 skipped`; full Net10 is `1961 passed, 31 skipped, 2 failed`, with the two failures caused by host-AV locks on generated scanner `.eml` cleanup. Direct activation remains `E_ACCESSDENIED`; IID/vtable/DISPID/class identity is unchanged. The retained AntiSpam facade continues to match the legacy cached `config_` lifetime established by `InterfaceAntiSpam::LoadSettings` (`InterfaceAntiSpam.cpp:28-35`); no unrelated retained-auth refactor is included.
+
+The legacy IMAP domain-alias/default-domain authentication item is stale: `PasswordValidator::ValidatePassword` (`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:45-51`) and `IMAPCommandAUTHENTICATE` (`hmailserver/source/Server/IMAP/IMAPCommandAuthenticate.cpp:85-91`) are represented by `SqlServerImapAccountAuthenticator.AccountLookupSql` and `AuthenticateNormalAsync` (`hmailserver/source/Server.Net10/src/HMailServer.Storage.SqlServer/SqlServerImapAccountAuthenticator.cs:3-60,194-226`), with existing AD/alias integration coverage. Do not restart it without a newly proven gap.
+
+The next highest-priority gate remains populated SQL/Data restore acceptance with an approved disposable connection and isolated-create opt-in. Independent environment-gated work remains live SQL/FTS or protocol performance acceptance and a clean scanner run on an AV-compatible isolated path. Release remains RED.
+
 ## Current Audit Note (2026-08-09, BACKUP CREATION REVALIDATION)
 
 The formerly recorded raw non-DB-only `BODomains|BOMessages` `DataBackup` staging item is complete in `50d8cefc3`, and the full option matrix is covered by `d210c5611`. Legacy anchors are `BackupExecuter::StartBackup`/`BackupDataDirectory_` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-147,172-217`), `FileUtilities::CopyDirectory`/`DeleteFilesInDirectory`, and `Compression::AddDirectory`; current implementation is `SevenZipBackupArchiveRuntime.CreateAsync`. Raw mode leaves the external sibling `DataBackup`, compressed mode archives staged content, and DB-only mode emits metadata without physical message staging.

@@ -1,14 +1,14 @@
 # Current State
-- UTC timestamp: 2026-08-09T19:45:58Z
-- Local timestamp: 2026-08-09T22:45:58+03:00
+- UTC timestamp: 2026-08-09T20:07:48Z
+- Local timestamp: 2026-08-09T23:07:48+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `d2c036269`
-- Last successfully pushed commit: `d2c036269`
-- Latest focused-test result: `DomainsComContractTests`, `LinksComContractTests`, and `WebAdminRoutePostOnlySourceTests`: `27 passed, 0 failed, 0 skipped`; backup creation/restore containment revalidation: `150 passed, 0 failed, 0 skipped`
-- Latest full Net10 result: filtered `1954 passed, 0 failed, 31 skipped`; default `1959 passed, 2 failed, 31 skipped` because host AV locked generated scanner `.eml` files
-- Opt-in tests passed/skipped/blocked: live SQL/FTS, live protocol/load, process-kill/power-loss, native AD/DC, installer, registry/COM, and service/COM acceptance blocked or skipped; two scanner cleanup tests host-AV blocked
-- Current bounded slice: release-gate revalidation; no production code gap found in retained Domain child collections or historical route POST/CSRF hardening
-- Completed milestones: backup creation matrix and raw staging, internal reinitialization admission seam, offline SEARCH/SORT benchmark gate, retained COM authorization slices through AntiVirus and ClamAV COM test-target hardening; no production release gate claimed complete
+- Current HEAD: `508d35d17`
+- Last successfully pushed commit: `508d35d17`
+- Latest focused-test result: `AntiSpamComContractTests`: `15 passed, 0 failed, 0 skipped`
+- Latest full Net10 result: `1961 passed, 31 skipped, 2 failed`; failures are host-AV locks on generated scanner `.eml` cleanup
+- Opt-in tests passed/skipped/blocked: live SQL/Data restore, live SQL/FTS, live protocol/load, process-kill/power-loss, native AD/DC, installer, registry/COM, service/COM, and SEC-18 acceptance blocked or skipped; scanner cleanup is host-AV blocked
+- Current bounded slice: obsolete AntiSpam `TarpitDelay`/`TarpitCount` setter parity, completed in `508d35d17`
+- Completed milestones: backup creation matrix/raw staging, internal reinitialization admission seam, offline SEARCH/SORT benchmark gate, retained COM authorization slices, ClamAV COM test-target hardening, and obsolete AntiSpam tarpit setter parity; no production release gate claimed complete
 - Open production blockers: disposable SQL/Data restore, live SQL/FTS and protocol performance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, native restore containment, service/COM lifecycle, migration/installer rollback, SEC-18, AD/DC, crash/power-loss evidence, authenticated mailbox `Account.ValidatePassword`, and configured-message ClamAV hostname hardening
 - Environment-blocked work: approved disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and untracked `artifacts/sec18-staging/`/`artifacts/benchmarks/`
