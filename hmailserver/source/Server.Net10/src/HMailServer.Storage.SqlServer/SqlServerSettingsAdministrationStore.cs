@@ -105,6 +105,12 @@ SET settinginteger = @MaxNumberOfInvalidCommands
 WHERE settingname = N'maximumincorrectcommands';
 """;
 
+    public const string UpdateMaxNumberOfMXHostsSql = """
+UPDATE hm_settings
+SET settinginteger = @MaxNumberOfMXHosts
+WHERE settingname = N'MaxNumberOfMXHosts';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -515,6 +521,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMaxNumberOfInvalidCommandsSql, connection);
         command.Parameters.Add("@MaxNumberOfInvalidCommands", SqlDbType.Int).Value = maxNumberOfInvalidCommands;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateMaxNumberOfMXHostsAsync(
+        int maxNumberOfMXHosts,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateMaxNumberOfMXHostsSql, connection);
+        command.Parameters.Add("@MaxNumberOfMXHosts", SqlDbType.Int).Value = maxNumberOfMXHosts;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

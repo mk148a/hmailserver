@@ -175,6 +175,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateMaxNumberOfMXHostsSql_UpdatesOnlyTheExactExistingRowWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateMaxNumberOfMXHostsSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settinginteger = @MaxNumberOfMXHosts");
+        StringAssert.Contains(sql, "WHERE settingname = N'MaxNumberOfMXHosts'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateDisconnectInvalidClientsSql_UpdatesOnlyTheExistingRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateDisconnectInvalidClientsSql;

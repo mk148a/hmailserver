@@ -120,6 +120,18 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void MaxNumberOfMXHosts_PreservesDispId90IntegerContract()
+    {
+        var property = typeof(IInterfaceSettings).GetProperty(nameof(IInterfaceSettings.MaxNumberOfMXHosts));
+
+        Assert.IsNotNull(property);
+        Assert.AreEqual(90, property.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(typeof(int), property.PropertyType);
+        Assert.IsTrue(property.CanRead);
+        Assert.IsTrue(property.CanWrite);
+    }
+
+    [TestMethod]
     public void StringProperties_PreserveLegacyDispidsAndBstrMarshaling()
     {
         var expected = new[]
@@ -207,6 +219,10 @@ public sealed class SettingsComContractTests
             () => _ = ((IInterfaceSettings)settings).MaxMessageSize);
         var maxMessageSizeSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxMessageSize = 1);
+        var maxNumberOfMxHostsError = Assert.ThrowsExactly<COMException>(
+            () => _ = ((IInterfaceSettings)settings).MaxNumberOfMXHosts);
+        var maxNumberOfMxHostsSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).MaxNumberOfMXHosts = 1);
         var pop3ScalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxPOP3Connections);
         var pop3ScalarSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxPOP3Connections = 1);
@@ -274,6 +290,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, smtpMinutesBetweenTrySetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxMessageSizeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxMessageSizeSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maxNumberOfMxHostsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maxNumberOfMxHostsSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, pop3ScalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, pop3ScalarSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, recipientsScalarError.ErrorCode);
@@ -1105,6 +1123,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxNumberOfMXHostsSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxNumberOfMXHostsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxNumberOfMxHosts: 10),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MaxNumberOfMXHosts = 25;
+
+        Assert.AreEqual(1, store.MaxNumberOfMXHostsUpdateCount);
+        Assert.AreEqual(25, store.UpdatedMaxNumberOfMXHosts);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(25, settings.MaxNumberOfMXHosts);
+
+        store.MaxNumberOfMXHostsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxNumberOfMXHosts = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.MaxNumberOfMXHostsUpdateCount);
+        Assert.AreEqual(25, settings.MaxNumberOfMXHosts);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxNumberOfMXHosts = 35);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.MaxNumberOfMXHostsUpdateCount);
+        Assert.AreEqual(25, settings.MaxNumberOfMXHosts);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -1567,6 +1627,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxMessageSize { get; private set; }
 
+        public bool MaxNumberOfMXHostsUpdateResult { get; set; }
+
+        public int MaxNumberOfMXHostsUpdateCount { get; private set; }
+
+        public int UpdatedMaxNumberOfMXHosts { get; private set; }
+
         public bool MaxSmtpRecipientsInBatchUpdateResult { get; set; }
 
         public int MaxSmtpRecipientsInBatchUpdateCount { get; private set; }
@@ -1706,6 +1772,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxMessageSize = maxMessageSize;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxMessageSizeUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMaxNumberOfMXHostsAsync(
+            int maxNumberOfMXHosts,
+            CancellationToken cancellationToken)
+        {
+            MaxNumberOfMXHostsUpdateCount++;
+            UpdatedMaxNumberOfMXHosts = maxNumberOfMXHosts;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(MaxNumberOfMXHostsUpdateResult);
         }
 
         public ValueTask<bool> UpdateMaxSmtpRecipientsInBatchAsync(

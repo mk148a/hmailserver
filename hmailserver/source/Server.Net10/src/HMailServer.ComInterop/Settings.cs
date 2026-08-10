@@ -1414,7 +1414,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MaxNumberOfMXHosts
                 : _administrationSnapshot.MaxNumberOfMxHosts;
         }
-        set => base.MaxNumberOfMXHosts = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxNumberOfMXHosts = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateMaxNumberOfMXHostsAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum number of MX hosts update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxNumberOfMxHosts = value
+                };
+            }
+        }
     }
 
     public override ComConnectionSecurity SMTPRelayerConnectionSecurity

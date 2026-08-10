@@ -65,4 +65,8 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateMaxNumberOfInvalidCommandsAsync(
         int maxNumberOfInvalidCommands,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateMaxNumberOfMXHostsAsync(
+        int maxNumberOfMXHosts,
+        CancellationToken cancellationToken);
 }
