@@ -1,14 +1,14 @@
 # Current State
 - UTC/local timestamp: 2026-08-10T14:38:57Z / 2026-08-10T17:38:57+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `7e8d71c15` code/test commit; documentation commit pending
+- Current HEAD: `17ba6e70a` test commit; documentation commit pending
 - Last successfully pushed commit: `0b2646731`
-- Latest focused-test result: parser/SQL/restore `30 passed, 0 failed, 0 skipped`; disposable LocalDB FetchAccount readback/transaction rollback `2 passed, 0 failed, 0 skipped`
-- Latest full Net10 result: default `1990 passed, 35 skipped, 0 failed`; SQL-enabled `2017 passed, 2 skipped, 6 unrelated message/indexing fixture failures`
-- Opt-in tests passed/skipped/blocked: FetchAccount LocalDB opt-in passed; SQL-enabled full run has six unrelated existing fixture failures; native registry, installer, live SQL FTS, protocol/load, service/COM, AD/DC, SEC-18, crash/power-loss, migration/installer, and soak remain skipped or blocked
-- Current bounded slice: restore-side FetchAccount and nested FetchAccountUID persistence with transaction-scoped SQL inserts
-- Completed milestones: backup creation/raw staging, offline synthetic SEARCH/SORT benchmark, COM/Admin parity slices, password verifier seam, disposable restore rollback fixture coverage, and FetchAccount restore persistence; no production release gate complete
-- Open production blockers: live paired C++/.NET 10 performance/load, SQL Full-Text Search and legacy ADO startup, populated full restore/round-trip, SEC-18, migration/installer, service/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak
+- Latest focused-test result: disposable `BackupRestoreRoundTripIntegrationTests` `12 passed, 0 failed, 0 skipped`; FetchAccount store integration `2 passed, 0 failed, 0 skipped`
+- Latest full Net10 result: default `1990 passed, 36 skipped, 0 failed`; last SQL-enabled run `2017 passed, 2 skipped, 6 unrelated message/indexing fixture failures`
+- Opt-in tests passed/skipped/blocked: FetchAccount LocalDB store and executor rollback passed; native registry, installer, live SQL FTS, protocol/load, service/COM, AD/DC, SEC-18, crash/power-loss, migration/installer, and soak remain skipped or blocked
+- Current bounded slice: executor-level populated FetchAccount/UID restore readback and invalid UID-date transaction rollback
+- Completed milestones: backup creation/raw staging, offline synthetic SEARCH/SORT benchmark, COM/Admin parity slices, password verifier seam, disposable restore rollback fixture coverage, transaction-scoped FetchAccount restore, and executor acceptance; no production release gate complete
+- Open production blockers: live paired C++/.NET 10 performance/load, SQL Full-Text Search and legacy ADO startup, full rules/folders/messages/settings restore, crash/power-loss recovery, SEC-18, migration/installer, service/out-of-process COM, AD/DC, and 24-hour soak
 - Environment-blocked work: approved FTS/legacy ADO staging SQL, protocol/load host, isolated service/COM host, domain-controller credentials, IIS/SEC-18 gate, InnoSetup, and AV-compatible full-suite cleanup
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`/backup files, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: executor-level populated FetchAccount restore/readback and injected UID/date rollback; paired SMTP/IMAP/POP3 harness after FTS/legacy ADO staging; isolated service/out-of-process COM lifecycle acceptance
+- Next three independent slices: parity-review and restore-side Rules child readback/rollback; smallest folder/message graph restore child; paired SMTP/IMAP/POP3 harness after FTS/legacy ADO staging

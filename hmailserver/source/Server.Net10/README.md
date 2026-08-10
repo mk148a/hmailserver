@@ -4,6 +4,8 @@ Code/test commit `7e8d71c15` adds restore-side FetchAccount and nested FetchAcco
 
 Focused parser/SQL/restore coverage is `30/30`; disposable LocalDB FetchAccount readback and transaction rollback is `2/2`; default full Net10 is `1990 passed, 35 skipped, 0 failed`. SQL-enabled full Net10 is `2017 passed, 2 skipped, 6 unrelated existing message/indexing fixture failures`. The slice preserves legacy Blowfish ciphertext, transaction rollback, COM identity, authenticated boundaries, SMTP trust, and production isolation. Release remains RED for live paired performance, populated full restore/round-trip, SEC-18, migration/installer, service/out-of-process COM, AD/DC, protocol/load, crash/power-loss, and soak gates.
 
+Test commit `17ba6e70a` extends `BackupRestoreRoundTripIntegrationTests` with populated FetchAccount/UID executor readback and invalid UID-date rollback. The focused disposable restore class passes `12/12`; default full Net10 is `1990 passed, 36 skipped, 0 failed`. This remains bounded restore evidence; full settings/folders/messages restore, crash recovery, and release gates remain open.
+
 ## Current Continuation (2026-08-10, SQL-backed Account.ValidatePassword)
 
 The current code/test slice is `f34ee25c8`: attached COM `Account.ValidatePassword` now reaches the configured SQL administration store and preserves the legacy script-first, empty-password, AD, and local-hash verification order. Legacy anchors are `InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`) and `PasswordValidator::ValidatePassword` (`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:109-188`); COM identity, DISPIDs, attachment checks, and direct activation boundaries were not changed.
