@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, MIRROR EMAIL MUTATION)
+
+Code/test commit `3ba1d5f49` implements only authenticated
+`Settings.MirrorEMailAddress` (`DispId(7)`) mutation. It preserves direct
+activation denial, rechecks the live administrator callback, updates the fixed
+`hm_settings.mirroremailaddress` row with a parameterized command, and changes
+the retained snapshot only after one-row success.
+
+Legacy anchors: `InterfaceSettings::put_MirrorEMailAddress`
+(`source/Server/COM/InterfaceSettings.cpp:224-241`),
+`Configuration::SetMirrorAddress`
+(`source/Server/Common/Application/Configuration.cpp:242-248`), and
+`PROPERTY_MIRROREMAILADDRESS` (`source/Server/Common/Application/Constants.h:6`).
+Focused settings/SQL coverage is `25/25`; full Net10 is `2008 passed, 39
+skipped, 0 failed`. Next slice: fresh legacy-first audit of one remaining
+Settings setter. Real SQL/Data rollback, reinitialize, SEC-18, installer,
+paired live performance, and soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, DEFAULTDOMAIN MUTATION)
 
 Code/test commit `41b77dba1` implements the single authenticated

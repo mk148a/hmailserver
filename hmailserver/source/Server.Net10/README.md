@@ -1,3 +1,21 @@
+## Current parity continuation (2026-08-10, authenticated MirrorEMailAddress mutation)
+
+Code/test commit `3ba1d5f49` adds only the fixed-row
+`MirrorEMailAddress` mutation to the existing settings administration seam.
+The SQL command is parameterized and fixed to
+`settingname = N'mirroremailaddress'`; the live administrator callback is
+checked before store access and the retained snapshot changes only after a
+one-row success. Focused settings/SQL coverage is `25/25`; full Net10 is
+`2008 passed, 39 skipped, 0 failed`.
+
+Legacy references are `InterfaceSettings::put_MirrorEMailAddress`
+(`source/Server/COM/InterfaceSettings.cpp:224-241`),
+`Configuration::SetMirrorAddress`
+(`source/Server/Common/Application/Configuration.cpp:242-248`), and
+`PROPERTY_MIRROREMAILADDRESS` (`source/Server/Common/Application/Constants.h:6`).
+No COM identity, direct activation boundary, SMTP behavior, or reinitialize
+path changed.
+
 ## Current parity continuation (2026-08-10, authenticated DefaultDomain mutation)
 
 Code/test commit `41b77dba1` wires only `Settings.DefaultDomain` (`DispId(50)`)

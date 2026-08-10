@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated MirrorEMailAddress mutation)
+
+Code/test commit `3ba1d5f49` extends the bounded Administrator settings seam to
+only `IInterfaceSettings.MirrorEMailAddress` (`DispId(7)`). It rechecks the
+live server-administrator callback, updates only the existing
+`hm_settings.mirroremailaddress` row with a parameterized command, requires one
+affected row, and changes a retained snapshot only after success.
+
+Legacy anchors are `InterfaceSettings::put_MirrorEMailAddress`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:224-241`),
+`Configuration::SetMirrorAddress`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:242-248`),
+and `PROPERTY_MIRROREMAILADDRESS`
+(`hmailserver/source/Server/Common/Application/Constants.h:6`). Focused
+settings/SQL coverage is `25/25`; full Net10 is `2008 passed, 39 skipped, 0
+failed`. Direct activation, failed-write snapshot retention, and retained
+object reauthentication are covered; no SMTP/reinitialize behavior changed.
+
+Release remains RED: real SQL/Data rollback, SEC-18, installer/rollback,
+normal isolated C++ listeners, matched SMTP/IMAP/POP3/delivery evidence, SQL
+FTS, and 24-hour soak remain unproven.
+
 ## Current parity continuation (2026-08-10, authenticated DefaultDomain mutation)
 
 Code/test commit `41b77dba1` implements one legacy Administrator mutation:

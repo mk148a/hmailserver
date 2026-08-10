@@ -1,4 +1,25 @@
 
+## Current Audit Note (2026-08-10, MIRROR EMAIL ADMIN MUTATION)
+
+Code/test commit `3ba1d5f49` implements the authenticated
+`IInterfaceSettings.MirrorEMailAddress` setter (`DispId(7)`) using the existing
+mutation seam. It updates only the fixed `mirroremailaddress` row with a
+parameterized value, requires exactly one affected row, rechecks the live
+administrator callback, and publishes the retained snapshot only after
+success. Direct activation and failure/no-op behavior are covered.
+
+Legacy behavior is anchored by `InterfaceSettings::put_MirrorEMailAddress`
+(`source/Server/COM/InterfaceSettings.cpp:224-241`),
+`Configuration::SetMirrorAddress`
+(`source/Server/Common/Application/Configuration.cpp:242-248`), and
+`PROPERTY_MIRROREMAILADDRESS` (`source/Server/Common/Application/Constants.h:6`).
+Focused coverage is `25/25`; full Net10 is `2008 passed, 39 skipped, 0 failed`.
+
+The next code slice must be selected by a fresh legacy-first audit of one
+remaining Settings setter. Real SQL/Data rollback, live runtime reconfiguration,
+SEC-18, installer, paired protocol performance, and soak gates remain RED or
+environment-blocked.
+
 ## Current Audit Note (2026-08-10, DEFAULTDOMAIN ADMIN MUTATION)
 
 Code/test commit `41b77dba1` closes the narrow authenticated
