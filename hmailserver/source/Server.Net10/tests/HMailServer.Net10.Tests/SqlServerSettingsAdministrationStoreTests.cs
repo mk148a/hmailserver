@@ -110,6 +110,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateMaxSmtpRecipientsInBatchSql_UpdatesOnlyTheExistingRowWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateMaxSmtpRecipientsInBatchSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settinginteger = @MaxSMTPRecipientsInBatch");
+        StringAssert.Contains(sql, "WHERE settingname = N'maxsmtprecipientsinbatch'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void GetSettingsSql_ReadsOnlyBoundedLegacyAdministrationScalars()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;

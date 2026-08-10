@@ -96,6 +96,7 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.RuleLoopLimit), DispId: 48),
             (Name: nameof(IInterfaceSettings.WorkerThreadPriority), DispId: 57),
             (Name: nameof(IInterfaceSettings.TCPIPThreads), DispId: 60),
+            (Name: nameof(IInterfaceSettings.MaxSMTPRecipientsInBatch), DispId: 62),
             (Name: nameof(IInterfaceSettings.MaxInvalidLogonAttempts), DispId: 83),
             (Name: nameof(IInterfaceSettings.MaxInvalidLogonAttemptsWithin), DispId: 84),
             (Name: nameof(IInterfaceSettings.AutoBanMinutes), DispId: 85),
@@ -193,6 +194,10 @@ public sealed class SettingsComContractTests
         var pop3ScalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxPOP3Connections);
         var pop3ScalarSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxPOP3Connections = 1);
+        var recipientsScalarError = Assert.ThrowsExactly<COMException>(
+            () => _ = ((IInterfaceSettings)settings).MaxSMTPRecipientsInBatch);
+        var recipientsScalarSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).MaxSMTPRecipientsInBatch = 1);
         var hostNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.HostName);
         var imapCapabilityError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSortEnabled);
         var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
@@ -233,6 +238,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, scalarSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, pop3ScalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, pop3ScalarSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, recipientsScalarError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, recipientsScalarSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapCapabilityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
@@ -929,6 +936,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxSmtpRecipientsInBatchUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxSmtpRecipientsInBatch: 10),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MaxSMTPRecipientsInBatch = 25;
+
+        Assert.AreEqual(1, store.MaxSmtpRecipientsInBatchUpdateCount);
+        Assert.AreEqual(25, store.UpdatedMaxSmtpRecipientsInBatch);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(25, settings.MaxSMTPRecipientsInBatch);
+
+        store.MaxSmtpRecipientsInBatchUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxSMTPRecipientsInBatch = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.MaxSmtpRecipientsInBatchUpdateCount);
+        Assert.AreEqual(25, settings.MaxSMTPRecipientsInBatch);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxSMTPRecipientsInBatch = 35);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.MaxSmtpRecipientsInBatchUpdateCount);
+        Assert.AreEqual(25, settings.MaxSMTPRecipientsInBatch);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -1145,6 +1194,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxPop3Connections { get; private set; }
 
+        public bool MaxSmtpRecipientsInBatchUpdateResult { get; set; }
+
+        public int MaxSmtpRecipientsInBatchUpdateCount { get; private set; }
+
+        public int UpdatedMaxSmtpRecipientsInBatch { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<bool> UpdateDefaultDomainAsync(
@@ -1224,6 +1279,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxPop3Connections = maxPop3Connections;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxPop3ConnectionsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMaxSmtpRecipientsInBatchAsync(
+            int maxSmtpRecipientsInBatch,
+            CancellationToken cancellationToken)
+        {
+            MaxSmtpRecipientsInBatchUpdateCount++;
+            UpdatedMaxSmtpRecipientsInBatch = maxSmtpRecipientsInBatch;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(MaxSmtpRecipientsInBatchUpdateResult);
         }
 
     }

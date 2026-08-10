@@ -1060,7 +1060,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MaxSMTPRecipientsInBatch
                 : _administrationSnapshot.MaxSmtpRecipientsInBatch;
         }
-        set => base.MaxSMTPRecipientsInBatch = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxSMTPRecipientsInBatch = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateMaxSmtpRecipientsInBatchAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum SMTP recipients in batch update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxSmtpRecipientsInBatch = value
+                };
+            }
+        }
     }
 
     public override bool DisconnectInvalidClients
