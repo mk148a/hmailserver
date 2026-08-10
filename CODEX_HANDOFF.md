@@ -19,7 +19,8 @@ Legacy anchors: `IInterfaceSettings.MaxMessageSize`
 enforcement, KB-to-byte conversion, and live reconfiguration were deliberately
 not added. Next slice: fresh legacy-first audit of one remaining low-risk
 Settings mutation. Real SQL/Data rollback, SEC-18, installer/out-of-process
-COM, matched protocol performance, and 24-hour soak remain open. Do not push.
+COM, matched protocol performance, and 24-hour soak remain open. Repository
+push verified at `32cd0c5bc`; do not deploy to production.
 
 # Current Authoritative Continuation (2026-08-10, DISCONNECT INVALID CLIENTS MUTATION)
 
