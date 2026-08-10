@@ -672,7 +672,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.WelcomeSMTP
                 : _administrationSnapshot.WelcomeSmtp;
         }
-        set => base.WelcomeSMTP = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.WelcomeSMTP = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateWelcomeSmtpAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The SMTP welcome message update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    WelcomeSmtp = value
+                };
+            }
+        }
     }
 
     public override string WelcomePOP3

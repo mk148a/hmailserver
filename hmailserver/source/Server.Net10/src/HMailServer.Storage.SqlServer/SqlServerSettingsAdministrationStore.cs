@@ -27,6 +27,12 @@ SET settingstring = @WelcomePOP3
 WHERE settingname = N'welcomepop3';
 """;
 
+    public const string UpdateWelcomeSmtpSql = """
+UPDATE hm_settings
+SET settingstring = @WelcomeSMTP
+WHERE settingname = N'welcomesmtp';
+""";
+
     public const string UpdateWelcomeImapSql = """
 UPDATE hm_settings
 SET settingstring = @WelcomeIMAP
@@ -318,6 +324,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateWelcomePop3Sql, connection);
         command.Parameters.Add("@WelcomePOP3", SqlDbType.NVarChar, 255).Value = welcomePop3;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateWelcomeSmtpAsync(
+        string welcomeSmtp,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateWelcomeSmtpSql, connection);
+        command.Parameters.Add("@WelcomeSMTP", SqlDbType.NVarChar, 255).Value = welcomeSmtp;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

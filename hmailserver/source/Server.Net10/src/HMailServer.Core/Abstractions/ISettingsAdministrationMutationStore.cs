@@ -14,6 +14,10 @@ public interface ISettingsAdministrationMutationStore
         string welcomePop3,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateWelcomeSmtpAsync(
+        string welcomeSmtp,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWelcomeImapAsync(
         string welcomeImap,
         CancellationToken cancellationToken);

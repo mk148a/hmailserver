@@ -121,6 +121,7 @@ public sealed class SettingsComContractTests
         {
             (Name: nameof(IInterfaceSettings.MirrorEMailAddress), DispId: 7),
             (Name: nameof(IInterfaceSettings.SMTPRelayer), DispId: 22),
+            (Name: nameof(IInterfaceSettings.WelcomeSMTP), DispId: 23),
             (Name: nameof(IInterfaceSettings.WelcomePOP3), DispId: 24),
             (Name: nameof(IInterfaceSettings.WelcomeIMAP), DispId: 25),
             (Name: nameof(IInterfaceSettings.SMTPRelayerUsername), DispId: 35),
@@ -198,6 +199,9 @@ public sealed class SettingsComContractTests
         var imapNamingError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPPublicFolderName);
         var smtpPolicyError = Assert.ThrowsExactly<COMException>(() => _ = settings.AllowSMTPAuthPlain);
         var smtpRoutingError = Assert.ThrowsExactly<COMException>(() => _ = settings.MirrorEMailAddress);
+        var welcomeSmtpError = Assert.ThrowsExactly<COMException>(() => _ = settings.WelcomeSMTP);
+        var welcomeSmtpSetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.WelcomeSMTP = "direct-activation SMTP");
         var welcomePop3Error = Assert.ThrowsExactly<COMException>(() => _ = settings.WelcomePOP3);
         var welcomePop3SetterError = Assert.ThrowsExactly<COMException>(
             () => settings.WelcomePOP3 = "direct-activation POP3");
@@ -235,6 +239,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, imapNamingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpPolicyError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpRoutingError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, welcomeSmtpError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, welcomeSmtpSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, welcomePop3Error.ErrorCode);
         Assert.AreEqual(EAccessDenied, welcomePop3SetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, welcomeImapError.ErrorCode);
@@ -716,6 +722,47 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_WelcomeSmtpSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            WelcomeSmtpUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: "old SMTP greeting",
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.WelcomeSMTP = "new SMTP greeting";
+
+        Assert.AreEqual(1, store.WelcomeSmtpUpdateCount);
+        Assert.AreEqual("new SMTP greeting", store.UpdatedWelcomeSmtp);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual("new SMTP greeting", settings.WelcomeSMTP);
+
+        store.WelcomeSmtpUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.WelcomeSMTP = "failed SMTP greeting");
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.WelcomeSmtpUpdateCount);
+        Assert.AreEqual("new SMTP greeting", settings.WelcomeSMTP);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.WelcomeSMTP = "denied SMTP greeting");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.WelcomeSmtpUpdateCount);
+        Assert.AreEqual("new SMTP greeting", settings.WelcomeSMTP);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_WelcomeImapSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -1068,6 +1115,12 @@ public sealed class SettingsComContractTests
 
         public string? UpdatedWelcomePop3 { get; private set; }
 
+        public bool WelcomeSmtpUpdateResult { get; set; }
+
+        public int WelcomeSmtpUpdateCount { get; private set; }
+
+        public string? UpdatedWelcomeSmtp { get; private set; }
+
         public bool WelcomeImapUpdateResult { get; set; }
 
         public int WelcomeImapUpdateCount { get; private set; }
@@ -1121,6 +1174,16 @@ public sealed class SettingsComContractTests
             UpdatedWelcomePop3 = welcomePop3;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(WelcomePop3UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateWelcomeSmtpAsync(
+            string welcomeSmtp,
+            CancellationToken cancellationToken)
+        {
+            WelcomeSmtpUpdateCount++;
+            UpdatedWelcomeSmtp = welcomeSmtp;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(WelcomeSmtpUpdateResult);
         }
 
         public ValueTask<bool> UpdateWelcomeImapAsync(

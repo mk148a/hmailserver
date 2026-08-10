@@ -45,6 +45,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateWelcomeSmtpSql_UpdatesOnlyTheExistingWelcomeSmtpRowWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateWelcomeSmtpSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settingstring = @WelcomeSMTP");
+        StringAssert.Contains(sql, "WHERE settingname = N'welcomesmtp'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateWelcomeImapSql_UpdatesOnlyTheExistingWelcomeImapRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateWelcomeImapSql;
