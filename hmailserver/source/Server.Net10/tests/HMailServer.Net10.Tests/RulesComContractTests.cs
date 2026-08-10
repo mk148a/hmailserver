@@ -312,6 +312,24 @@ public sealed class RulesComContractTests
     }
 
     [TestMethod]
+    public void UnsavedRule_MoveUpAndDownReturnLegacyObjectNotYetSavedError()
+    {
+        IInterfaceRules rules = Rules.CreateAuthorized(
+            Array.Empty<RuleAdministrationSnapshot>(),
+            accountId: 100,
+            insert: _ => 1);
+        var draft = rules.Add();
+
+        var moveUpError = Assert.ThrowsExactly<COMException>(draft.MoveUp);
+        var moveDownError = Assert.ThrowsExactly<COMException>(draft.MoveDown);
+
+        Assert.AreEqual(unchecked((int)0x800403E9), moveUpError.ErrorCode);
+        Assert.AreEqual("Object not yet saved.", moveUpError.Message);
+        Assert.AreEqual(unchecked((int)0x800403E9), moveDownError.ErrorCode);
+        Assert.AreEqual("Object not yet saved.", moveDownError.Message);
+    }
+
+    [TestMethod]
     public void FailedInsert_MapsToEFailAndRetainsDraftWithoutPublishing()
     {
         var fail = true;

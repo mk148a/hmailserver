@@ -294,6 +294,7 @@ public sealed class Rules : IInterfaceRules
 public sealed class Rule : IInterfaceRule
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EObjectNotYetSaved = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private RuleAdministrationSnapshot? _rule;
@@ -423,9 +424,25 @@ public sealed class Rule : IInterfaceRule
         }
     }
 
-    public void MoveUp() => Unavailable();
+    public void MoveUp()
+    {
+        if (Snapshot.Id <= 0)
+        {
+            throw new COMException("Object not yet saved.", EObjectNotYetSaved);
+        }
 
-    public void MoveDown() => Unavailable();
+        Unavailable();
+    }
+
+    public void MoveDown()
+    {
+        if (Snapshot.Id <= 0)
+        {
+            throw new COMException("Object not yet saved.", EObjectNotYetSaved);
+        }
+
+        Unavailable();
+    }
 
     public void Delete()
     {
