@@ -1864,3 +1864,40 @@ SMTP message acceptance, delivery queue, 1,000-concurrent IMAP, POP3/IMAP C++
 startup parity, and 24-hour leak soak remain open. The next independent slice
 is an isolated reproducible legacy C++ build/runtime that exposes all three
 listeners; until that exists, no performance superiority may be claimed.
+
+## Current Authoritative Continuation (2026-08-10, 1,000-CONCURRENT IMAP ACCEPTANCE)
+
+Code/test commit `21cc042c9` adds `build/benchmark-net10-live-concurrent-imap.ps1`
+and `build/test-net10-live-concurrent-imap.ps1`. The runner executes the same
+authenticated `LOGIN`, `SELECT INBOX`, `SEARCH`, `SORT`, and `LOGOUT` sequence
+for 1,000 concurrent sessions against each isolated implementation. Before
+the run, both disposable SQL databases were read back with `1000` messages,
+`1000` metadata rows, `1000` message-recipient rows, root `INBOX` at
+`folderparentid = -1`, and identical loopback rows for SMTP `2525`, IMAP
+`1143`, and POP3 `25110`; the Data corpus remained `1000/1000` SHA-256 equal.
+
+.NET 10 completed `1000/1000` sessions with p50 `48.706 ms`, p95 `183.157
+ms`, and p99 `558.690 ms`. The temporary legacy C++ `/Debug` process completed
+`0/1000`; the IMAP banner/read path aborted and POP3 did not open. This is a
+valid .NET 10 workload result but not a paired performance comparison. The
+validator passes the accounting for both artifacts while retaining C++
+`FAIL`; no ratio, speed-up, regression percentage, or winner is valid.
+
+Legacy anchors inspected were `IOService::DoWork` and `TCPServer::InitAcceptor`
+(`hmailserver/source/Server/Common/TCPIP/IOService.cpp:72-143`,
+`TCPServer.cpp`), `IMAPConnection::OnConnected`/`SendBanner_`
+(`hmailserver/source/Server/IMAP/IMAPConnection.cpp:68-122`), and
+`IMAPCommandSELECT::ExecuteCommand`
+(`hmailserver/source/Server/IMAP/IMAPCommandSelect.cpp:19-85`). Current
+anchors are `ImapTcpListenerHostedService`, `ImapSession.HandleSelectAsync`,
+`SqlServerImapMailboxStore.SelectMailboxAsync`, and the new benchmark scripts.
+The same fixture initially exposed a root-folder `folderparentid` mismatch;
+the disposable rows were corrected to legacy `-1` without touching production.
+
+Full Net10 is `1990 passed, 36 skipped, 0 failed`; PowerShell parsing, focused
+report validation, and `git diff --check` pass. Release remains RED: obtain a
+normal reproducible C++ runtime with IMAP/POP3 startup parity, then run SMTP
+message acceptance, delivery queue, and 24-hour leak/handle/thread/socket
+soak workloads. The benchmark helper omits COM registration because the normal
+.NET host still fails the installed Application AppID identity check
+(`0x80004015`).

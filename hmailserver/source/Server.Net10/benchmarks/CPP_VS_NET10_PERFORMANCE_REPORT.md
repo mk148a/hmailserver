@@ -1,7 +1,7 @@
 # Legacy C++ vs .NET 10 Performance Report
 
 **Run date:** 2026-08-10
-**Repository commit:** `29beaf8c8`
+**Repository commit:** `21cc042c9`
 **Host:** Windows 11 build `10.0.26200`, x64, 16 logical processors
 **Decision:** `RED - no valid C++ vs .NET 10 comparison yet`
 
@@ -136,5 +136,37 @@ The C++ process is a temporary `/Debug` probe rather than a normal isolated
 release build and did not open POP3. The normal .NET 10 host opens all three
 listeners but fails the installed AppID COM identity check with `0x80004015`,
 so the live run used a benchmark-only listener host with COM intentionally
-omitted. No paired ratio is valid. Message acceptance, delivery queue,
-1,000-concurrent IMAP, and 24-hour soak remain release blockers.
+omitted. No paired ratio is valid. The later concurrent IMAP run provides
+valid .NET 10-only evidence but C++ completed `0/1000`; SMTP message
+acceptance, delivery queue, and 24-hour soak remain release blockers.
+
+## Latest 1,000-concurrent IMAP evidence
+
+The bounded runner `build/benchmark-net10-live-concurrent-imap.ps1` was then
+run against the same isolated SQL/Data fixture for both implementations. The
+fixture was read back before the run: both databases contain `1000` messages,
+`1000` message metadata rows, `1000` message-recipient rows, root `INBOX`
+with `folderparentid = -1`, and identical loopback listener rows for SMTP
+`2525`, IMAP `1143`, and POP3 `25110`. The Data corpus remains `1000/1000`
+SHA-256-equal files.
+
+| Scenario | .NET 10 | C++ | Decision |
+| --- | --- | --- | --- |
+| 1,000 concurrent IMAP LOGIN/SELECT/SEARCH/SORT/LOGOUT | `1000/1000`, p50 `48.706 ms`, p95 `183.157 ms`, p99 `558.690 ms` | `0/1000`, no successful sample; IMAP banner/read aborted and POP3 listener did not open | invalid ratio |
+
+```mermaid
+xychart-beta
+    title "1,000 concurrent IMAP sessions: successful sessions"
+    x-axis [.NET 10, C++]
+    y-axis "successful sessions" 0 --> 1000
+    bar [1000, 0]
+```
+
+The .NET 10 result is a valid isolated workload result. The C++ result is a
+reproducible baseline failure of the temporary `/Debug` process, not a zero
+latency result. No speed-up or regression percentage is calculated. The
+focused validator passes for both artifacts because it validates accounting
+and correctly preserves the C++ `FAIL` status. The performance release gate
+remains **RED** until a normal reproducible C++ binary completes the same
+scenario, followed by SMTP message acceptance, delivery queue, and soak
+workloads.

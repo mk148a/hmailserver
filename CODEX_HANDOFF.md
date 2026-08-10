@@ -1839,3 +1839,31 @@ Focused live smoke passed for .NET 10; full Net10 is `1990 passed, 36 skipped,
 reproducible C++ binary with POP3/IMAP parity, SMTP message acceptance,
 delivery-queue throughput, 1,000-concurrent IMAP, and 24-hour leak soak.
 Older performance continuation entries below this one are historical.
+
+## Current Authoritative Continuation (2026-08-10, 1,000-CONCURRENT IMAP ACCEPTANCE)
+
+Code/test commit `21cc042c9` adds the bounded live concurrent IMAP benchmark
+and report validator. The isolated C++ and .NET 10 targets use the same SQL
+fixture shape, byte-identical 1,000-message Data corpus, account, root INBOX,
+and loopback ports SMTP `2525`, IMAP `1143`, and POP3 `25110`. SQL readback
+confirmed `1000` messages, metadata rows, and message-recipient rows in each
+database and `folderparentid = -1` for the root INBOX.
+
+.NET 10 passed `1000/1000` authenticated
+`LOGIN/SELECT/SEARCH/SORT/LOGOUT` sessions with p50 `48.706 ms`, p95
+`183.157 ms`, and p99 `558.690 ms`. The copied legacy `/Debug` process passed
+`0/1000`; IMAP banner/read aborted and POP3 did not open. The validator
+correctly retains C++ `FAIL` and forbids a ratio. Performance release status
+remains **RED**.
+
+Focused results: .NET and C++ concurrent reports validated; PowerShell parse
+passed; full Net10 is `1990 passed, 36 skipped, 0 failed`; `git diff --check`
+passes. Raw reports are under
+`artifacts/benchmarks/live-cpp-net10-20260810_152708/{net10,cpp}-concurrent-imap/`.
+
+Next independent slices, in priority order: (1) obtain a reproducible legacy
+C++ runtime exposing all three listeners, (2) execute disposable populated
+restore graph readback/rollback, and (3) once both baselines run, add paired
+SMTP message-acceptance and delivery-queue workloads. Do not stage dirty
+`AGENTS.md`, backup test WIP files, or untracked SEC-18/benchmark/disposable
+artifacts. Do not push in this run.

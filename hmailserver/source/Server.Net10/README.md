@@ -1160,5 +1160,25 @@ The C++ `/Debug` probe was not a normal reproducible release build and did not
 open POP3. The normal .NET 10 host opens all three listeners but fails the
 installed Application AppID COM identity check (`0x80004015`), so the benchmark
 used a listener-only helper with COM intentionally omitted. No performance
-winner or speed-up claim is valid. SMTP message acceptance, delivery queue,
-1,000-concurrent IMAP, and 24-hour soak remain unmeasured.
+winner or speed-up claim is valid. The later concurrent IMAP run provides
+valid .NET 10-only evidence (`1000/1000`) but C++ completed `0/1000`, so it
+remains non-comparable. SMTP message acceptance, delivery queue, and 24-hour
+soak remain unmeasured.
+## Current production-gate status (2026-08-10, 1,000-concurrent IMAP)
+
+Code/test commit `21cc042c9` adds the isolated live concurrent IMAP runner and
+validator. Both disposable SQL targets have the same 1,000-message metadata,
+the same byte-identical Data corpus (`1000/1000`), the same account/root
+`INBOX`, and the same loopback ports `2525`/`1143`/`25110`. .NET 10 completed
+`1000/1000` authenticated `LOGIN`, `SELECT`, `SEARCH`, `SORT`, and `LOGOUT`
+sessions with p50 `48.706 ms`, p95 `183.157 ms`, and p99 `558.690 ms`.
+
+The temporary legacy C++ `/Debug` process completed `0/1000`; it aborted the
+IMAP banner/read path and did not open POP3. Therefore this is valid .NET 10
+acceptance evidence but not a paired comparison. No ratio or performance
+winner is valid, and the release performance gate remains **RED**. SMTP
+message acceptance, delivery queue, service/COM lifecycle, and 24-hour soak
+remain open.
+
+The commandable runner is `build/benchmark-net10-live-concurrent-imap.ps1`;
+the focused report validator is `build/test-net10-live-concurrent-imap.ps1`.

@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T15:46:25Z / 2026-08-10T18:46:25+03:00
+- UTC/local timestamp: 2026-08-10T16:04:03Z / 2026-08-10T19:04:03+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `61488eb14`
+- Current HEAD: `21cc042c9`
 - Last successfully pushed commit: `0b2646731`
-- Latest focused-test result: paired live listener run; .NET 10 SMTP/IMAP/POP3 `25/25` each; C++ SMTP `25/25`, IMAP `4/25`, POP3 `0/25`; no valid ratio
+- Latest focused-test result: identical disposable SQL/Data fixture readback passed; .NET 10 1,000-concurrent IMAP `1000/1000` with p50 `48.706 ms`, p95 `183.157 ms`, p99 `558.690 ms`; C++ `0/1000` and POP3 did not open; no valid ratio
 - Latest full Net10 result: `1990 passed, 36 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: disposable MSSQLSERVER SQL/Data setup and .NET listener smoke passed; C++ full protocol parity, message acceptance, delivery queue, 1,000-concurrent IMAP, service/COM, SEC-18, restore round-trip, installer, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: isolated paired C++/.NET 10 live SMTP/IMAP/POP3 benchmark evidence and release-gate report
-- Completed milestones: backup creation/raw staging, offline SEARCH/SORT benchmark, COM/Admin parity slices, password verifier seam, disposable restore fixture coverage, and paired listener harness; no production release gate complete
-- Open production blockers: incomplete reproducible C++ IMAP/POP3 baseline, .NET out-of-process COM AppID identity failure `0x80004015`, SMTP message acceptance, delivery queue, 1,000-concurrent IMAP, full restore/rollback, SEC-18, migration/installer, AD/DC, and 24-hour soak
+- Opt-in tests passed/skipped/blocked: concurrent reports and PowerShell validation passed; disposable SQL/Data fixture was used; C++ IMAP/POP3 startup parity, SMTP message acceptance, delivery queue, service/COM, SEC-18, restore round-trip, installer, AD/DC, and 24-hour soak remain blocked or skipped
+- Current bounded slice: isolated 1,000-concurrent IMAP acceptance evidence and performance release-gate documentation
+- Completed milestones: backup creation/raw staging, offline SEARCH/SORT benchmark, COM/Admin parity slices, password verifier seam, disposable restore fixture coverage, and live listener/concurrent benchmark harness; no production release gate complete
+- Open production blockers: reproducible C++ IMAP/POP3 baseline, .NET out-of-process COM AppID identity failure `0x80004015`, SMTP message acceptance, delivery queue, full restore/rollback, SEC-18, migration/installer, AD/DC, and 24-hour soak
 - Environment-blocked work: normal C++ release/runtime build, isolated service/COM host, approved restore target, domain-controller credentials, IIS/SEC-18 gate, InnoSetup, and AV-compatible cleanup path
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup files, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: obtain an isolated reproducible C++ build exposing all three listeners; extend disposable restore graph readback/rollback; add paired SMTP acceptance and delivery-queue workload once both server baselines are runnable
+- Next three independent slices: obtain an isolated reproducible C++ runtime exposing all three listeners; extend disposable populated restore graph readback/rollback; add paired SMTP acceptance and delivery-queue workload once both baselines are runnable

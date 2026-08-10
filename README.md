@@ -10,6 +10,35 @@ For other information about hMailServer, please go to http://www.hmailserver.com
 No active development
 =====================
 
+## Current production-gate status (2026-08-10, 1,000-concurrent IMAP)
+
+Code/test commit `21cc042c9` adds a bounded live 1,000-concurrent IMAP
+acceptance runner and report validator. The run uses the same disposable SQL
+database shape, byte-identical 1,000-message Data corpus (`1000/1000` file
+equality), account, root `INBOX`, and loopback endpoint `127.0.0.1:1143` for
+both implementations. The two SQL targets were also aligned to the same
+loopback listener rows: SMTP `2525`, IMAP `1143`, and POP3 `25110`.
+
+| Scenario | .NET 10 | Legacy C++ | Decision |
+| --- | ---: | ---: | --- |
+| 1,000 concurrent IMAP LOGIN/SELECT/SEARCH/SORT/LOGOUT | `1000/1000`, p50 `48.706 ms`, p95 `183.157 ms`, p99 `558.690 ms` | `0/1000`, no successful session; IMAP banner/read path aborted and POP3 did not open | no ratio |
+
+```mermaid
+xychart-beta
+    title "1,000 concurrent IMAP sessions: successful sessions"
+    x-axis [.NET 10, C++]
+    y-axis "successful sessions" 0 --> 1000
+    bar [1000, 0]
+```
+
+The isolated .NET 10 run is valid workload evidence, but it is not a C++
+comparison because the temporary C++ `/Debug` process did not complete the
+same scenario. The performance release gate remains **RED**. No speed-up,
+regression percentage, or winner is claimed. Raw evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260810_152708/`; the runner is
+`build/benchmark-net10-live-concurrent-imap.ps1` and its validator is
+`build/test-net10-live-concurrent-imap.ps1`.
+
 .NET 10 rewrite continuation audit (2026-08-10, FetchAccount restore)
 -----------------------------------------------------------------------
 
@@ -62,7 +91,7 @@ xychart-beta
     bar [10.948, 29.929, 0]
 ```
 
-The C++ binary opened SMTP/IMAP only and was not a normal reproducible release build; POP3 and stable IMAP parity therefore failed. The .NET 10 production host also cannot start its COM local-server registration against the installed Application AppID (`0x80004015`), so the measurement used a benchmark-only listener host that intentionally omitted COM registration. No speed-up or regression percentage is claimed. SMTP message acceptance, delivery queue, 1,000-concurrent IMAP, and 24-hour soak remain unmeasured. The performance release gate remains **RED**.
+The C++ binary opened SMTP/IMAP only and was not a normal reproducible release build; POP3 and stable IMAP parity therefore failed. The .NET 10 production host also cannot start its COM local-server registration against the installed Application AppID (`0x80004015`), so the measurement used a benchmark-only listener host that intentionally omitted COM registration. No speed-up or regression percentage is claimed. The later 1,000-concurrent IMAP run now has valid .NET 10-only evidence (`1000/1000`) but C++ completed `0/1000`, so it remains non-comparable. SMTP message acceptance, delivery queue, and 24-hour soak remain unmeasured. The performance release gate remains **RED**.
 
 .NET 10 rewrite continuation audit (2026-08-10, offline 100k IMAP SEARCH/SORT acceptance)
 -------------------------------------------------------------------------------------------
