@@ -46,6 +46,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                       </Rules>
                       <Folders>
                         <Folder Name="INBOX" Subscribed="1" CreateTime="2026-07-01 12:30:00" CurrentUID="5">
+                          <Messages>
+                            <Message CreateTime="2026-07-01 12:32:00" Filename="one.eml" FromAddress="sender@example.test" State="2" Size="42" NoOfRetries="9" Flags="1" ID="77" UID="8" />
+                          </Messages>
                           <Folders>
                             <Folder Name="child" Subscribed="0" CreateTime="2026-07-01 12:31:00" CurrentUID="2" />
                           </Folders>
@@ -254,6 +257,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             Directory.CreateDirectory(dataBackup);
             File.WriteAllText(Path.Combine(dataDirectory, "original.txt"), "original");
             File.WriteAllText(Path.Combine(dataBackup, "restored.txt"), "restored");
+            var messagePath = Path.Combine(dataBackup, "roundtrip.example", "user", "ne");
+            Directory.CreateDirectory(messagePath);
+            File.WriteAllText(Path.Combine(messagePath, "one.eml"), "From: sender@example.test\r\n\r\nbody");
             File.WriteAllText(Path.Combine(source, "hMailServerBackup.xml"), NonDbArchiveXml);
             await CreateArchiveAsync(archivePath, source).ConfigureAwait(false);
 
@@ -293,6 +299,14 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 .GetDomainsAsync(CancellationToken.None)
                 .ConfigureAwait(false);
             Assert.AreEqual("roundtrip.example", restoredDomains.Single().Name);
+            var restoredFolders = await new SqlServerImapFolderAdministrationStore(factory)
+                .GetFoldersForAccountAsync(1, CancellationToken.None)
+                .ConfigureAwait(false);
+            var restoredMessages = await new SqlServerMessageAdministrationStore(factory)
+                .GetFolderMessagesAsync(1, restoredFolders.Single(folder => folder.Name == "INBOX").Id, CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.AreEqual(1, restoredMessages.Count);
+            Assert.AreEqual(8, restoredMessages[0].Uid);
         }
         finally
         {
