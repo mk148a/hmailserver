@@ -1,5 +1,16 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, COMBINED SETTINGS/DOMAIN RESTORE)
+
+Code/test commit `a8f55de14` extends DB-only restore to the exact
+`RestoreSettings|RestoreDomains` selection. Domain metadata is applied before
+ordered settings in the same transaction; settings failure disposes before
+commit and `smtprelayerpassword` is rejected. Focused coverage is `19/19`;
+full default Net10 is `2002 passed, 39 skipped, 0 failed`. Reinitialize,
+non-DB combined restore, real SQL/Data rollback, credential round-trip, and
+release gates remain open. Next action: run settings/message rollback on the
+approved disposable target when available. Release remains RED. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, SETTINGS-ONLY RESTORE EXECUTION)
 
 Code/test commit `a389b0a95` wires settings-only restore into the existing SQL

@@ -1,3 +1,17 @@
+## Current parity continuation (2026-08-10, combined settings/domain restore)
+
+Code/test commit `a8f55de14` extends DB-only restore to
+`RestoreSettings|RestoreDomains` when both sections are present. Domain
+metadata is applied before ordered settings in the same transaction; the
+SMTP relayer credential property is rejected and settings failure disposes
+before commit. Legacy anchors are `BackupExecuter::Restore`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:274-335`)
+and `Configuration::XMLLoad`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:716-758`).
+Focused coverage is `19/19`; full default Net10 is `2002 passed, 39 skipped,
+0 failed`. Reinitialize, non-DB combined restore, real SQL/Data rollback,
+credential round-trip, and release gates remain open and RED.
+
 ## Current parity continuation (2026-08-10, settings-only restore execution)
 
 Code/test commit `a389b0a95` wires parsed settings into a settings-only,

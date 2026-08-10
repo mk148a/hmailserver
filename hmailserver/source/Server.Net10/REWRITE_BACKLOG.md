@@ -1,4 +1,23 @@
 
+## Current Audit Note (2026-08-10, COMBINED SETTINGS/DOMAIN RESTORE)
+
+Code/test commit `a8f55de14` extends the DB-only executor to the exact
+`RestoreSettings|RestoreDomains` selection. It applies domain metadata first,
+then ordered settings through `ISettingsRestoreAdministrationStore` in the
+same transaction; a settings failure prevents commit and disposes the
+transaction. The SMTP relayer credential property remains rejected. Legacy
+ordering is anchored by `BackupExecuter::Restore`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:274-335`)
+and `Configuration::XMLLoad`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:716-758`).
+Focused execution coverage is `19/19`; full default Net10 is `2002 passed, 39
+skipped, 0 failed`.
+
+Reinitialize, non-DB combined settings restore, real SQL/Data rollback,
+credential round-trip policy, live SQL/FTS backfill, SEC-18, and performance
+gates remain open. Next action is execution against the approved disposable
+SQL/Data target when available; release remains RED.
+
 ## Current Audit Note (2026-08-10, SETTINGS-ONLY RESTORE EXECUTION)
 
 Code/test commit `a389b0a95` wires `RestoreSettings` alone into the existing

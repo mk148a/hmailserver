@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, combined settings/domain restore)
+
+Code/test commit `a8f55de14` extends the DB-only restore path to accept
+`RestoreSettings|RestoreDomains` when the archive contains exactly those
+sections. It restores domain metadata first and ordered settings second in the
+same SQL transaction context, rejects the SMTP relayer credential property,
+and disposes before commit on settings failure. This matches legacy
+`BackupExecuter::Restore` ordering (`source/Server/Common/Application/BackupExecuter.cpp:274-335`)
+and `Configuration::XMLLoad` property-first settings loading
+(`source/Server/Common/Application/Configuration.cpp:716-758`). Focused
+execution coverage is `19/19`; full default Net10 is `2002 passed, 39
+skipped, 0 failed`.
+
+Reinitialization, non-DB settings+domains restore, real SQL/Data rollback,
+credential round-trip policy, and performance/security release gates remain
+open and RED. The next independent gate is running settings and message
+rollback against the approved disposable SQL/Data target; repository work can
+continue with live SQL/FTS/backfill acceptance once that target exists.
+
 ## Current parity continuation (2026-08-10, settings-only restore execution)
 
 Code/test commit `a389b0a95` wires the parsed settings snapshot into a
