@@ -92,6 +92,7 @@ public sealed class SettingsComContractTests
     {
         var expected = new[]
         {
+            (Name: nameof(IInterfaceSettings.SMTPNoOfTries), DispId: 19),
             (Name: nameof(IInterfaceSettings.SMTPMinutesBetweenTry), DispId: 20),
             (Name: nameof(IInterfaceSettings.SMTPRelayerPort), DispId: 37),
             (Name: nameof(IInterfaceSettings.MaxMessageSize), DispId: 44),
@@ -194,6 +195,10 @@ public sealed class SettingsComContractTests
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxSMTPConnections);
         var scalarSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxSMTPConnections = 1);
+        var smtpNoOfTriesError = Assert.ThrowsExactly<COMException>(
+            () => _ = ((IInterfaceSettings)settings).SMTPNoOfTries);
+        var smtpNoOfTriesSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).SMTPNoOfTries = 1);
         var smtpMinutesBetweenTryError = Assert.ThrowsExactly<COMException>(
             () => _ = ((IInterfaceSettings)settings).SMTPMinutesBetweenTry);
         var smtpMinutesBetweenTrySetterError = Assert.ThrowsExactly<COMException>(
@@ -263,6 +268,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, smtpNoOfTriesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, smtpNoOfTriesSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpMinutesBetweenTryError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpMinutesBetweenTrySetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxMessageSizeError.ErrorCode);
@@ -930,6 +937,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_SmtpNoOfTriesSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpNoOfTriesUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpNoOfTries: 4),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.SMTPNoOfTries = 8;
+
+        Assert.AreEqual(1, store.SmtpNoOfTriesUpdateCount);
+        Assert.AreEqual(8, store.UpdatedSmtpNoOfTries);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(8, settings.SMTPNoOfTries);
+
+        store.SmtpNoOfTriesUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPNoOfTries = 12);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.SmtpNoOfTriesUpdateCount);
+        Assert.AreEqual(8, settings.SMTPNoOfTries);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPNoOfTries = 16);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.SmtpNoOfTriesUpdateCount);
+        Assert.AreEqual(8, settings.SMTPNoOfTries);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpConnectionsSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -1488,6 +1537,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedWorkerThreadPriority { get; private set; }
 
+        public bool SmtpNoOfTriesUpdateResult { get; set; }
+
+        public int SmtpNoOfTriesUpdateCount { get; private set; }
+
+        public int UpdatedSmtpNoOfTries { get; private set; }
+
         public bool SmtpMinutesBetweenTryUpdateResult { get; set; }
 
         public int SmtpMinutesBetweenTryUpdateCount { get; private set; }
@@ -1601,6 +1656,16 @@ public sealed class SettingsComContractTests
             UpdatedWorkerThreadPriority = workerThreadPriority;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(WorkerThreadPriorityUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateSmtpNoOfTriesAsync(
+            int smtpNoOfTries,
+            CancellationToken cancellationToken)
+        {
+            SmtpNoOfTriesUpdateCount++;
+            UpdatedSmtpNoOfTries = smtpNoOfTries;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(SmtpNoOfTriesUpdateResult);
         }
 
         public ValueTask<bool> UpdateSmtpMinutesBetweenTryAsync(

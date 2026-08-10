@@ -636,7 +636,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.SMTPNoOfTries
                 : _administrationSnapshot.SmtpNoOfTries;
         }
-        set => base.SMTPNoOfTries = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.SMTPNoOfTries = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateSmtpNoOfTriesAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The SMTP number of tries update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SmtpNoOfTries = value
+                };
+            }
+        }
     }
 
     public override int SMTPMinutesBetweenTry
