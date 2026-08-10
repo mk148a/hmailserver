@@ -1,3 +1,22 @@
+## Current parity continuation (2026-08-10, authenticated disconnect-invalid-clients mutation)
+
+Code/test commit `2ee01f107` adds only authenticated
+`IInterfaceSettings.DisconnectInvalidClients` (`DispId(64)`, `VARIANT_BOOL`)
+persistence. The SQL command is parameterized and fixed to
+`settingname = N'disconnectinvalidclients'`; the live administrator callback is
+checked before store access and the retained snapshot changes only after a
+one-row success. Focused settings/SQL coverage is `43/43`; full Net10 is
+`2026 passed, 39 skipped, 0 failed`.
+
+Legacy references are `source/Server/hMailServer/hMailServer.idl:610-613`,
+`source/Server/COM/InterfaceSettings.cpp:1661-1693`,
+`source/Server/Common/Application/Configuration.cpp:488-498`,
+`source/Server/Common/Application/Property.cpp:36-78`, and
+`source/Server/Common/Application/Constants.h:89`. No COM identity, direct
+activation boundary, SMTP behavior, or runtime invalid-command reconfiguration
+path changed. Next slice: fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-10, authenticated invalid-command limit mutation)
 
 Code/test commit `9a7e418eb` adds only authenticated

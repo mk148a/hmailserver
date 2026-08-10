@@ -1,14 +1,14 @@
 # Current State
 - UTC/local timestamp: 2026-08-10T19:32:02Z / 2026-08-10T22:32:02+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `9a7e418eb`
+- Current HEAD: `2ee01f107`
 - Last successfully pushed commit: `0b2646731`
-- Latest focused-test result: settings COM/store tests 41 passed, 0 failed, 0 skipped
-- Latest full Net10 result: `2024 passed, 39 skipped, 0 failed`
+- Latest focused-test result: settings COM/store tests 43 passed, 0 failed, 0 skipped
+- Latest full Net10 result: `2026 passed, 39 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; SQL/Data rollback, SQL/FTS, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: authenticated `Settings.MaxNumberOfInvalidCommands` (`DispId(65)`) now persists only the fixed existing `hm_settings.maximumincorrectcommands` row through a parameterized update, rechecks the live administrator callback, and publishes the retained snapshot only after one-row success; the previously completed fixed-row settings mutations use the same bounded seam; SMTP disconnect-threshold runtime reconfiguration and other setters remain unchanged
+- Current bounded slice: authenticated `Settings.DisconnectInvalidClients` (`DispId(64)`) now persists only the fixed existing `hm_settings.disconnectinvalidclients` row through a parameterized integer update, rechecks the live administrator callback, and publishes the retained snapshot only after one-row success; the previously completed fixed-row settings mutations use the same bounded seam; SMTP invalid-command runtime reconfiguration and other setters remain unchanged
 - Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing/store/execution, combined settings/domain DB-only restore; no release milestone complete
 - Open production blockers: real disposable SQL/Data restore evidence, non-DB settings restore and reinitialize, live SQL/FTS backfill, credential policy, ACL restore, C++ protocol parity, paired SMTP/message-acceptance/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
 - Environment blocked work: healthy isolated C++ listener binary, SQL Server with Full-Text Search and supported legacy ADO provider, approved populated SQL/Data target, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) fresh legacy-first audit of the next low-risk Settings mutation after MaxNumberOfInvalidCommands, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision
+- Next three independent slices: (1) fresh legacy-first audit of the next low-risk Settings mutation after DisconnectInvalidClients, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision

@@ -2399,3 +2399,13 @@ implemented in code/test commit `9a7e418eb`, with focused settings/SQL coverage
 `SMTPConnection.cpp:2210-2219`. The next independent code slice is a fresh
 legacy-first audit of one remaining low-risk Settings mutation. Runtime
 disconnect-threshold reconfiguration is intentionally not part of this slice.
+## Current next slice (2026-08-10)
+
+The authenticated fixed-row `Settings.DisconnectInvalidClients` mutation is
+implemented in code/test commit `2ee01f107`, with focused settings/SQL coverage
+`43/43` and full Net10 `2026 passed, 39 skipped, 0 failed`. Legacy references:
+`hMailServer.idl:610-613`, `InterfaceSettings.cpp:1661-1693`,
+`Configuration.cpp:488-498`, `Property.cpp:36-78`, and `Constants.h:89`. The
+next independent code slice is a fresh legacy-first audit of one remaining
+low-risk Settings mutation. SMTP invalid-command runtime reconfiguration is
+intentionally not part of this slice.

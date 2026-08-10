@@ -1,5 +1,30 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, DISCONNECT INVALID CLIENTS MUTATION)
+
+Code/test commit `2ee01f107` implements only authenticated
+`Settings.DisconnectInvalidClients` (`DispId(64)`, `VARIANT_BOOL`) persistence.
+It preserves direct activation denial, rechecks the live administrator
+callback, updates the fixed `hm_settings.disconnectinvalidclients` row with a
+parameterized integer command, and changes the retained snapshot only after
+one-row success.
+
+Legacy anchors: `IInterfaceSettings.DisconnectInvalidClients`
+(`source/Server/hMailServer/hMailServer.idl:610-613`),
+`InterfaceSettings::put_DisconnectInvalidClients`
+(`source/Server/COM/InterfaceSettings.cpp:1661-1693`),
+`Configuration::SetDisconnectInvalidClients`
+(`source/Server/Common/Application/Configuration.cpp:488-498`),
+`Property::SetBoolValue` / `WriteLongSetting_`
+(`source/Server/Common/Application/Property.cpp:36-78`), and
+`PROPERTY_SMTPDISCONNECTINVALIDCLIENTS`
+(`source/Server/Common/Application/Constants.h:89`). Focused settings/SQL
+coverage is `43/43`; full Net10 is `2026 passed, 39 skipped, 0 failed`. SMTP
+invalid-command runtime reconfiguration was deliberately not added. Next
+slice: fresh legacy-first audit of one remaining low-risk Settings mutation.
+Real SQL/Data rollback, SEC-18, installer/out-of-process COM, matched protocol
+performance, and 24-hour soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, INVALID COMMAND LIMIT MUTATION)
 
 Code/test commit `9a7e418eb` implements only authenticated

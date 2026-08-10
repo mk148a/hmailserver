@@ -1,6 +1,34 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated disconnect-invalid-clients mutation)
+
+Code/test commit `2ee01f107` extends the existing authenticated Administrator
+settings seam to only `IInterfaceSettings.DisconnectInvalidClients`
+(`DispId(64)`, `VARIANT_BOOL`). It updates the fixed
+`hm_settings.disconnectinvalidclients` row with a parameterized integer
+command, requires one affected row, rechecks the live administrator callback,
+and publishes the retained snapshot only after success. Focused settings/SQL
+coverage is `43/43`; full Net10 is `2026 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.DisconnectInvalidClients`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:610-613`),
+`InterfaceSettings::put_DisconnectInvalidClients`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1661-1693`),
+`Configuration::SetDisconnectInvalidClients`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:488-498`),
+`Property::SetBoolValue` / `WriteLongSetting_`
+(`hmailserver/source/Server/Common/Application/Property.cpp:36-78`), and
+`PROPERTY_SMTPDISCONNECTINVALIDCLIENTS`
+(`hmailserver/source/Server/Common/Application/Constants.h:89`). SMTP
+invalid-command disconnect behavior and live runtime reconfiguration remain
+unchanged.
+
+Release remains RED: disposable SQL/Data rollback, SQL/FTS, matched legacy and
+.NET protocol load evidence, SEC-18 cutover, installer/out-of-process COM, and
+24-hour soak remain unproven. Next slice is a fresh legacy-first audit of one
+remaining low-risk Settings mutation.
+
 ## Current parity continuation (2026-08-10, authenticated invalid-command limit mutation)
 
 Code/test commit `9a7e418eb` extends the existing authenticated Administrator
