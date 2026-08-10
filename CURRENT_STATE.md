@@ -1,8 +1,8 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T05:40:00Z / 2026-08-10T08:40:00+03:00
+- UTC/local timestamp: 2026-08-10T05:48:00Z / 2026-08-10T08:48:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `7f9ab61b5` (docs/state; latest code/test `edacbde75`)
-- Last successfully pushed commit: `5c6265b4b`
+- Current HEAD: `3ea635327` (docs/state; latest code/test `edacbde75`)
+- Last successfully pushed commit: `3ea635327`
 - Latest focused-test result: offline benchmark pack `4 passed, 0 skipped, 0 failed`; Accounts verifier seam `60 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: `1984 passed, 32 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL/Data restore, live SQL/FTS, protocol/load, service/COM, installer, AD/DC, SEC-18, crash/power-loss, and soak remain skipped or blocked; disposable SQL connection/isolated-create opt-in unset
