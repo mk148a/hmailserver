@@ -295,6 +295,10 @@ public sealed class SettingsComContractTests
         var userInterfaceLanguageError = Assert.ThrowsExactly<COMException>(() => _ = settings.UserInterfaceLanguage);
         var rewriteEnvelopeError = Assert.ThrowsExactly<COMException>(() => _ = settings.RewriteEnvelopeFromWhenForwarding);
         var crashSimulationError = Assert.ThrowsExactly<COMException>(() => _ = settings.CrashSimulationMode);
+        var relayerAuthenticationError = Assert.ThrowsExactly<COMException>(
+            () => _ = settings.SMTPRelayerRequiresAuthentication);
+        var relayerAuthenticationSetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerRequiresAuthentication = true);
         var defaultDomainSetterError = Assert.ThrowsExactly<COMException>(
             () => settings.DefaultDomain = "direct-activation.example.test");
         var workerThreadPrioritySetterError = Assert.ThrowsExactly<COMException>(
@@ -362,6 +366,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, userInterfaceLanguageError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rewriteEnvelopeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, crashSimulationError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayerAuthenticationError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayerAuthenticationSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, defaultDomainSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, workerThreadPrioritySetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, tcpIpThreadsError.ErrorCode);
@@ -557,9 +563,6 @@ public sealed class SettingsComContractTests
             Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayer = "other-relay.example.test").ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayerRequiresAuthentication = false).ErrorCode);
-        Assert.AreEqual(
-            ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayerUsername = "other-user").ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
@@ -738,6 +741,54 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(2, store.UpdateCount);
         Assert.AreEqual("new.example.test", settings.DefaultDomain);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SmtpRelayerRequiresAuthenticationSetterPersistsDirectBooleanBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpRelayerRequiresAuthenticationUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpRelayerRequiresAuthentication: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.SMTPRelayerRequiresAuthentication = true;
+
+        Assert.AreEqual(1, store.SmtpRelayerRequiresAuthenticationUpdateCount);
+        Assert.IsTrue(store.UpdatedSmtpRelayerRequiresAuthentication);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.SMTPRelayerRequiresAuthentication);
+
+        settings.SMTPRelayerRequiresAuthentication = false;
+
+        Assert.AreEqual(2, store.SmtpRelayerRequiresAuthenticationUpdateCount);
+        Assert.IsFalse(store.UpdatedSmtpRelayerRequiresAuthentication);
+        Assert.IsFalse(settings.SMTPRelayerRequiresAuthentication);
+
+        store.SmtpRelayerRequiresAuthenticationUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerRequiresAuthentication = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(3, store.SmtpRelayerRequiresAuthenticationUpdateCount);
+        Assert.IsFalse(settings.SMTPRelayerRequiresAuthentication);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerRequiresAuthentication = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(3, store.SmtpRelayerRequiresAuthenticationUpdateCount);
+        Assert.IsFalse(settings.SMTPRelayerRequiresAuthentication);
     }
 
     [TestMethod]
@@ -1904,6 +1955,12 @@ public sealed class SettingsComContractTests
 
         public bool MirrorUpdateResult { get; set; }
 
+        public bool SmtpRelayerRequiresAuthenticationUpdateResult { get; set; }
+
+        public int SmtpRelayerRequiresAuthenticationUpdateCount { get; private set; }
+
+        public bool UpdatedSmtpRelayerRequiresAuthentication { get; private set; }
+
         public int UpdateCount { get; private set; }
 
         public string? UpdatedDefaultDomain { get; private set; }
@@ -2063,6 +2120,16 @@ public sealed class SettingsComContractTests
             MirrorUpdateCount++;
             UpdatedMirrorEmailAddress = mirrorEmailAddress;
             return ValueTask.FromResult(MirrorUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateSmtpRelayerRequiresAuthenticationAsync(
+            bool smtpRelayerRequiresAuthentication,
+            CancellationToken cancellationToken)
+        {
+            SmtpRelayerRequiresAuthenticationUpdateCount++;
+            UpdatedSmtpRelayerRequiresAuthentication = smtpRelayerRequiresAuthentication;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(SmtpRelayerRequiresAuthenticationUpdateResult);
         }
 
         public ValueTask<bool> UpdateWelcomePop3Async(

@@ -952,7 +952,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.SMTPRelayerRequiresAuthentication
                 : _administrationSnapshot.SmtpRelayerRequiresAuthentication;
         }
-        set => base.SMTPRelayerRequiresAuthentication = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.SMTPRelayerRequiresAuthentication = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateSmtpRelayerRequiresAuthenticationAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The SMTP relayer authentication requirement update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SmtpRelayerRequiresAuthentication = value
+                };
+            }
+        }
     }
 
     public override string SMTPRelayerUsername
