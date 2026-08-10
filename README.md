@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, message failure rollback)
+
+Code/test commit `f144fbf86` closes the bounded restore rollback gap exposed by
+the legacy-first audit. Legacy `BackupExecuter::RestoreDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:339-388`) stages the raw
+DataBackup tree before `Collection::XMLLoad`
+(`source/Server/Common/BO/Collection.h:85-135`) inserts message metadata;
+legacy failure can leave raw-file and partial SQL residue. The .NET path now
+records each restored root folder immediately after insertion, so a first
+message insert failure can delete the whole root tree during compensating
+rollback. Focused writer coverage is `3/3`; full default Net10 is `1994
+passed, 38 skipped, 0 failed`. The destructive SQL/Data failure test is
+present but skipped without the approved disposable SQL opt-in, so release
+remains RED.
+
 ## Current parity continuation (2026-08-10, raw message-file restore acceptance)
 
 Test commit `84ca67ee4` proves a disposable non-DB restore with the real raw

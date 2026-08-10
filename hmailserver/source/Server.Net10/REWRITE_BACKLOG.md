@@ -1,4 +1,28 @@
 
+## Current Audit Note (2026-08-10, MESSAGE-INSERT FAILURE ROLLBACK)
+
+Code/test commit `f144fbf86` closes the narrow root-folder tracking gap in the
+non-DB restore rollback path. Legacy `BackupExecuter::RestoreDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:339-388`) copies raw
+DataBackup before metadata loading, while `Collection::XMLLoad`
+(`source/Server/Common/BO/Collection.h:85-135`) propagates failed message
+insertion without cleanup. The .NET writer now registers a root folder as soon
+as its row exists, before message/child insertion, allowing the existing
+folder-tree rollback to remove an incomplete tree. Unit coverage is `3/3` and
+full default Net10 is `1994 passed, 38 skipped, 0 failed`.
+
+The executor-level disposable SQL/Data test
+`RestoreExecutor_RollsBackRootFolderWhenMessageInsertFailsAfterDataStaging`
+asserts original data restoration, staged raw-file removal, journal/artifact
+cleanup, and empty domains/accounts/folders/messages. It remains environment
+blocked because `HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION` and
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1` are not
+configured. Do not claim this destructive rollback gate as PASS until it runs.
+
+Next independent slice: restore message recipients/search metadata with the
+same ownership and rollback evidence, or unblock the disposable SQL/Data
+acceptance before expanding restore scope.
+
 ## Current Audit Note (2026-08-10, OFFLINE 100K IMAP SEARCH/SORT ACCEPTANCE)
 
 The existing benchmark pack passed its current-HEAD offline synthetic 100,000-message IMAP SEARCH/SORT acceptance. Run result: seed `5700`, expected matches `9,091`, `DATE DESC, UID ASC`, correctness true, p50 `6.888 ms`, p95 `7.276 ms`, p99 `7.324 ms`, p95 threshold `<=2500 ms`, and JSON/CSV/Markdown artifacts emitted under a unique `%TEMP%` directory. Focused benchmark tests passed `4/4`; no repository artifact was staged. This remains diagnostic synthetic evidence only and does not close live SQL/FTS, 1,000 concurrent IMAP, SMTP/delivery throughput, C++ baseline, or 24-hour soak gates.

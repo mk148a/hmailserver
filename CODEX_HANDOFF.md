@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-10, MESSAGE FAILURE ROLLBACK)
+
+Code/test commit `f144fbf86` records the restored root folder before message
+insertion. If the first message insert fails, the existing non-DB rollback can
+now delete the incomplete folder tree as well as restore the original data
+directory. Legacy anchors are
+`source/Server/Common/Application/BackupExecuter.cpp:339-388`
+(`BackupExecuter::RestoreDataDirectory_`) and
+`source/Server/Common/BO/Collection.h:85-135` (`Collection::XMLLoad`).
+
+Focused writer tests pass `3/3`; full default Net10 passes `1994 passed, 38
+skipped, 0 failed`. The actual disposable SQL/Data executor test is present but
+skipped because the approved SQL connection and isolated-create opt-in are
+absent. It must not be reported as PASS; release remains RED. Next slice is
+message recipients/search metadata restore or the same test with a real
+approved disposable target.
+
 ## Current Authoritative Continuation (2026-08-10, RAW MESSAGE-FILE RESTORE)
 
 Test commit `84ca67ee4` proves the isolated executor path against a valid raw

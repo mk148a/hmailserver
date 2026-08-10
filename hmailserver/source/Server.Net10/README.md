@@ -1,3 +1,15 @@
+## Current Authoritative Continuation (2026-08-10, message failure rollback)
+
+Code/test commit `f144fbf86` records each restored root folder before its
+messages are inserted. This makes non-DB compensating rollback cover the root
+folder tree when the first `InsertMessageForRestoreAsync` fails. Legacy
+references are `BackupExecuter::RestoreDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:339-388`) and
+`Collection::XMLLoad` (`source/Server/Common/BO/Collection.h:85-135`). The
+focused writer suite passes `3/3`; default full Net10 passes `1994/38/0`.
+The destructive SQL/Data executor test is still skipped until an approved
+disposable target is configured; release remains RED.
+
 ## Current Authoritative Continuation (2026-08-10, raw message-file restore acceptance)
 
 Test commit `84ca67ee4` proves the executor path with a disposable external

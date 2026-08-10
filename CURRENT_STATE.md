@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T17:20:49Z / 2026-08-10T20:20:49+03:00
+- UTC/local timestamp: 2026-08-10T17:43:21Z / 2026-08-10T20:43:21+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `84ca67ee4`
+- Current HEAD: `f144fbf86`
 - Last successfully pushed commit: `0b2646731`
-- Latest focused-test result: disposable raw DataBackup executor restore and message UID readback passed; full restore group `13 passed, 0 failed, 0 skipped`
-- Latest full Net10 result: default `1993 passed, 37 skipped, 0 failed`; SQL opt-in `2021 passed, 2 skipped, 6 unrelated existing message/indexing fixture failures`
-- Opt-in tests passed/skipped/blocked: valid raw message-file graph passed; injected message failure cleanup, recipients/search/ACL, C++ listener parity, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain blocked or skipped
-- Current bounded slice: valid raw message-file executor restore complete; next slice is injected message failure and DataBackup rollback cleanup
-- Completed milestones: backup raw staging, disposable restore transaction foundations, FetchAccount/UID restore, Rules/Criteria/Actions restore, folder metadata restore, message metadata restore, raw message-file executor acceptance, failed-commit rollback, COM/Admin slices, and benchmark harness; no production release gate complete
-- Open production blockers: failure cleanup and crash-safe SQL/filesystem recovery, recipients/search/ACL/settings restore, reproducible C++ IMAP/POP3 runtime, paired SMTP/delivery evidence, SEC-18, migration/installer, service/out-of-process COM, AD/DC, and 24-hour soak
-- Environment-blocked work: message failure-injection graph, normal legacy C++ runtime exposing all listeners, SQL FTS/legacy ADO paired baseline, approved IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
+- Latest focused-test result: writer `3 passed, 0 failed`; SQL/Data message-failure executor test compiled but was skipped without disposable SQL opt-in
+- Latest full Net10 result: `1994 passed, 38 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; message-failure SQL/Data rollback, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
+- Current bounded slice: message-insert failure rollback now tracks the root folder before message/child insertion
+- Completed milestones: raw backup staging, disposable restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, and root-folder failure cleanup; no release milestone complete
+- Open production blockers: approved destructive SQL/Data acceptance, recipients/search/ACL/settings restore, C++ protocol parity, paired SMTP/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
+- Environment blocked work: approved disposable SQL/Data target, legacy C++ runtime, SQL FTS/ADO baseline, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) raw message failure rollback/cleanup, (2) message recipients/search metadata restore, (3) settings restore graph and filesystem/SQL atomicity
+- Next three independent slices: (1) message recipients/search metadata restore, (2) settings restore graph and filesystem/SQL atomicity, (3) paired C++/.NET protocol and delivery acceptance when runtime infrastructure exists
