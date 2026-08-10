@@ -6,8 +6,15 @@ namespace HMailServer.Storage.SqlServer;
 
 public sealed class SqlServerSettingsAdministrationStore :
     ISettingsAdministrationStore,
+    ISettingsAdministrationMutationStore,
     IBackupSettingsPropertyStore
 {
+    public const string UpdateDefaultDomainSql = """
+UPDATE hm_settings
+SET settingstring = @DefaultDomain
+WHERE settingname = N'defaultdomain';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -244,6 +251,17 @@ WHERE settingname <> N'smtprelayerpassword'
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    public async ValueTask<bool> UpdateDefaultDomainAsync(
+        string defaultDomain,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateDefaultDomainSql, connection);
+        command.Parameters.Add("@DefaultDomain", SqlDbType.NVarChar, 255).Value = defaultDomain;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
     public async ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(

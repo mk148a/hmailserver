@@ -424,6 +424,7 @@ public interface IInterfaceSettings
 public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundary
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int TlsVersion10Flag = 2;
     private const int TlsVersion11Flag = 4;
     private const int TlsVersion12Flag = 8;
@@ -431,9 +432,10 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
     private const int TlsOptionPreferServerCiphersFlag = 2;
     private const int TlsOptionPrioritizeChaChaFlag = 4;
     private readonly bool _authorized;
-    private readonly SettingsAdministrationSnapshot? _administrationSnapshot;
+    private SettingsAdministrationSnapshot? _administrationSnapshot;
     private readonly SettingsRuntimeConfiguration _runtimeConfiguration = new();
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly ISettingsAdministrationMutationStore? _settingsMutationStore;
 
     public Settings()
     {
@@ -443,12 +445,14 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         bool authorized,
         SettingsAdministrationSnapshot? administrationSnapshot = null,
         SettingsRuntimeConfiguration? runtimeConfiguration = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        ISettingsAdministrationMutationStore? settingsMutationStore = null)
     {
         _authorized = authorized;
         _administrationSnapshot = administrationSnapshot;
         _runtimeConfiguration = runtimeConfiguration ?? new SettingsRuntimeConfiguration();
         _isServerAdministrator = isServerAdministrator;
+        _settingsMutationStore = settingsMutationStore;
     }
 
     public override string UserInterfaceLanguage
@@ -814,7 +818,31 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.DefaultDomain
                 : _administrationSnapshot.DefaultDomain;
         }
-        set => base.DefaultDomain = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+            if (_settingsMutationStore is null)
+            {
+                base.DefaultDomain = value;
+                return;
+            }
+
+            var persisted = _settingsMutationStore
+                .UpdateDefaultDomainAsync(value, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+            if (!persisted)
+            {
+                throw new COMException("The default domain update did not affect the existing settings row.", EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with { DefaultDomain = value };
+            }
+        }
     }
 
     public override string SMTPDeliveryBindToIP
@@ -1456,14 +1484,16 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
     internal static Settings CreateAuthorized(
         SettingsAdministrationSnapshot snapshot,
         SettingsRuntimeConfiguration? runtimeConfiguration = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        ISettingsAdministrationMutationStore? settingsMutationStore = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new Settings(
             authorized: true,
             administrationSnapshot: snapshot,
             runtimeConfiguration: runtimeConfiguration,
-            isServerAdministrator: isServerAdministrator);
+            isServerAdministrator: isServerAdministrator,
+            settingsMutationStore: settingsMutationStore);
     }
 
     void ISettingsAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
@@ -1599,7 +1629,8 @@ public static class SettingsAdministrationRuntimeHost
 {
     private sealed record RuntimeConfiguration(
         ISettingsAdministrationStore Store,
-        SettingsRuntimeConfiguration Settings);
+        SettingsRuntimeConfiguration Settings,
+        ISettingsAdministrationMutationStore? MutationStore);
 
     private static RuntimeConfiguration? _configuration;
 
@@ -1610,7 +1641,10 @@ public static class SettingsAdministrationRuntimeHost
         ArgumentNullException.ThrowIfNull(store);
         Volatile.Write(
             ref _configuration,
-            new RuntimeConfiguration(store, settings ?? new SettingsRuntimeConfiguration()));
+            new RuntimeConfiguration(
+                store,
+                settings ?? new SettingsRuntimeConfiguration(),
+                store as ISettingsAdministrationMutationStore));
     }
 
     internal static Settings CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
@@ -1627,7 +1661,11 @@ public static class SettingsAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return Settings.CreateAuthorized(snapshot, configuration.Settings, isServerAdministrator);
+        return Settings.CreateAuthorized(
+            snapshot,
+            configuration.Settings,
+            isServerAdministrator,
+            configuration.MutationStore);
     }
 }
 

@@ -6,6 +6,19 @@ namespace HMailServer.Net10.Tests;
 public sealed class SqlServerSettingsAdministrationStoreTests
 {
     [TestMethod]
+    public void UpdateDefaultDomainSql_UpdatesOnlyTheExistingDefaultDomainRowWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateDefaultDomainSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settingstring = @DefaultDomain");
+        StringAssert.Contains(sql, "WHERE settingname = N'defaultdomain'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void GetSettingsSql_ReadsOnlyBoundedLegacyAdministrationScalars()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;

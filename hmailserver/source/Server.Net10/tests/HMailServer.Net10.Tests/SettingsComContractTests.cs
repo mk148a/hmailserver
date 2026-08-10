@@ -206,6 +206,8 @@ public sealed class SettingsComContractTests
         var userInterfaceLanguageError = Assert.ThrowsExactly<COMException>(() => _ = settings.UserInterfaceLanguage);
         var rewriteEnvelopeError = Assert.ThrowsExactly<COMException>(() => _ = settings.RewriteEnvelopeFromWhenForwarding);
         var crashSimulationError = Assert.ThrowsExactly<COMException>(() => _ = settings.CrashSimulationMode);
+        var defaultDomainSetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.DefaultDomain = "direct-activation.example.test");
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -230,6 +232,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, userInterfaceLanguageError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rewriteEnvelopeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, crashSimulationError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, defaultDomainSetterError.ErrorCode);
     }
 
     [TestMethod]
@@ -566,6 +569,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_DefaultDomainSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            UpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                DefaultDomain: "old.example.test"),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.DefaultDomain = "new.example.test";
+
+        Assert.AreEqual(1, store.UpdateCount);
+        Assert.AreEqual("new.example.test", store.UpdatedDefaultDomain);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual("new.example.test", settings.DefaultDomain);
+
+        store.UpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.DefaultDomain = "failed.example.test");
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.UpdateCount);
+        Assert.AreEqual("new.example.test", settings.DefaultDomain);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.DefaultDomain = "denied.example.test");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.UpdateCount);
+        Assert.AreEqual("new.example.test", settings.DefaultDomain);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -729,6 +774,27 @@ public sealed class SettingsComContractTests
             CallCount++;
             CancellationToken = cancellationToken;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class FakeSettingsAdministrationMutationStore : ISettingsAdministrationMutationStore
+    {
+        public bool UpdateResult { get; set; }
+
+        public int UpdateCount { get; private set; }
+
+        public string? UpdatedDefaultDomain { get; private set; }
+
+        public CancellationToken CancellationToken { get; private set; }
+
+        public ValueTask<bool> UpdateDefaultDomainAsync(
+            string defaultDomain,
+            CancellationToken cancellationToken)
+        {
+            UpdateCount++;
+            UpdatedDefaultDomain = defaultDomain;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
         }
     }
 
