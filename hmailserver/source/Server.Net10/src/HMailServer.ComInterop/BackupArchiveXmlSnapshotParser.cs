@@ -65,6 +65,21 @@ public static class BackupArchiveXmlSnapshotParser
             .ToArray();
     }
 
+    internal static IReadOnlyList<BackupSettingsPropertySnapshot> ParseSettingsProperties(string archiveXml)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = ParseDocument(archiveXml);
+        var properties = document.Root?.Element("Properties")?.Elements()
+            ?? Enumerable.Empty<XElement>();
+
+        return properties
+            .Select(property => new BackupSettingsPropertySnapshot(
+                Name: property.Name.LocalName,
+                LongValue: LongAttr(property, "LongValue"),
+                StringValue: property.Attribute("StringValue")?.Value ?? string.Empty))
+            .ToArray();
+    }
+
     public static IReadOnlyList<DistributionListRecipientAdministrationSnapshot> ParseDistributionListRecipients(
         string archiveXml,
         int distributionListId)

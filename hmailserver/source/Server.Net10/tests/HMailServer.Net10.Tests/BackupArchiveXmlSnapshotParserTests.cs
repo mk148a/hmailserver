@@ -85,6 +85,62 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParseSettingsProperties_AllowsAbsentProperties()
+    {
+        var properties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties("<Backup />");
+
+        Assert.AreEqual(0, properties.Count);
+    }
+
+    [TestMethod]
+    public void ParseSettingsProperties_PreservesKnownUnknownAndDuplicateNodesInOrder()
+    {
+        const string xml = """
+            <Backup>
+              <Properties>
+                <relaymode LongValue="2" StringValue="first" />
+                <unknown-setting LongValue="7" StringValue="unknown" />
+                <relaymode LongValue="3" StringValue="second" />
+              </Properties>
+            </Backup>
+            """;
+
+        var properties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(xml);
+
+        Assert.AreEqual(3, properties.Count);
+        Assert.AreEqual(("relaymode", 2L, "first"),
+            (properties[0].Name, properties[0].LongValue, properties[0].StringValue));
+        Assert.AreEqual(("unknown-setting", 7L, "unknown"),
+            (properties[1].Name, properties[1].LongValue, properties[1].StringValue));
+        Assert.AreEqual(("relaymode", 3L, "second"),
+            (properties[2].Name, properties[2].LongValue, properties[2].StringValue));
+    }
+
+    [TestMethod]
+    public void ParseSettingsProperties_UsesLegacyDefaultsForMissingAndInvalidAttributes()
+    {
+        const string xml = """
+            <Backup>
+              <Properties>
+                <missing-long StringValue="present" />
+                <invalid-long LongValue="not-a-number" />
+                <missing-both />
+              </Properties>
+            </Backup>
+            """;
+
+        var properties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(xml);
+
+        Assert.AreEqual(3, properties.Count);
+        Assert.AreEqual(0L, properties[0].LongValue);
+        Assert.AreEqual("present", properties[0].StringValue);
+        Assert.AreEqual(0L, properties[1].LongValue);
+        Assert.AreEqual(string.Empty, properties[1].StringValue);
+        Assert.AreEqual(0L, properties[2].LongValue);
+        Assert.AreEqual(string.Empty, properties[2].StringValue);
+    }
+
+    [TestMethod]
     public async Task RestoreAccountsAsync_ReplaysParsedArchiveIntoAccountStore()
     {
         var store = new RecordingAccountStore();
