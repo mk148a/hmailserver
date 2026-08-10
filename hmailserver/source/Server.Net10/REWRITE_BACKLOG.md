@@ -2505,6 +2505,35 @@ out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
 environment-blocked. Next slice: fresh legacy-first audit of one remaining
 low-risk Settings mutation.
 
+## Current Audit Note (2026-08-11, TCPIP THREADS ADMIN MUTATION)
+
+Code/test commit `2752b90ad` implements the authenticated
+`IInterfaceSettings.TCPIPThreads` setter (`DispId(60)`) only. The .NET path
+updates the existing `hm_settings.tcpipthreads` row through a parameterized
+integer command, requires exactly one affected row, rechecks the live
+server-administrator callback, and publishes the retained snapshot only after
+success. Direct activation denial, failed-write retention, administrator
+revocation, one-row enforcement, and exact SQL shape are covered. Focused
+settings/store coverage is `66/66`; full Net10 is `2049 passed, 39 skipped, 0
+failed`.
+
+Legacy anchors are `IInterfaceSettings.TCPIPThreads`
+(`source/Server/hMailServer/hMailServer.idl:522`),
+`InterfaceSettings::put_TCPIPThreads`
+(`source/Server/COM/InterfaceSettings.cpp:1530`),
+`Configuration::SetTCPIPThreads`
+(`source/Server/Common/Application/Configuration.cpp:142`),
+`IOService::DoWork` (`source/Server/Common/TCPIP/IOService.cpp:66`), and the
+`tcpipthreads` SQL seed (`source/DBScripts/CreateTablesMSSQL.sql:840`). IOService
+worker creation and runtime reconfiguration were deliberately not changed;
+this is persistence parity only.
+
+Real SQL/Data rollback, non-DB settings restore/reinitialization, SQL/FTS,
+paired legacy/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
+environment-blocked. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation.
+
 ## Current Audit Note (2026-08-11, MAX IMAP CONNECTIONS ADMIN MUTATION)
 
 Code/test commit `ab1c7c721` implements the authenticated

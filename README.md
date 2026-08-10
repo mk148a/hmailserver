@@ -1,6 +1,34 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, TCPIPThreads mutation)
+
+Code/test commit `2752b90ad` implements only the authenticated
+`IInterfaceSettings.TCPIPThreads` setter (`DispId(60)`). It updates the
+existing `hm_settings.tcpipthreads` row through a parameterized integer
+command, requires one affected row, rechecks the live server-administrator
+callback, and publishes the retained snapshot only after success. Direct
+activation denial, failed-write retention, administrator revocation, one-row
+enforcement, and SQL command shape are covered. Focused settings/store
+coverage is `66/66`; full Net10 is `2049 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.TCPIPThreads`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:522`),
+`InterfaceSettings::put_TCPIPThreads`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1530`),
+`Configuration::SetTCPIPThreads`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:142`),
+`IOService::DoWork` startup consumption
+(`hmailserver/source/Server/Common/TCPIP/IOService.cpp:66`), and the
+`tcpipthreads` SQL seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:840`).
+IOService worker creation and runtime reconfiguration remain unchanged.
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched legacy/.NET protocol load, SEC-18 cutover,
+installer/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain
+unproven. Next slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, MaxIMAPConnections mutation)
 
 Code/test commit `ab1c7c721` implements only the authenticated

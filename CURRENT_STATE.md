@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T22:57:26Z / 2026-08-11T01:57:26+03:00
+- UTC/local timestamp: 2026-08-10T23:09:14Z / 2026-08-11T02:09:14+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `ab1c7c721`
+- Current HEAD: `2752b90ad`
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: settings COM/store tests 64 passed, 0 failed, 0 skipped
-- Latest full Net10 result: `2047 passed, 39 skipped, 0 failed`
+- Latest focused-test result: settings COM/store tests 66 passed, 0 failed, 0 skipped
+- Latest full Net10 result: `2049 passed, 39 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; SQL/Data rollback, SQL/FTS, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: authenticated `Settings.MaxIMAPConnections` (`DispId(53)`) now persists only the fixed existing `hm_settings.maximapconnections` row through a parameterized integer update, rechecks the live administrator callback, and publishes the retained snapshot only after one-row success; IMAP listener/runtime connection-limit behavior and reconfiguration remain unchanged
+- Current bounded slice: authenticated `Settings.TCPIPThreads` (`DispId(60)`) now persists only the fixed existing `hm_settings.tcpipthreads` row through a parameterized integer update, rechecks the live administrator callback, and publishes the retained snapshot only after one-row success; IOService worker creation/runtime behavior and reconfiguration remain unchanged
 - Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing/store/execution, combined settings/domain DB-only restore; no release milestone complete
 - Open production blockers: real disposable SQL/Data restore evidence, non-DB settings restore and reinitialize, live SQL/FTS backfill, credential policy, ACL restore, C++ protocol parity, paired SMTP/message-acceptance/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
 - Environment blocked work: healthy isolated C++ listener binary, SQL Server with Full-Text Search and supported legacy ADO provider, approved populated SQL/Data target, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) fresh legacy-first audit of the next low-risk Settings mutation after MaxIMAPConnections, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision
+- Next three independent slices: (1) fresh legacy-first audit of the next low-risk Settings mutation after TCPIPThreads, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision

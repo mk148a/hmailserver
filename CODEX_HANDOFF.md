@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, TCPIP THREADS MUTATION)
+
+Code/test commit `2752b90ad` implements only authenticated
+`Settings.TCPIPThreads` (`DispId(60)`) persistence. It preserves the installed
+COM identity and direct activation denial, rechecks the live administrator
+callback, updates only the existing `hm_settings.tcpipthreads` row with a
+parameterized integer command, and changes the retained snapshot only after
+one-row success.
+
+Legacy anchors: `IInterfaceSettings.TCPIPThreads`
+(`source/Server/hMailServer/hMailServer.idl:522`),
+`InterfaceSettings::put_TCPIPThreads`
+(`source/Server/COM/InterfaceSettings.cpp:1530`),
+`Configuration::SetTCPIPThreads`
+(`source/Server/Common/Application/Configuration.cpp:142`),
+`IOService::DoWork` (`source/Server/Common/TCPIP/IOService.cpp:66`), and the
+`tcpipthreads` SQL seed (`source/DBScripts/CreateTablesMSSQL.sql:840`).
+Focused settings/store coverage is `66/66`; full Net10 is `2049 passed, 39
+skipped, 0 failed`. IOService worker creation/runtime reconfiguration was
+deliberately not added.
+
+Release remains RED for real SQL/Data rollback, non-DB restore/reinitialization,
+SQL/FTS, matched C++/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak. Next slice:
+fresh legacy-first audit of one remaining low-risk Settings mutation. Do not
+push.
+
 # Current Authoritative Continuation (2026-08-11, MAX IMAP CONNECTIONS MUTATION)
 
 Code/test commit `ab1c7c721` implements only authenticated
