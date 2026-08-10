@@ -2,7 +2,7 @@
 - UTC/local timestamp: 2026-08-10T21:33:09Z / 2026-08-11T00:33:09+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
 - Current HEAD: `b970bf00c`
-- Last successfully pushed commit: `e40c60de4`
+- Last successfully pushed commit: `9d4b3791e`
 - Latest focused-test result: settings COM/store tests 51 passed, 0 failed, 0 skipped
 - Latest full Net10 result: `2034 passed, 39 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; SQL/Data rollback, SQL/FTS, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
