@@ -648,7 +648,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.SMTPMinutesBetweenTry
                 : _administrationSnapshot.SmtpMinutesBetweenTry;
         }
-        set => base.SMTPMinutesBetweenTry = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.SMTPMinutesBetweenTry = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateSmtpMinutesBetweenTryAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The SMTP minutes between try update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SmtpMinutesBetweenTry = value
+                };
+            }
+        }
     }
 
     public override string SMTPRelayer

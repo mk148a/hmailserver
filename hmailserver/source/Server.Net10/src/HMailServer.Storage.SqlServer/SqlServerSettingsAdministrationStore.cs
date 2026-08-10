@@ -45,6 +45,12 @@ SET settinginteger = @WorkerThreadPriority
 WHERE settingname = N'workerthreadpriority';
 """;
 
+    public const string UpdateSmtpMinutesBetweenTrySql = """
+UPDATE hm_settings
+SET settinginteger = @SMTPMinutesBetweenTry
+WHERE settingname = N'smtpminutesbetweenretries';
+""";
+
     public const string UpdateMaxSmtpConnectionsSql = """
 UPDATE hm_settings
 SET settinginteger = @MaxSMTPConnections
@@ -393,6 +399,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateWorkerThreadPrioritySql, connection);
         command.Parameters.Add("@WorkerThreadPriority", SqlDbType.Int).Value = workerThreadPriority;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateSmtpMinutesBetweenTryAsync(
+        int smtpMinutesBetweenTry,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateSmtpMinutesBetweenTrySql, connection);
+        command.Parameters.Add("@SMTPMinutesBetweenTry", SqlDbType.Int).Value = smtpMinutesBetweenTry;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

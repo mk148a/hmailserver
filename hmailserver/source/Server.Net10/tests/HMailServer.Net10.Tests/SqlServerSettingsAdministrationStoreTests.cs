@@ -84,6 +84,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateSmtpMinutesBetweenTrySql_UpdatesOnlyTheExistingRowWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateSmtpMinutesBetweenTrySql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settinginteger = @SMTPMinutesBetweenTry");
+        StringAssert.Contains(sql, "WHERE settingname = N'smtpminutesbetweenretries'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateMaxSmtpConnectionsSql_UpdatesOnlyTheExistingMaxSmtpConnectionsRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateMaxSmtpConnectionsSql;
