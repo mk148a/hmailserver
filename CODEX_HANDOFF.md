@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, SMTP RETRY INTERVAL MUTATION)
+
+Code/test commit `b970bf00c` implements only authenticated
+`Settings.SMTPMinutesBetweenTry` (`DispId(20)`) persistence. It preserves direct
+activation denial, rechecks the live administrator callback, updates the fixed
+`hm_settings.smtpminutesbetweenretries` row with a parameterized integer
+command, and changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.SMTPMinutesBetweenTry`
+(`source/Server/hMailServer/hMailServer.idl:543-544`),
+`InterfaceSettings::put_SMTPMinutesBetweenTry`
+(`source/Server/COM/InterfaceSettings.cpp:500-535`),
+`SMTPConfiguration::SetMinutesBetweenTry`
+(`source/Server/SMTP/SMTPConfiguration.cpp:101-109`),
+`PROPERTY_SMTPMINUTESBETWEEN`
+(`source/Server/Common/Application/Constants.h:12`), and the
+`smtpminutesbetweenretries` schema seed. Focused settings/SQL coverage is
+`51/51`; full Net10 is `2034 passed, 39 skipped, 0 failed`. External retry
+scheduling and runtime reconfiguration were deliberately not added. Next
+slice: fresh legacy-first audit of one remaining low-risk Settings mutation.
+Real SQL/Data rollback, SEC-18, installer/out-of-process COM, matched protocol
+performance, and 24-hour soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, INCORRECT LINE ENDINGS MUTATION)
 
 Code/test commit `9a7687365` implements only authenticated

@@ -1,3 +1,22 @@
+## Current parity continuation (2026-08-11, authenticated SMTP retry interval mutation)
+
+Code/test commit `b970bf00c` adds only authenticated
+`IInterfaceSettings.SMTPMinutesBetweenTry` (`DispId(20)`) persistence. The SQL
+command is parameterized and fixed to
+`settingname = N'smtpminutesbetweenretries'`; the live administrator callback
+is checked before store access and the retained snapshot changes only after a
+one-row success. Focused settings/SQL coverage is `51/51`; full Net10 is
+`2034 passed, 39 skipped, 0 failed`.
+
+Legacy references are `source/Server/hMailServer/hMailServer.idl:543-544`,
+`source/Server/COM/InterfaceSettings.cpp:500-535`,
+`source/Server/SMTP/SMTPConfiguration.cpp:101-109`,
+`source/Server/Common/Application/Constants.h:12`, and
+`source/DBScripts/CreateTablesMSSQL.sql:744`. No COM identity, direct
+activation boundary, `ExternalDelivery`, retry scheduling, or runtime
+reconfiguration path changed. Next slice: fresh legacy-first audit of one
+remaining low-risk Settings mutation.
+
 ## Current parity continuation (2026-08-11, authenticated incorrect-line-endings mutation)
 
 Code/test commit `9a7687365` adds only authenticated

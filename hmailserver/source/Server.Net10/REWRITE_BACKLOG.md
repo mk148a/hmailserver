@@ -2441,3 +2441,14 @@ implemented in code/test commit `9a7687365`, with focused settings/SQL coverage
 is a fresh legacy-first audit of one remaining low-risk Settings mutation.
 SMTP behavior and runtime reconfiguration are intentionally not part of this
 slice.
+## Current next slice (2026-08-11)
+
+The authenticated fixed-row `Settings.SMTPMinutesBetweenTry` mutation is
+implemented in code/test commit `b970bf00c`, with focused settings/SQL coverage
+`51/51` and full Net10 `2034 passed, 39 skipped, 0 failed`. Legacy references:
+`hMailServer.idl:543-544`, `InterfaceSettings.cpp:500-535`,
+`SMTPConfiguration.cpp:101-109`, `Constants.h:12`, and
+`CreateTablesMSSQL.sql:744`. The next independent code slice is a fresh
+legacy-first audit of one remaining low-risk Settings mutation. External retry
+scheduling and runtime reconfiguration are intentionally not part of this
+slice.
