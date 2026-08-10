@@ -21,6 +21,12 @@ SET settingstring = @MirrorEmailAddress
 WHERE settingname = N'mirroremailaddress';
 """;
 
+    public const string UpdateWelcomePop3Sql = """
+UPDATE hm_settings
+SET settingstring = @WelcomePOP3
+WHERE settingname = N'welcomepop3';
+""";
+
     public const string UpdateWorkerThreadPrioritySql = """
 UPDATE hm_settings
 SET settinginteger = @WorkerThreadPriority
@@ -295,6 +301,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMirrorEmailAddressSql, connection);
         command.Parameters.Add("@MirrorEmailAddress", SqlDbType.NVarChar, 255).Value = mirrorEmailAddress;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateWelcomePop3Async(
+        string welcomePop3,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateWelcomePop3Sql, connection);
+        command.Parameters.Add("@WelcomePOP3", SqlDbType.NVarChar, 255).Value = welcomePop3;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

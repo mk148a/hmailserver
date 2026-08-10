@@ -10,6 +10,10 @@ public interface ISettingsAdministrationMutationStore
         string mirrorEmailAddress,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateWelcomePop3Async(
+        string welcomePop3,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWorkerThreadPriorityAsync(
         int workerThreadPriority,
         CancellationToken cancellationToken);

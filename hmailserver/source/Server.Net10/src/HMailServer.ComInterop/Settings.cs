@@ -684,7 +684,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.WelcomePOP3
                 : _administrationSnapshot.WelcomePop3;
         }
-        set => base.WelcomePOP3 = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.WelcomePOP3 = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateWelcomePop3Async(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The POP3 welcome message update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    WelcomePop3 = value
+                };
+            }
+        }
     }
 
     public override string WelcomeIMAP
