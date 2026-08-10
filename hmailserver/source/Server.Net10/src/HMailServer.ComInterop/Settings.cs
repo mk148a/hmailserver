@@ -796,7 +796,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.WorkerThreadPriority
                 : _administrationSnapshot.WorkerThreadPriority;
         }
-        set => base.WorkerThreadPriority = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.WorkerThreadPriority = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateWorkerThreadPriorityAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The worker thread priority update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    WorkerThreadPriority = value
+                };
+            }
+        }
     }
 
     public override int TCPIPThreads

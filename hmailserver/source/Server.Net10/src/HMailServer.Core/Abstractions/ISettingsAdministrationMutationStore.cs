@@ -9,4 +9,8 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateMirrorEmailAddressAsync(
         string mirrorEmailAddress,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateWorkerThreadPriorityAsync(
+        int workerThreadPriority,
+        CancellationToken cancellationToken);
 }

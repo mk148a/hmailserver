@@ -21,6 +21,12 @@ SET settingstring = @MirrorEmailAddress
 WHERE settingname = N'mirroremailaddress';
 """;
 
+    public const string UpdateWorkerThreadPrioritySql = """
+UPDATE hm_settings
+SET settinginteger = @WorkerThreadPriority
+WHERE settingname = N'workerthreadpriority';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -277,6 +283,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMirrorEmailAddressSql, connection);
         command.Parameters.Add("@MirrorEmailAddress", SqlDbType.NVarChar, 255).Value = mirrorEmailAddress;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateWorkerThreadPriorityAsync(
+        int workerThreadPriority,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateWorkerThreadPrioritySql, connection);
+        command.Parameters.Add("@WorkerThreadPriority", SqlDbType.Int).Value = workerThreadPriority;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

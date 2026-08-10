@@ -208,6 +208,8 @@ public sealed class SettingsComContractTests
         var crashSimulationError = Assert.ThrowsExactly<COMException>(() => _ = settings.CrashSimulationMode);
         var defaultDomainSetterError = Assert.ThrowsExactly<COMException>(
             () => settings.DefaultDomain = "direct-activation.example.test");
+        var workerThreadPrioritySetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.WorkerThreadPriority = 1);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -233,6 +235,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, rewriteEnvelopeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, crashSimulationError.ErrorCode);
         Assert.AreEqual(EAccessDenied, defaultDomainSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, workerThreadPrioritySetterError.ErrorCode);
     }
 
     [TestMethod]
@@ -652,6 +655,47 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_WorkerThreadPrioritySetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            WorkerThreadPriorityUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                WorkerThreadPriority: 1),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.WorkerThreadPriority = 4;
+
+        Assert.AreEqual(1, store.WorkerThreadPriorityUpdateCount);
+        Assert.AreEqual(4, store.UpdatedWorkerThreadPriority);
+        Assert.AreEqual(4, settings.WorkerThreadPriority);
+
+        store.WorkerThreadPriorityUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.WorkerThreadPriority = 7);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.WorkerThreadPriorityUpdateCount);
+        Assert.AreEqual(4, settings.WorkerThreadPriority);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.WorkerThreadPriority = 9);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.WorkerThreadPriorityUpdateCount);
+        Assert.AreEqual(4, settings.WorkerThreadPriority);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -832,6 +876,12 @@ public sealed class SettingsComContractTests
 
         public string? UpdatedMirrorEmailAddress { get; private set; }
 
+        public bool WorkerThreadPriorityUpdateResult { get; set; }
+
+        public int WorkerThreadPriorityUpdateCount { get; private set; }
+
+        public int UpdatedWorkerThreadPriority { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<bool> UpdateDefaultDomainAsync(
@@ -852,6 +902,17 @@ public sealed class SettingsComContractTests
             UpdatedMirrorEmailAddress = mirrorEmailAddress;
             return ValueTask.FromResult(MirrorUpdateResult);
         }
+
+        public ValueTask<bool> UpdateWorkerThreadPriorityAsync(
+            int workerThreadPriority,
+            CancellationToken cancellationToken)
+        {
+            WorkerThreadPriorityUpdateCount++;
+            UpdatedWorkerThreadPriority = workerThreadPriority;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(WorkerThreadPriorityUpdateResult);
+        }
+
     }
 
     private sealed class FixedImapFolderAdministrationStore(
