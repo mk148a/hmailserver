@@ -1,14 +1,14 @@
 # Current State
 - UTC/local timestamp: 2026-08-10T01:01:36Z / 2026-08-10T04:01:36+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `f89890421` (code/test; documentation commit follows)
+- Current HEAD: `d87b77a15` (code/test; documentation commit follows)
 - Last successfully pushed commit: `5c6265b4b`
-- Latest focused-test result: Account/Application/Links/POP3 `87 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1972 passed, 32 skipped, 2 failed`; host AV locks generated scanner `.eml` cleanup; AV-excluded full `1967 passed, 32 skipped, 0 failed`
+- Latest focused-test result: Rule/SQL contracts `30 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `1977 passed, 32 skipped, 2 failed`; host AV locks generated scanner `.eml` cleanup
 - Opt-in tests passed/skipped/blocked: SQL/Data restore, live SQL/FTS, protocol/load, service/COM, installer, AD/DC, SEC-18, crash/power-loss, and soak remain skipped or blocked; disposable SQL connection/isolated-create opt-in unset
-- Current bounded slice: `Account.UnlockMailbox()` process-local POP3 lock parity, completed in `f89890421`
-- Completed milestones: backup creation matrix/raw staging, COM authorization/HRESULT slices, ClamAV target hardening, IMAP ownership and Message.Save publication, Diagnostics retained reauthentication, Rule unsaved movement error, and Account mailbox unlock; no production release gate complete
-- Open production blockers: saved Rule reorder, COM draft `.eml` persistence and cross-writer UID coordination, disposable restore/rollback, SEC-18, migration/installer, service/COM lifecycle, live performance/load, AD/DC, crash/power-loss, 24-hour soak, `Account.ValidatePassword`, and clean AV-compatible default suite
+- Current bounded slice: saved Rule `MoveUp/MoveDown` owner-scoped reorder parity, completed in `d87b77a15`
+- Completed milestones: backup creation matrix/raw staging, COM authorization/HRESULT slices, ClamAV target hardening, IMAP ownership and Message.Save publication, Diagnostics retained reauthentication, unsaved and saved Rule movement parity, and Account mailbox unlock; no production release gate complete
+- Open production blockers: live Rule SQL readback/rollback/concurrency and out-of-process COM evidence, COM draft `.eml` persistence and cross-writer UID coordination, disposable restore/rollback, SEC-18, migration/installer, service/COM lifecycle, live performance/load, AD/DC, crash/power-loss, 24-hour soak, `Account.ValidatePassword`, and clean AV-compatible default suite
 - Environment-blocked work: disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`/backup files, untracked SEC-18/benchmark artifacts
-- Next three independent slices: approved disposable SQL/Data restore and Message.Save acceptance; otherwise smallest legacy-first COM/Admin gap; AV-compatible scanner cleanup rerun
+- Next three independent slices: approved disposable SQL Rule-move acceptance; otherwise smallest legacy-first COM/Admin gap; AV-compatible scanner cleanup rerun
