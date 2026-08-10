@@ -107,9 +107,17 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     {
         try
         {
-            if (!_committed && !_commitStarted)
+            if (!_committed)
             {
-                await _transaction.RollbackAsync().ConfigureAwait(false);
+                try
+                {
+                    await _transaction.RollbackAsync().ConfigureAwait(false);
+                }
+                catch when (_commitStarted)
+                {
+                    // A failed commit may have already closed the transaction.
+                    // Preserve the original commit failure while still attempting rollback.
+                }
             }
         }
         finally
