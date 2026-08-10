@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, DEFAULTDOMAIN MUTATION)
+
+Code/test commit `41b77dba1` implements the single authenticated
+`Settings.DefaultDomain` mutation. It preserves legacy `DispId(50)`/BSTR and
+direct activation boundaries, rechecks the live administrator callback, updates
+only the existing `hm_settings.defaultdomain` row through a parameterized SQL
+command, and changes a retained snapshot only after one-row success.
+
+Legacy anchors: `InterfaceSettings::put_DefaultDomain`
+(`source/Server/COM/InterfaceSettings.cpp:1272-1297`),
+`Configuration::SetDefaultDomain`
+(`source/Server/Common/Application/Configuration.cpp:415-424`), and
+`Property::WriteStringSetting_` (`source/Server/Common/Application/Property.cpp:44-97`).
+Focused settings/SQL coverage is `23/23`; full Net10 is `2006 passed, 39 skipped,
+0 failed`. Next slice: legacy-first `Settings.MirrorEMailAddress` mutation
+parity. Real SQL/Data rollback, reinitialize, SEC-18, installer, paired live
+performance, and soak gates remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, BOUNDED BACKUP METADATA)
 
 Code/test commit `d77fa9426` bounds 7-Zip metadata extraction to the existing

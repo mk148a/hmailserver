@@ -1,4 +1,27 @@
 
+## Current Audit Note (2026-08-10, DEFAULTDOMAIN ADMIN MUTATION)
+
+Code/test commit `41b77dba1` closes the narrow authenticated
+`IInterfaceSettings.DefaultDomain` setter gap while preserving `DispId(50)`
+and BSTR shape. Legacy behavior is anchored by
+`InterfaceSettings::put_DefaultDomain`
+(`source/Server/COM/InterfaceSettings.cpp:1272-1297`),
+`Configuration::SetDefaultDomain`
+(`source/Server/Common/Application/Configuration.cpp:415-424`), and
+`Property::WriteStringSetting_` (`source/Server/Common/Application/Property.cpp:44-97`).
+
+The .NET setter requires both the authenticated settings boundary and the live
+server-administrator callback, updates only `hm_settings.defaultdomain` with a
+parameterized command, requires exactly one affected row, and publishes the
+retained snapshot only after success. Direct activation is covered as
+E_ACCESSDENIED; failed writes leave the old value. Focused coverage is `23/23`;
+full Net10 is `2006 passed, 39 skipped, 0 failed`.
+
+No live reconfiguration or SMTP behavior was added. The next code slice is
+legacy-first `Settings.MirrorEMailAddress` mutation parity with the same
+authorization, owner-row, and failure rules. Real SQL/Data rollback and all
+release gates remain environment-blocked or RED.
+
 ## Current Audit Note (2026-08-10, BOUNDED BACKUP METADATA EXTRACTION)
 
 Code/test commit `d77fa9426` closes the unbounded restore metadata read in

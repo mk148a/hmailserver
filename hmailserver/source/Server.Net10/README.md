@@ -1,3 +1,21 @@
+## Current parity continuation (2026-08-10, authenticated DefaultDomain mutation)
+
+Code/test commit `41b77dba1` wires only `Settings.DefaultDomain` (`DispId(50)`)
+to a dedicated `ISettingsAdministrationMutationStore` seam. The SQL Server
+implementation uses a parameterized update fixed to `settingname =
+N'defaultdomain'`, requires one affected row, and updates the retained COM
+snapshot only after success. The setter calls both `EnsureAuthorized()` and the
+live `EnsureServerAdministrator()` callback before any store access.
+
+Legacy references are `InterfaceSettings::put_DefaultDomain`
+(`source/Server/COM/InterfaceSettings.cpp:1272-1297`),
+`Configuration::SetDefaultDomain`
+(`source/Server/Common/Application/Configuration.cpp:415-424`), and
+`Property::WriteStringSetting_` (`source/Server/Common/Application/Property.cpp:44-97`).
+Focused settings/SQL coverage is `23/23`; full Net10 is `2006 passed, 39
+skipped, 0 failed`. No COM identity, direct activation boundary, SMTP trust,
+reinitialize, or other Settings mutation changed.
+
 ## Current parity continuation (2026-08-10, bounded metadata extraction)
 
 Code/test commit `d77fa9426` changes `SevenZipBackupArchiveMetadataReader` to

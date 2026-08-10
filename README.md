@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated DefaultDomain mutation)
+
+Code/test commit `41b77dba1` implements one legacy Administrator mutation:
+`IInterfaceSettings.DefaultDomain` (`DispId(50)`) now rechecks the live server
+administrator boundary and updates only the existing `hm_settings.defaultdomain`
+row with a parameterized SQL command. The retained settings snapshot changes
+only after exactly one affected row; failed writes preserve the old value.
+
+Legacy anchors are `InterfaceSettings::put_DefaultDomain`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1272-1297`),
+`Configuration::SetDefaultDomain`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:415-424`),
+and `Property::WriteStringSetting_`
+(`hmailserver/source/Server/Common/Application/Property.cpp:44-97`).
+Focused settings/SQL coverage is `23/23`; full Net10 is `2006 passed, 39
+skipped, 0 failed`. Direct activation remains E_ACCESSDENIED and all other
+settings setters remain unchanged.
+
+Release remains RED: real SQL/Data rollback, live reconfiguration, SEC-18,
+installer/rollback, normal isolated C++ listeners, matched SMTP/IMAP/POP3 and
+delivery evidence, SQL FTS, and 24-hour soak are not proven.
+
 ## Current parity continuation (2026-08-10, bounded metadata extraction)
 
 Code/test commit `d77fa9426` bounds `SevenZipBackupArchiveMetadataReader` before

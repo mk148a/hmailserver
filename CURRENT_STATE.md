@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T18:41:05Z / 2026-08-10T21:41:05+03:00
+- UTC/local timestamp: 2026-08-10T19:02:00Z / 2026-08-10T22:02:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `d77fa9426`
+- Current HEAD: `41b77dba1`
 - Last successfully pushed commit: `0b2646731`
-- Latest focused-test result: `BackupManagerComContractTests` 28 passed, 0 failed, 0 skipped
-- Latest full Net10 result: `2004 passed, 39 skipped, 0 failed`
+- Latest focused-test result: settings COM/store tests 23 passed, 0 failed, 0 skipped
+- Latest full Net10 result: `2006 passed, 39 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; SQL/Data rollback, SQL/FTS, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: backup metadata extraction is bounded to the existing 1 MiB XML parser limit before unbounded stdout allocation; COM identity and restore behavior are unchanged
+- Current bounded slice: authenticated `Settings.DefaultDomain` (`DispId(50)`) persists only the existing `hm_settings.defaultdomain` row through a parameterized update, rechecks the live administrator callback, and publishes the retained snapshot only after one-row success; other settings setters and runtime reconfiguration remain unchanged
 - Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing/store/execution, combined settings/domain DB-only restore; no release milestone complete
 - Open production blockers: real disposable SQL/Data restore evidence, non-DB settings restore and reinitialize, live SQL/FTS backfill, credential policy, ACL restore, C++ protocol parity, paired SMTP/message-acceptance/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
 - Environment blocked work: healthy isolated C++ listener binary, SQL Server with Full-Text Search and supported legacy ADO provider, approved populated SQL/Data target, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) route-identity validation for restored `SendUsingRoute` actions, (2) non-DB combined settings restore containment/order decision, (3) rerun paired C++/.NET protocol and concurrency benchmarks after the healthy C++/SQL-FTS prerequisites exist
+- Next three independent slices: (1) legacy-first `Settings.MirrorEMailAddress` mutation parity with the same authorization/failure boundary, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision
