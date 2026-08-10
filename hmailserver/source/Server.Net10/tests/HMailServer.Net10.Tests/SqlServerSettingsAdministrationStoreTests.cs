@@ -201,6 +201,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateRuleLoopLimitSql_UsesTheExactParameterizedFixedRowShape()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateRuleLoopLimitSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settinginteger = @RuleLoopLimit\nWHERE settingname = N'rulelooplimit';",
+            sql);
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateDisconnectInvalidClientsSql_UpdatesOnlyTheExistingRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateDisconnectInvalidClientsSql;

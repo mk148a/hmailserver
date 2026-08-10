@@ -262,6 +262,8 @@ public sealed class SettingsComContractTests
         var welcomeImapSetterError = Assert.ThrowsExactly<COMException>(
             () => settings.WelcomeIMAP = "direct-activation IMAP");
         var numericRuntimeError = Assert.ThrowsExactly<COMException>(() => _ = settings.RuleLoopLimit);
+        var numericRuntimeSetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.RuleLoopLimit = 1);
         var sslScalarError = Assert.ThrowsExactly<COMException>(() => _ = settings.VerifyRemoteSslCertificate);
         var sslScalarSetterError = Assert.ThrowsExactly<COMException>(
             () => settings.VerifyRemoteSslCertificate = true);
@@ -319,6 +321,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, welcomeImapError.ErrorCode);
         Assert.AreEqual(EAccessDenied, welcomeImapSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, numericRuntimeError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, numericRuntimeSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, sslScalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, sslScalarSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, networkPreferenceError.ErrorCode);
@@ -1126,6 +1129,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_RuleLoopLimitSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            RuleLoopLimitUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                RuleLoopLimit: 10),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.RuleLoopLimit = 25;
+
+        Assert.AreEqual(1, store.RuleLoopLimitUpdateCount);
+        Assert.AreEqual(25, store.UpdatedRuleLoopLimit);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(25, settings.RuleLoopLimit);
+
+        store.RuleLoopLimitUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.RuleLoopLimit = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.RuleLoopLimitUpdateCount);
+        Assert.AreEqual(25, settings.RuleLoopLimit);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.RuleLoopLimit = 35);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.RuleLoopLimitUpdateCount);
+        Assert.AreEqual(25, settings.RuleLoopLimit);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxNumberOfMXHostsSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -1672,6 +1717,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxMessageSize { get; private set; }
 
+        public bool RuleLoopLimitUpdateResult { get; set; }
+
+        public int RuleLoopLimitUpdateCount { get; private set; }
+
+        public int UpdatedRuleLoopLimit { get; private set; }
+
         public bool MaxNumberOfMXHostsUpdateResult { get; set; }
 
         public int MaxNumberOfMXHostsUpdateCount { get; private set; }
@@ -1823,6 +1874,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxMessageSize = maxMessageSize;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxMessageSizeUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateRuleLoopLimitAsync(
+            int ruleLoopLimit,
+            CancellationToken cancellationToken)
+        {
+            RuleLoopLimitUpdateCount++;
+            UpdatedRuleLoopLimit = ruleLoopLimit;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(RuleLoopLimitUpdateResult);
         }
 
         public ValueTask<bool> UpdateMaxNumberOfMXHostsAsync(

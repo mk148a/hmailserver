@@ -1084,7 +1084,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.RuleLoopLimit
                 : _administrationSnapshot.RuleLoopLimit;
         }
-        set => base.RuleLoopLimit = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.RuleLoopLimit = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateRuleLoopLimitAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The rule loop limit update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    RuleLoopLimit = value
+                };
+            }
+        }
     }
 
     public override string DefaultDomain

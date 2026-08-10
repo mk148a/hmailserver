@@ -75,6 +75,12 @@ SET settinginteger = @MaxMessageSize
 WHERE settingname = N'maxmessagesize';
 """;
 
+    public const string UpdateRuleLoopLimitSql = """
+UPDATE hm_settings
+SET settinginteger = @RuleLoopLimit
+WHERE settingname = N'rulelooplimit';
+""";
+
     public const string UpdateMaxSmtpRecipientsInBatchSql = """
 UPDATE hm_settings
 SET settinginteger = @MaxSMTPRecipientsInBatch
@@ -472,6 +478,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMaxMessageSizeSql, connection);
         command.Parameters.Add("@MaxMessageSize", SqlDbType.Int).Value = maxMessageSize;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateRuleLoopLimitAsync(
+        int ruleLoopLimit,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateRuleLoopLimitSql, connection);
+        command.Parameters.Add("@RuleLoopLimit", SqlDbType.Int).Value = ruleLoopLimit;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

@@ -46,6 +46,10 @@ public interface ISettingsAdministrationMutationStore
         int maxMessageSize,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateRuleLoopLimitAsync(
+        int ruleLoopLimit,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateMaxSmtpRecipientsInBatchAsync(
         int maxSmtpRecipientsInBatch,
         CancellationToken cancellationToken);
