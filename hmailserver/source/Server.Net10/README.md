@@ -1,3 +1,17 @@
+## Current parity continuation (2026-08-10, settings-only restore execution)
+
+Code/test commit `a389b0a95` wires parsed settings into a settings-only,
+transaction-scoped DB restore. It requires the settings section and SQL
+transaction, rejects `smtprelayerpassword` restore input, preserves property
+order, and disposes before commit on failure. Legacy anchors are
+`BackupExecuter::Restore` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:274-335`)
+and `Configuration::XMLLoad` (`hmailserver/source/Server/Common/Application/Configuration.cpp:716-758`).
+Focused execution coverage is `17/17`; full default Net10 is `2000 passed,
+39 skipped, 0 failed`. Combined settings+domains restore, live
+reconfiguration/reinitialize, credential round-trip policy, and disposable
+SQL/Data evidence remain open and RED. Next slice: combined settings+domains
+DB-only ordering and rollback.
+
 ## Current parity continuation (2026-08-10, transactional settings restore boundary)
 
 Code/test commit `9dd56fa60` adds the transaction-scoped

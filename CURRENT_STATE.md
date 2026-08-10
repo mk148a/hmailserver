@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T20:15:00Z / 2026-08-10T23:15:00+03:00
+- UTC/local timestamp: 2026-08-10T21:10:00Z / 2026-08-11T00:10:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `9dd56fa60`
+- Current HEAD: `a389b0a95`
 - Last successfully pushed commit: `0b2646731`
-- Latest focused-test result: settings restore store and transaction tests `9 passed, 0 failed, 0 skipped`
-- Latest full Net10 result: `1998 passed, 39 skipped, 0 failed`
+- Latest focused-test result: settings-only restore execution `17 passed, 0 failed, 0 skipped`
+- Latest full Net10 result: `2000 passed, 39 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; first-message and partial-message SQL/Data rollback, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: transaction-scoped settings restore store is present but not wired into restore execution; live reconfiguration remains out of scope
-- Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing, settings restore store boundary; no release milestone complete
-- Open production blockers: real disposable SQL/Data restore evidence, settings executor wiring/rollback and live SQL/FTS backfill acceptance, credential policy, ACL restore, C++ protocol parity, paired SMTP/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
+- Current bounded slice: settings-only restore executes in a transaction; combined settings+domains ordering/rollback and live reconfiguration remain out of scope
+- Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing, settings restore store boundary, settings-only restore execution; no release milestone complete
+- Open production blockers: real disposable SQL/Data restore evidence, combined settings+domains restore ordering/rollback and live SQL/FTS backfill acceptance, credential policy, ACL restore, C++ protocol parity, paired SMTP/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
 - Environment blocked work: approved disposable SQL/Data target, legacy C++ runtime, SQL FTS/ADO baseline, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) wire parsed settings into transactional DB-only restore without live reconfiguration, (2) run settings and message rollback tests on the approved disposable target, (3) live SQL/FTS/backfill acceptance when the isolated target exists
+- Next three independent slices: (1) combined settings+domains DB-only ordering and rollback, (2) run settings and message rollback tests on the approved disposable target, (3) live SQL/FTS/backfill acceptance when the isolated target exists

@@ -1,5 +1,18 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, SETTINGS-ONLY RESTORE EXECUTION)
+
+Code/test commit `a389b0a95` wires settings-only restore into the existing SQL
+transaction boundary. The path requires the settings section and transaction,
+rejects `smtprelayerpassword` input, preserves order, and disposes the
+transaction on failure before commit. Legacy restore order is settings after
+domains and before reinitialization (`source/Server/Common/Application/BackupExecuter.cpp:274-335`).
+Focused coverage is `17/17`; full default Net10 is `2000 passed, 39 skipped,
+0 failed`. Combined settings+domains restore, live reconfiguration, credential
+round-trip policy, and disposable SQL/Data acceptance remain open. Next slice:
+combined settings+domains DB-only ordering and rollback. Release remains RED.
+Do not push.
+
 # Current Authoritative Continuation (2026-08-10, TRANSACTIONAL SETTINGS RESTORE BOUNDARY)
 
 Code/test commit `9dd56fa60` adds the transaction-scoped

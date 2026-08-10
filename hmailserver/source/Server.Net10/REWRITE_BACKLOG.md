@@ -1,4 +1,23 @@
 
+## Current Audit Note (2026-08-10, SETTINGS-ONLY RESTORE EXECUTION)
+
+Code/test commit `a389b0a95` wires `RestoreSettings` alone into the existing
+SQL transaction boundary. The path requires a settings section and a
+transaction-scoped settings store, rejects `smtprelayerpassword` input,
+preserves parsed order, and relies on transaction disposal for failure rollback
+before commit. Legacy `BackupExecuter::Restore`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:274-335`)
+loads settings after domain restoration and before asynchronous reinitialization;
+`Configuration::XMLLoad` (`hmailserver/source/Server/Common/Application/Configuration.cpp:716-758`)
+then loads the property set first. Focused execution coverage is `17/17`; full
+default Net10 is `2000 passed, 39 skipped, 0 failed`.
+
+The combined `RestoreSettings|RestoreDomains` path, reinitialize/live
+reconfiguration, credential round-trip policy, and real disposable SQL/Data
+acceptance are not implemented or proven. Next bounded slice is combined
+settings+domains DB-only ordering and rollback. Release and performance gates
+remain RED.
+
 ## Current Audit Note (2026-08-10, TRANSACTIONAL SETTINGS RESTORE BOUNDARY)
 
 Code/test commit `9dd56fa60` adds `ISettingsRestoreAdministrationStore` and
