@@ -11,7 +11,10 @@ public sealed record BackupRestoreMetadataResult(
     int RestoredDistributionLists,
     int RestoredRecipients,
     int RestoredFetchAccounts = 0,
-    int RestoredFetchAccountUids = 0);
+    int RestoredFetchAccountUids = 0,
+    int RestoredRules = 0,
+    int RestoredRuleCriteria = 0,
+    int RestoredRuleActions = 0);
 
 [ComVisible(false)]
 public static class BackupRestoreMetadataWriter
@@ -155,6 +158,71 @@ public static class BackupRestoreMetadataWriter
             RestoredRecipients: 0,
             RestoredFetchAccounts: restored,
             RestoredFetchAccountUids: restoredUids);
+    }
+
+    public static async ValueTask<BackupRestoreMetadataResult> RestoreRulesAsync(
+        IReadOnlyList<RestoreRuleEntry> rules,
+        int accountId,
+        IRuleAdministrationStore ruleStore,
+        IRuleCriteriaAdministrationStore criteriaStore,
+        IRuleActionAdministrationStore actionStore,
+        Func<ValueTask> rollbackAsync,
+        CancellationToken cancellationToken,
+        Action<int>? onInserted = null)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        ArgumentNullException.ThrowIfNull(ruleStore);
+        ArgumentNullException.ThrowIfNull(criteriaStore);
+        ArgumentNullException.ThrowIfNull(actionStore);
+        ArgumentNullException.ThrowIfNull(rollbackAsync);
+
+        var restoredRules = 0;
+        var restoredCriteria = 0;
+        var restoredActions = 0;
+        await BackupRestoreTransactionBoundary.ExecuteAsync(
+            mutateAsync: async ct =>
+            {
+                foreach (var entry in rules)
+                {
+                    var ruleId = await ruleStore.InsertRuleAsync(
+                        accountId,
+                        entry.Rule with { AccountId = accountId },
+                        ct).ConfigureAwait(false);
+                    onInserted?.Invoke(ruleId);
+                    restoredRules++;
+
+                    foreach (var criterion in entry.Criteria)
+                    {
+                        await criteriaStore.InsertRuleCriteriaAsync(
+                            ruleId,
+                            criterion with { RuleId = ruleId },
+                            ct).ConfigureAwait(false);
+                        restoredCriteria++;
+                    }
+
+                    foreach (var action in entry.Actions)
+                    {
+                        await actionStore.InsertRuleActionAsync(
+                            ruleId,
+                            action with { RuleId = ruleId },
+                            ct).ConfigureAwait(false);
+                        restoredActions++;
+                    }
+                }
+            },
+            commitAsync: _ => default,
+            rollbackAsync: rollbackAsync,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return new BackupRestoreMetadataResult(
+            RestoredDomains: 0,
+            RestoredAccounts: 0,
+            RestoredAliases: 0,
+            RestoredDistributionLists: 0,
+            RestoredRecipients: 0,
+            RestoredRules: restoredRules,
+            RestoredRuleCriteria: restoredCriteria,
+            RestoredRuleActions: restoredActions);
     }
 
     public static async ValueTask<BackupRestoreMetadataResult> RestoreDistributionListsAsync(

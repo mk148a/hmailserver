@@ -10,7 +10,15 @@ namespace HMailServer.ComInterop;
 public sealed record RestoreAccountEntry(AccountAdministrationSnapshot Account, string Password, int PasswordEncryption)
 {
     public IReadOnlyList<RestoreFetchAccountEntry> FetchAccounts { get; init; } = Array.Empty<RestoreFetchAccountEntry>();
+
+    public IReadOnlyList<RestoreRuleEntry> Rules { get; init; } = Array.Empty<RestoreRuleEntry>();
 }
+
+[ComVisible(false)]
+public sealed record RestoreRuleEntry(
+    RuleAdministrationSnapshot Rule,
+    IReadOnlyList<RuleCriteriaAdministrationSnapshot> Criteria,
+    IReadOnlyList<RuleActionAdministrationSnapshot> Actions);
 
 [ComVisible(false)]
 public sealed record RestoreFetchAccountEntry(
@@ -176,8 +184,55 @@ public static class BackupArchiveXmlSnapshotParser
             FetchAccounts = element.Element("FetchAccounts")?.Elements("FetchAccount")
                 .Select(ParseFetchAccount)
                 .ToArray()
-                ?? Array.Empty<RestoreFetchAccountEntry>()
+                ?? Array.Empty<RestoreFetchAccountEntry>(),
+            Rules = element.Element("Rules")?.Elements("Rule")
+                .Select(rule => ParseRule(rule, 0))
+                .ToArray()
+                ?? Array.Empty<RestoreRuleEntry>()
         };
+    }
+
+    private static RestoreRuleEntry ParseRule(XElement element, int accountId)
+    {
+        var rule = new RuleAdministrationSnapshot(
+            Id: 0,
+            AccountId: accountId,
+            Name: element.Attribute("Name")?.Value ?? string.Empty,
+            Active: IntAttr(element, "Active") != 0,
+            UseAnd: IntAttr(element, "UseAND") != 0,
+            SortOrder: IntAttr(element, "SortOrder"));
+        var criteria = element.Element("RuleCriterias")?.Elements("Criteria")
+            .Select(item => new RuleCriteriaAdministrationSnapshot(
+                Id: 0,
+                RuleId: 0,
+                MatchValue: item.Attribute("MatchString")?.Value ?? string.Empty,
+                UsePredefined: IntAttr(item, "UsePredefinedField") != 0,
+                PredefinedField: IntAttr(item, "FieldType"),
+                MatchType: IntAttr(item, "MatchType"),
+                HeaderField: item.Attribute("HeaderField")?.Value ?? string.Empty))
+            .ToArray()
+            ?? Array.Empty<RuleCriteriaAdministrationSnapshot>();
+        var actions = element.Element("RuleActions")?.Elements("Action")
+            .Select(item => new RuleActionAdministrationSnapshot(
+                Id: 0,
+                RuleId: 0,
+                Type: IntAttr(item, "Type"),
+                Subject: item.Attribute("Subject")?.Value ?? string.Empty,
+                Body: item.Attribute("Body")?.Value ?? string.Empty,
+                FromName: item.Attribute("FromName")?.Value ?? string.Empty,
+                FromAddress: item.Attribute("FromAddress")?.Value ?? string.Empty,
+                Filename: item.Attribute("FileName")?.Value ?? string.Empty,
+                To: item.Attribute("To")?.Value ?? string.Empty,
+                ImapFolder: item.Attribute("IMAPFolder")?.Value ?? string.Empty,
+                ScriptFunction: item.Attribute("ScriptFunction")?.Value ?? string.Empty,
+                HeaderName: item.Attribute("Header")?.Value ?? string.Empty,
+                Value: item.Attribute("Value")?.Value ?? string.Empty,
+                RouteId: IntAttr(item, "RouteID"),
+                AbortSpamFlagged: IntAttr(item, "AbortSpamFlagged") != 0,
+                SortOrder: IntAttr(item, "SortOrder")))
+            .ToArray()
+            ?? Array.Empty<RuleActionAdministrationSnapshot>();
+        return new RestoreRuleEntry(rule, criteria, actions);
     }
 
     private static RestoreFetchAccountEntry ParseFetchAccount(XElement element)

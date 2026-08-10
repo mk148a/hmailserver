@@ -178,6 +178,51 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParseDomainEntries_ReconstructsLegacyRuleCriteriaAndActions()
+    {
+        const string xml = """
+            <Backup>
+              <Domains>
+                <Domain Name="d">
+                  <Accounts>
+                    <Account Name="a@d.example">
+                      <Rules>
+                        <Rule Name="subject rule" Active="1" UseAND="1" SortOrder="2">
+                          <RuleCriterias>
+                            <Criteria MatchString="needle" FieldType="1" MatchType="2"
+                                      HeaderField="Subject" UsePredefinedField="1" />
+                          </RuleCriterias>
+                          <RuleActions>
+                            <Action Type="1" Subject="changed" Body="body" FromAddress="from@example.test"
+                                    FromName="From" IMAPFolder="INBOX.processed" FileName="file.eml"
+                                    To="to@example.test" ScriptFunction="OnRule" SortOrder="3"
+                                    Header="X-Test" Value="value" RouteID="4" AbortSpamFlagged="1" />
+                          </RuleActions>
+                        </Rule>
+                      </Rules>
+                    </Account>
+                  </Accounts>
+                </Domain>
+              </Domains>
+            </Backup>
+            """;
+
+        var rule = BackupArchiveXmlSnapshotParser.ParseDomainEntries(xml)
+            .Single().Accounts.Single().Rules.Single();
+
+        Assert.AreEqual("subject rule", rule.Rule.Name);
+        Assert.IsTrue(rule.Rule.Active);
+        Assert.IsTrue(rule.Rule.UseAnd);
+        Assert.AreEqual(2, rule.Rule.SortOrder);
+        Assert.AreEqual("needle", rule.Criteria.Single().MatchValue);
+        Assert.AreEqual(1, rule.Criteria.Single().PredefinedField);
+        Assert.AreEqual("to@example.test", rule.Actions.Single().To);
+        Assert.AreEqual("INBOX.processed", rule.Actions.Single().ImapFolder);
+        Assert.AreEqual(4, rule.Actions.Single().RouteId);
+        Assert.IsTrue(rule.Actions.Single().AbortSpamFlagged);
+    }
+
+    [TestMethod]
     public async Task RestoreFetchAccountsAsync_PreservesArchiveCiphertextAndRestoresUids()
     {
         var encryptedPassword = LegacyBlowfishPasswordCipher.Encrypt("fetch-secret");

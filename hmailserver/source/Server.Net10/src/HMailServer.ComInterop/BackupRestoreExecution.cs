@@ -40,6 +40,9 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
     private readonly IDistributionListAdministrationStore _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore _recipientStore;
     private readonly IFetchAccountAdministrationStore? _fetchAccountStore;
+    private readonly IRuleAdministrationStore? _ruleStore;
+    private readonly IRuleCriteriaAdministrationStore? _ruleCriteriaStore;
+    private readonly IRuleActionAdministrationStore? _ruleActionStore;
     private readonly SevenZipBackupArchiveMetadataReader _metadataReader;
     private readonly BackupRestoreDataDirectoryRuntime _dataDirectoryRuntime;
     private readonly Func<BackupRestoreDataDirectoryBoundary> _dataDirectoryBoundaryFactory;
@@ -58,7 +61,10 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         Func<BackupRestoreDataDirectoryBoundary>? dataDirectoryBoundaryFactory = null,
         IBackupRestoreMetadataTransactionFactory? metadataTransactionFactory = null,
         bool requireSqlTransaction = false,
-        IFetchAccountAdministrationStore? fetchAccountStore = null)
+        IFetchAccountAdministrationStore? fetchAccountStore = null,
+        IRuleAdministrationStore? ruleStore = null,
+        IRuleCriteriaAdministrationStore? ruleCriteriaStore = null,
+        IRuleActionAdministrationStore? ruleActionStore = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
@@ -77,6 +83,9 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         _distributionListStore = distributionListStore;
         _recipientStore = recipientStore;
         _fetchAccountStore = fetchAccountStore;
+        _ruleStore = ruleStore;
+        _ruleCriteriaStore = ruleCriteriaStore;
+        _ruleActionStore = ruleActionStore;
         _dataDirectoryRuntime = dataDirectoryRuntime ?? new BackupRestoreDataDirectoryRuntime(sevenZipExecutablePath);
         _dataDirectoryBoundaryFactory = dataDirectoryBoundaryFactory
             ?? (() => new BackupRestoreDataDirectoryBoundary(
@@ -310,6 +319,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var insertedAliasIds = new List<(int DomainId, int AliasId)>();
         var insertedDistributionListIds = new List<(int DomainId, int ListId)>();
         var insertedRecipientIds = new List<(int ListId, int RecipientId, string Address)>();
+        var insertedRuleIds = new List<(int AccountId, int RuleId)>();
 
         IBackupRestoreMetadataTransaction? metadataTransaction = null;
         using var authorizationLease = authorizationLeaseFactory is null
@@ -339,6 +349,15 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             var distributionListStore = metadataTransaction?.DistributionListStore ?? _distributionListStore;
             var recipientStore = metadataTransaction?.RecipientStore ?? _recipientStore;
             var fetchAccountStore = metadataTransaction?.FetchAccountStore ?? _fetchAccountStore;
+            var ruleStore = metadataTransaction?.RuleStore ?? _ruleStore;
+            var ruleCriteriaStore = metadataTransaction?.RuleCriteriaStore ?? _ruleCriteriaStore;
+            var ruleActionStore = metadataTransaction?.RuleActionStore ?? _ruleActionStore;
+            if (domains.SelectMany(static domain => domain.Accounts).Any(static account => account.Rules.Count > 0)
+                && (ruleStore is null || ruleCriteriaStore is null || ruleActionStore is null))
+            {
+                throw new InvalidOperationException(
+                    "Rule restore requires rule, rule-criteria, and rule-action administration stores.");
+            }
             Func<CancellationToken, ValueTask> commitAsync = metadataTransaction is null
                 ? static _ => default
                 : metadataTransaction.CommitAsync;
@@ -349,7 +368,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                     insertedAliasIds,
                     insertedDistributionListIds,
                     insertedRecipientIds,
-                    insertedFetchAccountIds)
+                    insertedFetchAccountIds,
+                    insertedRuleIds)
                 : static () => default;
 
             if (useSqlTransaction && metadataTransaction is not null)
@@ -424,6 +444,25 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                             accountIndex++;
                         }
 
+                        if (domainEntry.Accounts.Any(static account => account.Rules.Count > 0))
+                        {
+                            accountIndex = 0;
+                            foreach (var account in domainEntry.Accounts)
+                            {
+                                var restoredAccountId = insertedAccountIds[insertedAccountStart + accountIndex].AccountId;
+                                await BackupRestoreMetadataWriter.RestoreRulesAsync(
+                                    account.Rules,
+                                    restoredAccountId,
+                                    ruleStore!,
+                                    ruleCriteriaStore!,
+                                    ruleActionStore!,
+                                    static () => default,
+                                    ct,
+                                    ruleId => insertedRuleIds.Add((restoredAccountId, ruleId))).ConfigureAwait(false);
+                                accountIndex++;
+                            }
+                        }
+
                         await BackupRestoreMetadataWriter.RestoreAliasesAsync(
                             aliases,
                             domainId,
@@ -480,9 +519,25 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<(int DomainId, int AliasId)> aliasIds,
         IReadOnlyList<(int DomainId, int ListId)> distributionListIds,
         IReadOnlyList<(int ListId, int RecipientId, string Address)> recipientIds,
-        IReadOnlyList<(int AccountId, int FetchAccountId)> fetchAccountIds)
+        IReadOnlyList<(int AccountId, int FetchAccountId)> fetchAccountIds,
+        IReadOnlyList<(int AccountId, int RuleId)> ruleIds)
     {
         await RollbackFetchAccountsAsync(fetchAccountIds).ConfigureAwait(false);
+
+        if (_ruleStore is not null)
+        {
+            foreach (var item in ruleIds.Reverse())
+            {
+                var deleted = await _ruleStore.DeleteRuleAsync(
+                    item.AccountId,
+                    item.RuleId,
+                    CancellationToken.None).ConfigureAwait(false);
+                if (!deleted)
+                {
+                    throw new InvalidOperationException("Restore rollback could not delete a rule.");
+                }
+            }
+        }
 
         foreach (var item in recipientIds.Reverse())
         {

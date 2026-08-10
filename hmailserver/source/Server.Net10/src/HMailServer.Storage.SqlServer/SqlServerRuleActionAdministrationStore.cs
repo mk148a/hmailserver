@@ -76,7 +76,8 @@ WHERE actionruleid = @OwningRuleId
   AND actionid = @ActionId;
 """;
 
-    private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerConnectionFactory? _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerRuleActionAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -84,12 +85,18 @@ WHERE actionruleid = @OwningRuleId
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerRuleActionAdministrationStore(SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<RuleActionAdministrationSnapshot>> GetRuleActionsAsync(
         int ruleId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetRuleActionsSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, GetRuleActionsSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
@@ -126,8 +133,8 @@ WHERE actionruleid = @OwningRuleId
         int databaseId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(DeleteRuleActionByIdSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, DeleteRuleActionByIdSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
         command.Parameters.Add("@ActionId", SqlDbType.Int).Value = databaseId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -141,8 +148,8 @@ WHERE actionruleid = @OwningRuleId
         ArgumentNullException.ThrowIfNull(action);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(owningRuleId);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertRuleActionSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, InsertRuleActionSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = owningRuleId;
         command.Parameters.Add("@Type", SqlDbType.TinyInt).Value = action.Type;
         command.Parameters.Add("@ImapFolder", SqlDbType.NVarChar, 255).Value = action.ImapFolder;
@@ -168,8 +175,8 @@ WHERE actionruleid = @OwningRuleId
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(action);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(SaveRuleActionSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, SaveRuleActionSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@OwningRuleId", SqlDbType.Int).Value = owningRuleId;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = owningRuleId;
         command.Parameters.Add("@ActionId", SqlDbType.Int).Value = action.Id;
@@ -202,7 +209,30 @@ WHERE actionruleid = @OwningRuleId
     {
         ArgumentNullException.ThrowIfNull(actions);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        if (_transactionContext is not null)
+        {
+            foreach (var action in actions)
+            {
+                await using var lease = await SqlServerCommandLease.OpenAsync(
+                    _connectionFactory,
+                    _transactionContext,
+                    SaveRuleActionOrderSql,
+                    cancellationToken).ConfigureAwait(false);
+                var command = lease.Command;
+                command.Parameters.Add("@OwningRuleId", SqlDbType.Int).Value = owningRuleId;
+                command.Parameters.Add("@ActionId", SqlDbType.Int).Value = action.Id;
+                command.Parameters.Add("@SortOrder", SqlDbType.Int).Value = action.SortOrder;
+                if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"Saving rule action order {action.Id} for owning rule {owningRuleId} did not affect exactly one row.");
+                }
+            }
+
+            return;
+        }
+
+        await using var connection = await _connectionFactory!.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = (SqlTransaction)await connection
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);

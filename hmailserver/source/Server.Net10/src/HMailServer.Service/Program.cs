@@ -64,6 +64,7 @@ BackupManagerRuntimeHost.Configure(
                 fetchAccountStore: host.Services.GetRequiredService<IFetchAccountAdministrationStore>(),
                 backupFetchAccountStore: host.Services.GetRequiredService<IBackupFetchAccountAdministrationStore>(),
                 backupRuleStore: host.Services.GetRequiredService<IBackupRuleAdministrationStore>(),
+                ruleStore: host.Services.GetRequiredService<IRuleAdministrationStore>(),
                 ruleCriteriaStore: host.Services.GetRequiredService<IRuleCriteriaAdministrationStore>(),
                 ruleActionStore: host.Services.GetRequiredService<IRuleActionAdministrationStore>(),
                 folderStore: host.Services.GetRequiredService<IImapFolderAdministrationStore>(),

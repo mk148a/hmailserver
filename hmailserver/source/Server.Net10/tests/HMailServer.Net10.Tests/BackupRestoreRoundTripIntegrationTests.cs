@@ -30,6 +30,20 @@ public sealed class BackupRestoreRoundTripIntegrationTests
               <Accounts>
                     <Account Name="user@roundtrip.example" Active="1" Password="enc" PasswordEncryption="1"
                          AdminLevel="1" MaxAccountSize="128">
+                      <Rules>
+                        <Rule Name="subject rule" Active="1" UseAND="1" SortOrder="2">
+                          <RuleCriterias>
+                            <Criteria MatchString="needle" FieldType="1" MatchType="2"
+                                      HeaderField="Subject" UsePredefinedField="1" />
+                          </RuleCriterias>
+                          <RuleActions>
+                            <Action Type="1" Subject="changed" Body="body" FromAddress="from@example.test"
+                                    FromName="From" IMAPFolder="INBOX.processed" FileName="file.eml"
+                                    To="to@example.test" ScriptFunction="OnRule" SortOrder="3"
+                                    Header="X-Test" Value="value" RouteID="4" AbortSpamFlagged="1" />
+                          </RuleActions>
+                        </Rule>
+                      </Rules>
                       <FetchAccounts>
                         <FetchAccount Name="fetcher" ServerAddress="pop3.example.test" ServerType="0"
                                       Port="995" Username="remote-user"
@@ -70,7 +84,22 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                     MaxSize="0">
               <Accounts>
                 <Account Name="user@roundtrip.example" Active="1" Password="enc" PasswordEncryption="1"
-                         AdminLevel="1" MaxAccountSize="128" />
+                         AdminLevel="1" MaxAccountSize="128">
+                  <Rules>
+                    <Rule Name="subject rule" Active="1" UseAND="1" SortOrder="2">
+                      <RuleCriterias>
+                        <Criteria MatchString="needle" FieldType="1" MatchType="2"
+                                  HeaderField="Subject" UsePredefinedField="1" />
+                      </RuleCriterias>
+                      <RuleActions>
+                        <Action Type="1" Subject="changed" Body="body" FromAddress="from@example.test"
+                                FromName="From" IMAPFolder="INBOX.processed" FileName="file.eml"
+                                To="to@example.test" ScriptFunction="OnRule" SortOrder="3"
+                                Header="X-Test" Value="value" RouteID="4" AbortSpamFlagged="1" />
+                      </RuleActions>
+                    </Rule>
+                  </Rules>
+                </Account>
               </Accounts>
               <Aliases>
                 <Alias Name="alias@roundtrip.example" Value="target@example.test" Active="1" />
@@ -116,6 +145,17 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             Func<ValueTask> rollback = () => default;
             await BackupRestoreMetadataWriter.RestoreDomainsAsync(domains, domainStore, rollback, CancellationToken.None).ConfigureAwait(false);
             await BackupRestoreMetadataWriter.RestoreAccountsAsync(accounts, domainId: 1, accountStore, rollback, CancellationToken.None).ConfigureAwait(false);
+            var ruleStore = new SqlServerRuleAdministrationStore(factory);
+            var criteriaStore = new SqlServerRuleCriteriaAdministrationStore(factory);
+            var actionStore = new SqlServerRuleActionAdministrationStore(factory);
+            await BackupRestoreMetadataWriter.RestoreRulesAsync(
+                accounts.Single().Rules,
+                accountId: 1,
+                ruleStore,
+                criteriaStore,
+                actionStore,
+                rollback,
+                CancellationToken.None).ConfigureAwait(false);
             await BackupRestoreMetadataWriter.RestoreAliasesAsync(aliases, domainId: 1, aliasStore, rollback, CancellationToken.None).ConfigureAwait(false);
             await BackupRestoreMetadataWriter.RestoreDistributionListsAsync(lists, domainId: 1, listStore, rollback, CancellationToken.None).ConfigureAwait(false);
             await BackupRestoreMetadataWriter.RestoreDistributionListRecipientsAsync(recipients, distributionListId: 1, recipientStore, rollback, CancellationToken.None).ConfigureAwait(false);
@@ -127,6 +167,14 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             var restoredAccount = (await accountStore.GetAccountsAsync(1, CancellationToken.None).ConfigureAwait(false)).Single();
             Assert.AreEqual("user@roundtrip.example", restoredAccount.Address);
             Assert.AreEqual(128, restoredAccount.MaxSize);
+
+            var restoredRule = (await ruleStore.GetRulesAsync(1, CancellationToken.None).ConfigureAwait(false)).Single();
+            Assert.AreEqual("subject rule", restoredRule.Name);
+            var restoredCriteria = (await criteriaStore.GetRuleCriteriaAsync(restoredRule.Id, CancellationToken.None).ConfigureAwait(false)).Single();
+            Assert.AreEqual("needle", restoredCriteria.MatchValue);
+            var restoredAction = (await actionStore.GetRuleActionsAsync(restoredRule.Id, CancellationToken.None).ConfigureAwait(false)).Single();
+            Assert.AreEqual("to@example.test", restoredAction.To);
+            Assert.AreEqual(4, restoredAction.RouteId);
 
             var restoredAlias = (await aliasStore.GetAliasesAsync(1, CancellationToken.None).ConfigureAwait(false)).Single();
             Assert.AreEqual("alias@roundtrip.example", restoredAlias.Name);
@@ -181,7 +229,10 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 new SqlServerAliasAdministrationStore(factory),
                 new SqlServerDistributionListAdministrationStore(factory),
                 new SqlServerDistributionListRecipientAdministrationStore(factory),
-                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory));
+                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory),
+                ruleStore: new SqlServerRuleAdministrationStore(factory),
+                ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(factory),
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -250,7 +301,10 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 new FailingAliasAdministrationStore(aliasStore),
                 new SqlServerDistributionListAdministrationStore(factory),
                 new SqlServerDistributionListRecipientAdministrationStore(factory),
-                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory));
+                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory),
+                ruleStore: new SqlServerRuleAdministrationStore(factory),
+                ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(factory),
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -320,7 +374,10 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 listStore,
                 new FailingRecipientAdministrationStore(
                     new SqlServerDistributionListRecipientAdministrationStore(factory)),
-                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory));
+                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory),
+                ruleStore: new SqlServerRuleAdministrationStore(factory),
+                ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(factory),
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -396,7 +453,10 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 aliasStore,
                 listStore,
                 new FailingOnSecondRecipientAdministrationStore(recipientStore),
-                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory));
+                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory),
+                ruleStore: new SqlServerRuleAdministrationStore(factory),
+                ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(factory),
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -512,6 +572,25 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             {
                 var executor = fixture.CreateExecutor(
                     new FailingMetadataTransactionFactory(fixture.TransactionFactory, failSecondRecipient: true));
+
+                await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                    () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask());
+
+                await AssertAllMetadataTablesEmptyAsync(fixture).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_RollsBackDbOnlyMetadataWhenRuleActionInsertFails()
+    {
+        await WithDbOnlyRestoreTargetAsync(
+            "db_only_rule_action_failure",
+            ToDbOnlyArchiveXml(NonDbArchiveXml),
+            async fixture =>
+            {
+                var executor = fixture.CreateExecutor(
+                    new FailingMetadataTransactionFactory(fixture.TransactionFactory, failRuleAction: true));
 
                 await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                     () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask());
@@ -675,6 +754,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         Assert.AreEqual(0, (await fixture.RecipientStore.GetRecipientsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
         Assert.AreEqual(0, (await fixture.FetchAccountStore.GetFetchAccountsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
         Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_fetchaccounts_uids", "uidfaid", 1).ConfigureAwait(false));
+        Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_rules", "ruleaccountid", 1).ConfigureAwait(false));
+        Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_rule_criterias", "criteriaruleid", 1).ConfigureAwait(false));
+        Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_rule_actions", "actionruleid", 1).ConfigureAwait(false));
     }
 
     private static string ToDbOnlyArchiveXml(string archiveXml) =>
@@ -772,6 +854,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 ListStore,
                 RecipientStore,
                 fetchAccountStore: FetchAccountStore,
+                ruleStore: new SqlServerRuleAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
+                ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 metadataTransactionFactory: transactionFactory ?? TransactionFactory);
 
         internal MetadataBackupRestoreExecutor CreateExecutorWithoutTransactionFactory() =>
@@ -784,6 +869,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 ListStore,
                 RecipientStore,
                 fetchAccountStore: FetchAccountStore,
+                ruleStore: new SqlServerRuleAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
+                ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 metadataTransactionFactory: null,
                 requireSqlTransaction: true);
     }
@@ -791,20 +879,22 @@ public sealed class BackupRestoreRoundTripIntegrationTests
     private sealed class FailingMetadataTransactionFactory(
         IBackupRestoreMetadataTransactionFactory inner,
         bool failAlias = false,
-        bool failSecondRecipient = false) : IBackupRestoreMetadataTransactionFactory
+        bool failSecondRecipient = false,
+        bool failRuleAction = false) : IBackupRestoreMetadataTransactionFactory
     {
         public async ValueTask<IBackupRestoreMetadataTransaction> BeginAsync(
             CancellationToken cancellationToken)
         {
             var transaction = await inner.BeginAsync(cancellationToken).ConfigureAwait(false);
-            return new FailingMetadataTransaction(transaction, failAlias, failSecondRecipient);
+            return new FailingMetadataTransaction(transaction, failAlias, failSecondRecipient, failRuleAction);
         }
     }
 
     private sealed class FailingMetadataTransaction(
         IBackupRestoreMetadataTransaction inner,
         bool failAlias,
-        bool failSecondRecipient) : IBackupRestoreMetadataTransaction
+        bool failSecondRecipient,
+        bool failRuleAction) : IBackupRestoreMetadataTransaction
     {
         public IDomainAdministrationStore DomainStore => inner.DomainStore;
         public IAccountAdministrationStore AccountStore => inner.AccountStore;
@@ -816,6 +906,11 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             ? new FailingOnSecondRecipientAdministrationStore(inner.RecipientStore)
             : inner.RecipientStore;
         public IFetchAccountAdministrationStore? FetchAccountStore => inner.FetchAccountStore;
+        public IRuleAdministrationStore? RuleStore => inner.RuleStore;
+        public IRuleCriteriaAdministrationStore? RuleCriteriaStore => inner.RuleCriteriaStore;
+        public IRuleActionAdministrationStore? RuleActionStore => failRuleAction
+            ? new FailingRuleActionAdministrationStore(inner.RuleActionStore!)
+            : inner.RuleActionStore;
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             inner.DeleteAllDomainsForRestoreAsync(cancellationToken);
         public ValueTask CommitAsync(CancellationToken cancellationToken) => inner.CommitAsync(cancellationToken);
@@ -924,6 +1019,35 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             DistributionListRecipientAdministrationSnapshot snapshot,
             CancellationToken cancellationToken) =>
             inner.DeleteDistributionListRecipientAsync(snapshot, cancellationToken);
+    }
+
+    private sealed class FailingRuleActionAdministrationStore(IRuleActionAdministrationStore inner)
+        : IRuleActionAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<RuleActionAdministrationSnapshot>> GetRuleActionsAsync(
+            int ruleId,
+            CancellationToken cancellationToken) => inner.GetRuleActionsAsync(ruleId, cancellationToken);
+
+        public ValueTask DeleteRuleActionByIdAsync(
+            int ruleId,
+            int databaseId,
+            CancellationToken cancellationToken) => inner.DeleteRuleActionByIdAsync(ruleId, databaseId, cancellationToken);
+
+        public ValueTask<int> InsertRuleActionAsync(
+            int owningRuleId,
+            RuleActionAdministrationSnapshot action,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<int>(new InvalidOperationException("Simulated rule action restore failure."));
+
+        public ValueTask SaveRuleActionAsync(
+            int owningRuleId,
+            RuleActionAdministrationSnapshot action,
+            CancellationToken cancellationToken) => inner.SaveRuleActionAsync(owningRuleId, action, cancellationToken);
+
+        public ValueTask SaveRuleActionOrderAsync(
+            int owningRuleId,
+            IReadOnlyList<RuleActionAdministrationSnapshot> actions,
+            CancellationToken cancellationToken) => inner.SaveRuleActionOrderAsync(owningRuleId, actions, cancellationToken);
     }
 
     private static string GetApprovedConnectionStringOrInconclusive()
@@ -1073,14 +1197,39 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 dadomainid int NOT NULL
             );
             CREATE TABLE dbo.hm_rules (
-                ruleid int NOT NULL,
-                ruleaccountid int NOT NULL
+                ruleid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                ruleaccountid int NOT NULL,
+                rulename nvarchar(255) NOT NULL,
+                ruleactive tinyint NOT NULL,
+                ruleuseand tinyint NOT NULL,
+                rulesortorder int NOT NULL
             );
             CREATE TABLE dbo.hm_rule_actions (
-                actionruleid int NOT NULL
+                actionid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                actionruleid int NOT NULL,
+                actiontype tinyint NOT NULL,
+                actionsubject nvarchar(255) NOT NULL,
+                actionbody nvarchar(max) NOT NULL,
+                actionfromname nvarchar(255) NOT NULL,
+                actionfromaddress nvarchar(255) NOT NULL,
+                actionfilename nvarchar(255) NOT NULL,
+                actionto nvarchar(255) NOT NULL,
+                actionimapfolder nvarchar(255) NOT NULL,
+                actionscriptfunction nvarchar(255) NOT NULL,
+                actionheader nvarchar(80) NOT NULL,
+                actionvalue nvarchar(255) NOT NULL,
+                actionrouteid int NOT NULL,
+                actionabortspamflagged tinyint NOT NULL,
+                actionsortorder int NOT NULL
             );
             CREATE TABLE dbo.hm_rule_criterias (
-                criteriaruleid int NOT NULL
+                criteriaid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                criteriaruleid int NOT NULL,
+                criteriamatchvalue nvarchar(255) NOT NULL,
+                criteriausepredefined tinyint NOT NULL,
+                criteriapredefinedfield tinyint NOT NULL,
+                criteriamatchtype tinyint NOT NULL,
+                criteriaheadername nvarchar(255) NOT NULL
             );
             CREATE TABLE dbo.hm_messagerecipients (
                 recipientmessageid bigint NOT NULL

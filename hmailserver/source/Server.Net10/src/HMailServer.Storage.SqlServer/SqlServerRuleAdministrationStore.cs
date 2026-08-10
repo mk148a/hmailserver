@@ -136,7 +136,8 @@ END;
 COMMIT TRANSACTION;
 SELECT @Moved;
 """;
-    private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerConnectionFactory? _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerRuleAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -144,12 +145,18 @@ SELECT @Moved;
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerRuleAdministrationStore(SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetRulesAsync(
         int accountId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetRulesSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, GetRulesSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
@@ -175,8 +182,8 @@ SELECT @Moved;
         int accountId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetBackupRulesSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, GetBackupRulesSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
@@ -203,8 +210,8 @@ SELECT @Moved;
         int ruleId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(DeleteRuleSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, DeleteRuleSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
 
@@ -219,8 +226,8 @@ SELECT @Moved;
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(rule);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertRuleSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, InsertRuleSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         command.Parameters.Add("@Name", SqlDbType.NVarChar, 100).Value = rule.Name;
         command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = rule.Active ? 1 : 0;
@@ -235,8 +242,8 @@ SELECT @Moved;
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(rule);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(UpdateRuleSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, UpdateRuleSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = rule.Id;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         command.Parameters.Add("@Name", SqlDbType.NVarChar, 100).Value = rule.Name;
@@ -253,8 +260,8 @@ SELECT @Moved;
         bool moveUp,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(MoveRuleSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, MoveRuleSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
         command.Parameters.Add("@MoveUp", SqlDbType.Bit).Value = moveUp;

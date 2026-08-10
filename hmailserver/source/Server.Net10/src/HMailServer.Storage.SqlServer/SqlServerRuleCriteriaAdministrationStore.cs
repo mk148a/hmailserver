@@ -49,7 +49,8 @@ WHERE criteriaruleid = @OwningRuleId
   AND criteriaid = @CriteriaId;
 """;
 
-    private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerConnectionFactory? _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerRuleCriteriaAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -57,12 +58,18 @@ WHERE criteriaruleid = @OwningRuleId
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerRuleCriteriaAdministrationStore(SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<RuleCriteriaAdministrationSnapshot>> GetRuleCriteriaAsync(
         int ruleId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetRuleCriteriaSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, GetRuleCriteriaSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
@@ -90,8 +97,8 @@ WHERE criteriaruleid = @OwningRuleId
         int databaseId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(DeleteRuleCriteriaByIdSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, DeleteRuleCriteriaByIdSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
         command.Parameters.Add("@CriteriaId", SqlDbType.Int).Value = databaseId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -105,8 +112,8 @@ WHERE criteriaruleid = @OwningRuleId
         ArgumentNullException.ThrowIfNull(criterion);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(owningRuleId);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertRuleCriteriaSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, InsertRuleCriteriaSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = owningRuleId;
         command.Parameters.Add("@UsePredefined", SqlDbType.TinyInt).Value = criterion.UsePredefined ? 1 : 0;
         command.Parameters.Add("@PredefinedField", SqlDbType.TinyInt).Value = criterion.PredefinedField;
@@ -123,8 +130,8 @@ WHERE criteriaruleid = @OwningRuleId
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(criterion);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(SaveRuleCriteriaSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(_connectionFactory, _transactionContext, SaveRuleCriteriaSql, cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@OwningRuleId", SqlDbType.Int).Value = owningRuleId;
         command.Parameters.Add("@RuleId", SqlDbType.Int).Value = criterion.RuleId;
         command.Parameters.Add("@CriteriaId", SqlDbType.Int).Value = criterion.Id;

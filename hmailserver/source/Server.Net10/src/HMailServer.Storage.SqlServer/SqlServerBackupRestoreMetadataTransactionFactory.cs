@@ -59,6 +59,9 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         DistributionListStore = new SqlServerDistributionListAdministrationStore(context);
         RecipientStore = new SqlServerDistributionListRecipientAdministrationStore(context);
         FetchAccountStore = new SqlServerFetchAccountAdministrationStore(context);
+        RuleStore = new SqlServerRuleAdministrationStore(context);
+        RuleCriteriaStore = new SqlServerRuleCriteriaAdministrationStore(context);
+        RuleActionStore = new SqlServerRuleActionAdministrationStore(context);
     }
 
     public IDomainAdministrationStore DomainStore { get; }
@@ -72,6 +75,12 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     public IDistributionListRecipientAdministrationStore RecipientStore { get; }
 
     public IFetchAccountAdministrationStore FetchAccountStore { get; }
+
+    public IRuleAdministrationStore RuleStore { get; }
+
+    public IRuleCriteriaAdministrationStore RuleCriteriaStore { get; }
+
+    public IRuleActionAdministrationStore RuleActionStore { get; }
 
     public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         _domainStore.DeleteAllDomainsForRestoreAsync(cancellationToken);

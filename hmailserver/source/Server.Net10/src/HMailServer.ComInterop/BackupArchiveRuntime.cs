@@ -1100,6 +1100,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IFetchAccountAdministrationStore? _fetchAccountStore;
     private readonly IBackupFetchAccountAdministrationStore? _backupFetchAccountStore;
     private readonly IBackupRuleAdministrationStore? _backupRuleStore;
+    private readonly IRuleAdministrationStore? _ruleStore;
     private readonly IRuleCriteriaAdministrationStore? _ruleCriteriaStore;
     private readonly IRuleActionAdministrationStore? _ruleActionStore;
     private readonly IImapFolderAdministrationStore? _folderStore;
@@ -1128,6 +1129,7 @@ public sealed class BackupXmlPayloadRuntime
             fetchAccountStore: null,
             backupFetchAccountStore: null,
             backupRuleStore: null,
+            ruleStore: null,
             ruleCriteriaStore: null,
             ruleActionStore: null,
             folderStore: null,
@@ -1149,6 +1151,7 @@ public sealed class BackupXmlPayloadRuntime
         IFetchAccountAdministrationStore? fetchAccountStore = null,
         IBackupFetchAccountAdministrationStore? backupFetchAccountStore = null,
         IBackupRuleAdministrationStore? backupRuleStore = null,
+        IRuleAdministrationStore? ruleStore = null,
         IRuleCriteriaAdministrationStore? ruleCriteriaStore = null,
         IRuleActionAdministrationStore? ruleActionStore = null,
         IImapFolderAdministrationStore? folderStore = null,
@@ -1169,6 +1172,7 @@ public sealed class BackupXmlPayloadRuntime
         _fetchAccountStore = fetchAccountStore;
         _backupFetchAccountStore = backupFetchAccountStore;
         _backupRuleStore = backupRuleStore;
+        _ruleStore = ruleStore;
         _ruleCriteriaStore = ruleCriteriaStore;
         _ruleActionStore = ruleActionStore;
         _folderStore = folderStore;
@@ -1446,6 +1450,9 @@ public sealed class BackupXmlPayloadRuntime
                 _distributionListRecipientStore,
                 metadataTransactionFactory: _metadataTransactionFactory,
                 requireSqlTransaction: _requireSqlTransaction,
-                fetchAccountStore: _fetchAccountStore));
+                fetchAccountStore: _fetchAccountStore,
+                ruleStore: _ruleStore,
+                ruleCriteriaStore: _ruleCriteriaStore,
+                ruleActionStore: _ruleActionStore));
     }
 }
