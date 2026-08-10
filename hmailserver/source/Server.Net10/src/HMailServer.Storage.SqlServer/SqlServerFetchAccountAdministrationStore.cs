@@ -100,7 +100,23 @@ DELETE FROM hm_fetchaccounts_uids
 WHERE uidfaid = @FetchAccountID;
 """;
 
-    private readonly SqlServerConnectionFactory _connectionFactory;
+    public const string InsertFetchAccountUidSql = """
+INSERT INTO hm_fetchaccounts_uids
+(
+    uidfaid,
+    uidvalue,
+    uidtime
+)
+VALUES
+(
+    @FetchAccountID,
+    @UID,
+    @Date
+);
+""";
+
+    private readonly SqlServerConnectionFactory? _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerFetchAccountAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -108,11 +124,17 @@ WHERE uidfaid = @FetchAccountID;
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerFetchAccountAdministrationStore(SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<FetchAccountAdministrationSnapshot>> GetFetchAccountsAsync(
         int accountId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await _connectionFactory!.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(GetFetchAccountsSql, connection);
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         await using var reader = await command.ExecuteReaderAsync(
@@ -153,7 +175,7 @@ WHERE uidfaid = @FetchAccountID;
         int fetchAccountId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await _connectionFactory!.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(SetRetryNowSql, connection);
         command.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
@@ -166,7 +188,7 @@ WHERE uidfaid = @FetchAccountID;
     {
         ArgumentNullException.ThrowIfNull(account);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await _connectionFactory!.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(InsertFetchAccountSql, connection);
         command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = account.Enabled ? 1 : 0;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = account.AccountId;
@@ -190,14 +212,57 @@ WHERE uidfaid = @FetchAccountID;
         return Convert.ToInt32(generatedId, CultureInfo.InvariantCulture);
     }
 
+    public async ValueTask<int> InsertFetchAccountForRestoreAsync(
+        FetchAccountAdministrationDraft account,
+        string encryptedPassword,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        ArgumentNullException.ThrowIfNull(encryptedPassword);
+        if (!LegacyBlowfishPasswordCipher.TryDecrypt(encryptedPassword, out _))
+        {
+            throw new InvalidDataException("The fetch-account password is not a valid legacy Blowfish value.");
+        }
+
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertFetchAccountSql,
+            cancellationToken).ConfigureAwait(false);
+        await using var command = commandLease.Command;
+        command.Parameters.Add("@Active", SqlDbType.TinyInt).Value = account.Enabled ? 1 : 0;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = account.AccountId;
+        command.Parameters.Add("@Name", SqlDbType.NVarChar, 255).Value = account.Name;
+        command.Parameters.Add("@ServerAddress", SqlDbType.NVarChar, 255).Value = account.ServerAddress;
+        command.Parameters.Add("@Port", SqlDbType.Int).Value = account.Port;
+        command.Parameters.Add("@ServerType", SqlDbType.TinyInt).Value = account.ServerType;
+        command.Parameters.Add("@Username", SqlDbType.NVarChar, 255).Value = account.Username;
+        command.Parameters.Add("@Password", SqlDbType.NVarChar, 255).Value = encryptedPassword;
+        command.Parameters.Add("@Minutes", SqlDbType.Int).Value = account.MinutesBetweenFetch;
+        command.Parameters.Add("@DaysToKeep", SqlDbType.Int).Value = account.DaysToKeepMessages;
+        command.Parameters.Add("@ProcessMimeRecipients", SqlDbType.TinyInt).Value = account.ProcessMimeRecipients ? 1 : 0;
+        command.Parameters.Add("@ProcessMimeDate", SqlDbType.TinyInt).Value = account.ProcessMimeDate ? 1 : 0;
+        command.Parameters.Add("@ConnectionSecurity", SqlDbType.TinyInt).Value = account.ConnectionSecurity;
+        command.Parameters.Add("@UseAntiSpam", SqlDbType.TinyInt).Value = account.UseAntiSpam ? 1 : 0;
+        command.Parameters.Add("@UseAntiVirus", SqlDbType.TinyInt).Value = account.UseAntiVirus ? 1 : 0;
+        command.Parameters.Add("@EnableRouteRecipients", SqlDbType.TinyInt).Value = account.EnableRouteRecipients ? 1 : 0;
+        command.Parameters.Add("@MimeRecipientHeaders", SqlDbType.NVarChar, 255).Value = account.MimeRecipientHeaders;
+
+        var generatedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(generatedId, CultureInfo.InvariantCulture);
+    }
+
     public async ValueTask DeleteFetchAccountAsync(
         int accountId,
         int fetchAccountId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-        await using var accountCommand = new SqlCommand(DeleteFetchAccountSql, connection);
+        await using var accountCommandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            DeleteFetchAccountSql,
+            cancellationToken).ConfigureAwait(false);
+        await using var accountCommand = accountCommandLease.Command;
         accountCommand.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
         accountCommand.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
         var deletedRows = await accountCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -206,9 +271,39 @@ WHERE uidfaid = @FetchAccountID;
             return;
         }
 
-        await using var uidCommand = new SqlCommand(DeleteFetchAccountUidsSql, connection);
+        await using var uidCommandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            DeleteFetchAccountUidsSql,
+            cancellationToken).ConfigureAwait(false);
+        await using var uidCommand = uidCommandLease.Command;
         uidCommand.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
         await uidCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask InsertFetchAccountUidAsync(
+        int fetchAccountId,
+        string uidValue,
+        string uidTime,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(uidValue);
+        ArgumentException.ThrowIfNullOrEmpty(uidTime);
+        if (!DateTime.TryParse(uidTime, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            throw new FormatException($"The fetch-account UID date '{uidTime}' is not a valid legacy date.");
+        }
+
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertFetchAccountUidSql,
+            cancellationToken).ConfigureAwait(false);
+        await using var command = commandLease.Command;
+        command.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
+        command.Parameters.Add("@UID", SqlDbType.NVarChar, 255).Value = uidValue;
+        command.Parameters.Add("@Date", SqlDbType.DateTime).Value = date;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>

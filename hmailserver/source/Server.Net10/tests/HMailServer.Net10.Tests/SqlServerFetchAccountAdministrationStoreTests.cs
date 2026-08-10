@@ -127,6 +127,20 @@ public sealed class SqlServerFetchAccountAdministrationStoreTests
     }
 
     [TestMethod]
+    public void InsertFetchAccountUidSql_UsesLegacyUidColumnsAndFetchAccountParent()
+    {
+        var sql = SqlServerFetchAccountAdministrationStore.InsertFetchAccountUidSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_fetchaccounts_uids");
+        StringAssert.Contains(sql, "uidfaid");
+        StringAssert.Contains(sql, "uidvalue");
+        StringAssert.Contains(sql, "uidtime");
+        StringAssert.Contains(sql, "@FetchAccountID");
+        StringAssert.Contains(sql, "@UID");
+        StringAssert.Contains(sql, "@Date");
+    }
+
+    [TestMethod]
     public void BackupFetchAccountsSql_ProjectsCiphertextAndScopesByAccountInFaidOrder()
     {
         var sql = SqlServerBackupFetchAccountAdministrationStore.GetBackupFetchAccountsSql;

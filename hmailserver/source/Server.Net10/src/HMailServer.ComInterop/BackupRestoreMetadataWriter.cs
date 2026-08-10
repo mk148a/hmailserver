@@ -4,7 +4,14 @@ using HMailServer.Core.Abstractions;
 namespace HMailServer.ComInterop;
 
 [ComVisible(false)]
-public sealed record BackupRestoreMetadataResult(int RestoredDomains, int RestoredAccounts, int RestoredAliases, int RestoredDistributionLists, int RestoredRecipients);
+public sealed record BackupRestoreMetadataResult(
+    int RestoredDomains,
+    int RestoredAccounts,
+    int RestoredAliases,
+    int RestoredDistributionLists,
+    int RestoredRecipients,
+    int RestoredFetchAccounts = 0,
+    int RestoredFetchAccountUids = 0);
 
 [ComVisible(false)]
 public static class BackupRestoreMetadataWriter
@@ -101,6 +108,53 @@ public static class BackupRestoreMetadataWriter
             cancellationToken: cancellationToken);
 
         return new BackupRestoreMetadataResult(RestoredDomains: 0, RestoredAccounts: 0, restored, RestoredDistributionLists: 0, RestoredRecipients: 0);
+    }
+
+    public static async ValueTask<BackupRestoreMetadataResult> RestoreFetchAccountsAsync(
+        IReadOnlyList<RestoreFetchAccountEntry> fetchAccounts,
+        int accountId,
+        IFetchAccountAdministrationStore store,
+        Func<ValueTask> rollbackAsync,
+        CancellationToken cancellationToken,
+        Action<int>? onInserted = null)
+    {
+        ArgumentNullException.ThrowIfNull(fetchAccounts);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(rollbackAsync);
+
+        var restored = 0;
+        var restoredUids = 0;
+        await BackupRestoreTransactionBoundary.ExecuteAsync(
+            mutateAsync: async ct =>
+            {
+                foreach (var entry in fetchAccounts)
+                {
+                    var insertedId = await store.InsertFetchAccountForRestoreAsync(
+                        entry.Account with { AccountId = accountId },
+                        entry.EncryptedPassword,
+                        ct).ConfigureAwait(false);
+                    onInserted?.Invoke(insertedId);
+                    restored++;
+
+                    foreach (var uid in entry.Uids)
+                    {
+                        await store.InsertFetchAccountUidAsync(insertedId, uid.Value, uid.Date, ct).ConfigureAwait(false);
+                        restoredUids++;
+                    }
+                }
+            },
+            commitAsync: _ => default,
+            rollbackAsync: rollbackAsync,
+            cancellationToken: cancellationToken);
+
+        return new BackupRestoreMetadataResult(
+            RestoredDomains: 0,
+            RestoredAccounts: 0,
+            RestoredAliases: 0,
+            RestoredDistributionLists: 0,
+            RestoredRecipients: 0,
+            RestoredFetchAccounts: restored,
+            RestoredFetchAccountUids: restoredUids);
     }
 
     public static async ValueTask<BackupRestoreMetadataResult> RestoreDistributionListsAsync(

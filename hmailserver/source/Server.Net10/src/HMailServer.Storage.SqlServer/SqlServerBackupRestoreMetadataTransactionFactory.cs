@@ -58,6 +58,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         AliasStore = new SqlServerAliasAdministrationStore(context);
         DistributionListStore = new SqlServerDistributionListAdministrationStore(context);
         RecipientStore = new SqlServerDistributionListRecipientAdministrationStore(context);
+        FetchAccountStore = new SqlServerFetchAccountAdministrationStore(context);
     }
 
     public IDomainAdministrationStore DomainStore { get; }
@@ -69,6 +70,8 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     public IDistributionListAdministrationStore DistributionListStore { get; }
 
     public IDistributionListRecipientAdministrationStore RecipientStore { get; }
+
+    public IFetchAccountAdministrationStore FetchAccountStore { get; }
 
     public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         _domainStore.DeleteAllDomainsForRestoreAsync(cancellationToken);
@@ -133,7 +136,7 @@ internal sealed class SqlServerCommandLease : IAsyncDisposable
     internal SqlCommand Command { get; }
 
     internal static async ValueTask<SqlServerCommandLease> OpenAsync(
-        SqlServerConnectionFactory connectionFactory,
+        SqlServerConnectionFactory? connectionFactory,
         SqlServerBackupRestoreTransactionContext? transactionContext,
         string sql,
         CancellationToken cancellationToken)
@@ -145,6 +148,7 @@ internal sealed class SqlServerCommandLease : IAsyncDisposable
                 connection: null);
         }
 
+        ArgumentNullException.ThrowIfNull(connectionFactory);
         var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         return new SqlServerCommandLease(new SqlCommand(sql, connection), connection);
     }

@@ -39,6 +39,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
     private readonly IAliasAdministrationStore _aliasStore;
     private readonly IDistributionListAdministrationStore _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore _recipientStore;
+    private readonly IFetchAccountAdministrationStore? _fetchAccountStore;
     private readonly SevenZipBackupArchiveMetadataReader _metadataReader;
     private readonly BackupRestoreDataDirectoryRuntime _dataDirectoryRuntime;
     private readonly Func<BackupRestoreDataDirectoryBoundary> _dataDirectoryBoundaryFactory;
@@ -56,7 +57,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         BackupRestoreDataDirectoryRuntime? dataDirectoryRuntime = null,
         Func<BackupRestoreDataDirectoryBoundary>? dataDirectoryBoundaryFactory = null,
         IBackupRestoreMetadataTransactionFactory? metadataTransactionFactory = null,
-        bool requireSqlTransaction = false)
+        bool requireSqlTransaction = false,
+        IFetchAccountAdministrationStore? fetchAccountStore = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
@@ -74,6 +76,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _recipientStore = recipientStore;
+        _fetchAccountStore = fetchAccountStore;
         _dataDirectoryRuntime = dataDirectoryRuntime ?? new BackupRestoreDataDirectoryRuntime(sevenZipExecutablePath);
         _dataDirectoryBoundaryFactory = dataDirectoryBoundaryFactory
             ?? (() => new BackupRestoreDataDirectoryBoundary(
@@ -303,6 +306,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
 
         var insertedDomainIds = new List<int>();
         var insertedAccountIds = new List<(int DomainId, int AccountId)>();
+        var insertedFetchAccountIds = new List<(int AccountId, int FetchAccountId)>();
         var insertedAliasIds = new List<(int DomainId, int AliasId)>();
         var insertedDistributionListIds = new List<(int DomainId, int ListId)>();
         var insertedRecipientIds = new List<(int ListId, int RecipientId, string Address)>();
@@ -334,6 +338,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             var aliasStore = metadataTransaction?.AliasStore ?? _aliasStore;
             var distributionListStore = metadataTransaction?.DistributionListStore ?? _distributionListStore;
             var recipientStore = metadataTransaction?.RecipientStore ?? _recipientStore;
+            var fetchAccountStore = metadataTransaction?.FetchAccountStore ?? _fetchAccountStore;
             Func<CancellationToken, ValueTask> commitAsync = metadataTransaction is null
                 ? static _ => default
                 : metadataTransaction.CommitAsync;
@@ -343,7 +348,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                     insertedAccountIds,
                     insertedAliasIds,
                     insertedDistributionListIds,
-                    insertedRecipientIds)
+                    insertedRecipientIds,
+                    insertedFetchAccountIds)
                 : static () => default;
 
             if (useSqlTransaction && metadataTransaction is not null)
@@ -382,6 +388,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                             .Select(alias => alias with { DomainId = domainId })
                             .ToArray();
 
+                        var insertedAccountStart = insertedAccountIds.Count;
                         await BackupRestoreMetadataWriter.RestoreAccountsAsync(
                             accounts,
                             domainId,
@@ -389,6 +396,34 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                             static () => default,
                             ct,
                             accountId => insertedAccountIds.Add((domainId, accountId))).ConfigureAwait(false);
+
+                        if (domainEntry.Accounts.Any(static account => account.FetchAccounts.Count > 0)
+                            && fetchAccountStore is null)
+                        {
+                            throw new InvalidOperationException(
+                                "Fetch-account restore requires a fetch-account administration store.");
+                        }
+
+                        var accountIndex = 0;
+                        foreach (var account in domainEntry.Accounts)
+                        {
+                            if (account.FetchAccounts.Count == 0)
+                            {
+                                accountIndex++;
+                                continue;
+                            }
+
+                            var restoredAccountId = insertedAccountIds[insertedAccountStart + accountIndex].AccountId;
+                            await BackupRestoreMetadataWriter.RestoreFetchAccountsAsync(
+                                account.FetchAccounts,
+                                restoredAccountId,
+                                fetchAccountStore!,
+                                static () => default,
+                                ct,
+                                fetchAccountId => insertedFetchAccountIds.Add((restoredAccountId, fetchAccountId))).ConfigureAwait(false);
+                            accountIndex++;
+                        }
+
                         await BackupRestoreMetadataWriter.RestoreAliasesAsync(
                             aliases,
                             domainId,
@@ -444,8 +479,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<(int DomainId, int AccountId)> accountIds,
         IReadOnlyList<(int DomainId, int AliasId)> aliasIds,
         IReadOnlyList<(int DomainId, int ListId)> distributionListIds,
-        IReadOnlyList<(int ListId, int RecipientId, string Address)> recipientIds)
+        IReadOnlyList<(int ListId, int RecipientId, string Address)> recipientIds,
+        IReadOnlyList<(int AccountId, int FetchAccountId)> fetchAccountIds)
     {
+        await RollbackFetchAccountsAsync(fetchAccountIds).ConfigureAwait(false);
+
         foreach (var item in recipientIds.Reverse())
         {
             var deleted = await _recipientStore.DeleteDistributionListRecipientAsync(
@@ -499,6 +537,21 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             if (!deleted)
             {
                 throw new InvalidOperationException("Restore rollback could not delete a domain.");
+            }
+        }
+    }
+
+    private async ValueTask RollbackFetchAccountsAsync(
+        IReadOnlyList<(int AccountId, int FetchAccountId)> fetchAccountIds)
+    {
+        if (_fetchAccountStore is not null)
+        {
+            foreach (var item in fetchAccountIds.Reverse())
+            {
+                await _fetchAccountStore.DeleteFetchAccountAsync(
+                    item.AccountId,
+                    item.FetchAccountId,
+                    CancellationToken.None).ConfigureAwait(false);
             }
         }
     }

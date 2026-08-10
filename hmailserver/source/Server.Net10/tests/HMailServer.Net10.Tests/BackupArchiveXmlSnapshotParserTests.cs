@@ -1,5 +1,6 @@
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
+using HMailServer.Security;
 
 namespace HMailServer.Net10.Tests;
 
@@ -132,6 +133,77 @@ public sealed class BackupArchiveXmlSnapshotParserTests
         Assert.AreEqual(("plain-archive-value", 0), store.InsertedCredentials[1]);
     }
 
+    [TestMethod]
+    public void ParseDomainEntries_ReconstructsFetchAccountsAndNestedUids()
+    {
+        var encryptedPassword = LegacyBlowfishPasswordCipher.Encrypt("fetch-secret");
+        var xml = $"""
+            <Backup>
+              <Domains>
+                <Domain Name="d">
+                  <Accounts>
+                    <Account Name="a@d.example">
+                      <FetchAccounts>
+                        <FetchAccount Name="fetch" ServerAddress="pop3.example" ServerType="0"
+                                      Port="995" Username="fetch-user" Password="{encryptedPassword}"
+                                      Minutes="15" DaysToKeep="30" Active="1" MIMERecipientHeaders="To"
+                                      ProcessMIMERecipients="1" ProcessMIMEDate="0" UseAntiSpam="1"
+                                      UseAntiVirus="0" EnableRouteRecipients="1" ConnectionSecurity="1">
+                          <FetchAccountUIDs>
+                            <UID UID="uid-1" Date="2026-07-01 12:30:00" />
+                            <UID UID="uid-2" Date="2026-07-02 12:30:00" />
+                          </FetchAccountUIDs>
+                        </FetchAccount>
+                      </FetchAccounts>
+                    </Account>
+                  </Accounts>
+                </Domain>
+              </Domains>
+            </Backup>
+            """;
+
+        var entry = BackupArchiveXmlSnapshotParser.ParseDomainEntries(xml).Single().Accounts.Single();
+        var fetch = entry.FetchAccounts.Single();
+
+        Assert.AreEqual("fetch", fetch.Account.Name);
+        Assert.AreEqual("pop3.example", fetch.Account.ServerAddress);
+        Assert.AreEqual(995, fetch.Account.Port);
+        Assert.AreEqual(15, fetch.Account.MinutesBetweenFetch);
+        Assert.IsTrue(fetch.Account.ProcessMimeRecipients);
+        Assert.IsTrue(fetch.Account.UseAntiSpam);
+        Assert.AreEqual(encryptedPassword, fetch.EncryptedPassword);
+        Assert.AreEqual(2, fetch.Uids.Count);
+        Assert.AreEqual("uid-1", fetch.Uids[0].Value);
+        Assert.AreEqual("2026-07-01 12:30:00", fetch.Uids[0].Date);
+    }
+
+    [TestMethod]
+    public async Task RestoreFetchAccountsAsync_PreservesArchiveCiphertextAndRestoresUids()
+    {
+        var encryptedPassword = LegacyBlowfishPasswordCipher.Encrypt("fetch-secret");
+        var store = new RecordingFetchAccountStore();
+        var entries = new[]
+        {
+            new RestoreFetchAccountEntry(
+                new FetchAccountAdministrationDraft(AccountId: 0, Name: "fetch"),
+                encryptedPassword,
+                new[] { new FetchAccountUidBackupAdministrationSnapshot("uid-1", "2026-07-01 12:30:00") })
+        };
+
+        var result = await BackupRestoreMetadataWriter.RestoreFetchAccountsAsync(
+            entries,
+            accountId: 42,
+            store,
+            () => default,
+            CancellationToken.None).ConfigureAwait(false);
+
+        Assert.AreEqual(1, result.RestoredFetchAccounts);
+        Assert.AreEqual(1, result.RestoredFetchAccountUids);
+        Assert.AreEqual(42, store.Inserted[0].AccountId);
+        Assert.AreEqual(encryptedPassword, store.Inserted[0].Password);
+        Assert.AreEqual((7, "uid-1", "2026-07-01 12:30:00"), store.InsertedUids[0]);
+    }
+
     private sealed class RecordingAccountStore : IAccountAdministrationStore
     {
         public int InsertDomainId { get; private set; }
@@ -168,6 +240,48 @@ public sealed class BackupArchiveXmlSnapshotParserTests
             InsertedCredentials.Add((password, passwordEncryption));
             return ValueTask.FromResult(Inserted.Count);
         }
+    }
+
+    private sealed class RecordingFetchAccountStore : IFetchAccountAdministrationStore
+    {
+        public List<FetchAccountAdministrationDraft> Inserted { get; } = new();
+        public List<(int FetchAccountId, string Value, string Date)> InsertedUids { get; } = new();
+
+        public ValueTask<IReadOnlyList<FetchAccountAdministrationSnapshot>> GetFetchAccountsAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<FetchAccountAdministrationSnapshot>>(Array.Empty<FetchAccountAdministrationSnapshot>());
+
+        public ValueTask SetRetryNowAsync(int accountId, int fetchAccountId, CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
+        public ValueTask<int> InsertFetchAccountAsync(FetchAccountAdministrationDraft account, CancellationToken cancellationToken)
+        {
+            Inserted.Add(account);
+            return ValueTask.FromResult(7);
+        }
+
+        public ValueTask<int> InsertFetchAccountForRestoreAsync(
+            FetchAccountAdministrationDraft account,
+            string encryptedPassword,
+            CancellationToken cancellationToken)
+        {
+            Inserted.Add(account with { Password = encryptedPassword });
+            return ValueTask.FromResult(7);
+        }
+
+        public ValueTask InsertFetchAccountUidAsync(
+            int fetchAccountId,
+            string uidValue,
+            string uidTime,
+            CancellationToken cancellationToken)
+        {
+            InsertedUids.Add((fetchAccountId, uidValue, uidTime));
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DeleteFetchAccountAsync(int accountId, int fetchAccountId, CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
     }
 
     private const string AliasAndListXml = """

@@ -7,7 +7,16 @@ using HMailServer.Core.Abstractions;
 namespace HMailServer.ComInterop;
 
 [ComVisible(false)]
-public sealed record RestoreAccountEntry(AccountAdministrationSnapshot Account, string Password, int PasswordEncryption);
+public sealed record RestoreAccountEntry(AccountAdministrationSnapshot Account, string Password, int PasswordEncryption)
+{
+    public IReadOnlyList<RestoreFetchAccountEntry> FetchAccounts { get; init; } = Array.Empty<RestoreFetchAccountEntry>();
+}
+
+[ComVisible(false)]
+public sealed record RestoreFetchAccountEntry(
+    FetchAccountAdministrationDraft Account,
+    string EncryptedPassword,
+    IReadOnlyList<FetchAccountUidBackupAdministrationSnapshot> Uids);
 
 [ComVisible(false)]
 public sealed record RestoreDistributionListEntry(
@@ -162,7 +171,50 @@ public static class BackupArchiveXmlSnapshotParser
         return new RestoreAccountEntry(
             snapshot,
             element.Attribute("Password")?.Value ?? string.Empty,
-            IntAttr(element, "PasswordEncryption"));
+            IntAttr(element, "PasswordEncryption"))
+        {
+            FetchAccounts = element.Element("FetchAccounts")?.Elements("FetchAccount")
+                .Select(ParseFetchAccount)
+                .ToArray()
+                ?? Array.Empty<RestoreFetchAccountEntry>()
+        };
+    }
+
+    private static RestoreFetchAccountEntry ParseFetchAccount(XElement element)
+    {
+        var connectionSecurity = IntAttr(element, "ConnectionSecurity");
+        if (IntAttr(element, "UseSSL") != 0)
+        {
+            connectionSecurity = 1;
+        }
+
+        var account = new FetchAccountAdministrationDraft(
+            AccountId: 0,
+            Name: element.Attribute("Name")?.Value ?? string.Empty,
+            ServerAddress: element.Attribute("ServerAddress")?.Value ?? string.Empty,
+            Port: IntAttr(element, "Port"),
+            ServerType: IntAttr(element, "ServerType"),
+            Username: element.Attribute("Username")?.Value ?? string.Empty,
+            MinutesBetweenFetch: IntAttr(element, "Minutes"),
+            DaysToKeepMessages: IntAttr(element, "DaysToKeep"),
+            Enabled: IntAttr(element, "Active") != 0,
+            ProcessMimeRecipients: IntAttr(element, "ProcessMIMERecipients") != 0,
+            ProcessMimeDate: IntAttr(element, "ProcessMIMEDate") != 0,
+            ConnectionSecurity: connectionSecurity,
+            UseAntiSpam: IntAttr(element, "UseAntiSpam") != 0,
+            UseAntiVirus: IntAttr(element, "UseAntiVirus") != 0,
+            EnableRouteRecipients: IntAttr(element, "EnableRouteRecipients") != 0,
+            MimeRecipientHeaders: element.Attribute("MIMERecipientHeaders")?.Value ?? string.Empty);
+        var uids = element.Element("FetchAccountUIDs")?.Elements("UID")
+            .Select(uid => new FetchAccountUidBackupAdministrationSnapshot(
+                uid.Attribute("UID")?.Value ?? string.Empty,
+                uid.Attribute("Date")?.Value ?? string.Empty))
+            .ToArray()
+            ?? Array.Empty<FetchAccountUidBackupAdministrationSnapshot>();
+        return new RestoreFetchAccountEntry(
+            account,
+            element.Attribute("Password")?.Value ?? string.Empty,
+            uids);
     }
 
     private static DateTime DateTimeAttr(XElement element, string name) =>

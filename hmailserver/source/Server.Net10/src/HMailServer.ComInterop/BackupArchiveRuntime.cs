@@ -1445,6 +1445,7 @@ public sealed class BackupXmlPayloadRuntime
                 _distributionListStore,
                 _distributionListRecipientStore,
                 metadataTransactionFactory: _metadataTransactionFactory,
-                requireSqlTransaction: _requireSqlTransaction));
+                requireSqlTransaction: _requireSqlTransaction,
+                fetchAccountStore: _fetchAccountStore));
     }
 }
