@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T17:43:21Z / 2026-08-10T20:43:21+03:00
+- UTC/local timestamp: 2026-08-10T17:55:00Z / 2026-08-10T20:55:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `f144fbf86`
+- Current HEAD: `02c221769`
 - Last successfully pushed commit: `0b2646731`
-- Latest focused-test result: writer `3 passed, 0 failed`; SQL/Data message-failure executor test compiled but was skipped without disposable SQL opt-in
-- Latest full Net10 result: `1994 passed, 38 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; message-failure SQL/Data rollback, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: message-insert failure rollback now tracks the root folder before message/child insertion
-- Completed milestones: raw backup staging, disposable restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, and root-folder failure cleanup; no release milestone complete
-- Open production blockers: approved destructive SQL/Data acceptance, recipients/search/ACL/settings restore, C++ protocol parity, paired SMTP/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
+- Latest focused-test result: partial message rollback test compiled; SQL/Data rollback group remains skipped without approved disposable SQL opt-in
+- Latest full Net10 result: `1994 passed, 39 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; first-message and partial-message SQL/Data rollback, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
+- Current bounded slice: partial message rollback acceptance test added; next is execution on the approved disposable target
+- Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage; no release milestone complete
+- Open production blockers: real disposable SQL/Data restore evidence, recipients/search/ACL/settings restore, C++ protocol parity, paired SMTP/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
 - Environment blocked work: approved disposable SQL/Data target, legacy C++ runtime, SQL FTS/ADO baseline, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) message recipients/search metadata restore, (2) settings restore graph and filesystem/SQL atomicity, (3) paired C++/.NET protocol and delivery acceptance when runtime infrastructure exists
+- Next three independent slices: (1) run the two disposable SQL/Data rollback tests, (2) message recipient/search metadata legacy audit and bounded restore decision, (3) settings restore graph and filesystem/SQL atomicity

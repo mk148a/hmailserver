@@ -1,3 +1,12 @@
+## Current Authoritative Continuation (2026-08-10, partial message rollback acceptance)
+
+Test commit `02c221769` adds coverage for a successful first message followed
+by a failing second message insert. The required rollback is bounded to the
+restore root: prior message rows, folders, staged raw files, the journal, and
+the rollback artifact must be absent after the original data directory is
+restored. Full default Net10 is `1994 passed, 39 skipped, 0 failed`; SQL/Data
+execution remains blocked without the approved disposable target.
+
 ## Current Authoritative Continuation (2026-08-10, message failure rollback)
 
 Code/test commit `f144fbf86` records each restored root folder before its

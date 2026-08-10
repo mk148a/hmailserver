@@ -1,6 +1,15 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, partial message rollback acceptance)
+
+Test commit `02c221769` adds the second bounded failure case: one message is
+inserted, the next insert fails, and the executor must remove the first SQL
+message row, restore the original data directory, remove staged raw files, and
+clean its recovery artifact. Full default Net10 is `1994 passed, 39 skipped,
+0 failed`. The two destructive SQL/Data rollback tests remain skipped without
+the approved disposable target; release remains RED.
+
 ## Current parity continuation (2026-08-10, message failure rollback)
 
 Code/test commit `f144fbf86` closes the bounded restore rollback gap exposed by

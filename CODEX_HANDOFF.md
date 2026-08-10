@@ -1,5 +1,17 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-10, PARTIAL MESSAGE ROLLBACK)
+
+Test commit `02c221769` adds a non-DB restore failure case where message one
+inserts and message two fails. The test requires removal of the first message
+row, root folder, staged raw files, recovery journal, and rollback artifact,
+while restoring the original data directory. Full default Net10 is `1994
+passed, 39 skipped, 0 failed`.
+
+The destructive SQL/Data test is present but skipped without the approved
+disposable connection and isolated-create opt-in. Next action is to execute
+both rollback tests on that isolated target; release remains RED. Do not push.
+
 ## Current Authoritative Continuation (2026-08-10, MESSAGE FAILURE ROLLBACK)
 
 Code/test commit `f144fbf86` records the restored root folder before message

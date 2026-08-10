@@ -1,4 +1,19 @@
 
+## Current Audit Note (2026-08-10, PARTIAL MESSAGE ROLLBACK ACCEPTANCE)
+
+Test commit `02c221769` adds the missing failure-path case after the first
+message has already inserted successfully. The injected second insert failure
+must remove the first `hm_messages` row through the existing message rollback,
+delete the owning folder tree, restore the original filesystem, and clean the
+journal and rollback artifact. Default full Net10 is `1994 passed, 39 skipped,
+0 failed`.
+
+Both message failure tests are destructive SQL/Data opt-ins and remain skipped
+because `HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION` and
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1` are absent.
+Next slice is to execute these tests against the approved disposable target;
+do not claim rollback acceptance from compilation or skip results.
+
 ## Current Audit Note (2026-08-10, MESSAGE-INSERT FAILURE ROLLBACK)
 
 Code/test commit `f144fbf86` closes the narrow root-folder tracking gap in the
