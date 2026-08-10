@@ -75,6 +75,12 @@ SET settinginteger = @DisconnectInvalidClients
 WHERE settingname = N'disconnectinvalidclients';
 """;
 
+    public const string UpdateAddDeliveredToHeaderSql = """
+UPDATE hm_settings
+SET settinginteger = @AddDeliveredToHeader
+WHERE settingname = N'adddeliveredtoheader';
+""";
+
     public const string UpdateMaxNumberOfInvalidCommandsSql = """
 UPDATE hm_settings
 SET settinginteger = @MaxNumberOfInvalidCommands
@@ -436,6 +442,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateDisconnectInvalidClientsSql, connection);
         command.Parameters.Add("@DisconnectInvalidClients", SqlDbType.Int).Value = disconnectInvalidClients ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAddDeliveredToHeaderAsync(
+        bool addDeliveredToHeader,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAddDeliveredToHeaderSql, connection);
+        command.Parameters.Add("@AddDeliveredToHeader", SqlDbType.Int).Value = addDeliveredToHeader ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

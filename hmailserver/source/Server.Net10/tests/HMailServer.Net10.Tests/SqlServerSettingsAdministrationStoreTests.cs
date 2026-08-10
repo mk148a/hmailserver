@@ -162,6 +162,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAddDeliveredToHeaderSql_UpdatesOnlyTheExistingRowWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateAddDeliveredToHeaderSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settinginteger = @AddDeliveredToHeader");
+        StringAssert.Contains(sql, "WHERE settingname = N'adddeliveredtoheader'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void GetSettingsSql_ReadsOnlyBoundedLegacyAdministrationScalars()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;

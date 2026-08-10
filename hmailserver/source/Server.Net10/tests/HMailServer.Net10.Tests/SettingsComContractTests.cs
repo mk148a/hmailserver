@@ -212,6 +212,10 @@ public sealed class SettingsComContractTests
             () => _ = ((IInterfaceSettings)settings).DisconnectInvalidClients);
         var disconnectInvalidClientsSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).DisconnectInvalidClients = true);
+        var addDeliveredToHeaderError = Assert.ThrowsExactly<COMException>(
+            () => _ = ((IInterfaceSettings)settings).AddDeliveredToHeader);
+        var addDeliveredToHeaderSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).AddDeliveredToHeader = true);
         var hostNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.HostName);
         var imapCapabilityError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSortEnabled);
         var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
@@ -260,6 +264,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, invalidCommandsSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, disconnectInvalidClientsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, disconnectInvalidClientsSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, addDeliveredToHeaderError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, addDeliveredToHeaderSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapCapabilityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
@@ -1127,6 +1133,54 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AddDeliveredToHeaderSetterPersistsTrueAndFalseBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AddDeliveredToHeaderUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AddDeliveredToHeader: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.AddDeliveredToHeader = true;
+
+        Assert.AreEqual(1, store.AddDeliveredToHeaderUpdateCount);
+        Assert.IsTrue(store.UpdatedAddDeliveredToHeader);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.AddDeliveredToHeader);
+
+        settings.AddDeliveredToHeader = false;
+
+        Assert.AreEqual(2, store.AddDeliveredToHeaderUpdateCount);
+        Assert.IsFalse(store.UpdatedAddDeliveredToHeader);
+        Assert.IsFalse(settings.AddDeliveredToHeader);
+
+        store.AddDeliveredToHeaderUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.AddDeliveredToHeader = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(3, store.AddDeliveredToHeaderUpdateCount);
+        Assert.IsFalse(settings.AddDeliveredToHeader);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.AddDeliveredToHeader = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(3, store.AddDeliveredToHeaderUpdateCount);
+        Assert.IsFalse(settings.AddDeliveredToHeader);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -1367,6 +1421,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedDisconnectInvalidClients { get; private set; }
 
+        public bool AddDeliveredToHeaderUpdateResult { get; set; }
+
+        public int AddDeliveredToHeaderUpdateCount { get; private set; }
+
+        public bool UpdatedAddDeliveredToHeader { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<bool> UpdateDefaultDomainAsync(
@@ -1486,6 +1546,16 @@ public sealed class SettingsComContractTests
             UpdatedDisconnectInvalidClients = disconnectInvalidClients;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(DisconnectInvalidClientsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAddDeliveredToHeaderAsync(
+            bool addDeliveredToHeader,
+            CancellationToken cancellationToken)
+        {
+            AddDeliveredToHeaderUpdateCount++;
+            UpdatedAddDeliveredToHeader = addDeliveredToHeader;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AddDeliveredToHeaderUpdateResult);
         }
 
     }

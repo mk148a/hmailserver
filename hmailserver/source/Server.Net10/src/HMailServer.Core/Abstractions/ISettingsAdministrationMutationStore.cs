@@ -46,6 +46,10 @@ public interface ISettingsAdministrationMutationStore
         bool disconnectInvalidClients,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAddDeliveredToHeaderAsync(
+        bool addDeliveredToHeader,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateMaxNumberOfInvalidCommandsAsync(
         int maxNumberOfInvalidCommands,
         CancellationToken cancellationToken);

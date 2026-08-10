@@ -1280,7 +1280,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.AddDeliveredToHeader
                 : _administrationSnapshot.AddDeliveredToHeader;
         }
-        set => base.AddDeliveredToHeader = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.AddDeliveredToHeader = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateAddDeliveredToHeaderAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The add Delivered-To header update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    AddDeliveredToHeader = value
+                };
+            }
+        }
     }
 
     public override IInterfaceMessageIndexing MessageIndexing
