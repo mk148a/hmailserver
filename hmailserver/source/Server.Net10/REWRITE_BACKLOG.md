@@ -2464,3 +2464,14 @@ Net10 `2036 passed, 39 skipped, 0 failed`. Legacy references:
 fresh legacy-first audit of one remaining low-risk Settings mutation. External
 retry scheduling and runtime reconfiguration are intentionally not part of
 this slice.
+## Current next slice (2026-08-11)
+
+The authenticated fixed-row `Settings.MaxNumberOfMXHosts` mutation is
+implemented in code/test commit `3ca025ce1`, with focused settings/SQL coverage
+`56/56` and full Net10 `2039 passed, 39 skipped, 0 failed`. Legacy references:
+`hMailServer.idl:650-651`, `InterfaceSettings.cpp:2189-2214`,
+`SMTPConfiguration.cpp:237-245`, `Constants.h:120`, and the
+`MaxNumberOfMXHosts` SQL seed. The next independent code slice is a fresh
+legacy-first audit of one remaining low-risk Settings mutation. ExternalDelivery
+MX-host enforcement and runtime reconfiguration are intentionally not part of
+this slice.

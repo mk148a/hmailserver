@@ -1,3 +1,21 @@
+## Current parity continuation (2026-08-11, authenticated maximum MX host count mutation)
+
+Code/test commit `3ca025ce1` adds only authenticated
+`IInterfaceSettings.MaxNumberOfMXHosts` (`DispId(90)`) persistence. The SQL
+command is parameterized and fixed to `settingname = N'MaxNumberOfMXHosts'`; the
+live administrator callback is checked before store access and the retained
+snapshot changes only after a one-row success. Focused settings/SQL coverage is
+`56/56`; full Net10 is `2039 passed, 39 skipped, 0 failed`.
+
+Legacy references are `source/Server/hMailServer/hMailServer.idl:650-651`,
+`source/Server/COM/InterfaceSettings.cpp:2189-2214`,
+`source/Server/SMTP/SMTPConfiguration.cpp:237-245`,
+`source/Server/Common/Application/Constants.h:120`, and the
+`MaxNumberOfMXHosts` SQL seed. No COM identity, direct activation boundary,
+`ExternalDelivery`, MX-host enforcement, or runtime reconfiguration path
+changed. Next slice: fresh legacy-first audit of one remaining low-risk Settings
+mutation.
+
 ## Current parity continuation (2026-08-11, authenticated SMTP retry count mutation)
 
 Code/test commit `f8010374d` adds only authenticated

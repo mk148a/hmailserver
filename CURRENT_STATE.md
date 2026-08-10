@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T21:47:07Z / 2026-08-11T00:47:07+03:00
+- UTC/local timestamp: 2026-08-10T22:00:49Z / 2026-08-11T01:00:49+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `f8010374d`
+- Current HEAD: `3ca025ce1`
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: settings COM/store tests 53 passed, 0 failed, 0 skipped
-- Latest full Net10 result: `2036 passed, 39 skipped, 0 failed`
+- Latest focused-test result: settings COM/store tests 56 passed, 0 failed, 0 skipped
+- Latest full Net10 result: `2039 passed, 39 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; SQL/Data rollback, SQL/FTS, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: authenticated `Settings.SMTPNoOfTries` (`DispId(19)`) now persists only the canonical fixed existing `hm_settings.smtpnoofretries` row through a parameterized integer update, rechecks the live administrator callback, and publishes the retained snapshot only after one-row success; the misspelled `smtpnooftries` row remains excluded; `ExternalDelivery` retry scheduling and runtime reconfiguration remain unchanged
+- Current bounded slice: authenticated `Settings.MaxNumberOfMXHosts` (`DispId(90)`) now persists only the fixed existing `hm_settings.MaxNumberOfMXHosts` row through a parameterized integer update, rechecks the live administrator callback, and publishes the retained snapshot only after one-row success; `ExternalDelivery` MX-host enforcement and runtime reconfiguration remain unchanged
 - Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing/store/execution, combined settings/domain DB-only restore; no release milestone complete
 - Open production blockers: real disposable SQL/Data restore evidence, non-DB settings restore and reinitialize, live SQL/FTS backfill, credential policy, ACL restore, C++ protocol parity, paired SMTP/message-acceptance/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
 - Environment blocked work: healthy isolated C++ listener binary, SQL Server with Full-Text Search and supported legacy ADO provider, approved populated SQL/Data target, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) fresh legacy-first audit of the next low-risk Settings mutation after SMTPNoOfTries, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision
+- Next three independent slices: (1) fresh legacy-first audit of the next low-risk Settings mutation after MaxNumberOfMXHosts, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision

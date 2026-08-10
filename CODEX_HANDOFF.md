@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, MAXIMUM MX HOST COUNT MUTATION)
+
+Code/test commit `3ca025ce1` implements only authenticated
+`Settings.MaxNumberOfMXHosts` (`DispId(90)`) persistence. It preserves direct
+activation denial, rechecks the live administrator callback, updates the fixed
+`hm_settings.MaxNumberOfMXHosts` row with a parameterized integer command, and
+changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.MaxNumberOfMXHosts`
+(`source/Server/hMailServer/hMailServer.idl:650-651`),
+`InterfaceSettings::put_MaxNumberOfMXHosts`
+(`source/Server/COM/InterfaceSettings.cpp:2189-2214`),
+`SMTPConfiguration::SetMaxNumberOfMXHosts`
+(`source/Server/SMTP/SMTPConfiguration.cpp:237-245`),
+`PROPERTY_MAX_NUMBER_OF_MXHOSTS`
+(`source/Server/Common/Application/Constants.h:120`), and the SQL seed.
+Focused settings/SQL coverage is `56/56`; full Net10 is `2039 passed, 39
+skipped, 0 failed`. ExternalDelivery MX-host enforcement and runtime
+reconfiguration were deliberately not added. Next slice: fresh legacy-first
+audit of one remaining low-risk Settings mutation. Real SQL/Data rollback,
+SEC-18, installer/out-of-process COM, matched protocol performance, and
+24-hour soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, SMTP RETRY COUNT MUTATION)
 
 Code/test commit `f8010374d` implements only authenticated

@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, authenticated maximum MX host count mutation)
+
+Code/test commit `3ca025ce1` extends the existing authenticated Administrator
+settings seam to only `IInterfaceSettings.MaxNumberOfMXHosts` (`DispId(90)`). It
+updates the fixed `hm_settings.MaxNumberOfMXHosts` row with a parameterized
+integer command, requires one affected row, rechecks the live administrator
+callback, and publishes the retained snapshot only after success. Focused
+settings/SQL coverage is `56/56`; full Net10 is `2039 passed, 39 skipped, 0
+failed`.
+
+Legacy anchors are `IInterfaceSettings.MaxNumberOfMXHosts`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:650-651`),
+`InterfaceSettings::put_MaxNumberOfMXHosts`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2189-2214`),
+`SMTPConfiguration::SetMaxNumberOfMXHosts`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:237-245`),
+`PROPERTY_MAX_NUMBER_OF_MXHOSTS`
+(`hmailserver/source/Server/Common/Application/Constants.h:120`), and the
+`MaxNumberOfMXHosts` SQL seed. `ExternalDelivery` MX-host enforcement and live
+runtime reconfiguration remain unchanged.
+
+Release remains RED: disposable SQL/Data rollback, SQL/FTS, matched legacy and
+.NET protocol load evidence, SEC-18 cutover, installer/out-of-process COM, and
+24-hour soak remain unproven. Next slice is a fresh legacy-first audit of one
+remaining low-risk Settings mutation.
+
 ## Current parity continuation (2026-08-11, authenticated SMTP retry count mutation)
 
 Code/test commit `f8010374d` extends the existing authenticated Administrator
