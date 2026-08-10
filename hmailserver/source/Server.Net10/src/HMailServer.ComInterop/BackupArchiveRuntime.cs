@@ -1104,6 +1104,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IRuleCriteriaAdministrationStore? _ruleCriteriaStore;
     private readonly IRuleActionAdministrationStore? _ruleActionStore;
     private readonly IImapFolderAdministrationStore? _folderStore;
+    private readonly IImapFolderAdministrationRestoreStore? _folderRestoreStore;
     private readonly IMessageAdministrationStore? _messageStore;
     private readonly IAliasAdministrationStore _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
@@ -1133,6 +1134,7 @@ public sealed class BackupXmlPayloadRuntime
             ruleCriteriaStore: null,
             ruleActionStore: null,
             folderStore: null,
+            folderRestoreStore: null,
             messageStore: null,
             metadataTransactionFactory: null,
             requireSqlTransaction: false)
@@ -1155,6 +1157,7 @@ public sealed class BackupXmlPayloadRuntime
         IRuleCriteriaAdministrationStore? ruleCriteriaStore = null,
         IRuleActionAdministrationStore? ruleActionStore = null,
         IImapFolderAdministrationStore? folderStore = null,
+        IImapFolderAdministrationRestoreStore? folderRestoreStore = null,
         IMessageAdministrationStore? messageStore = null,
         IBackupRestoreMetadataTransactionFactory? metadataTransactionFactory = null,
         bool requireSqlTransaction = false)
@@ -1176,6 +1179,7 @@ public sealed class BackupXmlPayloadRuntime
         _ruleCriteriaStore = ruleCriteriaStore;
         _ruleActionStore = ruleActionStore;
         _folderStore = folderStore;
+        _folderRestoreStore = folderRestoreStore;
         _messageStore = messageStore;
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
@@ -1453,6 +1457,8 @@ public sealed class BackupXmlPayloadRuntime
                 fetchAccountStore: _fetchAccountStore,
                 ruleStore: _ruleStore,
                 ruleCriteriaStore: _ruleCriteriaStore,
-                ruleActionStore: _ruleActionStore));
+                ruleActionStore: _ruleActionStore,
+                folderRestoreStore: _folderRestoreStore,
+                folderRestoreDeletionStore: _folderStore as IImapFolderAdministrationRestoreDeletionStore));
     }
 }

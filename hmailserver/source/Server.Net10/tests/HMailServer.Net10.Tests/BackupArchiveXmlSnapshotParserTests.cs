@@ -223,6 +223,42 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParseDomainEntries_ReconstructsFolderMetadataAndRejectsMessagePayload()
+    {
+        const string xml = """
+            <Backup>
+              <Domains>
+                <Domain Name="d">
+                  <Accounts>
+                    <Account Name="a@d.example">
+                      <Folders>
+                        <Folder Name="INBOX" Subscribed="1" CreateTime="2026-07-01 12:30:00" CurrentUID="5">
+                          <Folders>
+                            <Folder Name="child" Subscribed="0" CreateTime="2026-07-01 12:31:00" CurrentUID="2" />
+                          </Folders>
+                        </Folder>
+                      </Folders>
+                    </Account>
+                  </Accounts>
+                </Domain>
+              </Domains>
+            </Backup>
+            """;
+
+        var folder = BackupArchiveXmlSnapshotParser.ParseDomainEntries(xml)
+            .Single().Accounts.Single().Folders.Single();
+        Assert.AreEqual("INBOX", folder.Folder.Name);
+        Assert.AreEqual(5, folder.Folder.CurrentUid);
+        Assert.AreEqual("child", folder.Children.Single().Folder.Name);
+
+        var withMessages = xml.Replace(
+            "CurrentUID=\"5\">",
+            "CurrentUID=\"5\"><Messages />",
+            StringComparison.Ordinal);
+        Assert.ThrowsExactly<InvalidDataException>(() => BackupArchiveXmlSnapshotParser.ParseDomainEntries(withMessages));
+    }
+
+    [TestMethod]
     public async Task RestoreFetchAccountsAsync_PreservesArchiveCiphertextAndRestoresUids()
     {
         var encryptedPassword = LegacyBlowfishPasswordCipher.Encrypt("fetch-secret");

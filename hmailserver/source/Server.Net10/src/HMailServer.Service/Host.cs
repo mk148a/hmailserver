@@ -956,6 +956,12 @@ public static class Host
     builder.Services.AddSingleton<IRuleCriteriaAdministrationStore, SqlServerRuleCriteriaAdministrationStore>();
     builder.Services.AddSingleton<IRuleActionAdministrationStore, SqlServerRuleActionAdministrationStore>();
     builder.Services.AddSingleton<IImapFolderAdministrationStore, SqlServerImapFolderAdministrationStore>();
+    builder.Services.AddSingleton<IImapFolderAdministrationRestoreStore>(serviceProvider =>
+        (IImapFolderAdministrationRestoreStore)serviceProvider.GetRequiredService<IImapFolderAdministrationStore>());
+    builder.Services.AddSingleton<IImapFolderAdministrationDeletionStore>(serviceProvider =>
+        (IImapFolderAdministrationDeletionStore)serviceProvider.GetRequiredService<IImapFolderAdministrationStore>());
+    builder.Services.AddSingleton<IImapFolderAdministrationRestoreDeletionStore>(serviceProvider =>
+        (IImapFolderAdministrationRestoreDeletionStore)serviceProvider.GetRequiredService<IImapFolderAdministrationStore>());
     builder.Services.AddSingleton<IRouteAdministrationStore, SqlServerRouteAdministrationStore>();
     builder.Services.AddSingleton<IRouteAddressAdministrationStore, SqlServerRouteAddressAdministrationStore>();
     builder.Services.AddSingleton<IIncomingRelayAdministrationStore, SqlServerIncomingRelayAdministrationStore>();

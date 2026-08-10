@@ -68,6 +68,7 @@ BackupManagerRuntimeHost.Configure(
                 ruleCriteriaStore: host.Services.GetRequiredService<IRuleCriteriaAdministrationStore>(),
                 ruleActionStore: host.Services.GetRequiredService<IRuleActionAdministrationStore>(),
                 folderStore: host.Services.GetRequiredService<IImapFolderAdministrationStore>(),
+                folderRestoreStore: host.Services.GetRequiredService<IImapFolderAdministrationRestoreStore>(),
                 messageStore: host.Services.GetRequiredService<IMessageAdministrationStore>(),
                 metadataTransactionFactory: host.Services
                     .GetRequiredService<IBackupRestoreMetadataTransactionFactory>(),

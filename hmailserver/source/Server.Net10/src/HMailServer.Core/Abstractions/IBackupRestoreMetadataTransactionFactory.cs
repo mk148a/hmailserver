@@ -26,6 +26,8 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
 
     IRuleActionAdministrationStore? RuleActionStore => null;
 
+    IImapFolderAdministrationRestoreStore? FolderRestoreStore => null;
+
     ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped domain deletion for restore is not implemented by this transaction.");

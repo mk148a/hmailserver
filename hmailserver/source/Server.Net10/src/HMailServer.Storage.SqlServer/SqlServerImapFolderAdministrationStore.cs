@@ -10,7 +10,9 @@ public sealed class SqlServerImapFolderAdministrationStore :
     IImapFolderPermissionAdministrationStore,
     IImapFolderPermissionAdministrationMutationStore,
     IImapFolderAdministrationMutationStore,
-    IImapFolderAdministrationDeletionStore
+    IImapFolderAdministrationRestoreStore,
+    IImapFolderAdministrationDeletionStore,
+    IImapFolderAdministrationRestoreDeletionStore
 {
     public const string GetFoldersForAccountSql = """
 SELECT
@@ -134,6 +136,16 @@ VALUES
 SELECT
     CONVERT(int, SCOPE_IDENTITY()), @AccountID, @ParentFolderID, @FolderName,
     @FolderIsSubscribed, 0, CONVERT(varchar(19), @CreationTime, 120);
+""";
+
+    public const string InsertFolderForRestoreSql = """
+INSERT INTO hm_imapfolders
+    (folderaccountid, folderparentid, foldername, folderissubscribed, foldercurrentuid, foldercreationtime)
+VALUES
+    (@AccountID, @ParentFolderID, @FolderName, @FolderIsSubscribed, @CurrentUID, @CreationTime);
+SELECT
+    CONVERT(int, SCOPE_IDENTITY()), @AccountID, @ParentFolderID, @FolderName,
+    @FolderIsSubscribed, @CurrentUID, CONVERT(varchar(19), @CreationTime, 120);
 """;
 
     public const string UpdateFolderSql = """
@@ -280,6 +292,31 @@ SELECT @Succeeded;
 SELECT messagefilename, messageaccountid, messagefolderid, accountaddress, messagetype
 FROM @RemovedMessages
 ORDER BY messageid;
+""";
+
+    public const string DeleteRestoredFolderTreeSql = """
+SET XACT_ABORT ON;
+;WITH FolderTree AS
+(
+    SELECT folderid
+    FROM hm_imapfolders
+    WHERE folderid = @FolderID
+      AND folderaccountid = @AccountID
+      AND folderparentid = @ParentFolderID
+
+    UNION ALL
+
+    SELECT child.folderid
+    FROM hm_imapfolders AS child
+    INNER JOIN FolderTree AS parent
+        ON child.folderparentid = parent.folderid
+    WHERE child.folderaccountid = @AccountID
+)
+DELETE folders
+FROM hm_imapfolders AS folders
+INNER JOIN FolderTree AS tree
+    ON tree.folderid = folders.folderid;
+SELECT @@ROWCOUNT;
 """;
 
     public const string DeleteAllPublicFoldersForRestoreSql = """
@@ -550,6 +587,51 @@ WHERE NOT
             reader.GetString(6));
     }
 
+    public async ValueTask<ImapFolderAdministrationSnapshot> InsertFolderForRestoreAsync(
+        ImapFolderAdministrationSnapshot folder,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+        if (!DateTime.TryParse(
+                folder.CreationTime,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var creationTime))
+        {
+            throw new FormatException($"Folder creation time '{folder.CreationTime}' is not a valid legacy timestamp.");
+        }
+
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertFolderForRestoreSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = folder.AccountId;
+        command.Parameters.Add("@ParentFolderID", SqlDbType.Int).Value = folder.ParentId;
+        command.Parameters.Add("@FolderName", SqlDbType.NVarChar, 255).Value = folder.Name;
+        command.Parameters.Add("@FolderIsSubscribed", SqlDbType.Int).Value = folder.Subscribed ? 1 : 0;
+        command.Parameters.Add("@CurrentUID", SqlDbType.Int).Value = folder.CurrentUid;
+        command.Parameters.Add("@CreationTime", SqlDbType.DateTime).Value = creationTime;
+
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SingleRow,
+            cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("The restore folder insert did not return its generated row.");
+        }
+
+        return new ImapFolderAdministrationSnapshot(
+            reader.GetInt32(0),
+            reader.GetInt32(1),
+            reader.GetInt32(2),
+            reader.GetString(3),
+            Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture) != 0,
+            reader.GetInt32(5),
+            reader.GetString(6));
+    }
+
     public async ValueTask<bool> UpdateFolderAsync(
         ImapFolderAdministrationSnapshot folder,
         CancellationToken cancellationToken)
@@ -604,6 +686,21 @@ WHERE NOT
         }
 
         return new ImapFolderAdministrationDeletionResult(succeeded, messages);
+    }
+
+    public async ValueTask<bool> DeleteRestoredFolderTreeAsync(
+        int accountId,
+        int folderId,
+        int parentFolderId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteRestoredFolderTreeSql, connection);
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@ParentFolderID", SqlDbType.Int).Value = parentFolderId;
+        var deleted = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return deleted is not null && Convert.ToInt32(deleted, CultureInfo.InvariantCulture) > 0;
     }
 
     internal async ValueTask DeleteAllPublicFoldersForRestoreAsync(
@@ -687,7 +784,7 @@ WHERE NOT
                     ParentId: reader.GetInt32(2),
                     Name: reader.GetString(3),
                     Subscribed: Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture) == 1,
-                    CurrentUid: unchecked((int)(uint)reader.GetInt64(5)),
+                    CurrentUid: unchecked((int)Convert.ToUInt32(reader.GetValue(5), CultureInfo.InvariantCulture)),
                     CreationTime: reader.GetString(6)));
         }
 

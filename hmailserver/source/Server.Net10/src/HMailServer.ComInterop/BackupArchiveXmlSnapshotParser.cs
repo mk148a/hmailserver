@@ -12,6 +12,8 @@ public sealed record RestoreAccountEntry(AccountAdministrationSnapshot Account, 
     public IReadOnlyList<RestoreFetchAccountEntry> FetchAccounts { get; init; } = Array.Empty<RestoreFetchAccountEntry>();
 
     public IReadOnlyList<RestoreRuleEntry> Rules { get; init; } = Array.Empty<RestoreRuleEntry>();
+
+    public IReadOnlyList<RestoreFolderEntry> Folders { get; init; } = Array.Empty<RestoreFolderEntry>();
 }
 
 [ComVisible(false)]
@@ -19,6 +21,11 @@ public sealed record RestoreRuleEntry(
     RuleAdministrationSnapshot Rule,
     IReadOnlyList<RuleCriteriaAdministrationSnapshot> Criteria,
     IReadOnlyList<RuleActionAdministrationSnapshot> Actions);
+
+[ComVisible(false)]
+public sealed record RestoreFolderEntry(
+    ImapFolderAdministrationSnapshot Folder,
+    IReadOnlyList<RestoreFolderEntry> Children);
 
 [ComVisible(false)]
 public sealed record RestoreFetchAccountEntry(
@@ -188,8 +195,35 @@ public static class BackupArchiveXmlSnapshotParser
             Rules = element.Element("Rules")?.Elements("Rule")
                 .Select(rule => ParseRule(rule, 0))
                 .ToArray()
-                ?? Array.Empty<RestoreRuleEntry>()
+                ?? Array.Empty<RestoreRuleEntry>(),
+            Folders = element.Element("Folders")?.Elements("Folder")
+                .Select(ParseFolder)
+                .ToArray()
+                ?? Array.Empty<RestoreFolderEntry>()
         };
+    }
+
+    private static RestoreFolderEntry ParseFolder(XElement element)
+    {
+        if (element.Element("Messages") is not null || element.Element("Permissions") is not null)
+        {
+            throw new InvalidDataException(
+                "Folder restore with messages or permissions is outside the bounded folder-metadata slice.");
+        }
+
+        var folder = new ImapFolderAdministrationSnapshot(
+            Id: 0,
+            AccountId: 0,
+            ParentId: 0,
+            Name: element.Attribute("Name")?.Value ?? string.Empty,
+            Subscribed: IntAttr(element, "Subscribed") != 0,
+            CurrentUid: IntAttr(element, "CurrentUID"),
+            CreationTime: element.Attribute("CreateTime")?.Value ?? string.Empty);
+        var children = element.Element("Folders")?.Elements("Folder")
+            .Select(ParseFolder)
+            .ToArray()
+            ?? Array.Empty<RestoreFolderEntry>();
+        return new RestoreFolderEntry(folder, children);
     }
 
     private static RestoreRuleEntry ParseRule(XElement element, int accountId)

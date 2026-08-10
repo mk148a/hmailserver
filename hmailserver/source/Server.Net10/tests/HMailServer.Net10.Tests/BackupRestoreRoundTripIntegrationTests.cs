@@ -44,6 +44,13 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                           </RuleActions>
                         </Rule>
                       </Rules>
+                      <Folders>
+                        <Folder Name="INBOX" Subscribed="1" CreateTime="2026-07-01 12:30:00" CurrentUID="5">
+                          <Folders>
+                            <Folder Name="child" Subscribed="0" CreateTime="2026-07-01 12:31:00" CurrentUID="2" />
+                          </Folders>
+                        </Folder>
+                      </Folders>
                       <FetchAccounts>
                         <FetchAccount Name="fetcher" ServerAddress="pop3.example.test" ServerType="0"
                                       Port="995" Username="remote-user"
@@ -99,6 +106,13 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                       </RuleActions>
                     </Rule>
                   </Rules>
+                  <Folders>
+                    <Folder Name="INBOX" Subscribed="1" CreateTime="2026-07-01 12:30:00" CurrentUID="5">
+                      <Folders>
+                        <Folder Name="child" Subscribed="0" CreateTime="2026-07-01 12:31:00" CurrentUID="2" />
+                      </Folders>
+                    </Folder>
+                  </Folders>
                 </Account>
               </Accounts>
               <Aliases>
@@ -156,6 +170,13 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 actionStore,
                 rollback,
                 CancellationToken.None).ConfigureAwait(false);
+            var folderStore = new SqlServerImapFolderAdministrationStore(factory);
+            await BackupRestoreMetadataWriter.RestoreFoldersAsync(
+                accounts.Single().Folders,
+                accountId: 1,
+                folderStore,
+                rollback,
+                CancellationToken.None).ConfigureAwait(false);
             await BackupRestoreMetadataWriter.RestoreAliasesAsync(aliases, domainId: 1, aliasStore, rollback, CancellationToken.None).ConfigureAwait(false);
             await BackupRestoreMetadataWriter.RestoreDistributionListsAsync(lists, domainId: 1, listStore, rollback, CancellationToken.None).ConfigureAwait(false);
             await BackupRestoreMetadataWriter.RestoreDistributionListRecipientsAsync(recipients, distributionListId: 1, recipientStore, rollback, CancellationToken.None).ConfigureAwait(false);
@@ -175,6 +196,11 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             var restoredAction = (await actionStore.GetRuleActionsAsync(restoredRule.Id, CancellationToken.None).ConfigureAwait(false)).Single();
             Assert.AreEqual("to@example.test", restoredAction.To);
             Assert.AreEqual(4, restoredAction.RouteId);
+
+            var restoredFolders = await folderStore.GetFoldersForAccountAsync(1, CancellationToken.None).ConfigureAwait(false);
+            Assert.AreEqual(2, restoredFolders.Count);
+            Assert.AreEqual(5, restoredFolders.Single(folder => folder.Name == "INBOX").CurrentUid);
+            Assert.AreEqual(1, restoredFolders.Single(folder => folder.Name == "child").ParentId);
 
             var restoredAlias = (await aliasStore.GetAliasesAsync(1, CancellationToken.None).ConfigureAwait(false)).Single();
             Assert.AreEqual("alias@roundtrip.example", restoredAlias.Name);
@@ -232,7 +258,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory),
                 ruleStore: new SqlServerRuleAdministrationStore(factory),
                 ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(factory),
-                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory));
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory),
+                folderRestoreStore: new SqlServerImapFolderAdministrationStore(factory),
+                folderRestoreDeletionStore: new SqlServerImapFolderAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -304,7 +332,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory),
                 ruleStore: new SqlServerRuleAdministrationStore(factory),
                 ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(factory),
-                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory));
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory),
+                folderRestoreStore: new SqlServerImapFolderAdministrationStore(factory),
+                folderRestoreDeletionStore: new SqlServerImapFolderAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -377,7 +407,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory),
                 ruleStore: new SqlServerRuleAdministrationStore(factory),
                 ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(factory),
-                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory));
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory),
+                folderRestoreStore: new SqlServerImapFolderAdministrationStore(factory),
+                folderRestoreDeletionStore: new SqlServerImapFolderAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -456,7 +488,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory),
                 ruleStore: new SqlServerRuleAdministrationStore(factory),
                 ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(factory),
-                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory));
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory),
+                folderRestoreStore: new SqlServerImapFolderAdministrationStore(factory),
+                folderRestoreDeletionStore: new SqlServerImapFolderAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -757,6 +791,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_rules", "ruleaccountid", 1).ConfigureAwait(false));
         Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_rule_criterias", "criteriaruleid", 1).ConfigureAwait(false));
         Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_rule_actions", "actionruleid", 1).ConfigureAwait(false));
+        Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_imapfolders", "folderaccountid", 1).ConfigureAwait(false));
     }
 
     private static string ToDbOnlyArchiveXml(string archiveXml) =>
@@ -857,6 +892,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 ruleStore: new SqlServerRuleAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 ruleActionStore: new SqlServerRuleActionAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
+                folderRestoreStore: new SqlServerImapFolderAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
+                folderRestoreDeletionStore: new SqlServerImapFolderAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 metadataTransactionFactory: transactionFactory ?? TransactionFactory);
 
         internal MetadataBackupRestoreExecutor CreateExecutorWithoutTransactionFactory() =>
@@ -872,6 +909,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 ruleStore: new SqlServerRuleAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 ruleActionStore: new SqlServerRuleActionAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
+                folderRestoreStore: new SqlServerImapFolderAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
+                folderRestoreDeletionStore: new SqlServerImapFolderAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 metadataTransactionFactory: null,
                 requireSqlTransaction: true);
     }
@@ -911,6 +950,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         public IRuleActionAdministrationStore? RuleActionStore => failRuleAction
             ? new FailingRuleActionAdministrationStore(inner.RuleActionStore!)
             : inner.RuleActionStore;
+        public IImapFolderAdministrationRestoreStore? FolderRestoreStore => inner.FolderRestoreStore;
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             inner.DeleteAllDomainsForRestoreAsync(cancellationToken);
         public ValueTask CommitAsync(CancellationToken cancellationToken) => inner.CommitAsync(cancellationToken);
@@ -1266,8 +1306,13 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 famimerecipientheaders nvarchar(255) NOT NULL
             );
             CREATE TABLE dbo.hm_imapfolders (
-                folderid int NOT NULL,
-                folderaccountid int NOT NULL
+                folderid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                folderaccountid int NOT NULL,
+                folderparentid int NOT NULL,
+                foldername nvarchar(255) NOT NULL,
+                folderissubscribed tinyint NOT NULL,
+                foldercurrentuid int NOT NULL,
+                foldercreationtime datetime NOT NULL
             );
             CREATE TABLE dbo.hm_acl (
                 aclsharefolderid bigint NOT NULL,

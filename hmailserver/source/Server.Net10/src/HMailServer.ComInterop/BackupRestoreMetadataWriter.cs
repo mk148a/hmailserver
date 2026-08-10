@@ -14,7 +14,8 @@ public sealed record BackupRestoreMetadataResult(
     int RestoredFetchAccountUids = 0,
     int RestoredRules = 0,
     int RestoredRuleCriteria = 0,
-    int RestoredRuleActions = 0);
+    int RestoredRuleActions = 0,
+    int RestoredFolders = 0);
 
 [ComVisible(false)]
 public static class BackupRestoreMetadataWriter
@@ -285,4 +286,67 @@ public static class BackupRestoreMetadataWriter
 
         return new BackupRestoreMetadataResult(RestoredDomains: 0, RestoredAccounts: 0, RestoredAliases: 0, RestoredDistributionLists: 0, restored);
     }
+
+    public static async ValueTask<BackupRestoreMetadataResult> RestoreFoldersAsync(
+        IReadOnlyList<RestoreFolderEntry> folders,
+        int accountId,
+        IImapFolderAdministrationRestoreStore store,
+        Func<ValueTask> rollbackAsync,
+        CancellationToken cancellationToken,
+        Action<int>? onRootInserted = null)
+    {
+        ArgumentNullException.ThrowIfNull(folders);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(rollbackAsync);
+
+        var restored = 0;
+        await BackupRestoreTransactionBoundary.ExecuteAsync(
+            mutateAsync: async ct =>
+            {
+                foreach (var root in folders)
+                {
+                    var rootId = await RestoreFolderAsync(
+                        root,
+                        accountId,
+                        parentFolderId: -1,
+                        store,
+                        ct).ConfigureAwait(false);
+                    restored += CountFolders(root);
+                    onRootInserted?.Invoke(rootId);
+                }
+            },
+            commitAsync: _ => default,
+            rollbackAsync: rollbackAsync,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return new BackupRestoreMetadataResult(
+            RestoredDomains: 0,
+            RestoredAccounts: 0,
+            RestoredAliases: 0,
+            RestoredDistributionLists: 0,
+            RestoredRecipients: 0,
+            RestoredFolders: restored);
+    }
+
+    private static async ValueTask<int> RestoreFolderAsync(
+        RestoreFolderEntry entry,
+        int accountId,
+        int parentFolderId,
+        IImapFolderAdministrationRestoreStore store,
+        CancellationToken cancellationToken)
+    {
+        var inserted = await store.InsertFolderForRestoreAsync(
+            entry.Folder with { AccountId = accountId, ParentId = parentFolderId },
+            cancellationToken).ConfigureAwait(false);
+        foreach (var child in entry.Children)
+        {
+            await RestoreFolderAsync(child, accountId, inserted.Id, store, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return inserted.Id;
+    }
+
+    private static int CountFolders(RestoreFolderEntry entry) =>
+        1 + entry.Children.Sum(CountFolders);
 }
