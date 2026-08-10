@@ -2505,6 +2505,39 @@ out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
 environment-blocked. Next slice: fresh legacy-first audit of one remaining
 low-risk Settings mutation.
 
+## Current Audit Note (2026-08-11, SMTP RELAYER AUTHENTICATION ADMIN MUTATION)
+
+Code/test commit `429b20687` implements the authenticated
+`IInterfaceSettings.SMTPRelayerRequiresAuthentication` setter (`DispId(34)`,
+`VARIANT_BOOL`) only. The .NET path updates the existing
+`hm_settings.usesmtprelayerauthentication` row through a parameterized integer
+command, requires exactly one affected row, rechecks the live
+server-administrator callback, and publishes the retained snapshot only after
+success. The legacy public value maps directly to the stored setting: `true`
+writes `1`, and `false` writes `0`. Direct activation denial, both boolean
+writes, failed-write retention, administrator revocation, one-row enforcement,
+and exact SQL shape are covered. Focused settings/store coverage is `72/72`;
+full Net10 is `2055 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.SMTPRelayerRequiresAuthentication`
+(`source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::get_/put_SMTPRelayerRequiresAuthentication`
+(`source/Server/COM/InterfaceSettings.cpp`),
+`SMTPConfiguration::Get/SetSMTPRelayerRequiresAuthentication`
+(`source/Server/SMTP/SMTPConfiguration.cpp`), generic
+`Property::SetBoolValue` and `Property::WriteLongSetting_`
+(`source/Server/Common/Property.cpp`), and the
+`usesmtprelayerauthentication` seed
+(`source/DBScripts/CreateTablesMSSQL.sql`). Fixed-relayer credential
+selection, SMTP routing, change notifications, and live reconfiguration were
+deliberately not changed; this is COM persistence parity only.
+
+Real SQL/Data rollback, non-DB settings restore/reinitialization, SQL/FTS,
+paired legacy/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
+environment-blocked. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation.
+
 ## Current Audit Note (2026-08-11, ALLOW SMTP AUTH PLAIN ADMIN MUTATION)
 
 Code/test commit `5ff8ef8ee` implements the authenticated

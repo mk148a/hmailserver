@@ -1,6 +1,38 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, SMTPRelayerRequiresAuthentication mutation)
+
+Code/test commit `429b20687` implements only the authenticated
+`IInterfaceSettings.SMTPRelayerRequiresAuthentication` setter (`DispId(34)`,
+`VARIANT_BOOL`). It preserves the installed COM identity and direct activation
+denial, rechecks the live administrator callback, updates only the existing
+`hm_settings.usesmtprelayerauthentication` row through a parameterized integer
+command, and publishes the retained snapshot only after one-row success. The
+legacy public value maps directly to storage: `true` writes `1`, and `false`
+writes `0`.
+
+Direct activation getter/setter denial, both boolean writes, failed-write
+retention, administrator revocation, one-row enforcement, and exact SQL
+command shape are covered. Focused settings/store coverage is `72/72`; full
+Net10 is `2055 passed, 39 skipped, 0 failed`. Fixed-relayer credential
+selection, SMTP routing, change notifications, and live reconfiguration remain
+unchanged and were deliberately left out of this persistence slice.
+
+Legacy anchors are `IInterfaceSettings.SMTPRelayerRequiresAuthentication`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::put_SMTPRelayerRequiresAuthentication`,
+`SMTPConfiguration::SetSMTPRelayerRequiresAuthentication`, the generic
+`Property::SetBoolValue`/`Property::WriteLongSetting_` path, and the
+`usesmtprelayerauthentication` SQL seed
+(`hmailserver/source/DBScripts/CreateTablesMSSQL.sql`).
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched legacy/.NET protocol load, SEC-18 cutover,
+installer/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain
+unproven. Next slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, DenyMailFromNull mutation)
 
 Code/test commit `5d67f7eee` implements only the authenticated
