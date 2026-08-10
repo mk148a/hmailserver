@@ -1,4 +1,23 @@
-## Current Authoritative Continuation (2026-08-10, FetchAccount Restore)
+## Current Authoritative Continuation (2026-08-10, folder metadata restore)
+
+Code/test commit `5b457d513` completes the bounded folder-metadata restore
+slice. Legacy anchors are `Account::XMLStore`/`Account::XMLLoadSubItems`,
+`IMAPFolder::XMLStore`/`IMAPFolder::XMLLoadSubItems`,
+`PersistentIMAPFolder::SaveObject`, and `IMAPFolders::PreSaveObject` under
+`hmailserver/source/Server/Common`. `BackupArchiveXmlSnapshotParser` parses
+recursive folders, `BackupRestoreMetadataWriter.RestoreFoldersAsync` inserts
+parents before children, and `SqlServerImapFolderAdministrationStore` keeps
+the archived `CurrentUID` and creation time. Folder `Messages` and
+`Permissions` payloads are rejected until their bounded restore slices exist.
+
+Focused parser plus isolated SQL round-trip/rollback coverage is `25 passed,
+0 failed, 0 skipped`; default full Net10 is `1992 passed, 37 skipped, 0
+failed`. SQL opt-in full execution is `2021 passed, 2 skipped`, with six
+unrelated existing message/indexing fixture failures. Release remains RED.
+The next independent priorities are reproducible legacy C++ IMAP/POP3
+startup, populated message/settings restore, and paired SMTP/delivery work.
+
+## Historical Continuation (2026-08-10, FetchAccount Restore)
 
 Code/test commit `7e8d71c15` adds restore-side FetchAccount and nested FetchAccountUID persistence. Legacy anchors are `Account::XMLStore` (`hmailserver/source/Server/Common/BO/Account.cpp:280-331`), `FetchAccount::XMLStore` (`FetchAccount.cpp:55-79`), `FetchAccountUID::XMLStore` (`FetchAccountUID.cpp:42-49`), and owner-scoped refresh in `FetchAccounts.cpp:36-43`/`FetchAccountUIDs.cpp:29-50`. Current anchors are `BackupArchiveXmlSnapshotParser.ParseFetchAccount`, `BackupRestoreMetadataWriter.RestoreFetchAccountsAsync`, `MetadataBackupRestoreExecutor.RestoreMetadataAsync`, `IBackupRestoreMetadataTransaction.FetchAccountStore`, and `SqlServerFetchAccountAdministrationStore`.
 

@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, folder metadata restore)
+
+Code/test commit `5b457d513` completes the bounded folder-metadata restore
+slice. Legacy behavior is anchored by `Account::XMLStore`/
+`Account::XMLLoadSubItems`, `IMAPFolder::XMLStore`/`IMAPFolder::XMLLoadSubItems`,
+`PersistentIMAPFolder::SaveObject`, and `IMAPFolders::PreSaveObject` in
+`hmailserver/source/Server/Common`. The .NET 10 parser now restores recursive
+folder name, subscription, `CurrentUID`, creation time, account ownership, and
+parent-before-child IDs. Archives containing folder messages or permissions
+fail closed because those payloads remain outside this slice.
+
+Focused parser plus isolated SQL round-trip/rollback coverage is `25 passed,
+0 failed, 0 skipped`. Default full Net10 is `1992 passed, 37 skipped, 0
+failed`. SQL opt-in full execution is `2021 passed, 2 skipped`, with six
+unrelated existing message/indexing fixture failures. Release remains RED for
+message/ACL/settings restore, crash-safe filesystem/SQL recovery, reproducible
+C++ IMAP/POP3 startup, paired SMTP/delivery measurements, SEC-18, migration/
+installer, out-of-process COM, AD/DC, and 24-hour soak evidence.
+
 hMailServer is an open source email server for Microsoft Windows.
 
 This page describes how to compile and run hMailServer in debug. 

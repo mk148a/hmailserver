@@ -1934,3 +1934,30 @@ Next priority order: (1) obtain a reproducible legacy C++ runtime exposing
 IMAP/POP3, (2) add populated folder/message/settings restore graph readback and
 rollback, and (3) add paired SMTP acceptance and delivery-queue workloads only
 after both protocol baselines run. Older entries below are historical.
+## Current Authoritative Continuation (2026-08-10, FOLDER METADATA RESTORE)
+
+Code/test commit `5b457d513` completes one bounded folder metadata restore
+slice. Legacy parity was verified against `Account::XMLStore` and
+`Account::XMLLoadSubItems`, `IMAPFolder::XMLStore` and
+`IMAPFolder::XMLLoadSubItems`, `PersistentIMAPFolder::SaveObject`, and
+`IMAPFolders::PreSaveObject` in `hmailserver/source/Server/Common`.
+
+The .NET path adds recursive `<Folders><Folder>` parsing, parent-before-child
+insertion through `IImapFolderAdministrationRestoreStore`, generated ID
+propagation, and SQL readback of name, subscription, `CurrentUID`, and
+creation time. Non-transaction rollback uses a dedicated owner/parent-scoped
+metadata-tree deletion store. Folder `Messages` and `Permissions` elements
+fail closed; message files, ACLs, and full folder graph restore remain separate
+slices.
+
+Focused parser plus isolated SQL round-trip/rollback coverage is `25 passed,
+0 failed, 0 skipped`. Default full Net10 is `1992 passed, 37 skipped, 0
+failed`. SQL opt-in full execution is `2021 passed, 2 skipped`, with six
+unrelated existing message/indexing fixture failures. No production service,
+database, Data directory, COM identity, DCOM ACL, IIS, or machine state was
+changed. Release remains RED.
+
+Next priority order: (1) reproducible legacy C++ runtime exposing IMAP/POP3,
+(2) populated message/settings restore with filesystem rollback evidence, and
+(3) paired SMTP acceptance and delivery-queue workloads after both protocol
+baselines run. Older continuation paragraphs are historical.

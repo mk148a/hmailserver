@@ -1,5 +1,34 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-10, FOLDER METADATA RESTORE)
+
+Code/test commit `5b457d513` completes the bounded folder metadata restore
+slice. Legacy anchors inspected were `Account::XMLStore`/
+`Account::XMLLoadSubItems`, `IMAPFolder::XMLStore`/
+`IMAPFolder::XMLLoadSubItems`, `PersistentIMAPFolder::SaveObject`, and
+`IMAPFolders::PreSaveObject` in `hmailserver/source/Server/Common`.
+
+Current anchors are `BackupArchiveXmlSnapshotParser.ParseFolder`,
+`BackupRestoreMetadataWriter.RestoreFoldersAsync`,
+`MetadataBackupRestoreExecutor.RestoreMetadataAsync`,
+`IImapFolderAdministrationRestoreStore`,
+`IImapFolderAdministrationRestoreDeletionStore`, and
+`SqlServerImapFolderAdministrationStore.InsertFolderForRestoreAsync`.
+The slice preserves recursive parent IDs and archived `CurrentUID`/creation
+time, and rejects folder message/permission payloads until those slices are
+implemented.
+
+Focused parser plus isolated SQL round-trip/rollback coverage is `25 passed,
+0 failed, 0 skipped`; default full Net10 is `1992 passed, 37 skipped, 0
+failed`. SQL opt-in full execution is `2021 passed, 2 skipped`, with six
+unrelated existing message/indexing fixture failures. Release remains RED.
+No production service, SQL/Data directory, COM identity, DCOM ACL, IIS, or
+machine state changed. Do not push in this run.
+
+Next independent slices: reproducible legacy C++ IMAP/POP3 startup; populated
+message/settings restore and rollback; paired SMTP acceptance and delivery
+queue after both protocol baselines run.
+
 ## Current Authoritative Continuation (2026-08-10, DISPOSABLE LOCALDB AND SQL ACCOUNT VERIFIER)
 
 Code/test commit `f34ee25c8` implements the bounded SQL-backed `Account.ValidatePassword` slice. Legacy behavior is anchored by `InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`), `PasswordValidator::ValidatePassword` (`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:109-188`), `Crypt::Validate` (`hmailserver/source/Server/Common/Util/Crypt.cpp:63-84`), and `hm_accounts` (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:168-194`). Current symbols are `SqlServerAccountPasswordVerifier`, `AccountAdministrationRuntimeHost.Configure`, and `AccountComClass.ValidatePassword`. The query is parameterized and read-only, keyed by immutable account ID, and preserves the legacy script-first, empty-password, AD, and local hash order; it does not add active-account, username, last-logon, or auto-ban policy to the direct COM method. The installed Account COM contract, DISPID 22, direct activation denial, authenticated boundary, SMTP trust, and live reconfiguration are unchanged.
