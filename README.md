@@ -45,7 +45,24 @@ xychart-beta
     bar [7.478, 7.696, 7.709]
 ```
 
-An isolated live comparison was attempted with two new SQL Server databases, two separate Data directories containing the same 1,000-message corpus, and loopback ports `25250`/`25110`/`25143`. The legacy C++ process crashed during initialization with `0xC0000409` in `ucrtbase.dll` for each isolated SQL/provider combination; the .NET 10 process stopped because LocalDB reports `IsFullTextInstalled = 0`. No SMTP/IMAP/POP3 paired measurements were recorded and no C++ speed-up or regression percentage is claimed. Full evidence is in [`live-comparison-attempt-20260810.md`](artifacts/benchmarks/live-cpp-net10-20260810_152708/live-comparison-attempt-20260810.md) and [`CPP_VS_NET10_PERFORMANCE_REPORT.md`](hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT.md). The performance release gate remains RED.
+The next isolated paired run used two new MSSQLSERVER databases, two separate ASCII Data directories, and the same 1,000-message corpus. Per-file SHA-256 comparison passed `1000/1000`; both databases contain `1000` messages, metadata rows, and recipients; all listeners were loopback-only on SMTP `2525`, IMAP `1143`, and POP3 `25110`. The live matrix is recorded in [`paired-live-comparison.md`](artifacts/benchmarks/live-cpp-net10-20260810_152708/paired-live-comparison.md), with raw JSON/CSV under the same artifact directory.
+
+| Scenario | .NET 10 | C++ | Ratio |
+| --- | --- | --- | --- |
+| SMTP greeting/EHLO/QUIT | `25/25`, p95 `13.616 ms` | `25/25`, p95 `10.948 ms` | invalid |
+| IMAP login/select/search/sort/logout | `25/25`, p95 `3.027 ms` | `4/25`, p95 `29.929 ms` | invalid |
+| POP3 login/stat/list/quit | `25/25`, p95 `5.962 ms` | `0/25`, no successful sample | invalid |
+
+```mermaid
+xychart-beta
+    title "Raw p95 latency (diagnostic only; no winner)"
+    x-axis [SMTP, IMAP, POP3]
+    y-axis "milliseconds" 0 --> 250
+    bar [13.616, 3.027, 5.962]
+    bar [10.948, 29.929, 0]
+```
+
+The C++ binary opened SMTP/IMAP only and was not a normal reproducible release build; POP3 and stable IMAP parity therefore failed. The .NET 10 production host also cannot start its COM local-server registration against the installed Application AppID (`0x80004015`), so the measurement used a benchmark-only listener host that intentionally omitted COM registration. No speed-up or regression percentage is claimed. SMTP message acceptance, delivery queue, 1,000-concurrent IMAP, and 24-hour soak remain unmeasured. The performance release gate remains **RED**.
 
 .NET 10 rewrite continuation audit (2026-08-10, offline 100k IMAP SEARCH/SORT acceptance)
 -------------------------------------------------------------------------------------------

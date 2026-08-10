@@ -1733,6 +1733,7 @@ Terminal/log incelemesi:
 
 The current sections supersede the older next-slice and SEC-18 status notes below.
 
+
 ## Yeni Thread Icin Baslangic Talimati
 
 1. Repo kokune gec: `<repo-root>`.
@@ -1815,3 +1816,26 @@ No installed COM IID/CLSID/ProgID/DISPID/vtable/type-library identity, authentic
 Test commit `17ba6e70a` closes the executor-test gap for the FetchAccount restore slice. `BackupRestoreRoundTripIntegrationTests` now uses the populated FetchAccount/UID archive through `MetadataBackupRestoreExecutor`, asserts generated-ID/readback, and injects an invalid UID date to prove transaction rollback of both parent and child rows. Focused LocalDB restore coverage is `12/12`; default full Net10 is `1990 passed, 36 skipped, 0 failed`; `git diff --check` passes.
 
 No production code, installed COM identity, authenticated access boundary, SMTP trust, production SQL/Data, service, IIS, DCOM, or machine state changed. Keep dirty `AGENTS.md`, DataDirectory test files, and all untracked staging/benchmark/disposable artifacts out of commits. Release remains RED. Next slice: parity-review and implement the smallest Rules child restore/readback failure-rollback slice, while paired protocol performance remains blocked on disposable FTS and legacy ADO staging.
+
+## Current Authoritative Continuation (2026-08-10, PAIRED LIVE PERFORMANCE GATE)
+
+Code/test commit `29beaf8c8` adds the isolated live protocol runner and paired
+report generator. Separate MSSQLSERVER databases and Data roots contain the
+same 1,000-message corpus (`1000/1000` Data SHA-256 equality; `1000` messages,
+metadata rows, and recipients per database). The same loopback ports were used:
+SMTP `2525`, IMAP `1143`, and POP3 `25110`.
+
+The .NET 10 listener-only run passed `25/25` SMTP, `25/25` IMAP, and `25/25`
+POP3. The copied legacy C++ `/Debug` probe passed SMTP `25/25`, IMAP `4/25`,
+and POP3 `0/25`; therefore the paired matrix is incomplete and all ratios are
+invalid. The normal .NET host opens all three listeners but fails the installed
+Application AppID COM identity check (`0x80004015`), so the helper intentionally
+omitted COM registration. No installed COM identity, DCOM ACL, production
+service, SQL/Data directory, or production port was changed.
+
+Artifacts: `artifacts/benchmarks/live-cpp-net10-20260810_152708/`.
+Focused live smoke passed for .NET 10; full Net10 is `1990 passed, 36 skipped,
+0 failed`. The performance gate remains **RED**. Open evidence includes a
+reproducible C++ binary with POP3/IMAP parity, SMTP message acceptance,
+delivery-queue throughput, 1,000-concurrent IMAP, and 24-hour leak soak.
+Older performance continuation entries below this one are historical.

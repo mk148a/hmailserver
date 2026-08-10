@@ -1,19 +1,17 @@
 # Legacy C++ vs .NET 10 Performance Report
 
 **Run date:** 2026-08-10
-**Repository commit:** `709b91d5ed9d2aaf8fcf26cea8ed9adead7c1e7b`
+**Repository commit:** `29beaf8c8`
 **Host:** Windows 11 build `10.0.26200`, x64, 16 logical processors
 **Decision:** `RED - no valid C++ vs .NET 10 comparison yet`
 
 ## Executive result
 
-The .NET 10 benchmark pack produced reproducible offline measurements. A live
-paired run was attempted with two new SQL Server databases and two separate
-Data directories containing the same 1,000-message corpus. The legacy C++
-process did not reach an isolated listener: each isolated SQL configuration
-terminated with Windows error `0xC0000409` in `ucrtbase.dll`, while the .NET 10
-process stopped before listener creation because the host LocalDB instance has
-no Full-Text Search. The run is therefore not a performance comparison.
+The .NET 10 benchmark pack produced reproducible offline measurements. A later
+live listener-only run used two new MSSQLSERVER databases, separate ASCII Data
+directories, and a byte-identical 1,000-message corpus. The .NET 10 listener
+matrix passed; the copied legacy `/Debug` binary completed SMTP but failed the
+same IMAP/POP3 matrix. The run is therefore still not a performance comparison.
 
 Do not calculate a speed-up, regression percentage, or winner from this report.
 The two implementations have not yet been measured under the same live
@@ -45,7 +43,7 @@ registration, and a mail Data directory. It is not a live server benchmark.
 
 ## C++ evidence and blocker
 
-The live attempt is recorded in
+The original live attempt is recorded in
 `artifacts/benchmarks/live-cpp-net10-20260810_152708/live-comparison-attempt-20260810.json`
 and the matching Markdown evidence file. It created:
 
@@ -107,3 +105,36 @@ SQL/Data copy and non-production process configuration are available.
 6. Repeat after warm-up and publish raw JSON/CSV plus the comparison chart.
 
 Until those prerequisites pass, the performance release gate remains RED.
+
+## Latest paired listener evidence
+
+The current raw evidence is
+`artifacts/benchmarks/live-cpp-net10-20260810_152708/paired-live-comparison.md`.
+The corpus equality report confirms `1000/1000` identical Data files, and both
+disposable SQL databases contain `1000` messages, metadata rows, and
+recipients. The repeated loopback scenarios used SMTP `2525`, IMAP `1143`, and
+POP3 `25110`:
+
+| Scenario | .NET 10 | C++ | Decision |
+| --- | --- | --- | --- |
+| SMTP greeting/EHLO/QUIT | `25/25`, p95 `13.616 ms` | `25/25`, p95 `10.948 ms` | not comparable as a winner |
+| IMAP login/select/search/sort/logout | `25/25`, p95 `3.027 ms` | `4/25`, p95 `29.929 ms` | C++ incomplete |
+| POP3 login/stat/list/quit | `25/25`, p95 `5.962 ms` | `0/25` | C++ listener unavailable |
+
+The raw p95 values are diagnostic only:
+
+```mermaid
+xychart-beta
+    title "Raw p95 latency (diagnostic only; no winner)"
+    x-axis [SMTP, IMAP, POP3]
+    y-axis "milliseconds" 0 --> 250
+    bar [13.616, 3.027, 5.962]
+    bar [10.948, 29.929, 0]
+```
+
+The C++ process is a temporary `/Debug` probe rather than a normal isolated
+release build and did not open POP3. The normal .NET 10 host opens all three
+listeners but fails the installed AppID COM identity check with `0x80004015`,
+so the live run used a benchmark-only listener host with COM intentionally
+omitted. No paired ratio is valid. Message acceptance, delivery queue,
+1,000-concurrent IMAP, and 24-hour soak remain release blockers.

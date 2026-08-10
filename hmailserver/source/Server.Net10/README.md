@@ -1142,3 +1142,23 @@ Code/test commit `4cc66396a` adds an additive transaction-scoped `DeleteAllPubli
 Focused static SQL coverage is `11 passed, 0 failed, 0 skipped`; the related disposable SQL integration set is `3 skipped` because the approved local SQL connection and database-create opt-in are unset. Default full Net10 is `1939 passed, 0 failed, 31 skipped`. The commit does not wire full `RestoreSettings|RestoreDomains|RestoreMessages` orchestration, physical file cleanup, reinitialization, COM identity, protocol behavior, or production state. Release remains RED for full restore ordering, live SQL/Data acceptance, SQL/filesystem atomicity, native containment, process-kill/power-loss, service/COM, SEC-18, installer, migration, AD/DC, and soak gates.
 
 ## Current Completed Slice (2026-08-08, DB-ONLY DOMAIN CLEANUP WIRING)
+## Current Authoritative Continuation (2026-08-10, PAIRED LIVE PERFORMANCE GATE)
+
+The current paired evidence is **RED**. `build/benchmark-net10-live-protocol.ps1`
+ran the same SMTP, IMAP, and POP3 loopback scenarios against separate
+disposable MSSQLSERVER databases and separate Data directories containing a
+byte-identical 1,000-message corpus. `artifacts/benchmarks/live-cpp-net10-20260810_152708/paired-live-comparison.md`
+contains the raw JSON/CSV and chart inputs.
+
+| Scenario | .NET 10 | Legacy C++ | Ratio |
+| --- | --- | --- | --- |
+| SMTP greeting/EHLO/QUIT | `25/25`, p95 `13.616 ms` | `25/25`, p95 `10.948 ms` | invalid |
+| IMAP login/select/search/sort/logout | `25/25`, p95 `3.027 ms` | `4/25`, p95 `29.929 ms` | invalid |
+| POP3 login/stat/list/quit | `25/25`, p95 `5.962 ms` | `0/25`, no successful sample | invalid |
+
+The C++ `/Debug` probe was not a normal reproducible release build and did not
+open POP3. The normal .NET 10 host opens all three listeners but fails the
+installed Application AppID COM identity check (`0x80004015`), so the benchmark
+used a listener-only helper with COM intentionally omitted. No performance
+winner or speed-up claim is valid. SMTP message acceptance, delivery queue,
+1,000-concurrent IMAP, and 24-hour soak remain unmeasured.

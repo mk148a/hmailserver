@@ -1783,6 +1783,7 @@ Next code slice: parity-confirm and propagate retained authorization through nes
 The retained Domain child-collection audit found no safe production code slice. Legacy `InterfaceDomain::get_Accounts`, `get_Aliases`, `get_DomainAliases`, and `get_DistributionLists` (`hmailserver/source/Server/COM/InterfaceDomain.cpp:308-478`) attach the shared `COMAuthentication`; the .NET `Domain` adapter (`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/Domains.cs:811-821,882-889`) evaluates the guarded snapshot before child-adapter creation and propagates the live callback. Existing owner-scoped child adapters therefore deny retained access after failed authentication without changing legacy read behavior. `DomainsComContractTests`, `LinksComContractTests`, and `WebAdminRoutePostOnlySourceTests` pass `27/27`; no production code changed.
 
 The historical `background_route_save.php` POST-only/CSRF item is already complete in `8d684e638` and covered by `WebAdminRoutePostOnlySourceTests`; do not restart it. Reality review remains RED: the approved disposable SQL/Data connection and isolated-create opt-in are unset; live SQL/FTS, protocol/load, service/COM, SEC-18, installer, AD/DC, and 24-hour soak evidence remain unavailable. The default suite still has the two known host-AV scanner cleanup failures. The untracked benchmark directory contains an older `d7d5cb6c4` artifact and must not be used as release evidence; the newer `565175aff` run was temporary and unstaged. Next executable action is to provision an explicitly disposable SQL/Data target, not to alter production code on this host.
+
 ## Current Audit Note (2026-08-10, SAVED RULE MOVEUP/MOVEDOWN PARITY)
 
 Code/test commit `d87b77a15` completes the bounded saved `Rule.MoveUp()`/`MoveDown()` parity slice. Legacy `InterfaceRule::MoveUp/MoveDown`, `Rules::MoveUp/MoveDown`, and `Rules::UpdateSortOrder_()` (`hmailserver/source/Server/COM/InterfaceRule.cpp`; `hmailserver/source/Server/Common/BO/Rules.cpp`) swap adjacent rules in the owning account collection, renumber `rulesortorder` from 1, and persist `hm_rules` rows (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:471-478`). The .NET `RuleAdministrationState` now calls an owner-scoped transactional `MoveRuleAsync`, uses `UPDLOCK,HOLDLOCK`, publishes the reordered generation to retained/shared facades, and preserves the current generation sort order when a retained Rule is saved after moving. Unsaved `0x800403E9`/`Object not yet saved.`, boundary no-op `S_OK`, live authentication, direct activation denial, and installed Rule IID/CLSID/ProgID/DISPID/vtable remain unchanged.
@@ -1827,3 +1828,39 @@ This slice does not claim FetchAccount COM saved-item mutation, full populated b
 Test commit `17ba6e70a` extends `BackupRestoreRoundTripIntegrationTests` with the real `MetadataBackupRestoreExecutor` path: one populated FetchAccount and ordered UID are restored into disposable LocalDB, the generated FetchAccount ID is read back, and an invalid UID date proves the parent FetchAccount and UID rows roll back with the DB-only transaction. Legacy ordering is anchored by `Account::XMLLoadSubItems`, `FetchAccount::XMLLoadSubItems`, `Collection<T,P>::XMLLoad`, and `FetchAccountUID::XMLLoad` (`hmailserver/source/Server/Common/BO/Account.cpp`, `FetchAccount.cpp`, `Collection.h`, `FetchAccountUID.cpp`).
 
 The focused disposable restore class passes `12 passed, 0 failed, 0 skipped`; default full Net10 passes `1990`, skips `36`, and fails `0`. The test keeps non-DB restore behavior isolated and does not change COM identity, authenticated boundaries, SMTP trust, production SQL/Data, service, IIS, DCOM, or machine state. Remaining blockers are full rules/folders/messages/settings restore, crash/power-loss recovery, SEC-18, migration/installer, out-of-process COM, live paired performance, AD/DC, protocol/load, and soak acceptance. Next bounded restore slice: legacy-anchored Rules child persistence/readback or the smallest remaining folder/message graph child, with injected failure rollback.
+
+## Current Authoritative Continuation (2026-08-10, PAIRED LIVE PERFORMANCE GATE)
+
+The performance slice is now executable but remains **RED**. Code/test commit
+`29beaf8c8` adds `build/benchmark-net10-live-protocol.ps1` and
+`build/generate-live-comparison-report.ps1`. The runner starts only isolated
+listener processes and exercises SMTP greeting/EHLO/QUIT, IMAP
+LOGIN/SELECT/SEARCH/SORT/LOGOUT, and POP3 USER/PASS/STAT/LIST/QUIT on loopback
+SMTP `2525`, IMAP `1143`, and POP3 `25110`.
+
+The paired setup used separate MSSQLSERVER databases
+`hmail_perf_cpp_sql_20260810_152708` and
+`hmail_perf_net_sql_20260810_152708`, separate ASCII Data roots, and the same
+1,000-message corpus. SQL counts were `1000` messages, metadata rows, and
+recipients on each side; the Data tree passed `1000/1000` SHA-256 equality.
+The .NET run passed `25/25` for all three scenarios. The C++ run passed SMTP
+`25/25`, IMAP `4/25`, and POP3 `0/25`; it was a temporary `/Debug` probe and
+not a normal reproducible release binary. No ratio or winner is valid.
+
+Exact legacy anchors inspected were `_tWinMain` and `InitializeApplication` in
+`hmailserver/source/Server/hMailServer/hMailServer.cpp`, `IOService::DoWork`,
+`TCPServer::InitAcceptor`, and the legacy SMTP/IMAP/POP3 connection paths.
+Current anchors were `HMailServer.Service.Host.Build`,
+`SmtpTcpListenerHostedService`, `ImapTcpListenerHostedService`,
+`Pop3TcpListenerHostedService`, and `HMailServer.Service.ComLocalServerHost`.
+The normal .NET host fails the installed Application AppID security-identity
+check with `0x80004015`; the benchmark helper intentionally omits COM and does
+not modify registration or DCOM permissions.
+
+Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260810_152708/`, including
+`corpus-equality.json`, `paired-live-comparison.json`, CSV, and Markdown.
+SMTP message acceptance, delivery queue, 1,000-concurrent IMAP, POP3/IMAP C++
+startup parity, and 24-hour leak soak remain open. The next independent slice
+is an isolated reproducible legacy C++ build/runtime that exposes all three
+listeners; until that exists, no performance superiority may be claimed.
