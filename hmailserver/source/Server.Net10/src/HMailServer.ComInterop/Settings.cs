@@ -724,7 +724,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.WelcomeIMAP
                 : _administrationSnapshot.WelcomeImap;
         }
-        set => base.WelcomeIMAP = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.WelcomeIMAP = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateWelcomeImapAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The IMAP welcome message update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    WelcomeImap = value
+                };
+            }
+        }
     }
 
     public override bool ServiceSMTP

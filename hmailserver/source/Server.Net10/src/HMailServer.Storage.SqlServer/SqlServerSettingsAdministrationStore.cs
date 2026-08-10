@@ -27,6 +27,12 @@ SET settingstring = @WelcomePOP3
 WHERE settingname = N'welcomepop3';
 """;
 
+    public const string UpdateWelcomeImapSql = """
+UPDATE hm_settings
+SET settingstring = @WelcomeIMAP
+WHERE settingname = N'welcomeimap';
+""";
+
     public const string UpdateWorkerThreadPrioritySql = """
 UPDATE hm_settings
 SET settinginteger = @WorkerThreadPriority
@@ -312,6 +318,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateWelcomePop3Sql, connection);
         command.Parameters.Add("@WelcomePOP3", SqlDbType.NVarChar, 255).Value = welcomePop3;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateWelcomeImapAsync(
+        string welcomeImap,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateWelcomeImapSql, connection);
+        command.Parameters.Add("@WelcomeIMAP", SqlDbType.NVarChar, 255).Value = welcomeImap;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
