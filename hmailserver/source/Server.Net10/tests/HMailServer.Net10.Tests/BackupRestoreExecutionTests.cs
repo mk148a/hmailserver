@@ -9,6 +9,16 @@ namespace HMailServer.Net10.Tests;
 [TestClass]
 public sealed class BackupRestoreExecutionTests
 {
+    private const string SettingsArchiveXml = """
+        <Backup>
+          <BackupInformation Mode="1" />
+          <Properties>
+            <hostname LongValue="0" StringValue="restored.example" />
+            <maxsmtpconnections LongValue="25" StringValue="" />
+          </Properties>
+        </Backup>
+        """;
+
     private const string ArchiveXml = """
         <Backup>
           <BackupInformation Mode="2" />
@@ -62,6 +72,76 @@ public sealed class BackupRestoreExecutionTests
         Assert.AreEqual(1, stores.Recipients.Items.Count);
         Assert.AreEqual(0, stores.Domains.Deleted.Count);
         Assert.AreEqual(0, stores.Accounts.Deleted.Count);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_RestoresSettingsOnlyInsideTheSqlTransaction()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsArchiveXml);
+        var stores = new RecordingStores();
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            stores.Domains,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            stores.Recipients,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                new BackupSettingsPropertySnapshot("hostname", 0, "restored.example"),
+                new BackupSettingsPropertySnapshot("maxsmtpconnections", 25, string.Empty)
+            },
+            stores.Settings.Properties.ToArray());
+        Assert.AreEqual(1, transactionFactory.BeginCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SettingsFailureDisposesTransactionWithoutCommit()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsArchiveXml);
+        var stores = new RecordingStores();
+        stores.Settings.Fail = true;
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            stores.Domains,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            stores.Recipients,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, transactionFactory.BeginCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+        Assert.AreEqual(0, stores.Settings.Properties.Count);
     }
 
     [TestMethod]
@@ -611,6 +691,7 @@ public sealed class BackupRestoreExecutionTests
         public RecordingAliasStore Aliases { get; } = new();
         public RecordingDistributionListStore DistributionLists { get; } = new();
         public RecordingRecipientStore Recipients { get; } = new();
+        public RecordingSettingsRestoreStore Settings { get; } = new();
         public List<string> Events { get; set; } = [];
         public bool FailAliasInsert { get; init; }
         public bool FailDistributionListInsertAfterFirst { get; init; }
@@ -755,6 +836,7 @@ public sealed class BackupRestoreExecutionTests
         public IAliasAdministrationStore AliasStore => stores.Aliases;
         public IDistributionListAdministrationStore DistributionListStore => stores.DistributionLists;
         public IDistributionListRecipientAdministrationStore RecipientStore => stores.Recipients;
+        public ISettingsRestoreAdministrationStore SettingsStore => stores.Settings;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
@@ -777,6 +859,7 @@ public sealed class BackupRestoreExecutionTests
         public IAliasAdministrationStore AliasStore => stores.Aliases;
         public IDistributionListAdministrationStore DistributionListStore => stores.DistributionLists;
         public IDistributionListRecipientAdministrationStore RecipientStore => stores.Recipients;
+        public ISettingsRestoreAdministrationStore SettingsStore => stores.Settings;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             factory.DeleteAllDomainsForRestoreAsync(cancellationToken);
@@ -790,6 +873,25 @@ public sealed class BackupRestoreExecutionTests
         }
 
         public bool Disposed { get; private set; }
+    }
+
+    private sealed class RecordingSettingsRestoreStore : ISettingsRestoreAdministrationStore
+    {
+        public List<BackupSettingsPropertySnapshot> Properties { get; } = [];
+        public bool Fail { get; set; }
+
+        public ValueTask RestoreSettingsPropertiesAsync(
+            IReadOnlyList<BackupSettingsPropertySnapshot> properties,
+            CancellationToken cancellationToken)
+        {
+            if (Fail)
+            {
+                throw new InvalidOperationException("Injected settings restore failure.");
+            }
+
+            Properties.AddRange(properties);
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class RecordingDomainStore : IDomainAdministrationStore

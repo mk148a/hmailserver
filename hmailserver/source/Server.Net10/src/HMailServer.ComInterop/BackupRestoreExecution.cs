@@ -110,6 +110,18 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
     public async ValueTask ExecuteAsync(Backup backup, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(backup);
+        if (backup.RestoreOptions == BackupStartPlan.BackupSettingsFlag)
+        {
+            if (!backup.ContainsSettings)
+            {
+                throw new InvalidOperationException(
+                    "Only RestoreDomains, RestoreSettings, or RestoreMessages sections contained in the backup can be selected.");
+            }
+
+            await ExecuteSettingsOnlyRestoreAsync(backup, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         if (backup.RestoreOptions == SupportedDataRestoreOptions)
         {
             await ExecuteNonDbDataRestoreAsync(backup, cancellationToken).ConfigureAwait(false);
@@ -123,6 +135,61 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         }
 
         await ExecuteDbOnlyMetadataRestoreAsync(backup, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask ExecuteSettingsOnlyRestoreAsync(
+        Backup backup,
+        CancellationToken cancellationToken)
+    {
+        using var archiveReadLock = BackupArchiveIdentity.OpenReadLock(backup.ArchivePath);
+        EnsureArchiveIdentity(backup);
+        var evidence = await _integrityRuntime
+            .InspectAsync(backup.ArchivePath, cancellationToken, backupMessagesDbOnly: true)
+            .ConfigureAwait(false);
+        var dryRun = BackupRestoreDryRunPlanner.Plan(evidence, backup.RestoreOptions);
+        if (!dryRun.EvidenceIsValid
+            || dryRun.FailureReason is not null
+            || dryRun.MissingRestoreOptions != 0
+            || !dryRun.RestoreSettings
+            || dryRun.RestoreDomains
+            || dryRun.RestoreMessages
+            || dryRun.RequiresFilesystemStaging
+            || !dryRun.Steps.Contains(BackupRestoreDryRunPlanner.LoadSettingsStep))
+        {
+            throw new InvalidOperationException(
+                dryRun.FailureReason ?? "Only settings-only DB restore is supported by this slice.");
+        }
+
+        EnsureArchiveIdentity(backup);
+        var archiveXml = _metadataReader.ReadMetadataXml(backup.ArchivePath);
+        EnsureArchiveIdentity(backup);
+        var properties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
+        if (properties.Any(static property =>
+                string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidDataException(
+                "Settings restore archives must not contain the SMTP relayer credential property.");
+        }
+
+        using var authorizationLease = await backup
+            .AcquireAuthorizationLeaseAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (_metadataTransactionFactory is null || !_requireSqlTransaction)
+        {
+            throw new InvalidOperationException(
+                "Settings-only restore requires a SQL metadata transaction factory.");
+        }
+
+        await using var metadataTransaction = await _metadataTransactionFactory
+            .BeginAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var settingsStore = metadataTransaction.SettingsStore
+            ?? throw new InvalidOperationException(
+                "Settings-only restore requires a transaction-scoped settings store.");
+        await settingsStore
+            .RestoreSettingsPropertiesAsync(properties, cancellationToken)
+            .ConfigureAwait(false);
+        await metadataTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask ExecuteDbOnlyMetadataRestoreAsync(
