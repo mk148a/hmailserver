@@ -1,3 +1,18 @@
+## Current parity continuation (2026-08-10, authenticated WelcomeSMTP mutation)
+
+Code/test commit `6408eb8bd` adds only the fixed-row `WelcomeSMTP` mutation
+(`DispId(23)`, BSTR) to the existing authenticated settings seam. The SQL
+command is parameterized and fixed to `settingname = N'welcomesmtp'`; the live
+administrator callback is checked before store access and the retained
+snapshot changes only after a one-row success. Focused settings/SQL coverage is
+`37/37`; full Net10 is `2020 passed, 39 skipped, 0 failed`.
+
+Legacy references are `IInterfaceSettings.WelcomeSMTP` (`DispId(23)`),
+`InterfaceSettings::put_WelcomeSMTP`, `SMTPConfiguration::SetWelcomeMessage`,
+and `SMTPConnection::SendBanner_` in the legacy IDL, COM, SMTP, and common
+application paths. No COM identity, direct activation boundary, SMTP greeting,
+or live reconfiguration path changed.
+
 ## Current parity continuation (2026-08-10, authenticated WelcomeIMAP mutation)
 
 Code/test commit `df7f72c22` adds only the fixed-row `WelcomeIMAP` mutation

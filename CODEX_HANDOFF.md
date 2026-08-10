@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, WELCOME SMTP MUTATION)
+
+Code/test commit `6408eb8bd` implements only authenticated
+`Settings.WelcomeSMTP` (`DispId(23)`, BSTR) persistence. It preserves direct
+activation denial, rechecks the live administrator callback, updates the fixed
+`hm_settings.welcomesmtp` row with a parameterized string command, and changes
+the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.WelcomeSMTP` (`DispId(23)`),
+`InterfaceSettings::put_WelcomeSMTP`, `SMTPConfiguration::SetWelcomeMessage`,
+and `SMTPConnection::SendBanner_` in the legacy IDL, COM, SMTP, and common
+application paths. Focused settings/SQL coverage is `37/37`; full Net10 is
+`2020 passed, 39 skipped, 0 failed`. SMTP greeting runtime reconfiguration was
+deliberately not added. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation. Real SQL/Data rollback, reinitialize, SEC-18,
+installer, paired live performance, and soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, WELCOME IMAP MUTATION)
 
 Code/test commit `df7f72c22` implements only authenticated
