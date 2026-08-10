@@ -1,3 +1,9 @@
+## Current Authoritative Continuation (2026-08-10, FetchAccount Restore)
+
+Code/test commit `7e8d71c15` adds restore-side FetchAccount and nested FetchAccountUID persistence. Legacy anchors are `Account::XMLStore` (`hmailserver/source/Server/Common/BO/Account.cpp:280-331`), `FetchAccount::XMLStore` (`FetchAccount.cpp:55-79`), `FetchAccountUID::XMLStore` (`FetchAccountUID.cpp:42-49`), and owner-scoped refresh in `FetchAccounts.cpp:36-43`/`FetchAccountUIDs.cpp:29-50`. Current anchors are `BackupArchiveXmlSnapshotParser.ParseFetchAccount`, `BackupRestoreMetadataWriter.RestoreFetchAccountsAsync`, `MetadataBackupRestoreExecutor.RestoreMetadataAsync`, `IBackupRestoreMetadataTransaction.FetchAccountStore`, and `SqlServerFetchAccountAdministrationStore`.
+
+Focused parser/SQL/restore coverage is `30/30`; disposable LocalDB FetchAccount readback and transaction rollback is `2/2`; default full Net10 is `1990 passed, 35 skipped, 0 failed`. SQL-enabled full Net10 is `2017 passed, 2 skipped, 6 unrelated existing message/indexing fixture failures`. The slice preserves legacy Blowfish ciphertext, transaction rollback, COM identity, authenticated boundaries, SMTP trust, and production isolation. Release remains RED for live paired performance, populated full restore/round-trip, SEC-18, migration/installer, service/out-of-process COM, AD/DC, protocol/load, crash/power-loss, and soak gates.
+
 ## Current Continuation (2026-08-10, SQL-backed Account.ValidatePassword)
 
 The current code/test slice is `f34ee25c8`: attached COM `Account.ValidatePassword` now reaches the configured SQL administration store and preserves the legacy script-first, empty-password, AD, and local-hash verification order. Legacy anchors are `InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`) and `PasswordValidator::ValidatePassword` (`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:109-188`); COM identity, DISPIDs, attachment checks, and direct activation boundaries were not changed.
@@ -139,6 +145,12 @@ Legacy anchors: `hmailserver/source/Server/Common/Application/BackupManager.cpp`
 Residual risk: this is not the legacy full restore. It does not restore settings, public folders, IMAP folders/messages, message files, raw/7z `DataBackup`, or reinitialize the live application; the production path has not yet been exercised through an out-of-process COM/service host or a real disposable end-to-end SQL restore. The store abstraction uses compensating deletes rather than one shared SQL transaction, so rollback acceptance remains a gate. Next slice: execute the queued path through an isolated service/COM composition against a disposable SQL target, then implement and verify raw/compressed DataBackup restore staging and rollback. Real native AD/DC, SEC-18, out-of-proc COM/DCOM, installer, and 24-hour lifecycle gates remain open.
 
 # hMailServer .NET 10 Rewrite
+
+## Current Authoritative Continuation (2026-08-10, FetchAccount Restore)
+
+Code/test commit `7e8d71c15` adds restore-side FetchAccount and nested FetchAccountUID persistence. Legacy anchors are `Account::XMLStore` (`hmailserver/source/Server/Common/BO/Account.cpp:280-331`), `FetchAccount::XMLStore` (`FetchAccount.cpp:55-79`), `FetchAccountUID::XMLStore` (`FetchAccountUID.cpp:42-49`), and owner-scoped refresh in `FetchAccounts.cpp:36-43`/`FetchAccountUIDs.cpp:29-50`. Current anchors are `BackupArchiveXmlSnapshotParser.ParseFetchAccount`, `BackupRestoreMetadataWriter.RestoreFetchAccountsAsync`, `MetadataBackupRestoreExecutor.RestoreMetadataAsync`, `IBackupRestoreMetadataTransaction.FetchAccountStore`, and `SqlServerFetchAccountAdministrationStore`.
+
+Focused parser/SQL/restore coverage is `30/30`; disposable LocalDB FetchAccount readback and transaction rollback is `2/2`; default full Net10 is `1990 passed, 35 skipped, 0 failed`. SQL-enabled full Net10 is `2017 passed, 2 skipped, 6 unrelated existing message/indexing fixture failures`. The slice preserves legacy Blowfish ciphertext, transaction rollback, COM identity, authenticated boundaries, SMTP trust, and production isolation. Release remains RED for live paired performance, populated full restore/round-trip, SEC-18, migration/installer, service/out-of-process COM, AD/DC, protocol/load, crash/power-loss, and soak gates.
 
 ## Current Continuation (2026-08-08, IMAP DOMAIN-ALIAS LAST-AT PARSING)
 

@@ -1,15 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T14:45:00Z / 2026-08-10T17:45:00+03:00
+- UTC/local timestamp: 2026-08-10T14:38:57Z / 2026-08-10T17:38:57+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: this documentation commit
+- Current HEAD: `7e8d71c15` code/test commit; documentation commit pending
 - Last successfully pushed commit: `0b2646731`
-- Push status: not pushed; live C++/.NET 10 performance gate is RED
-- Latest focused-test result: isolated LocalDB `BackupRestoreRoundTripIntegrationTests` `11 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1987 passed, 33 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: restore fixture/SQL/Data rollback checks passed; native registry, installer, live SQL FTS, protocol/load, service/COM, AD/DC, SEC-18, crash/power-loss, migration/installer, and soak remain skipped or blocked
-- Current bounded slice: isolated SQL restore fixture schema repair and rerun
-- Completed milestones: backup creation/raw staging, offline synthetic SEARCH/SORT benchmark, COM/Admin parity slices, password verifier seam, and disposable restore rollback fixture coverage; no production release gate complete
-- Open production blockers: live paired C++/.NET 10 performance/load, SQL Full-Text Search and legacy ADO startup, populated restore/round-trip rollback, SEC-18, migration/installer, service/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak
+- Latest focused-test result: parser/SQL/restore `30 passed, 0 failed, 0 skipped`; disposable LocalDB FetchAccount readback/transaction rollback `2 passed, 0 failed, 0 skipped`
+- Latest full Net10 result: default `1990 passed, 35 skipped, 0 failed`; SQL-enabled `2017 passed, 2 skipped, 6 unrelated message/indexing fixture failures`
+- Opt-in tests passed/skipped/blocked: FetchAccount LocalDB opt-in passed; SQL-enabled full run has six unrelated existing fixture failures; native registry, installer, live SQL FTS, protocol/load, service/COM, AD/DC, SEC-18, crash/power-loss, migration/installer, and soak remain skipped or blocked
+- Current bounded slice: restore-side FetchAccount and nested FetchAccountUID persistence with transaction-scoped SQL inserts
+- Completed milestones: backup creation/raw staging, offline synthetic SEARCH/SORT benchmark, COM/Admin parity slices, password verifier seam, disposable restore rollback fixture coverage, and FetchAccount restore persistence; no production release gate complete
+- Open production blockers: live paired C++/.NET 10 performance/load, SQL Full-Text Search and legacy ADO startup, populated full restore/round-trip, SEC-18, migration/installer, service/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak
 - Environment-blocked work: approved FTS/legacy ADO staging SQL, protocol/load host, isolated service/COM host, domain-controller credentials, IIS/SEC-18 gate, InnoSetup, and AV-compatible full-suite cleanup
-- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`/backup files, and untracked SEC-18/benchmark artifacts
-- Next three independent slices: extend populated isolated restore graph readback/rollback; implement paired SMTP/IMAP/POP3 harness once FTS/legacy ADO staging exists; run isolated service/out-of-process COM lifecycle acceptance
+- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`/backup files, and untracked SEC-18/benchmark/disposable artifacts
+- Next three independent slices: executor-level populated FetchAccount restore/readback and injected UID/date rollback; paired SMTP/IMAP/POP3 harness after FTS/legacy ADO staging; isolated service/out-of-process COM lifecycle acceptance
