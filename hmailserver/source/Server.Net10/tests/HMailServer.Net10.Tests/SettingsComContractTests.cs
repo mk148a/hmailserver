@@ -93,6 +93,7 @@ public sealed class SettingsComContractTests
         var expected = new[]
         {
             (Name: nameof(IInterfaceSettings.SMTPRelayerPort), DispId: 37),
+            (Name: nameof(IInterfaceSettings.MaxMessageSize), DispId: 44),
             (Name: nameof(IInterfaceSettings.RuleLoopLimit), DispId: 48),
             (Name: nameof(IInterfaceSettings.WorkerThreadPriority), DispId: 57),
             (Name: nameof(IInterfaceSettings.TCPIPThreads), DispId: 60),
@@ -192,6 +193,10 @@ public sealed class SettingsComContractTests
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxSMTPConnections);
         var scalarSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxSMTPConnections = 1);
+        var maxMessageSizeError = Assert.ThrowsExactly<COMException>(
+            () => _ = ((IInterfaceSettings)settings).MaxMessageSize);
+        var maxMessageSizeSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).MaxMessageSize = 1);
         var pop3ScalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxPOP3Connections);
         var pop3ScalarSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxPOP3Connections = 1);
@@ -245,6 +250,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maxMessageSizeError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maxMessageSizeSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, pop3ScalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, pop3ScalarSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, recipientsScalarError.ErrorCode);
@@ -946,6 +953,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxMessageSizeSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxMessageSizeUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxMessageSize: 10),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MaxMessageSize = 25;
+
+        Assert.AreEqual(1, store.MaxMessageSizeUpdateCount);
+        Assert.AreEqual(25, store.UpdatedMaxMessageSize);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(25, settings.MaxMessageSize);
+
+        store.MaxMessageSizeUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxMessageSize = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.MaxMessageSizeUpdateCount);
+        Assert.AreEqual(25, settings.MaxMessageSize);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxMessageSize = 35);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.MaxMessageSizeUpdateCount);
+        Assert.AreEqual(25, settings.MaxMessageSize);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -1294,6 +1343,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxPop3Connections { get; private set; }
 
+        public bool MaxMessageSizeUpdateResult { get; set; }
+
+        public int MaxMessageSizeUpdateCount { get; private set; }
+
+        public int UpdatedMaxMessageSize { get; private set; }
+
         public bool MaxSmtpRecipientsInBatchUpdateResult { get; set; }
 
         public int MaxSmtpRecipientsInBatchUpdateCount { get; private set; }
@@ -1391,6 +1446,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxPop3Connections = maxPop3Connections;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxPop3ConnectionsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMaxMessageSizeAsync(
+            int maxMessageSize,
+            CancellationToken cancellationToken)
+        {
+            MaxMessageSizeUpdateCount++;
+            UpdatedMaxMessageSize = maxMessageSize;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(MaxMessageSizeUpdateResult);
         }
 
         public ValueTask<bool> UpdateMaxSmtpRecipientsInBatchAsync(

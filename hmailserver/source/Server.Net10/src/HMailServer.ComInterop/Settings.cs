@@ -988,7 +988,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MaxMessageSize
                 : _administrationSnapshot.MaxMessageSize;
         }
-        set => base.MaxMessageSize = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxMessageSize = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateMaxMessageSizeAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum message size update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxMessageSize = value
+                };
+            }
+        }
     }
 
     public override int RuleLoopLimit
