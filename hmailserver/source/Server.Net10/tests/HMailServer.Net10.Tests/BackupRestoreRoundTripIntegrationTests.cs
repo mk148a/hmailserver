@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
+using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
 
@@ -15,7 +16,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
     private const string ConnectionEnvironmentVariable = "HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION";
     private const string AllowDatabaseCreateEnvironmentVariable = "HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE";
 
-    private const string NonDbArchiveXml = """
+    private static readonly string NonDbArchiveXml = $"""
         <Backup>
           <BackupInformation Mode="6">
             <DataFiles Format="Raw" FolderName="DataBackup" />
@@ -27,8 +28,21 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                     LimitationsEnabled="0" EnableSignature="0" SignatureMethod="1" MaxAccountSize="0"
                     MaxSize="0">
               <Accounts>
-                <Account Name="user@roundtrip.example" Active="1" Password="enc" PasswordEncryption="1"
-                         AdminLevel="1" MaxAccountSize="128" />
+                    <Account Name="user@roundtrip.example" Active="1" Password="enc" PasswordEncryption="1"
+                         AdminLevel="1" MaxAccountSize="128">
+                      <FetchAccounts>
+                        <FetchAccount Name="fetcher" ServerAddress="pop3.example.test" ServerType="0"
+                                      Port="995" Username="remote-user"
+                                      Password="{LegacyBlowfishPasswordCipher.Encrypt("fetch-secret")}" Minutes="15"
+                                      DaysToKeep="30" Active="1" MIMERecipientHeaders="To"
+                                      ProcessMIMERecipients="1" ProcessMIMEDate="0" UseAntiSpam="1"
+                                      UseAntiVirus="0" EnableRouteRecipients="1" ConnectionSecurity="1">
+                          <FetchAccountUIDs>
+                            <UID UID="uid-restore-1" Date="2026-07-01 12:30:00" />
+                          </FetchAccountUIDs>
+                        </FetchAccount>
+                      </FetchAccounts>
+                    </Account>
               </Accounts>
               <Aliases>
                 <Alias Name="alias@roundtrip.example" Value="target@example.test" Active="1" />
@@ -166,7 +180,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 new SqlServerAccountAdministrationStore(factory),
                 new SqlServerAliasAdministrationStore(factory),
                 new SqlServerDistributionListAdministrationStore(factory),
-                new SqlServerDistributionListRecipientAdministrationStore(factory));
+                new SqlServerDistributionListRecipientAdministrationStore(factory),
+                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -234,7 +249,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 accountStore,
                 new FailingAliasAdministrationStore(aliasStore),
                 new SqlServerDistributionListAdministrationStore(factory),
-                new SqlServerDistributionListRecipientAdministrationStore(factory));
+                new SqlServerDistributionListRecipientAdministrationStore(factory),
+                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -303,7 +319,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 aliasStore,
                 listStore,
                 new FailingRecipientAdministrationStore(
-                    new SqlServerDistributionListRecipientAdministrationStore(factory)));
+                    new SqlServerDistributionListRecipientAdministrationStore(factory)),
+                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -378,7 +395,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 accountStore,
                 aliasStore,
                 listStore,
-                new FailingOnSecondRecipientAdministrationStore(recipientStore));
+                new FailingOnSecondRecipientAdministrationStore(recipientStore),
+                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory));
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
             var backup = Backup.CreateAuthorized(
@@ -429,6 +447,10 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 Assert.AreEqual(1, (await fixture.AliasStore.GetAliasesAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
                 Assert.AreEqual(1, (await fixture.ListStore.GetDistributionListsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
                 Assert.AreEqual(1, (await fixture.RecipientStore.GetRecipientsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+                var fetchAccounts = await fixture.FetchAccountStore.GetFetchAccountsAsync(1, CancellationToken.None).ConfigureAwait(false);
+                Assert.AreEqual(1, fetchAccounts.Count);
+                Assert.AreEqual("fetcher", fetchAccounts[0].Name);
+                Assert.AreEqual(1, await CountRowsAsync(fixture.ConnectionString, "hm_fetchaccounts_uids", "uidfaid", fetchAccounts[0].Id).ConfigureAwait(false));
             }).ConfigureAwait(false);
     }
 
@@ -445,6 +467,29 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                     new FailingMetadataTransactionFactory(fixture.TransactionFactory, failAlias: true));
 
                 await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                    () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask());
+
+                await AssertAllMetadataTablesEmptyAsync(fixture).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_RollsBackFetchAccountWhenUidDateIsInvalid()
+    {
+        var archiveXml = ToDbOnlyArchiveXml(
+            NonDbArchiveXml.Replace(
+                "2026-07-01 12:30:00",
+                "not-a-legacy-date",
+                StringComparison.Ordinal));
+        await WithDbOnlyRestoreTargetAsync(
+            "db_only_fetch_uid_failure",
+            archiveXml,
+            async fixture =>
+            {
+                var executor = fixture.CreateExecutor();
+
+                await Assert.ThrowsExactlyAsync<FormatException>(
                     () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask());
 
                 await AssertAllMetadataTablesEmptyAsync(fixture).ConfigureAwait(false);
@@ -628,6 +673,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         Assert.AreEqual(0, (await fixture.AliasStore.GetAliasesAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
         Assert.AreEqual(0, (await fixture.ListStore.GetDistributionListsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
         Assert.AreEqual(0, (await fixture.RecipientStore.GetRecipientsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+        Assert.AreEqual(0, (await fixture.FetchAccountStore.GetFetchAccountsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+        Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_fetchaccounts_uids", "uidfaid", 1).ConfigureAwait(false));
     }
 
     private static string ToDbOnlyArchiveXml(string archiveXml) =>
@@ -671,11 +718,13 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 Path.Combine(AppContext.BaseDirectory, "7za.exe"),
                 dataDirectory,
                 backup,
+                testConnectionString,
                 new SqlServerDomainAdministrationStore(factory),
                 new SqlServerAccountAdministrationStore(factory),
                 new SqlServerAliasAdministrationStore(factory),
                 new SqlServerDistributionListAdministrationStore(factory),
                 new SqlServerDistributionListRecipientAdministrationStore(factory),
+                new SqlServerFetchAccountAdministrationStore(factory),
                 new SqlServerBackupRestoreMetadataTransactionFactory(factory))).ConfigureAwait(false);
         }
         finally
@@ -693,19 +742,23 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         string sevenZipExecutablePath,
         string dataDirectory,
         Backup backup,
+        string connectionString,
         SqlServerDomainAdministrationStore domainStore,
         SqlServerAccountAdministrationStore accountStore,
         SqlServerAliasAdministrationStore aliasStore,
         SqlServerDistributionListAdministrationStore listStore,
         SqlServerDistributionListRecipientAdministrationStore recipientStore,
+        SqlServerFetchAccountAdministrationStore fetchAccountStore,
         SqlServerBackupRestoreMetadataTransactionFactory transactionFactory)
     {
         internal Backup Backup { get; } = backup;
+        internal string ConnectionString { get; } = connectionString;
         internal SqlServerDomainAdministrationStore DomainStore { get; } = domainStore;
         internal SqlServerAccountAdministrationStore AccountStore { get; } = accountStore;
         internal SqlServerAliasAdministrationStore AliasStore { get; } = aliasStore;
         internal SqlServerDistributionListAdministrationStore ListStore { get; } = listStore;
         internal SqlServerDistributionListRecipientAdministrationStore RecipientStore { get; } = recipientStore;
+        internal SqlServerFetchAccountAdministrationStore FetchAccountStore { get; } = fetchAccountStore;
         internal SqlServerBackupRestoreMetadataTransactionFactory TransactionFactory { get; } = transactionFactory;
 
         internal MetadataBackupRestoreExecutor CreateExecutor(
@@ -718,6 +771,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 AliasStore,
                 ListStore,
                 RecipientStore,
+                fetchAccountStore: FetchAccountStore,
                 metadataTransactionFactory: transactionFactory ?? TransactionFactory);
 
         internal MetadataBackupRestoreExecutor CreateExecutorWithoutTransactionFactory() =>
@@ -729,6 +783,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 AliasStore,
                 ListStore,
                 RecipientStore,
+                fetchAccountStore: FetchAccountStore,
                 metadataTransactionFactory: null,
                 requireSqlTransaction: true);
     }
@@ -760,6 +815,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         public IDistributionListRecipientAdministrationStore RecipientStore => failSecondRecipient
             ? new FailingOnSecondRecipientAdministrationStore(inner.RecipientStore)
             : inner.RecipientStore;
+        public IFetchAccountAdministrationStore? FetchAccountStore => inner.FetchAccountStore;
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             inner.DeleteAllDomainsForRestoreAsync(cancellationToken);
         public ValueTask CommitAsync(CancellationToken cancellationToken) => inner.CommitAsync(cancellationToken);
@@ -1040,7 +1096,25 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             );
             CREATE TABLE dbo.hm_fetchaccounts (
                 faid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
-                faaccountid int NOT NULL
+                faaccountid int NOT NULL,
+                faaccountname nvarchar(255) NOT NULL,
+                faserveraddress nvarchar(255) NOT NULL,
+                faserverport int NOT NULL,
+                faservertype tinyint NOT NULL,
+                fausername nvarchar(255) NOT NULL,
+                fapassword nvarchar(255) NOT NULL,
+                faminutes int NOT NULL,
+                fanexttry datetime NOT NULL,
+                fadaystokeep int NOT NULL,
+                faactive tinyint NOT NULL,
+                falocked tinyint NOT NULL,
+                faprocessmimerecipients tinyint NOT NULL,
+                faprocessmimedate tinyint NOT NULL,
+                faconnectionsecurity tinyint NOT NULL,
+                fauseantispam tinyint NOT NULL,
+                fauseantivirus tinyint NOT NULL,
+                faenablerouterecipients tinyint NOT NULL,
+                famimerecipientheaders nvarchar(255) NOT NULL
             );
             CREATE TABLE dbo.hm_imapfolders (
                 folderid int NOT NULL,
@@ -1055,7 +1129,10 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 memberaccountid bigint NOT NULL
             );
             CREATE TABLE dbo.hm_fetchaccounts_uids (
-                uidfaid int NOT NULL
+                uidid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                uidfaid int NOT NULL,
+                uidvalue nvarchar(255) NOT NULL,
+                uidtime datetime NOT NULL
             );
             """;
 
@@ -1063,6 +1140,23 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         await connection.OpenAsync().ConfigureAwait(false);
         await using var command = new SqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<long> CountRowsAsync(
+        string connectionString,
+        string tableName,
+        string columnName,
+        int value)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            $"SELECT COUNT_BIG(*) FROM dbo.{tableName} WHERE {columnName} = @Value;",
+            connection);
+        command.Parameters.Add("@Value", SqlDbType.Int).Value = value;
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync().ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
     }
 
     private static async Task DropDatabaseAsync(string connectionString, string databaseName)
