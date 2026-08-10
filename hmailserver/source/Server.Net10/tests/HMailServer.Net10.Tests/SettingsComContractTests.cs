@@ -98,6 +98,7 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.SMTPRelayerPort), DispId: 37),
             (Name: nameof(IInterfaceSettings.MaxMessageSize), DispId: 44),
             (Name: nameof(IInterfaceSettings.RuleLoopLimit), DispId: 48),
+            (Name: nameof(IInterfaceSettings.MaxIMAPConnections), DispId: 53),
             (Name: nameof(IInterfaceSettings.WorkerThreadPriority), DispId: 57),
             (Name: nameof(IInterfaceSettings.TCPIPThreads), DispId: 60),
             (Name: nameof(IInterfaceSettings.MaxSMTPRecipientsInBatch), DispId: 62),
@@ -224,6 +225,10 @@ public sealed class SettingsComContractTests
             () => _ = ((IInterfaceSettings)settings).MaxDeliveryThreads);
         var maxDeliveryThreadsSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxDeliveryThreads = 1);
+        var maxImapConnectionsError = Assert.ThrowsExactly<COMException>(
+            () => _ = ((IInterfaceSettings)settings).MaxIMAPConnections);
+        var maxImapConnectionsSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).MaxIMAPConnections = 1);
         var maxNumberOfMxHostsError = Assert.ThrowsExactly<COMException>(
             () => _ = ((IInterfaceSettings)settings).MaxNumberOfMXHosts);
         var maxNumberOfMxHostsSetterError = Assert.ThrowsExactly<COMException>(
@@ -301,6 +306,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, maxMessageSizeSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxDeliveryThreadsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxDeliveryThreadsSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maxImapConnectionsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maxImapConnectionsSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxNumberOfMxHostsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxNumberOfMxHostsSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, pop3ScalarError.ErrorCode);
@@ -1220,6 +1227,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxImapConnectionsSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxImapConnectionsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxImapConnections: 10),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MaxIMAPConnections = 25;
+
+        Assert.AreEqual(1, store.MaxImapConnectionsUpdateCount);
+        Assert.AreEqual(25, store.UpdatedMaxImapConnections);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(25, settings.MaxIMAPConnections);
+
+        store.MaxImapConnectionsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxIMAPConnections = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.MaxImapConnectionsUpdateCount);
+        Assert.AreEqual(25, settings.MaxIMAPConnections);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxIMAPConnections = 35);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.MaxImapConnectionsUpdateCount);
+        Assert.AreEqual(25, settings.MaxIMAPConnections);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxNumberOfMXHostsSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -1760,6 +1809,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxPop3Connections { get; private set; }
 
+        public bool MaxImapConnectionsUpdateResult { get; set; }
+
+        public int MaxImapConnectionsUpdateCount { get; private set; }
+
+        public int UpdatedMaxImapConnections { get; private set; }
+
         public bool MaxMessageSizeUpdateResult { get; set; }
 
         public int MaxMessageSizeUpdateCount { get; private set; }
@@ -1919,6 +1974,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxPop3Connections = maxPop3Connections;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxPop3ConnectionsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMaxImapConnectionsAsync(
+            int maxImapConnections,
+            CancellationToken cancellationToken)
+        {
+            MaxImapConnectionsUpdateCount++;
+            UpdatedMaxImapConnections = maxImapConnections;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(MaxImapConnectionsUpdateResult);
         }
 
         public ValueTask<bool> UpdateMaxMessageSizeAsync(

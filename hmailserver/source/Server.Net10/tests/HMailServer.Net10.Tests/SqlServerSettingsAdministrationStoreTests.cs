@@ -136,6 +136,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateMaxImapConnectionsSql_UsesTheExactParameterizedFixedRowShape()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateMaxImapConnectionsSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settinginteger = @MaxIMAPConnections\nWHERE settingname = N'maximapconnections';",
+            sql);
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateMaxMessageSizeSql_UpdatesOnlyTheExistingMaxMessageSizeRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateMaxMessageSizeSql;

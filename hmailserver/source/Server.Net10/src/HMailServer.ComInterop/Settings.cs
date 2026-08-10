@@ -972,7 +972,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MaxIMAPConnections
                 : _administrationSnapshot.MaxImapConnections;
         }
-        set => base.MaxIMAPConnections = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxIMAPConnections = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateMaxImapConnectionsAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum IMAP connections update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxImapConnections = value
+                };
+            }
+        }
     }
 
     public override bool IMAPSortEnabled
