@@ -2648,3 +2648,37 @@ paired legacy/.NET protocol performance, SEC-18, migration/installer,
 out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
 environment-blocked. Next slice: fresh legacy-first audit of one remaining
 low-risk Settings mutation.
+
+## Current Audit Note (2026-08-11, DENY MAIL FROM NULL ADMIN MUTATION)
+
+Code/test commit `5d67f7eee` implements the authenticated
+`IInterfaceSettings.DenyMailFromNull` setter (`DispId(11)`, `VARIANT_BOOL`)
+only. The .NET path updates the existing `hm_settings.allowmailfromnull` row
+through a parameterized integer command, requires exactly one affected row,
+rechecks the live server-administrator callback, and publishes the retained
+snapshot only after success. The legacy public value is inverted for the
+stored `AllowMailFromNull` setting: `true` writes `0`, and `false` writes `1`.
+Direct activation denial, both inversion directions, failed-write retention,
+administrator revocation, one-row enforcement, and exact SQL shape are
+covered. Focused settings/store coverage is `70/70`; full Net10 is `2053
+passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.DenyMailFromNull`
+(`source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::get_DenyMailFromNull` and
+`InterfaceSettings::put_DenyMailFromNull`
+(`source/Server/COM/InterfaceSettings.cpp`),
+`SMTPConfiguration::SetAllowMailFromNull`
+(`source/Server/SMTP/SMTPConfiguration.cpp`), generic
+`PropertySet::SetBoolValue` and `Property::WriteLongSetting_`
+(`source/Server/Common/PropertySet.cpp`, `source/Server/Common/Property.cpp`),
+and the `allowmailfromnull` seed
+(`source/DBScripts/CreateTablesMSSQL.sql`). The current SMTP handler's
+`MAIL FROM:<>` behavior and runtime reconfiguration were deliberately not
+changed; this slice is COM persistence parity only.
+
+Real SQL/Data rollback, non-DB settings restore/reinitialization, SQL/FTS,
+paired legacy/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
+environment-blocked. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation.

@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, DENY MAIL FROM NULL MUTATION)
+
+Code/test commit `5d67f7eee` implements only authenticated
+`Settings.DenyMailFromNull` (`DispId(11)`, `VARIANT_BOOL`) persistence. It
+preserves the installed COM identity and direct activation denial, rechecks
+the live administrator callback, updates only the existing
+`hm_settings.allowmailfromnull` row with a parameterized integer command, and
+changes the retained snapshot only after one-row success. The legacy public
+value is inverted for storage: `true` writes `AllowMailFromNull = 0`, and
+`false` writes `1`.
+
+Legacy anchors: `IInterfaceSettings.DenyMailFromNull`
+(`source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::put_DenyMailFromNull`,
+`SMTPConfiguration::SetAllowMailFromNull`, generic
+`PropertySet::SetBoolValue`/`Property::WriteLongSetting_`, and the
+`allowmailfromnull` SQL seed (`source/DBScripts/CreateTablesMSSQL.sql`).
+Focused settings/store coverage is `70/70`; full Net10 is `2053 passed, 39
+skipped, 0 failed`. SMTP `MAIL FROM:<>` runtime behavior and live
+reconfiguration were deliberately not changed.
+
+Release remains RED for disposable SQL/Data rollback, non-DB restore/
+reinitialization, SQL/FTS, matched C++/.NET protocol performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and 24-hour
+soak. Next slice: fresh legacy-first audit of one remaining low-risk Settings
+mutation. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, ALLOW SMTP AUTH PLAIN MUTATION)
 
 Code/test commit `5ff8ef8ee` implements only authenticated

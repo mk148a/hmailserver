@@ -1,6 +1,37 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, DenyMailFromNull mutation)
+
+Code/test commit `5d67f7eee` implements only the authenticated
+`IInterfaceSettings.DenyMailFromNull` setter (`DispId(11)`, `VARIANT_BOOL`).
+It preserves the installed COM identity and direct activation denial, rechecks
+the live administrator callback, updates only the existing
+`hm_settings.allowmailfromnull` row through a parameterized integer command,
+and publishes the retained snapshot only after one-row success. The legacy
+public value is inverted when persisted: `DenyMailFromNull = true` writes
+`AllowMailFromNull = 0`, while `false` writes `1`.
+
+Direct activation denial, true/false inversion, failed-write retention,
+administrator revocation, one-row enforcement, and exact SQL command shape are
+covered. Focused settings/store coverage is `70/70`; full Net10 is `2053
+passed, 39 skipped, 0 failed`. SMTP `MAIL FROM:<>` runtime handling and live
+reconfiguration remain unchanged and were deliberately left out of this
+bounded persistence slice.
+
+Legacy anchors are `IInterfaceSettings.DenyMailFromNull`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::put_DenyMailFromNull`,
+`SMTPConfiguration::SetAllowMailFromNull`, the generic
+`PropertySet::SetBoolValue`/`Property::WriteLongSetting_` path, and the
+`allowmailfromnull` SQL seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql`).
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched legacy/.NET protocol load, SEC-18 cutover,
+installer/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain
+unproven. Next slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, AllowSMTPAuthPlain mutation)
 
 Code/test commit `5ff8ef8ee` implements only the authenticated
