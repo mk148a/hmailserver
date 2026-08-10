@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, MAX SMTP CONNECTIONS MUTATION)
+
+Code/test commit `9d2033677` implements only authenticated
+`Settings.MaxSMTPConnections` (`DispId(5)`) persistence. It preserves direct
+activation denial, rechecks the live administrator callback, updates the fixed
+`hm_settings.maxsmtpconnections` row with a parameterized integer command,
+and changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.MaxSMTPConnections`
+(`source/Server/hMailServer/hMailServer.idl:529`),
+`InterfaceSettings::put_MaxSMTPConnections`
+(`source/Server/COM/InterfaceSettings.cpp:124`),
+`SMTPConfiguration::SetMaxSMTPConnections`
+(`source/Server/SMTP/SMTPConfiguration.cpp:51`), and
+`Property::WriteLongSetting_` (`source/Server/Common/Application/Property.cpp:71`).
+Focused settings/SQL coverage is `29/29`; full Net10 is `2012 passed, 39
+skipped, 0 failed`. SMTP listener live reconfiguration was deliberately not
+added. Next slice: fresh legacy-first audit of one remaining low-risk Settings
+mutation. Real SQL/Data rollback, reinitialize, SEC-18, installer, paired live
+performance, and soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, WORKER THREAD PRIORITY MUTATION)
 
 Code/test commit `2e60909b5` implements only authenticated

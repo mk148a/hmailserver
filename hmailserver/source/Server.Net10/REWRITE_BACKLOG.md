@@ -2239,3 +2239,31 @@ The next code slice must be selected by a fresh legacy-first audit of one
 remaining low-risk Settings setter. Real SQL/Data rollback, live
 reconfiguration, SEC-18, installer, paired protocol performance, and soak
 gates remain RED or environment-blocked.
+## Current Audit Note (2026-08-10, MAX SMTP CONNECTIONS ADMIN MUTATION)
+
+Code/test commit `9d2033677` closes the narrow authenticated
+`IInterfaceSettings.MaxSMTPConnections` setter gap (`DispId(5)`) while
+preserving the installed COM shape. Legacy behavior is anchored by
+`IInterfaceSettings.MaxSMTPConnections`
+(`source/Server/hMailServer/hMailServer.idl:529`),
+`InterfaceSettings::put_MaxSMTPConnections`
+(`source/Server/COM/InterfaceSettings.cpp:124`),
+`SMTPConfiguration::SetMaxSMTPConnections`
+(`source/Server/SMTP/SMTPConfiguration.cpp:51`),
+`SessionManager::CreateSession`
+(`source/Server/Common/Application/SessionManager.cpp:43`), and
+`Property::WriteLongSetting_` (`source/Server/Common/Application/Property.cpp:71`).
+
+The .NET setter requires the authenticated settings boundary and live server
+administrator callback, updates only the existing `maxsmtpconnections` row
+through a parameterized SQL command, requires exactly one affected row, and
+publishes the retained snapshot only after success. Direct activation,
+failed-write snapshot retention, retained-object reauthentication, and SQL
+shape are covered. Focused coverage is `29/29`; full Net10 is `2012 passed, 39
+skipped, 0 failed`.
+
+SMTP listener startup configuration and live reconfiguration remain out of
+scope. The next code slice must be selected by a fresh legacy-first audit of
+one remaining low-risk Settings setter. Real SQL/Data rollback, SEC-18,
+installer, paired protocol performance, and soak gates remain RED or
+environment-blocked.

@@ -1,3 +1,23 @@
+## Current parity continuation (2026-08-10, authenticated MaxSMTPConnections mutation)
+
+Code/test commit `9d2033677` adds only the fixed-row
+`MaxSMTPConnections` mutation (`DispId(5)`) to the existing authenticated
+settings seam. The SQL command is parameterized and fixed to
+`settingname = N'maxsmtpconnections'`; the live administrator callback is
+checked before store access and the retained snapshot changes only after a
+one-row success. Focused settings/SQL coverage is `29/29`; full Net10 is
+`2012 passed, 39 skipped, 0 failed`.
+
+Legacy references are `IInterfaceSettings.MaxSMTPConnections`
+(`source/Server/hMailServer/hMailServer.idl:529`),
+`InterfaceSettings::put_MaxSMTPConnections`
+(`source/Server/COM/InterfaceSettings.cpp:124`),
+`SMTPConfiguration::SetMaxSMTPConnections`
+(`source/Server/SMTP/SMTPConfiguration.cpp:51`), and
+`Property::WriteLongSetting_` (`source/Server/Common/Application/Property.cpp:71`).
+No COM identity, direct activation boundary, SMTP trust, or live listener
+reconfiguration path changed.
+
 ## Current parity continuation (2026-08-10, authenticated WorkerThreadPriority mutation)
 
 Code/test commit `2e60909b5` adds only the fixed-row

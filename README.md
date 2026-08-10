@@ -1,6 +1,34 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated MaxSMTPConnections mutation)
+
+Code/test commit `9d2033677` extends the bounded Administrator settings seam to
+only `IInterfaceSettings.MaxSMTPConnections` (`DispId(5)`). It rechecks the
+live server-administrator callback, updates only the existing
+`hm_settings.maxsmtpconnections` row with a parameterized integer command,
+requires one affected row, and changes a retained snapshot only after success.
+The SMTP listener’s startup limit and live reconfiguration behavior are
+unchanged.
+
+Legacy anchors are `IInterfaceSettings.MaxSMTPConnections`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:529`),
+`InterfaceSettings::put_MaxSMTPConnections`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:124`),
+`SMTPConfiguration::SetMaxSMTPConnections`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:51`),
+`SessionManager::CreateSession`
+(`hmailserver/source/Server/Common/Application/SessionManager.cpp:43`), and
+`Property::WriteLongSetting_`
+(`hmailserver/source/Server/Common/Application/Property.cpp:71`). Focused
+settings/SQL coverage is `29/29`; full Net10 is `2012 passed, 39 skipped, 0
+failed`. No COM identity, direct activation boundary, or SMTP trust behavior
+changed.
+
+Release remains RED: real SQL/Data rollback, SEC-18 cutover, installer and
+out-of-process COM, matched C++/Net10 protocol load evidence, SQL FTS, and
+24-hour soak remain unproven.
+
 ## Current parity continuation (2026-08-10, authenticated WorkerThreadPriority mutation)
 
 Code/test commit `2e60909b5` extends the bounded Administrator settings seam to
