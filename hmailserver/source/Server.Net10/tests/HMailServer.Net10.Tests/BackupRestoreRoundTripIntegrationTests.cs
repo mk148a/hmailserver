@@ -1039,7 +1039,23 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 messageid bigint NOT NULL
             );
             CREATE TABLE dbo.hm_fetchaccounts (
+                faid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
                 faaccountid int NOT NULL
+            );
+            CREATE TABLE dbo.hm_imapfolders (
+                folderid int NOT NULL,
+                folderaccountid int NOT NULL
+            );
+            CREATE TABLE dbo.hm_acl (
+                aclsharefolderid bigint NOT NULL,
+                aclpermissiontype tinyint NOT NULL,
+                aclpermissionaccountid bigint NOT NULL
+            );
+            CREATE TABLE dbo.hm_group_members (
+                memberaccountid bigint NOT NULL
+            );
+            CREATE TABLE dbo.hm_fetchaccounts_uids (
+                uidfaid int NOT NULL
             );
             """;
 
