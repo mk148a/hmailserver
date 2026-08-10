@@ -2,6 +2,10 @@
 
 ## Current Authoritative Continuation
 
+2026-08-10 offline benchmark acceptance on current HEAD `7dde90db9` passed the existing synthetic 100k-message IMAP SEARCH/SORT pack: seed `5700`, expected matches `9,091`, `DATE DESC, UID ASC`, correctness true, p50 `6.888 ms`, p95 `7.276 ms`, p99 `7.324 ms`, p95 threshold `<=2500 ms`; JSON/CSV/Markdown artifacts were emitted under a unique `%TEMP%` path. Focused benchmark tests: `4 passed, 0 skipped, 0 failed`. This is offline synthetic evidence only, not live SQL/FTS, 1k IMAP, SMTP/delivery, C++ equivalence, or soak evidence. Preserve the older untracked benchmark artifacts and do not claim the performance release gate green.
+
+Next action: approved disposable SQL/Data restore acceptance when the isolated target exists; keep live performance/load and long-duration soak gates blocked until their required infrastructure is available.
+
 2026-08-10 code/test commit `edacbde75` adds a test-injected account-ID-scoped verifier seam for the legacy `Account.ValidatePassword` gap. Legacy `InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`) calls `PasswordValidator::ValidatePassword` without protocol last-logon or auto-ban side effects. The .NET seam performs attached/live-auth checks and forwards only `(accountId, password)`; absent a configured callback, SQL-backed accounts remain `E_NOTIMPL`, direct activation remains `E_ACCESSDENIED`, and Account COM identity/DISPID 22 is unchanged. Focused Accounts: `60 passed, 0 skipped, 0 failed`; full Net10: `1984 passed, 32 skipped, 0 failed`. Security PASS for the preparatory seam; reality YELLOW for the slice and RED for release. No production verifier is wired in `Program.cs`; SQL, hash, AD, script, auto-ban, last-logon, SQL integration, and out-of-process COM evidence remain open.
 
 Next action: approved disposable SQL/Data restore acceptance when its isolated target exists; then independently design/review the authoritative domain-scoped verifier before production wiring. Preserve dirty `AGENTS.md`/backup files and untracked SEC-18/benchmark artifacts.

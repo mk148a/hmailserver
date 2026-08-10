@@ -10,6 +10,11 @@ For other information about hMailServer, please go to http://www.hmailserver.com
 No active development
 =====================
 
+.NET 10 rewrite continuation audit (2026-08-10, offline 100k IMAP SEARCH/SORT acceptance)
+-------------------------------------------------------------------------------------------
+
+The existing benchmark pack passed its independently executable offline synthetic acceptance on current HEAD `7dde90db9`: 100,000 messages, seed `5700`, expected matches `9,091`, `DATE DESC, UID ASC`, correctness true, p50 `6.888 ms`, p95 `7.276 ms`, p99 `7.324 ms`, and p95 threshold `<=2500 ms`. JSON, CSV, and Markdown artifacts were emitted under a unique `%TEMP%` directory. Focused benchmark tests passed `4/4`. This is diagnostic synthetic evidence only; it does not prove SQL Server FTS, real mailbox behavior, 1,000 concurrent IMAP sessions, SMTP/delivery throughput, C++ equivalence, or long-duration leak freedom.
+
 .NET 10 rewrite continuation audit (2026-08-10, Account.ValidatePassword preparatory seam)
 -------------------------------------------------------------------------------------------
 

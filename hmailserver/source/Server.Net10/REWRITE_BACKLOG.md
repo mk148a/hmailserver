@@ -1,4 +1,10 @@
 
+## Current Audit Note (2026-08-10, OFFLINE 100K IMAP SEARCH/SORT ACCEPTANCE)
+
+The existing benchmark pack passed its current-HEAD offline synthetic 100,000-message IMAP SEARCH/SORT acceptance. Run result: seed `5700`, expected matches `9,091`, `DATE DESC, UID ASC`, correctness true, p50 `6.888 ms`, p95 `7.276 ms`, p99 `7.324 ms`, p95 threshold `<=2500 ms`, and JSON/CSV/Markdown artifacts emitted under a unique `%TEMP%` directory. Focused benchmark tests passed `4/4`; no repository artifact was staged. This remains diagnostic synthetic evidence only and does not close live SQL/FTS, 1,000 concurrent IMAP, SMTP/delivery throughput, C++ baseline, or 24-hour soak gates.
+
+Next independent work remains approved disposable SQL/Data restore acceptance when its isolated target exists. Keep the synthetic result separate from production performance claims and do not stage the older untracked benchmark artifact.
+
 ## Current Audit Note (2026-08-10, ACCOUNT.VALIDATEPASSWORD PREPARATORY SEAM)
 
 Code/test commit `edacbde75` adds a test-injected account-ID-scoped verifier seam for the remaining `Account.ValidatePassword` gap. Legacy `InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`) calls `PasswordValidator::ValidatePassword` and returns a Boolean without protocol last-logon or auto-ban side effects; protocol `AccountLogon::Logon` is a separate path. The .NET seam forwards only `(accountId, password)` after attached/live-auth checks, preserves direct activation denial and installed Account IID/CLSID/ProgID/DISPID/vtable, and keeps SQL-backed accounts at `E_NOTIMPL` when no callback is configured. No credentials were added to `AccountAdministrationSnapshot`; SQL lookup, hash verification, AD, script events, auto-ban, last-logon, and production service wiring remain deliberately out of scope.
