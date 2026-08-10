@@ -652,7 +652,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.DenyMailFromNull
                 : !_administrationSnapshot.AllowMailFromNull;
         }
-        set => base.DenyMailFromNull = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.DenyMailFromNull = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateAllowMailFromNullAsync(!value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The allow mail from null update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    AllowMailFromNull = !value
+                };
+            }
+        }
     }
 
     public override int SMTPNoOfTries

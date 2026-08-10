@@ -263,6 +263,9 @@ public sealed class SettingsComContractTests
         var smtpPolicyError = Assert.ThrowsExactly<COMException>(() => _ = settings.AllowSMTPAuthPlain);
         var smtpPolicySetterError = Assert.ThrowsExactly<COMException>(
             () => settings.AllowSMTPAuthPlain = true);
+        var denyMailFromNullError = Assert.ThrowsExactly<COMException>(() => _ = settings.DenyMailFromNull);
+        var denyMailFromNullSetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.DenyMailFromNull = true);
         var smtpRoutingError = Assert.ThrowsExactly<COMException>(() => _ = settings.MirrorEMailAddress);
         var welcomeSmtpError = Assert.ThrowsExactly<COMException>(() => _ = settings.WelcomeSMTP);
         var welcomeSmtpSetterError = Assert.ThrowsExactly<COMException>(
@@ -333,6 +336,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, imapNamingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpPolicyError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpPolicySetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, denyMailFromNullError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, denyMailFromNullSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpRoutingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, welcomeSmtpError.ErrorCode);
         Assert.AreEqual(EAccessDenied, welcomeSmtpSetterError.ErrorCode);
@@ -1679,6 +1684,54 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_DenyMailFromNullSetterPersistsInvertedTrueAndFalseBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AllowMailFromNullUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AllowMailFromNull: true),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.DenyMailFromNull = true;
+
+        Assert.AreEqual(1, store.AllowMailFromNullUpdateCount);
+        Assert.IsFalse(store.UpdatedAllowMailFromNull);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.DenyMailFromNull);
+
+        settings.DenyMailFromNull = false;
+
+        Assert.AreEqual(2, store.AllowMailFromNullUpdateCount);
+        Assert.IsTrue(store.UpdatedAllowMailFromNull);
+        Assert.IsFalse(settings.DenyMailFromNull);
+
+        store.AllowMailFromNullUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.DenyMailFromNull = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(3, store.AllowMailFromNullUpdateCount);
+        Assert.IsFalse(settings.DenyMailFromNull);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.DenyMailFromNull = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(3, store.AllowMailFromNullUpdateCount);
+        Assert.IsFalse(settings.DenyMailFromNull);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -1979,6 +2032,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAllowSmtpAuthPlain { get; private set; }
 
+        public bool AllowMailFromNullUpdateResult { get; set; }
+
+        public int AllowMailFromNullUpdateCount { get; private set; }
+
+        public bool UpdatedAllowMailFromNull { get; private set; }
+
         public bool VerifyRemoteSslCertificateUpdateResult { get; set; }
 
         public int VerifyRemoteSslCertificateUpdateCount { get; private set; }
@@ -2204,6 +2263,16 @@ public sealed class SettingsComContractTests
             UpdatedAllowSmtpAuthPlain = allowSmtpAuthPlain;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AllowSmtpAuthPlainUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAllowMailFromNullAsync(
+            bool allowMailFromNull,
+            CancellationToken cancellationToken)
+        {
+            AllowMailFromNullUpdateCount++;
+            UpdatedAllowMailFromNull = allowMailFromNull;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AllowMailFromNullUpdateResult);
         }
 
         public ValueTask<bool> UpdateVerifyRemoteSslCertificateAsync(

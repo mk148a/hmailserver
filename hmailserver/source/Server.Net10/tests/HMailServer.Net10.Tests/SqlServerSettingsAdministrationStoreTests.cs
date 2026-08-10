@@ -253,6 +253,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settinginteger = @AllowMailFromNull\nWHERE settingname = N'allowmailfromnull';",
+            sql);
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateRuleLoopLimitSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateRuleLoopLimitSql;

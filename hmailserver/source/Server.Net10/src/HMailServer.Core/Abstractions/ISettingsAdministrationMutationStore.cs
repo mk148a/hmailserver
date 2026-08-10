@@ -14,6 +14,10 @@ public interface ISettingsAdministrationMutationStore
         bool allowSmtpAuthPlain,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAllowMailFromNullAsync(
+        bool allowMailFromNull,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWelcomePop3Async(
         string welcomePop3,
         CancellationToken cancellationToken);

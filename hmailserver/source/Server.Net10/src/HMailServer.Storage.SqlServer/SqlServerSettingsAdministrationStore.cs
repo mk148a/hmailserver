@@ -27,6 +27,12 @@ SET settinginteger = @AllowSMTPAuthPlain
 WHERE settingname = N'authallowplaintext';
 """;
 
+    public const string UpdateAllowMailFromNullSql = """
+UPDATE hm_settings
+SET settinginteger = @AllowMailFromNull
+WHERE settingname = N'allowmailfromnull';
+""";
+
     public const string UpdateWelcomePop3Sql = """
 UPDATE hm_settings
 SET settingstring = @WelcomePOP3
@@ -414,6 +420,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAllowSmtpAuthPlainSql, connection);
         command.Parameters.Add("@AllowSMTPAuthPlain", SqlDbType.Int).Value = allowSmtpAuthPlain ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAllowMailFromNullAsync(
+        bool allowMailFromNull,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAllowMailFromNullSql, connection);
+        command.Parameters.Add("@AllowMailFromNull", SqlDbType.Int).Value = allowMailFromNull ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
