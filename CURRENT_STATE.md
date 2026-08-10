@@ -1,14 +1,15 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T05:48:00Z / 2026-08-10T08:48:00+03:00
+- UTC/local timestamp: 2026-08-10T09:03:57Z / 2026-08-10T12:03:57+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `3ea635327` (docs/state; latest code/test `edacbde75`)
-- Last successfully pushed commit: `3ea635327`
-- Latest focused-test result: offline benchmark pack `4 passed, 0 skipped, 0 failed`; Accounts verifier seam `60 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1984 passed, 32 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: SQL/Data restore, live SQL/FTS, protocol/load, service/COM, installer, AD/DC, SEC-18, crash/power-loss, and soak remain skipped or blocked; disposable SQL connection/isolated-create opt-in unset
-- Current bounded slice: test-injected Account.ValidatePassword verifier seam, production callback unwired, completed in `edacbde75`
+- Current HEAD: documentation commit `539073a53` following code/test `f34ee25c8`
+- Last successfully pushed commit: `0b2646731`
+- Push status: not pushed; full Net10 has 9 existing isolated SQL fixture/schema failures
+- Latest focused-test result: verifier/COM/legacy-password `70 passed, 0 skipped, 0 failed`; SQL verifier TRX `4 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `2009 passed, 2 skipped, 9 failed`; durable TRX is `artifacts/net10-disposable/FullNet10-20260810.trx`; failures are existing restore/message-index SQL fixture/schema failures, not the verifier slice
+- Opt-in tests passed/skipped/blocked: disposable LocalDB SQL verifier passed; SQL/Data restore, live SQL/FTS, protocol/load, service/COM, installer, AD/DC, SEC-18, crash/power-loss, and soak remain skipped or blocked
+- Current bounded slice: SQL-backed attached `Account.ValidatePassword` verifier with existing script/AD abstractions plus disposable LocalDB/Data setup, code/test commit `f34ee25c8`
 - Completed milestones: backup creation matrix/raw staging, offline synthetic 100k IMAP SEARCH/SORT acceptance, COM authorization/HRESULT slices, ClamAV target hardening, IMAP ownership and Message.Save publication, Diagnostics retained reauthentication, unsaved and saved Rule movement parity, Account mailbox unlock, and Account.ValidatePassword preparatory seam; no production release gate complete
-- Open production blockers: production Account.ValidatePassword credential verifier, live Rule SQL readback/rollback/concurrency and out-of-process COM evidence, COM draft `.eml` persistence and cross-writer UID coordination, disposable restore/rollback, SEC-18, migration/installer, service/COM lifecycle, live performance/load, AD/DC, crash/power-loss, 24-hour soak, and clean AV-compatible default suite
-- Environment-blocked work: disposable SQL/FTS target, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
+- Open production blockers: COM password SQL/script/AD live evidence and SEC-12 rate-limit/auto-ban semantics, live Rule SQL readback/rollback/concurrency and out-of-process COM evidence, COM draft `.eml` persistence and cross-writer UID coordination, populated disposable restore/rollback, SEC-18, migration/installer, service/COM lifecycle, live performance/load, crash/power-loss, 24-hour soak, and clean AV-compatible default suite
+- Environment-blocked work: disposable SQL/Data restore target schema, live SQL/FTS and protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`/backup files, untracked SEC-18/benchmark artifacts
-- Next three independent slices: approved disposable SQL/Data restore acceptance; authoritative Account.ValidatePassword verifier design/review after isolated evidence; AV-compatible scanner cleanup and release-gate rerun
+- Next three independent slices: repair and rerun the isolated SQL restore fixture/schema; design the COM `OnClientValidatePassword`/AD verifier boundary; execute isolated service/out-of-process COM lifecycle acceptance
