@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated MaxSMTPRecipientsInBatch mutation)
+
+Code/test commit `b4cacd531` extends the bounded Administrator settings seam to
+only `IInterfaceSettings.MaxSMTPRecipientsInBatch` (`DispId(62)`). It rechecks
+the live server-administrator callback, updates only the existing
+`hm_settings.maxsmtprecipientsinbatch` row with a parameterized integer command,
+requires one affected row, and changes a retained snapshot only after success.
+SMTP delivery batching runtime and live reconfiguration remain unchanged.
+
+Legacy anchors are `IInterfaceSettings.MaxSMTPRecipientsInBatch`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:606-607`),
+`InterfaceSettings::put_MaxSMTPRecipientsInBatch`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1627-1658`),
+`SMTPConfiguration::SetMaxSMTPRecipientsInBatch`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:211-220`),
+`ExternalDelivery` batching consumption
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:67-87`), and
+`PROPERTY_MAXSMTPRECIPIENTSINBATCH`
+(`hmailserver/source/Server/Common/Application/Constants.h:74`). Focused
+settings/SQL coverage is `39/39`; full Net10 is `2022 passed, 39 skipped, 0
+failed`. No COM identity or delivery runtime behavior changed.
+
+Release remains RED: real SQL/Data rollback, SEC-18 cutover, installer and
+out-of-process COM, matched C++/Net10 protocol load evidence, SQL FTS, and
+24-hour soak remain unproven.
+
 ## Current parity continuation (2026-08-10, authenticated WelcomeSMTP mutation)
 
 Code/test commit `6408eb8bd` extends the bounded Administrator settings seam to

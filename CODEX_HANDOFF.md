@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, MAX SMTP RECIPIENT BATCH MUTATION)
+
+Code/test commit `b4cacd531` implements only authenticated
+`Settings.MaxSMTPRecipientsInBatch` (`DispId(62)`) persistence. It preserves
+direct activation denial, rechecks the live administrator callback, updates the
+fixed `hm_settings.maxsmtprecipientsinbatch` row with a parameterized integer
+command, and changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.MaxSMTPRecipientsInBatch`
+(`source/Server/hMailServer/hMailServer.idl:606-607`),
+`InterfaceSettings::put_MaxSMTPRecipientsInBatch`
+(`source/Server/COM/InterfaceSettings.cpp:1627-1658`),
+`SMTPConfiguration::SetMaxSMTPRecipientsInBatch`
+(`source/Server/SMTP/SMTPConfiguration.cpp:211-220`), and
+`PROPERTY_MAXSMTPRECIPIENTSINBATCH` (`source/Server/Common/Application/Constants.h:74`).
+Focused settings/SQL coverage is `39/39`; full Net10 is `2022 passed, 39
+skipped, 0 failed`. Delivery batching runtime reconfiguration was deliberately
+not added. Next slice: fresh legacy-first audit of one remaining low-risk
+Settings mutation. Real SQL/Data rollback, reinitialize, SEC-18, installer,
+paired live performance, and soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, WELCOME SMTP MUTATION)
 
 Code/test commit `6408eb8bd` implements only authenticated

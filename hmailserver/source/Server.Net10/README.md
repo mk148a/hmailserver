@@ -1,3 +1,23 @@
+## Current parity continuation (2026-08-10, authenticated MaxSMTPRecipientsInBatch mutation)
+
+Code/test commit `b4cacd531` adds only the fixed-row
+`MaxSMTPRecipientsInBatch` mutation (`DispId(62)`) to the existing authenticated
+settings seam. The SQL command is parameterized and fixed to
+`settingname = N'maxsmtprecipientsinbatch'`; the live administrator callback is
+checked before store access and the retained snapshot changes only after a
+one-row success. Focused settings/SQL coverage is `39/39`; full Net10 is
+`2022 passed, 39 skipped, 0 failed`.
+
+Legacy references are `IInterfaceSettings.MaxSMTPRecipientsInBatch`
+(`source/Server/hMailServer/hMailServer.idl:606-607`),
+`InterfaceSettings::put_MaxSMTPRecipientsInBatch`
+(`source/Server/COM/InterfaceSettings.cpp:1627-1658`),
+`SMTPConfiguration::SetMaxSMTPRecipientsInBatch`
+(`source/Server/SMTP/SMTPConfiguration.cpp:211-220`), and
+`PROPERTY_MAXSMTPRECIPIENTSINBATCH` (`source/Server/Common/Application/Constants.h:74`).
+No COM identity, direct activation boundary, delivery batching, or live
+reconfiguration path changed.
+
 ## Current parity continuation (2026-08-10, authenticated WelcomeSMTP mutation)
 
 Code/test commit `6408eb8bd` adds only the fixed-row `WelcomeSMTP` mutation

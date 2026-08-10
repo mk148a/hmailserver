@@ -2363,3 +2363,29 @@ scope. The next code slice must be selected by a fresh legacy-first audit of
 one remaining low-risk Settings setter. Real SQL/Data rollback, SEC-18,
 installer, paired protocol performance, and soak gates remain RED or
 environment-blocked.
+## Current Audit Note (2026-08-10, MAX SMTP RECIPIENTS BATCH ADMIN MUTATION)
+
+Code/test commit `b4cacd531` closes the narrow authenticated
+`IInterfaceSettings.MaxSMTPRecipientsInBatch` setter gap (`DispId(62)`) while
+preserving the installed COM shape. Legacy behavior is anchored by
+`IInterfaceSettings.MaxSMTPRecipientsInBatch`
+(`source/Server/hMailServer/hMailServer.idl:606-607`),
+`InterfaceSettings::put_MaxSMTPRecipientsInBatch`
+(`source/Server/COM/InterfaceSettings.cpp:1627-1658`),
+`SMTPConfiguration::SetMaxSMTPRecipientsInBatch`
+(`source/Server/SMTP/SMTPConfiguration.cpp:211-220`),
+`ExternalDelivery` batching (`source/Server/SMTP/ExternalDelivery.cpp:67-87`),
+and `PROPERTY_MAXSMTPRECIPIENTSINBATCH` (`source/Server/Common/Application/Constants.h:74`).
+
+The .NET setter requires the authenticated settings boundary and live server
+administrator callback, updates only the existing `maxsmtprecipientsinbatch`
+row through a parameterized SQL command, requires exactly one affected row, and
+publishes the retained snapshot only after success. Direct activation,
+failed-write snapshot retention, retained-object reauthentication, and SQL
+shape are covered. Focused coverage is `39/39`; full Net10 is `2022 passed, 39
+skipped, 0 failed`.
+
+Delivery batching runtime and live reconfiguration remain out of scope. The
+next code slice must be selected by a fresh legacy-first audit of one remaining
+low-risk Settings setter. Real SQL/Data rollback, SEC-18, installer, paired
+protocol performance, and soak gates remain RED or environment-blocked.
