@@ -83,6 +83,100 @@ public sealed class AccountsComContractTests
     }
 
     [TestMethod]
+    public void ValidatePassword_UsesAuthorizedVerifierResultsAndOwningAccountId()
+    {
+        var calls = new List<(int AccountId, string Password)>();
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            [new AccountAdministrationSnapshot(10, 100, "account@example.test", true, 0)],
+            passwordVerifier: (accountId, password) =>
+            {
+                calls.Add((accountId, password));
+                return password == "accepted";
+            });
+
+        var account = accounts[0];
+
+        Assert.IsTrue(account.ValidatePassword("accepted"));
+        Assert.IsFalse(account.ValidatePassword("rejected"));
+        CollectionAssert.AreEqual(
+            new[] { (10, "accepted"), (10, "rejected") },
+            calls);
+    }
+
+    [TestMethod]
+    public void ValidatePassword_RuntimeHostPassesOwningIdAfterMutableFieldChanges()
+    {
+        var store = new FixedAccountAdministrationStore(
+            [
+                new AccountAdministrationSnapshot(10, 100, "first@example.test", true, 0),
+                new AccountAdministrationSnapshot(20, 100, "second@example.test", true, 0)
+            ]);
+        var calls = new List<(int AccountId, string Password)>();
+        AccountAdministrationRuntimeHost.Configure(
+            store,
+            passwordVerifier: (accountId, password) =>
+            {
+                calls.Add((accountId, password));
+                return accountId == 20 && password == "accepted";
+            });
+
+        var account = AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(100).get_ItemByDBID(20);
+        account.Address = "mutated@example.test";
+
+        Assert.IsTrue(account.ValidatePassword("accepted"));
+        Assert.AreEqual((20, "accepted"), calls.Single());
+    }
+
+    [TestMethod]
+    public void ValidatePassword_RetainedAccountRechecksAuthenticationBeforeVerifier()
+    {
+        var authenticated = true;
+        var verifierCalls = 0;
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            [new AccountAdministrationSnapshot(10, 100, "account@example.test", true, 0)],
+            isAuthenticated: () => authenticated,
+            passwordVerifier: (_, _) =>
+            {
+                verifierCalls++;
+                return true;
+            });
+        var account = accounts[0];
+
+        authenticated = false;
+        var denied = Assert.ThrowsExactly<COMException>(() => account.ValidatePassword("candidate"));
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, verifierCalls);
+
+        authenticated = true;
+        Assert.IsTrue(account.ValidatePassword("candidate"));
+        Assert.AreEqual(1, verifierCalls);
+    }
+
+    [TestMethod]
+    public void ValidatePassword_WithoutVerifierRemainsNotImplemented()
+    {
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            [new AccountAdministrationSnapshot(10, 100, "account@example.test", true, 0)]);
+
+        var error = Assert.ThrowsExactly<COMException>(() => accounts[0].ValidatePassword("candidate"));
+
+        Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AccountComContract_PreservesLegacyIdentityAndValidatePasswordDispId()
+    {
+        var type = typeof(Account);
+        var contract = typeof(IInterfaceAccount);
+
+        Assert.AreEqual(new Guid("369BE902-9F27-4722-A29F-3059E4D7021D"), type.GUID);
+        Assert.AreEqual("hMailServer.Account.1", type.GetCustomAttribute<ProgIdAttribute>()?.Value);
+        Assert.AreEqual(new Guid("E5EDC050-0899-4A3B-BF4C-420212FC3895"), contract.GUID);
+        Assert.AreEqual(22, contract.GetMethod(nameof(IInterfaceAccount.ValidatePassword))?.GetCustomAttribute<DispIdAttribute>()?.Value);
+    }
+
+    [TestMethod]
     public async Task UnlockMailbox_AuthorizedAccountReleasesLockAndAllowsNoLockNoOp()
     {
         var store = new MutableAccountAdministrationStore(

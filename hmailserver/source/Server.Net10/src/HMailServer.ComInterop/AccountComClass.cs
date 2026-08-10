@@ -56,6 +56,7 @@ public sealed class Account : IInterfaceAccount
     private AccountAdministrationSnapshot? _currentSaveSnapshot;
     private readonly Func<AccountAdministrationSnapshot, string?, bool>? _update;
     private readonly Action<int>? _unlockMailbox;
+    private readonly Func<int, string, bool>? _passwordVerifier;
     private bool _passwordModified;
 
     public Account()
@@ -94,7 +95,8 @@ public sealed class Account : IInterfaceAccount
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback,
         Action<int>? delete = null,
         Func<AccountAdministrationSnapshot, string?, bool>? update = null,
-        Action<int>? unlockMailbox = null)
+        Action<int>? unlockMailbox = null,
+        Func<int, string, bool>? passwordVerifier = null)
     {
         _update = update;
         _attached = true;
@@ -108,6 +110,7 @@ public sealed class Account : IInterfaceAccount
         _rulesState = rulesState;
         _isAuthenticated = isAuthenticated;
         _unlockMailbox = unlockMailbox;
+        _passwordVerifier = passwordVerifier;
     }
 
     public bool Active
@@ -271,7 +274,8 @@ public sealed class Account : IInterfaceAccount
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
         Func<bool>? isAuthenticated = null,
-        Action<int>? unlockMailbox = null) =>
+        Action<int>? unlockMailbox = null,
+        Func<int, string, bool>? passwordVerifier = null) =>
         new(
             account,
             RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
@@ -282,11 +286,13 @@ public sealed class Account : IInterfaceAccount
             null,
             null,
             null,
-            unlockMailbox);
+            unlockMailbox,
+            passwordVerifier);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
-        RuleAdministrationState rulesState) =>
+        RuleAdministrationState rulesState,
+        Func<int, string, bool>? passwordVerifier = null) =>
         new(
             account,
             rulesState,
@@ -294,12 +300,17 @@ public sealed class Account : IInterfaceAccount
             ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
             null,
             null,
-            null);
+            null,
+            null,
+            null,
+            null,
+            passwordVerifier);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
         RuleAdministrationState rulesState,
-        AccountMessageAdministrationState messagesState) =>
+        AccountMessageAdministrationState messagesState,
+        Func<int, string, bool>? passwordVerifier = null) =>
         new(
             account,
             rulesState,
@@ -307,7 +318,11 @@ public sealed class Account : IInterfaceAccount
             ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
             null,
             null,
-            null);
+            null,
+            null,
+            null,
+            null,
+            passwordVerifier);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
@@ -319,7 +334,8 @@ public sealed class Account : IInterfaceAccount
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null,
         Action<int>? delete = null,
         Func<AccountAdministrationSnapshot, string?, bool>? update = null,
-        Action<int>? unlockMailbox = null) =>
+        Action<int>? unlockMailbox = null,
+        Func<int, string, bool>? passwordVerifier = null) =>
         new(
             account,
             rulesState,
@@ -330,7 +346,8 @@ public sealed class Account : IInterfaceAccount
             accountSizeReadback,
             delete,
             update,
-            unlockMailbox);
+            unlockMailbox,
+            passwordVerifier);
 
     internal static Account CreateAuthorizedDraft(
         string address,
@@ -440,9 +457,15 @@ public sealed class Account : IInterfaceAccount
     public bool ValidatePassword(string password)
     {
         EnsureAttached();
-        if (_administrationSnapshot is not null)
+        if (_administrationSnapshot is { } account)
         {
-            throw new COMException("This Account member is not implemented by the .NET 10 rewrite.", ENotImplemented);
+            EnsureAuthenticated();
+            if (_passwordVerifier is null)
+            {
+                throw new COMException("This Account member is not implemented by the .NET 10 rewrite.", ENotImplemented);
+            }
+
+            return _passwordVerifier(account.Id, password);
         }
 
         return false;

@@ -59,6 +59,7 @@ public sealed class Accounts : IInterfaceAccounts
     private readonly Func<int, AccountAdministrationSnapshot?>? _accountSizeReadback;
     private readonly Func<bool>? _isAuthenticated;
     private readonly Action<int>? _unlockMailbox;
+    private readonly Func<int, string, bool>? _passwordVerifier;
     private readonly object _accountSizeRegistrationOwner = new();
 
     public Accounts()
@@ -75,7 +76,8 @@ public sealed class Accounts : IInterfaceAccounts
         Func<bool>? isAuthenticated,
         AccountSizeInvalidator? accountSizeInvalidator,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback,
-        Action<int>? unlockMailbox)
+        Action<int>? unlockMailbox,
+        Func<int, string, bool>? passwordVerifier)
     {
         _accounts = CreateEntries(accounts);
         _domainId = domainId;
@@ -87,6 +89,7 @@ public sealed class Accounts : IInterfaceAccounts
         _accountSizeReadback = accountSizeReadback;
         _isAuthenticated = isAuthenticated;
         _unlockMailbox = unlockMailbox;
+        _passwordVerifier = passwordVerifier;
         foreach (var account in accounts)
         {
             _accountSizeInvalidator?.Register(_accountSizeRegistrationOwner, account.Id);
@@ -105,7 +108,8 @@ public sealed class Accounts : IInterfaceAccounts
         Func<bool>? isAuthenticated = null,
         AccountSizeInvalidator? accountSizeInvalidator = null,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null,
-        Action<int>? unlockMailbox = null)
+        Action<int>? unlockMailbox = null,
+        Func<int, string, bool>? passwordVerifier = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
         return new Accounts(
@@ -118,7 +122,8 @@ public sealed class Accounts : IInterfaceAccounts
             isAuthenticated,
             accountSizeInvalidator,
             accountSizeReadback,
-            unlockMailbox);
+            unlockMailbox,
+            passwordVerifier);
     }
 
     public IInterfaceAccount this[int index]
@@ -141,7 +146,8 @@ public sealed class Accounts : IInterfaceAccounts
                 _accountSizeReadback,
                 _delete is null ? null : DeleteAccount,
                 _update is null ? null : UpdateAccount,
-                _unlockMailbox);
+                _unlockMailbox,
+                _passwordVerifier);
         }
     }
 
@@ -262,7 +268,8 @@ public sealed class Accounts : IInterfaceAccounts
                 _accountSizeReadback,
                 _delete is null ? null : DeleteAccount,
                 _update is null ? null : UpdateAccount,
-                _unlockMailbox);
+                _unlockMailbox,
+                _passwordVerifier);
     }
 
     public IInterfaceAccount get_ItemByAddress(string address)
@@ -282,7 +289,8 @@ public sealed class Accounts : IInterfaceAccounts
                 _accountSizeReadback,
                 _delete is null ? null : DeleteAccount,
                 _update is null ? null : UpdateAccount,
-                _unlockMailbox);
+                _unlockMailbox,
+                _passwordVerifier);
     }
 
         public void DeleteByDBID(int databaseId)
@@ -416,15 +424,18 @@ public static class AccountAdministrationRuntimeHost
 
     private static IAccountAdministrationStore? _store;
     private static Action<int>? _unlockMailbox;
+    private static Func<int, string, bool>? _passwordVerifier;
     private static readonly AccountSizeInvalidator _accountSizeInvalidator = new();
 
     public static void Configure(
         IAccountAdministrationStore store,
-        Action<int>? unlockMailbox = null)
+        Action<int>? unlockMailbox = null,
+        Func<int, string, bool>? passwordVerifier = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         Volatile.Write(ref _store, store);
         Volatile.Write(ref _unlockMailbox, unlockMailbox);
+        Volatile.Write(ref _passwordVerifier, passwordVerifier);
         _accountSizeInvalidator.Reset();
     }
 
@@ -433,6 +444,9 @@ public static class AccountAdministrationRuntimeHost
 
     internal static Action<int>? UnlockMailboxCallback =>
         Volatile.Read(ref _unlockMailbox);
+
+    internal static Func<int, string, bool>? PasswordVerifierCallback =>
+        Volatile.Read(ref _passwordVerifier);
 
     internal static Accounts CreateAuthorizedAdapter(int domainId, Func<bool>? isAuthenticated = null)
     {
@@ -481,7 +495,8 @@ public static class AccountAdministrationRuntimeHost
             isAuthenticated,
             _accountSizeInvalidator,
             ReadAccount,
-            _unlockMailbox);
+            _unlockMailbox,
+            PasswordVerifierCallback);
     }
 
     internal static Account CreateAuthorizedAccountByIdAdapter(
@@ -527,6 +542,9 @@ public static class AccountAdministrationRuntimeHost
                 .AsTask()
                 .GetAwaiter()
                 .GetResult(),
-            _unlockMailbox);
+            _unlockMailbox,
+            null,
+            null,
+            PasswordVerifierCallback);
     }
 }
