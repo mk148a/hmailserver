@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current parity audit (2026-08-10, recipient/search backlog correction)
+
+The former “restore message recipients/search metadata” item is stale as an
+archive-schema requirement. Legacy `Message::XMLStore`
+(`source/Server/Common/BO/Message.cpp:200-218`) emits only the message scalar
+attributes; `PersistentMessage::ReadRecipients_`
+(`source/Server/Common/Persistence/PersistentMessage.cpp:231-267`) reads
+`hm_messagerecipients` from SQL at runtime, and
+`PersistentMessageMetaData::GetMessagesToIndex`
+(`source/Server/Common/Persistence/PersistentMessageMetaData.cpp:30-74`)
+rebuilds derived search metadata. The .NET `MessageSearchBackfillProcessor`
+already leases missing-index messages and marks success/failure. Keep the
+remaining item as post-restore backfill/live SQL acceptance, not a new XML
+recipient parser or archive restore table.
+
 ## Current parity continuation (2026-08-10, partial message rollback acceptance)
 
 Test commit `02c221769` adds the second bounded failure case: one message is

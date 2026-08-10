@@ -6,9 +6,9 @@
 - Latest focused-test result: partial message rollback test compiled; SQL/Data rollback group remains skipped without approved disposable SQL opt-in
 - Latest full Net10 result: `1994 passed, 39 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; first-message and partial-message SQL/Data rollback, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: partial message rollback acceptance test added; next is execution on the approved disposable target
+- Current bounded slice: partial message rollback acceptance test added; the former recipient/search restore item is superseded as an archive-schema item and remains live SQL/backfill acceptance
 - Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage; no release milestone complete
 - Open production blockers: real disposable SQL/Data restore evidence, recipients/search/ACL/settings restore, C++ protocol parity, paired SMTP/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
 - Environment blocked work: approved disposable SQL/Data target, legacy C++ runtime, SQL FTS/ADO baseline, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) run the two disposable SQL/Data rollback tests, (2) message recipient/search metadata legacy audit and bounded restore decision, (3) settings restore graph and filesystem/SQL atomicity
+- Next three independent slices: (1) run the two disposable SQL/Data rollback tests, (2) settings-only restore parsing/validation, (3) live SQL/FTS/backfill acceptance when the isolated target exists

@@ -1,4 +1,23 @@
 
+## Current Audit Note (2026-08-10, RECIPIENT/SEARCH ITEM SUPERSEDED)
+
+The former message recipient/search metadata restore item is stale as an
+archive-schema requirement. Legacy `Message::XMLStore`
+(`source/Server/Common/BO/Message.cpp:200-218`) emits only scalar message
+attributes. `PersistentMessage::ReadRecipients_`
+(`source/Server/Common/Persistence/PersistentMessage.cpp:231-267`) loads
+`hm_messagerecipients` from SQL during runtime message reads, and
+`PersistentMessageMetaData::GetMessagesToIndex`
+(`source/Server/Common/Persistence/PersistentMessageMetaData.cpp:30-74`)
+selects delivered messages missing derived metadata for indexing. The .NET
+`MessageSearchBackfillProcessor.RunBatchAsync` provides the corresponding
+lease/upsert/failure path. No XML recipient parser or restore-table mutation
+should be added for parity. Keep only a live SQL/FTS/backfill acceptance gate
+for post-restore behavior.
+
+Next independent repository slice is settings-only restore parsing/validation;
+the live SQL/backfill acceptance remains environment-blocked.
+
 ## Current Audit Note (2026-08-10, PARTIAL MESSAGE ROLLBACK ACCEPTANCE)
 
 Test commit `02c221769` adds the missing failure-path case after the first

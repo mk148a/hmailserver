@@ -1,5 +1,19 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Audit (2026-08-10, RECIPIENT/SEARCH BACKLOG CORRECTION)
+
+Do not restart the old message recipient/search restore item. Legacy
+`Message::XMLStore` (`source/Server/Common/BO/Message.cpp:200-218`) does not
+serialize recipient children; `PersistentMessage::ReadRecipients_`
+(`source/Server/Common/Persistence/PersistentMessage.cpp:231-267`) reads the
+runtime SQL table, and `PersistentMessageMetaData::GetMessagesToIndex`
+(`source/Server/Common/Persistence/PersistentMessageMetaData.cpp:30-74`)
+rebuilds derived search metadata. The .NET
+`MessageSearchBackfillProcessor.RunBatchAsync` already provides the missing
+index lease/upsert/failure flow. Remaining work is live SQL/FTS/backfill
+acceptance, not an XML parser or archive insert slice. Next repository slice:
+settings-only restore parsing/validation. Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-10, PARTIAL MESSAGE ROLLBACK)
 
 Test commit `02c221769` adds a non-DB restore failure case where message one

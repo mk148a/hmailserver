@@ -1,3 +1,17 @@
+## Current Authoritative Audit (2026-08-10, recipient/search backlog correction)
+
+Legacy `Message::XMLStore` writes only scalar message attributes
+(`source/Server/Common/BO/Message.cpp:200-218`); recipients are runtime rows
+loaded by `PersistentMessage::ReadRecipients_`
+(`source/Server/Common/Persistence/PersistentMessage.cpp:231-267`), while
+derived `hm_message_metadata` is selected for rebuild by
+`PersistentMessageMetaData::GetMessagesToIndex`
+(`source/Server/Common/Persistence/PersistentMessageMetaData.cpp:30-74`).
+The .NET `MessageSearchBackfillProcessor` already owns missing-index lease,
+upsert, and failure marking. Therefore recipient/search “restore” is stale as
+an XML/schema slice and remains an environment-gated live SQL/backfill
+acceptance item.
+
 ## Current Authoritative Continuation (2026-08-10, partial message rollback acceptance)
 
 Test commit `02c221769` adds coverage for a successful first message followed
