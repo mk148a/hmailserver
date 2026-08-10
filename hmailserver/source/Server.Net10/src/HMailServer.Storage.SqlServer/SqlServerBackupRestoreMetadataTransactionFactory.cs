@@ -58,6 +58,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         AliasStore = new SqlServerAliasAdministrationStore(context);
         DistributionListStore = new SqlServerDistributionListAdministrationStore(context);
         RecipientStore = new SqlServerDistributionListRecipientAdministrationStore(context);
+        SettingsStore = new SqlServerSettingsRestoreAdministrationStore(context);
         FetchAccountStore = new SqlServerFetchAccountAdministrationStore(context);
         RuleStore = new SqlServerRuleAdministrationStore(context);
         RuleCriteriaStore = new SqlServerRuleCriteriaAdministrationStore(context);
@@ -75,6 +76,8 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     public IDistributionListAdministrationStore DistributionListStore { get; }
 
     public IDistributionListRecipientAdministrationStore RecipientStore { get; }
+
+    public ISettingsRestoreAdministrationStore SettingsStore { get; }
 
     public IFetchAccountAdministrationStore FetchAccountStore { get; }
 

@@ -18,6 +18,8 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
 
     IDistributionListRecipientAdministrationStore RecipientStore { get; }
 
+    ISettingsRestoreAdministrationStore? SettingsStore => null;
+
     IFetchAccountAdministrationStore? FetchAccountStore => null;
 
     IRuleAdministrationStore? RuleStore => null;
