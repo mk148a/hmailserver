@@ -81,6 +81,12 @@ SET settinginteger = @AddDeliveredToHeader
 WHERE settingname = N'adddeliveredtoheader';
 """;
 
+    public const string UpdateAllowIncorrectLineEndingsSql = """
+UPDATE hm_settings
+SET settinginteger = @AllowIncorrectLineEndings
+WHERE settingname = N'smtpallowincorrectlineendings';
+""";
+
     public const string UpdateMaxNumberOfInvalidCommandsSql = """
 UPDATE hm_settings
 SET settinginteger = @MaxNumberOfInvalidCommands
@@ -453,6 +459,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAddDeliveredToHeaderSql, connection);
         command.Parameters.Add("@AddDeliveredToHeader", SqlDbType.Int).Value = addDeliveredToHeader ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAllowIncorrectLineEndingsAsync(
+        bool allowIncorrectLineEndings,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAllowIncorrectLineEndingsSql, connection);
+        command.Parameters.Add("@AllowIncorrectLineEndings", SqlDbType.Int).Value = allowIncorrectLineEndings ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

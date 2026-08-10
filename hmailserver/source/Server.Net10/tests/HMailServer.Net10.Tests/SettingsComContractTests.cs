@@ -212,6 +212,10 @@ public sealed class SettingsComContractTests
             () => _ = ((IInterfaceSettings)settings).DisconnectInvalidClients);
         var disconnectInvalidClientsSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).DisconnectInvalidClients = true);
+        var allowIncorrectLineEndingsError = Assert.ThrowsExactly<COMException>(
+            () => _ = ((IInterfaceSettings)settings).AllowIncorrectLineEndings);
+        var allowIncorrectLineEndingsSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).AllowIncorrectLineEndings = true);
         var addDeliveredToHeaderError = Assert.ThrowsExactly<COMException>(
             () => _ = ((IInterfaceSettings)settings).AddDeliveredToHeader);
         var addDeliveredToHeaderSetterError = Assert.ThrowsExactly<COMException>(
@@ -264,6 +268,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, invalidCommandsSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, disconnectInvalidClientsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, disconnectInvalidClientsSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, allowIncorrectLineEndingsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, allowIncorrectLineEndingsSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addDeliveredToHeaderError.ErrorCode);
         Assert.AreEqual(EAccessDenied, addDeliveredToHeaderSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
@@ -1181,6 +1187,54 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AllowIncorrectLineEndingsSetterPersistsTrueAndFalseBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AllowIncorrectLineEndingsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AllowIncorrectLineEndings: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.AllowIncorrectLineEndings = true;
+
+        Assert.AreEqual(1, store.AllowIncorrectLineEndingsUpdateCount);
+        Assert.IsTrue(store.UpdatedAllowIncorrectLineEndings);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.AllowIncorrectLineEndings);
+
+        settings.AllowIncorrectLineEndings = false;
+
+        Assert.AreEqual(2, store.AllowIncorrectLineEndingsUpdateCount);
+        Assert.IsFalse(store.UpdatedAllowIncorrectLineEndings);
+        Assert.IsFalse(settings.AllowIncorrectLineEndings);
+
+        store.AllowIncorrectLineEndingsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.AllowIncorrectLineEndings = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(3, store.AllowIncorrectLineEndingsUpdateCount);
+        Assert.IsFalse(settings.AllowIncorrectLineEndings);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.AllowIncorrectLineEndings = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(3, store.AllowIncorrectLineEndingsUpdateCount);
+        Assert.IsFalse(settings.AllowIncorrectLineEndings);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -1427,6 +1481,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAddDeliveredToHeader { get; private set; }
 
+        public bool AllowIncorrectLineEndingsUpdateResult { get; set; }
+
+        public int AllowIncorrectLineEndingsUpdateCount { get; private set; }
+
+        public bool UpdatedAllowIncorrectLineEndings { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<bool> UpdateDefaultDomainAsync(
@@ -1556,6 +1616,16 @@ public sealed class SettingsComContractTests
             UpdatedAddDeliveredToHeader = addDeliveredToHeader;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AddDeliveredToHeaderUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAllowIncorrectLineEndingsAsync(
+            bool allowIncorrectLineEndings,
+            CancellationToken cancellationToken)
+        {
+            AllowIncorrectLineEndingsUpdateCount++;
+            UpdatedAllowIncorrectLineEndings = allowIncorrectLineEndings;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AllowIncorrectLineEndingsUpdateResult);
         }
 
     }

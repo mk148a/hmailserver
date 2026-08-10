@@ -50,6 +50,10 @@ public interface ISettingsAdministrationMutationStore
         bool addDeliveredToHeader,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAllowIncorrectLineEndingsAsync(
+        bool allowIncorrectLineEndings,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateMaxNumberOfInvalidCommandsAsync(
         int maxNumberOfInvalidCommands,
         CancellationToken cancellationToken);
