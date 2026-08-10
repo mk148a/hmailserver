@@ -69,6 +69,12 @@ SET settinginteger = @MaxPOP3Connections
 WHERE settingname = N'maxpop3connections';
 """;
 
+    public const string UpdateMaxDeliveryThreadsSql = """
+UPDATE hm_settings
+SET settinginteger = @MaxDeliveryThreads
+WHERE settingname = N'maxdelivertythreads';
+""";
+
     public const string UpdateMaxMessageSizeSql = """
 UPDATE hm_settings
 SET settinginteger = @MaxMessageSize
@@ -467,6 +473,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMaxPop3ConnectionsSql, connection);
         command.Parameters.Add("@MaxPOP3Connections", SqlDbType.Int).Value = maxPop3Connections;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateMaxDeliveryThreadsAsync(
+        int maxDeliveryThreads,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateMaxDeliveryThreadsSql, connection);
+        command.Parameters.Add("@MaxDeliveryThreads", SqlDbType.Int).Value = maxDeliveryThreads;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

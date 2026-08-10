@@ -932,7 +932,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MaxDeliveryThreads
                 : _administrationSnapshot.MaxDeliveryThreads;
         }
-        set => base.MaxDeliveryThreads = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxDeliveryThreads = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateMaxDeliveryThreadsAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum delivery threads update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxDeliveryThreads = value
+                };
+            }
+        }
     }
 
     public override int MaxIMAPConnections

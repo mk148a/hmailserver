@@ -94,6 +94,7 @@ public sealed class SettingsComContractTests
         {
             (Name: nameof(IInterfaceSettings.SMTPNoOfTries), DispId: 19),
             (Name: nameof(IInterfaceSettings.SMTPMinutesBetweenTry), DispId: 20),
+            (Name: nameof(IInterfaceSettings.MaxDeliveryThreads), DispId: 29),
             (Name: nameof(IInterfaceSettings.SMTPRelayerPort), DispId: 37),
             (Name: nameof(IInterfaceSettings.MaxMessageSize), DispId: 44),
             (Name: nameof(IInterfaceSettings.RuleLoopLimit), DispId: 48),
@@ -219,6 +220,10 @@ public sealed class SettingsComContractTests
             () => _ = ((IInterfaceSettings)settings).MaxMessageSize);
         var maxMessageSizeSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxMessageSize = 1);
+        var maxDeliveryThreadsError = Assert.ThrowsExactly<COMException>(
+            () => _ = ((IInterfaceSettings)settings).MaxDeliveryThreads);
+        var maxDeliveryThreadsSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).MaxDeliveryThreads = 1);
         var maxNumberOfMxHostsError = Assert.ThrowsExactly<COMException>(
             () => _ = ((IInterfaceSettings)settings).MaxNumberOfMXHosts);
         var maxNumberOfMxHostsSetterError = Assert.ThrowsExactly<COMException>(
@@ -294,6 +299,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, smtpMinutesBetweenTrySetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxMessageSizeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxMessageSizeSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maxDeliveryThreadsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, maxDeliveryThreadsSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxNumberOfMxHostsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, maxNumberOfMxHostsSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, pop3ScalarError.ErrorCode);
@@ -1129,6 +1136,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxDeliveryThreadsSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxDeliveryThreadsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxDeliveryThreads: 10),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MaxDeliveryThreads = 25;
+
+        Assert.AreEqual(1, store.MaxDeliveryThreadsUpdateCount);
+        Assert.AreEqual(25, store.UpdatedMaxDeliveryThreads);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(25, settings.MaxDeliveryThreads);
+
+        store.MaxDeliveryThreadsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxDeliveryThreads = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.MaxDeliveryThreadsUpdateCount);
+        Assert.AreEqual(25, settings.MaxDeliveryThreads);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxDeliveryThreads = 35);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.MaxDeliveryThreadsUpdateCount);
+        Assert.AreEqual(25, settings.MaxDeliveryThreads);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_RuleLoopLimitSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -1717,6 +1766,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxMessageSize { get; private set; }
 
+        public bool MaxDeliveryThreadsUpdateResult { get; set; }
+
+        public int MaxDeliveryThreadsUpdateCount { get; private set; }
+
+        public int UpdatedMaxDeliveryThreads { get; private set; }
+
         public bool RuleLoopLimitUpdateResult { get; set; }
 
         public int RuleLoopLimitUpdateCount { get; private set; }
@@ -1874,6 +1929,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxMessageSize = maxMessageSize;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxMessageSizeUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMaxDeliveryThreadsAsync(
+            int maxDeliveryThreads,
+            CancellationToken cancellationToken)
+        {
+            MaxDeliveryThreadsUpdateCount++;
+            UpdatedMaxDeliveryThreads = maxDeliveryThreads;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(MaxDeliveryThreadsUpdateResult);
         }
 
         public ValueTask<bool> UpdateRuleLoopLimitAsync(
