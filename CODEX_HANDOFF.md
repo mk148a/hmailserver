@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, MAX POP3 CONNECTIONS MUTATION)
+
+Code/test commit `e11234d8a` implements only authenticated
+`Settings.MaxPOP3Connections` (`DispId(6)`) persistence. It preserves direct
+activation denial, rechecks the live administrator callback, updates the fixed
+`hm_settings.maxpop3connections` row with a parameterized integer command,
+and changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.MaxPOP3Connections`
+(`source/Server/hMailServer/hMailServer.idl:531-532`),
+`InterfaceSettings::put_MaxPOP3Connections`
+(`source/Server/COM/InterfaceSettings.cpp:172-199`), and
+`POP3Configuration::SetMaxPOP3Connections`
+(`source/Server/POP3/POP3Configuration.cpp:31-39`). Focused settings/SQL
+coverage is `31/31`; full Net10 is `2014 passed, 39 skipped, 0 failed`. POP3
+listener live reconfiguration was deliberately not added. Next slice: fresh
+legacy-first audit of one remaining low-risk Settings mutation. Real SQL/Data
+rollback, reinitialize, SEC-18, installer, paired live performance, and soak
+remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, MAX SMTP CONNECTIONS MUTATION)
 
 Code/test commit `9d2033677` implements only authenticated

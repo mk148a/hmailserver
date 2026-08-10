@@ -1,3 +1,22 @@
+## Current parity continuation (2026-08-10, authenticated MaxPOP3Connections mutation)
+
+Code/test commit `e11234d8a` adds only the fixed-row
+`MaxPOP3Connections` mutation (`DispId(6)`) to the existing authenticated
+settings seam. The SQL command is parameterized and fixed to
+`settingname = N'maxpop3connections'`; the live administrator callback is
+checked before store access and the retained snapshot changes only after a
+one-row success. Focused settings/SQL coverage is `31/31`; full Net10 is
+`2014 passed, 39 skipped, 0 failed`.
+
+Legacy references are `IInterfaceSettings.MaxPOP3Connections`
+(`source/Server/hMailServer/hMailServer.idl:531-532`),
+`InterfaceSettings::put_MaxPOP3Connections`
+(`source/Server/COM/InterfaceSettings.cpp:172-199`), and
+`POP3Configuration::SetMaxPOP3Connections`
+(`source/Server/POP3/POP3Configuration.cpp:31-39`). No COM identity, direct
+activation boundary, POP3 trust, or live listener reconfiguration path
+changed.
+
 ## Current parity continuation (2026-08-10, authenticated MaxSMTPConnections mutation)
 
 Code/test commit `9d2033677` adds only the fixed-row

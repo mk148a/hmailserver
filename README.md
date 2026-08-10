@@ -1,6 +1,31 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated MaxPOP3Connections mutation)
+
+Code/test commit `e11234d8a` extends the bounded Administrator settings seam to
+only `IInterfaceSettings.MaxPOP3Connections` (`DispId(6)`). It rechecks the
+live server-administrator callback, updates only the existing
+`hm_settings.maxpop3connections` row with a parameterized integer command,
+requires one affected row, and changes a retained snapshot only after success.
+The POP3 listener’s separate startup/runtime cap is unchanged.
+
+Legacy anchors are `IInterfaceSettings.MaxPOP3Connections`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:531-532`),
+`InterfaceSettings::put_MaxPOP3Connections`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:172-199`),
+`POP3Configuration::SetMaxPOP3Connections`
+(`hmailserver/source/Server/POP3/POP3Configuration.cpp:31-39`),
+`SessionManager` POP3 admission (`hmailserver/source/Server/Common/Application/SessionManager.cpp:62-90`),
+and the `hm_settings` schema (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:726`).
+Focused settings/SQL coverage is `31/31`; full Net10 is `2014 passed, 39
+skipped, 0 failed`. No COM identity, direct activation boundary, or POP3
+listener reconfiguration behavior changed.
+
+Release remains RED: real SQL/Data rollback, SEC-18 cutover, installer and
+out-of-process COM, matched C++/Net10 protocol load evidence, SQL FTS, and
+24-hour soak remain unproven.
+
 ## Current parity continuation (2026-08-10, authenticated MaxSMTPConnections mutation)
 
 Code/test commit `9d2033677` extends the bounded Administrator settings seam to

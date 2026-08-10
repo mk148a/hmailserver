@@ -2267,3 +2267,29 @@ scope. The next code slice must be selected by a fresh legacy-first audit of
 one remaining low-risk Settings setter. Real SQL/Data rollback, SEC-18,
 installer, paired protocol performance, and soak gates remain RED or
 environment-blocked.
+## Current Audit Note (2026-08-10, MAX POP3 CONNECTIONS ADMIN MUTATION)
+
+Code/test commit `e11234d8a` closes the narrow authenticated
+`IInterfaceSettings.MaxPOP3Connections` setter gap (`DispId(6)`) while
+preserving the installed COM shape. Legacy behavior is anchored by
+`IInterfaceSettings.MaxPOP3Connections`
+(`source/Server/hMailServer/hMailServer.idl:531-532`),
+`InterfaceSettings::put_MaxPOP3Connections`
+(`source/Server/COM/InterfaceSettings.cpp:172-199`),
+`POP3Configuration::SetMaxPOP3Connections`
+(`source/Server/POP3/POP3Configuration.cpp:31-39`), and the
+`maxpop3connections` schema row (`source/DBScripts/CreateTablesMSSQL.sql:726`).
+
+The .NET setter requires the authenticated settings boundary and live server
+administrator callback, updates only the existing `maxpop3connections` row
+through a parameterized SQL command, requires exactly one affected row, and
+publishes the retained snapshot only after success. Direct activation,
+failed-write snapshot retention, retained-object reauthentication, and SQL
+shape are covered. Focused coverage is `31/31`; full Net10 is `2014 passed, 39
+skipped, 0 failed`.
+
+POP3 listener startup configuration and live reconfiguration remain out of
+scope. The next code slice must be selected by a fresh legacy-first audit of
+one remaining low-risk Settings setter. Real SQL/Data rollback, SEC-18,
+installer, paired protocol performance, and soak gates remain RED or
+environment-blocked.
