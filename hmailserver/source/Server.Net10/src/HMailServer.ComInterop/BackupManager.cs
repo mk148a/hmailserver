@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Xml;
 using HMailServer.Core.Abstractions;
 
@@ -366,7 +367,7 @@ internal interface IBackupArchiveMetadataReader
 internal sealed class SevenZipBackupArchiveMetadataReader : IBackupArchiveMetadataReader
 {
     internal const string MetadataEntryName = "hMailServerBackup.xml";
-    private const long MaximumMetadataCharacters = 512L * 1024 * 1024;
+    internal const int MaximumMetadataCharacters = 1024 * 1024;
 
     private readonly string _sevenZipExecutablePath;
 
@@ -438,7 +439,9 @@ internal sealed class SevenZipBackupArchiveMetadataReader : IBackupArchiveMetada
         var errorTask = process.StandardError.ReadToEndAsync();
         try
         {
-            var metadataXml = process.StandardOutput.ReadToEnd();
+            var metadataXml = ReadToEndBounded(
+                process.StandardOutput,
+                MaximumMetadataCharacters);
             process.WaitForExit();
             var error = errorTask.GetAwaiter().GetResult();
             if (process.ExitCode is not 0 and not 1)
@@ -478,6 +481,31 @@ internal sealed class SevenZipBackupArchiveMetadataReader : IBackupArchiveMetada
         startInfo.ArgumentList.Add("-so");
         startInfo.ArgumentList.Add("-y");
         return startInfo;
+    }
+
+    internal static string ReadToEndBounded(StreamReader reader, int maximumCharacters)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumCharacters);
+
+        var builder = new StringBuilder(Math.Min(maximumCharacters, 8192));
+        var buffer = new char[8192];
+        while (true)
+        {
+            var count = reader.Read(buffer, 0, buffer.Length);
+            if (count == 0)
+            {
+                return builder.ToString();
+            }
+
+            if (builder.Length > maximumCharacters - count)
+            {
+                throw new InvalidDataException(
+                    "The backup metadata exceeded the bounded XML character limit.");
+            }
+
+            builder.Append(buffer, 0, count);
+        }
     }
 
     internal static int ParseContainsOptions(Stream metadataStream)

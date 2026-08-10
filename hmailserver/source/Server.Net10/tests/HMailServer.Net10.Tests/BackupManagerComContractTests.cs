@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 using HMailServer.Security;
@@ -67,6 +68,33 @@ public sealed class BackupManagerComContractTests
         Assert.AreEqual(EAccessDenied, loadError.ErrorCode);
         Assert.AreEqual(EAccessDenied, applicationError.ErrorCode);
         Assert.IsFalse(File.Exists(path));
+    }
+
+    [TestMethod]
+    public void MetadataReader_RejectsOutputBeyondParserLimitBeforeUnboundedAllocation()
+    {
+        using var reader = new StreamReader(
+            new MemoryStream(Encoding.UTF8.GetBytes("123456789")),
+            Encoding.UTF8,
+            detectEncodingFromByteOrderMarks: false);
+
+        var error = Assert.ThrowsExactly<InvalidDataException>(
+            () => SevenZipBackupArchiveMetadataReader.ReadToEndBounded(reader, 8));
+
+        StringAssert.Contains(error.Message, "bounded XML character limit");
+    }
+
+    [TestMethod]
+    public void MetadataReader_AllowsOutputAtParserLimit()
+    {
+        using var reader = new StreamReader(
+            new MemoryStream(Encoding.UTF8.GetBytes("12345678")),
+            Encoding.UTF8,
+            detectEncodingFromByteOrderMarks: false);
+
+        Assert.AreEqual(
+            "12345678",
+            SevenZipBackupArchiveMetadataReader.ReadToEndBounded(reader, 8));
     }
 
     [TestMethod]
