@@ -1,5 +1,33 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, MAX DELIVERY THREADS MUTATION)
+
+Code/test commit `88aa5466c` implements only authenticated
+`Settings.MaxDeliveryThreads` (`DispId(29)`) persistence. It preserves the
+installed COM identity and direct activation denial, rechecks the live
+administrator callback, updates only the existing
+`hm_settings.maxdelivertythreads` row with a parameterized integer command,
+and changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.MaxDeliveryThreads`
+(`source/Server/hMailServer/hMailServer.idl:520-560`),
+`InterfaceSettings::put_MaxDeliveryThreads`
+(`source/Server/COM/InterfaceSettings.cpp:556-572`),
+`SMTPConfiguration::SetMaxNoOfDeliveryThreads`
+(`source/Server/SMTP/SMTPConfiguration.cpp:187-195`),
+`SMTPDeliveryManager::OnPropertyChanged`
+(`source/Server/SMTP/SMTPDeliveryManager.cpp:184-197`), and the
+`maxdelivertythreads` SQL seed (`source/DBScripts/CreateTablesMSSQL.sql:762`).
+Focused settings/store coverage is `62/62`; full Net10 is `2045 passed, 39
+skipped, 0 failed`. Live queue resizing/runtime reconfiguration was
+deliberately not added.
+
+Release remains RED for real SQL/Data rollback, non-DB restore/reinitialization,
+SQL/FTS, matched C++/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak. Next slice:
+fresh legacy-first audit of one remaining low-risk Settings mutation. Do not
+push.
+
 # Current Authoritative Continuation (2026-08-11, RULE LOOP LIMIT MUTATION)
 
 Code/test commit `4d554f1b5` implements only authenticated

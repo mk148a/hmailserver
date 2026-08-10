@@ -2505,6 +2505,36 @@ out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
 environment-blocked. Next slice: fresh legacy-first audit of one remaining
 low-risk Settings mutation.
 
+## Current Audit Note (2026-08-11, MAX DELIVERY THREADS ADMIN MUTATION)
+
+Code/test commit `88aa5466c` implements the authenticated
+`IInterfaceSettings.MaxDeliveryThreads` setter (`DispId(29)`) only. The .NET
+path updates the existing `hm_settings.maxdelivertythreads` row through a
+parameterized integer command, requires exactly one affected row, rechecks the
+live server-administrator callback, and publishes the retained snapshot only
+after success. Direct activation denial, failed-write retention,
+administrator revocation, one-row enforcement, and exact SQL shape are
+covered. Focused settings/store coverage is `62/62`; full Net10 is `2045
+passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.MaxDeliveryThreads`
+(`source/Server/hMailServer/hMailServer.idl:520-560`),
+`InterfaceSettings::put_MaxDeliveryThreads`
+(`source/Server/COM/InterfaceSettings.cpp:556-572`),
+`SMTPConfiguration::SetMaxNoOfDeliveryThreads`
+(`source/Server/SMTP/SMTPConfiguration.cpp:187-195`),
+`SMTPDeliveryManager::OnPropertyChanged`
+(`source/Server/SMTP/SMTPDeliveryManager.cpp:184-197`), and the
+`maxdelivertythreads` SQL seed (`source/DBScripts/CreateTablesMSSQL.sql:762`).
+Legacy delivery queue notification and current runtime reconfiguration were
+deliberately not added; this is persistence parity only.
+
+Real SQL/Data rollback, non-DB settings restore/reinitialization, SQL/FTS,
+paired legacy/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
+environment-blocked. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation.
+
 ## Current Audit Note (2026-08-11, RULE LOOP LIMIT ADMIN MUTATION)
 
 Code/test commit `4d554f1b5` implements the authenticated

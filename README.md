@@ -1,6 +1,35 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, MaxDeliveryThreads mutation)
+
+Code/test commit `88aa5466c` implements only the authenticated
+`IInterfaceSettings.MaxDeliveryThreads` setter (`DispId(29)`). It updates the
+existing `hm_settings.maxdelivertythreads` row through a parameterized integer
+command, requires one affected row, rechecks the live server-administrator
+callback, and publishes the retained snapshot only after success. Direct
+activation denial, failed-write retention, administrator revocation, one-row
+enforcement, and SQL command shape are covered. Focused settings/store
+coverage is `62/62`; full Net10 is `2045 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.MaxDeliveryThreads`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:520-560`),
+`InterfaceSettings::put_MaxDeliveryThreads`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:556-572`),
+`SMTPConfiguration::SetMaxNoOfDeliveryThreads`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:187-195`),
+`SMTPDeliveryManager::OnPropertyChanged`
+(`hmailserver/source/Server/SMTP/SMTPDeliveryManager.cpp:184-197`), and the
+`maxdelivertythreads` SQL seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:762`).
+Live delivery queue resizing and runtime reconfiguration remain deliberately
+unchanged.
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched legacy/.NET protocol load, SEC-18 cutover,
+installer/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain
+unproven. Next slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, RuleLoopLimit mutation)
 
 Code/test commit `4d554f1b5` implements only the authenticated
