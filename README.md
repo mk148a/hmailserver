@@ -1,6 +1,33 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated WelcomeIMAP mutation)
+
+Code/test commit `df7f72c22` extends the bounded Administrator settings seam to
+only `IInterfaceSettings.WelcomeIMAP` (`DispId(25)`, BSTR). It rechecks the
+live server-administrator callback, updates only the existing
+`hm_settings.welcomeimap` row with a parameterized string command, requires one
+affected row, and changes a retained snapshot only after success. The IMAP
+session greeting runtime path remains unchanged.
+
+Legacy anchors are `IInterfaceSettings.WelcomeIMAP`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl`, `DispId(25)`),
+`InterfaceSettings::put_WelcomeIMAP`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp`),
+`IMAPConfiguration::SetWelcomeMessage`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp`),
+`PROPERTY_WELCOMEIMAP`
+(`hmailserver/source/Server/Common/Application/Constants.h`), and
+`IMAPConnection::SendBanner_`
+(`hmailserver/source/Server/IMAP/IMAPConnection.cpp`). Focused settings/SQL
+coverage is `35/35`; full Net10 is `2018 passed, 39 skipped, 0 failed`. No COM
+identity, direct activation boundary, or IMAP runtime reconfiguration behavior
+changed.
+
+Release remains RED: real SQL/Data rollback, SEC-18 cutover, installer and
+out-of-process COM, matched C++/Net10 protocol load evidence, SQL FTS, and
+24-hour soak remain unproven.
+
 ## Current parity continuation (2026-08-10, authenticated WelcomePOP3 mutation)
 
 Code/test commit `67d383ef1` extends the bounded Administrator settings seam to

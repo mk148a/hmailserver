@@ -2319,3 +2319,25 @@ scope. The next code slice must be selected by a fresh legacy-first audit of
 one remaining low-risk Settings setter. Real SQL/Data rollback, SEC-18,
 installer, paired protocol performance, and soak gates remain RED or
 environment-blocked.
+## Current Audit Note (2026-08-10, WELCOME IMAP ADMIN MUTATION)
+
+Code/test commit `df7f72c22` closes the narrow authenticated
+`IInterfaceSettings.WelcomeIMAP` setter gap (`DispId(25)`, BSTR) while
+preserving the installed COM shape. Legacy behavior is anchored by
+`IInterfaceSettings.WelcomeIMAP` (`DispId(25)`),
+`InterfaceSettings::put_WelcomeIMAP`, `IMAPConfiguration::SetWelcomeMessage`,
+`PROPERTY_WELCOMEIMAP`, and `IMAPConnection::SendBanner_` in the legacy IDL,
+COM, IMAP, and common application sources.
+
+The .NET setter requires the authenticated settings boundary and live server
+administrator callback, updates only the existing `welcomeimap` row through a
+parameterized SQL command, requires exactly one affected row, and publishes the
+retained snapshot only after success. Direct activation, failed-write snapshot
+retention, retained-object reauthentication, and SQL shape are covered.
+Focused coverage is `35/35`; full Net10 is `2018 passed, 39 skipped, 0 failed`.
+
+IMAP greeting/session runtime wiring and live reconfiguration remain out of
+scope. The next code slice must be selected by a fresh legacy-first audit of
+one remaining low-risk Settings setter. Real SQL/Data rollback, SEC-18,
+installer, paired protocol performance, and soak gates remain RED or
+environment-blocked.
