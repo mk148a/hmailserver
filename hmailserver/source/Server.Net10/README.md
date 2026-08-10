@@ -1,3 +1,22 @@
+## Current parity continuation (2026-08-10, authenticated invalid-command limit mutation)
+
+Code/test commit `9a7e418eb` adds only authenticated
+`IInterfaceSettings.MaxNumberOfInvalidCommands` (`DispId(65)`) persistence. The
+SQL command is parameterized and fixed to
+`settingname = N'maximumincorrectcommands'`; the live administrator callback is
+checked before store access and the retained snapshot changes only after a
+one-row success. Focused settings/SQL coverage is `41/41`; full Net10 is
+`2024 passed, 39 skipped, 0 failed`.
+
+Legacy references are `source/Server/hMailServer/hMailServer.idl:612-613`,
+`source/Server/COM/InterfaceSettings.cpp:1695-1720`,
+`source/Server/Common/Application/Configuration.cpp:501-509`,
+`source/Server/Common/Application/Constants.h:90`, and
+`source/Server/SMTP/SMTPConnection.cpp:2210-2219`. No COM identity, direct
+activation boundary, SMTP behavior, or runtime threshold reconfiguration path
+changed. Next slice: fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-10, authenticated MaxSMTPRecipientsInBatch mutation)
 
 Code/test commit `b4cacd531` adds only the fixed-row

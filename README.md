@@ -1,6 +1,33 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated invalid-command limit mutation)
+
+Code/test commit `9a7e418eb` extends the existing authenticated Administrator
+settings seam to only `IInterfaceSettings.MaxNumberOfInvalidCommands`
+(`DispId(65)`). It updates the fixed
+`hm_settings.maximumincorrectcommands` row with a parameterized integer
+command, requires one affected row, rechecks the live administrator callback,
+and publishes the retained snapshot only after success. Focused settings/SQL
+coverage is `41/41`; full Net10 is `2024 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.MaxNumberOfInvalidCommands`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:612-613`),
+`InterfaceSettings::put_MaxNumberOfInvalidCommands`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1695-1720`),
+`Configuration::SetMaxNumberOfInvalidCommands`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:501-509`),
+`PROPERTY_MAXIMUMINCORRECTCOMMANDS`
+(`hmailserver/source/Server/Common/Application/Constants.h:90`), and the
+SMTP disconnect threshold in `SMTPConnection::OnCommand`
+(`hmailserver/source/Server/SMTP/SMTPConnection.cpp:2210-2219`). The runtime
+threshold reconfiguration path remains deliberately unchanged.
+
+Release remains RED: disposable SQL/Data rollback, SQL/FTS, matched legacy and
+.NET protocol load evidence, SEC-18 cutover, installer/out-of-process COM, and
+24-hour soak remain unproven. Next slice is a fresh legacy-first audit of one
+remaining low-risk Settings mutation.
+
 ## Current parity continuation (2026-08-10, authenticated MaxSMTPRecipientsInBatch mutation)
 
 Code/test commit `b4cacd531` extends the bounded Administrator settings seam to

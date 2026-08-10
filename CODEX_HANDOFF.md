@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, INVALID COMMAND LIMIT MUTATION)
+
+Code/test commit `9a7e418eb` implements only authenticated
+`Settings.MaxNumberOfInvalidCommands` (`DispId(65)`) persistence. It preserves
+direct activation denial, rechecks the live administrator callback, updates the
+fixed `hm_settings.maximumincorrectcommands` row with a parameterized integer
+command, and changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.MaxNumberOfInvalidCommands`
+(`source/Server/hMailServer/hMailServer.idl:612-613`),
+`InterfaceSettings::put_MaxNumberOfInvalidCommands`
+(`source/Server/COM/InterfaceSettings.cpp:1695-1720`),
+`Configuration::SetMaxNumberOfInvalidCommands`
+(`source/Server/Common/Application/Configuration.cpp:501-509`),
+`PROPERTY_MAXIMUMINCORRECTCOMMANDS`
+(`source/Server/Common/Application/Constants.h:90`), and the SMTP threshold
+consumer in `source/Server/SMTP/SMTPConnection.cpp:2210-2219`. Focused
+settings/SQL coverage is `41/41`; full Net10 is `2024 passed, 39 skipped, 0
+failed`. SMTP disconnect-threshold runtime reconfiguration was deliberately
+not added. Next slice: fresh legacy-first audit of one remaining low-risk
+Settings mutation. Real SQL/Data rollback, SEC-18, installer/out-of-process
+COM, matched protocol performance, and 24-hour soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, MAX SMTP RECIPIENT BATCH MUTATION)
 
 Code/test commit `b4cacd531` implements only authenticated

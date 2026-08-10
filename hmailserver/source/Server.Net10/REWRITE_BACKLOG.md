@@ -2389,3 +2389,13 @@ Delivery batching runtime and live reconfiguration remain out of scope. The
 next code slice must be selected by a fresh legacy-first audit of one remaining
 low-risk Settings setter. Real SQL/Data rollback, SEC-18, installer, paired
 protocol performance, and soak gates remain RED or environment-blocked.
+## Current next slice (2026-08-10)
+
+The authenticated fixed-row `Settings.MaxNumberOfInvalidCommands` mutation is
+implemented in code/test commit `9a7e418eb`, with focused settings/SQL coverage
+`41/41` and full Net10 `2024 passed, 39 skipped, 0 failed`. Legacy references:
+`hMailServer.idl:612-613`, `InterfaceSettings.cpp:1695-1720`,
+`Configuration.cpp:501-509`, `Constants.h:90`, and
+`SMTPConnection.cpp:2210-2219`. The next independent code slice is a fresh
+legacy-first audit of one remaining low-risk Settings mutation. Runtime
+disconnect-threshold reconfiguration is intentionally not part of this slice.
