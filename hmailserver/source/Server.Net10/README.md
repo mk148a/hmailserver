@@ -1,3 +1,22 @@
+## Current parity continuation (2026-08-10, authenticated WelcomePOP3 mutation)
+
+Code/test commit `67d383ef1` adds only the fixed-row `WelcomePOP3` mutation
+(`DispId(24)`, BSTR) to the existing authenticated settings seam. The SQL
+command is parameterized and fixed to `settingname = N'welcomepop3'`; the live
+administrator callback is checked before store access and the retained
+snapshot changes only after a one-row success. Focused settings/SQL coverage is
+`33/33`; full Net10 is `2016 passed, 39 skipped, 0 failed`.
+
+Legacy references are `IInterfaceSettings.WelcomePOP3`
+(`source/Server/hMailServer/hMailServer.idl:547-550`),
+`InterfaceSettings::put_WelcomePOP3`
+(`source/Server/COM/InterfaceSettings.cpp:713-745`),
+`POP3Configuration::SetWelcomeMessage`
+(`source/Server/POP3/POP3Configuration.cpp:24-53`), and
+`PROPERTY_WELCOMEPOP3` (`source/Server/Common/Application/Constants.h:14`).
+No COM identity, direct activation boundary, POP3 greeting, or live
+reconfiguration path changed.
+
 ## Current parity continuation (2026-08-10, authenticated MaxPOP3Connections mutation)
 
 Code/test commit `e11234d8a` adds only the fixed-row

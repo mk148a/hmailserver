@@ -2293,3 +2293,29 @@ scope. The next code slice must be selected by a fresh legacy-first audit of
 one remaining low-risk Settings setter. Real SQL/Data rollback, SEC-18,
 installer, paired protocol performance, and soak gates remain RED or
 environment-blocked.
+## Current Audit Note (2026-08-10, WELCOME POP3 ADMIN MUTATION)
+
+Code/test commit `67d383ef1` closes the narrow authenticated
+`IInterfaceSettings.WelcomePOP3` setter gap (`DispId(24)`, BSTR) while
+preserving the installed COM shape. Legacy behavior is anchored by
+`IInterfaceSettings.WelcomePOP3`
+(`source/Server/hMailServer/hMailServer.idl:547-550`),
+`InterfaceSettings::put_WelcomePOP3`
+(`source/Server/COM/InterfaceSettings.cpp:713-745`),
+`POP3Configuration::SetWelcomeMessage`
+(`source/Server/POP3/POP3Configuration.cpp:24-53`),
+`PROPERTY_WELCOMEPOP3` (`source/Server/Common/Application/Constants.h:14`),
+and `POP3Connection` banner consumption (`source/Server/POP3/POP3Connection.cpp:101-115`).
+
+The .NET setter requires the authenticated settings boundary and live server
+administrator callback, updates only the existing `welcomepop3` row through a
+parameterized SQL command, requires exactly one affected row, and publishes the
+retained snapshot only after success. Direct activation, failed-write snapshot
+retention, retained-object reauthentication, and SQL shape are covered.
+Focused coverage is `33/33`; full Net10 is `2016 passed, 39 skipped, 0 failed`.
+
+POP3 greeting/session runtime wiring and live reconfiguration remain out of
+scope. The next code slice must be selected by a fresh legacy-first audit of
+one remaining low-risk Settings setter. Real SQL/Data rollback, SEC-18,
+installer, paired protocol performance, and soak gates remain RED or
+environment-blocked.

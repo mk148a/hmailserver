@@ -1,6 +1,33 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated WelcomePOP3 mutation)
+
+Code/test commit `67d383ef1` extends the bounded Administrator settings seam to
+only `IInterfaceSettings.WelcomePOP3` (`DispId(24)`, BSTR). It rechecks the
+live server-administrator callback, updates only the existing
+`hm_settings.welcomepop3` row with a parameterized string command, requires one
+affected row, and changes a retained snapshot only after success. The POP3
+session greeting runtime path remains unchanged.
+
+Legacy anchors are `IInterfaceSettings.WelcomePOP3`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:547-550`),
+`InterfaceSettings::put_WelcomePOP3`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:713-745`),
+`POP3Configuration::SetWelcomeMessage`
+(`hmailserver/source/Server/POP3/POP3Configuration.cpp:24-53`),
+`PROPERTY_WELCOMEPOP3`
+(`hmailserver/source/Server/Common/Application/Constants.h:14`), and
+`POP3Connection` banner consumption
+(`hmailserver/source/Server/POP3/POP3Connection.cpp:101-115`). Focused
+settings/SQL coverage is `33/33`; full Net10 is `2016 passed, 39 skipped, 0
+failed`. No COM identity, direct activation boundary, or POP3 runtime
+reconfiguration behavior changed.
+
+Release remains RED: real SQL/Data rollback, SEC-18 cutover, installer and
+out-of-process COM, matched C++/Net10 protocol load evidence, SQL FTS, and
+24-hour soak remain unproven.
+
 ## Current parity continuation (2026-08-10, authenticated MaxPOP3Connections mutation)
 
 Code/test commit `e11234d8a` extends the bounded Administrator settings seam to

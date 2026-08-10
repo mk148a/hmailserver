@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, WELCOME POP3 MUTATION)
+
+Code/test commit `67d383ef1` implements only authenticated
+`Settings.WelcomePOP3` (`DispId(24)`, BSTR) persistence. It preserves direct
+activation denial, rechecks the live administrator callback, updates the fixed
+`hm_settings.welcomepop3` row with a parameterized string command, and changes
+the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.WelcomePOP3`
+(`source/Server/hMailServer/hMailServer.idl:547-550`),
+`InterfaceSettings::put_WelcomePOP3`
+(`source/Server/COM/InterfaceSettings.cpp:713-745`),
+`POP3Configuration::SetWelcomeMessage`
+(`source/Server/POP3/POP3Configuration.cpp:24-53`), and
+`PROPERTY_WELCOMEPOP3` (`source/Server/Common/Application/Constants.h:14`).
+Focused settings/SQL coverage is `33/33`; full Net10 is `2016 passed, 39
+skipped, 0 failed`. POP3 greeting runtime reconfiguration was deliberately not
+added. Next slice: fresh legacy-first audit of one remaining low-risk Settings
+mutation. Real SQL/Data rollback, reinitialize, SEC-18, installer, paired live
+performance, and soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, MAX POP3 CONNECTIONS MUTATION)
 
 Code/test commit `e11234d8a` implements only authenticated
