@@ -133,7 +133,11 @@ DomainAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAdministrationStore>());
 AccountAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IAccountAdministrationStore>(),
-    host.Services.GetRequiredService<IPop3MailboxLockManager>().Unlock);
+    host.Services.GetRequiredService<IPop3MailboxLockManager>().Unlock,
+    new SqlServerAccountPasswordVerifier(
+        host.Services.GetRequiredService<SqlServerConnectionFactory>(),
+        host.Services.GetRequiredService<IAccountAdministrationStore>(),
+        host.Services.GetService<IClientPasswordValidationScriptExecutor>()).Verify);
 MessageAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IMessageAdministrationStore>(),
     host.Services.GetRequiredService<IMessageAdministrationContentSource>());
