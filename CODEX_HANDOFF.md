@@ -1,5 +1,33 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, MAX IMAP CONNECTIONS MUTATION)
+
+Code/test commit `ab1c7c721` implements only authenticated
+`Settings.MaxIMAPConnections` (`DispId(53)`) persistence. It preserves the
+installed COM identity and direct activation denial, rechecks the live
+administrator callback, updates only the existing
+`hm_settings.maximapconnections` row with a parameterized integer command,
+and changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.MaxIMAPConnections`
+(`source/Server/hMailServer/hMailServer.idl:589-590`),
+`InterfaceSettings::put_MaxIMAPConnections`
+(`source/Server/COM/InterfaceSettings.cpp:140`),
+`IMAPConfiguration::SetMaxIMAPConnections`
+(`source/Server/IMAP/IMAPConfiguration.cpp:113`),
+`SessionManager::CreateSession(STIMAP)`
+(`source/Server/Common/Application/SessionManager.cpp:44`), and the
+`maximapconnections` SQL seed (`source/DBScripts/CreateTablesMSSQL.sql:832`).
+Focused settings/store coverage is `64/64`; full Net10 is `2047 passed, 39
+skipped, 0 failed`. IMAP listener/runtime connection-limit wiring was
+deliberately not added.
+
+Release remains RED for real SQL/Data rollback, non-DB restore/reinitialization,
+SQL/FTS, matched C++/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak. Next slice:
+fresh legacy-first audit of one remaining low-risk Settings mutation. Do not
+push.
+
 # Current Authoritative Continuation (2026-08-11, MAX DELIVERY THREADS MUTATION)
 
 Code/test commit `88aa5466c` implements only authenticated

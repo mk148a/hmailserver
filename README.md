@@ -1,6 +1,35 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, MaxIMAPConnections mutation)
+
+Code/test commit `ab1c7c721` implements only the authenticated
+`IInterfaceSettings.MaxIMAPConnections` setter (`DispId(53)`). It updates the
+existing `hm_settings.maximapconnections` row through a parameterized integer
+command, requires one affected row, rechecks the live server-administrator
+callback, and publishes the retained snapshot only after success. Direct
+activation denial, failed-write retention, administrator revocation, one-row
+enforcement, and SQL command shape are covered. Focused settings/store
+coverage is `64/64`; full Net10 is `2047 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.MaxIMAPConnections`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:589-590`),
+`InterfaceSettings::put_MaxIMAPConnections`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:140`),
+`IMAPConfiguration::SetMaxIMAPConnections`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:113`),
+`SessionManager::CreateSession(STIMAP)` connection-limit enforcement
+(`hmailserver/source/Server/Common/Application/SessionManager.cpp:44`), and
+the `maximapconnections` SQL seed
+(`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:832`). .NET IMAP listener
+configuration and runtime connection-limit behavior remain unchanged.
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched legacy/.NET protocol load, SEC-18 cutover,
+installer/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain
+unproven. Next slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, MaxDeliveryThreads mutation)
 
 Code/test commit `88aa5466c` implements only the authenticated
