@@ -1182,3 +1182,23 @@ remain open.
 
 The commandable runner is `build/benchmark-net10-live-concurrent-imap.ps1`;
 the focused report validator is `build/test-net10-live-concurrent-imap.ps1`.
+## Current parity continuation (2026-08-10, Rules restore)
+
+Code/test commit `4f43db7b2` implements the bounded legacy Rules/Criteria/Actions
+restore slice. Legacy anchors are `Rule::XMLStore`, `Rule::XMLLoadSubItems`,
+`PersistentRule::SaveObject`, `PersistentRuleCriteria::SaveObject`, and
+`PersistentRuleAction::SaveObject` in `hmailserver/source/Server/Common/BO`
+and `Persistence`. Current anchors are
+`BackupArchiveXmlSnapshotParser.ParseRule`,
+`BackupRestoreMetadataWriter.RestoreRulesAsync`,
+`MetadataBackupRestoreExecutor.RestoreMetadataAsync`, and the transaction-aware
+SQL rule stores.
+
+The isolated SQL readback and injected action failure rollback tests pass
+`13/13`; default full Net10 is `1991 passed, 37 skipped, 0 failed`. SQL opt-in
+full execution is `2020 passed, 2 skipped` with six unrelated existing
+message/indexing fixture failures. The slice does not change COM identity,
+Administrator access boundaries, SMTP trust, production SQL/Data, service,
+IIS, DCOM, or machine state. Release remains RED. Next: reproduce the legacy
+C++ IMAP/POP3 runtime, then continue with populated folder/message/settings
+restore rollback evidence.

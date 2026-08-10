@@ -10,6 +10,25 @@ For other information about hMailServer, please go to http://www.hmailserver.com
 No active development
 =====================
 
+## Current parity continuation (2026-08-10, Rules restore)
+
+Code/test commit `4f43db7b2` completes one bounded restore slice anchored to
+legacy `PersistentRule::SaveObject`, `PersistentRuleCriteria::SaveObject`,
+`PersistentRuleAction::SaveObject`, `Rule::XMLStore/XMLLoadSubItems`, and
+`Account::XMLStore/XMLLoadSubItems` in `hmailserver/source/Server/Common`.
+The .NET 10 path now parses the legacy `Rules`, `RuleCriterias`, and
+`RuleActions` XML, inserts generated IDs through transaction-scoped SQL stores,
+and rolls back the complete graph when a child insert fails.
+
+Focused isolated SQL coverage is `13 passed, 0 failed, 0 skipped`, including
+readback of rule, criterion, and action fields and injected action failure
+rollback. Default full Net10 is `1991 passed, 37 skipped, 0 failed`. With the
+approved disposable SQL opt-in enabled, `2020 passed, 2 skipped`, with six
+unrelated existing message/indexing fixture failures. Release remains RED:
+full settings/folders/messages restore, C++ IMAP/POP3 parity, paired SMTP and
+delivery measurements, SEC-18, migration/installer, service/out-of-process
+COM, AD/DC, and 24-hour soak are still open.
+
 ## Current production-gate status (2026-08-10, 1,000-concurrent IMAP)
 
 Code/test commit `21cc042c9` adds a bounded live 1,000-concurrent IMAP
@@ -139,7 +158,7 @@ Focused Diagnostics coverage is `7 passed, 0 failed, 0 skipped`; full Net10 is `
 
 Code/test commit `cdfc000ad` closes the narrow unsaved-rule movement error gap. Legacy `InterfaceRules::Add` and `InterfaceRule::MoveUp/MoveDown` (`hmailserver/source/Server/COM/InterfaceRules.cpp`; `InterfaceRule.cpp:221`; `COMError.cpp:24`) create an ID-zero draft and return `0x800403E9` with `Object not yet saved.` before movement or SQL access. The .NET `Rule` facade now preserves that result for ID-zero drafts while retaining direct activation/auth checks and leaving saved-rule movement, SQL reorder, and protocol rule execution unchanged.
 
-Focused Rules coverage is `19 passed, 0 failed, 0 skipped`; full Net10 is `1968 passed, 32 skipped, 2 failed`, with the two known host-AV scanner `.eml` cleanup locks. Security review PASS for this bounded slice; reality remains RED for release. Saved `MoveUp/MoveDown` remain `E_NOTIMPL` and are a separate future slice. No production SQL/Data, service, COM registration, DCOM, IIS, or firewall state changed.
+Focused Rules coverage is `19 passed, 0 failed, 0 skipped`; full Net10 is `1968 passed, 32 skipped, 2 failed`, with the two known host-AV scanner `.eml` cleanup locks. Security review PASS for this bounded slice; reality remains RED for release. This older paragraph is superseded by the later saved `Rule.MoveUp()`/`MoveDown()` implementation entry above. No production SQL/Data, service, COM registration, DCOM, IIS, or firewall state changed.
 
 .NET 10 rewrite continuation audit (2026-08-10, IMAP folder message ownership parity)
 --------------------------------------------------------------------------------------

@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T16:08:11Z / 2026-08-10T19:08:11+03:00
+- UTC/local timestamp: 2026-08-10T16:28:26Z / 2026-08-10T19:28:26+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `0952e6041`
+- Current HEAD: `a41840911`
 - Last successfully pushed commit: `0b2646731`
-- Latest focused-test result: identical disposable SQL/Data fixture readback passed; .NET 10 1,000-concurrent IMAP `1000/1000` with p50 `48.706 ms`, p95 `183.157 ms`, p99 `558.690 ms`; C++ `0/1000` and POP3 did not open; no valid ratio
-- Latest full Net10 result: `1990 passed, 36 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: concurrent reports and PowerShell validation passed; disposable SQL/Data fixture was used; C++ IMAP/POP3 startup parity, SMTP message acceptance, delivery queue, service/COM, SEC-18, restore round-trip, installer, AD/DC, and 24-hour soak remain blocked or skipped
-- Current bounded slice: isolated 1,000-concurrent IMAP acceptance evidence and performance release-gate documentation
-- Completed milestones: backup creation/raw staging, offline SEARCH/SORT benchmark, COM/Admin parity slices, password verifier seam, disposable restore fixture coverage, and live listener/concurrent benchmark harness; no production release gate complete
-- Open production blockers: reproducible C++ IMAP/POP3 baseline, .NET out-of-process COM AppID identity failure `0x80004015`, SMTP message acceptance, delivery queue, full restore/rollback, SEC-18, migration/installer, AD/DC, and 24-hour soak
-- Environment-blocked work: normal C++ release/runtime build, isolated service/COM host, approved restore target, domain-controller credentials, IIS/SEC-18 gate, InnoSetup, and AV-compatible cleanup path
-- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup files, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: obtain an isolated reproducible C++ runtime exposing all three listeners; extend disposable populated restore graph readback/rollback; add paired SMTP acceptance and delivery-queue workload once both baselines are runnable
+- Latest focused-test result: Rules/Criteria/Actions parser, isolated SQL readback, executor restore, and injected action-failure rollback `13 passed, 0 failed, 0 skipped`
+- Latest full Net10 result: default `1991 passed, 37 skipped, 0 failed`; SQL opt-in `2020 passed, 2 skipped, 6 unrelated existing message/indexing fixture failures`
+- Opt-in tests passed/skipped/blocked: disposable SQL restore and rollback passed; live C++ IMAP/POP3 parity, SMTP acceptance, delivery queue, service/COM, SEC-18, installer, AD/DC, and 24-hour soak remain blocked or skipped
+- Current bounded slice: completed legacy Rules/Criteria/Actions restore parity; next slice is reproducible legacy C++ listener startup
+- Completed milestones: backup raw staging, disposable restore transaction foundations, FetchAccount/UID restore, Rules/Criteria/Actions restore, COM/Admin parity slices, and live benchmark harness; no production release gate complete
+- Open production blockers: reproducible C++ IMAP/POP3 baseline, paired SMTP/delivery evidence, populated filesystem restore and rollback, SEC-18, migration/installer, out-of-process COM/service lifecycle, AD/DC, and 24-hour soak
+- Environment-blocked work: normal legacy C++ runtime with all listeners, SQL FTS/legacy ADO paired baseline, approved IIS/COM cutover evidence, production-like migration/installer VM, domain-controller credentials, and long-running soak host
+- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC-18/benchmark/disposable artifacts
+- Next three independent slices: (1) reproducible legacy C++ runtime exposing IMAP/POP3, (2) populated folder/message/settings restore graph readback and rollback, (3) paired SMTP acceptance/delivery queue workload after both protocol baselines run

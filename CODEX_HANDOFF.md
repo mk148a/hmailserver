@@ -1867,3 +1867,29 @@ restore graph readback/rollback, and (3) once both baselines run, add paired
 SMTP message-acceptance and delivery-queue workloads. Do not stage dirty
 `AGENTS.md`, backup test WIP files, or untracked SEC-18/benchmark/disposable
 artifacts. Do not push in this run.
+
+## Current Authoritative Continuation (2026-08-10, RULES RESTORE)
+
+Code/test commit `4f43db7b2` completes one bounded restore slice for legacy
+Rules, RuleCriterias, and RuleActions. The parity anchors are
+`Rule::XMLStore/XMLLoadSubItems`, `Account::XMLStore/XMLLoadSubItems`,
+`PersistentRule::SaveObject`, `PersistentRuleCriteria::SaveObject`, and
+`PersistentRuleAction::SaveObject` in `hmailserver/source/Server/Common`.
+The parent is inserted first, generated IDs are propagated to children, and
+SQL transaction disposal rolls back the whole graph. Non-transaction rollback
+removes the owner-scoped rule and its dependent children.
+
+Focused isolated SQL coverage is `13 passed, 0 failed, 0 skipped`, including
+rule/criterion/action readback and injected action failure rollback. Default
+full Net10 is `1991 passed, 37 skipped, 0 failed`. SQL opt-in full execution is
+`2020 passed, 2 skipped`, with six unrelated existing message/indexing fixture
+failures. `git diff --check` passes. No production service, SQL/Data,
+installed COM identity, DCOM, IIS, SMTP, or machine state changed.
+
+Residual release risk remains full settings/folders/messages restore,
+crash/power-loss recovery, reproducible legacy C++ IMAP/POP3 startup, paired
+SMTP/delivery performance, SEC-18, migration/installer, service/out-of-process
+COM, AD/DC, and 24-hour soak. Release remains RED. Next three independent
+slices: reproducible legacy C++ listener runtime; populated
+folder/message/settings restore readback and rollback; paired SMTP acceptance
+and delivery queue after both baselines are runnable. Do not push.

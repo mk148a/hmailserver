@@ -1901,3 +1901,36 @@ message acceptance, delivery queue, and 24-hour leak/handle/thread/socket
 soak workloads. The benchmark helper omits COM registration because the normal
 .NET host still fails the installed Application AppID identity check
 (`0x80004015`).
+
+## Current Authoritative Continuation (2026-08-10, RULES RESTORE)
+
+Code/test commit `4f43db7b2` implements the bounded Rules/Criteria/Actions
+restore slice. Legacy behavior was confirmed in
+`hmailserver/source/Server/Common/BO/Rule.cpp` (`Rule::XMLStore`,
+`Rule::XMLLoadSubItems`), `Account.cpp` (`Account::XMLStore`,
+`Account::XMLLoadSubItems`), and
+`hmailserver/source/Server/Common/Persistence/PersistentRule.cpp`,
+`PersistentRuleCriteria.cpp`, and `PersistentRuleAction.cpp`. Legacy save
+inserts the parent rule first, assigns the generated `ruleid`, then inserts
+criteria and actions with that owner ID.
+
+Current anchors are `BackupArchiveXmlSnapshotParser.ParseRule`,
+`BackupRestoreMetadataWriter.RestoreRulesAsync`,
+`MetadataBackupRestoreExecutor.RestoreMetadataAsync`,
+`IBackupRestoreMetadataTransaction.RuleStore/RuleCriteriaStore/RuleActionStore`,
+`SqlServerBackupRestoreMetadataTransactionFactory`, and the three transaction-
+aware SQL rule stores. SQL restore keeps the domain/account/rule/criteria/action
+graph in one transaction; non-transaction rollback deletes the owner-scoped
+rule and its dependent children.
+
+Focused isolated SQL coverage is `13 passed, 0 failed, 0 skipped`, including
+rule/criterion/action readback and injected action-insert rollback. Default
+full Net10 is `1991 passed, 37 skipped, 0 failed`. SQL opt-in full execution is
+`2020 passed, 2 skipped`, with six unrelated existing message/indexing fixture
+failures. No production service, SQL/Data directory, COM identity, DCOM ACL,
+IIS, SMTP behavior, or machine state changed. Release remains RED.
+
+Next priority order: (1) obtain a reproducible legacy C++ runtime exposing
+IMAP/POP3, (2) add populated folder/message/settings restore graph readback and
+rollback, and (3) add paired SMTP acceptance and delivery-queue workloads only
+after both protocol baselines run. Older entries below are historical.
