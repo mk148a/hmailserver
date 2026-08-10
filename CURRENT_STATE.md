@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T16:58:30Z / 2026-08-10T19:58:30+03:00
+- UTC/local timestamp: 2026-08-10T17:06:26Z / 2026-08-10T20:06:26+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `5b457d513`
+- Current HEAD: `915b78a4a`
 - Last successfully pushed commit: `0b2646731`
-- Latest focused-test result: folder parser, isolated SQL round-trip, executor restore, and rollback `25 passed, 0 failed, 0 skipped`
+- Latest focused-test result: restore/transaction rollback `12 passed, 0 failed, 0 skipped`
 - Latest full Net10 result: default `1992 passed, 37 skipped, 0 failed`; SQL opt-in `2021 passed, 2 skipped, 6 unrelated existing message/indexing fixture failures`
-- Opt-in tests passed/skipped/blocked: disposable folder restore and rollback passed; C++ listener parity, SMTP/delivery, populated message/filesystem restore, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain blocked or skipped
-- Current bounded slice: folder metadata restore complete; next slice is reproducible legacy C++ IMAP/POP3 listener startup
-- Completed milestones: backup raw staging, disposable restore transaction foundations, FetchAccount/UID restore, Rules/Criteria/Actions restore, folder metadata restore, COM/Admin slices, and benchmark harness; no production release gate complete
+- Opt-in tests passed/skipped/blocked: disposable folder restore and rollback passed; C++ listener parity, SMTP/delivery, populated message/filesystem restore, provider commit-failure injection, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain blocked or skipped
+- Current bounded slice: failed restore commit rollback complete; next slice is legacy folder message metadata parse/restore with generated IDs and preserved UIDs
+- Completed milestones: backup raw staging, disposable restore transaction foundations, FetchAccount/UID restore, Rules/Criteria/Actions restore, folder metadata restore, failed-commit rollback, COM/Admin slices, and benchmark harness; no production release gate complete
 - Open production blockers: message/ACL/settings restore, crash-safe SQL/filesystem recovery, reproducible C++ IMAP/POP3 runtime, paired SMTP/delivery evidence, SEC-18, migration/installer, service/out-of-process COM, AD/DC, and 24-hour soak
 - Environment-blocked work: normal legacy C++ runtime exposing all listeners, populated SQL/Data restore target, SQL FTS/legacy ADO paired baseline, approved IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
-- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: (1) reproducible legacy C++ IMAP/POP3 runtime, (2) populated message/settings restore graph and filesystem rollback, (3) paired SMTP acceptance and delivery queue workloads after both baselines run
+- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
+- Next three independent slices: (1) folder message metadata restore, (2) injected provider commit-failure test, (3) populated DataBackup message-file staging and rollback

@@ -1961,3 +1961,20 @@ Next priority order: (1) reproducible legacy C++ runtime exposing IMAP/POP3,
 (2) populated message/settings restore with filesystem rollback evidence, and
 (3) paired SMTP acceptance and delivery-queue workloads after both protocol
 baselines run. Older continuation paragraphs are historical.
+## Current Authoritative Continuation (2026-08-10, RESTORE COMMIT ROLLBACK)
+
+Code/test commit `915b78a4a` closes the SQL restore transaction disposal gap:
+`SqlServerBackupRestoreMetadataTransaction.DisposeAsync` now attempts rollback
+whenever commit has not completed, including the commit-started failure path.
+If the provider has already closed the transaction, the rollback exception is
+suppressed so the original commit failure remains observable.
+
+Focused restore/transaction coverage is `12 passed, 0 failed, 0 skipped` and
+default full Net10 is `1992 passed, 37 skipped, 0 failed`. The exact provider-
+level injected commit-failure test, crash/power-loss recovery, and filesystem/
+SQL atomicity remain open. Release remains RED.
+
+Next independent slice: parse and restore legacy folder message metadata with
+generated message IDs and preserved UIDs, while keeping DataBackup file
+containment and ACL restore out of scope until separately proven. Older
+continuation paragraphs are historical.

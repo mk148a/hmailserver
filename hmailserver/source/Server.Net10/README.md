@@ -1,4 +1,15 @@
-## Current Authoritative Continuation (2026-08-10, folder metadata restore)
+## Current Authoritative Continuation (2026-08-10, restore commit rollback)
+
+Code/test commit `915b78a4a` makes `SqlServerBackupRestoreMetadataTransaction.DisposeAsync`
+attempt rollback whenever a SQL restore transaction is not committed, including
+after `CommitAsync` has started and failed. It suppresses only a provider
+rollback error that follows a failed commit so the original failure remains
+observable. Focused restore/transaction coverage is `12 passed, 0 failed, 0
+skipped`; default full Net10 is `1992 passed, 37 skipped, 0 failed`. An
+injected provider-level commit-failure test and crash/power-loss recovery are
+still open; release remains RED.
+
+## Historical Continuation (2026-08-10, folder metadata restore)
 
 Code/test commit `5b457d513` completes the bounded folder-metadata restore
 slice. Legacy anchors are `Account::XMLStore`/`Account::XMLLoadSubItems`,

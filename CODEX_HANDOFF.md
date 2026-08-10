@@ -1,5 +1,19 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-10, RESTORE COMMIT ROLLBACK)
+
+Code/test commit `915b78a4a` updates
+`SqlServerBackupRestoreMetadataTransaction.DisposeAsync` to attempt rollback
+after any incomplete commit, including the commit-started failure path. A
+provider rollback error after a failed commit is suppressed to retain the
+original commit exception. Focused restore/transaction coverage is `12 passed,
+0 failed, 0 skipped`; default full Net10 is `1992 passed, 37 skipped, 0
+failed`. An injected provider commit-failure test plus crash/power-loss and
+SQL/filesystem atomicity evidence remain open. Release is RED.
+
+Next slice: legacy folder message metadata parse/restore with generated IDs and
+preserved UIDs; leave message-file staging and ACL restore out of scope.
+
 ## Current Authoritative Continuation (2026-08-10, FOLDER METADATA RESTORE)
 
 Code/test commit `5b457d513` completes the bounded folder metadata restore

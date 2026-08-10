@@ -1,6 +1,17 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, restore commit rollback)
+
+Code/test commit `915b78a4a` closes a restore transaction safety gap: SQL
+metadata disposal now attempts rollback whenever commit has not completed,
+including after a failed commit has begun, while preserving the original
+commit error if the provider has already closed the transaction. Focused
+restore/transaction coverage is `12 passed, 0 failed, 0 skipped`; default full
+Net10 is `1992 passed, 37 skipped, 0 failed`. The release gate remains RED;
+an injected provider-level commit-failure test and crash/power-loss recovery
+are still open.
+
 ## Current parity continuation (2026-08-10, folder metadata restore)
 
 Code/test commit `5b457d513` completes the bounded folder-metadata restore
