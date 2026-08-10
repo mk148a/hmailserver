@@ -1,3 +1,20 @@
+## Current parity continuation (2026-08-10, authenticated maximum message size mutation)
+
+Code/test commit `69aa0c6d5` adds only authenticated
+`IInterfaceSettings.MaxMessageSize` (`DispId(44)`) persistence. The SQL command
+is parameterized and fixed to `settingname = N'maxmessagesize'`; the live
+administrator callback is checked before store access and the retained snapshot
+changes only after a one-row success. Focused settings/SQL coverage is `45/45`;
+full Net10 is `2028 passed, 39 skipped, 0 failed`.
+
+Legacy references are `source/Server/hMailServer/hMailServer.idl:576-577`,
+`source/Server/COM/InterfaceSettings.cpp:65-105`,
+`source/Server/SMTP/SMTPConfiguration.cpp:199-207`, and
+`source/DBScripts/CreateTablesMSSQL.sql:804`. No COM identity, direct
+activation boundary, SMTP/IMAP protocol enforcement, KB conversion, or live
+reconfiguration path changed. Next slice: fresh legacy-first audit of one
+remaining low-risk Settings mutation.
+
 ## Current parity continuation (2026-08-10, authenticated disconnect-invalid-clients mutation)
 
 Code/test commit `2ee01f107` adds only authenticated

@@ -2409,3 +2409,13 @@ implemented in code/test commit `2ee01f107`, with focused settings/SQL coverage
 next independent code slice is a fresh legacy-first audit of one remaining
 low-risk Settings mutation. SMTP invalid-command runtime reconfiguration is
 intentionally not part of this slice.
+## Current next slice (2026-08-10)
+
+The authenticated fixed-row `Settings.MaxMessageSize` mutation is implemented
+in code/test commit `69aa0c6d5`, with focused settings/SQL coverage `45/45` and
+full Net10 `2028 passed, 39 skipped, 0 failed`. Legacy references:
+`hMailServer.idl:576-577`, `InterfaceSettings.cpp:65-105`,
+`SMTPConfiguration.cpp:199-207`, and `CreateTablesMSSQL.sql:804`. The next
+independent code slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation. SMTP/IMAP runtime reconfiguration is intentionally not part
+of this slice.

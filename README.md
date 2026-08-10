@@ -1,6 +1,31 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated maximum message size mutation)
+
+Code/test commit `69aa0c6d5` extends the existing authenticated Administrator
+settings seam to only `IInterfaceSettings.MaxMessageSize` (`DispId(44)`). It
+updates the fixed `hm_settings.maxmessagesize` row with a parameterized integer
+command, requires one affected row, rechecks the live administrator callback,
+and publishes the retained snapshot only after success. Focused settings/SQL
+coverage is `45/45`; full Net10 is `2028 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.MaxMessageSize`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:576-577`),
+`InterfaceSettings::put_MaxMessageSize`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:65-105`),
+`SMTPConfiguration::SetMaxMessageSize`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:199-207`), and the
+existing `maxmessagesize` schema row in
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:804`. SMTP SIZE/limit,
+IMAP APPEND enforcement, KB-to-byte conversion, and live reconfiguration are
+unchanged.
+
+Release remains RED: disposable SQL/Data rollback, SQL/FTS, matched legacy and
+.NET protocol load evidence, SEC-18 cutover, installer/out-of-process COM, and
+24-hour soak remain unproven. Next slice is a fresh legacy-first audit of one
+remaining low-risk Settings mutation.
+
 ## Current parity continuation (2026-08-10, authenticated disconnect-invalid-clients mutation)
 
 Code/test commit `2ee01f107` extends the existing authenticated Administrator

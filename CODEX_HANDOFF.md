@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, MAXIMUM MESSAGE SIZE MUTATION)
+
+Code/test commit `69aa0c6d5` implements only authenticated
+`Settings.MaxMessageSize` (`DispId(44)`) persistence. It preserves direct
+activation denial, rechecks the live administrator callback, updates the fixed
+`hm_settings.maxmessagesize` row with a parameterized integer command, and
+changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.MaxMessageSize`
+(`source/Server/hMailServer/hMailServer.idl:576-577`),
+`InterfaceSettings::put_MaxMessageSize`
+(`source/Server/COM/InterfaceSettings.cpp:65-105`),
+`SMTPConfiguration::SetMaxMessageSize`
+(`source/Server/SMTP/SMTPConfiguration.cpp:199-207`), and
+`source/DBScripts/CreateTablesMSSQL.sql:804`. Focused settings/SQL coverage is
+`45/45`; full Net10 is `2028 passed, 39 skipped, 0 failed`. SMTP/IMAP runtime
+enforcement, KB-to-byte conversion, and live reconfiguration were deliberately
+not added. Next slice: fresh legacy-first audit of one remaining low-risk
+Settings mutation. Real SQL/Data rollback, SEC-18, installer/out-of-process
+COM, matched protocol performance, and 24-hour soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, DISCONNECT INVALID CLIENTS MUTATION)
 
 Code/test commit `2ee01f107` implements only authenticated
