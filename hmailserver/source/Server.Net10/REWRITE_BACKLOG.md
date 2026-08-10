@@ -1,4 +1,12 @@
 
+## Current Audit Note (2026-08-10, ACCOUNT.VALIDATEPASSWORD PREPARATORY SEAM)
+
+Code/test commit `edacbde75` adds a test-injected account-ID-scoped verifier seam for the remaining `Account.ValidatePassword` gap. Legacy `InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`) calls `PasswordValidator::ValidatePassword` and returns a Boolean without protocol last-logon or auto-ban side effects; protocol `AccountLogon::Logon` is a separate path. The .NET seam forwards only `(accountId, password)` after attached/live-auth checks, preserves direct activation denial and installed Account IID/CLSID/ProgID/DISPID/vtable, and keeps SQL-backed accounts at `E_NOTIMPL` when no callback is configured. No credentials were added to `AccountAdministrationSnapshot`; SQL lookup, hash verification, AD, script events, auto-ban, last-logon, and production service wiring remain deliberately out of scope.
+
+Focused Accounts coverage is `60 passed, 0 failed, 0 skipped`; full Net10 is `1984 passed, 32 skipped, 0 failed`. Security approves the preparatory seam; reality is YELLOW for this bounded slice and RED for release. The required disposable SQL target and isolated-create opt-in are unset. This entry must not be read as production `ValidatePassword` parity.
+
+Next independent work: execute the approved disposable SQL/Data restore gates when the isolated target exists; then design and independently review the authoritative domain-scoped verifier, including hash/AD/script/COM semantics, before wiring production. Keep the verifier callback unwired in the service and preserve protected SEC-18/benchmark artifacts.
+
 ## Current Audit Note (2026-08-10, UNSAVED RULE MOVE ERROR PARITY)
 
 Code/test commit `cdfc000ad` completes the narrow ID-zero `Rule.MoveUp`/`MoveDown` error contract. Legacy `InterfaceRules::Add` and `InterfaceRule::MoveUp/MoveDown` (`hmailserver/source/Server/COM/InterfaceRules.cpp`; `InterfaceRule.cpp:221`) return `COMError::GenerateError` HRESULT `0x800403E9` with `Object not yet saved.` before collection movement or SQL. The .NET `Rule` facade now matches that branch; saved-rule movement remains unchanged and still requires a separate implementation slice. IInterfaceRule identity/DISPID/vtable, direct activation, authentication, SQL ownership, and protocol execution were not broadened.
