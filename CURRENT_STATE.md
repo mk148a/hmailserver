@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T22:05:00Z / 2026-08-11T01:05:00+03:00
+- UTC/local timestamp: 2026-08-10T18:41:05Z / 2026-08-10T21:41:05+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `9e97d7b0e`
+- Current HEAD: `d77fa9426`
 - Last successfully pushed commit: `0b2646731`
-- Latest focused-test result: combined settings/domain restore execution `19 passed, 0 failed, 0 skipped`
-- Latest full Net10 result: `2002 passed, 39 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; first-message and partial-message SQL/Data rollback, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: DB-only combined settings/domain restore ordering is implemented; reinitialize and real SQL/Data rollback remain unproven
-- Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing, settings restore store boundary, settings-only restore execution, combined settings/domain DB-only restore; no release milestone complete
-- Open production blockers: real disposable SQL/Data restore evidence, reinitialize/non-DB restore and live SQL/FTS backfill acceptance, credential policy, ACL restore, C++ protocol parity, paired SMTP/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
-- Environment blocked work: approved disposable SQL/Data target, legacy C++ runtime, SQL FTS/ADO baseline, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
+- Latest focused-test result: `BackupManagerComContractTests` 28 passed, 0 failed, 0 skipped
+- Latest full Net10 result: `2004 passed, 39 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; SQL/Data rollback, SQL/FTS, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
+- Current bounded slice: backup metadata extraction is bounded to the existing 1 MiB XML parser limit before unbounded stdout allocation; COM identity and restore behavior are unchanged
+- Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing/store/execution, combined settings/domain DB-only restore; no release milestone complete
+- Open production blockers: real disposable SQL/Data restore evidence, non-DB settings restore and reinitialize, live SQL/FTS backfill, credential policy, ACL restore, C++ protocol parity, paired SMTP/message-acceptance/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
+- Environment blocked work: healthy isolated C++ listener binary, SQL Server with Full-Text Search and supported legacy ADO provider, approved populated SQL/Data target, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) run settings and message rollback tests on the approved disposable target, (2) non-DB combined settings restore policy/containment decision, (3) live SQL/FTS/backfill acceptance when the isolated target exists
+- Next three independent slices: (1) route-identity validation for restored `SendUsingRoute` actions, (2) non-DB combined settings restore containment/order decision, (3) rerun paired C++/.NET protocol and concurrency benchmarks after the healthy C++/SQL-FTS prerequisites exist

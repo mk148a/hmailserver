@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, bounded metadata extraction)
+
+Code/test commit `d77fa9426` bounds `SevenZipBackupArchiveMetadataReader` before
+`ReadToEnd()` allocation to the existing 1 MiB XML parser limit. Focused
+`BackupManagerComContractTests` coverage is `28/28`; full Net10 is `2004 passed,
+39 skipped, 0 failed`. The limit is a restore
+input safety boundary; it does not change COM identity, restore ordering, or
+production database/Data behavior.
+
+The paired C++/.NET performance gate remains **RED**. The isolated benchmark
+proves 1,000 byte-identical message files and reports separate disposable SQL
+fixtures, but C++ completed only `4/25` IMAP and `0/25` POP3 sessions, while
+.NET completed `25/25` for each protocol. The 1,000-concurrent IMAP pair is
+also invalid (`.NET 1000/1000`, C++ `0/1000`); no speed-up ratio is valid.
+See `hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT.md`
+and the protected untracked evidence under `artifacts/benchmarks/`.
+
+Release remains RED. A normal isolated C++ listener binary, SQL Server
+Full-Text Search, populated SQL/Data rollback evidence, SEC-18 cutover,
+migration/installer rollback, and 24-hour live soak remain open.
+
 ## Current parity continuation (2026-08-10, combined settings/domain restore)
 
 Code/test commit `a8f55de14` extends the DB-only restore path to accept

@@ -1,4 +1,23 @@
 
+## Current Audit Note (2026-08-10, BOUNDED BACKUP METADATA EXTRACTION)
+
+Code/test commit `d77fa9426` closes the unbounded restore metadata read in
+`SevenZipBackupArchiveMetadataReader.ReadMetadataXml`
+(`src/HMailServer.ComInterop/BackupManager.cs`). The reader now rejects output
+above the existing 1 MiB `BackupArchiveXmlSnapshotParser.ParseDocument`
+`MaxCharactersInDocument` limit before growing an unbounded string; boundary
+and over-limit tests are in `BackupManagerComContractTests` (`28/28`), with full
+Net10 at `2004 passed, 39 skipped, 0 failed`. This is
+a restore input safety fix only and preserves the installed COM identity and
+legacy restore sequencing.
+
+The paired C++/.NET performance gate remains RED. The protected live evidence
+proves equal 1,000-file Data corpora, but C++ completed only 4/25 IMAP and 0/25
+POP3 samples; C++ concurrent IMAP completed 0/1,000. Separate SQL row-count
+reports are not independent database equality proof, and no ratio is valid.
+Next independent repository slice: validate or reject portable `RouteID`
+values in restored `SendUsingRoute` rule actions before egress execution.
+
 ## Current Audit Note (2026-08-10, COMBINED SETTINGS/DOMAIN RESTORE)
 
 Code/test commit `a8f55de14` extends the DB-only executor to the exact

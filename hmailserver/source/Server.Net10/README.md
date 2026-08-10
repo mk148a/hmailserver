@@ -1,3 +1,18 @@
+## Current parity continuation (2026-08-10, bounded metadata extraction)
+
+Code/test commit `d77fa9426` changes `SevenZipBackupArchiveMetadataReader` to
+bound metadata stdout at the existing `BackupArchiveXmlSnapshotParser` 1 MiB
+document limit before accumulating the complete string. Focused coverage is
+`BackupManagerComContractTests` `28/28`; full Net10 is `2004 passed, 39 skipped,
+0 failed`. No COM contract or restore behavior changed. The security boundary is anchored by the parser's
+`XmlReaderSettings.MaxCharactersInDocument` and does not touch production
+archives or databases.
+
+The live C++/.NET benchmark evidence remains diagnostic only: equal message
+file corpus is proven, but C++ IMAP and POP3 did not complete the same matrix
+and the concurrent pair is invalid. No performance winner or ratio may be
+claimed. Release and performance gates remain RED.
+
 ## Current parity continuation (2026-08-10, combined settings/domain restore)
 
 Code/test commit `a8f55de14` extends DB-only restore to

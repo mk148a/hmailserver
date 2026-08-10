@@ -1,5 +1,21 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, BOUNDED BACKUP METADATA)
+
+Code/test commit `d77fa9426` bounds 7-Zip metadata extraction to the existing
+1 MiB parser limit and adds boundary/overflow tests. Focused coverage is
+`BackupManagerComContractTests` `28/28`; full Net10 is `2004 passed, 39 skipped,
+0 failed`. No COM identity, restore ordering, production SQL, or Data directory
+was changed.
+
+The C++/.NET performance gate is still **RED**. The live evidence has equal
+1,000-file message corpora, but the C++ side did not complete the same IMAP,
+POP3, or 1,000-concurrent-IMAP matrix, so no speed-up ratio is valid. The next
+independent code slice is route-identity validation for restored
+`SendUsingRoute` actions. Environment-gated work remains the healthy isolated
+C++ binary, SQL Server Full-Text Search, real SQL/Data rollback, SEC-18,
+migration/installer, and 24-hour soak. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, COMBINED SETTINGS/DOMAIN RESTORE)
 
 Code/test commit `a8f55de14` extends DB-only restore to the exact
