@@ -1,3 +1,15 @@
+## Current parity continuation (2026-08-10, transactional settings restore boundary)
+
+Code/test commit `9dd56fa60` adds the transaction-scoped
+`ISettingsRestoreAdministrationStore` and SQL Server update-only implementation.
+Each property is applied with parameters to an existing `hm_settings` row; no
+insert/delete/drop path is present. The restore executor does not call this
+store yet, preserving restore flags, live settings, and COM behavior. Focused
+coverage is `9/9`; full default Net10 is `1998 passed, 39 skipped, 0 failed`.
+Actual disposable SQL/Data execution, rollback evidence, credential policy,
+and executor wiring remain open and RED. Next slice: wire parsed settings into
+the existing transactional DB-only restore path without live reconfiguration.
+
 ## Current parity continuation (2026-08-10, settings restore parsing)
 
 Code/test commit `9b6544736` adds parser-only settings restore coverage. The

@@ -1,5 +1,17 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, TRANSACTIONAL SETTINGS RESTORE BOUNDARY)
+
+Code/test commit `9dd56fa60` adds the transaction-scoped
+`ISettingsRestoreAdministrationStore` and SQL Server update-only path. It
+updates existing `hm_settings` rows with parameters and is exposed from the
+existing backup-restore transaction; the executor does not call it yet. Focused
+coverage is `9/9`; full default Net10 is `1998 passed, 39 skipped, 0 failed`.
+Disposable SQL/Data execution, settings rollback, credential handling, and
+executor wiring remain unproven. Next slice: wire parsed settings into the
+transactional DB-only restore path without live reconfiguration. Release and
+performance gates remain RED. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, SETTINGS RESTORE PARSING)
 
 Code/test commit `9b6544736` adds parser-only settings restore coverage.

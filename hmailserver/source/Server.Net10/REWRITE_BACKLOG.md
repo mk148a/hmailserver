@@ -1,4 +1,20 @@
 
+## Current Audit Note (2026-08-10, TRANSACTIONAL SETTINGS RESTORE BOUNDARY)
+
+Code/test commit `9dd56fa60` adds `ISettingsRestoreAdministrationStore` and
+`SqlServerSettingsRestoreAdministrationStore`. The store applies ordered
+`BackupSettingsPropertySnapshot` values with a parameterized update of existing
+`hm_settings` rows inside the existing backup-restore transaction context; it
+does not insert unknown properties or expose delete/drop operations. The
+executor is intentionally not wired yet, so no restore flag or live
+reconfiguration behavior changed. Focused settings/transaction coverage is
+`9/9`; full default Net10 is `1998 passed, 39 skipped, 0 failed`.
+
+The actual isolated SQL/Data execution, settings failure rollback, secret
+credential policy, and executor wiring remain unproven. The next bounded slice
+is wiring parsed settings into the existing transactional DB-only restore path
+without live reconfiguration; release and performance gates remain RED.
+
 ## Current Audit Note (2026-08-10, SETTINGS RESTORE PARSING)
 
 Code/test commit `9b6544736` adds parser-only settings restore coverage. Legacy

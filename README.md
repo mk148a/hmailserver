@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, transactional settings restore boundary)
+
+Code/test commit `9dd56fa60` adds the transaction-scoped
+`ISettingsRestoreAdministrationStore` boundary and SQL Server implementation.
+It applies each parsed property through a parameterized update of an existing
+`hm_settings` row, with no insert/delete/drop path, and exposes the store from
+the existing backup-restore transaction. The executor does not call it yet, so
+restore flags, live settings, and COM behavior are unchanged. Focused settings
+and transaction coverage is `9/9`; full default Net10 is `1998 passed, 39
+skipped, 0 failed`.
+
+The actual isolated SQL/Data restore, rollback on settings failure, credential
+policy, and executor wiring remain open. Release and performance gates remain
+RED. The next bounded slice is wiring parsed settings into the existing
+transactional DB-only restore path without live reconfiguration.
+
 ## Current parity continuation (2026-08-10, settings restore parsing)
 
 Code/test commit `9b6544736` adds parser-only settings restore coverage. The
