@@ -15,7 +15,8 @@ public sealed record BackupRestoreMetadataResult(
     int RestoredRules = 0,
     int RestoredRuleCriteria = 0,
     int RestoredRuleActions = 0,
-    int RestoredFolders = 0);
+    int RestoredFolders = 0,
+    int RestoredMessages = 0);
 
 [ComVisible(false)]
 public static class BackupRestoreMetadataWriter
@@ -291,9 +292,11 @@ public static class BackupRestoreMetadataWriter
         IReadOnlyList<RestoreFolderEntry> folders,
         int accountId,
         IImapFolderAdministrationRestoreStore store,
+        IMessageAdministrationRestoreStore? messageStore,
         Func<ValueTask> rollbackAsync,
         CancellationToken cancellationToken,
-        Action<int>? onRootInserted = null)
+        Action<int>? onRootInserted = null,
+        Action<int, long>? onMessageInserted = null)
     {
         ArgumentNullException.ThrowIfNull(folders);
         ArgumentNullException.ThrowIfNull(store);
@@ -310,7 +313,9 @@ public static class BackupRestoreMetadataWriter
                         accountId,
                         parentFolderId: -1,
                         store,
-                        ct).ConfigureAwait(false);
+                        messageStore,
+                        ct,
+                        onMessageInserted).ConfigureAwait(false);
                     restored += CountFolders(root);
                     onRootInserted?.Invoke(rootId);
                 }
@@ -325,7 +330,8 @@ public static class BackupRestoreMetadataWriter
             RestoredAliases: 0,
             RestoredDistributionLists: 0,
             RestoredRecipients: 0,
-            RestoredFolders: restored);
+            RestoredFolders: restored,
+            RestoredMessages: folders.Sum(static folder => CountMessages(folder)));
     }
 
     private static async ValueTask<int> RestoreFolderAsync(
@@ -333,14 +339,29 @@ public static class BackupRestoreMetadataWriter
         int accountId,
         int parentFolderId,
         IImapFolderAdministrationRestoreStore store,
-        CancellationToken cancellationToken)
+        IMessageAdministrationRestoreStore? messageStore,
+        CancellationToken cancellationToken,
+        Action<int, long>? onMessageInserted)
     {
         var inserted = await store.InsertFolderForRestoreAsync(
             entry.Folder with { AccountId = accountId, ParentId = parentFolderId },
             cancellationToken).ConfigureAwait(false);
+        foreach (var message in entry.Messages)
+        {
+            if (messageStore is null)
+            {
+                throw new InvalidOperationException("Message restore requires a message administration restore store.");
+            }
+            var insertedMessage = await messageStore.InsertMessageForRestoreAsync(
+                accountId,
+                inserted.Id,
+                message with { AccountId = accountId, FolderId = inserted.Id },
+                cancellationToken).ConfigureAwait(false);
+            onMessageInserted?.Invoke(inserted.Id, insertedMessage.MessageId);
+        }
         foreach (var child in entry.Children)
         {
-            await RestoreFolderAsync(child, accountId, inserted.Id, store, cancellationToken)
+            await RestoreFolderAsync(child, accountId, inserted.Id, store, messageStore, cancellationToken, onMessageInserted)
                 .ConfigureAwait(false);
         }
 
@@ -349,4 +370,7 @@ public static class BackupRestoreMetadataWriter
 
     private static int CountFolders(RestoreFolderEntry entry) =>
         1 + entry.Children.Sum(CountFolders);
+
+    private static int CountMessages(RestoreFolderEntry entry) =>
+        entry.Messages.Count + entry.Children.Sum(CountMessages);
 }

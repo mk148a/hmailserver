@@ -131,6 +131,20 @@ public sealed class SqlServerMessageAdministrationStoreTests
     }
 
     [TestMethod]
+    public void InsertMessageForRestoreSql_PreservesUidAndUsesLegacyRestoreDefaults()
+    {
+        var sql = SqlServerMessageAdministrationStore.InsertMessageForRestoreSql;
+        StringAssert.Contains(sql, "OUTPUT INSERTED.messageid");
+        StringAssert.Contains(sql, "CONVERT(datetime, '1901-01-01', 120)");
+        StringAssert.Contains(sql, "SELECT @AccountID, @FolderID");
+        StringAssert.Contains(sql, "0, @Uid");
+        StringAssert.Contains(sql, "folderid = @FolderID");
+        StringAssert.Contains(sql, "folderaccountid = @AccountID");
+        Assert.IsFalse(sql.Contains("foldercurrentuid", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_messagerecipients", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void AllocateFolderUidSql_IsOwnerScopedAndReturnsIncrementedFolderUid()
     {
         var sql = SqlServerMessageAdministrationStore.AllocateFolderUidSql;

@@ -25,7 +25,8 @@ public sealed record RestoreRuleEntry(
 [ComVisible(false)]
 public sealed record RestoreFolderEntry(
     ImapFolderAdministrationSnapshot Folder,
-    IReadOnlyList<RestoreFolderEntry> Children);
+    IReadOnlyList<RestoreFolderEntry> Children,
+    IReadOnlyList<MessageAdministrationSnapshot> Messages);
 
 [ComVisible(false)]
 public sealed record RestoreFetchAccountEntry(
@@ -205,10 +206,10 @@ public static class BackupArchiveXmlSnapshotParser
 
     private static RestoreFolderEntry ParseFolder(XElement element)
     {
-        if (element.Element("Messages") is not null || element.Element("Permissions") is not null)
+        if (element.Element("Permissions") is not null)
         {
             throw new InvalidDataException(
-                "Folder restore with messages or permissions is outside the bounded folder-metadata slice.");
+                "Folder restore with permissions is outside the bounded message-metadata slice.");
         }
 
         var folder = new ImapFolderAdministrationSnapshot(
@@ -223,7 +224,27 @@ public static class BackupArchiveXmlSnapshotParser
             .Select(ParseFolder)
             .ToArray()
             ?? Array.Empty<RestoreFolderEntry>();
-        return new RestoreFolderEntry(folder, children);
+        var messages = element.Element("Messages")?.Elements("Message")
+            .Select(message => new MessageAdministrationSnapshot(
+                Id: 0,
+                AccountId: 0,
+                FolderId: 0,
+                FileName: message.Attribute("Filename")?.Value ?? string.Empty,
+                State: IntAttr(message, "State"),
+                FromAddress: message.Attribute("FromAddress")?.Value ?? string.Empty,
+                SizeBytes: LongAttr(message, "Size"),
+                CurrentNumberOfTries: 0,
+                Flags: IntAttr(message, "Flags"),
+                InternalDate: DateTimeAttr(message, "CreateTime"),
+                Uid: LongAttr(message, "UID")))
+            .ToArray()
+            ?? Array.Empty<MessageAdministrationSnapshot>();
+        if (messages.Any(static message => message.State != 2))
+        {
+            throw new InvalidDataException("Only delivered folder messages are supported by this restore slice.");
+        }
+
+        return new RestoreFolderEntry(folder, children, messages);
     }
 
     private static RestoreRuleEntry ParseRule(XElement element, int accountId)
@@ -354,6 +375,11 @@ public static class BackupArchiveXmlSnapshotParser
 
     private static int IntAttr(XElement element, string name) =>
         int.TryParse(element.Attribute(name)?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : 0;
+
+    private static long LongAttr(XElement element, string name) =>
+        long.TryParse(element.Attribute(name)?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
             ? value
             : 0;
 

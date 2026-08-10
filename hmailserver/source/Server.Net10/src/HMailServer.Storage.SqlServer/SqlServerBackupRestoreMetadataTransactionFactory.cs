@@ -63,6 +63,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         RuleCriteriaStore = new SqlServerRuleCriteriaAdministrationStore(context);
         RuleActionStore = new SqlServerRuleActionAdministrationStore(context);
         FolderRestoreStore = _publicFolderStore;
+        MessageRestoreStore = new SqlServerMessageAdministrationStore(context);
     }
 
     public IDomainAdministrationStore DomainStore { get; }
@@ -84,6 +85,8 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     public IRuleActionAdministrationStore RuleActionStore { get; }
 
     public IImapFolderAdministrationRestoreStore FolderRestoreStore { get; }
+
+    public IMessageAdministrationRestoreStore MessageRestoreStore { get; }
 
     public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         _domainStore.DeleteAllDomainsForRestoreAsync(cancellationToken);

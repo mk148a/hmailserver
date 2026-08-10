@@ -45,6 +45,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
     private readonly IRuleActionAdministrationStore? _ruleActionStore;
     private readonly IImapFolderAdministrationRestoreStore? _folderRestoreStore;
     private readonly IImapFolderAdministrationRestoreDeletionStore? _folderRestoreDeletionStore;
+    private readonly IMessageAdministrationRestoreStore? _messageRestoreStore;
+    private readonly IMessageAdministrationStore? _messageStore;
     private readonly SevenZipBackupArchiveMetadataReader _metadataReader;
     private readonly BackupRestoreDataDirectoryRuntime _dataDirectoryRuntime;
     private readonly Func<BackupRestoreDataDirectoryBoundary> _dataDirectoryBoundaryFactory;
@@ -68,7 +70,9 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IRuleCriteriaAdministrationStore? ruleCriteriaStore = null,
         IRuleActionAdministrationStore? ruleActionStore = null,
         IImapFolderAdministrationRestoreStore? folderRestoreStore = null,
-        IImapFolderAdministrationRestoreDeletionStore? folderRestoreDeletionStore = null)
+        IImapFolderAdministrationRestoreDeletionStore? folderRestoreDeletionStore = null,
+        IMessageAdministrationRestoreStore? messageRestoreStore = null,
+        IMessageAdministrationStore? messageStore = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
@@ -92,6 +96,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         _ruleActionStore = ruleActionStore;
         _folderRestoreStore = folderRestoreStore;
         _folderRestoreDeletionStore = folderRestoreDeletionStore;
+        _messageRestoreStore = messageRestoreStore;
+        _messageStore = messageStore;
         _dataDirectoryRuntime = dataDirectoryRuntime ?? new BackupRestoreDataDirectoryRuntime(sevenZipExecutablePath);
         _dataDirectoryBoundaryFactory = dataDirectoryBoundaryFactory
             ?? (() => new BackupRestoreDataDirectoryBoundary(
@@ -327,6 +333,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var insertedRecipientIds = new List<(int ListId, int RecipientId, string Address)>();
         var insertedRuleIds = new List<(int AccountId, int RuleId)>();
         var insertedFolderRootIds = new List<(int AccountId, int FolderId, int ParentId)>();
+        var insertedMessageIds = new List<(int AccountId, int FolderId, long MessageId)>();
 
         IBackupRestoreMetadataTransaction? metadataTransaction = null;
         using var authorizationLease = authorizationLeaseFactory is null
@@ -360,6 +367,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             var ruleCriteriaStore = metadataTransaction?.RuleCriteriaStore ?? _ruleCriteriaStore;
             var ruleActionStore = metadataTransaction?.RuleActionStore ?? _ruleActionStore;
             var folderRestoreStore = metadataTransaction?.FolderRestoreStore ?? _folderRestoreStore;
+            var messageRestoreStore = metadataTransaction?.MessageRestoreStore ?? _messageRestoreStore;
             if (domains.SelectMany(static domain => domain.Accounts).Any(static account => account.Folders.Count > 0)
                 && folderRestoreStore is null)
             {
@@ -371,6 +379,13 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             {
                 throw new InvalidOperationException(
                     "Non-transaction folder restore requires a folder restore deletion store for rollback.");
+            }
+            if (domains.SelectMany(static domain => domain.Accounts)
+                    .SelectMany(static account => account.Folders)
+                    .Any(static folder => folder.Messages.Count > 0)
+                && messageRestoreStore is null)
+            {
+                throw new InvalidOperationException("Message restore requires a message administration restore store.");
             }
             if (domains.SelectMany(static domain => domain.Accounts).Any(static account => account.Rules.Count > 0)
                 && (ruleStore is null || ruleCriteriaStore is null || ruleActionStore is null))
@@ -390,7 +405,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                     insertedRecipientIds,
                     insertedFetchAccountIds,
                     insertedRuleIds,
-                    insertedFolderRootIds)
+                    insertedFolderRootIds,
+                    insertedMessageIds)
                 : static () => default;
 
             if (useSqlTransaction && metadataTransaction is not null)
@@ -494,10 +510,12 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                                     account.Folders,
                                     restoredAccountId,
                                     folderRestoreStore!,
+                                    messageRestoreStore!,
                                     static () => default,
                                     ct,
                                     folderId => insertedFolderRootIds.Add(
-                                        (restoredAccountId, folderId, -1))).ConfigureAwait(false);
+                                        (restoredAccountId, folderId, -1)),
+                                    (folderId, messageId) => insertedMessageIds.Add((restoredAccountId, folderId, messageId))).ConfigureAwait(false);
                                 accountIndex++;
                             }
                         }
@@ -560,8 +578,21 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<(int ListId, int RecipientId, string Address)> recipientIds,
         IReadOnlyList<(int AccountId, int FetchAccountId)> fetchAccountIds,
         IReadOnlyList<(int AccountId, int RuleId)> ruleIds,
-        IReadOnlyList<(int AccountId, int FolderId, int ParentId)> folderRootIds)
+        IReadOnlyList<(int AccountId, int FolderId, int ParentId)> folderRootIds,
+        IReadOnlyList<(int AccountId, int FolderId, long MessageId)> messageIds)
     {
+        if (_messageStore is not null)
+        {
+            foreach (var item in messageIds.Reverse())
+            {
+                var deleted = await _messageStore.DeleteMessageAsync(
+                    item.AccountId, item.FolderId, item.MessageId, CancellationToken.None).ConfigureAwait(false);
+                if (!deleted)
+                {
+                    throw new InvalidOperationException("Restore rollback could not delete a message.");
+                }
+            }
+        }
         if (_folderRestoreDeletionStore is not null)
         {
             foreach (var item in folderRootIds.Reverse())

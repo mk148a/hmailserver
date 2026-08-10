@@ -1459,6 +1459,8 @@ public sealed class BackupXmlPayloadRuntime
                 ruleCriteriaStore: _ruleCriteriaStore,
                 ruleActionStore: _ruleActionStore,
                 folderRestoreStore: _folderRestoreStore,
-                folderRestoreDeletionStore: _folderStore as IImapFolderAdministrationRestoreDeletionStore));
+                folderRestoreDeletionStore: _folderStore as IImapFolderAdministrationRestoreDeletionStore,
+                messageRestoreStore: _messageStore as IMessageAdministrationRestoreStore,
+                messageStore: _messageStore));
     }
 }

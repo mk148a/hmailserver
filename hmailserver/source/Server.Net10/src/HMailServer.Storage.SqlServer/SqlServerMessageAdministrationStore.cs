@@ -5,7 +5,7 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerMessageAdministrationStore : IMessageAdministrationStore
+public sealed class SqlServerMessageAdministrationStore : IMessageAdministrationStore, IMessageAdministrationRestoreStore
 {
     public const string GetAccountMessagesSql = """
 SELECT
@@ -101,12 +101,68 @@ ORDER BY messageuid ASC, messageid ASC;
         WHERE messageaccountid = @AccountID AND messagefolderid = @FolderID;
         """;
 
+    public const string InsertMessageForRestoreSql = """
+INSERT INTO hm_messages
+    (messageaccountid, messagefolderid, messagefilename, messagetype, messagefrom,
+     messagesize, messagecurnooftries, messagenexttrytime, messageflags,
+     messagecreatetime, messagelocked, messageuid)
+OUTPUT INSERTED.messageid
+SELECT @AccountID, @FolderID, @FileName, @State, @From,
+       @Size, 0, CONVERT(datetime, '1901-01-01', 120), @Flags,
+       @CreateTime, 0, @Uid
+WHERE EXISTS
+(
+    SELECT 1 FROM hm_imapfolders
+    WHERE folderid = @FolderID AND folderaccountid = @AccountID
+);
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerMessageAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    internal SqlServerMessageAdministrationStore(SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
+    }
+
+    public async ValueTask<MessageAdministrationInsertResult> InsertMessageForRestoreAsync(
+        int accountId,
+        int folderId,
+        MessageAdministrationSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertMessageForRestoreSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        command.Parameters.Add("@FileName", SqlDbType.NVarChar, 255).Value = snapshot.FileName;
+        command.Parameters.Add("@State", SqlDbType.TinyInt).Value = snapshot.State;
+        command.Parameters.Add("@From", SqlDbType.NVarChar, 255).Value = snapshot.FromAddress;
+        command.Parameters.Add("@Size", SqlDbType.BigInt).Value = snapshot.SizeBytes;
+        command.Parameters.Add("@Flags", SqlDbType.TinyInt).Value = snapshot.Flags;
+        command.Parameters.Add("@CreateTime", SqlDbType.DateTime).Value = snapshot.InternalDate;
+        command.Parameters.Add("@Uid", SqlDbType.BigInt).Value = snapshot.Uid;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        if (insertedId is null || insertedId == DBNull.Value)
+        {
+            throw new InvalidOperationException("The restored message insert did not return a generated identity.");
+        }
+
+        return new MessageAdministrationInsertResult(
+            Convert.ToInt64(insertedId, CultureInfo.InvariantCulture), snapshot.Uid, snapshot.State);
     }
 
 

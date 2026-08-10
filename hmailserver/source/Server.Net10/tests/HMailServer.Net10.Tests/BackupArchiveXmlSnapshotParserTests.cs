@@ -223,7 +223,7 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
-    public void ParseDomainEntries_ReconstructsFolderMetadataAndRejectsMessagePayload()
+    public void ParseDomainEntries_ReconstructsFolderAndMessageMetadataAndRejectsPermissions()
     {
         const string xml = """
             <Backup>
@@ -253,9 +253,21 @@ public sealed class BackupArchiveXmlSnapshotParserTests
 
         var withMessages = xml.Replace(
             "CurrentUID=\"5\">",
-            "CurrentUID=\"5\"><Messages />",
+            "CurrentUID=\"5\"><Messages><Message CreateTime=\"2026-07-01 12:32:00\" Filename=\"one.eml\" FromAddress=\"sender@example.test\" State=\"2\" Size=\"42\" NoOfRetries=\"9\" Flags=\"1\" ID=\"77\" UID=\"8\" /></Messages>",
             StringComparison.Ordinal);
-        Assert.ThrowsExactly<InvalidDataException>(() => BackupArchiveXmlSnapshotParser.ParseDomainEntries(withMessages));
+        var message = BackupArchiveXmlSnapshotParser.ParseDomainEntries(withMessages)
+            .Single().Accounts.Single().Folders.Single().Messages.Single();
+        Assert.AreEqual("one.eml", message.FileName);
+        Assert.AreEqual(42, message.SizeBytes);
+        Assert.AreEqual(1, message.Flags);
+        Assert.AreEqual(8, message.Uid);
+        Assert.AreEqual(0, message.CurrentNumberOfTries);
+
+        var withPermissions = xml.Replace(
+            "CurrentUID=\"2\" />",
+            "CurrentUID=\"2\"><Permissions /></Folder>",
+            StringComparison.Ordinal);
+        Assert.ThrowsExactly<InvalidDataException>(() => BackupArchiveXmlSnapshotParser.ParseDomainEntries(withPermissions));
     }
 
     [TestMethod]
