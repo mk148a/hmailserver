@@ -2505,6 +2505,33 @@ out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
 environment-blocked. Next slice: fresh legacy-first audit of one remaining
 low-risk Settings mutation.
 
+## Current Audit Note (2026-08-11, ALLOW SMTP AUTH PLAIN ADMIN MUTATION)
+
+Code/test commit `5ff8ef8ee` implements the authenticated
+`IInterfaceSettings.AllowSMTPAuthPlain` setter (`DispId(8)`, `VARIANT_BOOL`)
+only. The .NET path updates the existing `hm_settings.authallowplaintext`
+row through a parameterized integer command, requires exactly one affected
+row, rechecks the live server-administrator callback, and publishes the
+retained snapshot only after success. Direct activation denial, true/false
+writes, failed-write retention, administrator revocation, one-row enforcement,
+and exact SQL shape are covered. Focused settings/store coverage is `68/68`;
+full Net10 is `2051 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.AllowSMTPAuthPlain`
+(`source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::put_AllowSMTPAuthPlain`,
+`SMTPConfiguration::SetAuthAllowPlainText`, generic `PropertySet::SetBool`,
+and the `authallowplaintext` SQL seed
+(`source/DBScripts/CreateTablesMSSQL.sql:734`). SMTP protocol advertisement,
+AUTH behavior, and runtime reconfiguration were deliberately not changed;
+this is persistence parity only.
+
+Real SQL/Data rollback, non-DB settings restore/reinitialization, SQL/FTS,
+paired legacy/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
+environment-blocked. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation.
+
 ## Current Audit Note (2026-08-11, TCPIP THREADS ADMIN MUTATION)
 
 Code/test commit `2752b90ad` implements the authenticated
