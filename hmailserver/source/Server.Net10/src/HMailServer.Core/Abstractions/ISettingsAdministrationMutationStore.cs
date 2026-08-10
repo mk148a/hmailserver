@@ -37,4 +37,8 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateMaxSmtpRecipientsInBatchAsync(
         int maxSmtpRecipientsInBatch,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateMaxNumberOfInvalidCommandsAsync(
+        int maxNumberOfInvalidCommands,
+        CancellationToken cancellationToken);
 }

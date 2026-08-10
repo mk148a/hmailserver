@@ -1112,7 +1112,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MaxNumberOfInvalidCommands
                 : _administrationSnapshot.MaxNumberOfInvalidCommands;
         }
-        set => base.MaxNumberOfInvalidCommands = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxNumberOfInvalidCommands = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateMaxNumberOfInvalidCommandsAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum number of invalid commands update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxNumberOfInvalidCommands = value
+                };
+            }
+        }
     }
 
     public override bool IMAPACLEnabled

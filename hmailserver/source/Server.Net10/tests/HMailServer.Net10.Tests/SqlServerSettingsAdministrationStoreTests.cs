@@ -123,6 +123,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateMaxNumberOfInvalidCommandsSql_UpdatesOnlyTheExistingRowWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateMaxNumberOfInvalidCommandsSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settinginteger = @MaxNumberOfInvalidCommands");
+        StringAssert.Contains(sql, "WHERE settingname = N'maximumincorrectcommands'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void GetSettingsSql_ReadsOnlyBoundedLegacyAdministrationScalars()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;

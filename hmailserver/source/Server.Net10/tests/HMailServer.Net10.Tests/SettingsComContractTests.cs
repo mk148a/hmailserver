@@ -97,6 +97,7 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.WorkerThreadPriority), DispId: 57),
             (Name: nameof(IInterfaceSettings.TCPIPThreads), DispId: 60),
             (Name: nameof(IInterfaceSettings.MaxSMTPRecipientsInBatch), DispId: 62),
+            (Name: nameof(IInterfaceSettings.MaxNumberOfInvalidCommands), DispId: 65),
             (Name: nameof(IInterfaceSettings.MaxInvalidLogonAttempts), DispId: 83),
             (Name: nameof(IInterfaceSettings.MaxInvalidLogonAttemptsWithin), DispId: 84),
             (Name: nameof(IInterfaceSettings.AutoBanMinutes), DispId: 85),
@@ -198,6 +199,10 @@ public sealed class SettingsComContractTests
             () => _ = ((IInterfaceSettings)settings).MaxSMTPRecipientsInBatch);
         var recipientsScalarSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxSMTPRecipientsInBatch = 1);
+        var invalidCommandsError = Assert.ThrowsExactly<COMException>(
+            () => _ = ((IInterfaceSettings)settings).MaxNumberOfInvalidCommands);
+        var invalidCommandsSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).MaxNumberOfInvalidCommands = 1);
         var hostNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.HostName);
         var imapCapabilityError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSortEnabled);
         var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
@@ -240,6 +245,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, pop3ScalarSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, recipientsScalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, recipientsScalarSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, invalidCommandsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, invalidCommandsSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapCapabilityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
@@ -521,9 +528,6 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.DisconnectInvalidClients = false).ErrorCode);
-        Assert.AreEqual(
-            ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => settings.MaxNumberOfInvalidCommands = 6).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.IMAPSortEnabled = false).ErrorCode);
@@ -978,6 +982,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxNumberOfInvalidCommandsSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxNumberOfInvalidCommandsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxNumberOfInvalidCommands: 10),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MaxNumberOfInvalidCommands = 25;
+
+        Assert.AreEqual(1, store.MaxNumberOfInvalidCommandsUpdateCount);
+        Assert.AreEqual(25, store.UpdatedMaxNumberOfInvalidCommands);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(25, settings.MaxNumberOfInvalidCommands);
+
+        store.MaxNumberOfInvalidCommandsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxNumberOfInvalidCommands = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.MaxNumberOfInvalidCommandsUpdateCount);
+        Assert.AreEqual(25, settings.MaxNumberOfInvalidCommands);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxNumberOfInvalidCommands = 35);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.MaxNumberOfInvalidCommandsUpdateCount);
+        Assert.AreEqual(25, settings.MaxNumberOfInvalidCommands);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -1200,6 +1246,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxSmtpRecipientsInBatch { get; private set; }
 
+        public bool MaxNumberOfInvalidCommandsUpdateResult { get; set; }
+
+        public int MaxNumberOfInvalidCommandsUpdateCount { get; private set; }
+
+        public int UpdatedMaxNumberOfInvalidCommands { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<bool> UpdateDefaultDomainAsync(
@@ -1289,6 +1341,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxSmtpRecipientsInBatch = maxSmtpRecipientsInBatch;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxSmtpRecipientsInBatchUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMaxNumberOfInvalidCommandsAsync(
+            int maxNumberOfInvalidCommands,
+            CancellationToken cancellationToken)
+        {
+            MaxNumberOfInvalidCommandsUpdateCount++;
+            UpdatedMaxNumberOfInvalidCommands = maxNumberOfInvalidCommands;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(MaxNumberOfInvalidCommandsUpdateResult);
         }
 
     }

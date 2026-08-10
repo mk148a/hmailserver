@@ -63,6 +63,12 @@ SET settinginteger = @MaxSMTPRecipientsInBatch
 WHERE settingname = N'maxsmtprecipientsinbatch';
 """;
 
+    public const string UpdateMaxNumberOfInvalidCommandsSql = """
+UPDATE hm_settings
+SET settinginteger = @MaxNumberOfInvalidCommands
+WHERE settingname = N'maximumincorrectcommands';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -396,6 +402,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMaxSmtpRecipientsInBatchSql, connection);
         command.Parameters.Add("@MaxSMTPRecipientsInBatch", SqlDbType.Int).Value = maxSmtpRecipientsInBatch;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateMaxNumberOfInvalidCommandsAsync(
+        int maxNumberOfInvalidCommands,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateMaxNumberOfInvalidCommandsSql, connection);
+        command.Parameters.Add("@MaxNumberOfInvalidCommands", SqlDbType.Int).Value = maxNumberOfInvalidCommands;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
