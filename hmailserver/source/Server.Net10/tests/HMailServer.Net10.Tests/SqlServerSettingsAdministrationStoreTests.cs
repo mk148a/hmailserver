@@ -188,6 +188,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateVerifyRemoteSslCertificateSql_UsesTheExactParameterizedFixedRowShape()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateVerifyRemoteSslCertificateSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settinginteger = @VerifyRemoteSslCertificate\nWHERE settingname = N'VerifyRemoteSslCertificate';",
+            sql);
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateDisconnectInvalidClientsSql_UpdatesOnlyTheExistingRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateDisconnectInvalidClientsSql;

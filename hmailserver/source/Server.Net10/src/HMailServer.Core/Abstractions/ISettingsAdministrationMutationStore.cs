@@ -69,4 +69,8 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateMaxNumberOfMXHostsAsync(
         int maxNumberOfMXHosts,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateVerifyRemoteSslCertificateAsync(
+        bool verifyRemoteSslCertificate,
+        CancellationToken cancellationToken);
 }

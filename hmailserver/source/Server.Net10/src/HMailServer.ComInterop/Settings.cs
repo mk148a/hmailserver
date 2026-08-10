@@ -1713,7 +1713,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.VerifyRemoteSslCertificate
                 : _administrationSnapshot.VerifyRemoteSslCertificate;
         }
-        set => base.VerifyRemoteSslCertificate = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.VerifyRemoteSslCertificate = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateVerifyRemoteSslCertificateAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The remote SSL certificate verification update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    VerifyRemoteSslCertificate = value
+                };
+            }
+        }
     }
 
     public override string SslCipherList

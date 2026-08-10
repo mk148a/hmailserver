@@ -111,6 +111,12 @@ SET settinginteger = @MaxNumberOfMXHosts
 WHERE settingname = N'MaxNumberOfMXHosts';
 """;
 
+    public const string UpdateVerifyRemoteSslCertificateSql = """
+UPDATE hm_settings
+SET settinginteger = @VerifyRemoteSslCertificate
+WHERE settingname = N'VerifyRemoteSslCertificate';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -532,6 +538,18 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMaxNumberOfMXHostsSql, connection);
         command.Parameters.Add("@MaxNumberOfMXHosts", SqlDbType.Int).Value = maxNumberOfMXHosts;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateVerifyRemoteSslCertificateAsync(
+        bool verifyRemoteSslCertificate,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateVerifyRemoteSslCertificateSql, connection);
+        command.Parameters.Add("@VerifyRemoteSslCertificate", SqlDbType.Int).Value =
+            verifyRemoteSslCertificate ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

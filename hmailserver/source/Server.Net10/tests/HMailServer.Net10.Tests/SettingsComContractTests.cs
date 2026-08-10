@@ -263,6 +263,8 @@ public sealed class SettingsComContractTests
             () => settings.WelcomeIMAP = "direct-activation IMAP");
         var numericRuntimeError = Assert.ThrowsExactly<COMException>(() => _ = settings.RuleLoopLimit);
         var sslScalarError = Assert.ThrowsExactly<COMException>(() => _ = settings.VerifyRemoteSslCertificate);
+        var sslScalarSetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.VerifyRemoteSslCertificate = true);
         var networkPreferenceError = Assert.ThrowsExactly<COMException>(() => _ = settings.IPv6PreferredEnabled);
         var autoBanError = Assert.ThrowsExactly<COMException>(() => _ = settings.AutoBanOnLogonFailure);
         var clearLogonFailuresError = Assert.ThrowsExactly<COMException>(settings.ClearLogonFailureList);
@@ -318,6 +320,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, welcomeImapSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, numericRuntimeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, sslScalarError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, sslScalarSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, networkPreferenceError.ErrorCode);
         Assert.AreEqual(EAccessDenied, autoBanError.ErrorCode);
         Assert.AreEqual(EAccessDenied, clearLogonFailuresError.ErrorCode);
@@ -1165,6 +1168,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_VerifyRemoteSslCertificateSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            VerifyRemoteSslCertificateUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                VerifyRemoteSslCertificate: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.VerifyRemoteSslCertificate = true;
+
+        Assert.AreEqual(1, store.VerifyRemoteSslCertificateUpdateCount);
+        Assert.IsTrue(store.UpdatedVerifyRemoteSslCertificate);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.VerifyRemoteSslCertificate);
+
+        store.VerifyRemoteSslCertificateUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.VerifyRemoteSslCertificate = false);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.VerifyRemoteSslCertificateUpdateCount);
+        Assert.IsTrue(settings.VerifyRemoteSslCertificate);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.VerifyRemoteSslCertificate = false);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.VerifyRemoteSslCertificateUpdateCount);
+        Assert.IsTrue(settings.VerifyRemoteSslCertificate);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -1663,6 +1708,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAllowIncorrectLineEndings { get; private set; }
 
+        public bool VerifyRemoteSslCertificateUpdateResult { get; set; }
+
+        public int VerifyRemoteSslCertificateUpdateCount { get; private set; }
+
+        public bool UpdatedVerifyRemoteSslCertificate { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<bool> UpdateDefaultDomainAsync(
@@ -1832,6 +1883,16 @@ public sealed class SettingsComContractTests
             UpdatedAllowIncorrectLineEndings = allowIncorrectLineEndings;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AllowIncorrectLineEndingsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateVerifyRemoteSslCertificateAsync(
+            bool verifyRemoteSslCertificate,
+            CancellationToken cancellationToken)
+        {
+            VerifyRemoteSslCertificateUpdateCount++;
+            UpdatedVerifyRemoteSslCertificate = verifyRemoteSslCertificate;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(VerifyRemoteSslCertificateUpdateResult);
         }
 
     }
