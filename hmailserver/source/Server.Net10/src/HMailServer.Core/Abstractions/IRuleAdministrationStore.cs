@@ -23,4 +23,11 @@ public interface IRuleAdministrationStore
         RuleAdministrationSnapshot snapshot,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Rule update is not available in this store.");
+
+    ValueTask<bool> MoveRuleAsync(
+        int accountId,
+        int ruleId,
+        bool moveUp,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Rule reordering is not available in this store.");
 }

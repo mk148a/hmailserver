@@ -63,10 +63,14 @@ public sealed class RulesComContractTests
         var rulesError = Assert.ThrowsExactly<COMException>(() => _ = new Rules().Count);
         var refreshError = Assert.ThrowsExactly<COMException>(new Rules().Refresh);
         var ruleError = Assert.ThrowsExactly<COMException>(() => _ = new Rule().Name);
+        var moveUpError = Assert.ThrowsExactly<COMException>(new Rule().MoveUp);
+        var moveDownError = Assert.ThrowsExactly<COMException>(new Rule().MoveDown);
 
         Assert.AreEqual(EAccessDenied, rulesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, refreshError.ErrorCode);
         Assert.AreEqual(EAccessDenied, ruleError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, moveUpError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, moveDownError.ErrorCode);
     }
 
     [TestMethod]
@@ -330,6 +334,93 @@ public sealed class RulesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedRuleMove_UsesOwnerScopedStoreAndPublishesRenumberedOrderToSharedFacades()
+    {
+        var store = new MutableRuleAdministrationStore(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 100, "Second rule", false, false, 2),
+                new RuleAdministrationSnapshot(30, 100, "Third rule", true, true, 3),
+                new RuleAdministrationSnapshot(40, 200, "Foreign rule", true, true, 1)
+            });
+        RuleAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var rules = account.Rules;
+        var secondRules = account.Rules;
+        var middle = rules[1];
+
+        middle.MoveUp();
+
+        CollectionAssert.AreEqual(new[] { 20, 10, 30 }, Enumerable.Range(0, rules.Count).Select(index => rules[index].ID).ToArray());
+        CollectionAssert.AreEqual(new[] { 20, 10, 30 }, Enumerable.Range(0, secondRules.Count).Select(index => secondRules[index].ID).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { (100, 20, true) },
+            store.MoveCalls.ToArray());
+        CollectionAssert.AreEqual(
+            new[] { (20, 1), (10, 2), (30, 3) },
+            store.Rules.Where(rule => rule.AccountId == 100).OrderBy(rule => rule.SortOrder).Select(rule => (rule.Id, rule.SortOrder)).ToArray());
+
+        middle.MoveDown();
+
+        CollectionAssert.AreEqual(new[] { 10, 20, 30 }, Enumerable.Range(0, rules.Count).Select(index => rules[index].ID).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { (100, 20, true), (100, 20, false) },
+            store.MoveCalls.ToArray());
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleMove_RetainedFacadeSavePreservesMovedSortOrder()
+    {
+        var store = new MutableRuleAdministrationStore(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 100, "Second rule", false, false, 2),
+                new RuleAdministrationSnapshot(30, 100, "Third rule", true, true, 3)
+            });
+        RuleAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var rules = account.Rules;
+        var retained = rules[1];
+
+        retained.MoveUp();
+        retained.Name = "Renamed second rule";
+        retained.Save();
+
+        CollectionAssert.AreEqual(new[] { 20, 10, 30 }, Enumerable.Range(0, rules.Count).Select(index => rules[index].ID).ToArray());
+        var persisted = store.Rules.Single(rule => rule.Id == 20);
+        Assert.AreEqual("Renamed second rule", persisted.Name);
+        Assert.AreEqual(1, persisted.SortOrder);
+        Assert.AreEqual(1, store.UpdateCalls.Count);
+        Assert.AreEqual(1, store.UpdateCalls[0].SortOrder);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuleMove_BoundariesAreSuccessfulNoOpsAndStoreFailureRetainsGeneration()
+    {
+        var store = new MutableRuleAdministrationStore(
+            new[]
+            {
+                new RuleAdministrationSnapshot(10, 100, "First rule", true, true, 1),
+                new RuleAdministrationSnapshot(20, 100, "Second rule", false, false, 2)
+            });
+        RuleAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var rules = account.Rules;
+
+        rules[0].MoveUp();
+        rules[1].MoveDown();
+        Assert.AreEqual(0, store.MoveCalls.Count);
+
+        store.FailMove = true;
+        var failure = Assert.ThrowsExactly<COMException>(rules[1].MoveUp);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failure.ErrorCode);
+        CollectionAssert.AreEqual(new[] { 10, 20 }, Enumerable.Range(0, rules.Count).Select(index => rules[index].ID).ToArray());
+    }
+
+    [TestMethod]
     public void FailedInsert_MapsToEFailAndRetainsDraftWithoutPublishing()
     {
         var fail = true;
@@ -516,7 +607,13 @@ public sealed class RulesComContractTests
 
         public bool FailDelete { get; set; }
 
+        public bool FailMove { get; set; }
+
         public List<(int AccountId, int RuleId)> DeleteCalls { get; } = [];
+
+        public List<(int AccountId, int RuleId, bool MoveUp)> MoveCalls { get; } = [];
+
+        public List<RuleAdministrationSnapshot> UpdateCalls { get; } = [];
 
         public ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetRulesAsync(
             int accountId,
@@ -545,6 +642,58 @@ public sealed class RulesComContractTests
 
             DeleteCalls.Add((accountId, ruleId));
             Rules = Rules.Where(rule => !ReferenceEquals(rule, match)).ToArray();
+            return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<bool> MoveRuleAsync(
+            int accountId,
+            int ruleId,
+            bool moveUp,
+            CancellationToken cancellationToken)
+        {
+            if (FailMove)
+            {
+                throw new InvalidOperationException("store failed");
+            }
+
+            var ownerRules = Rules
+                .Where(rule => rule.AccountId == accountId)
+                .OrderBy(rule => rule.SortOrder)
+                .ThenBy(rule => rule.Id)
+                .ToArray();
+            var currentIndex = Array.FindIndex(ownerRules, rule => rule.Id == ruleId);
+            var targetIndex = moveUp ? currentIndex - 1 : currentIndex + 1;
+            if (currentIndex < 0 || targetIndex < 0 || targetIndex >= ownerRules.Length)
+            {
+                return ValueTask.FromResult(false);
+            }
+
+            MoveCalls.Add((accountId, ruleId, moveUp));
+            (ownerRules[currentIndex], ownerRules[targetIndex]) = (ownerRules[targetIndex], ownerRules[currentIndex]);
+            var normalized = ownerRules
+                .Select((rule, index) => rule with { SortOrder = index + 1 })
+                .ToDictionary(rule => rule.Id);
+            Rules = Rules
+                .Select(rule => normalized.TryGetValue(rule.Id, out var movedRule) ? movedRule : rule)
+                .ToArray();
+            return ValueTask.FromResult(true);
+        }
+
+        public ValueTask<bool> UpdateRuleAsync(
+            int accountId,
+            RuleAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
+            var match = Rules.FirstOrDefault(rule => rule.AccountId == accountId && rule.Id == snapshot.Id);
+            if (match is null)
+            {
+                return ValueTask.FromResult(false);
+            }
+
+            UpdateCalls.Add(snapshot);
+            Rules = Rules
+                .Select(rule => ReferenceEquals(rule, match) ? snapshot : rule)
+                .ToArray();
             return ValueTask.FromResult(true);
         }
     }

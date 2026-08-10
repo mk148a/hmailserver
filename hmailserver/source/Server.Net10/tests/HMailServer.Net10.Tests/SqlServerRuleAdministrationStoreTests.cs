@@ -100,4 +100,35 @@ public sealed class SqlServerRuleAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void MoveRuleSql_IsTransactionalOwnerScopedAndRenumbersAdjacentRules()
+    {
+        var sql = SqlServerRuleAdministrationStore.MoveRuleSql;
+
+        StringAssert.Contains(sql, "SET XACT_ABORT ON");
+        StringAssert.Contains(sql, "BEGIN TRANSACTION");
+        StringAssert.Contains(sql, "UPDLOCK, HOLDLOCK");
+        StringAssert.Contains(sql, "ROW_NUMBER() OVER (ORDER BY rulesortorder ASC, ruleid ASC)");
+        StringAssert.Contains(sql, "WHERE ruleaccountid = @AccountID");
+        StringAssert.Contains(sql, "WHERE ruleid = @RuleId");
+        StringAssert.Contains(sql, "@MoveUp");
+        StringAssert.Contains(sql, "rulesortorder");
+        StringAssert.Contains(sql, "COMMIT TRANSACTION");
+        StringAssert.Contains(sql, "SELECT @Moved");
+        Assert.IsFalse(sql.Contains("hm_rule_criterias", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_rule_actions", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void MoveRuleAsync_ExposesOwnerRuleDirectionAndCancellationStoreContract()
+    {
+        var method = typeof(SqlServerRuleAdministrationStore).GetMethod(nameof(SqlServerRuleAdministrationStore.MoveRuleAsync));
+
+        Assert.IsNotNull(method);
+        Assert.AreEqual(typeof(ValueTask<bool>), method.ReturnType);
+        CollectionAssert.AreEqual(
+            new[] { typeof(int), typeof(int), typeof(bool), typeof(CancellationToken) },
+            method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
+    }
 }

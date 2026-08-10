@@ -112,9 +112,10 @@ public sealed class Rules : IInterfaceRules
         Func<bool>? isAuthenticated,
         int accountId = 0,
         Func<RuleAdministrationSnapshot, int>? insert = null,
-        Func<RuleAdministrationSnapshot, bool>? update = null)
+        Func<RuleAdministrationSnapshot, bool>? update = null,
+        Func<int, int, bool, ValueTask<bool>>? move = null)
     {
-        _state = RuleAdministrationState.CreateLoaded(rules, reload, delete, accountId, insert, update);
+        _state = RuleAdministrationState.CreateLoaded(rules, reload, delete, accountId, insert, update, move);
         _isServerAdministrator = isServerAdministrator;
         _isAuthenticated = isAuthenticated;
     }
@@ -143,10 +144,11 @@ public sealed class Rules : IInterfaceRules
         Func<bool>? isAuthenticated = null,
         int accountId = 0,
         Func<RuleAdministrationSnapshot, int>? insert = null,
-        Func<RuleAdministrationSnapshot, bool>? update = null)
+        Func<RuleAdministrationSnapshot, bool>? update = null,
+        Func<int, int, bool, ValueTask<bool>>? move = null)
     {
         ArgumentNullException.ThrowIfNull(rules);
-        return new Rules(rules, reload, delete, isServerAdministrator, isAuthenticated, accountId, insert, update);
+        return new Rules(rules, reload, delete, isServerAdministrator, isAuthenticated, accountId, insert, update, move);
     }
 
     internal static Rules CreateAuthorized(
@@ -426,22 +428,36 @@ public sealed class Rule : IInterfaceRule
 
     public void MoveUp()
     {
-        if (Snapshot.Id <= 0)
+        var snapshot = Snapshot;
+        if (snapshot.Id <= 0)
         {
             throw new COMException("Object not yet saved.", EObjectNotYetSaved);
         }
 
-        Unavailable();
+        if (_state is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _state.Move(snapshot, moveUp: true);
     }
 
     public void MoveDown()
     {
-        if (Snapshot.Id <= 0)
+        var snapshot = Snapshot;
+        if (snapshot.Id <= 0)
         {
             throw new COMException("Object not yet saved.", EObjectNotYetSaved);
         }
 
-        Unavailable();
+        if (_state is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        _state.Move(snapshot, moveUp: false);
     }
 
     public void Delete()
@@ -545,6 +561,7 @@ internal sealed class RuleAdministrationState
     private readonly int _accountId;
     private readonly Func<RuleAdministrationSnapshot, int>? _insert;
     private readonly Func<RuleAdministrationSnapshot, bool>? _update;
+    private readonly Func<int, int, bool, ValueTask<bool>>? _move;
 
     private RuleAdministrationState(
         Func<IReadOnlyList<RuleAdministrationSnapshot>> load,
@@ -553,7 +570,8 @@ internal sealed class RuleAdministrationState
         Func<int, int, ValueTask<bool>>? delete,
         int accountId = 0,
         Func<RuleAdministrationSnapshot, int>? insert = null,
-        Func<RuleAdministrationSnapshot, bool>? update = null)
+        Func<RuleAdministrationSnapshot, bool>? update = null,
+        Func<int, int, bool, ValueTask<bool>>? move = null)
     {
         _load = load;
         _reload = reload;
@@ -561,6 +579,7 @@ internal sealed class RuleAdministrationState
         _accountId = accountId;
         _insert = insert;
         _update = update;
+        _move = move;
         _generation = rules is null ? null : new RuleAdministrationGeneration(rules);
     }
 
@@ -576,8 +595,9 @@ internal sealed class RuleAdministrationState
         Func<int, int, ValueTask<bool>>? delete = null,
         int accountId = 0,
         Func<RuleAdministrationSnapshot, int>? insert = null,
-        Func<RuleAdministrationSnapshot, bool>? update = null) =>
-        new(load, null, load, delete, accountId, insert, update);
+        Func<RuleAdministrationSnapshot, bool>? update = null,
+        Func<int, int, bool, ValueTask<bool>>? move = null) =>
+        new(load, null, load, delete, accountId, insert, update, move);
 
     internal static RuleAdministrationState CreateLoaded(
         IReadOnlyList<RuleAdministrationSnapshot> rules,
@@ -585,10 +605,11 @@ internal sealed class RuleAdministrationState
         Func<int, int, ValueTask<bool>>? delete = null,
         int accountId = 0,
         Func<RuleAdministrationSnapshot, int>? insert = null,
-        Func<RuleAdministrationSnapshot, bool>? update = null)
+        Func<RuleAdministrationSnapshot, bool>? update = null,
+        Func<int, int, bool, ValueTask<bool>>? move = null)
     {
         ArgumentNullException.ThrowIfNull(rules);
-        return new(reload ?? (() => rules), rules, reload, delete, accountId, insert, update);
+        return new(reload ?? (() => rules), rules, reload, delete, accountId, insert, update, move);
     }
 
     internal RuleAdministrationGeneration GetGeneration()
@@ -673,10 +694,15 @@ internal sealed class RuleAdministrationState
                     unchecked((int)0x80004001));
             }
 
+            var current = generation.Rules.FirstOrDefault(rule => rule.Id == selected.Id);
+            var persisted = current is null
+                ? selected
+                : selected with { SortOrder = current.SortOrder };
+
             bool updated;
             try
             {
-                updated = _update(selected);
+                updated = _update(persisted);
             }
             catch (Exception)
             {
@@ -698,13 +724,75 @@ internal sealed class RuleAdministrationState
             if (matchingIndex >= 0)
             {
                 var replacedRules = generation.Rules.ToArray();
-                replacedRules[matchingIndex] = selected;
+                replacedRules[matchingIndex] = persisted;
                 Volatile.Write(ref _generation, new RuleAdministrationGeneration(replacedRules));
             }
 
-            return selected;
+            return persisted;
         }
     }
+
+    internal void Move(RuleAdministrationSnapshot selected, bool moveUp)
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+
+        lock (_gate)
+        {
+            var generation = GetGeneration();
+            var currentIndex = generation.Rules.ToList().FindIndex(rule => rule.Id == selected.Id);
+            if (currentIndex < 0)
+            {
+                return;
+            }
+
+            var targetIndex = moveUp ? currentIndex - 1 : currentIndex + 1;
+            if (targetIndex < 0 || targetIndex >= generation.Rules.Count)
+            {
+                return;
+            }
+
+            if (_move is null)
+            {
+                throw new COMException(
+                    "This Rule member is not implemented by the .NET 10 rewrite yet.",
+                    unchecked((int)0x80004001));
+            }
+
+            bool moved;
+            try
+            {
+                moved = _move(_accountId, selected.Id, moveUp).GetAwaiter().GetResult();
+            }
+            catch (COMException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to move the rule in the database.",
+                    unchecked((int)0x80004005));
+            }
+
+            if (!moved)
+            {
+                return;
+            }
+
+            var reordered = generation.Rules.ToArray();
+            (reordered[currentIndex], reordered[targetIndex]) = (reordered[targetIndex], reordered[currentIndex]);
+            for (var index = 0; index < reordered.Length; index++)
+            {
+                if (reordered[index].SortOrder != index + 1)
+                {
+                    reordered[index] = reordered[index] with { SortOrder = index + 1 };
+                }
+            }
+
+            Volatile.Write(ref _generation, new RuleAdministrationGeneration(reordered));
+        }
+    }
+
     internal void Delete(RuleAdministrationSnapshot selected)
     {
         ArgumentNullException.ThrowIfNull(selected);
@@ -794,7 +882,9 @@ public static class RuleAdministrationRuntimeHost
                 .AsTask()
                 .GetAwaiter()
                 .GetResult();
-        return Rules.CreateAuthorized(LoadRules(), LoadRules, DeleteRuleAsync, isServerAdministrator, isAuthenticated, accountId, InsertRule, UpdateRule);
+        ValueTask<bool> MoveRuleAsync(int ownerAccountId, int ruleId, bool moveUp) =>
+            store.MoveRuleAsync(ownerAccountId, ruleId, moveUp, CancellationToken.None);
+        return Rules.CreateAuthorized(LoadRules(), LoadRules, DeleteRuleAsync, isServerAdministrator, isAuthenticated, accountId, InsertRule, UpdateRule, MoveRuleAsync);
     }
 
     internal static RuleAdministrationState CreateAuthorizedState(int accountId)
@@ -849,6 +939,15 @@ public static class RuleAdministrationRuntimeHost
                 .GetAwaiter()
                 .GetResult();
         }
-        return RuleAdministrationState.CreateLazy(LoadRules, DeleteRuleAsync, accountId, InsertRule, UpdateRule);
+        ValueTask<bool> MoveRuleAsync(int ownerAccountId, int ruleId, bool moveUp)
+        {
+            var store = Volatile.Read(ref _store)
+                ?? throw new COMException(
+                    "The hMailServer rule administration runtime has not been initialized.",
+                    CoENotInitialized);
+
+            return store.MoveRuleAsync(ownerAccountId, ruleId, moveUp, CancellationToken.None);
+        }
+        return RuleAdministrationState.CreateLazy(LoadRules, DeleteRuleAsync, accountId, InsertRule, UpdateRule, MoveRuleAsync);
     }
 }

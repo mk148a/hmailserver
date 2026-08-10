@@ -87,6 +87,55 @@ SELECT @Deleted;
             rulesortorder = @SortOrder
         WHERE ruleid = @RuleId AND ruleaccountid = @AccountID;
         """;
+
+    public const string MoveRuleSql = """
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+DECLARE @OrderedRules TABLE
+(
+    ruleid int NOT NULL PRIMARY KEY,
+    position int NOT NULL
+);
+
+INSERT INTO @OrderedRules (ruleid, position)
+SELECT
+    ruleid,
+    ROW_NUMBER() OVER (ORDER BY rulesortorder ASC, ruleid ASC)
+FROM hm_rules WITH (UPDLOCK, HOLDLOCK)
+WHERE ruleaccountid = @AccountID;
+
+DECLARE @CurrentPosition int =
+    (SELECT position FROM @OrderedRules WHERE ruleid = @RuleId);
+DECLARE @RuleCount int = (SELECT COUNT(*) FROM @OrderedRules);
+DECLARE @TargetPosition int =
+    CASE WHEN @MoveUp = 1 THEN @CurrentPosition - 1 ELSE @CurrentPosition + 1 END;
+DECLARE @Moved bit = 0;
+
+IF @CurrentPosition IS NOT NULL
+   AND @TargetPosition BETWEEN 1 AND @RuleCount
+BEGIN
+    UPDATE hm_rules
+    SET rulesortorder = rulesortorder + @RuleCount + 1
+    WHERE ruleaccountid = @AccountID;
+
+    UPDATE rule
+    SET rulesortorder =
+        CASE
+            WHEN ordered.position = @CurrentPosition THEN @TargetPosition
+            WHEN ordered.position = @TargetPosition THEN @CurrentPosition
+            ELSE ordered.position
+        END
+    FROM hm_rules AS rule
+    INNER JOIN @OrderedRules AS ordered ON ordered.ruleid = rule.ruleid
+    WHERE rule.ruleaccountid = @AccountID;
+
+    SET @Moved = 1;
+END;
+
+COMMIT TRANSACTION;
+SELECT @Moved;
+""";
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRuleAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -197,6 +246,24 @@ SELECT @Deleted;
         var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return affected == 1;
     }
+
+    public async ValueTask<bool> MoveRuleAsync(
+        int accountId,
+        int ruleId,
+        bool moveUp,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(MoveRuleSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@RuleId", SqlDbType.Int).Value = ruleId;
+        command.Parameters.Add("@MoveUp", SqlDbType.Bit).Value = moveUp;
+
+        var moved = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return moved is not null
+            && Convert.ToInt32(moved, CultureInfo.InvariantCulture) != 0;
+    }
+
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
         Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) != 0;
 }
