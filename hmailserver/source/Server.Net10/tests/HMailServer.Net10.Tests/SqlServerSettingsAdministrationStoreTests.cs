@@ -84,6 +84,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateTcpIpThreadsSql_UsesTheExactParameterizedFixedRowShape()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateTcpIpThreadsSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settinginteger = @TCPIPThreads\nWHERE settingname = N'tcpipthreads';",
+            sql);
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateSmtpNoOfTriesSql_UpdatesOnlyTheExistingRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateSmtpNoOfTriesSql;

@@ -45,6 +45,12 @@ SET settinginteger = @WorkerThreadPriority
 WHERE settingname = N'workerthreadpriority';
 """;
 
+    public const string UpdateTcpIpThreadsSql = """
+UPDATE hm_settings
+SET settinginteger = @TCPIPThreads
+WHERE settingname = N'tcpipthreads';
+""";
+
     public const string UpdateSmtpNoOfTriesSql = """
 UPDATE hm_settings
 SET settinginteger = @SMTPNoOfTries
@@ -435,6 +441,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateWorkerThreadPrioritySql, connection);
         command.Parameters.Add("@WorkerThreadPriority", SqlDbType.Int).Value = workerThreadPriority;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateTcpIpThreadsAsync(
+        int tcpIpThreads,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateTcpIpThreadsSql, connection);
+        command.Parameters.Add("@TCPIPThreads", SqlDbType.Int).Value = tcpIpThreads;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

@@ -294,6 +294,9 @@ public sealed class SettingsComContractTests
             () => settings.DefaultDomain = "direct-activation.example.test");
         var workerThreadPrioritySetterError = Assert.ThrowsExactly<COMException>(
             () => settings.WorkerThreadPriority = 1);
+        var tcpIpThreadsError = Assert.ThrowsExactly<COMException>(() => _ = settings.TCPIPThreads);
+        var tcpIpThreadsSetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.TCPIPThreads = 1);
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
@@ -353,6 +356,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, crashSimulationError.ErrorCode);
         Assert.AreEqual(EAccessDenied, defaultDomainSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, workerThreadPrioritySetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, tcpIpThreadsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, tcpIpThreadsSetterError.ErrorCode);
     }
 
     [TestMethod]
@@ -930,6 +935,48 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(2, store.WorkerThreadPriorityUpdateCount);
         Assert.AreEqual(4, settings.WorkerThreadPriority);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_TcpIpThreadsSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            TcpIpThreadsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                TcpIpThreads: 15),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.TCPIPThreads = 24;
+
+        Assert.AreEqual(1, store.TcpIpThreadsUpdateCount);
+        Assert.AreEqual(24, store.UpdatedTcpIpThreads);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(24, settings.TCPIPThreads);
+
+        store.TcpIpThreadsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.TCPIPThreads = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.TcpIpThreadsUpdateCount);
+        Assert.AreEqual(24, settings.TCPIPThreads);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.TCPIPThreads = 36);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.TcpIpThreadsUpdateCount);
+        Assert.AreEqual(24, settings.TCPIPThreads);
     }
 
     [TestMethod]
@@ -1785,6 +1832,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedWorkerThreadPriority { get; private set; }
 
+        public bool TcpIpThreadsUpdateResult { get; set; }
+
+        public int TcpIpThreadsUpdateCount { get; private set; }
+
+        public int UpdatedTcpIpThreads { get; private set; }
+
         public bool SmtpNoOfTriesUpdateResult { get; set; }
 
         public int SmtpNoOfTriesUpdateCount { get; private set; }
@@ -1934,6 +1987,16 @@ public sealed class SettingsComContractTests
             UpdatedWorkerThreadPriority = workerThreadPriority;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(WorkerThreadPriorityUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateTcpIpThreadsAsync(
+            int tcpIpThreads,
+            CancellationToken cancellationToken)
+        {
+            TcpIpThreadsUpdateCount++;
+            UpdatedTcpIpThreads = tcpIpThreads;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(TcpIpThreadsUpdateResult);
         }
 
         public ValueTask<bool> UpdateSmtpNoOfTriesAsync(

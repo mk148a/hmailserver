@@ -1088,7 +1088,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.TCPIPThreads
                 : _administrationSnapshot.TcpIpThreads;
         }
-        set => base.TCPIPThreads = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.TCPIPThreads = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateTcpIpThreadsAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The TCP/IP threads update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    TcpIpThreads = value
+                };
+            }
+        }
     }
 
     public override int MaxMessageSize

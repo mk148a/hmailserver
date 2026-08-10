@@ -26,6 +26,10 @@ public interface ISettingsAdministrationMutationStore
         int workerThreadPriority,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateTcpIpThreadsAsync(
+        int tcpIpThreads,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateSmtpNoOfTriesAsync(
         int smtpNoOfTries,
         CancellationToken cancellationToken);
