@@ -2475,3 +2475,32 @@ implemented in code/test commit `3ca025ce1`, with focused settings/SQL coverage
 legacy-first audit of one remaining low-risk Settings mutation. ExternalDelivery
 MX-host enforcement and runtime reconfiguration are intentionally not part of
 this slice.
+
+## Current Audit Note (2026-08-11, VERIFY REMOTE SSL CERTIFICATE ADMIN MUTATION)
+
+Code/test commit `f882ff44f` implements the authenticated
+`IInterfaceSettings.VerifyRemoteSslCertificate` setter (`DispId(93)`) only.
+The .NET path updates the existing `hm_settings.VerifyRemoteSslCertificate`
+row through a parameterized integer command, requires exactly one affected
+row, rechecks the live server-administrator callback, and publishes the
+retained snapshot only after success. Direct activation denial, failed-write
+retention, and exact SQL shape are covered. Focused settings/SQL coverage is
+`58/58`; full Net10 is `2041 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.VerifyRemoteSslCertificate`
+(`source/Server/hMailServer/hMailServer.idl:656-657`),
+`InterfaceSettings::put_VerifyRemoteSslCertificate`
+(`source/Server/COM/InterfaceSettings.cpp:2244-2254`),
+`Configuration::SetVerifyRemoteSslCertificate`
+(`source/Server/Common/Application/Configuration.cpp:604-607`),
+`PROPERTY_VERIFYREMOTESSLCERTIFICATE`
+(`source/Server/Common/Application/Constants.h:122`), and the SQL seed
+(`source/DBScripts/CreateTablesMSSQL.sql:936`). The legacy TLS handshake
+consumer remains intentionally unchanged; this slice is persistence parity,
+not live runtime reconfiguration.
+
+Real SQL/Data rollback, non-DB settings restore/reinitialization, SQL/FTS,
+paired legacy/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
+environment-blocked. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation.

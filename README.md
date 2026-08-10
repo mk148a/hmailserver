@@ -1,6 +1,35 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, VerifyRemoteSslCertificate mutation)
+
+Code/test commit `f882ff44f` implements only the authenticated
+`IInterfaceSettings.VerifyRemoteSslCertificate` setter (`DispId(93)`). It
+updates the existing `hm_settings.VerifyRemoteSslCertificate` row with a
+parameterized integer command, requires one affected row, rechecks the live
+server-administrator callback, and publishes the retained snapshot only after
+success. Direct activation denial, failure retention, and SQL command shape are
+covered. Focused settings/SQL coverage is `58/58`; full Net10 is `2041 passed,
+39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.VerifyRemoteSslCertificate`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:656-657`),
+`InterfaceSettings::put_VerifyRemoteSslCertificate`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2244-2254`),
+`Configuration::SetVerifyRemoteSslCertificate`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:604-607`),
+`PROPERTY_VERIFYREMOTESSLCERTIFICATE`
+(`hmailserver/source/Server/Common/Application/Constants.h:122`), and the
+`VerifyRemoteSslCertificate` SQL seed
+(`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:936`). TLS handshake
+runtime behavior remains unchanged and is a separate slice.
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched legacy/.NET protocol load, SEC-18 cutover,
+installer/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain
+unproven. Next slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, authenticated maximum MX host count mutation)
 
 Code/test commit `3ca025ce1` extends the existing authenticated Administrator
