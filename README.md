@@ -29,7 +29,7 @@ xychart-beta
     bar [7.478, 7.696, 7.709]
 ```
 
-The legacy C++ server was not started because the available test installation points to `HmailDb_Test5700` and `C:\hMailServer57-Test\Data`; using those would violate the disposable-resource boundary. The source build also currently stops at the MIDL type-library generation step. Therefore no C++ speed-up or regression percentage is claimed. Full methodology, evidence paths, blockers, and the exact isolated rerun requirements are in [`CPP_VS_NET10_PERFORMANCE_REPORT.md`](hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT.md).
+An isolated live comparison was attempted with two new SQL Server databases, two separate Data directories containing the same 1,000-message corpus, and loopback ports `25250`/`25110`/`25143`. The legacy C++ process crashed during initialization with `0xC0000409` in `ucrtbase.dll` for each isolated SQL/provider combination; the .NET 10 process stopped because LocalDB reports `IsFullTextInstalled = 0`. No SMTP/IMAP/POP3 paired measurements were recorded and no C++ speed-up or regression percentage is claimed. Full evidence is in [`live-comparison-attempt-20260810.md`](artifacts/benchmarks/live-cpp-net10-20260810_152708/live-comparison-attempt-20260810.md) and [`CPP_VS_NET10_PERFORMANCE_REPORT.md`](hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT.md). The performance release gate remains RED.
 
 .NET 10 rewrite continuation audit (2026-08-10, offline 100k IMAP SEARCH/SORT acceptance)
 -------------------------------------------------------------------------------------------

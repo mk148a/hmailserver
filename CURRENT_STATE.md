@@ -1,15 +1,15 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T09:03:57Z / 2026-08-10T12:03:57+03:00
+- UTC/local timestamp: 2026-08-10T13:31:00Z / 2026-08-10T16:31:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: documentation commit `539073a53` following code/test `f34ee25c8`
+- Current HEAD: documentation commit `900fb275c`
 - Last successfully pushed commit: `0b2646731`
-- Push status: not pushed; full Net10 has 9 existing isolated SQL fixture/schema failures
-- Latest focused-test result: verifier/COM/legacy-password `70 passed, 0 skipped, 0 failed`; SQL verifier TRX `4 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `2009 passed, 2 skipped, 9 failed`; durable TRX is `artifacts/net10-disposable/FullNet10-20260810.trx`; failures are existing restore/message-index SQL fixture/schema failures, not the verifier slice
-- Opt-in tests passed/skipped/blocked: disposable LocalDB SQL verifier passed; SQL/Data restore, live SQL/FTS, protocol/load, service/COM, installer, AD/DC, SEC-18, crash/power-loss, and soak remain skipped or blocked
-- Current bounded slice: SQL-backed attached `Account.ValidatePassword` verifier with existing script/AD abstractions plus disposable LocalDB/Data setup, code/test commit `f34ee25c8`
+- Push status: not pushed; live C++/.NET 10 performance gate is RED
+- Latest focused-test result: Net10 benchmark pack `passed`; offline SEARCH/SORT p50 `7.339 ms`, p95 `8.893 ms`, p99 `9.227 ms`, correctness `true`
+- Latest full Net10 result: `1987 passed, 33 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: disposable SQL/Data fixture creation and parity checks passed; live C++ crashed with `0xC0000409` during isolated SQL startup; Net10 live start blocked by LocalDB `IsFullTextInstalled=0`; protocol/load, service/COM, installer, AD/DC, SEC-18, crash/power-loss, and soak remain skipped or blocked
+- Current bounded slice: isolated C++ vs .NET 10 SQL/Data/message-corpus setup and live performance gate evidence; no paired latency result
 - Completed milestones: backup creation matrix/raw staging, offline synthetic 100k IMAP SEARCH/SORT acceptance, COM authorization/HRESULT slices, ClamAV target hardening, IMAP ownership and Message.Save publication, Diagnostics retained reauthentication, unsaved and saved Rule movement parity, Account mailbox unlock, and Account.ValidatePassword preparatory seam; no production release gate complete
-- Open production blockers: COM password SQL/script/AD live evidence and SEC-12 rate-limit/auto-ban semantics, live Rule SQL readback/rollback/concurrency and out-of-process COM evidence, COM draft `.eml` persistence and cross-writer UID coordination, populated disposable restore/rollback, SEC-18, migration/installer, service/COM lifecycle, live performance/load, crash/power-loss, 24-hour soak, and clean AV-compatible default suite
-- Environment-blocked work: disposable SQL/Data restore target schema, live SQL/FTS and protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
+- Open production blockers: live paired C++/.NET 10 performance/load evidence, Full-Text Search runtime, legacy ADO isolated startup, COM password SQL/script/AD live evidence and SEC-12 rate-limit/auto-ban semantics, populated disposable restore/rollback, SEC-18, migration/installer, service/COM lifecycle, crash/power-loss, 24-hour soak, and clean AV-compatible default suite
+- Environment-blocked work: disposable SQL/Data restore target schema, supported isolated SQL Server with FTS and legacy ADO compatibility, protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`/backup files, untracked SEC-18/benchmark artifacts
-- Next three independent slices: repair and rerun the isolated SQL restore fixture/schema; design the COM `OnClientValidatePassword`/AD verifier boundary; execute isolated service/out-of-process COM lifecycle acceptance
+- Next three independent slices: obtain a supported disposable SQL/FTS + legacy ADO staging host; implement the paired protocol benchmark harness; repair and rerun the isolated SQL restore fixture/schema

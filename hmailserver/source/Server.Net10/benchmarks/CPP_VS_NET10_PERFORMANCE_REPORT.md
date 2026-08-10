@@ -1,18 +1,19 @@
 # Legacy C++ vs .NET 10 Performance Report
 
 **Run date:** 2026-08-10
-**Repository commit:** `5bdc53e11e54e194667cd3552a785dd41644dc59`
+**Repository commit:** `709b91d5ed9d2aaf8fcf26cea8ed9adead7c1e7b`
 **Host:** Windows 11 build `10.0.26200`, x64, 16 logical processors
 **Decision:** `RED - no valid C++ vs .NET 10 comparison yet`
 
 ## Executive result
 
-The .NET 10 benchmark pack produced reproducible offline measurements. A valid
-legacy C++ server run was not performed. The available C++ test installation
-points to `HmailDb_Test5700`, which is outside the approved disposable target,
-and the legacy service is stopped and disabled. No C++ service or test process
-was started and no production or existing test database/Data directory was
-accessed.
+The .NET 10 benchmark pack produced reproducible offline measurements. A live
+paired run was attempted with two new SQL Server databases and two separate
+Data directories containing the same 1,000-message corpus. The legacy C++
+process did not reach an isolated listener: each isolated SQL configuration
+terminated with Windows error `0xC0000409` in `ucrtbase.dll`, while the .NET 10
+process stopped before listener creation because the host LocalDB instance has
+no Full-Text Search. The run is therefore not a performance comparison.
 
 Do not calculate a speed-up, regression percentage, or winner from this report.
 The two implementations have not yet been measured under the same live
@@ -44,20 +45,44 @@ registration, and a mail Data directory. It is not a live server benchmark.
 
 ## C++ evidence and blocker
 
+The live attempt is recorded in
+`artifacts/benchmarks/live-cpp-net10-20260810_152708/live-comparison-attempt-20260810.json`
+and the matching Markdown evidence file. It created:
+
+- SQL Server `localhost` databases `hmail_perf_cpp_sql_20260810_152708` and
+  `hmail_perf_net_sql_20260810_152708`.
+- Separate Data directories under
+  `C:\Users\Kandil\AppData\Local\Temp\hmailserver-live-perf-20260810_153126`.
+- Loopback-only target ports SMTP `25250`, POP3 `25110`, and IMAP `25143`.
+- 1,000 identical messages per target, with 1,000 matching
+  `hm_messages`, `hm_message_metadata`, and recipient rows.
+
+The existing hMailServer service was stopped and disabled. `HmailDb_Test5700`,
+the existing Data directory, production ports, and existing COM registration
+were not used; the Application AppID values were unchanged before and after
+the isolated process probe.
+
 The legacy source target is
 `hmailserver/source/Server/hMailServer/hMailServer.sln`, with the server
 implementation in `hmailserver/source/Server/hMailServer/hMailServer.vcxproj`.
-An isolated compile attempt reached the C++ sources but failed before producing
-`hMailServer.exe` because the project MIDL step returned:
+The normal source build still fails because the project MIDL step returns:
 
 ```text
 MIDL2020: error generating type library: SaveAllChanges Failed
 ```
 
-The available installed binary is
-`C:\hMailServer57-Test\Bin\hMailServer.exe`, but its configuration names
-`HmailDb_Test5700` and `C:\hMailServer57-Test\Data`. It was deliberately not
-started. The legacy performance fixtures also require a live COM/server target:
+For the isolated probe, a temporary test-only configuration hook was used to
+build a copied legacy binary without changing the repository source or the
+installed registration. That binary crashed during initialization for all four
+isolated connection combinations: LocalDB/default provider, LocalDB named
+pipe/`MSOLEDBSQL`, MSSQLSERVER/`sqloledb`, and MSSQLSERVER/`MSOLEDBSQL`. The
+copied binary opened `2525` and `1143` only when it read the existing registered
+installation path; that non-isolated run was excluded from all measurements.
+
+The installed binary remains
+`C:\hMailServer57-Test\Bin\hMailServer.exe`, and its configuration names
+`HmailDb_Test5700` and `C:\hMailServer57-Test\Data`. The legacy performance
+fixtures also require a live COM/server target:
 
 - `hmailserver/test/hMailServer.PerformanceTests/hMailServer.PerformanceTests/AverageMailSending.cs`
 - `hmailserver/test/PerformanceTest/Program.cs`
@@ -68,17 +93,17 @@ SQL/Data copy and non-production process configuration are available.
 
 ## Required next run
 
-1. Create two disposable databases from the legacy schema, one for each server.
-2. Create two separate disposable Data directories with the same generated
-   message corpus and identical account/folder state.
-3. Build or copy the legacy binary into an isolated directory without using
+1. Move the paired run to a disposable SQL Server instance with Full-Text
+   Search enabled and a legacy-supported ADO provider, or to a dedicated
+   staging VM.
+2. Build or copy the legacy binary into an isolated directory without using
    `HmailDb_Test5700` or its Data directory.
-4. Configure both servers to loopback-only high ports and verify that neither
+3. Configure both servers to loopback-only high ports and verify that neither
    existing service nor production port is touched.
-5. Run the same SMTP acceptance, IMAP SEARCH/SORT, POP3 mailbox, delivery queue,
+4. Run the same SMTP acceptance, IMAP SEARCH/SORT, POP3 mailbox, delivery queue,
    and connection-concurrency workloads against both processes.
-6. Capture p50/p95/p99, throughput, errors, timeouts, CPU, private memory,
+5. Capture p50/p95/p99, throughput, errors, timeouts, CPU, private memory,
    handles, threads, sockets, GC, and SQL wait/query counters.
-7. Repeat after warm-up and publish raw JSON/CSV plus the comparison chart.
+6. Repeat after warm-up and publish raw JSON/CSV plus the comparison chart.
 
 Until those prerequisites pass, the performance release gate remains RED.
