@@ -1,4 +1,23 @@
 
+## Current Audit Note (2026-08-10, SETTINGS RESTORE PARSING)
+
+Code/test commit `9b6544736` adds parser-only settings restore coverage. Legacy
+`PropertySet::XMLLoad` (`hmailserver/source/Server/Common/Application/PropertySet.cpp:184-213`)
+returns success when `Properties` is absent, processes child nodes in order,
+uses empty string/zero defaults for missing attributes, and applies only to
+existing properties; unknown names are written to a temporary property and do
+not become persistent settings. `Configuration::XMLLoad`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:716-758`)
+loads properties before the other settings collections. The .NET
+`BackupArchiveXmlSnapshotParser.ParseSettingsProperties` now preserves the raw
+ordered property snapshot and these defaults. Focused coverage is `15/15` and
+full default Net10 is `1997 passed, 39 skipped, 0 failed`.
+
+No settings SQL mutation, transaction/rollback, reinitialization, live
+reconfiguration, COM contract change, or destructive restore was added. The
+next bounded slice is an isolated settings restore store boundary with
+failure-safe SQL behavior; release and performance gates remain RED.
+
 ## Current Audit Note (2026-08-10, RECIPIENT/SEARCH ITEM SUPERSEDED)
 
 The former message recipient/search metadata restore item is stale as an

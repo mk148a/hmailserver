@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, settings restore parsing)
+
+Code/test commit `9b6544736` adds parser-only settings restore coverage. The
+archive parser reads root `Properties` children into ordered
+`BackupSettingsPropertySnapshot` values without mutating SQL, runtime settings,
+or COM state. This follows legacy `PropertySet::XMLLoad`
+(`source/Server/Common/Application/PropertySet.cpp:184-213`), which treats an
+absent `Properties` node as success, applies children in order, defaults
+missing/invalid `LongValue` to zero and missing `StringValue` to empty, and
+does not retain unknown property names. `Configuration::XMLLoad`
+(`source/Server/Common/Application/Configuration.cpp:716-758`) invokes that
+property load before the broader settings collections. Focused coverage is
+`15/15`; full default Net10 is `1997 passed, 39 skipped, 0 failed`.
+
+This slice stops before settings SQL mutation, transaction/rollback,
+reinitialization/live reconfiguration, and destructive restore acceptance.
+Release and performance gates remain RED. The next bounded slice is an
+isolated settings restore store boundary with failure-safe SQL behavior.
+
 ## Current parity audit (2026-08-10, recipient/search backlog correction)
 
 The former “restore message recipients/search metadata” item is stale as an

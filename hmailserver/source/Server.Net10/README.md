@@ -1,3 +1,18 @@
+## Current parity continuation (2026-08-10, settings restore parsing)
+
+Code/test commit `9b6544736` adds parser-only settings restore coverage. The
+archive parser reads root `Properties` children into ordered
+`BackupSettingsPropertySnapshot` values without SQL/runtime/COM mutation.
+Legacy anchors are `PropertySet::XMLLoad`
+(`hmailserver/source/Server/Common/Application/PropertySet.cpp:184-213`)
+and `Configuration::XMLLoad`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:716-758`).
+The parser preserves child order, defaults missing or invalid `LongValue` to
+zero and missing `StringValue` to empty, and leaves mutation out of scope.
+Focused coverage is `15/15`; full default Net10 is `1997 passed, 39 skipped,
+0 failed`. Settings SQL mutation/rollback, runtime reinitialization, and
+release acceptance remain open and RED.
+
 ## Current Authoritative Audit (2026-08-10, recipient/search backlog correction)
 
 Legacy `Message::XMLStore` writes only scalar message attributes

@@ -1,5 +1,21 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, SETTINGS RESTORE PARSING)
+
+Code/test commit `9b6544736` adds parser-only settings restore coverage.
+`BackupArchiveXmlSnapshotParser.ParseSettingsProperties` preserves root
+`Properties` child order and legacy missing/invalid attribute defaults without
+mutating SQL, runtime settings, or COM state. Legacy anchors are
+`PropertySet::XMLLoad`
+(`source/Server/Common/Application/PropertySet.cpp:184-213`) and
+`Configuration::XMLLoad`
+(`source/Server/Common/Application/Configuration.cpp:716-758`). Focused
+coverage is `15/15`; full default Net10 is `1997 passed, 39 skipped, 0
+failed`. The next slice is an isolated settings restore store boundary with
+failure-safe SQL behavior. Settings mutation/rollback, reinitialization,
+SEC-18, migration, paired C++/.NET performance, and soak gates remain open;
+release remains RED. Do not push.
+
 ## Current Authoritative Audit (2026-08-10, RECIPIENT/SEARCH BACKLOG CORRECTION)
 
 Do not restart the old message recipient/search restore item. Legacy
