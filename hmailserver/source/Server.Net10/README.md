@@ -1,3 +1,22 @@
+## Current parity continuation (2026-08-11, authenticated incorrect-line-endings mutation)
+
+Code/test commit `9a7687365` adds only authenticated
+`IInterfaceSettings.AllowIncorrectLineEndings` (`DispId(61)`, `VARIANT_BOOL`)
+persistence. The SQL command is parameterized and fixed to
+`settingname = N'smtpallowincorrectlineendings'`; the live administrator
+callback is checked before store access and the retained snapshot changes only
+after a one-row success. Focused settings/SQL coverage is `49/49`; full Net10
+is `2032 passed, 39 skipped, 0 failed`.
+
+Legacy references are `source/Server/hMailServer/hMailServer.idl:604`,
+`source/Server/COM/InterfaceSettings.cpp:326`,
+`source/Server/SMTP/SMTPConfiguration.cpp:288`,
+`source/Server/Common/Application/Property.cpp:36-78`, and
+`source/DBScripts/CreateTablesMSSQL.sql` for the seeded row. No COM identity,
+direct activation boundary, SMTP protocol behavior, or runtime reconfiguration
+path changed. Next slice: fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, authenticated Delivered-To header mutation)
 
 Code/test commit `279b18f70` adds only authenticated

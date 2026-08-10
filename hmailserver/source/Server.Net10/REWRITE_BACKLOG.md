@@ -2430,3 +2430,14 @@ implemented in code/test commit `279b18f70`, with focused settings/SQL coverage
 legacy-first audit of one remaining low-risk Settings mutation. Local delivery
 header generation and runtime reconfiguration are intentionally not part of
 this slice.
+## Current next slice (2026-08-11)
+
+The authenticated fixed-row `Settings.AllowIncorrectLineEndings` mutation is
+implemented in code/test commit `9a7687365`, with focused settings/SQL coverage
+`49/49` and full Net10 `2032 passed, 39 skipped, 0 failed`. Legacy references:
+`hMailServer.idl:604`, `InterfaceSettings.cpp:326`,
+`SMTPConfiguration.cpp:288`, `Property.cpp:36-78`, and the
+`smtpallowincorrectlineendings` MSSQL seed row. The next independent code slice
+is a fresh legacy-first audit of one remaining low-risk Settings mutation.
+SMTP behavior and runtime reconfiguration are intentionally not part of this
+slice.

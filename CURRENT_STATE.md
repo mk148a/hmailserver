@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T21:07:15Z / 2026-08-11T00:07:15+03:00
+- UTC/local timestamp: 2026-08-10T21:18:48Z / 2026-08-11T00:18:48+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `279b18f70`
+- Current HEAD: `9a7687365`
 - Last successfully pushed commit: `32cd0c5bc`
-- Latest focused-test result: settings COM/store tests 47 passed, 0 failed, 0 skipped
-- Latest full Net10 result: `2030 passed, 39 skipped, 0 failed`
+- Latest focused-test result: settings COM/store tests 49 passed, 0 failed, 0 skipped
+- Latest full Net10 result: `2032 passed, 39 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; SQL/Data rollback, SQL/FTS, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: authenticated `Settings.AddDeliveredToHeader` (`DispId(73)`, `VARIANT_BOOL`) now persists only the fixed existing `hm_settings.adddeliveredtoheader` row through a parameterized integer update, rechecks the live administrator callback, and publishes the retained snapshot only after one-row success; the previously completed fixed-row settings mutations use the same bounded seam; `LocalDelivery` header behavior and runtime reconfiguration remain unchanged
+- Current bounded slice: authenticated `Settings.AllowIncorrectLineEndings` (`DispId(61)`, `VARIANT_BOOL`) now persists only the fixed existing `hm_settings.smtpallowincorrectlineendings` row through a parameterized integer update, rechecks the live administrator callback, and publishes the retained snapshot only after one-row success; the previously completed fixed-row settings mutations use the same bounded seam; SMTP runtime behavior and reconfiguration remain unchanged
 - Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing/store/execution, combined settings/domain DB-only restore; no release milestone complete
 - Open production blockers: real disposable SQL/Data restore evidence, non-DB settings restore and reinitialize, live SQL/FTS backfill, credential policy, ACL restore, C++ protocol parity, paired SMTP/message-acceptance/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
 - Environment blocked work: healthy isolated C++ listener binary, SQL Server with Full-Text Search and supported legacy ADO provider, approved populated SQL/Data target, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) fresh legacy-first audit of the next low-risk Settings mutation after AddDeliveredToHeader, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision
+- Next three independent slices: (1) fresh legacy-first audit of the next low-risk Settings mutation after AllowIncorrectLineEndings, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision

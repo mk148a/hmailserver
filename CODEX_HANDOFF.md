@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, INCORRECT LINE ENDINGS MUTATION)
+
+Code/test commit `9a7687365` implements only authenticated
+`Settings.AllowIncorrectLineEndings` (`DispId(61)`, `VARIANT_BOOL`) persistence.
+It preserves direct activation denial, rechecks the live administrator
+callback, updates the fixed `hm_settings.smtpallowincorrectlineendings` row
+with a parameterized integer command, and changes the retained snapshot only
+after one-row success.
+
+Legacy anchors: `IInterfaceSettings.AllowIncorrectLineEndings`
+(`source/Server/hMailServer/hMailServer.idl:604`),
+`InterfaceSettings::put_AllowIncorrectLineEndings`
+(`source/Server/COM/InterfaceSettings.cpp:326`),
+`SMTPConfiguration::SetAllowIncorrectLineEndings`
+(`source/Server/SMTP/SMTPConfiguration.cpp:288`),
+`Property::SetBoolValue` / `WriteLongSetting_`
+(`source/Server/Common/Application/Property.cpp:36-78`), and the
+`smtpallowincorrectlineendings` schema seed. Focused settings/SQL coverage is
+`49/49`; full Net10 is `2032 passed, 39 skipped, 0 failed`. SMTP behavior and
+runtime reconfiguration were deliberately not added. Next slice: fresh
+legacy-first audit of one remaining low-risk Settings mutation. Real SQL/Data
+rollback, SEC-18, installer/out-of-process COM, matched protocol performance,
+and 24-hour soak remain open. Do not deploy to production.
+
 # Current Authoritative Continuation (2026-08-11, DELIVERED-TO HEADER MUTATION)
 
 Code/test commit `279b18f70` implements only authenticated
