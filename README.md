@@ -17,6 +17,20 @@ Code/test commit `f34ee25c8` adds a bounded production SQL verifier for attached
 
 The disposable environment is now reproducible with `build/prepare-net10-disposable-localdb.ps1` and `build/remove-net10-disposable-localdb.ps1`. It uses only the current user's `MSSQLLocalDB`, a marker-protected TEMP Data root, and `HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1`; `MSSQLSERVER` and `HmailDb_Test5700` were not used. Focused verifier/COM/legacy-password tests passed `70/70`; the verifier SQL integration test passed `4/4` with TRX evidence under `artifacts/net10-disposable/`. Full Net10 passed `2009`, skipped `2`, and failed `9` existing SQL fixture/schema tests. Security is CONDITIONAL and reality is RED for release: SEC-12, SEC-18, AD/script parity, restore/rollback, migration/installer, out-of-process COM, live load, and 24-hour soak remain open. The LocalDB report and TRX are machine-specific and are intentionally not committed.
 
+## Performance comparison status (2026-08-10)
+
+The current evidence is `RED - no valid C++ vs .NET 10 comparison yet`. Net10's isolated offline synthetic pack passed 100,000-message SEARCH/SORT with p50 `7.478 ms`, p95 `7.696 ms`, p99 `7.709 ms`, and throughput `1,209,080 messages/s`. Its 20-cycle short soak also passed with p95 `9.031 ms` and zero errors. These are diagnostic Net10-only measurements, not live server equivalence evidence.
+
+```mermaid
+xychart-beta
+    title "Net10 offline SEARCH/SORT latency"
+    x-axis [p50, p95, p99]
+    y-axis "milliseconds" 0 --> 10
+    bar [7.478, 7.696, 7.709]
+```
+
+The legacy C++ server was not started because the available test installation points to `HmailDb_Test5700` and `C:\hMailServer57-Test\Data`; using those would violate the disposable-resource boundary. The source build also currently stops at the MIDL type-library generation step. Therefore no C++ speed-up or regression percentage is claimed. Full methodology, evidence paths, blockers, and the exact isolated rerun requirements are in [`CPP_VS_NET10_PERFORMANCE_REPORT.md`](hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT.md).
+
 .NET 10 rewrite continuation audit (2026-08-10, offline 100k IMAP SEARCH/SORT acceptance)
 -------------------------------------------------------------------------------------------
 
