@@ -29,6 +29,8 @@ internal static class BackupRestoreRuntimeHost
 internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
 {
     private const int SupportedDbOnlyRestoreOptions = BackupStartPlan.BackupDomainsFlag;
+    private const int SupportedDbOnlyRestoreOptionsWithSettings =
+        BackupStartPlan.BackupSettingsFlag | BackupStartPlan.BackupDomainsFlag;
     private const int SupportedDataRestoreOptions =
         BackupStartPlan.BackupDomainsFlag | BackupStartPlan.BackupMessagesFlag;
 
@@ -128,7 +130,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             return;
         }
 
-        if (backup.RestoreOptions != SupportedDbOnlyRestoreOptions)
+        if (backup.RestoreOptions is not (SupportedDbOnlyRestoreOptions
+            or SupportedDbOnlyRestoreOptionsWithSettings))
         {
             throw new InvalidOperationException(
                 "Only RestoreDomains (DB-only) or RestoreDomains|RestoreMessages (non-DB-only) is supported.");
@@ -206,17 +209,19 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         if (!dryRun.EvidenceIsValid
             || dryRun.FailureReason is not null
             || dryRun.MissingRestoreOptions != 0
-            || dryRun.RestoreSettings
+            || !dryRun.RestoreDomains
             || dryRun.RestoreMessages
             || dryRun.RequiresFilesystemStaging
-            || dryRun.Steps.Contains(BackupRestoreDryRunPlanner.LoadSettingsStep)
+            || !dryRun.Steps.Contains(BackupRestoreDryRunPlanner.LoadDomainsAndChildrenStep)
             || dryRun.Steps.Contains(BackupRestoreDryRunPlanner.RestoreDataDirectoryStep))
         {
             throw new InvalidOperationException(
                 dryRun.FailureReason ?? "The restore options are not supported by the DB-only metadata restore slice.");
         }
 
-        if (evidence.BackupOptions != SupportedDbOnlyRestoreOptions)
+        if (evidence.BackupOptions != backup.RestoreOptions
+            || evidence.BackupOptions is not (BackupStartPlan.BackupDomainsFlag
+                or (BackupStartPlan.BackupSettingsFlag | BackupStartPlan.BackupDomainsFlag)))
         {
             throw new InvalidOperationException(
                 "The archive contains restore sections outside the DB-only metadata restore slice.");
@@ -259,12 +264,25 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             throw new InvalidDataException("The backup contains no domain metadata to restore.");
         }
 
+        IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
+        if (backup.RestoreSettings)
+        {
+            settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
+            if (settingsProperties.Any(static property =>
+                    string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException(
+                    "Settings restore archives must not contain the SMTP relayer credential property.");
+            }
+        }
+
         await RestoreMetadataAsync(
             domains,
             requireEmptyStore: false,
             useSqlTransaction: true,
             authorizationLeaseFactory: backup.AcquireAuthorizationLeaseAsync,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+            cancellationToken: cancellationToken,
+            settingsProperties: settingsProperties).ConfigureAwait(false);
     }
 
     private async ValueTask ExecuteNonDbDataRestoreAsync(
@@ -371,7 +389,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         bool requireEmptyStore,
         bool useSqlTransaction,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null)
     {
         var existingDomains = await _domainStore
             .GetDomainsAsync(cancellationToken)
@@ -435,6 +454,12 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             var ruleActionStore = metadataTransaction?.RuleActionStore ?? _ruleActionStore;
             var folderRestoreStore = metadataTransaction?.FolderRestoreStore ?? _folderRestoreStore;
             var messageRestoreStore = metadataTransaction?.MessageRestoreStore ?? _messageRestoreStore;
+            var settingsStore = metadataTransaction?.SettingsStore;
+            if (settingsProperties is not null && settingsStore is null)
+            {
+                throw new InvalidOperationException(
+                    "Settings restore requires a transaction-scoped settings store.");
+            }
             if (domains.SelectMany(static domain => domain.Accounts).Any(static account => account.Folders.Count > 0)
                 && folderRestoreStore is null)
             {
@@ -622,6 +647,13 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                                 recipientId => insertedRecipientIds.Add(
                                     (listId, recipientId, listEntry.Recipients[recipientIndex++].Address))).ConfigureAwait(false);
                         }
+                    }
+
+                    if (settingsProperties is not null)
+                    {
+                        await settingsStore!
+                            .RestoreSettingsPropertiesAsync(settingsProperties, ct)
+                            .ConfigureAwait(false);
                     }
                 },
                 commitAsync,

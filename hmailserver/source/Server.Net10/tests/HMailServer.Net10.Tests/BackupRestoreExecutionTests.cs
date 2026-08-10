@@ -145,6 +145,89 @@ public sealed class BackupRestoreExecutionTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_RestoresCombinedDomainsAndSettingsInLegacyOrder()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var archiveXml = ArchiveXml
+            .Replace("Mode=\"2\"", "Mode=\"3\"", StringComparison.Ordinal)
+            .Replace(
+                "</Backup>",
+                "  <Properties><hostname LongValue=\"0\" StringValue=\"combined.example\" /></Properties>\n</Backup>",
+                StringComparison.Ordinal);
+        using var fixture = await ArchiveFixture.CreateAsync(archiveXml);
+        var stores = new RecordingStores();
+        stores.Domains.EventSink = eventName => stores.Events.Add(eventName);
+        stores.Settings.OnRestore = () => stores.Events.Add("restore-settings");
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            stores.Domains,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            stores.Recipients,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(3, fixture.ArchivePath);
+        backup.RestoreDomains = true;
+        backup.RestoreSettings = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "delete-all-domains", "insert-domain", "restore-settings" },
+            stores.Events.ToArray());
+        Assert.AreEqual("combined.example", stores.Settings.Properties.Single().StringValue);
+        Assert.AreEqual(1, transactionFactory.BeginCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_CombinedSettingsFailureDisposesTransactionBeforeCommit()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var archiveXml = ArchiveXml
+            .Replace("Mode=\"2\"", "Mode=\"3\"", StringComparison.Ordinal)
+            .Replace(
+                "</Backup>",
+                "  <Properties><hostname LongValue=\"0\" StringValue=\"combined.example\" /></Properties>\n</Backup>",
+                StringComparison.Ordinal);
+        using var fixture = await ArchiveFixture.CreateAsync(archiveXml);
+        var stores = new RecordingStores();
+        stores.Settings.Fail = true;
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = new MetadataBackupRestoreExecutor(
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            fixture.DataDirectory,
+            stores.Domains,
+            stores.Accounts,
+            stores.Aliases,
+            stores.DistributionLists,
+            stores.Recipients,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(3, fixture.ArchivePath);
+        backup.RestoreDomains = true;
+        backup.RestoreSettings = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, transactionFactory.BeginCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+        Assert.AreEqual(0, stores.Settings.Properties.Count);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_DbOnlyRestoreDeletesExistingDomainsInsideTransactionBeforeInsert()
     {
         if (!OperatingSystem.IsWindows())
@@ -879,6 +962,7 @@ public sealed class BackupRestoreExecutionTests
     {
         public List<BackupSettingsPropertySnapshot> Properties { get; } = [];
         public bool Fail { get; set; }
+        public Action? OnRestore { get; set; }
 
         public ValueTask RestoreSettingsPropertiesAsync(
             IReadOnlyList<BackupSettingsPropertySnapshot> properties,
@@ -889,6 +973,7 @@ public sealed class BackupRestoreExecutionTests
                 throw new InvalidOperationException("Injected settings restore failure.");
             }
 
+            OnRestore?.Invoke();
             Properties.AddRange(properties);
             return ValueTask.CompletedTask;
         }
