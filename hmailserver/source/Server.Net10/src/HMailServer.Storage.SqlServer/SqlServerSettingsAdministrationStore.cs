@@ -33,6 +33,12 @@ SET settinginteger = @MaxSMTPConnections
 WHERE settingname = N'maxsmtpconnections';
 """;
 
+    public const string UpdateMaxPop3ConnectionsSql = """
+UPDATE hm_settings
+SET settinginteger = @MaxPOP3Connections
+WHERE settingname = N'maxpop3connections';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -311,6 +317,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMaxSmtpConnectionsSql, connection);
         command.Parameters.Add("@MaxSMTPConnections", SqlDbType.Int).Value = maxSmtpConnections;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateMaxPop3ConnectionsAsync(
+        int maxPop3Connections,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateMaxPop3ConnectionsSql, connection);
+        command.Parameters.Add("@MaxPOP3Connections", SqlDbType.Int).Value = maxPop3Connections;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

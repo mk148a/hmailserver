@@ -17,4 +17,8 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateMaxSmtpConnectionsAsync(
         int maxSmtpConnections,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateMaxPop3ConnectionsAsync(
+        int maxPop3Connections,
+        CancellationToken cancellationToken);
 }

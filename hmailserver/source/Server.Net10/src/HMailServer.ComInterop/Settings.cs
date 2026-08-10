@@ -534,7 +534,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MaxPOP3Connections
                 : _administrationSnapshot.MaxPop3Connections;
         }
-        set => base.MaxPOP3Connections = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxPOP3Connections = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateMaxPop3ConnectionsAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum POP3 connections update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxPop3Connections = value
+                };
+            }
+        }
     }
 
     public override string MirrorEMailAddress

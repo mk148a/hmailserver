@@ -187,6 +187,9 @@ public sealed class SettingsComContractTests
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxSMTPConnections);
         var scalarSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxSMTPConnections = 1);
+        var pop3ScalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxPOP3Connections);
+        var pop3ScalarSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).MaxPOP3Connections = 1);
         var hostNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.HostName);
         var imapCapabilityError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSortEnabled);
         var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
@@ -216,6 +219,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, pop3ScalarError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, pop3ScalarSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapCapabilityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
@@ -741,6 +746,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxPop3ConnectionsSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxPop3ConnectionsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxPop3Connections: 10),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MaxPOP3Connections = 25;
+
+        Assert.AreEqual(1, store.MaxPop3ConnectionsUpdateCount);
+        Assert.AreEqual(25, store.UpdatedMaxPop3Connections);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(25, settings.MaxPOP3Connections);
+
+        store.MaxPop3ConnectionsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxPOP3Connections = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.MaxPop3ConnectionsUpdateCount);
+        Assert.AreEqual(25, settings.MaxPOP3Connections);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxPOP3Connections = 35);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.MaxPop3ConnectionsUpdateCount);
+        Assert.AreEqual(25, settings.MaxPOP3Connections);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -933,6 +980,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxSmtpConnections { get; private set; }
 
+        public bool MaxPop3ConnectionsUpdateResult { get; set; }
+
+        public int MaxPop3ConnectionsUpdateCount { get; private set; }
+
+        public int UpdatedMaxPop3Connections { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<bool> UpdateDefaultDomainAsync(
@@ -972,6 +1025,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxSmtpConnections = maxSmtpConnections;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxSmtpConnectionsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMaxPop3ConnectionsAsync(
+            int maxPop3Connections,
+            CancellationToken cancellationToken)
+        {
+            MaxPop3ConnectionsUpdateCount++;
+            UpdatedMaxPop3Connections = maxPop3Connections;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(MaxPop3ConnectionsUpdateResult);
         }
 
     }
