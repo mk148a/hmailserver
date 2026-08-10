@@ -1,4 +1,12 @@
 
+## Current Audit Note (2026-08-10, UNSAVED RULE MOVE ERROR PARITY)
+
+Code/test commit `cdfc000ad` completes the narrow ID-zero `Rule.MoveUp`/`MoveDown` error contract. Legacy `InterfaceRules::Add` and `InterfaceRule::MoveUp/MoveDown` (`hmailserver/source/Server/COM/InterfaceRules.cpp`; `InterfaceRule.cpp:221`) return `COMError::GenerateError` HRESULT `0x800403E9` with `Object not yet saved.` before collection movement or SQL. The .NET `Rule` facade now matches that branch; saved-rule movement remains unchanged and still requires a separate implementation slice. IInterfaceRule identity/DISPID/vtable, direct activation, authentication, SQL ownership, and protocol execution were not broadened.
+
+Focused `RulesComContractTests` coverage is `19 passed, 0 failed, 0 skipped`; full Net10 is `1968 passed, 32 skipped, 2 failed`, with the two known host-AV `.eml` cleanup failures. Security accepts the bounded slice; release reality remains RED because saved-rule reorder, SQL/Data restore, migration/installer, SEC-18, service/COM, performance/load, AD/DC, and soak gates remain open. Do not mark the broad Rules/Admin backlog complete until saved-object movement is implemented and tested.
+
+Next independent work: approved disposable SQL/Data restore and Message.Save integration when the isolated target exists; otherwise fresh legacy-first audit of the next smallest COM/Admin HRESULT/authorization gap. Rerun scanner cleanup only on an AV-compatible path.
+
 ## Current Audit Note (2026-08-10, DIAGNOSTICS RETAINED REAUTHENTICATION PARITY)
 
 Code/test commit `f86733cd8` completes the bounded retained Diagnostics authorization slice. Legacy `InterfaceDiagnostics::{PerformTests,get/put_LocalDomainName,get/put_TestDomainName}`, `InterfaceDiagnosticResults::{get_Count,get_Item}`, and `InterfaceDiagnosticResult::{get_Name,get_Description,get_ExecutionDetails,get_Result}` (`hmailserver/source/Server/COM/InterfaceDiagnostics.cpp:12-112`; `InterfaceDiagnosticResults.cpp:11-45`; `InterfaceDiagnosticResult.cpp:8-66`) recheck server-admin authentication and return `COMError::GenerateError` HRESULT `0x800403E9` after failed reauthentication. The .NET `Application.Diagnostics` path now propagates one live administrator callback through all retained Diagnostics/result facades, including direct parameterless member denial, without changing IID/CLSID/ProgID/DISPID/vtable identity.

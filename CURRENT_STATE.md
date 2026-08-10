@@ -1,15 +1,15 @@
 # Current State
-- UTC timestamp: 2026-08-09T23:39:39Z
-- Local timestamp: 2026-08-10T02:39:39+03:00
+- UTC timestamp: 2026-08-10T00:02:25Z
+- Local timestamp: 2026-08-10T03:02:25+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `f86733cd8` (code/test; documentation commit follows)
+- Current HEAD: `cdfc000ad` (code/test; documentation commit follows)
 - Last successfully pushed commit: `5c6265b4b`
-- Latest focused-test result: Diagnostics retained reauthentication: `7 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `1967 passed, 32 skipped, 2 failed`; both failures are host-AV locks on generated scanner `.eml` cleanup
-- Opt-in tests passed/skipped/blocked: SQL/Data restore, Message.Save/retained-folder SQL integration, live SQL/FTS, protocol/load, service/COM, installer, AD/DC, SEC-18, crash/power-loss, and soak acceptance remain skipped or blocked; the approved disposable SQL connection and isolated-create opt-in are unset
-- Current bounded slice: full retained Diagnostics reauthentication and legacy HRESULT `0x800403E9` propagation through Diagnostics, DiagnosticResults, and DiagnosticResult, completed in `f86733cd8`
-- Completed milestones: backup creation matrix/raw staging, offline SEARCH/SORT benchmark gate, retained COM authorization slices, ClamAV COM test-target hardening, obsolete AntiSpam setter parity, Language.Download HRESULT parity, DNSBL missing-host HRESULT parity, IMAP folder ownership/stale-handle parity, IMAP Message.Save state/UID/multi-draft parity, and Diagnostics retained reauthentication parity; no production release gate claimed complete
-- Open production blockers: test-only Diagnostics runtime execution, COM-created draft `.eml` persistence, legacy/.NET cross-writer UID coordination, disposable SQL/Data restore and round-trip rollback, live SQL/FTS and protocol performance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, service/COM lifecycle, migration/installer rollback, SEC-18, AD/DC, crash/power-loss evidence, authenticated mailbox `Account.ValidatePassword`, and configured-message ClamAV hostname hardening
+- Latest focused-test result: Rules unsaved MoveUp/MoveDown parity: `19 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `1968 passed, 32 skipped, 2 failed`; both failures are host-AV locks on generated scanner `.eml` cleanup
+- Opt-in tests passed/skipped/blocked: SQL/Data restore, Message.Save/retained-folder SQL integration, live SQL/FTS, protocol/load, service/COM, installer, AD/DC, SEC-18, crash/power-loss, and soak acceptance remain skipped or blocked; approved disposable SQL connection and isolated-create opt-in are unset
+- Current bounded slice: unsaved Rule.MoveUp/MoveDown legacy HRESULT `0x800403E9` and `Object not yet saved.` parity, completed in `cdfc000ad`
+- Completed milestones: backup creation matrix/raw staging, offline SEARCH/SORT benchmark gate, retained COM authorization slices, ClamAV COM test-target hardening, obsolete AntiSpam setter parity, Language.Download HRESULT parity, DNSBL missing-host HRESULT parity, IMAP folder ownership/stale-handle parity, IMAP Message.Save state/UID/multi-draft parity, Diagnostics retained reauthentication parity, and unsaved Rule move error parity; no production release gate claimed complete
+- Open production blockers: saved Rule reordering, test-only Diagnostics runtime execution, COM-created draft `.eml` persistence, legacy/.NET cross-writer UID coordination, disposable SQL/Data restore and round-trip rollback, live SQL/FTS and protocol performance, C++ baseline, 1,000 concurrent IMAP, delivery/backup/restore timing, 24-hour leak soak, service/COM lifecycle, migration/installer rollback, SEC-18, AD/DC, crash/power-loss evidence, authenticated mailbox `Account.ValidatePassword`, and configured-message ClamAV hostname hardening
 - Environment-blocked work: approved disposable SQL/FTS target, retained-folder/Message.Save SQL acceptance, live protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 elevated evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
 - Protected/do-not-touch areas: production hMailServer service, SQL/Data directories, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and untracked `artifacts/sec18-staging/`/`artifacts/benchmarks/`
 - Next three independent slices: run approved disposable SQL/Data restore and Message.Save integration when available; otherwise parity-audit the smallest remaining COM/Admin gap; rerun scanner cleanup on an AV-compatible isolated path
