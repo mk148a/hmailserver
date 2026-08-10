@@ -15,6 +15,12 @@ SET settingstring = @DefaultDomain
 WHERE settingname = N'defaultdomain';
 """;
 
+    public const string UpdateMirrorEmailAddressSql = """
+UPDATE hm_settings
+SET settingstring = @MirrorEmailAddress
+WHERE settingname = N'mirroremailaddress';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -260,6 +266,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateDefaultDomainSql, connection);
         command.Parameters.Add("@DefaultDomain", SqlDbType.NVarChar, 255).Value = defaultDomain;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateMirrorEmailAddressAsync(
+        string mirrorEmailAddress,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateMirrorEmailAddressSql, connection);
+        command.Parameters.Add("@MirrorEmailAddress", SqlDbType.NVarChar, 255).Value = mirrorEmailAddress;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

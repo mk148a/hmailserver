@@ -518,7 +518,33 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MirrorEMailAddress
                 : _administrationSnapshot.MirrorEmailAddress;
         }
-        set => base.MirrorEMailAddress = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+            if (_settingsMutationStore is null)
+            {
+                base.MirrorEMailAddress = value;
+                return;
+            }
+
+            var persisted = _settingsMutationStore
+                .UpdateMirrorEmailAddressAsync(value, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+            if (!persisted)
+            {
+                throw new COMException(
+                    "The mirror email address update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with { MirrorEmailAddress = value };
+            }
+        }
     }
 
     public override bool AllowSMTPAuthPlain

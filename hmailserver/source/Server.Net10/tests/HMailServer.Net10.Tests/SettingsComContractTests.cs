@@ -611,6 +611,47 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MirrorEmailSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MirrorUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MirrorEmailAddress: "old@example.test"),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MirrorEMailAddress = "new@example.test";
+
+        Assert.AreEqual(1, store.MirrorUpdateCount);
+        Assert.AreEqual("new@example.test", store.UpdatedMirrorEmailAddress);
+        Assert.AreEqual("new@example.test", settings.MirrorEMailAddress);
+
+        store.MirrorUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MirrorEMailAddress = "failed@example.test");
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.MirrorUpdateCount);
+        Assert.AreEqual("new@example.test", settings.MirrorEMailAddress);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MirrorEMailAddress = "denied@example.test");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.MirrorUpdateCount);
+        Assert.AreEqual("new@example.test", settings.MirrorEMailAddress);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -781,9 +822,15 @@ public sealed class SettingsComContractTests
     {
         public bool UpdateResult { get; set; }
 
+        public bool MirrorUpdateResult { get; set; }
+
         public int UpdateCount { get; private set; }
 
         public string? UpdatedDefaultDomain { get; private set; }
+
+        public int MirrorUpdateCount { get; private set; }
+
+        public string? UpdatedMirrorEmailAddress { get; private set; }
 
         public CancellationToken CancellationToken { get; private set; }
 
@@ -795,6 +842,15 @@ public sealed class SettingsComContractTests
             UpdatedDefaultDomain = defaultDomain;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMirrorEmailAddressAsync(
+            string mirrorEmailAddress,
+            CancellationToken cancellationToken)
+        {
+            MirrorUpdateCount++;
+            UpdatedMirrorEmailAddress = mirrorEmailAddress;
+            return ValueTask.FromResult(MirrorUpdateResult);
         }
     }
 
