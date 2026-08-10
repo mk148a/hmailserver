@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, DELIVERED-TO HEADER MUTATION)
+
+Code/test commit `279b18f70` implements only authenticated
+`Settings.AddDeliveredToHeader` (`DispId(73)`, `VARIANT_BOOL`) persistence. It
+preserves direct activation denial, rechecks the live administrator callback,
+updates the fixed `hm_settings.adddeliveredtoheader` row with a parameterized
+integer command, and changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.AddDeliveredToHeader`
+(`source/Server/hMailServer/hMailServer.idl:520`),
+`InterfaceSettings::put_AddDeliveredToHeader`
+(`source/Server/COM/InterfaceSettings.cpp:1833`),
+`SMTPConfiguration::SetAddDeliveredToHeader`
+(`source/Server/SMTP/SMTPConfiguration.cpp:300`),
+`PROPERTY_ADDDELIVEREDTOHEADER`
+(`source/Server/Common/Application/Constants.h:94`), and
+`source/DBScripts/CreateTablesMSSQL.sql:874`. Focused settings/SQL coverage is
+`47/47`; full Net10 is `2030 passed, 39 skipped, 0 failed`. `LocalDelivery` and
+runtime reconfiguration were deliberately not changed. Next slice: fresh
+legacy-first audit of one remaining low-risk Settings mutation. Real SQL/Data
+rollback, SEC-18, installer/out-of-process COM, matched protocol performance,
+and 24-hour soak remain open. Do not deploy to production.
+
 # Current Authoritative Continuation (2026-08-10, MAXIMUM MESSAGE SIZE MUTATION)
 
 Code/test commit `69aa0c6d5` implements only authenticated

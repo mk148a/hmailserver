@@ -2419,3 +2419,14 @@ full Net10 `2028 passed, 39 skipped, 0 failed`. Legacy references:
 independent code slice is a fresh legacy-first audit of one remaining low-risk
 Settings mutation. SMTP/IMAP runtime reconfiguration is intentionally not part
 of this slice.
+## Current next slice (2026-08-11)
+
+The authenticated fixed-row `Settings.AddDeliveredToHeader` mutation is
+implemented in code/test commit `279b18f70`, with focused settings/SQL coverage
+`47/47` and full Net10 `2030 passed, 39 skipped, 0 failed`. Legacy references:
+`hMailServer.idl:520`, `InterfaceSettings.cpp:1833`,
+`SMTPConfiguration.cpp:300`, `Constants.h:94`, and
+`CreateTablesMSSQL.sql:874`. The next independent code slice is a fresh
+legacy-first audit of one remaining low-risk Settings mutation. Local delivery
+header generation and runtime reconfiguration are intentionally not part of
+this slice.

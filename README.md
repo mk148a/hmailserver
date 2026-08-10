@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, authenticated Delivered-To header mutation)
+
+Code/test commit `279b18f70` extends the existing authenticated Administrator
+settings seam to only `IInterfaceSettings.AddDeliveredToHeader`
+(`DispId(73)`, `VARIANT_BOOL`). It updates the fixed
+`hm_settings.adddeliveredtoheader` row with a parameterized integer command,
+requires one affected row, rechecks the live administrator callback, and
+publishes the retained snapshot only after success. Focused settings/SQL
+coverage is `47/47`; full Net10 is `2030 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.AddDeliveredToHeader`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:520`),
+`InterfaceSettings::put_AddDeliveredToHeader`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1833`),
+`SMTPConfiguration::SetAddDeliveredToHeader`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:300`),
+`PROPERTY_ADDDELIVEREDTOHEADER`
+(`hmailserver/source/Server/Common/Application/Constants.h:94`), and the
+existing row seed in `hmailserver/source/DBScripts/CreateTablesMSSQL.sql:874`.
+`LocalDelivery::AddTraceHeaders_` remains unchanged.
+
+Release remains RED: disposable SQL/Data rollback, SQL/FTS, matched legacy and
+.NET protocol load evidence, SEC-18 cutover, installer/out-of-process COM, and
+24-hour soak remain unproven. Next slice is a fresh legacy-first audit of one
+remaining low-risk Settings mutation.
+
 ## Current parity continuation (2026-08-10, authenticated maximum message size mutation)
 
 Code/test commit `69aa0c6d5` extends the existing authenticated Administrator

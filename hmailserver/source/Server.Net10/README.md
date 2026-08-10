@@ -1,3 +1,22 @@
+## Current parity continuation (2026-08-11, authenticated Delivered-To header mutation)
+
+Code/test commit `279b18f70` adds only authenticated
+`IInterfaceSettings.AddDeliveredToHeader` (`DispId(73)`, `VARIANT_BOOL`)
+persistence. The SQL command is parameterized and fixed to
+`settingname = N'adddeliveredtoheader'`; the live administrator callback is
+checked before store access and the retained snapshot changes only after a
+one-row success. Focused settings/SQL coverage is `47/47`; full Net10 is
+`2030 passed, 39 skipped, 0 failed`.
+
+Legacy references are `source/Server/hMailServer/hMailServer.idl:520`,
+`source/Server/COM/InterfaceSettings.cpp:1833`,
+`source/Server/SMTP/SMTPConfiguration.cpp:300`,
+`source/Server/Common/Application/Constants.h:94`, and
+`source/DBScripts/CreateTablesMSSQL.sql:874`. No COM identity, direct
+activation boundary, `LocalDelivery::AddTraceHeaders_`, or runtime
+reconfiguration path changed. Next slice: fresh legacy-first audit of one
+remaining low-risk Settings mutation.
+
 ## Current parity continuation (2026-08-10, authenticated maximum message size mutation)
 
 Code/test commit `69aa0c6d5` adds only authenticated
