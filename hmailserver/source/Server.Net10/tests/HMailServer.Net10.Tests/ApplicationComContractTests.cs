@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
+using HMailServer.Protocols.Pop3;
 
 namespace HMailServer.Net10.Tests;
 
@@ -252,6 +253,34 @@ public sealed class ApplicationComContractTests
     }
 
     [TestMethod]
+    public async Task AuthenticatedAdministrator_UnlockMailbox_ReleasesAccountZeroLock()
+    {
+        var lockManager = new InMemoryPop3MailboxLockManager();
+        AccountAdministrationRuntimeHost.Configure(
+            new EmptyAccountAdministrationStore(),
+            lockManager.Unlock);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+
+        var administrator = application.Authenticate("Administrator", "secret");
+
+        Assert.IsNotNull(administrator);
+        Assert.AreEqual(0, administrator.ID);
+        var lease = await lockManager.TryAcquireAsync(
+            new ImapAuthenticatedAccount(0, "Administrator"),
+            CancellationToken.None);
+
+        Assert.IsNotNull(lease);
+        administrator.UnlockMailbox();
+
+        var reacquiredLease = await lockManager.TryAcquireAsync(
+            new ImapAuthenticatedAccount(0, "Administrator"),
+            CancellationToken.None);
+        Assert.IsNotNull(reacquiredLease);
+        await lease.DisposeAsync();
+        await reacquiredLease.DisposeAsync();
+    }
+
+    [TestMethod]
     public void Application_CoreScalarsPreserveLegacyAuthBoundariesAndUseConfiguredRuntime()
     {
         ApplicationRuntimeHost.Configure(
@@ -412,6 +441,19 @@ public sealed class ApplicationComContractTests
         public bool Authenticate(string username, string attemptedPassword) =>
             username.Equals("Administrator", StringComparison.OrdinalIgnoreCase)
             && attemptedPassword == password;
+    }
+
+    private sealed class EmptyAccountAdministrationStore : IAccountAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(Array.Empty<AccountAdministrationSnapshot>());
+
+        public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<AccountAdministrationSnapshot?>(null);
     }
 
     private sealed class FixedDomainAdministrationStore(IReadOnlyList<DomainAdministrationSnapshot> domains)

@@ -107,7 +107,10 @@ public sealed class Links : IInterfaceLinks
             if (account is not null)
             {
                 return _accountFactory?.Invoke(databaseId)
-                    ?? Account.CreateAuthorized(account, _isServerAdministrator);
+                    ?? Account.CreateAuthorized(
+                        account,
+                        _isServerAdministrator,
+                        AccountAdministrationRuntimeHost.UnlockMailboxCallback);
             }
         }
 

@@ -5,7 +5,9 @@ namespace HMailServer.Protocols.Pop3;
 
 public sealed class InMemoryPop3MailboxLockManager : IPop3MailboxLockManager
 {
-    private readonly ConcurrentDictionary<int, byte> _lockedAccounts = new();
+    private readonly ConcurrentDictionary<int, object> _lockedAccounts = new();
+
+    public void Unlock(int accountId) => _lockedAccounts.TryRemove(accountId, out _);
 
     public ValueTask<IAsyncDisposable?> TryAcquireAsync(
         ImapAuthenticatedAccount account,
@@ -14,31 +16,36 @@ public sealed class InMemoryPop3MailboxLockManager : IPop3MailboxLockManager
         ArgumentNullException.ThrowIfNull(account);
         cancellationToken.ThrowIfCancellationRequested();
 
+        var leaseOwner = new object();
         return ValueTask.FromResult<IAsyncDisposable?>(
-            _lockedAccounts.TryAdd(account.AccountId, 0)
-                ? new Lease(_lockedAccounts, account.AccountId)
+            _lockedAccounts.TryAdd(account.AccountId, leaseOwner)
+                ? new Lease(_lockedAccounts, account.AccountId, leaseOwner)
                 : null);
     }
 
     private sealed class Lease : IAsyncDisposable
     {
-        private readonly ConcurrentDictionary<int, byte> _lockedAccounts;
+        private readonly ConcurrentDictionary<int, object> _lockedAccounts;
         private readonly int _accountId;
+        private readonly object _leaseOwner;
         private int _disposed;
 
         public Lease(
-            ConcurrentDictionary<int, byte> lockedAccounts,
-            int accountId)
+            ConcurrentDictionary<int, object> lockedAccounts,
+            int accountId,
+            object leaseOwner)
         {
             _lockedAccounts = lockedAccounts;
             _accountId = accountId;
+            _leaseOwner = leaseOwner;
         }
 
         public ValueTask DisposeAsync()
         {
             if (Interlocked.Exchange(ref _disposed, 1) == 0)
             {
-                _lockedAccounts.TryRemove(_accountId, out _);
+                ((ICollection<KeyValuePair<int, object>>)_lockedAccounts)
+                    .Remove(new KeyValuePair<int, object>(_accountId, _leaseOwner));
             }
 
             return ValueTask.CompletedTask;

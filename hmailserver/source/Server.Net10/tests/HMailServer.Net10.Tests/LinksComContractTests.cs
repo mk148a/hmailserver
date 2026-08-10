@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
+using HMailServer.Protocols.Pop3;
 
 namespace HMailServer.Net10.Tests;
 
@@ -113,6 +114,39 @@ public sealed class LinksComContractTests
         AssertBadIndex(() => _ = links.get_Account(999));
         AssertBadIndex(() => _ = links.get_Alias(999));
         AssertBadIndex(() => _ = links.get_DistributionList(999));
+    }
+
+    [TestMethod]
+    public async Task DirectLinksFallbackAccount_UnlockMailbox_ReleasesMailboxLock()
+    {
+        var lockManager = new InMemoryPop3MailboxLockManager();
+        AccountAdministrationRuntimeHost.Configure(
+            new RecordingAccountStore(
+                new AccountAdministrationSnapshot(20, 10, "user@alpha.example", true, AdminLevel: 0)),
+            lockManager.Unlock);
+        IInterfaceLinks links = Links.CreateAuthorized(
+            new RecordingDomainStore(
+                new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) }),
+            new RecordingAccountStore(
+                new AccountAdministrationSnapshot(20, 10, "user@alpha.example", true, AdminLevel: 0)),
+            new RecordingAliasStore(),
+            new RecordingDistributionListStore(),
+            isServerAdministrator: () => true);
+
+        var account = links.get_Account(20);
+        var lease = await lockManager.TryAcquireAsync(
+            new ImapAuthenticatedAccount(20, "user@alpha.example"),
+            CancellationToken.None);
+
+        Assert.IsNotNull(lease);
+        account.UnlockMailbox();
+
+        var reacquiredLease = await lockManager.TryAcquireAsync(
+            new ImapAuthenticatedAccount(20, "user@alpha.example"),
+            CancellationToken.None);
+        Assert.IsNotNull(reacquiredLease);
+        await lease.DisposeAsync();
+        await reacquiredLease.DisposeAsync();
     }
 
     [TestMethod]

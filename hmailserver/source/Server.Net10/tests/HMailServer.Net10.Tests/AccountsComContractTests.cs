@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
+using HMailServer.Protocols.Pop3;
 
 namespace HMailServer.Net10.Tests;
 
@@ -63,6 +64,7 @@ public sealed class AccountsComContractTests
         var imapFoldersError = Assert.ThrowsExactly<COMException>(() => _ = new Account().IMAPFolders);
         var validatePasswordError = Assert.ThrowsExactly<COMException>(
             () => new Account().ValidatePassword("candidate-password"));
+        var unlockMailboxError = Assert.ThrowsExactly<COMException>(new Account().UnlockMailbox);
 
         Assert.AreEqual(EAccessDenied, accountsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, refreshError.ErrorCode);
@@ -77,6 +79,67 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(EAccessDenied, rulesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapFoldersError.ErrorCode);
         Assert.AreEqual(EAccessDenied, validatePasswordError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, unlockMailboxError.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task UnlockMailbox_AuthorizedAccountReleasesLockAndAllowsNoLockNoOp()
+    {
+        var store = new MutableAccountAdministrationStore(
+            [new AccountAdministrationSnapshot(10, 100, "account@example.test", true, 0)]);
+        var lockManager = new InMemoryPop3MailboxLockManager();
+        AccountAdministrationRuntimeHost.Configure(store, lockManager.Unlock);
+
+        var account = AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(100)[0];
+        account.UnlockMailbox();
+
+        var lease = await lockManager.TryAcquireAsync(
+            new ImapAuthenticatedAccount(10, "account@example.test"),
+            CancellationToken.None);
+        Assert.IsNotNull(lease);
+
+        account.UnlockMailbox();
+        var reacquiredLease = await lockManager.TryAcquireAsync(
+            new ImapAuthenticatedAccount(10, "account@example.test"),
+            CancellationToken.None);
+        Assert.IsNotNull(reacquiredLease);
+
+        await lease.DisposeAsync();
+        var stillLocked = await lockManager.TryAcquireAsync(
+            new ImapAuthenticatedAccount(10, "account@example.test"),
+            CancellationToken.None);
+        Assert.IsNull(stillLocked);
+
+        await reacquiredLease.DisposeAsync();
+        account.UnlockMailbox();
+    }
+
+    [TestMethod]
+    public async Task UnlockMailbox_RetainedAccountRechecksAuthenticationBeforeRelease()
+    {
+        var authenticated = true;
+        var lockManager = new InMemoryPop3MailboxLockManager();
+        IInterfaceAccounts accounts = Accounts.CreateAuthorized(
+            [new AccountAdministrationSnapshot(10, 100, "account@example.test", true, 0)],
+            isAuthenticated: () => authenticated,
+            unlockMailbox: lockManager.Unlock);
+        var account = accounts[0];
+        var lease = await lockManager.TryAcquireAsync(
+            new ImapAuthenticatedAccount(10, "account@example.test"),
+            CancellationToken.None);
+
+        authenticated = false;
+        var denied = Assert.ThrowsExactly<COMException>(account.UnlockMailbox);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        var stillLocked = await lockManager.TryAcquireAsync(
+            new ImapAuthenticatedAccount(10, "account@example.test"),
+            CancellationToken.None);
+        Assert.IsNull(stillLocked);
+
+        authenticated = true;
+        account.UnlockMailbox();
+        await lease!.DisposeAsync();
     }
 
     [TestMethod]

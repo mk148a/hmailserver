@@ -219,7 +219,9 @@ public sealed class Application : IInterfaceApplication
         }
 
         return isServerAdministrator
-            ? Account.CreateServerAdministrator(() => IsServerAdministrator)
+            ? Account.CreateServerAdministrator(
+                () => IsServerAdministrator,
+                AccountAdministrationRuntimeHost.UnlockMailboxCallback)
             : null;
     }
 

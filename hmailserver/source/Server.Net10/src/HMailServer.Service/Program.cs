@@ -132,7 +132,8 @@ WhiteListAddressAdministrationRuntimeHost.Configure(
 DomainAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IDomainAdministrationStore>());
 AccountAdministrationRuntimeHost.Configure(
-    host.Services.GetRequiredService<IAccountAdministrationStore>());
+    host.Services.GetRequiredService<IAccountAdministrationStore>(),
+    host.Services.GetRequiredService<IPop3MailboxLockManager>().Unlock);
 MessageAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<IMessageAdministrationStore>(),
     host.Services.GetRequiredService<IMessageAdministrationContentSource>());

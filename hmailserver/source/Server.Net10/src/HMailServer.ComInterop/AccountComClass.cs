@@ -55,6 +55,7 @@ public sealed class Account : IInterfaceAccount
     private readonly Action<int>? _delete;
     private AccountAdministrationSnapshot? _currentSaveSnapshot;
     private readonly Func<AccountAdministrationSnapshot, string?, bool>? _update;
+    private readonly Action<int>? _unlockMailbox;
     private bool _passwordModified;
 
     public Account()
@@ -68,7 +69,8 @@ public sealed class Account : IInterfaceAccount
         RuleAdministrationState rulesState,
         Func<AccountAdministrationSnapshot, string, int>? save,
         Action<int>? delete,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Action<int>? unlockMailbox = null)
     {
         _attached = true;
         _address = address;
@@ -79,6 +81,7 @@ public sealed class Account : IInterfaceAccount
         _delete = delete;
         _isServerAdministrator = isServerAdministrator;
         _isAuthenticated = isServerAdministrator;
+        _unlockMailbox = unlockMailbox;
     }
 
     private Account(
@@ -90,7 +93,8 @@ public sealed class Account : IInterfaceAccount
         AccountSizeInvalidator? accountSizeInvalidator,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback,
         Action<int>? delete = null,
-        Func<AccountAdministrationSnapshot, string?, bool>? update = null)
+        Func<AccountAdministrationSnapshot, string?, bool>? update = null,
+        Action<int>? unlockMailbox = null)
     {
         _update = update;
         _attached = true;
@@ -103,6 +107,7 @@ public sealed class Account : IInterfaceAccount
         _messagesState = messagesState;
         _rulesState = rulesState;
         _isAuthenticated = isAuthenticated;
+        _unlockMailbox = unlockMailbox;
     }
 
     public bool Active
@@ -250,7 +255,9 @@ public sealed class Account : IInterfaceAccount
 
     public bool ForwardAbortSpamFlagged { get => CurrentSnapshot?.ForwardAbortSpamFlagged ?? Read(_forwardAbortSpamFlagged); set => Set(() => _forwardAbortSpamFlagged = value, s => s with { ForwardAbortSpamFlagged = value }); }
 
-    internal static Account CreateServerAdministrator(Func<bool>? isServerAdministrator = null) =>
+    internal static Account CreateServerAdministrator(
+        Func<bool>? isServerAdministrator = null,
+        Action<int>? unlockMailbox = null) =>
         new(
             "Administrator",
             ComAdminLevel.ServerAdministrator,
@@ -258,11 +265,13 @@ public sealed class Account : IInterfaceAccount
             RuleAdministrationRuntimeHost.CreateAuthorizedState(0),
             save: null,
             delete: null,
-            isServerAdministrator);
+            isServerAdministrator,
+            unlockMailbox);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
-        Func<bool>? isAuthenticated = null) =>
+        Func<bool>? isAuthenticated = null,
+        Action<int>? unlockMailbox = null) =>
         new(
             account,
             RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
@@ -270,7 +279,10 @@ public sealed class Account : IInterfaceAccount
             ImapFolderAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
             isAuthenticated,
             null,
-            null);
+            null,
+            null,
+            null,
+            unlockMailbox);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
@@ -306,7 +318,8 @@ public sealed class Account : IInterfaceAccount
         AccountSizeInvalidator? accountSizeInvalidator = null,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null,
         Action<int>? delete = null,
-        Func<AccountAdministrationSnapshot, string?, bool>? update = null) =>
+        Func<AccountAdministrationSnapshot, string?, bool>? update = null,
+        Action<int>? unlockMailbox = null) =>
         new(
             account,
             rulesState,
@@ -316,7 +329,8 @@ public sealed class Account : IInterfaceAccount
             accountSizeInvalidator,
             accountSizeReadback,
             delete,
-            update);
+            update,
+            unlockMailbox);
 
     internal static Account CreateAuthorizedDraft(
         string address,
@@ -324,7 +338,8 @@ public sealed class Account : IInterfaceAccount
         int domainId,
         Func<AccountAdministrationSnapshot, string, int> save,
         Action<int>? delete = null,
-        Func<bool>? isServerAdministrator = null) =>
+        Func<bool>? isServerAdministrator = null,
+        Action<int>? unlockMailbox = null) =>
         new(
             address,
             adminLevel,
@@ -332,7 +347,8 @@ public sealed class Account : IInterfaceAccount
             RuleAdministrationRuntimeHost.CreateAuthorizedState(0),
             save,
             delete,
-            isServerAdministrator);
+            isServerAdministrator,
+            unlockMailbox);
     public void Save()
     {
         EnsureAttached();
@@ -432,7 +448,18 @@ public sealed class Account : IInterfaceAccount
         return false;
     }
 
-    public void UnlockMailbox() => NotImplemented();
+    public void UnlockMailbox()
+    {
+        EnsureAttached();
+        EnsureAuthenticated();
+        if (_unlockMailbox is null)
+        {
+            NotImplemented();
+            return;
+        }
+
+        _unlockMailbox(ID);
+    }
 
         public void Delete()
     {

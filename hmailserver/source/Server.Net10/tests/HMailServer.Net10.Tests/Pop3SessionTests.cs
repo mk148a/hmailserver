@@ -510,6 +510,10 @@ public sealed class Pop3SessionTests
     {
         public int AttemptCount { get; private set; }
 
+        public void Unlock(int accountId)
+        {
+        }
+
         public ValueTask<IAsyncDisposable?> TryAcquireAsync(
             ImapAuthenticatedAccount account,
             CancellationToken cancellationToken)
