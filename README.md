@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, folder message metadata)
+
+Code/test commit `1b89ae4b8` adds the bounded legacy folder-message metadata
+restore path. Legacy `Message::XMLLoad`, `PersistentMessage::SaveObject`, and
+`IMAPFolder::XMLLoadSubItems` semantics are preserved: message IDs are newly
+generated, nonzero mailbox UIDs are retained, retry/lock defaults remain
+legacy values, and the folder UID counter is not incremented. Recipients,
+search metadata, ACLs, and physical message-file staging remain separate.
+
+Focused parser and isolated SQL round-trip coverage passes; default full Net10
+is `1992 passed, 37 skipped, 0 failed`. SQL opt-in remains `2021 passed, 2
+skipped`, with six unrelated existing message/indexing fixture failures.
+Release remains RED because full DataBackup message-file acceptance,
+filesystem/SQL atomic rollback, C++ protocol parity, SEC-18, installer, and
+soak gates remain open.
+
 ## Current parity continuation (2026-08-10, restore commit rollback)
 
 Code/test commit `915b78a4a` closes a restore transaction safety gap: SQL

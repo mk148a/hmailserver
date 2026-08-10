@@ -1,4 +1,17 @@
-## Current Authoritative Continuation (2026-08-10, restore commit rollback)
+## Current Authoritative Continuation (2026-08-10, folder message metadata)
+
+Code/test commit `1b89ae4b8` implements folder-scoped delivered message
+metadata restore. Legacy anchors are `Message::XMLLoad`,
+`PersistentMessage::SaveObject`/`AddObject`, `Messages::PreSaveObject`, and
+`IMAPFolder::XMLLoadSubItems`. The .NET path parses the nine legacy message
+attributes, remaps account/folder ownership, generates `messageid`, preserves
+nonzero UID, uses `1901-01-01`/zero retry and lock defaults, and does not
+advance `foldercurrentuid`. SQL identity and UID readback pass in an isolated
+database. Recipients, search tables, ACLs, and physical `.eml` acceptance are
+out of scope. Default full Net10 is `1992 passed, 37 skipped, 0 failed`;
+release remains RED.
+
+## Historical Continuation (2026-08-10, restore commit rollback)
 
 Code/test commit `915b78a4a` makes `SqlServerBackupRestoreMetadataTransaction.DisposeAsync`
 attempt rollback whenever a SQL restore transaction is not committed, including

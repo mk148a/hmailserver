@@ -1978,3 +1978,29 @@ Next independent slice: parse and restore legacy folder message metadata with
 generated message IDs and preserved UIDs, while keeping DataBackup file
 containment and ACL restore out of scope until separately proven. Older
 continuation paragraphs are historical.
+## Current Authoritative Continuation (2026-08-10, FOLDER MESSAGE METADATA)
+
+Code/test commit `1b89ae4b8` completes the bounded folder-scoped delivered
+message metadata restore slice. Legacy behavior was confirmed in
+`Message::XMLLoad`, `PersistentMessage::SaveObject`/`AddObject`,
+`Messages::PreSaveObject`, `IMAPFolder::XMLLoadSubItems`, and the legacy
+`hm_messages` schema.
+
+The .NET path adds `RestoreFolderEntry.Messages`, parses the nine archive
+attributes, inserts a generated `messageid` through
+`IMessageAdministrationRestoreStore`, remaps generated account/folder IDs,
+preserves nonzero UIDs, and writes legacy `messagecurnooftries = 0`,
+`messagenexttrytime = 1901-01-01`, and `messagelocked = 0`. The insert is
+owner-scoped by account and folder and does not increment `foldercurrentuid`.
+
+Focused parser plus isolated SQL round-trip coverage passes; default full
+Net10 is `1992 passed, 37 skipped, 0 failed`. SQL opt-in is `2021 passed, 2
+skipped`, with six unrelated existing message/indexing fixture failures.
+Physical DataBackup `.eml` acceptance was deliberately not claimed because
+the existing executor fixture lacks a valid raw message-file graph. Recipients,
+search metadata, ACLs, and filesystem/SQL atomic rollback remain open.
+Release remains RED.
+
+Next slice: create a disposable archive with a valid DataBackup message-file
+graph and prove executor-level message restore plus failure rollback. Older
+continuation paragraphs are historical.

@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-10, FOLDER MESSAGE METADATA)
+
+Code/test commit `1b89ae4b8` adds legacy folder-scoped delivered message
+metadata restore. Parity anchors inspected were `Message::XMLLoad`,
+`PersistentMessage::SaveObject`/`AddObject`, `Messages::PreSaveObject`,
+`IMAPFolder::XMLLoadSubItems`, and `hm_messages`. Current anchors are
+`BackupArchiveXmlSnapshotParser.ParseFolder`,
+`BackupRestoreMetadataWriter.RestoreFoldersAsync`,
+`IMessageAdministrationRestoreStore`,
+`SqlServerMessageAdministrationStore.InsertMessageForRestoreAsync`, and
+`MetadataBackupRestoreExecutor.RestoreMetadataAsync`.
+
+The implementation generates message IDs, preserves nonzero UIDs, remaps
+account/folder IDs, uses legacy retry/lock defaults, and leaves
+`foldercurrentuid` unchanged. Focused parser + isolated SQL round-trip and
+default full Net10 pass (`1992 passed, 37 skipped, 0 failed`). SQL opt-in is
+`2021 passed, 2 skipped`, with six unrelated existing message/indexing fixture
+failures. Executor-level valid raw-file graph, message failure rollback,
+recipient/search/ACL restore, and release gates remain open. Do not push.
+
+Next slice: disposable DataBackup message-file graph plus executor restore and
+rollback acceptance.
+
 ## Current Authoritative Continuation (2026-08-10, RESTORE COMMIT ROLLBACK)
 
 Code/test commit `915b78a4a` updates
