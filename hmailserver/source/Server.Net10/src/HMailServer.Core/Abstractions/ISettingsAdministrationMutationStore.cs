@@ -13,4 +13,8 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateWorkerThreadPriorityAsync(
         int workerThreadPriority,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateMaxSmtpConnectionsAsync(
+        int maxSmtpConnections,
+        CancellationToken cancellationToken);
 }

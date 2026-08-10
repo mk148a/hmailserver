@@ -185,6 +185,8 @@ public sealed class SettingsComContractTests
 
         var indexingError = Assert.ThrowsExactly<COMException>(() => _ = settings.MessageIndexing);
         var scalarError = Assert.ThrowsExactly<COMException>(() => _ = ((IInterfaceSettings)settings).MaxSMTPConnections);
+        var scalarSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).MaxSMTPConnections = 1);
         var hostNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.HostName);
         var imapCapabilityError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSortEnabled);
         var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
@@ -213,6 +215,7 @@ public sealed class SettingsComContractTests
 
         Assert.AreEqual(EAccessDenied, indexingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, scalarError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, scalarSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapCapabilityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
@@ -696,6 +699,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxSmtpConnectionsSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxSmtpConnectionsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxSmtpConnections: 10),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MaxSMTPConnections = 25;
+
+        Assert.AreEqual(1, store.MaxSmtpConnectionsUpdateCount);
+        Assert.AreEqual(25, store.UpdatedMaxSmtpConnections);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(25, settings.MaxSMTPConnections);
+
+        store.MaxSmtpConnectionsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxSMTPConnections = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.MaxSmtpConnectionsUpdateCount);
+        Assert.AreEqual(25, settings.MaxSMTPConnections);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxSMTPConnections = 35);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.MaxSmtpConnectionsUpdateCount);
+        Assert.AreEqual(25, settings.MaxSMTPConnections);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -882,6 +927,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedWorkerThreadPriority { get; private set; }
 
+        public bool MaxSmtpConnectionsUpdateResult { get; set; }
+
+        public int MaxSmtpConnectionsUpdateCount { get; private set; }
+
+        public int UpdatedMaxSmtpConnections { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<bool> UpdateDefaultDomainAsync(
@@ -911,6 +962,16 @@ public sealed class SettingsComContractTests
             UpdatedWorkerThreadPriority = workerThreadPriority;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(WorkerThreadPriorityUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMaxSmtpConnectionsAsync(
+            int maxSmtpConnections,
+            CancellationToken cancellationToken)
+        {
+            MaxSmtpConnectionsUpdateCount++;
+            UpdatedMaxSmtpConnections = maxSmtpConnections;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(MaxSmtpConnectionsUpdateResult);
         }
 
     }

@@ -27,6 +27,12 @@ SET settinginteger = @WorkerThreadPriority
 WHERE settingname = N'workerthreadpriority';
 """;
 
+    public const string UpdateMaxSmtpConnectionsSql = """
+UPDATE hm_settings
+SET settinginteger = @MaxSMTPConnections
+WHERE settingname = N'maxsmtpconnections';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -294,6 +300,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateWorkerThreadPrioritySql, connection);
         command.Parameters.Add("@WorkerThreadPriority", SqlDbType.Int).Value = workerThreadPriority;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateMaxSmtpConnectionsAsync(
+        int maxSmtpConnections,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateMaxSmtpConnectionsSql, connection);
+        command.Parameters.Add("@MaxSMTPConnections", SqlDbType.Int).Value = maxSmtpConnections;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

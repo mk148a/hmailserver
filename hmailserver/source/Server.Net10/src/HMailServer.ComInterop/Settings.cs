@@ -494,7 +494,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MaxSMTPConnections
                 : _administrationSnapshot.MaxSmtpConnections;
         }
-        set => base.MaxSMTPConnections = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxSMTPConnections = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateMaxSmtpConnectionsAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum SMTP connections update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxSmtpConnections = value
+                };
+            }
+        }
     }
 
     public override int MaxPOP3Connections
