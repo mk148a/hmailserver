@@ -21,6 +21,12 @@ SET settingstring = @MirrorEmailAddress
 WHERE settingname = N'mirroremailaddress';
 """;
 
+    public const string UpdateAllowSmtpAuthPlainSql = """
+UPDATE hm_settings
+SET settinginteger = @AllowSMTPAuthPlain
+WHERE settingname = N'authallowplaintext';
+""";
+
     public const string UpdateWelcomePop3Sql = """
 UPDATE hm_settings
 SET settingstring = @WelcomePOP3
@@ -397,6 +403,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMirrorEmailAddressSql, connection);
         command.Parameters.Add("@MirrorEmailAddress", SqlDbType.NVarChar, 255).Value = mirrorEmailAddress;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAllowSmtpAuthPlainAsync(
+        bool allowSmtpAuthPlain,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAllowSmtpAuthPlainSql, connection);
+        command.Parameters.Add("@AllowSMTPAuthPlain", SqlDbType.Int).Value = allowSmtpAuthPlain ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

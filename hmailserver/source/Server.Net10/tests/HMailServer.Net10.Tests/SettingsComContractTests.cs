@@ -261,6 +261,8 @@ public sealed class SettingsComContractTests
         var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
         var imapNamingError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPPublicFolderName);
         var smtpPolicyError = Assert.ThrowsExactly<COMException>(() => _ = settings.AllowSMTPAuthPlain);
+        var smtpPolicySetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.AllowSMTPAuthPlain = true);
         var smtpRoutingError = Assert.ThrowsExactly<COMException>(() => _ = settings.MirrorEMailAddress);
         var welcomeSmtpError = Assert.ThrowsExactly<COMException>(() => _ = settings.WelcomeSMTP);
         var welcomeSmtpSetterError = Assert.ThrowsExactly<COMException>(
@@ -330,6 +332,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapNamingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpPolicyError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, smtpPolicySetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpRoutingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, welcomeSmtpError.ErrorCode);
         Assert.AreEqual(EAccessDenied, welcomeSmtpSetterError.ErrorCode);
@@ -1628,6 +1631,54 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AllowSmtpAuthPlainSetterPersistsTrueAndFalseBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AllowSmtpAuthPlainUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AllowSmtpAuthPlain: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.AllowSMTPAuthPlain = true;
+
+        Assert.AreEqual(1, store.AllowSmtpAuthPlainUpdateCount);
+        Assert.IsTrue(store.UpdatedAllowSmtpAuthPlain);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.AllowSMTPAuthPlain);
+
+        settings.AllowSMTPAuthPlain = false;
+
+        Assert.AreEqual(2, store.AllowSmtpAuthPlainUpdateCount);
+        Assert.IsFalse(store.UpdatedAllowSmtpAuthPlain);
+        Assert.IsFalse(settings.AllowSMTPAuthPlain);
+
+        store.AllowSmtpAuthPlainUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.AllowSMTPAuthPlain = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(3, store.AllowSmtpAuthPlainUpdateCount);
+        Assert.IsFalse(settings.AllowSMTPAuthPlain);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.AllowSMTPAuthPlain = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(3, store.AllowSmtpAuthPlainUpdateCount);
+        Assert.IsFalse(settings.AllowSMTPAuthPlain);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -1922,6 +1973,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAllowIncorrectLineEndings { get; private set; }
 
+        public bool AllowSmtpAuthPlainUpdateResult { get; set; }
+
+        public int AllowSmtpAuthPlainUpdateCount { get; private set; }
+
+        public bool UpdatedAllowSmtpAuthPlain { get; private set; }
+
         public bool VerifyRemoteSslCertificateUpdateResult { get; set; }
 
         public int VerifyRemoteSslCertificateUpdateCount { get; private set; }
@@ -2137,6 +2194,16 @@ public sealed class SettingsComContractTests
             UpdatedAllowIncorrectLineEndings = allowIncorrectLineEndings;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AllowIncorrectLineEndingsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAllowSmtpAuthPlainAsync(
+            bool allowSmtpAuthPlain,
+            CancellationToken cancellationToken)
+        {
+            AllowSmtpAuthPlainUpdateCount++;
+            UpdatedAllowSmtpAuthPlain = allowSmtpAuthPlain;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AllowSmtpAuthPlainUpdateResult);
         }
 
         public ValueTask<bool> UpdateVerifyRemoteSslCertificateAsync(

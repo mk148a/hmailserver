@@ -612,7 +612,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.AllowSMTPAuthPlain
                 : _administrationSnapshot.AllowSmtpAuthPlain;
         }
-        set => base.AllowSMTPAuthPlain = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.AllowSMTPAuthPlain = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateAllowSmtpAuthPlainAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The plain SMTP authentication update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    AllowSmtpAuthPlain = value
+                };
+            }
+        }
     }
 
     public override bool DenyMailFromNull
