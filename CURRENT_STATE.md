@@ -1,15 +1,15 @@
 # Current State
-- UTC/local timestamp: 2026-08-10T13:31:00Z / 2026-08-10T16:31:00+03:00
+- UTC/local timestamp: 2026-08-10T14:45:00Z / 2026-08-10T17:45:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: documentation commit `900fb275c`
+- Current HEAD: this documentation commit
 - Last successfully pushed commit: `0b2646731`
 - Push status: not pushed; live C++/.NET 10 performance gate is RED
-- Latest focused-test result: Net10 benchmark pack `passed`; offline SEARCH/SORT p50 `7.339 ms`, p95 `8.893 ms`, p99 `9.227 ms`, correctness `true`
+- Latest focused-test result: isolated LocalDB `BackupRestoreRoundTripIntegrationTests` `11 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: `1987 passed, 33 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: disposable SQL/Data fixture creation and parity checks passed; live C++ crashed with `0xC0000409` during isolated SQL startup; Net10 live start blocked by LocalDB `IsFullTextInstalled=0`; protocol/load, service/COM, installer, AD/DC, SEC-18, crash/power-loss, and soak remain skipped or blocked
-- Current bounded slice: isolated C++ vs .NET 10 SQL/Data/message-corpus setup and live performance gate evidence; no paired latency result
-- Completed milestones: backup creation matrix/raw staging, offline synthetic 100k IMAP SEARCH/SORT acceptance, COM authorization/HRESULT slices, ClamAV target hardening, IMAP ownership and Message.Save publication, Diagnostics retained reauthentication, unsaved and saved Rule movement parity, Account mailbox unlock, and Account.ValidatePassword preparatory seam; no production release gate complete
-- Open production blockers: live paired C++/.NET 10 performance/load evidence, Full-Text Search runtime, legacy ADO isolated startup, COM password SQL/script/AD live evidence and SEC-12 rate-limit/auto-ban semantics, populated disposable restore/rollback, SEC-18, migration/installer, service/COM lifecycle, crash/power-loss, 24-hour soak, and clean AV-compatible default suite
-- Environment-blocked work: disposable SQL/Data restore target schema, supported isolated SQL Server with FTS and legacy ADO compatibility, protocol/load host, isolated service/COM restore host, domain-controller credentials, IIS/SEC-18 evidence, InnoSetup toolchain, AV-compatible scanner cleanup, and PHP runtime
-- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`/backup files, untracked SEC-18/benchmark artifacts
-- Next three independent slices: obtain a supported disposable SQL/FTS + legacy ADO staging host; implement the paired protocol benchmark harness; repair and rerun the isolated SQL restore fixture/schema
+- Opt-in tests passed/skipped/blocked: restore fixture/SQL/Data rollback checks passed; native registry, installer, live SQL FTS, protocol/load, service/COM, AD/DC, SEC-18, crash/power-loss, migration/installer, and soak remain skipped or blocked
+- Current bounded slice: isolated SQL restore fixture schema repair and rerun
+- Completed milestones: backup creation/raw staging, offline synthetic SEARCH/SORT benchmark, COM/Admin parity slices, password verifier seam, and disposable restore rollback fixture coverage; no production release gate complete
+- Open production blockers: live paired C++/.NET 10 performance/load, SQL Full-Text Search and legacy ADO startup, populated restore/round-trip rollback, SEC-18, migration/installer, service/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak
+- Environment-blocked work: approved FTS/legacy ADO staging SQL, protocol/load host, isolated service/COM host, domain-controller credentials, IIS/SEC-18 gate, InnoSetup, and AV-compatible full-suite cleanup
+- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`/backup files, and untracked SEC-18/benchmark artifacts
+- Next three independent slices: extend populated isolated restore graph readback/rollback; implement paired SMTP/IMAP/POP3 harness once FTS/legacy ADO staging exists; run isolated service/out-of-process COM lifecycle acceptance
