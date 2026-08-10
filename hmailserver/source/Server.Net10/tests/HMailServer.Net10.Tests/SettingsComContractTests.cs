@@ -203,6 +203,10 @@ public sealed class SettingsComContractTests
             () => _ = ((IInterfaceSettings)settings).MaxNumberOfInvalidCommands);
         var invalidCommandsSetterError = Assert.ThrowsExactly<COMException>(
             () => ((IInterfaceSettings)settings).MaxNumberOfInvalidCommands = 1);
+        var disconnectInvalidClientsError = Assert.ThrowsExactly<COMException>(
+            () => _ = ((IInterfaceSettings)settings).DisconnectInvalidClients);
+        var disconnectInvalidClientsSetterError = Assert.ThrowsExactly<COMException>(
+            () => ((IInterfaceSettings)settings).DisconnectInvalidClients = true);
         var hostNameError = Assert.ThrowsExactly<COMException>(() => _ = settings.HostName);
         var imapCapabilityError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSortEnabled);
         var imapSaslError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPSASLPlainEnabled);
@@ -247,6 +251,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, recipientsScalarSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, invalidCommandsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, invalidCommandsSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, disconnectInvalidClientsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, disconnectInvalidClientsSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, hostNameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapCapabilityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapSaslError.ErrorCode);
@@ -1024,6 +1030,54 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_DisconnectInvalidClientsSetterPersistsTrueAndFalseBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            DisconnectInvalidClientsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                DisconnectInvalidClients: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.DisconnectInvalidClients = true;
+
+        Assert.AreEqual(1, store.DisconnectInvalidClientsUpdateCount);
+        Assert.IsTrue(store.UpdatedDisconnectInvalidClients);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.DisconnectInvalidClients);
+
+        settings.DisconnectInvalidClients = false;
+
+        Assert.AreEqual(2, store.DisconnectInvalidClientsUpdateCount);
+        Assert.IsFalse(store.UpdatedDisconnectInvalidClients);
+        Assert.IsFalse(settings.DisconnectInvalidClients);
+
+        store.DisconnectInvalidClientsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.DisconnectInvalidClients = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(3, store.DisconnectInvalidClientsUpdateCount);
+        Assert.IsFalse(settings.DisconnectInvalidClients);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.DisconnectInvalidClients = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(3, store.DisconnectInvalidClientsUpdateCount);
+        Assert.IsFalse(settings.DisconnectInvalidClients);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLOnlyMapsLegacyTlsMode()
     {
         var cases = new[]
@@ -1252,6 +1306,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxNumberOfInvalidCommands { get; private set; }
 
+        public bool DisconnectInvalidClientsUpdateResult { get; set; }
+
+        public int DisconnectInvalidClientsUpdateCount { get; private set; }
+
+        public bool UpdatedDisconnectInvalidClients { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<bool> UpdateDefaultDomainAsync(
@@ -1351,6 +1411,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxNumberOfInvalidCommands = maxNumberOfInvalidCommands;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxNumberOfInvalidCommandsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateDisconnectInvalidClientsAsync(
+            bool disconnectInvalidClients,
+            CancellationToken cancellationToken)
+        {
+            DisconnectInvalidClientsUpdateCount++;
+            UpdatedDisconnectInvalidClients = disconnectInvalidClients;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(DisconnectInvalidClientsUpdateResult);
         }
 
     }

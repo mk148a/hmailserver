@@ -38,6 +38,10 @@ public interface ISettingsAdministrationMutationStore
         int maxSmtpRecipientsInBatch,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateDisconnectInvalidClientsAsync(
+        bool disconnectInvalidClients,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateMaxNumberOfInvalidCommandsAsync(
         int maxNumberOfInvalidCommands,
         CancellationToken cancellationToken);

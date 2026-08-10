@@ -63,6 +63,12 @@ SET settinginteger = @MaxSMTPRecipientsInBatch
 WHERE settingname = N'maxsmtprecipientsinbatch';
 """;
 
+    public const string UpdateDisconnectInvalidClientsSql = """
+UPDATE hm_settings
+SET settinginteger = @DisconnectInvalidClients
+WHERE settingname = N'disconnectinvalidclients';
+""";
+
     public const string UpdateMaxNumberOfInvalidCommandsSql = """
 UPDATE hm_settings
 SET settinginteger = @MaxNumberOfInvalidCommands
@@ -402,6 +408,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMaxSmtpRecipientsInBatchSql, connection);
         command.Parameters.Add("@MaxSMTPRecipientsInBatch", SqlDbType.Int).Value = maxSmtpRecipientsInBatch;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateDisconnectInvalidClientsAsync(
+        bool disconnectInvalidClients,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateDisconnectInvalidClientsSql, connection);
+        command.Parameters.Add("@DisconnectInvalidClients", SqlDbType.Int).Value = disconnectInvalidClients ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

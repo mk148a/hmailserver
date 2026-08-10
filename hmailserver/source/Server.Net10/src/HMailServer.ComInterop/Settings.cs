@@ -1100,7 +1100,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.DisconnectInvalidClients
                 : _administrationSnapshot.DisconnectInvalidClients;
         }
-        set => base.DisconnectInvalidClients = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.DisconnectInvalidClients = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateDisconnectInvalidClientsAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The disconnect invalid clients update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    DisconnectInvalidClients = value
+                };
+            }
+        }
     }
 
     public override int MaxNumberOfInvalidCommands
