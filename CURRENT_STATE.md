@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: 2026-08-10T14:38:57Z / 2026-08-10T17:38:57+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `17ba6e70a` test commit; documentation commit pending
+- Current HEAD: `d51d55658` docs commit
 - Last successfully pushed commit: `0b2646731`
 - Latest focused-test result: disposable `BackupRestoreRoundTripIntegrationTests` `12 passed, 0 failed, 0 skipped`; FetchAccount store integration `2 passed, 0 failed, 0 skipped`
 - Latest full Net10 result: default `1990 passed, 36 skipped, 0 failed`; last SQL-enabled run `2017 passed, 2 skipped, 6 unrelated message/indexing fixture failures`
