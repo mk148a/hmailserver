@@ -2004,3 +2004,18 @@ Release remains RED.
 Next slice: create a disposable archive with a valid DataBackup message-file
 graph and prove executor-level message restore plus failure rollback. Older
 continuation paragraphs are historical.
+## Current Authoritative Continuation (2026-08-10, RAW MESSAGE-FILE RESTORE)
+
+Test commit `84ca67ee4` proves an isolated non-DB restore with a valid raw
+DataBackup graph at `DataBackup/<domain>/<account>/<guid-bucket>/<filename>`.
+The executor stages the raw file, creates the owning folder, inserts message
+metadata, generates a new message ID, and reads back the archived UID. Full
+default Net10 is `1993 passed, 37 skipped, 0 failed`; SQL opt-in remains
+`2021 passed, 2 skipped`, with six unrelated existing message/indexing fixture
+failures.
+
+This proves only the delivered message metadata plus raw-file path for one
+disposable graph. Recipient rows, search metadata/documents, ACLs, multi-message
+failure rollback, crash/power-loss recovery, and production release gates
+remain open. Next slice: inject a message insert failure after file staging and
+prove SQL plus DataBackup rollback cleanup.

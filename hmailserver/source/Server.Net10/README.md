@@ -1,4 +1,13 @@
-## Current Authoritative Continuation (2026-08-10, folder message metadata)
+## Current Authoritative Continuation (2026-08-10, raw message-file restore acceptance)
+
+Test commit `84ca67ee4` proves the executor path with a disposable external
+raw DataBackup graph under `DataBackup/<domain>/<account>/<guid-bucket>/`.
+The restore stages the message file, inserts metadata, generates a new message
+ID, and reads back the archived UID. Default full Net10 is `1993 passed, 37
+skipped, 0 failed`. Recipients, search metadata, ACLs, crash-safe rollback,
+and release gates remain open; release is RED.
+
+## Historical Continuation (2026-08-10, folder message metadata)
 
 Code/test commit `1b89ae4b8` implements folder-scoped delivered message
 metadata restore. Legacy anchors are `Message::XMLLoad`,

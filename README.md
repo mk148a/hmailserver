@@ -1,6 +1,16 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, raw message-file restore acceptance)
+
+Test commit `84ca67ee4` proves a disposable non-DB restore with the real raw
+DataBackup layout `DataBackup/<domain>/<account>/<guid-bucket>/<filename>`.
+The executor stages the file graph, restores folder message metadata, and
+reads back the generated message ID with the archived UID. Full default Net10
+is `1993 passed, 37 skipped, 0 failed`. This does not close recipients,
+search metadata, ACL, crash-safe SQL/filesystem rollback, or production release
+gates; release remains RED.
+
 ## Current parity continuation (2026-08-10, folder message metadata)
 
 Code/test commit `1b89ae4b8` adds the bounded legacy folder-message metadata
