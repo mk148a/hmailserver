@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, SMTP RETRY COUNT MUTATION)
+
+Code/test commit `f8010374d` implements only authenticated
+`Settings.SMTPNoOfTries` (`DispId(19)`) persistence. It preserves direct
+activation denial, rechecks the live administrator callback, updates the
+canonical `hm_settings.smtpnoofretries` row with a parameterized integer
+command, and changes the retained snapshot only after one-row success. The
+unrelated typo row `smtpnooftries` remains excluded.
+
+Legacy anchors: `IInterfaceSettings.SMTPNoOfTries`
+(`source/Server/hMailServer/hMailServer.idl:541-542`),
+`InterfaceSettings::put_SMTPNoOfTries`, `SMTPConfiguration::SetNoOfRetries`,
+`PROPERTY_SMTPNOOFTRIES`, and the canonical SQL seed. Focused settings/SQL
+coverage is `53/53`; full Net10 is `2036 passed, 39 skipped, 0 failed`.
+External retry scheduling and runtime reconfiguration were deliberately not
+added. Next slice: fresh legacy-first audit of one remaining low-risk Settings
+mutation. Real SQL/Data rollback, SEC-18, installer/out-of-process COM, matched
+protocol performance, and 24-hour soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, SMTP RETRY INTERVAL MUTATION)
 
 Code/test commit `b970bf00c` implements only authenticated

@@ -1,3 +1,22 @@
+## Current parity continuation (2026-08-11, authenticated SMTP retry count mutation)
+
+Code/test commit `f8010374d` adds only authenticated
+`IInterfaceSettings.SMTPNoOfTries` (`DispId(19)`) persistence. The SQL command
+is parameterized and fixed to `settingname = N'smtpnoofretries'`; the live
+administrator callback is checked before store access and the retained snapshot
+changes only after a one-row success. Focused settings/SQL coverage is `53/53`;
+full Net10 is `2036 passed, 39 skipped, 0 failed`.
+
+Legacy references are `source/Server/hMailServer/hMailServer.idl:541-542`,
+`source/Server/COM/InterfaceSettings.cpp` (`put_SMTPNoOfTries`),
+`source/Server/SMTP/SMTPConfiguration.cpp` (`SetNoOfRetries`),
+`source/Server/Common/Application/Constants.h` (`PROPERTY_SMTPNOOFTRIES`),
+and the canonical `smtpnoofretries` SQL seed. No COM identity, direct
+activation boundary, `ExternalDelivery`, retry scheduling, or runtime
+reconfiguration path changed. The typo row `smtpnooftries` remains excluded.
+Next slice: fresh legacy-first audit of one remaining low-risk Settings
+mutation.
+
 ## Current parity continuation (2026-08-11, authenticated SMTP retry interval mutation)
 
 Code/test commit `b970bf00c` adds only authenticated

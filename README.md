@@ -1,6 +1,33 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, authenticated SMTP retry count mutation)
+
+Code/test commit `f8010374d` extends the existing authenticated Administrator
+settings seam to only `IInterfaceSettings.SMTPNoOfTries` (`DispId(19)`). It
+updates the canonical fixed `hm_settings.smtpnoofretries` row with a
+parameterized integer command, requires one affected row, rechecks the live
+administrator callback, and publishes the retained snapshot only after
+success. Focused settings/SQL coverage is `53/53`; full Net10 is
+`2036 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.SMTPNoOfTries`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:541-542`),
+`InterfaceSettings::put_SMTPNoOfTries`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp`),
+`SMTPConfiguration::SetNoOfRetries`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp`),
+`PROPERTY_SMTPNOOFTRIES`
+(`hmailserver/source/Server/Common/Application/Constants.h`), and the
+canonical `smtpnoofretries` seed in the database scripts. The unrelated typo
+row `smtpnooftries` remains excluded. `ExternalDelivery` retry scheduling and
+runtime reconfiguration remain unchanged.
+
+Release remains RED: disposable SQL/Data rollback, SQL/FTS, matched legacy and
+.NET protocol load evidence, SEC-18 cutover, installer/out-of-process COM, and
+24-hour soak remain unproven. Next slice is a fresh legacy-first audit of one
+remaining low-risk Settings mutation.
+
 ## Current parity continuation (2026-08-11, authenticated SMTP retry interval mutation)
 
 Code/test commit `b970bf00c` extends the existing authenticated Administrator

@@ -2452,3 +2452,15 @@ implemented in code/test commit `b970bf00c`, with focused settings/SQL coverage
 legacy-first audit of one remaining low-risk Settings mutation. External retry
 scheduling and runtime reconfiguration are intentionally not part of this
 slice.
+## Current next slice (2026-08-11)
+
+The authenticated fixed-row `Settings.SMTPNoOfTries` mutation is implemented in
+code/test commit `f8010374d`, with focused settings/SQL coverage `53/53` and full
+Net10 `2036 passed, 39 skipped, 0 failed`. Legacy references:
+`hMailServer.idl:541-542`, `InterfaceSettings.cpp` (`put_SMTPNoOfTries`),
+`SMTPConfiguration.cpp` (`SetNoOfRetries`), `Constants.h`
+(`PROPERTY_SMTPNOOFTRIES`), and the canonical `smtpnoofretries` seed. The typo
+`smtpnooftries` row remains excluded. The next independent code slice is a
+fresh legacy-first audit of one remaining low-risk Settings mutation. External
+retry scheduling and runtime reconfiguration are intentionally not part of
+this slice.
