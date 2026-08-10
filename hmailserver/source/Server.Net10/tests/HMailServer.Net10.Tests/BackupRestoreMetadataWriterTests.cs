@@ -54,6 +54,50 @@ public sealed class BackupRestoreMetadataWriterTests
         Assert.AreEqual(1, rollbackCalls);
     }
 
+    [TestMethod]
+    public async Task RestoreFoldersAsync_TracksRootBeforeMessageInsertFailure()
+    {
+        var folderStore = new RecordingFolderRestoreStore();
+        var rootIds = new List<int>();
+        var rollbackCalls = 0;
+        var folder = new RestoreFolderEntry(
+            new ImapFolderAdministrationSnapshot(0, 0, -1, "INBOX", true, 5, "2026-07-01 12:30:00"),
+            Array.Empty<RestoreFolderEntry>(),
+            new[]
+            {
+                new MessageAdministrationSnapshot(
+                    0,
+                    0,
+                    0,
+                    "one.eml",
+                    2,
+                    "sender@example.test",
+                    42,
+                    0,
+                    1,
+                    new DateTime(2026, 7, 1, 12, 32, 0, DateTimeKind.Unspecified),
+                    8)
+            });
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => BackupRestoreMetadataWriter.RestoreFoldersAsync(
+                new[] { folder },
+                accountId: 7,
+                folderStore,
+                new FailingMessageRestoreStore(),
+                () =>
+                {
+                    rollbackCalls++;
+                    return default;
+                },
+                CancellationToken.None,
+                rootIds.Add).AsTask());
+
+        Assert.AreEqual(1, rootIds.Count);
+        Assert.AreEqual(101, rootIds[0]);
+        Assert.AreEqual(1, rollbackCalls);
+    }
+
     private sealed class RecordingDomainStore : IDomainAdministrationStore
     {
         public List<DomainAdministrationSnapshot> Inserted { get; } = new();
@@ -92,5 +136,24 @@ public sealed class BackupRestoreMetadataWriterTests
             Inserted.Add(domain);
             return ValueTask.FromResult(Inserted.Count);
         }
+    }
+
+    private sealed class RecordingFolderRestoreStore : IImapFolderAdministrationRestoreStore
+    {
+        public ValueTask<ImapFolderAdministrationSnapshot> InsertFolderForRestoreAsync(
+            ImapFolderAdministrationSnapshot folder,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(folder with { Id = 101 });
+    }
+
+    private sealed class FailingMessageRestoreStore : IMessageAdministrationRestoreStore
+    {
+        public ValueTask<MessageAdministrationInsertResult> InsertMessageForRestoreAsync(
+            int accountId,
+            int folderId,
+            MessageAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<MessageAdministrationInsertResult>(
+                new InvalidOperationException("Simulated message restore failure."));
     }
 }

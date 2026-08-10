@@ -308,16 +308,16 @@ public static class BackupRestoreMetadataWriter
             {
                 foreach (var root in folders)
                 {
-                    var rootId = await RestoreFolderAsync(
+                    await RestoreFolderAsync(
                         root,
                         accountId,
                         parentFolderId: -1,
                         store,
                         messageStore,
                         ct,
+                        onRootInserted,
                         onMessageInserted).ConfigureAwait(false);
                     restored += CountFolders(root);
-                    onRootInserted?.Invoke(rootId);
                 }
             },
             commitAsync: _ => default,
@@ -341,11 +341,16 @@ public static class BackupRestoreMetadataWriter
         IImapFolderAdministrationRestoreStore store,
         IMessageAdministrationRestoreStore? messageStore,
         CancellationToken cancellationToken,
+        Action<int>? onRootInserted,
         Action<int, long>? onMessageInserted)
     {
         var inserted = await store.InsertFolderForRestoreAsync(
             entry.Folder with { AccountId = accountId, ParentId = parentFolderId },
             cancellationToken).ConfigureAwait(false);
+        if (parentFolderId == -1)
+        {
+            onRootInserted?.Invoke(inserted.Id);
+        }
         foreach (var message in entry.Messages)
         {
             if (messageStore is null)
@@ -361,7 +366,7 @@ public static class BackupRestoreMetadataWriter
         }
         foreach (var child in entry.Children)
         {
-            await RestoreFolderAsync(child, accountId, inserted.Id, store, messageStore, cancellationToken, onMessageInserted)
+            await RestoreFolderAsync(child, accountId, inserted.Id, store, messageStore, cancellationToken, onRootInserted, onMessageInserted)
                 .ConfigureAwait(false);
         }
 

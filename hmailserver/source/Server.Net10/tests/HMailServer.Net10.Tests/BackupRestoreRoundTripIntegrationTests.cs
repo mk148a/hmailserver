@@ -396,6 +396,89 @@ public sealed class BackupRestoreRoundTripIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_RollsBackRootFolderWhenMessageInsertFailsAfterDataStaging()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_executor_message_failure_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        var root = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-executor-message-failure-{Guid.NewGuid():N}");
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateTargetSchemaAsync(testConnectionString).ConfigureAwait(false);
+            var source = Path.Combine(root, "source");
+            var dataDirectory = Path.Combine(root, "data");
+            var dataBackup = Path.Combine(root, "DataBackup");
+            var archivePath = Path.Combine(root, "backup.7z");
+            Directory.CreateDirectory(source);
+            Directory.CreateDirectory(dataDirectory);
+            Directory.CreateDirectory(dataBackup);
+            File.WriteAllText(Path.Combine(dataDirectory, "original.txt"), "original");
+            var messagePath = Path.Combine(dataBackup, "roundtrip.example", "user", "ne");
+            Directory.CreateDirectory(messagePath);
+            File.WriteAllText(Path.Combine(messagePath, "one.eml"), "From: sender@example.test\r\n\r\nbody");
+            File.WriteAllText(Path.Combine(source, "hMailServerBackup.xml"), NonDbArchiveXml);
+            await CreateArchiveAsync(archivePath, source).ConfigureAwait(false);
+
+            var factory = new SqlServerConnectionFactory(testConnectionString);
+            var domainStore = new SqlServerDomainAdministrationStore(factory);
+            var accountStore = new SqlServerAccountAdministrationStore(factory);
+            var executor = new MetadataBackupRestoreExecutor(
+                Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+                dataDirectory,
+                domainStore,
+                accountStore,
+                new SqlServerAliasAdministrationStore(factory),
+                new SqlServerDistributionListAdministrationStore(factory),
+                new SqlServerDistributionListRecipientAdministrationStore(factory),
+                dataDirectoryBoundaryFactory: () => new BackupRestoreDataDirectoryBoundary(
+                    dataDirectory,
+                    Path.Combine(root, "restore.rollback")),
+                fetchAccountStore: new SqlServerFetchAccountAdministrationStore(factory),
+                ruleStore: new SqlServerRuleAdministrationStore(factory),
+                ruleCriteriaStore: new SqlServerRuleCriteriaAdministrationStore(factory),
+                ruleActionStore: new SqlServerRuleActionAdministrationStore(factory),
+                folderRestoreStore: new SqlServerImapFolderAdministrationStore(factory),
+                folderRestoreDeletionStore: new SqlServerImapFolderAdministrationStore(factory),
+                messageRestoreStore: new FailingMessageAdministrationRestoreStore(),
+                messageStore: new SqlServerMessageAdministrationStore(factory));
+            using var binding = BackupArchiveBinding.TryCreate(archivePath);
+            Assert.IsNotNull(binding);
+            var backup = Backup.CreateAuthorized(
+                6,
+                binding.ArchivePath,
+                archiveIdentity: binding.Identity,
+                archiveBinding: binding,
+                rawDataBackupIdentity: binding.RawDataBackupIdentity);
+            backup.RestoreDomains = true;
+            backup.RestoreMessages = true;
+
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+            Assert.AreEqual("original", await File.ReadAllTextAsync(Path.Combine(dataDirectory, "original.txt")));
+            Assert.IsFalse(File.Exists(Path.Combine(dataDirectory, "roundtrip.example", "user", "ne", "one.eml")));
+            Assert.IsFalse(File.Exists(BackupRestoreRecoveryJournal.GetJournalPath(dataDirectory)));
+            Assert.IsFalse(Directory.EnumerateFileSystemEntries(root, "*.rollback").Any());
+            Assert.AreEqual(0, (await domainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false)).Count);
+            Assert.AreEqual(0, (await accountStore.GetAccountsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+            Assert.AreEqual(0, await CountRowsAsync(testConnectionString, "hm_imapfolders", "folderaccountid", 1).ConfigureAwait(false));
+            Assert.AreEqual(0, await CountRowsAsync(testConnectionString, "hm_messages", "messageaccountid", 1).ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task RestoreExecutor_RollsBackDistributionListWhenRecipientRestoreFails()
     {
         var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
@@ -1044,6 +1127,17 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             int aliasId,
             CancellationToken cancellationToken) =>
             inner.DeleteAliasAsync(owningDomainId, aliasId, cancellationToken);
+    }
+
+    private sealed class FailingMessageAdministrationRestoreStore : IMessageAdministrationRestoreStore
+    {
+        public ValueTask<MessageAdministrationInsertResult> InsertMessageForRestoreAsync(
+            int accountId,
+            int folderId,
+            MessageAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<MessageAdministrationInsertResult>(
+                new InvalidOperationException("Simulated message restore failure."));
     }
 
     private sealed class FailingRecipientAdministrationStore(
