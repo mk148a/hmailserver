@@ -1,6 +1,31 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-10, authenticated WorkerThreadPriority mutation)
+
+Code/test commit `2e60909b5` extends the bounded Administrator settings seam to
+only `IInterfaceSettings.WorkerThreadPriority` (`DispId(57)`). It rechecks the
+live server-administrator callback, updates only the existing
+`hm_settings.workerthreadpriority` row with a parameterized integer command,
+requires one affected row, and changes a retained snapshot only after success.
+
+Legacy anchors are `IInterfaceSettings.WorkerThreadPriority`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:599`),
+`InterfaceSettings::put_WorkerThreadPriority`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1496`),
+`Configuration::SetWorkerThreadPriority`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:130`),
+`PROPERTY_WORKERTHREADPRIORITY`
+(`hmailserver/source/Server/Common/Application/Constants.h:70`), and the
+`hm_settings.settinginteger` schema (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:836`).
+Focused settings/SQL coverage is `27/27`; full Net10 is `2010 passed, 39
+skipped, 0 failed`. No COM identity, direct activation boundary, SMTP trust,
+or live reconfiguration behavior changed.
+
+Release remains RED: real SQL/Data rollback, SEC-18 cutover, installer and
+out-of-process COM, matched C++/Net10 protocol load evidence, SQL FTS, and
+24-hour soak remain unproven.
+
 ## Current parity continuation (2026-08-10, authenticated MirrorEMailAddress mutation)
 
 Code/test commit `3ba1d5f49` extends the bounded Administrator settings seam to

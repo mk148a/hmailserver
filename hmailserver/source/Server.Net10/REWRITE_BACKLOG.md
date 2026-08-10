@@ -2213,3 +2213,29 @@ disposable graph. Recipient rows, search metadata/documents, ACLs, multi-message
 failure rollback, crash/power-loss recovery, and production release gates
 remain open. Next slice: inject a message insert failure after file staging and
 prove SQL plus DataBackup rollback cleanup.
+## Current Audit Note (2026-08-10, WORKER THREAD PRIORITY ADMIN MUTATION)
+
+Code/test commit `2e60909b5` closes the narrow authenticated
+`IInterfaceSettings.WorkerThreadPriority` setter gap (`DispId(57)`) while
+preserving the installed COM shape. Legacy behavior is anchored by
+`IInterfaceSettings.WorkerThreadPriority`
+(`source/Server/hMailServer/hMailServer.idl:599`),
+`InterfaceSettings::put_WorkerThreadPriority`
+(`source/Server/COM/InterfaceSettings.cpp:1496`),
+`Configuration::SetWorkerThreadPriority`
+(`source/Server/Common/Application/Configuration.cpp:130`),
+`PROPERTY_WORKERTHREADPRIORITY` (`source/Server/Common/Application/Constants.h:70`),
+and the integer settings schema (`source/DBScripts/CreateTablesMSSQL.sql:836`).
+
+The .NET setter requires the authenticated settings boundary and live server
+administrator callback, updates only the existing `workerthreadpriority` row
+through a parameterized SQL command, requires exactly one affected row, and
+publishes the retained snapshot only after success. Direct activation,
+failed-write snapshot retention, retained-object reauthentication, and SQL
+shape are covered. Focused coverage is `27/27`; full Net10 is `2010 passed, 39
+skipped, 0 failed`.
+
+The next code slice must be selected by a fresh legacy-first audit of one
+remaining low-risk Settings setter. Real SQL/Data rollback, live
+reconfiguration, SEC-18, installer, paired protocol performance, and soak
+gates remain RED or environment-blocked.

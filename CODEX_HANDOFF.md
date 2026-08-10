@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-10, WORKER THREAD PRIORITY MUTATION)
+
+Code/test commit `2e60909b5` implements only authenticated
+`Settings.WorkerThreadPriority` (`DispId(57)`) persistence. It preserves direct
+activation denial, rechecks the live administrator callback, updates the fixed
+`hm_settings.workerthreadpriority` row with a parameterized integer command,
+and changes the retained snapshot only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.WorkerThreadPriority`
+(`source/Server/hMailServer/hMailServer.idl:599`),
+`InterfaceSettings::put_WorkerThreadPriority`
+(`source/Server/COM/InterfaceSettings.cpp:1496`),
+`Configuration::SetWorkerThreadPriority`
+(`source/Server/Common/Application/Configuration.cpp:130`), and
+`PROPERTY_WORKERTHREADPRIORITY` (`source/Server/Common/Application/Constants.h:70`).
+Focused settings/SQL coverage is `27/27`; full Net10 is `2010 passed, 39
+skipped, 0 failed`. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation. Real SQL/Data rollback, reinitialize, SEC-18,
+installer, paired live performance, and soak remain open. Do not push.
+
 # Current Authoritative Continuation (2026-08-10, MIRROR EMAIL MUTATION)
 
 Code/test commit `3ba1d5f49` implements only authenticated

@@ -1,3 +1,23 @@
+## Current parity continuation (2026-08-10, authenticated WorkerThreadPriority mutation)
+
+Code/test commit `2e60909b5` adds only the fixed-row
+`WorkerThreadPriority` mutation (`DispId(57)`) to the existing authenticated
+settings seam. The SQL command is parameterized and fixed to
+`settingname = N'workerthreadpriority'`; the live administrator callback is
+checked before store access and the retained snapshot changes only after a
+one-row success. Focused settings/SQL coverage is `27/27`; full Net10 is
+`2010 passed, 39 skipped, 0 failed`.
+
+Legacy references are `IInterfaceSettings.WorkerThreadPriority`
+(`source/Server/hMailServer/hMailServer.idl:599`),
+`InterfaceSettings::put_WorkerThreadPriority`
+(`source/Server/COM/InterfaceSettings.cpp:1496`),
+`Configuration::SetWorkerThreadPriority`
+(`source/Server/Common/Application/Configuration.cpp:130`), and
+`PROPERTY_WORKERTHREADPRIORITY` (`source/Server/Common/Application/Constants.h:70`).
+No COM identity, direct activation boundary, SMTP behavior, or reinitialize
+path changed.
+
 ## Current parity continuation (2026-08-10, authenticated MirrorEMailAddress mutation)
 
 Code/test commit `3ba1d5f49` adds only the fixed-row
