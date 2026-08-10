@@ -2504,3 +2504,31 @@ paired legacy/.NET protocol performance, SEC-18, migration/installer,
 out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
 environment-blocked. Next slice: fresh legacy-first audit of one remaining
 low-risk Settings mutation.
+
+## Current Audit Note (2026-08-11, RULE LOOP LIMIT ADMIN MUTATION)
+
+Code/test commit `4d554f1b5` implements the authenticated
+`IInterfaceSettings.RuleLoopLimit` setter (`DispId(48)`) only. The .NET path
+updates the existing `hm_settings.rulelooplimit` row through a parameterized
+integer command, requires exactly one affected row, rechecks the live
+server-administrator callback, and publishes the retained snapshot only after
+success. Direct activation denial, failed-write retention, administrator
+revocation, and exact SQL shape are covered. Focused settings/SQL coverage is
+`60/60`; full Net10 is `2043 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.RuleLoopLimit`
+(`source/Server/hMailServer/hMailServer.idl:580-581`),
+`InterfaceSettings::put_RuleLoopLimit`
+(`source/Server/COM/InterfaceSettings.cpp:1239-1270`),
+`SMTPConfiguration::SetRuleLoopLimit`
+(`source/Server/SMTP/SMTPConfiguration.cpp:223-233`), the generic
+`PropertySet::SetLong`/`Property::WriteLongSetting_` path, and the
+`rulelooplimit` SQL seed (`source/DBScripts/CreateTablesMSSQL.sql:814`). The
+legacy rule consumer and current `SmtpRuleProcessor` runtime configuration
+were deliberately not changed; this is COM persistence parity only.
+
+Real SQL/Data rollback, non-DB settings restore/reinitialization, SQL/FTS,
+paired legacy/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
+environment-blocked. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation.

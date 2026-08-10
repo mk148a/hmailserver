@@ -1,6 +1,34 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, RuleLoopLimit mutation)
+
+Code/test commit `4d554f1b5` implements only the authenticated
+`IInterfaceSettings.RuleLoopLimit` setter (`DispId(48)`). It updates the
+existing `hm_settings.rulelooplimit` row through a parameterized integer
+command, requires one affected row, rechecks the live server-administrator
+callback, and publishes the retained snapshot only after success. Direct
+activation denial, failed-write retention, administrator revocation, and SQL
+command shape are covered. Focused settings/SQL coverage is `60/60`; full
+Net10 is `2043 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.RuleLoopLimit`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:580-581`),
+`InterfaceSettings::put_RuleLoopLimit`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1239-1270`),
+`SMTPConfiguration::SetRuleLoopLimit`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:223-233`), the generic
+`PropertySet::SetLong`/`Property::WriteLongSetting_` path, and the
+`rulelooplimit` SQL seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:814`).
+RuleApplier/SmtpRuleProcessor runtime wiring remains unchanged and is a
+separate slice.
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched legacy/.NET protocol load, SEC-18 cutover,
+installer/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain
+unproven. Next slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, VerifyRemoteSslCertificate mutation)
 
 Code/test commit `f882ff44f` implements only the authenticated

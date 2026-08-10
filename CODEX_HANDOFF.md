@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, RULE LOOP LIMIT MUTATION)
+
+Code/test commit `4d554f1b5` implements only authenticated
+`Settings.RuleLoopLimit` (`DispId(48)`) persistence. It preserves the installed
+COM identity and direct activation denial, rechecks the live administrator
+callback, updates only the existing `hm_settings.rulelooplimit` row with a
+parameterized integer command, and changes the retained snapshot only after
+one-row success.
+
+Legacy anchors: `IInterfaceSettings.RuleLoopLimit`
+(`source/Server/hMailServer/hMailServer.idl:580-581`),
+`InterfaceSettings::put_RuleLoopLimit`
+(`source/Server/COM/InterfaceSettings.cpp:1239-1270`),
+`SMTPConfiguration::SetRuleLoopLimit`
+(`source/Server/SMTP/SMTPConfiguration.cpp:223-233`), generic
+`PropertySet::SetLong`/`Property::WriteLongSetting_`, and the
+`rulelooplimit` SQL seed (`source/DBScripts/CreateTablesMSSQL.sql:814`).
+Focused settings/SQL coverage is `60/60`; full Net10 is `2043 passed, 39
+skipped, 0 failed`. RuleApplier/SmtpRuleProcessor runtime wiring was
+deliberately not added.
+
+Release remains RED for real SQL/Data rollback, non-DB restore/reinitialization,
+SQL/FTS, matched C++/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak. Next slice:
+fresh legacy-first audit of one remaining low-risk Settings mutation. Do not
+push.
+
 # Current Authoritative Continuation (2026-08-11, VERIFY REMOTE SSL CERTIFICATE MUTATION)
 
 Code/test commit `f882ff44f` implements only authenticated
