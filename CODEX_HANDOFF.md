@@ -1,5 +1,35 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, SMTP RELAYER CONNECTION SECURITY MUTATION)
+
+Code/test commit `0f7b50282` implements only authenticated
+`Settings.SMTPRelayerConnectionSecurity` (`DispId(91)`) persistence. It
+preserves the installed COM identity, enum values `None=0`, `Tls=1`,
+`StartTlsOptional=2`, `StartTlsRequired=3`, and direct activation denial. The
+setter casts the enum directly, updates only the existing
+`hm_settings.smtprelayerconnectionsecurity` row with a parameterized
+`SqlDbType.Int` command, and changes the retained snapshot only after one-row
+success. No enum-range validation was added, matching legacy behavior.
+
+Legacy anchors: `eConnectionSecurity` and
+`IInterfaceSettings.SMTPRelayerConnectionSecurity`
+(`source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::put_SMTPRelayerConnectionSecurity`,
+`SMTPConfiguration::SetSMTPRelayerConnectionSecurity`, generic
+`PropertySet::SetLong`/`Property::WriteLongSetting_`,
+`ServerTargetResolver::GetFixedSMTPHostForDomain_`, and the
+`smtprelayerconnectionsecurity` SQL seed
+(`source/DBScripts/CreateTablesMSSQL.sql`). Focused settings/store coverage is
+`80/80`; full Net10 is `2063 passed, 39 skipped, 0 failed`. The existing
+`SMTPRelayerUseSSL` projection and outbound TLS/STARTTLS runtime were not
+changed.
+
+Release remains RED for disposable SQL/Data rollback, non-DB restore/
+reinitialization, SQL/FTS, matched C++/.NET protocol performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and 24-hour
+soak. Next slice: fresh legacy-first audit of one remaining low-risk Settings
+mutation. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, SMTP RELAYER MUTATION)
 
 Code/test commit `4a5a6cf5f` implements only authenticated

@@ -1,6 +1,41 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, SMTPRelayerConnectionSecurity mutation)
+
+Code/test commit `0f7b50282` implements only the authenticated
+`IInterfaceSettings.SMTPRelayerConnectionSecurity` setter (`DispId(91)`). It
+preserves the installed COM identity, enum values `None=0`, `Tls=1`,
+`StartTlsOptional=2`, `StartTlsRequired=3`, and direct activation denial. The
+setter casts the enum directly to its integer value, updates only the existing
+`hm_settings.smtprelayerconnectionsecurity` row through a parameterized
+`SqlDbType.Int` command, and publishes the retained snapshot only after
+one-row success. No enum-range validation was added, matching legacy behavior.
+
+Direct activation getter/setter denial, all four enum values, successful
+snapshot publication, failed-write retention, administrator revocation,
+one-row enforcement, exact SQL shape, and the existing `SMTPRelayerUseSSL`
+projection are covered. Focused settings/store coverage is `80/80`; full
+Net10 is `2063 passed, 39 skipped, 0 failed`. Outbound relayer TLS/STARTTLS,
+`ExternalDelivery`, `SMTPClientConnection`, notifications, and live
+reconfiguration remain unchanged and were deliberately left out.
+
+Legacy anchors are `eConnectionSecurity` and
+`IInterfaceSettings.SMTPRelayerConnectionSecurity`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::put_SMTPRelayerConnectionSecurity`,
+`SMTPConfiguration::SetSMTPRelayerConnectionSecurity`, the generic
+`PropertySet::SetLong`/`Property::WriteLongSetting_` path,
+`ServerTargetResolver::GetFixedSMTPHostForDomain_`, and the
+`smtprelayerconnectionsecurity` SQL seed
+(`hmailserver/source/DBScripts/CreateTablesMSSQL.sql`).
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched legacy/.NET protocol load, SEC-18 cutover,
+installer/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain
+unproven. Next slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, SMTPRelayer mutation)
 
 Code/test commit `4a5a6cf5f` implements only the authenticated

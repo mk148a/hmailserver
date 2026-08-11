@@ -2505,6 +2505,43 @@ out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
 environment-blocked. Next slice: fresh legacy-first audit of one remaining
 low-risk Settings mutation.
 
+## Current Audit Note (2026-08-11, SMTP RELAYER CONNECTION SECURITY ADMIN MUTATION)
+
+Code/test commit `0f7b50282` implements the authenticated
+`IInterfaceSettings.SMTPRelayerConnectionSecurity` setter (`DispId(91)`) only.
+The .NET path casts the COM enum directly to an integer, updates the existing
+`hm_settings.smtprelayerconnectionsecurity` row through a parameterized
+`SqlDbType.Int` command, requires exactly one affected row, rechecks the
+existing server-administrator boundary, and publishes the retained snapshot
+only after success. Enum values remain `None=0`, `Tls=1`, `StartTlsOptional=2`,
+and `StartTlsRequired=3`; no range validation is added, matching legacy
+behavior. Direct activation denial, all enum values, successful publication,
+failed-write retention, administrator revocation, one-row enforcement, exact
+SQL shape, and the existing `SMTPRelayerUseSSL` projection are covered.
+Focused settings/store coverage is `80/80`; full Net10 is `2063 passed, 39
+skipped, 0 failed`.
+
+Legacy anchors are `eConnectionSecurity` and
+`IInterfaceSettings.SMTPRelayerConnectionSecurity`
+(`source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::get_/put_SMTPRelayerConnectionSecurity`
+(`source/Server/COM/InterfaceSettings.cpp`),
+`SMTPConfiguration::Get/SetSMTPRelayerConnectionSecurity`
+(`source/Server/SMTP/SMTPConfiguration.cpp`), generic
+`PropertySet::SetLong` and `Property::WriteLongSetting_`,
+`ServerTargetResolver::GetFixedSMTPHostForDomain_`, and the
+`smtprelayerconnectionsecurity` seed
+(`source/DBScripts/CreateTablesMSSQL.sql`). Outbound TLS/STARTTLS,
+`ExternalDelivery`, `SMTPClientConnection`, notifications, and live
+reconfiguration were deliberately not changed; this is COM persistence parity
+only.
+
+Real SQL/Data rollback, non-DB settings restore/reinitialization, SQL/FTS,
+paired legacy/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
+environment-blocked. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation.
+
 ## Current Audit Note (2026-08-11, SMTP RELAYER ADMIN MUTATION)
 
 Code/test commit `4a5a6cf5f` implements the authenticated
