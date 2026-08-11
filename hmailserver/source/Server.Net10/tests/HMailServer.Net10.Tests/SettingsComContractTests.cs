@@ -3046,6 +3046,98 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_DisconnectInvalidClientsSetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            DisconnectInvalidClientsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                DisconnectInvalidClients: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.DisconnectInvalidClients = true;
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.DisconnectInvalidClientsUpdateCount);
+        Assert.IsTrue(settings.DisconnectInvalidClients);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_DisconnectInvalidClientsSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            DisconnectInvalidClientsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                DisconnectInvalidClients: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.DisconnectInvalidClients = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.DisconnectInvalidClientsUpdateCount);
+        Assert.IsFalse(settings.DisconnectInvalidClients);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_DisconnectInvalidClientsMutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                DisconnectInvalidClients: false),
+            DisconnectInvalidClientsUpdateResult = true,
+            GateDisconnectInvalidClientsMutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.DisconnectInvalidClients = true);
+        await store.DisconnectInvalidClientsMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.DisconnectInvalidClientsMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.IsTrue(store.UpdatedDisconnectInvalidClients);
+        Assert.IsTrue(settings.DisconnectInvalidClients);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AddDeliveredToHeaderSetterPersistsTrueAndFalseBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -3838,6 +3930,14 @@ public sealed class SettingsComContractTests
 
         public bool DisconnectInvalidClientsUpdateResult { get; set; }
 
+        public bool GateDisconnectInvalidClientsMutation { get; set; }
+
+        public TaskCompletionSource<bool> DisconnectInvalidClientsMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> DisconnectInvalidClientsMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int DisconnectInvalidClientsUpdateCount { get; private set; }
 
         public bool UpdatedDisconnectInvalidClients { get; private set; }
@@ -4218,7 +4318,19 @@ public sealed class SettingsComContractTests
             DisconnectInvalidClientsUpdateCount++;
             UpdatedDisconnectInvalidClients = disconnectInvalidClients;
             CancellationToken = cancellationToken;
+            if (GateDisconnectInvalidClientsMutation)
+            {
+                DisconnectInvalidClientsMutationEntered.TrySetResult(true);
+                return WaitForDisconnectInvalidClientsMutationAsync();
+            }
+
             return ValueTask.FromResult(DisconnectInvalidClientsUpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForDisconnectInvalidClientsMutationAsync()
+        {
+            await DisconnectInvalidClientsMutationRelease.Task;
+            return DisconnectInvalidClientsUpdateResult;
         }
 
         public ValueTask<bool> UpdateAddDeliveredToHeaderAsync(
