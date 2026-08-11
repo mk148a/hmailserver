@@ -3578,3 +3578,19 @@ successes. The valid start-state evidence remains 33/33 matching row counts
 and 1,000/1,000 Data-file hashes, which is not row-content or performance
 equivalence. Next slice: provide a healthy isolated C++ release binary and
 reproduce/fix the Net10 live IMAP/POP3 path before rerunning the paired matrix.
+## Current next slice (2026-08-11)
+
+Completed code/test commit `149770381` adds composed mode-7 Administrator
+backup dispatch coverage. `BackupManager.StartBackup` now has a test proving
+real 7z/DataBackup creation, `LoadBackup`, and all-settings/domains/messages
+`StartRestore` dispatch through `BackupTaskHostedService`; the restore executor
+is deliberately a recording double. Focused coverage is `1/1`; full default
+Net10 is `2124 passed, 42 skipped, 0 failed`. This does not prove real SQL/Data
+restore or rollback.
+
+Next smallest slice: harden `BackupArchiveRuntime` raw `DataBackup` staging by
+rejecting reparse points and deleting partial raw staging on failed archive
+creation. Preserve legacy backup option behavior and do not change production
+database/Data boundaries. The paired C++/.NET10 performance gate remains
+**RED** until both servers complete the identical SQL/Data/message and
+SMTP/IMAP/POP3 loopback workload.

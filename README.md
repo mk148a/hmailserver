@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, composed mode-7 backup dispatch)
+
+Code/test commit `149770381` adds focused queue coverage for the composed
+Administrator backup path: `StartBackup` creates the real 7z/DataBackup
+artifacts, `LoadBackup` reads the mode-7 flags, and selecting settings, domains,
+and messages dispatches `StartRestore` with option `7` through
+`BackupTaskHostedService`. The test is intentionally a dispatch smoke test;
+its recording restore executor does not mutate SQL/Data or prove rollback.
+
+`BackupManagerMode7DispatchTests` passes `1/1`; the full default Net10 suite is
+`2124 passed, 42 skipped, 0 failed`. The paired C++/.NET10 performance gate
+remains **RED**: identical live SMTP/IMAP/POP3 completion is still absent, so
+no speed-up ratio or winner is claimed. Next slice: harden raw DataBackup
+staging against reparse points and failed-run residue.
+
 ## Current parity continuation (2026-08-11, full settings/domain/message restore)
 
 Commit `563cd0042` adds the legacy `BOSettings|BODomains|BOMessages` restore

@@ -1,5 +1,18 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, COMPOSED MODE-7 DISPATCH)
+
+Code/test commit `149770381` adds `BackupManagerMode7DispatchTests`, which
+drives the real `BackupManager.StartBackup` queue through archive creation,
+`LoadBackup`, all three restore flags, and queued `StartRestore` option `7`.
+It proves 7z/DataBackup creation and dispatch ordering, but its restore
+executor is a recording test double; real SQL/Data mutation, reinitialize, and
+rollback remain open. Focused coverage is `1 passed, 0 failed`; full default
+Net10 is `2124 passed, 42 skipped, 0 failed`. Performance remains **RED**.
+
+Next slice: reject reparse points during raw DataBackup staging and remove
+failed-run staging residue. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, FULL SETTINGS/DOMAIN/MESSAGE RESTORE)
 
 Code/test commit `563cd0042` adds the legacy `BOSettings|BODomains|BOMessages`

@@ -1847,3 +1847,14 @@ The paired C++/.NET10 performance gate remains **RED** because the shared
 start state does not yet produce a completed equivalent protocol workload.
 Next slice: repair or replace the isolated C++/Net10 protocol target before
 claiming any speed-up.
+## Current parity continuation (2026-08-11, composed mode-7 dispatch)
+
+Code/test commit `149770381` adds a focused Administrator backup dispatch test.
+It uses the real `SevenZipBackupArchiveRuntime`, `BackupManager.StartBackup`,
+`LoadBackup`, and hosted task queue to verify mode `7` reaches `StartRestore`
+with all settings/domain/message flags selected. The restore executor is a
+recording test double, so this is not a SQL/Data restore acceptance test.
+
+Focused coverage is `1 passed, 0 failed`; full default Net10 is `2124 passed,
+42 skipped, 0 failed`. The paired protocol performance gate remains **RED**.
+Next slice: raw DataBackup reparse-point rejection and failure cleanup.
