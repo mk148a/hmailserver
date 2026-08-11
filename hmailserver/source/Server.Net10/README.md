@@ -1,3 +1,14 @@
+## Current benchmark continuation (2026-08-11)
+
+Code/test commit `2fe577f62` hardens the live protocol benchmark harness with
+listener readiness, launched-PID ownership, SMTP/IMAP/POP3 banner probes,
+clean-shutdown verification, and a 1,000-session start barrier. The paired
+gate remains **RED**: C++ has no staging POP3 listener on `127.0.0.1:25110`;
+Net10 passes SMTP `25/25` but fails IMAP and POP3 `0/25`; the 1,000-session
+Net10 run completes `1000` probes with `0` successes. No speed-up ratio is
+valid. The default Net10 suite is `2119 passed, 39 skipped, 0 failed`; fresh
+disposable SQL opt-in is `2156 passed, 2 skipped, 0 failed`.
+
 ## Current parity continuation (2026-08-11, MaxNumberOfInvalidCommands authorization lease)
 
 Code/test commit `0abe45705` extends the existing generation-bound

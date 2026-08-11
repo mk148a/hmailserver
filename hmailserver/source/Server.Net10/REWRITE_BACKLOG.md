@@ -3530,3 +3530,22 @@ and Data hashes match, but C++ protocol completion is still `0/25` and the
 collector does not prove row-content equivalence. No performance ratio is
 valid. Next slice: repair or replace the isolated C++/Net10 protocol target
 before any speed-up claim.
+
+## Current Audit Note (2026-08-11, LIVE PROTOCOL HARNESS FAIL-CLOSED)
+
+Code/test commit `2fe577f62` hardens
+`build/benchmark-net10-live-protocol.ps1` and
+`build/benchmark-net10-live-concurrent-imap.ps1`. Before workload execution,
+the harness now requires all expected loopback listeners, verifies launched-PID
+ownership, probes SMTP/IMAP/POP3 banners, records readiness/shutdown failures,
+waits for listener teardown, and uses a 1,000-session start barrier. The
+concurrent validator accepts an intentional zero-sample readiness failure but
+still requires 1,000 samples when readiness succeeds.
+
+The rerun remains **RED** and produces no valid ratio: the isolated C++ binary
+has no POP3 listener on `127.0.0.1:25110`; Net10 completes SMTP `25/25` but
+IMAP/POP3 `0/25`; Net10 concurrent IMAP completes `1000` probes with `0`
+successes. The valid start-state evidence remains 33/33 matching row counts
+and 1,000/1,000 Data-file hashes, which is not row-content or performance
+equivalence. Next slice: provide a healthy isolated C++ release binary and
+reproduce/fix the Net10 live IMAP/POP3 path before rerunning the paired matrix.

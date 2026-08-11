@@ -34,6 +34,13 @@ resources is `2156 passed, 2 skipped, 0 failed`. The two skips are the explicit
 installer artifact and native registry integration tests. This green test run
 does not change the paired live-performance gate above.
 
+The live scripts now fail closed before workload execution unless all expected
+listeners are owned by the launched process and return protocol banners. The
+1,000-session IMAP script also records a start barrier and waits for listener
+shutdown. The 2026-08-11 rerun recorded C++ POP3 readiness failure, Net10
+SMTP `25/25` with IMAP/POP3 `0/25`, and Net10 `1000/1000` completed IMAP probes
+with `0` successes. These are failure-path artifacts, not performance data.
+
 The first offline acceptance scenario is a deterministic 100,000-message IMAP SEARCH/SORT run. It is intentionally independent of SQL Server, the hMailServer service, COM registration, and any mail data directory.
 
 Run it from the repository root:

@@ -22,6 +22,15 @@ The skips are the explicit installer-artifact and native-registry integration
 gates. This does not clear the paired performance gate, SQL FTS, restore
 round-trip, COM activation, SEC-18, or soak gates.
 
+The live benchmark harness was hardened in code/test commit `2fe577f62`.
+It now waits for all three loopback listeners, verifies ownership by the
+launched PID, probes SMTP/IMAP/POP3 banners, waits for clean shutdown, and
+uses a start barrier for the 1,000-session IMAP run. The rerun still fails
+closed: C++ has no POP3 listener on `127.0.0.1:25110`; Net10 completes SMTP
+`25/25` but IMAP and POP3 are `0/25`, and the 1,000-session run completes
+`1000` probes with `0` successes. These artifacts remain diagnostic and no
+performance ratio is valid.
+
 ```mermaid
 xychart-beta
     title "Shared-baseline protocol success counts"

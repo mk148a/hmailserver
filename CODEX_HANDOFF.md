@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, LIVE PROTOCOL HARNESS FAIL-CLOSED)
+
+Code/test commit `2fe577f62` hardens the live protocol benchmark scripts with
+listener readiness, launched-PID ownership, SMTP/IMAP/POP3 banner probes,
+clean-shutdown waits, and a 1,000-session IMAP start barrier. Parser checks,
+embedded IMAP C# compilation, and the concurrent artifact validator pass.
+Fresh failure-path evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/harness-full-*`:
+
+- C++ readiness fails because POP3 does not listen on `127.0.0.1:25110`.
+- Net10 protocol readiness passes, but SMTP is `25/25` and IMAP/POP3 are
+  `0/25`.
+- Net10 concurrent IMAP completes `1000` probes with `0` successes.
+
+The performance gate stays **RED**. No ratio or winner is valid. Default full
+Net10 is `2119 passed, 39 skipped, 0 failed`; fresh disposable MSSQL opt-in is
+`2156 passed, 2 skipped, 0 failed`. Next slice: healthy isolated C++ binary
+plus reproducible Net10 live IMAP/POP3 path, then rerun the identical matrix.
+Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, DISPOSABLE SQL OPT-IN GREEN)
 
 Code/test commit `8972eb9d4` repairs the isolated SQL evidence fixtures and a
