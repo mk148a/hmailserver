@@ -97,6 +97,40 @@ public sealed class RemoteSmtpEndpointResolverTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_ExpandsGlobalRelayerHostsInOrderAndPropagatesSettings()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.Route,
+            "relayer:first.example",
+            "one.example",
+            Route: new SmtpRouteResolution(
+                0,
+                "*",
+                " first.example || second.example | ",
+                587,
+                (int)RemoteSmtpConnectionSecurity.StartTlsRequired,
+                false,
+                true,
+                "relay-user",
+                "relay-secret"));
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+        var candidates = endpoint.GetCandidates();
+
+        CollectionAssert.AreEqual(
+            new[] { "first.example", "second.example" },
+            candidates.Select(static candidate => candidate.Host).ToArray());
+        Assert.IsTrue(candidates.All(static candidate => candidate.Port == 587));
+        Assert.IsTrue(candidates.All(static candidate => candidate.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsRequired));
+        Assert.IsTrue(candidates.All(static candidate => candidate.RequiresAuthentication));
+        Assert.IsTrue(candidates.All(static candidate => candidate.AuthenticationUsername == "relay-user"));
+        Assert.IsTrue(candidates.All(static candidate => candidate.AuthenticationPassword == "relay-secret"));
+    }
+
+    [TestMethod]
     [DataRow(0)]
     [DataRow(1)]
     [DataRow(2)]

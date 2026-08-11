@@ -48,13 +48,20 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
             }
 
             var route = target.Route;
+            var hostCandidates = route.RouteId == 0
+                ? route.TargetHost.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                : Array.Empty<string>();
+            var host = route.RouteId == 0
+                ? hostCandidates.FirstOrDefault() ?? string.Empty
+                : route.TargetHost;
             return new RemoteSmtpEndpoint(
-                route.TargetHost,
+                host,
                 route.TargetPort <= 0 ? 25 : route.TargetPort,
                 (RemoteSmtpConnectionSecurity)route.ConnectionSecurity,
                 route.RequiresAuthentication,
                 route.AuthenticationUsername,
-                route.AuthenticationPassword);
+                route.AuthenticationPassword,
+                HostCandidates: route.RouteId == 0 ? hostCandidates : null);
         }
 
         if (target.Kind == DeliveryTargetKind.RemoteDomain)

@@ -102,6 +102,118 @@ public sealed class SmtpRemoteDeliveryClientTests
     }
 
     [TestMethod]
+    public async Task SendAsync_TransientFirstCandidateTriesSecondCandidate()
+    {
+        var first = new ScriptedSmtpTransport(
+            "220 first.example ESMTP\r\n" +
+            "250 first.example\r\n" +
+            "451 sender temporarily deferred\r\n");
+        var second = CreateSuccessfulTransport();
+        var factory = new FakeTransportFactory(first, second);
+        var client = new SmtpRemoteDeliveryClient(factory);
+        var request = CreateRequest(RemoteSmtpConnectionSecurity.None) with
+        {
+            Endpoint = new RemoteSmtpEndpoint(
+                "first.example",
+                25,
+                RemoteSmtpConnectionSecurity.None,
+                HostCandidates: ["first.example", "second.example"])
+        };
+
+        var result = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.IsTrue(result.Succeeded);
+        CollectionAssert.AreEqual(
+            new[] { "first.example", "second.example" },
+            factory.Endpoints.Select(static endpoint => endpoint.Host).ToArray());
+    }
+
+    [TestMethod]
+    public async Task SendAsync_PermanentFirstCandidateStopsFailover()
+    {
+        var first = new ScriptedSmtpTransport(
+            "220 first.example ESMTP\r\n" +
+            "250 first.example\r\n" +
+            "550 sender denied\r\n");
+        var second = CreateSuccessfulTransport();
+        var factory = new FakeTransportFactory(first, second);
+        var client = new SmtpRemoteDeliveryClient(factory);
+        var request = CreateRequest(RemoteSmtpConnectionSecurity.None) with
+        {
+            Endpoint = new RemoteSmtpEndpoint(
+                "first.example",
+                25,
+                RemoteSmtpConnectionSecurity.None,
+                HostCandidates: ["first.example", "second.example"])
+        };
+
+        var result = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(DeliveryFailureKind.Permanent, result.FailureKind);
+        Assert.AreEqual(1, factory.Endpoints.Count);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_AllTransientCandidatesReturnOneTransientResult()
+    {
+        var first = new ScriptedSmtpTransport(
+            "220 first.example ESMTP\r\n" +
+            "250 first.example\r\n" +
+            "451 sender temporarily deferred\r\n");
+        var second = new ScriptedSmtpTransport(
+            "220 second.example ESMTP\r\n" +
+            "250 second.example\r\n" +
+            "421 sender temporarily deferred\r\n");
+        var factory = new FakeTransportFactory(first, second);
+        var client = new SmtpRemoteDeliveryClient(factory);
+        var request = CreateRequest(RemoteSmtpConnectionSecurity.None) with
+        {
+            Endpoint = new RemoteSmtpEndpoint(
+                "first.example",
+                25,
+                RemoteSmtpConnectionSecurity.None,
+                HostCandidates: ["first.example", "second.example"])
+        };
+
+        var result = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(DeliveryFailureKind.Transient, result.FailureKind);
+        Assert.AreEqual(2, factory.Endpoints.Count);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_DoesNotFailOverAfterARecipientWasAccepted()
+    {
+        var first = new ScriptedSmtpTransport(
+            "220 first.example ESMTP\r\n" +
+            "250 first.example\r\n" +
+            "250 sender ok\r\n" +
+            "250 first recipient ok\r\n" +
+            "451 second recipient temporarily deferred\r\n");
+        var second = CreateSuccessfulTransport();
+        var factory = new FakeTransportFactory(first, second);
+        var client = new SmtpRemoteDeliveryClient(factory);
+        var request = CreateRequest(RemoteSmtpConnectionSecurity.None) with
+        {
+            Endpoint = new RemoteSmtpEndpoint(
+                "first.example",
+                25,
+                RemoteSmtpConnectionSecurity.None,
+                HostCandidates: ["first.example", "second.example"]),
+            RecipientAddresses = ["first@example.net", "second@example.net"]
+        };
+
+        var result = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(DeliveryFailureKind.Transient, result.FailureKind);
+        Assert.IsFalse(result.TryNextEndpoint);
+        Assert.AreEqual(1, factory.Endpoints.Count);
+    }
+
+    [TestMethod]
     public async Task SendAsync_OptionalStartTlsStaysPlaintextWhenNotAdvertised()
     {
         var transport = new ScriptedSmtpTransport(

@@ -31,6 +31,43 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
             return RemoteSmtpSendResult.Failure("Remote SMTP send requires at least one recipient.");
         }
 
+        RemoteSmtpSendResult? lastTransientFailure = null;
+        foreach (var candidate in request.Endpoint.GetCandidates())
+        {
+            RemoteSmtpSendResult result;
+            try
+            {
+                result = await SendSingleEndpointAsync(
+                    request with { Endpoint = candidate },
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex) when (IsTransientTransportFailure(ex))
+            {
+                result = RemoteSmtpSendResult.Failure(
+                    "Remote SMTP connection failed: " + ex.Message);
+            }
+
+            if (result.Succeeded
+                || result.FailureKind == DeliveryFailureKind.Permanent
+                || !result.TryNextEndpoint)
+            {
+                return result;
+            }
+
+            lastTransientFailure = result;
+        }
+
+        return lastTransientFailure ?? RemoteSmtpSendResult.Failure("Remote SMTP delivery failed.");
+    }
+
+    private async ValueTask<RemoteSmtpSendResult> SendSingleEndpointAsync(
+        RemoteSmtpSendRequest request,
+        CancellationToken cancellationToken)
+    {
         if (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsOptional)
         {
             try
@@ -52,6 +89,9 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
 
         return await SendAttemptAsync(request, cancellationToken).ConfigureAwait(false);
     }
+
+    private static bool IsTransientTransportFailure(Exception exception) =>
+        exception is IOException or SocketException or TimeoutException or AuthenticationException;
 
     private async ValueTask<RemoteSmtpSendResult> SendAttemptAsync(
         RemoteSmtpSendRequest request,
@@ -171,6 +211,7 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
             return FailureFromReply("Remote SMTP MAIL FROM failed: ", mailFrom);
         }
 
+        var acceptedRecipientCount = 0;
         foreach (var recipient in request.RecipientAddresses)
         {
             var rcpt = await SendCommandAsync(
@@ -180,33 +221,53 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
                 cancellationToken).ConfigureAwait(false);
             if (!rcpt.IsPositiveCompletion)
             {
-                return FailureFromReply("Remote SMTP RCPT TO failed for " + recipient + ": ", rcpt);
+                return FailureFromReply(
+                    "Remote SMTP RCPT TO failed for " + recipient + ": ",
+                    rcpt,
+                    canTryNextEndpoint: acceptedRecipientCount == 0);
             }
-        }
 
-        var data = await SendCommandAsync(writer, reader, "DATA", cancellationToken).ConfigureAwait(false);
-        if (data.Code != 354)
-        {
-            return FailureFromReply("Remote SMTP DATA command failed: ", data);
-        }
-
-        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-        await WriteDotStuffedDataAsync(transport.Stream, request.MessageData, cancellationToken).ConfigureAwait(false);
-        var accepted = await ReadReplyAsync(reader, cancellationToken).ConfigureAwait(false);
-        if (!accepted.IsPositiveCompletion)
-        {
-            return FailureFromReply("Remote SMTP DATA body was rejected: ", accepted);
+            acceptedRecipientCount++;
         }
 
         try
         {
-            await SendCommandAsync(writer, reader, "QUIT", cancellationToken).ConfigureAwait(false);
-        }
-        catch (IOException)
-        {
-        }
+            var data = await SendCommandAsync(writer, reader, "DATA", cancellationToken).ConfigureAwait(false);
+            if (data.Code != 354)
+            {
+                return FailureFromReply(
+                    "Remote SMTP DATA command failed: ",
+                    data,
+                    canTryNextEndpoint: false);
+            }
 
-        return RemoteSmtpSendResult.Success();
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await WriteDotStuffedDataAsync(transport.Stream, request.MessageData, cancellationToken).ConfigureAwait(false);
+            var accepted = await ReadReplyAsync(reader, cancellationToken).ConfigureAwait(false);
+            if (!accepted.IsPositiveCompletion)
+            {
+                return FailureFromReply(
+                    "Remote SMTP DATA body was rejected: ",
+                    accepted,
+                    canTryNextEndpoint: false);
+            }
+
+            try
+            {
+                await SendCommandAsync(writer, reader, "QUIT", cancellationToken).ConfigureAwait(false);
+            }
+            catch (IOException)
+            {
+            }
+
+            return RemoteSmtpSendResult.Success();
+        }
+        catch (Exception ex) when (IsTransientTransportFailure(ex))
+        {
+            return RemoteSmtpSendResult.Failure(
+                "Remote SMTP delivery connection failed after recipient acceptance: " + ex.Message,
+                tryNextEndpoint: false);
+        }
     }
 
     private static async ValueTask<RemoteSmtpSendResult> AuthenticateLoginAsync(
@@ -237,11 +298,13 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
 
     private static RemoteSmtpSendResult FailureFromReply(
         string prefix,
-        SmtpReply reply)
+        SmtpReply reply,
+        bool canTryNextEndpoint = true)
     {
         return RemoteSmtpSendResult.Failure(
             prefix + reply.Format(),
-            failureKind: reply.Code >= 500 ? DeliveryFailureKind.Permanent : DeliveryFailureKind.Transient);
+            failureKind: reply.Code >= 500 ? DeliveryFailureKind.Permanent : DeliveryFailureKind.Transient,
+            tryNextEndpoint: canTryNextEndpoint);
     }
 
     private static async ValueTask<SmtpReply> SendCommandAsync(

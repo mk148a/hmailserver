@@ -211,17 +211,20 @@ WHERE routeid = @RouteId;
             return null;
         }
 
+        var hosts = host
+            .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (hosts.Length == 0)
+        {
+            return null;
+        }
+
+        host = string.Join('|', hosts);
+
         var requiresAuthentication = ToBoolean(reader.GetValue(1));
         var username = reader.GetString(2);
         var encryptedPassword = reader.GetString(5);
         var password = string.Empty;
         var shouldAuthenticate = requiresAuthentication && username.Length != 0;
-        if (host.Contains('|', StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                "Multiple global SMTP relayer hosts are not supported by the Net10 delivery target contract.");
-        }
-
         var connectionSecurity = Convert.ToInt32(reader.GetValue(4), System.Globalization.CultureInfo.InvariantCulture);
         if (connectionSecurity is < 0 or > 3)
         {
