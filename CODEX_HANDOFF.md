@@ -3630,3 +3630,29 @@ COM, AD/DC, and 24-hour soak. Release remains RED. Next three independent
 slices: reproducible legacy C++ listener runtime; populated
 folder/message/settings restore readback and rollback; paired SMTP acceptance
 and delivery queue after both baselines are runnable. Do not push.
+## Current Authoritative Continuation (2026-08-11, QUEUED FULL RESTORE)
+
+Code/test commit `2564cc45b` adds the missing composed acceptance path for a
+full restore. The test
+`BackupRestoreRoundTripIntegrationTests.BackupManager_StartRestoreDispatchesRealFullRestoreIntoPopulatedTarget`
+uses a disposable LocalDB database and isolated Data root, seeds an existing
+domain/public-folder graph, invokes `BackupManager.StartRestore`, and waits for
+the real `BackupTaskQueue`/`BackupTaskHostedService` completion before checking
+settings, domain, folder, message, and Data-file replacement. The legacy
+references are `BackupManager::StartRestore` and
+`BackupExecuter::StartRestore`/`RestoreDataDirectory_` in
+`source/Server/Common/Application`.
+
+Focused restore integration is `18/18`; disposable SQL opt-in categories are
+`53/53`; default full Net10 is `2125 passed, 44 skipped, 0 failed`.
+No production SQL/Data, service, COM registration, DCOM ACL, IIS, or installed
+Application identity changed. This closes queued full-restore execution
+coverage only. Real `StartBackup -> LoadBackup`, crash/power-loss recovery,
+service/COM lifecycle, independent SQL Server certification, SEC-18, and the
+paired C++/.NET10 performance gate remain RED.
+
+Next three independent slices: (1) full-restore crash/ambiguous-commit journal
+evidence, (2) repair the isolated C++ protocol target and reproduce Net10
+IMAP/POP3, and (3) add paired SMTP acceptance and delivery-queue workloads
+after both protocol baselines are runnable. Older continuation entries below
+this one are historical.

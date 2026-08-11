@@ -3626,3 +3626,22 @@ Next smallest slice: wire composed backup dispatch to a real isolated SQL/Data
 restore executor with populated existing state, then repair the isolated C++
 protocol target and reproduce Net10 IMAP/POP3 before adding delivery and soak
 scenarios.
+## Current next slice (2026-08-11)
+
+Completed in code/test commit `2564cc45b`: the real authenticated
+`BackupManager.StartRestore` queue/host/executor composition now has a
+disposable SQL/Data acceptance test against a populated existing target. The
+test class is `BackupRestoreRoundTripIntegrationTests` and covers stale domain
+and public-folder cleanup, folder/message readback, Data replacement, and
+completion dispatch. Legacy behavior is anchored to
+`source/Server/Common/Application/BackupManager.cpp` (`StartRestore`) and
+`BackupExecuter.cpp` (`StartRestore`, `RestoreDataDirectory_`).
+
+Focused restore coverage is `18/18`; disposable SQL opt-in categories are
+`53/53`; default full Net10 is `2125 passed, 44 skipped, 0 failed`.
+
+The next bounded slice is isolated full-restore crash/ambiguous-commit recovery
+evidence. Real `StartBackup -> LoadBackup`, independent SQL Server
+certification, service/COM lifecycle, migration/installer, SEC-18, and the
+paired C++/.NET10 performance gate remain open. Do not claim a speed-up ratio
+or winner while the identical live SMTP/IMAP/POP3 matrix is incomplete.

@@ -1,6 +1,29 @@
 hMailServer
 ===========
 
+## Current authoritative restore status (2026-08-11)
+
+Code/test commit `2564cc45b` adds disposable SQL/Data acceptance for the real
+queued Administrator restore path. `BackupManager.StartRestore` now runs
+through `BackupTaskQueue`, `BackupTaskHostedService`, and the real
+`MetadataBackupRestoreExecutor` against a populated target containing an
+existing domain, public-folder rows, account folders, message metadata, and a
+staged Data file. The test verifies replacement and cleanup, generated-domain
+readback, and durable completion dispatch. Legacy references are
+`BackupManager::StartRestore` and `BackupExecuter::StartRestore`/
+`RestoreDataDirectory_` in `source/Server/Common/Application`.
+
+The focused restore class passes `18/18`; the disposable SQL opt-in categories
+pass `53/53`; default full Net10 is `2125 passed, 44 skipped, 0 failed`.
+This closes queued full-restore execution coverage, but not real
+`StartBackup -> LoadBackup`, crash/power-loss recovery, service/COM lifecycle,
+or independent SQL Server certification. Release remains **RED**.
+
+Next independent slices are full-restore crash/ambiguous-commit recovery
+evidence, repair of the isolated legacy C++ protocol target so IMAP/POP3 can be
+paired, and then SMTP acceptance/delivery-queue load scenarios. No C++/.NET10
+speed-up ratio or performance winner is claimed.
+
 ## Current performance evidence (2026-08-11)
 
 The shared disposable start state is verified before live testing: both SQL

@@ -1879,3 +1879,22 @@ performance release gate is **RED** and no ratio is valid.
 The offline Net10-only 100k SEARCH/SORT gate passes at p50 `7.101 ms`, p95
 `9.734 ms`, p99 `9.784 ms`; this is not a legacy comparison. Current evidence:
 `artifacts/benchmarks/live-cpp-net10-20260811/`.
+## Current authoritative continuation (2026-08-11, queued full restore)
+
+Code/test commit `2564cc45b` proves the real authenticated restore composition
+against a disposable LocalDB target. `BackupManager.StartRestore` dispatches
+through `BackupTaskQueue` and `BackupTaskHostedService` into
+`MetadataBackupRestoreExecutor`; the target is pre-populated with a stale
+domain/public-folder graph and Data file, and the test verifies replacement,
+public-folder cleanup, message/folder readback, and completion dispatch.
+
+Legacy anchors are `BackupManager::StartRestore` and
+`BackupExecuter::StartRestore`/`RestoreDataDirectory_` in
+`source/Server/Common/Application/BackupManager.cpp` and
+`BackupExecuter.cpp`. `BackupRestoreRoundTripIntegrationTests` passes `18/18`
+with disposable SQL opt-in categories at `53/53`; default full Net10 is
+`2125 passed, 44 skipped, 0 failed`.
+
+The remaining restore blockers are real `StartBackup -> LoadBackup` round trip,
+crash/power-loss and ambiguous-commit recovery evidence, service/COM lifecycle,
+and independent SQL Server certification. Release remains **RED**.
