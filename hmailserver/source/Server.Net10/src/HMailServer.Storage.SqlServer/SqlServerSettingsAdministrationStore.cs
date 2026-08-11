@@ -538,7 +538,7 @@ WHERE settingname <> N'smtprelayerpassword'
     {
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateWelcomeSmtpSql, connection);
-        command.Parameters.Add("@WelcomeSMTP", SqlDbType.NVarChar, 255).Value = welcomeSmtp;
+        command.Parameters.Add("@WelcomeSMTP", SqlDbType.NVarChar, 4000).Value = welcomeSmtp;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
