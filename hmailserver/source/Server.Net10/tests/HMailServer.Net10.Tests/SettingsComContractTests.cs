@@ -2260,6 +2260,65 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AllowSmtpAuthPlainSetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AllowSmtpAuthPlainUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AllowSmtpAuthPlain: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.AllowSMTPAuthPlain = true;
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.AllowSmtpAuthPlainUpdateCount);
+        Assert.IsTrue(settings.AllowSMTPAuthPlain);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AllowSmtpAuthPlainSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AllowSmtpAuthPlainUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AllowSmtpAuthPlain: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.AllowSMTPAuthPlain = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.AllowSmtpAuthPlainUpdateCount);
+        Assert.IsFalse(settings.AllowSMTPAuthPlain);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_DenyMailFromNullSetterPersistsInvertedTrueAndFalseBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
