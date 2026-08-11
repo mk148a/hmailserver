@@ -7,4 +7,5 @@ public sealed record DeliveryTarget(
     int LocalAccountId = 0,
     SmtpRouteResolution? Route = null,
     int RemoteConnectionSecurity = 0,
-    bool VerifyRemoteSslCertificate = true);
+    bool VerifyRemoteSslCertificate = true,
+    int MaxNumberOfMxHosts = 0);

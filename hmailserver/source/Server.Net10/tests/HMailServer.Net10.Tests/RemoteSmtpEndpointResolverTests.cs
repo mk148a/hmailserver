@@ -182,6 +182,30 @@ public sealed class RemoteSmtpEndpointResolverTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_PreservesMxOrderAndAppliesMaxHostLimit()
+    {
+        var mxResolver = new FakeMxResolver(
+            new DnsMxRecord("mx30.example.net.", 30, TimeSpan.FromMinutes(10)),
+            new DnsMxRecord("mx10.example.net.", 10, TimeSpan.FromMinutes(10)),
+            new DnsMxRecord("mx20.example.net.", 20, TimeSpan.FromMinutes(10)));
+        var resolver = new RemoteSmtpEndpointResolver(
+            mxResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.RemoteDomain,
+            "remote:example.net",
+            "example.net",
+            MaxNumberOfMxHosts: 2);
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "mx10.example.net", "mx20.example.net" },
+            endpoint.GetCandidates().Select(static candidate => candidate.Host).ToArray());
+        Assert.AreEqual(1, mxResolver.CallCount);
+    }
+
+    [TestMethod]
     [DataRow(0)]
     [DataRow(1)]
     [DataRow(2)]

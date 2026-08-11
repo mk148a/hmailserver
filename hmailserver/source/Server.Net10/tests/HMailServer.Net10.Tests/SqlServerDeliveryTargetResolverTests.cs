@@ -14,6 +14,8 @@ public sealed class SqlServerDeliveryTargetResolverTests
         StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectSmtpConnectionSecuritySql, "settingname = N'SmtpDeliveryConnectionSecurity'");
         StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectVerifyRemoteSslCertificateSql, "settinginteger");
         StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectVerifyRemoteSslCertificateSql, "settingname = N'VerifyRemoteSslCertificate'");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectMaxNumberOfMxHostsSql, "settinginteger");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectMaxNumberOfMxHostsSql, "settingname = N'MaxNumberOfMXHosts'");
     }
 
     [TestMethod]

@@ -67,7 +67,13 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
 
         if (target.Kind == DeliveryTargetKind.RemoteDomain)
         {
-            var mxHost = await ResolveRemoteHostAsync(target.DomainName, cancellationToken).ConfigureAwait(false);
+            var mxHosts = await ResolveRemoteHostsAsync(target.DomainName, cancellationToken).ConfigureAwait(false);
+            if (target.MaxNumberOfMxHosts > 0)
+            {
+                mxHosts = mxHosts.Take(target.MaxNumberOfMxHosts).ToArray();
+            }
+
+            var mxHost = mxHosts[0];
             var connectionSecurity = target.RemoteConnectionSecurity switch
             {
                 (int)RemoteSmtpConnectionSecurity.None => RemoteSmtpConnectionSecurity.None,
@@ -81,13 +87,14 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
                 mxHost,
                 Port: 25,
                 connectionSecurity,
-                VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate);
+                VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate,
+                HostCandidates: mxHosts.Count > 1 ? mxHosts : null);
         }
 
         throw new InvalidOperationException("Local delivery targets do not have remote SMTP endpoints.");
     }
 
-    private async ValueTask<string> ResolveRemoteHostAsync(
+    private async ValueTask<IReadOnlyList<string>> ResolveRemoteHostsAsync(
         string domainName,
         CancellationToken cancellationToken)
     {
@@ -96,25 +103,32 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
         var now = _timeProvider.GetUtcNow();
         if (_cache.TryGetValue(domainName, out var cached) && cached.ExpiresUtc > now)
         {
-            return cached.Host;
+            return cached.Hosts;
         }
 
         var records = await _mxResolver.ResolveMxAsync(domainName, cancellationToken).ConfigureAwait(false);
-        var selected = records
+        var hosts = records
             .OrderBy(static record => record.Preference)
             .ThenBy(static record => record.Exchange, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
-        var host = selected?.Exchange.TrimEnd('.') ?? domainName;
-        var ttl = selected is null
+            .Select(static record => record.Exchange.TrimEnd('.'))
+            .Where(static host => !string.IsNullOrWhiteSpace(host))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (hosts.Length == 0)
+        {
+            hosts = [domainName];
+        }
+
+        var ttl = records.Count == 0
             ? _options.NegativeCacheTtl
-            : selected.TimeToLive <= TimeSpan.Zero
+            : records.Min(static record => record.TimeToLive) <= TimeSpan.Zero
                 ? _options.DefaultCacheTtl
-                : selected.TimeToLive;
-        _cache[domainName] = new CacheEntry(host, now.Add(ttl));
-        return host;
+                : records.Min(static record => record.TimeToLive);
+        _cache[domainName] = new CacheEntry(hosts, now.Add(ttl));
+        return hosts;
     }
 
     private sealed record CacheEntry(
-        string Host,
+        IReadOnlyList<string> Hosts,
         DateTimeOffset ExpiresUtc);
 }
