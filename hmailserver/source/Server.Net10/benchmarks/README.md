@@ -2,6 +2,14 @@
 
 ## Current authoritative live gate (2026-08-11)
 
+Code/test commit `2737ff625` also corrected live protocol process-resource
+serialization. A bounded run completed 300 SMTP, 300 IMAP, and 300 POP3
+sessions (`900/900`, zero errors) against the disposable pair. p95 latency was
+`0.889/13.369/14.791 ms`; process growth was `22,581,248` private bytes,
+`144` handles, and `2` threads. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-protocol-soak-300/`.
+This is Net10-only bounded evidence; it is not a 24-hour soak or a C++ ratio.
+
 Code/test commit `46db432c6` verified the equal disposable SQL/Data/message
 pair and Net10 live acceptance: SMTP acceptance `25/25`, SMTP/IMAP/POP3
 protocol `25/25`, concurrent IMAP `1000/1000`, and IMAP Full-Text

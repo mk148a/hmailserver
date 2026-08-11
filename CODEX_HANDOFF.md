@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, BOUNDED PROTOCOL SOAK)
+
+Code/test commit `2737ff625` fixes process-resource serialization in
+`build/benchmark-net10-live-protocol.ps1`. Against the disposable Net10
+SQL/Data pair and the same loopback ports, the bounded run completed 300 SMTP,
+300 IMAP, and 300 POP3 sessions (`900/900`, zero errors). p95 latency was
+`0.889/13.369/14.791 ms`; process growth was `22,581,248` private bytes,
+`144` handles, and `2` threads, with zero readiness/shutdown failures. Evidence
+is under `artifacts/benchmarks/live-cpp-net10-20260811/net10-protocol-soak-300/`.
+
+The post-soak read-only pair collector remains `EQUIVALENT_START_STATE` under
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-protocol-soak-300/`.
+
+This is bounded Net10-only resource evidence. The C++ process remains blocked
+by the installed Registry32/AppID-isolation preflight, so no speed-up ratio,
+regression percentage, or winner is valid. Full Net10 is `2127 passed, 53
+skipped, 0 failed`. Next: registry-isolated C++ matrix, isolated Windows
+service/out-of-process COM lifecycle, then a dedicated 24-hour soak host.
+
 ## Current Authoritative Continuation (2026-08-11, EXTERNAL FETCH ACCEPTANCE)
 
 Code/test commit `fe915d3fb` adds a disposable real TCP/SQL external-fetch

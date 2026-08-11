@@ -6,7 +6,29 @@
 
 
 
-## Current next slice (2026-08-11, supersedes older benchmark entries)
+## Current next slice (2026-08-11, bounded protocol soak; supersedes older benchmark entries)
+
+Code/test commit `2737ff625` corrected `build/benchmark-net10-live-protocol.ps1`
+so process resource evidence is collected from the actual launched
+`LiveListenerHost.exe` PID and serialized from the measured object. The same
+disposable Net10 database/Data pair and loopback ports then completed a bounded
+300-iteration run for each SMTP, IMAP, and POP3 protocol (`900/900`, zero
+errors). p95 latency was `0.889/13.369/14.791 ms`; process growth was
+`22,581,248` private bytes, `144` handles, and `2` threads; readiness and
+shutdown failures were zero. JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-protocol-soak-300/`.
+
+The post-soak read-only pair collector and validator report
+`EQUIVALENT_START_STATE` under
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-protocol-soak-300/`.
+
+This closes only the short bounded Net10 resource-observation slice. It does
+not establish a 24-hour leak acceptance, a Windows service/COM lifecycle
+result, or any C++/.NET 10 ratio. The paired performance gate remains RED.
+Next independent slices are the registry-isolated C++ matrix, isolated Windows
+service and out-of-process COM lifecycle, and a dedicated 24-hour soak host.
+
+## Historical current next slice (superseded, 2026-08-11, external fetch)
 
 Code/test commit `fe915d3fb` completed the disposable external-fetch TCP/SQL
 acceptance. Legacy `ExternalFetchManager::DoWork` and `FetchIsAllowed_`

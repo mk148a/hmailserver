@@ -6,8 +6,8 @@ hMailServer
 The fresh disposable pair now passes the start-state gate: both databases have
 37 tables with equal row counts, 1,000 identical Data files, equal Data SHA-256,
 the same active domain/account/Inbox, three loopback ports, and SQL Full-Text
-catalog/index readiness. The latest post-restart evidence is under
-`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-restart-lifecycle/`.
+catalog/index readiness. The latest post-soak evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-protocol-soak-300/`.
 
 Net10 live evidence is now available: SMTP acceptance `25/25`, protocol
 SMTP/IMAP/POP3 `25/25`, concurrent IMAP `1000/1000`, and live IMAP Full-Text
@@ -45,6 +45,16 @@ to `0/0`. Cycle p50/p95/p99 was `23.998/24.229/24.229 ms` with explicit
 ratio or speed-up claim is valid while the C++ registry-isolated runner is
 blocked. Evidence is under
 `artifacts/benchmarks/live-cpp-net10-20260811/net10-external-fetch/`.
+
+The corrected live protocol benchmark also completed a bounded Net10 soak of
+300 SMTP, 300 IMAP, and 300 POP3 sessions (`900/900`, zero errors) against the
+same disposable Data/SQL pair and loopback ports. p95 latency was
+`0.889/13.369/14.791 ms`; the launched process grew by approximately
+`21.5 MiB`, `144` handles, and `2` threads, with no readiness or shutdown
+failures. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-protocol-soak-300/`.
+This is bounded Net10-only evidence, not a 24-hour leak result or a C++ speed-up
+comparison.
 
 The delivery report is
 `artifacts/benchmarks/live-cpp-net10-20260811/net10-live-delivery-queue/`.

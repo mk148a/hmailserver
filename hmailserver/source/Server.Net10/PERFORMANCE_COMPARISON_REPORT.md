@@ -1,7 +1,7 @@
 # C++ / .NET 10 Performance Gate Report
 
 Date: 2026-08-11
-Code/test commit: `fe915d3fb`
+Code/test commit: `2737ff625`
 Decision: **RED**
 
 ## Executive Result
@@ -16,7 +16,7 @@ The SQL/Data/message fixture is now equivalent at the start of the run:
 - SQL Full-Text service, catalog, search-document table, and index present on both sides
 - SMTP `2525`, IMAP `1143`, POP3 `25110`, all bound to `127.0.0.1`
 
-Evidence: `artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-restart-lifecycle/paired-shared-baseline.json`.
+Evidence: `artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-protocol-soak-300/paired-shared-baseline.json`.
 
 The .NET 10 listener was measured against this fixture. The legacy C++ process was **not** launched: the read-only preflight found the installed Registry32 path and `/Debug` startup would write the installed AppID registration. Therefore no C++ latency, throughput, ratio, regression, or winner is reported.
 
@@ -32,6 +32,13 @@ The .NET 10 listener was measured against this fixture. The legacy C++ process w
 | IMAP `SEARCH TEXT needle`, 25 sessions | PASS, 25/25 | 7.900 ms | 12.802 ms | 21.557 ms | n/a |
 | Local delivery, 50 queue messages | PASS, 50/50 | 4.376 ms | 8.405 ms | 48.484 ms | 73.308 msg/s |
 | POP3 large mailbox, 1,000 messages | PASS, 5/5 | 54.757 ms | 290.599 ms | 333.589 ms | n/a |
+
+The corrected protocol runner also completed a bounded Net10 resource run with
+300 SMTP, 300 IMAP, and 300 POP3 sessions (`900/900`, zero errors). Its p95
+latencies were `0.889/13.369/14.791 ms`; the launched process changed by
+`+22,581,248` private bytes, `+144` handles, and `+2` threads. Readiness and
+shutdown failures were zero. This is a short observation window, not the
+required 24-hour leak gate.
 
 The initial POP3 run exposed a production bug in `SqlServerPop3MailboxStore.ListMessagesAsync`: `SequentialAccess` requires ordinal 0 to be read before ordinal 1. After the one-line read-order fix, the isolated SQL diagnostic passed and the updated Release host passed POP3 25/25. The focused diagnostic is opt-in and uses only the disposable pair.
 
@@ -110,7 +117,9 @@ The disposable SQL diagnostic also exposed and provisioned the exact legacy `hm_
 
 1. A registry-isolated C++ installation or VM is required before any C++ process can run safely.
 2. C++/.NET 10 SMTP, IMAP, POP3, FTS, delivery, queue, and equal-load measurements are still absent as a pair.
-3. Remote-delivery throughput/retry comparison, longer bounded resource-growth soak, Windows service/out-of-process COM lifecycle, and 24-hour leak soak remain unexecuted.
+3. Remote-delivery throughput/retry comparison, registry-isolated C++ matrix,
+   Windows service/out-of-process COM lifecycle, and 24-hour leak soak remain
+   unexecuted.
 
 ## Reproduction Commands
 
