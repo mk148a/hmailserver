@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, full settings/domain/message restore)
+
+Commit `563cd0042` adds the legacy `BOSettings|BODomains|BOMessages` restore
+combination. Legacy `BackupExecuter::StartRestore` accepts option `7` and
+restores domains/Data/messages before settings
+(`source/Server/Common/Application/BackupExecuter.cpp:230-388`,
+`source/Server/Common/Application/Configuration.cpp:716-760`). Net10 now
+stages Data, deletes domains/public folders in one SQL transaction, restores
+settings and populated message metadata, and keeps the Data recovery journal
+when the SQL commit outcome is ambiguous. Installed COM identity is unchanged.
+
+Focused restore coverage is `19 passed, 0 failed`; opt-in restore integration is
+`17 passed, 0 failed`; fresh full Net10 opt-in is `2163 passed, 2 skipped, 0
+failed`. The fixture uses a hand-built archive and configured local
+isolated-create SQL endpoint, so this is **YELLOW**, not independent disposable
+release proof. Production backup execution, reinitialize, crash/power-loss
+drills, SEC-18, and paired C++/.NET10 performance remain open; no performance
+ratio or winner is claimed. Next slice: true isolated `StartBackup -> LoadBackup`
+populated existing-state round trip with public folders and message bytes.
+
 ## Current parity continuation (2026-08-11, WelcomeSMTP SQL capacity parity)
 
 Commit `e3434d4b1` changes the Net10 `WelcomeSMTP` SQL parameter metadata from

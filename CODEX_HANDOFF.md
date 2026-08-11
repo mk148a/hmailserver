@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, FULL SETTINGS/DOMAIN/MESSAGE RESTORE)
+
+Code/test commit `563cd0042` adds the legacy `BOSettings|BODomains|BOMessages`
+restore combination. Legacy `BackupExecuter::StartRestore` accepts option `7`
+and restores domains, Data, messages, then settings
+(`source/Server/Common/Application/BackupExecuter.cpp:230-388`,
+`source/Server/Common/Application/Configuration.cpp:716-760`). Net10 now
+stages Data, removes domains/public folders in one SQL transaction, restores
+settings and populated message metadata, and passes
+`commitOutcomeMayBeAmbiguous: true` for full restores so a lost SQL commit
+response leaves the recovery journal for manual reconciliation instead of
+silently restoring stale Data.
+
+Focused restore coverage is `19 passed, 0 failed`; opt-in
+`BackupRestoreRoundTripIntegrationTests` is `17 passed, 0 failed`; fresh full
+Net10 isolated-create opt-in is `2163 passed, 2 skipped, 0 failed`. The test
+fixture uses a hand-built archive and configured local SQL endpoint, not a
+production database/Data directory; independent disposable-instance proof,
+real `StartBackup`, existing-state/public-folder round trip, and crash/power-
+loss evidence remain open. Slice verdict: **YELLOW**; project: **RED**. Next
+slice: true isolated `StartBackup -> LoadBackup` populated round trip. Do not
+push.
+
 ## Current Authoritative Continuation (2026-08-11, WELCOMESMTP SQL CAPACITY PARITY)
 
 Code/test commit `e3434d4b1` changes the Net10 `WelcomeSMTP` SQL parameter

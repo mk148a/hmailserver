@@ -8,25 +8,26 @@
 
 ## Current next slice (2026-08-11)
 
-Completed: `WelcomeSMTP` SQL capacity parity in code/test commit `e3434d4b1`.
-Legacy `hm_settings.settingstring` is `nvarchar(4000)`
-(`source/DBScripts/CreateTablesMSSQL.sql:299-303`), and the legacy COM/SQL
-path is `InterfaceSettings::put_WelcomeSMTP`, `Property::SetString`,
-`SQLStatement`, and `ADOConnection`
-(`source/Server/COM/InterfaceSettings.cpp:696-710`,
-`source/Server/DBOperation/Property.cpp:43-47,81-96`,
-`source/Server/DBOperation/SQLStatement.cpp:40-67,222-257`,
-`source/Server/DBOperation/ADOConnection.cpp:449-499`). Net10 now uses
-`nvarchar(4000)` parameter metadata. An isolated-create local SQL test writes
-and reads a 300-character value exactly, then drops its random test database;
-independent proof that the SQL instance itself is disposable remains an
-environment gate.
-Focused store coverage is `33/33`; full default Net10 is `2123 passed, 40
-skipped, 0 failed`; fresh disposable opt-in is `2161 passed, 2 skipped, 0 failed`.
+Completed: full `BOSettings|BODomains|BOMessages` restore in code/test commit
+`563cd0042`. Legacy `BackupExecuter::StartRestore` accepts option `7` and
+restores domains/Data/messages before settings
+(`source/Server/Common/Application/BackupExecuter.cpp:230-388`,
+`source/Server/Common/Application/Configuration.cpp:716-760`). Net10 stages
+Data, deletes domains/public folders in one SQL transaction, restores settings
+and populated message metadata, and keeps the recovery journal when a full
+restore SQL commit outcome is ambiguous. The installed COM identity is
+unchanged.
 
-Next smallest independent slice: repair or replace the isolated C++ protocol
-target and reproduce the Net10 live IMAP/POP3 listener path, then rerun the
-identical SQL/Data/message and loopback SMTP/IMAP/POP3 workload matrix. The
+Focused restore coverage is `19/19`; opt-in restore integration is `17/17`;
+fresh full Net10 isolated-create opt-in is `2163 passed, 2 skipped, 0 failed`.
+The fixture uses a hand-built archive and configured local SQL endpoint, so
+independent disposable-instance proof, real `StartBackup`, existing-state and
+public-folder round trip, and crash/power-loss evidence remain open. Slice is
+**YELLOW** and the project remains **RED**.
+
+Next smallest independent slice: implement/accept a true isolated
+`StartBackup -> LoadBackup` populated existing-state round trip with public
+folders and message bytes. The
 performance release gate is **RED** until both implementations complete the
 same scenarios. Do not claim a ratio or winner. Legacy C++ still accepts raw
 multiline values; the .NET10 rejection is an intentional security divergence

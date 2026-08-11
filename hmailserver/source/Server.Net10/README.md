@@ -1,3 +1,22 @@
+## Current parity continuation (2026-08-11, full settings/domain/message restore)
+
+Commit `563cd0042` accepts legacy restore option `7`
+(`BOSettings|BODomains|BOMessages`). Legacy `BackupExecuter::StartRestore`
+restores domains/Data/messages before settings
+(`source/Server/Common/Application/BackupExecuter.cpp:230-388`,
+`source/Server/Common/Application/Configuration.cpp:716-760`). Net10 now uses
+one SQL metadata transaction, stages Data, restores settings and populated
+message metadata, cleans public folders, and preserves recovery evidence when
+the SQL commit outcome is ambiguous.
+
+Focused restore coverage is `19 passed`; opt-in restore integration is `17
+passed`; fresh full Net10 isolated-create opt-in is `2163 passed, 2 skipped, 0
+failed`. This remains **YELLOW** because the archive is hand-built and the SQL
+endpoint is not independently certified disposable. Next slice: true isolated
+`StartBackup -> LoadBackup` with populated existing state and message bytes.
+Production backup execution, reinitialize, SEC-18, and paired performance stay
+open.
+
 ## Current parity continuation (2026-08-11, WelcomeSMTP SQL capacity parity)
 
 Commit `e3434d4b1` changes only the Net10 `WelcomeSMTP` SQL parameter metadata
