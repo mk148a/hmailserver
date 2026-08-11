@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, POP3 LARGE MAILBOX)
+
+Code/test commit `0ec49598b` adds a real loopback Net10 POP3 large-mailbox
+runner. Legacy anchors are `POP3Connection::ProtocolSTAT_`, `ProtocolLIST_`,
+`ProtocolUIDL_`, and `ProtocolRETR_`
+(`source/Server/POP3/POP3Connection.cpp:606-750,933-956`); Net10 uses the
+matching `Pop3Session` handlers and SQL mailbox/file stores.
+
+Against the disposable pair’s 1,000-message `test@perf.test` mailbox, five
+sessions passed `STAT`, `LIST`, `UIDL`, and `RETR 1`, with `1000/1000` SQL
+mailbox rows after the run. Total p50/p95/p99 was
+`54.757/290.599/333.589 ms`; LIST p50/p95 `14.963/56.093 ms`, UIDL p50
+`15.060 ms`, RETR p50 `1.466 ms`. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-pop3-large-mailbox/`.
+
+Full Net10 remains `2127 passed, 52 skipped, 0 failed`. The paired performance
+gate remains **RED** because the C++ registry/AppID-isolation environment is
+not available. Next: disposable service restart/COM lifecycle, then
+external-fetch soak and bounded resource-leak evidence. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, DELIVERY QUEUE ACCEPTANCE)
 
 Code/test commit `7d2aecdc0` completed the next disposable delivery slice.

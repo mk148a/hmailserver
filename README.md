@@ -16,6 +16,10 @@ delivery also processed 50 disposable queue messages with 50/50 Inbox
 commits, `73.308` messages/s, and p50/p95/p99 batch latency
 `4.376/8.405/48.484 ms`; a controlled transient remote target retained one
 unlocked SQL queue row with retry count 1 and a future next-try timestamp.
+The 1,000-message POP3 mailbox also passed real loopback `STAT`, `LIST`,
+`UIDL`, and `RETR 1` in `5/5` sessions; total p50 was `54.757 ms`, with
+LIST/UIDL/RETR p50 `14.963/15.060/1.466 ms`, and SQL mailbox rows remained
+`1000/1000`.
 The POP3 result
 required a focused production fix: the SQL mailbox reader now consumes
 `messageid`, `messageuid`, and `messagesize` in the selected ordinal order
@@ -28,6 +32,8 @@ environment.
 
 The delivery report is
 `artifacts/benchmarks/live-cpp-net10-20260811/net10-live-delivery-queue/`.
+The POP3 large-mailbox report is
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-pop3-large-mailbox/`.
 The measured values and charts are in
 [`hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`](hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md).
 

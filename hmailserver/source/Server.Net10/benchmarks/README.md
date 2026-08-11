@@ -2,7 +2,7 @@
 
 ## Current authoritative live gate (2026-08-11)
 
-Code/test commit `7d2aecdc0` verified the equal disposable SQL/Data/message
+Code/test commit `0ec49598b` verified the equal disposable SQL/Data/message
 pair and Net10 live acceptance: SMTP acceptance `25/25`, SMTP/IMAP/POP3
 protocol `25/25`, concurrent IMAP `1000/1000`, and IMAP Full-Text
 `SEARCH TEXT needle` `25/25` with 1,000 matches per session. The live FTS
@@ -26,6 +26,14 @@ The JSON/CSV/Markdown output is under
 `artifacts/benchmarks/live-cpp-net10-20260811/net10-live-delivery-queue/`.
 The run also caught and fixed a Turkish-collation Inbox lookup in
 `SqlServerLocalDeliveryStore` by using `UPPER(foldername) = N'INBOX'`.
+
+The POP3 large-mailbox benchmark completes five real loopback sessions against
+the 1,000-message fixture, requiring `STAT`, full `LIST`, full `UIDL`, and
+`RETR 1`, while verifying the SQL mailbox remains `1000/1000`. It reports
+total p50/p95/p99 `54.757/290.599/333.589 ms`, LIST p50/p95
+`14.963/56.093 ms`, UIDL p50 `15.060 ms`, and RETR p50 `1.466 ms`.
+The report is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-pop3-large-mailbox/`.
 
 The legacy C++ process remains blocked by the read-only registry/configuration
 preflight because legacy `/Debug` startup would write the installed AppID

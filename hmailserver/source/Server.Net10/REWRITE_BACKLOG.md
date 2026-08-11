@@ -8,6 +8,30 @@
 
 ## Current next slice (2026-08-11, supersedes older benchmark entries)
 
+Code/test commit `0ec49598b` completed the Net10 large-mailbox POP3
+acceptance. Legacy `POP3Connection::ProtocolSTAT_`, `ProtocolLIST_`,
+`ProtocolUIDL_`, and `ProtocolRETR_` (`source/Server/POP3/POP3Connection.cpp:
+606-750,933-956`) enumerate the authenticated mailbox snapshot, return all
+non-deleted sequence/UID rows, and stream the selected message file with a
+dot-terminated response. Net10 `Pop3Session.HandleStatAsync`,
+`HandleListAsync`, `HandleUidlAsync`, and `HandleRetrAsync` plus
+`SqlServerPop3MailboxStore.ListMessagesAsync` / `OpenMessageAsync` are the
+corresponding paths.
+
+The disposable `test@perf.test` mailbox contains 1,000 messages. Five real
+loopback sessions completed `STAT`, `LIST`, `UIDL`, and `RETR 1` with `5/5`
+successes and SQL mailbox row-count `1000/1000`. Total p50/p95/p99 was
+`54.757/290.599/333.589 ms`; LIST p50/p95 was `14.963/56.093 ms`, UIDL p50
+`15.060 ms`, and RETR p50 `1.466 ms`. Evidence is
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-pop3-large-mailbox/`.
+
+This is Net10-only acceptance. The C++ process remains blocked by the
+registry/AppID isolation preflight, so no comparison ratio or winner is
+claimed. Next independent slices are disposable service restart/COM lifecycle
+acceptance, then external-fetch soak and bounded resource-leak evidence.
+
+## Historical current next slice (superseded, 2026-08-11)
+
 Code/test commit `7d2aecdc0` completed the disposable delivery slice.
 Legacy `LocalDelivery::Perform` / `DeliverToLocalAccount_` and
 `PersistentMessage::CopyFromQueueToInbox` anchor local queue-to-Inbox

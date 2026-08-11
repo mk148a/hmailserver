@@ -1,7 +1,7 @@
 # C++ / .NET 10 Performance Gate Report
 
 Date: 2026-08-11
-Code/test commit: `7d2aecdc0`
+Code/test commit: `0ec49598b`
 Decision: **RED**
 
 ## Executive Result
@@ -31,6 +31,7 @@ The .NET 10 listener was measured against this fixture. The legacy C++ process w
 | IMAP, 1,000 concurrent sessions | PASS, 1000/1000 | 2506.190 ms | 3611.596 ms | 3720.543 ms | 79.045 sessions/s |
 | IMAP `SEARCH TEXT needle`, 25 sessions | PASS, 25/25 | 7.900 ms | 12.802 ms | 21.557 ms | n/a |
 | Local delivery, 50 queue messages | PASS, 50/50 | 4.376 ms | 8.405 ms | 48.484 ms | 73.308 msg/s |
+| POP3 large mailbox, 1,000 messages | PASS, 5/5 | 54.757 ms | 290.599 ms | 333.589 ms | n/a |
 
 The initial POP3 run exposed a production bug in `SqlServerPop3MailboxStore.ListMessagesAsync`: `SequentialAccess` requires ordinal 0 to be read before ordinal 1. After the one-line read-order fix, the isolated SQL diagnostic passed and the updated Release host passed POP3 25/25. The focused diagnostic is opt-in and uses only the disposable pair.
 
@@ -50,6 +51,12 @@ retry count 1, a future `messagenexttrytime`, null lease owner, and its
 recipient retained. The SQL Inbox lookup was changed from `LOWER` to
 `UPPER(...)=N'INBOX'` because the pair uses a Turkish collation; this preserves
 the legacy Inbox contract and is covered by focused SQL and live tests.
+
+The POP3 large-mailbox acceptance used the real loopback listener on
+`127.0.0.1:25110` and required `STAT`, full `LIST`, full `UIDL`, and a
+dot-terminated `RETR 1` response for all five sessions. The SQL mailbox row
+count remained 1,000/1,000 after shutdown. This closes the Net10 large-mailbox
+read/list/stream gate, but is not a C++ comparison or a long-duration soak.
 
 ## Charts
 
@@ -87,7 +94,7 @@ The disposable SQL diagnostic also exposed and provisioned the exact legacy `hm_
 
 1. A registry-isolated C++ installation or VM is required before any C++ process can run safely.
 2. C++/.NET 10 SMTP, IMAP, POP3, FTS, delivery, queue, and equal-load measurements are still absent as a pair.
-3. Remote-delivery throughput/retry comparison, POP3 large-mailbox soak, external-fetch soak, service restart/COM lifecycle, and 24-hour leak soak remain unexecuted.
+3. Remote-delivery throughput/retry comparison, external-fetch soak, service restart/COM lifecycle, and 24-hour leak soak remain unexecuted.
 
 ## Reproduction Commands
 
@@ -117,6 +124,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-live-delivery-queue.ps1 `
   -MessageCount 50 `
+  -BenchmarkStagingRoot C:\hmail-perf-pair-20260811_1748\net10 `
+  -BenchmarkDatabase hmail_perf_pair_net10_20260811_1748
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-live-pop3-large-mailbox.ps1 `
+  -Iterations 5 `
   -BenchmarkStagingRoot C:\hmail-perf-pair-20260811_1748\net10 `
   -BenchmarkDatabase hmail_perf_pair_net10_20260811_1748
 ```
