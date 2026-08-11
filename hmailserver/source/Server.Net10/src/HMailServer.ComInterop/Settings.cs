@@ -2475,6 +2475,13 @@ public static class SettingsAdministrationRuntimeHost
         SettingsRuntimeConfiguration? settings = null)
     {
         ArgumentNullException.ThrowIfNull(store);
+        var snapshot = store
+            .GetSettingsAsync(CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+        PublishSmtpGreeting(snapshot.WelcomeSmtp);
+
         Volatile.Write(
             ref _configuration,
             new RuntimeConfiguration(

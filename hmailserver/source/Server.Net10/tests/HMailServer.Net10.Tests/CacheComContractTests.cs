@@ -237,7 +237,7 @@ public sealed class CacheComContractTests
         var settings = application.Settings;
         var cache = settings.Cache;
 
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
         Assert.IsNull(application.Authenticate("Administrator", "wrong"));
 
         var applicationSettingsError = Assert.ThrowsExactly<COMException>(() => _ = application.Settings);
@@ -245,7 +245,7 @@ public sealed class CacheComContractTests
 
         Assert.AreEqual(EAccessDenied, applicationSettingsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, retainedSettingsError.ErrorCode);
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
 
         Assert.IsTrue(cache.Enabled);
         Assert.AreEqual(60, cache.DomainCacheTTL);

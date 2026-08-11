@@ -430,7 +430,7 @@ public sealed class GreyListingWhiteAddressesComContractTests
         var retainedAddresses = retainedAntiSpam.GreyListingWhiteAddresses;
         var retainedAddress = retainedAddresses[0];
 
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
         Assert.AreEqual(1, greyListingStore.ReadCount);
         Assert.AreEqual(1, retainedAddresses.Count);
         AssertAddress(retainedAddress, 10, "192.0.2.*", "Test network");
@@ -442,7 +442,7 @@ public sealed class GreyListingWhiteAddressesComContractTests
             () => _ = newlyObtainedAntiSpam.GreyListingWhiteAddresses);
 
         Assert.AreEqual(EAccessDenied, deniedError.ErrorCode);
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
         Assert.AreEqual(1, greyListingStore.ReadCount);
 
         var readsBeforeRetainedAccess = greyListingStore.ReadCount;
@@ -458,7 +458,7 @@ public sealed class GreyListingWhiteAddressesComContractTests
         Assert.AreEqual(10, retainedAddresses.get_ItemByDBID(10).ID);
         AssertAddress(retainedAddress, 10, "192.0.2.*", "Test network");
         Assert.AreEqual(readsBeforeRetainedGetters, greyListingStore.ReadCount);
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
     }
 
     private static GreyListingWhiteAddressAdministrationSnapshot Snapshot(

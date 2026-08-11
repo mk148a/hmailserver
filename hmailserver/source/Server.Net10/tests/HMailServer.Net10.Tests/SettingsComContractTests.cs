@@ -408,6 +408,25 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void Configure_PublishesPersistedWelcomeSmtpWithoutSettingsComAccess()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: "bootstrap-only SMTP greeting",
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+
+        SettingsAdministrationRuntimeHost.Configure(store);
+
+        Assert.AreEqual(
+            "bootstrap-only SMTP greeting",
+            SettingsAdministrationRuntimeHost.GetSmtpGreeting());
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_ReturnsRuntimeBoundMessageIndexingAndKeepsOtherMembersExplicit()
     {
         MessageIndexingRuntimeHost.Configure(new FixedMessageIndexingRuntime(42));

@@ -150,7 +150,7 @@ public sealed class AntiSpamComContractTests
         var antiSpam = settings.AntiSpam;
         var retainedSurblServers = antiSpam.SURBLServers;
 
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
         Assert.AreEqual(1, surblStore.ReadCount);
         Assert.AreEqual(1, retainedSurblServers.Count);
         Assert.AreEqual("multi.surbl.org", retainedSurblServers[0].DNSHost);
@@ -173,7 +173,7 @@ public sealed class AntiSpamComContractTests
         Assert.AreEqual(EAccessDenied, newChildSpamAssassinError.ErrorCode);
         Assert.AreEqual(EAccessDenied, newChildDkimError.ErrorCode);
         Assert.AreEqual(0, dkimRuntime.CallCount);
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
         Assert.AreEqual(1, surblStore.ReadCount);
         Assert.AreEqual(1, retainedSurblServers.Count);
         Assert.AreEqual(10, retainedSurblServers.get_ItemByDNSHost("MULTI.SURBL.ORG").ID);
@@ -188,7 +188,7 @@ public sealed class AntiSpamComContractTests
         Assert.IsTrue(succeeded);
         Assert.AreEqual(ComDkimResult.Pass, dkimResult);
         Assert.AreEqual("SpamAssassin test succeeded.", resultText);
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
         Assert.AreEqual(1, surblStore.ReadCount);
         Assert.AreEqual(1, greyListingTripletStore.CallCount);
         Assert.AreEqual(1, dkimRuntime.CallCount);

@@ -485,7 +485,7 @@ public sealed class WhiteListAddressesComContractTests
         var retainedAddresses = retainedAntiSpam.WhiteListAddresses;
         var retainedAddress = retainedAddresses[0];
 
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
         Assert.AreEqual(1, whiteListStore.ReadCount);
 
         Assert.IsNull(application.Authenticate("Administrator", "wrong"));
@@ -495,12 +495,12 @@ public sealed class WhiteListAddressesComContractTests
             () => _ = newlyObtainedAntiSpam.WhiteListAddresses);
 
         Assert.AreEqual(EAccessDenied, deniedError.ErrorCode);
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
         Assert.AreEqual(1, whiteListStore.ReadCount);
 
         var postReauthenticationAddresses = retainedAntiSpam.WhiteListAddresses;
 
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
         Assert.AreEqual(2, whiteListStore.ReadCount);
         Assert.AreEqual(1, postReauthenticationAddresses.Count);
 
@@ -513,7 +513,7 @@ public sealed class WhiteListAddressesComContractTests
             "192.0.2.255",
             "*@example.test",
             "Test network");
-        Assert.AreEqual(1, settingsStore.ReadCount);
+        Assert.AreEqual(2, settingsStore.ReadCount);
         Assert.AreEqual(2, whiteListStore.ReadCount);
     }
 
