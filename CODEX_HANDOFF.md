@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, SMTP RELAYER PORT MUTATION)
+
+Code/test commit `0707fda27` implements only authenticated
+`Settings.SMTPRelayerPort` (`DispId(37)`, `int`) persistence. It preserves the
+installed COM identity and direct activation denial, rechecks the live
+administrator callback, updates only the existing
+`hm_settings.smtprelayerport` row with a parameterized `SqlDbType.Int`
+command, and changes the retained snapshot only after one-row success. The
+legacy value is written unchanged and the seeded default remains `25`.
+
+Legacy anchors: `IInterfaceSettings.SMTPRelayerPort`
+(`source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::put_SMTPRelayerPort`,
+`SMTPConfiguration::SetSMTPRelayerPort`, generic
+`PropertySet::SetLong`/`Property::WriteLongSetting_`,
+`ServerTargetResolver::GetFixedSMTPHostForDomain_`, and the
+`smtprelayerport` SQL seed (`source/DBScripts/CreateTablesMSSQL.sql`).
+Focused settings/store coverage is `74/74`; full Net10 is `2057 passed, 39
+skipped, 0 failed`. Fixed-relayer routing, configuration notifications, and
+live reconfiguration were deliberately not changed.
+
+Release remains RED for disposable SQL/Data rollback, non-DB restore/
+reinitialization, SQL/FTS, matched C++/.NET protocol performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and 24-hour
+soak. Next slice: fresh legacy-first audit of one remaining low-risk Settings
+mutation. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, SMTP RELAYER AUTHENTICATION MUTATION)
 
 Code/test commit `429b20687` implements only authenticated
