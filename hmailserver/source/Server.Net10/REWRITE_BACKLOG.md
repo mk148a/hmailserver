@@ -4294,3 +4294,25 @@ Next independent slices, in order: approved disposable real DNS/socket/TLS
 acceptance; separate shared SMTP egress/SSRF policy review and implementation;
 registry-isolated or separate-VM C++ listener/benchmark execution; then the
 restore protocol drain/reinitialize lifecycle contract.
+
+## Current authoritative next slice (2026-08-12, explicit relay self-connect)
+
+Code/test commit `b66f00e95` extends the legacy local-listener guard to
+explicit-address SMTP routes and global-relayer candidates. Legacy
+`TCPConnection::StartAsyncConnect_` -> `LocalIPAddresses::IsLocalPort` rejects
+an active hMailServer listener address/port. Net10 marks literal route targets
+and already-resolved relayer candidates before transport creation, preserves
+private/link-local destinations, and keeps hostname-route DNS behavior and
+candidate ordering unchanged.
+
+Focused tests are `70/70`; full Net10 is `2207 passed, 54 skipped, 0 failed`.
+Hostname routes, hMailServer-owned listener discovery, partial relayer DNS
+failure semantics, DNS response validation, broad SMTP egress/SSRF policy,
+live DNS/socket/TLS acceptance, and paired C++/.NET performance remain open.
+The listener provider currently uses active machine listeners as a conservative
+approximation; this must not be called exact legacy ownership evidence.
+Release remains **RED**.
+
+Next independent slices, in order: hostname-route resolution/failover with
+legacy listener ownership; approved disposable real DNS/socket/TLS acceptance;
+then the registry-isolated or separate-VM C++ listener/benchmark execution.

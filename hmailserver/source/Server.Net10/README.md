@@ -2224,3 +2224,19 @@ Guard denials are represented as transient endpoint results so sequential MX
 failover and queue handling remain deterministic. The shared outbound
 egress/SSRF policy, DNS response validation, real DNS/socket/TLS evidence, and
 paired C++/.NET performance gate remain open. Release remains **RED**.
+
+## Current authoritative continuation (2026-08-12, explicit relay self-connect)
+
+Code/test commit `b66f00e95` extends the local-listener guard to explicit IP
+route targets and global-relayer candidates whose addresses are already known.
+Legacy anchors are `TCPConnection::StartAsyncConnect_` and
+`LocalIPAddresses::IsLocalPort` (`hmailserver/source/Server/Common/TCPIP/
+TCPConnection.cpp:130-160`, `LocalIPAddresses.cpp:108-133`). Private and
+link-local destinations remain allowed, hostname routes retain runtime DNS
+semantics, and route/relayer candidate order is unchanged.
+
+Focused coverage is `70/70`; full Net10 is `2207 passed, 54 skipped, 0 failed`.
+Hostname-route resolution/failover, hMailServer-owned listener discovery,
+real DNS/socket/TLS acceptance, DNS response validation, the shared SMTP
+egress/SSRF decision, and paired C++/.NET performance remain open. Release is
+still **RED**.

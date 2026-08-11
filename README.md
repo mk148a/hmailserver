@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current authoritative SMTP relay self-connect status (2026-08-12)
+
+Code/test commit `b66f00e95` extends the bounded legacy local-listener guard
+to explicit-address SMTP routes and global-relayer candidates. The legacy
+reference is `TCPConnection::StartAsyncConnect_` calling
+`LocalIPAddresses::IsLocalPort` (`hmailserver/source/Server/Common/TCPIP/
+TCPConnection.cpp:130-160` and `LocalIPAddresses.cpp:108-133`), after the
+route/relayer planner has produced a destination address. Net10 now marks
+literal route targets and all already-resolved relayer candidates while
+preserving private/link-local delivery, hostname-route DNS behavior, and
+route/relayer ordering.
+
+Focused route/relayer/self-connect coverage is `70/70`; full Net10 is `2207
+passed, 54 skipped, 0 failed`. Hostname routes still need a separate
+resolution/failover slice, and the listener provider currently observes active
+machine listeners rather than hMailServer-owned listener state. Live
+DNS/socket/TLS evidence, DNS response validation, shared SMTP SSRF policy, and
+the paired C++/.NET performance release gate remain open; performance is
+**RED**.
+
 ## Current authoritative SMTP self-connect status (2026-08-12)
 
 Code/test commit `9e1bbb53b` preserves the legacy local-listening-endpoint

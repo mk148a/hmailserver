@@ -4383,3 +4383,31 @@ acceptance, (2) separately reviewed shared SMTP egress/SSRF policy, and (3)
 registry-isolated or separate-VM C++ listener/benchmark execution. Preserve
 dirty `AGENTS.md`, backup/Smtp WIP, and untracked SEC-18/benchmark/disposable
 artifacts.
+
+## Current Authoritative Continuation (2026-08-12, EXPLICIT RELAY SELF-CONNECT)
+
+Code/test commit `b66f00e95` implements the next bounded parity slice after
+the ordinary-MX guard. `hmail_parity_explorer` inspected
+`ExternalDelivery::ResolveRecipientServers_` and
+`TCPConnection::StartAsyncConnect_` -> `LocalIPAddresses::IsLocalPort` in
+`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:195-330` and
+`hmailserver/source/Server/Common/TCPIP/TCPConnection.cpp:130-160`.
+Net10 changes `RemoteSmtpEndpointResolver.cs` so literal route targets and
+already-resolved global-relayer candidates carry `ConnectionAddress` plus the
+existing local guard. Tests are in `RemoteSmtpEndpointResolverTests.cs`,
+`RemoteSmtpLocalEndpointPolicyTests.cs`, and
+`SmtpRemoteDeliveryClientTests.cs`.
+
+Focused coverage is `70/70`; full Net10 is `2207 passed, 54 skipped, 0 failed`.
+Private/link-local targets remain compatible, hostname routes are not silently
+re-resolved in this slice, and no COM/IDL/SQL/trust/reconfiguration behavior
+changed. Security/reality review remains RED for production acceptance:
+hostname-route self-connect, hMailServer-owned listener discovery, partial
+relayer DNS semantics, DNS source/question validation, broad SMTP SSRF policy,
+live DNS/socket/TLS, and paired C++/.NET performance are open.
+
+Next three slices: (1) hostname-route resolution/failover with exact listener
+ownership, (2) approved disposable DNS/socket/TLS acceptance, and (3)
+registry-isolated or separate-VM C++ listener/benchmark execution. Preserve
+dirty `AGENTS.md`, backup/Smtp WIP, and untracked SEC-18/benchmark/disposable
+artifacts.
