@@ -6,6 +6,35 @@
 
 
 
+## Current Audit Note (2026-08-11, SMTP GREETING RUNTIME PROPAGATION)
+
+Code/test commit `c26479d9b` wires the installed settings-backed
+`WelcomeSMTP` value into the Net10 SMTP banner path. The behavior is anchored
+to legacy `SMTPConnection::SendBanner_`
+(`source/Server/SMTP/SMTPConnection.cpp:166-205`),
+`SMTPConfiguration::Get/SetWelcomeMessage`
+(`source/Server/SMTP/SMTPConfiguration.cpp:113`),
+`InterfaceSettings::get/put_WelcomeSMTP`
+(`source/Server/COM/InterfaceSettings.cpp:679-696`), and the installed
+`DispId(23)` (`source/Server/hMailServer/hMailServer.idl:547`). Empty values
+fall back to the machine name plus `ESMTP`; non-empty values receive the
+legacy `ESMTP` suffix unless already present.
+
+Net10 now formats the greeting in `SmtpSession.GetGreeting`
+(`source/Server.Net10/src/HMailServer.Protocols/Smtp/SmtpSession.cs`), wires
+the production provider in `Host.Build`, initializes it from the settings
+snapshot in `SettingsAdministrationRuntimeHost.Configure`, and publishes
+successful authenticated `Settings.WelcomeSMTP` mutations. Focused coverage is
+`135/135`; full unfiltered Net10 is `2118 passed, 39 skipped, 0 failed`.
+
+This slice does not add live reload for the remaining SMTP/POP3/IMAP policies,
+SMTP trust changes, delivery behavior, or any COM identity/activation change.
+The paired C++/.NET10 performance gate remains **RED**: existing artifacts do
+not prove one identical SQL/Data copy and message corpus, and the C++
+concurrent IMAP run is `0/1000` versus Net10 `1000/1000`, so no speed-up ratio
+is valid. Next slice: legacy-first audit and runtime propagation for one
+remaining SMTP policy setting.
+
 ## Current Audit Note (2026-08-11, MAXIMUM INVALID COMMANDS AUTHORIZATION LEASE)
 
 Code/test commit `0abe45705` extends the existing generation-bound

@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, SMTP GREETING RUNTIME PROPAGATION)
+
+Code/test commit `c26479d9b` wires legacy `WelcomeSMTP` formatting into the
+Net10 SMTP session. Legacy anchors are
+`source/Server/SMTP/SMTPConnection.cpp:166-205`,
+`source/Server/SMTP/SMTPConfiguration.cpp:113`,
+`source/Server/COM/InterfaceSettings.cpp:679-696`, and
+`source/Server/hMailServer/hMailServer.idl:547` (`DispId(23)`). Empty values
+use the machine name and `ESMTP`; custom values receive `ESMTP` unless already
+terminated with that suffix.
+
+The implementation is in `SmtpSession.GetGreeting`, `Host.Build`, and
+`SettingsAdministrationRuntimeHost`; successful authenticated
+`Settings.WelcomeSMTP` updates publish the retained runtime value. Focused
+tests are `135/135`; full unfiltered Net10 is `2118 passed, 39 skipped,
+0 failed`. No installed COM identity, direct activation boundary, SMTP trust
+behavior, or broader live policy reload changed.
+
+Performance remains **RED**. The current C++/.NET10 artifacts are diagnostic
+only: they do not prove identical SQL/Data state and message corpus, and C++
+validated `0/1000` concurrent IMAP sessions while Net10 validated `1000/1000`.
+No speed-up claim is permitted. Next slice: legacy-first audit and runtime
+propagation for one remaining SMTP policy setting. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, MAXIMUM INVALID COMMANDS AUTHORIZATION LEASE)
 
 Code/test commit `0abe45705` adds the existing generation-bound authorization

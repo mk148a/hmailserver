@@ -1729,3 +1729,20 @@ Administrator access boundaries, SMTP trust, production SQL/Data, service,
 IIS, DCOM, or machine state. Release remains RED. Next: reproduce the legacy
 C++ IMAP/POP3 runtime, then continue with populated folder/message/settings
 restore rollback evidence.
+## Latest parity slice: SMTP greeting
+
+Commit `c26479d9b` matches the legacy `WelcomeSMTP` banner rules in the Net10
+SMTP session. Empty settings use the machine name followed by `ESMTP`; custom
+settings get the suffix unless it is already present. The authenticated COM
+setter publishes successful changes to the running greeting provider.
+
+Legacy references: `source/Server/SMTP/SMTPConnection.cpp:166-205`,
+`source/Server/SMTP/SMTPConfiguration.cpp:113`,
+`source/Server/COM/InterfaceSettings.cpp:679-696`, and
+`source/Server/hMailServer/hMailServer.idl:547`. Focused coverage is `135/135`
+and full Net10 coverage is `2118 passed, 39 skipped, 0 failed`.
+
+The paired C++/.NET10 performance release gate remains **RED**. Existing
+artifacts do not prove identical SQL/Data copies and message corpora, and the
+C++ concurrent IMAP run is `0/1000` versus Net10 `1000/1000`; no speed-up or
+performance superiority is claimed.
