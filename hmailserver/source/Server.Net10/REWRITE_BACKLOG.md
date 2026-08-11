@@ -1,4 +1,27 @@
 
+## Current Audit Note (2026-08-11, MAX SMTP CONNECTIONS AUTHORIZATION LEASE)
+
+Code/test commit `9178d1b1b` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.MaxSMTPConnections`
+(`DispId(5)`). The lease is acquired immediately before the existing
+parameterized `maxsmtpconnections` SQL update and held through result handling
+and retained snapshot publication. Direct activation denial, failed-write
+retention, lease acquire/dispose, and unavailable-lease denial are covered.
+
+Legacy behavior is anchored by `InterfaceSettings::get/put_MaxSMTPConnections`
+(`source/Server/COM/InterfaceSettings.cpp:108-134`),
+`SMTPConfiguration::Set/GetMaxSMTPConnections`
+(`source/Server/SMTP/SMTPConfiguration.cpp:51-58`), the installed IDL
+property (`source/Server/hMailServer/hMailServer.idl:529-530`), and the
+`maxsmtpconnections` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:728`).
+The .NET `UpdateMaxSmtpConnectionsSql` shape and listener runtime were not
+changed.
+
+Focused coverage is `86/86`; full Net10 is `2069 passed, 39 skipped, 0
+failed`. Remaining unleased Settings mutation paths and restore, performance,
+SEC-18, installer, AD/DC, crash/power-loss, and soak gates remain RED. Next
+slice: fresh legacy-first audit of `MaxPOP3Connections`.
+
 ## Current Audit Note (2026-08-11, SETTINGS MUTATION AUTHORIZATION LEASE)
 
 Code/test commit `62f5ef553` closes the retained-COM authorization race for

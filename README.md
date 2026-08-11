@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, MaxSMTPConnections authorization lease)
+
+Code/test commit `9178d1b1b` extends the existing generation-bound
+authorization lease to the authenticated `IInterfaceSettings.MaxSMTPConnections`
+setter (`DispId(5)`). The lease is acquired immediately before the existing
+parameterized `maxsmtpconnections` SQL update and held through success/failure
+handling and retained snapshot publication. No validation, SQL shape, runtime
+listener behavior, or COM identity changed.
+
+Legacy anchors are `InterfaceSettings::get/put_MaxSMTPConnections`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:108-134`),
+`SMTPConfiguration::Set/GetMaxSMTPConnections`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:51-58`), the installed
+IDL property (`hmailserver/source/Server/hMailServer/hMailServer.idl:529-530`),
+the `maxsmtpconnections` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:728`),
+and the .NET `UpdateMaxSmtpConnectionsSql` path. Direct activation denial,
+failed-write retention, lease acquire/dispose, and unavailable-lease denial are
+covered.
+
+Focused settings/store coverage is `86/86`; full Net10 is `2069 passed, 39
+skipped, 0 failed`. Remaining unleased Settings mutation paths, disposable
+SQL/Data restore, non-DB restore/reinitialization, SQL/FTS, matched C++/.NET
+protocol load, SEC-18, migration/installer, out-of-process COM, AD/DC,
+crash/power-loss, and 24-hour soak keep release **RED**. Next slice is the
+same lease treatment for `MaxPOP3Connections` after a fresh legacy-first audit.
+
 ## Current parity continuation (2026-08-11, Settings mutation authorization lease)
 
 Code/test commit `62f5ef553` closes the retained-COM authorization race for the
