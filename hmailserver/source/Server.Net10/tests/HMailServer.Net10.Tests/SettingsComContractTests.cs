@@ -1129,6 +1129,98 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_SmtpRelayerPortSetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpRelayerPortUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpRelayerPort: 25),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.SMTPRelayerPort = 587;
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.SmtpRelayerPortUpdateCount);
+        Assert.AreEqual(587, settings.SMTPRelayerPort);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SmtpRelayerPortSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpRelayerPortUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpRelayerPort: 25),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerPort = 587);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.SmtpRelayerPortUpdateCount);
+        Assert.AreEqual(25, settings.SMTPRelayerPort);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_SMTPRelayerPortMutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpRelayerPort: 25),
+            SmtpRelayerPortUpdateResult = true,
+            GateSmtpRelayerPortMutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.SMTPRelayerPort = 587);
+        await store.SmtpRelayerPortMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.SmtpRelayerPortMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual(587, store.UpdatedSmtpRelayerPort);
+        Assert.AreEqual(587, settings.SMTPRelayerPort);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerConnectionSecuritySetterPersistsIntBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -2919,6 +3011,14 @@ public sealed class SettingsComContractTests
 
         public bool SmtpRelayerPortUpdateResult { get; set; }
 
+        public bool GateSmtpRelayerPortMutation { get; set; }
+
+        public TaskCompletionSource<bool> SmtpRelayerPortMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> SmtpRelayerPortMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public bool SmtpRelayerConnectionSecurityUpdateResult { get; set; }
 
         public bool GateSmtpRelayerConnectionSecurityMutation { get; set; }
@@ -3151,7 +3251,19 @@ public sealed class SettingsComContractTests
             SmtpRelayerPortUpdateCount++;
             UpdatedSmtpRelayerPort = smtpRelayerPort;
             CancellationToken = cancellationToken;
+            if (GateSmtpRelayerPortMutation)
+            {
+                SmtpRelayerPortMutationEntered.TrySetResult(true);
+                return WaitForSmtpRelayerPortMutationAsync();
+            }
+
             return ValueTask.FromResult(SmtpRelayerPortUpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForSmtpRelayerPortMutationAsync()
+        {
+            await SmtpRelayerPortMutationRelease.Task;
+            return SmtpRelayerPortUpdateResult;
         }
 
         public ValueTask<bool> UpdateSmtpRelayerConnectionSecurityAsync(
