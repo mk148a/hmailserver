@@ -6,6 +6,36 @@
 
 
 
+## Current Audit Note (2026-08-11, WELCOME SMTP AUTHORIZATION LEASE)
+
+Code/test commit `6f5a12cc6` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.WelcomeSMTP`
+(`DispId(23)`). The lease is acquired immediately before the existing
+parameterized `welcomesmtp` SQL update and held through result handling and
+retained snapshot publication. SMTP banner runtime wiring remains out of
+scope for this bounded mutation slice.
+
+Legacy behavior is anchored by `InterfaceSettings::get/put_WelcomeSMTP`
+(`source/Server/COM/InterfaceSettings.cpp:679-711`),
+`SMTPConfiguration::Get/SetWelcomeMessage`
+(`source/Server/SMTP/SMTPConfiguration.cpp:113-123`),
+`PROPERTY_WELCOMESMTP` (`source/Server/Common/Application/Constants.h:15`),
+the installed Settings IID and `DispId(23)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,547-548`), and the
+`welcomesmtp` seed (`source/DBScripts/CreateTablesMSSQL.sql:758`). The .NET
+`UpdateWelcomeSmtpSql` shape was not changed. Focused coverage is `110/110`,
+including unavailable-lease denial and in-flight reauthentication blocking.
+
+Legacy `SMTPConnection::SendBanner_` reads `welcomesmtp` per connection
+(`source/Server/SMTP/SMTPConnection.cpp:166-185`); Net10 `SmtpSession` still
+uses `SmtpSessionOptions.Greeting`, so live greeting parity is an open
+protocol-runtime blocker. Full unfiltered Net10 is `2093 passed, 39 skipped,
+0 failed`. Release remains **RED** for that blocker plus disposable SQL/Data
+restore, non-DB restore, SQL/FTS, paired C++/.NET performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: fresh
+legacy-first audit of `Settings.WelcomePOP3`.
+
 ## Current Audit Note (2026-08-11, SMTP RELAYER PORT AUTHORIZATION LEASE)
 
 Code/test commit `f8875b316` extends the existing generation-bound

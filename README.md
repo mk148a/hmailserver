@@ -1,6 +1,38 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, WelcomeSMTP authorization lease)
+
+Code/test commit `6f5a12cc6` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.WelcomeSMTP`
+(`DispId(23)`). The lease is acquired immediately before the existing
+parameterized `welcomesmtp` SQL update and held through mutation result
+handling and retained snapshot publication. No BSTR shape, installed COM
+identity, or SMTP runtime wiring changed.
+
+Legacy anchors are `InterfaceSettings::get/put_WelcomeSMTP`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:679-711`),
+`SMTPConfiguration::Get/SetWelcomeMessage`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:113-123`),
+`PROPERTY_WELCOMESMTP` (`hmailserver/source/Server/Common/Application/Constants.h:15`),
+the installed Settings IID and `DispId(23)`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:520-528,547-548`),
+and the `welcomesmtp` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:758`).
+Focused tests cover lease acquire/dispose, unavailable-lease denial before
+mutation, and reauthentication blocking during an in-flight mutation.
+
+Focused settings/store coverage is `110/110`. Full unfiltered Net10 is
+`2093 passed, 39 skipped, 0 failed`. Legacy `SMTPConnection::SendBanner_`
+consumes `welcomesmtp` on each connection
+(`hmailserver/source/Server/SMTP/SMTPConnection.cpp:166-185`), while Net10
+still sends the configured `SmtpSessionOptions.Greeting`; this runtime wiring
+is a separate open parity blocker. Disposable SQL/Data restore,
+non-DB restore/reinitialization, SQL/FTS, matched C++/.NET protocol load,
+SEC-18, migration/installer, out-of-process COM, AD/DC, crash/power-loss,
+24-hour soak, and remaining unleased COM/Admin mutations keep release
+**RED**. Next slice is a fresh legacy-first audit of
+`Settings.WelcomePOP3`.
+
 ## Current parity continuation (2026-08-11, SMTPRelayerPort authorization lease)
 
 Code/test commit `f8875b316` extends the existing generation-bound

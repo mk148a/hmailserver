@@ -1,5 +1,38 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, WELCOME SMTP AUTHORIZATION LEASE)
+
+Code/test commit `6f5a12cc6` extends the existing generation-bound
+authorization lease to authenticated `Settings.WelcomeSMTP` (`DispId(23)`).
+The lease spans the existing parameterized `welcomesmtp` SQL mutation, result
+handling, and retained snapshot publication; unavailable leases fail closed
+with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_WelcomeSMTP`
+(`source/Server/COM/InterfaceSettings.cpp:679-711`),
+`SMTPConfiguration::Get/SetWelcomeMessage`
+(`source/Server/SMTP/SMTPConfiguration.cpp:113-123`),
+`PROPERTY_WELCOMESMTP` (`source/Server/Common/Application/Constants.h:15`),
+the installed Settings IID and `DispId(23)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,547-548`), and the
+`welcomesmtp` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:758`).
+Focused settings/store coverage is `110/110`; full unfiltered Net10 is
+`2093 passed, 39 skipped, 0 failed`.
+
+The focused tests cover lease acquire/dispose, unavailable-lease denial
+before mutation, and reauthentication blocking during an in-flight mutation.
+Legacy `SMTPConnection::SendBanner_` reads `welcomesmtp` per connection, but
+Net10 `SmtpSession` still uses `SmtpSessionOptions.Greeting`; live greeting
+wiring is a separate open protocol-runtime parity blocker. Installed COM
+identity, direct activation denial, and authenticated Settings access remain
+unchanged.
+
+Release remains RED for the greeting blocker, disposable SQL/Data restore,
+non-DB restore, SQL/FTS, paired C++/.NET performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: fresh
+legacy-first audit of `Settings.WelcomePOP3`. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, SMTP RELAYER PORT AUTHORIZATION LEASE)
 
 Code/test commit `f8875b316` extends the existing generation-bound
