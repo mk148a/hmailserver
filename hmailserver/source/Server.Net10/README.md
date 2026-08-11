@@ -1,3 +1,30 @@
+## Current parity continuation (2026-08-11, MaxNumberOfInvalidCommands authorization lease)
+
+Code/test commit `0abe45705` extends the existing generation-bound
+authorization lease to authenticated
+`IInterfaceSettings.MaxNumberOfInvalidCommands` (`DispId(65)`). The lease is
+acquired immediately before the existing parameterized
+`maximumincorrectcommands` SQL update and held through result handling and
+retained snapshot publication. Focused settings/store coverage is `134/134`;
+full unfiltered Net10 is `2117 passed, 39 skipped, 0 failed`.
+
+Legacy references are `source/Server/COM/InterfaceSettings.cpp:1695-1727`,
+`source/Server/Common/Application/Configuration.cpp:501-509`,
+`source/Server/Common/Application/Constants.h:90`,
+`source/Server/SMTP/SMTPConnection.cpp:2207-2221`,
+`source/Server/hMailServer/hMailServer.idl:612-613`, and
+`source/DBScripts/CreateTablesMSSQL.sql:866`. Legacy counts every 5xx
+response and disconnects only when the count is greater than the configured
+limit; Net10’s SQL-backed Settings mutation still does not reload the live
+`SmtpSessionOptions` value. That runtime gap remains a separate slice. No COM
+identity, direct activation boundary, SQL shape, or SMTP counting behavior
+changed here.
+
+The paired performance fixture remains diagnostic only: Net10 completed
+1,000 concurrent IMAP sessions, C++ completed `0/1000`, so no ratio or
+speed-up claim is valid and performance remains **RED**. Next slice: legacy-
+first audit of live SMTP greeting/settings propagation.
+
 ## Current parity continuation (2026-08-11, DisconnectInvalidClients authorization lease)
 
 Code/test commit `bb20cb736` extends the existing generation-bound

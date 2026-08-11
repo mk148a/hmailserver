@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, MAXIMUM INVALID COMMANDS AUTHORIZATION LEASE)
+
+Code/test commit `0abe45705` adds the existing generation-bound authorization
+lease to authenticated `Settings.MaxNumberOfInvalidCommands` (`DispId(65)`).
+The lease spans the existing `maximumincorrectcommands` SQL mutation, result
+handling, and retained snapshot publication. Focused settings/store coverage
+is `134/134`; full unfiltered Net10 is `2117 passed, 39 skipped, 0 failed`.
+
+Legacy anchors: `InterfaceSettings::get/put_MaxNumberOfInvalidCommands`
+(`source/Server/COM/InterfaceSettings.cpp:1695-1727`),
+`Configuration::Get/SetMaximumIncorrectCommands`
+(`source/Server/Common/Application/Configuration.cpp:501-509`),
+`PROPERTY_SMTPMAXINCORRECTCOMMANDS`
+(`source/Server/Common/Application/Constants.h:90`), installed Settings IID
+and `DispId(65)` (`source/Server/hMailServer/hMailServer.idl:520-528,612-613`),
+the MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:866`), and the legacy
+5xx threshold path (`source/Server/SMTP/SMTPConnection.cpp:2207-2221`).
+
+Focused tests cover lease acquire/dispose, unavailable-lease denial before
+mutation, and reauthentication blocking during an in-flight mutation. Live
+SMTP settings reload remains a separate parity gap. Existing paired
+performance evidence is diagnostic only: Net10 `1000/1000`, C++ `0/1000` for
+concurrent IMAP, so performance remains **RED** and no ratio is valid. Next
+slice: legacy-first audit of live SMTP greeting/settings propagation. Do not
+push.
+
 ## Current Authoritative Continuation (2026-08-11, DISCONNECT INVALID CLIENTS AUTHORIZATION LEASE)
 
 Code/test commit `bb20cb736` adds the existing generation-bound authorization

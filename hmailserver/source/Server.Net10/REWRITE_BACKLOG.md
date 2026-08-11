@@ -6,6 +6,33 @@
 
 
 
+## Current Audit Note (2026-08-11, MAXIMUM INVALID COMMANDS AUTHORIZATION LEASE)
+
+Code/test commit `0abe45705` extends the existing generation-bound
+authorization lease to authenticated
+`IInterfaceSettings.MaxNumberOfInvalidCommands` (`DispId(65)`). The lease is
+held across the existing parameterized `maximumincorrectcommands` update and
+retained snapshot publication; focused settings/store coverage is `134/134`,
+and full unfiltered Net10 is `2117 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `InterfaceSettings::get/put_MaxNumberOfInvalidCommands`
+(`source/Server/COM/InterfaceSettings.cpp:1695-1727`),
+`Configuration::Get/SetMaximumIncorrectCommands`
+(`source/Server/Common/Application/Configuration.cpp:501-509`),
+`PROPERTY_SMTPMAXINCORRECTCOMMANDS`
+(`source/Server/Common/Application/Constants.h:90`), the installed Settings
+IID and `DispId(65)` (`source/Server/hMailServer/hMailServer.idl:520-528,
+612-613`), and the default seed
+(`source/DBScripts/CreateTablesMSSQL.sql:866`). Legacy SMTP counts each 5xx
+response and disconnects when count is greater than the limit
+(`source/Server/SMTP/SMTPConnection.cpp:2207-2221`); live Net10 settings
+reload remains open and was intentionally not changed.
+
+Existing paired performance artifacts remain invalid for comparison because
+Net10 completed `1000/1000` concurrent IMAP sessions and C++ completed
+`0/1000`. No speed-up claim is valid; performance remains **RED**. Next slice:
+legacy-first audit of live SMTP greeting/settings propagation.
+
 ## Current Audit Note (2026-08-11, DISCONNECT INVALID CLIENTS AUTHORIZATION LEASE)
 
 Code/test commit `bb20cb736` extends the existing generation-bound
