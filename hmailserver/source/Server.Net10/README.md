@@ -2148,3 +2148,18 @@ Focused coverage is `36/36`; full Net10 is `2166 passed, 54 skipped, 0 failed`.
 The remaining legacy gap is A/AAAA expansion and deduplication, implicit-MX
 fallback, and deterministic address-to-TLS-name separation. Real SQL/DNS/
 socket acceptance remains blocked. Release status remains RED.
+
+## Current authoritative continuation (2026-08-11, global-relayer addresses)
+
+Code/test commit `90146b45e` implements legacy address planning for global
+relayers (`RouteId == 0`). `ExternalDelivery::ResolveRecipientServers_`
+(`source/Server/SMTP/ExternalDelivery.cpp:192-280`) and
+`DNSResolver::GetIpAddresses` (`source/Server/Common/TCPIP/DNSResolver.cpp:60-119`)
+define host/address order, duplicate-IP removal, literal-IP bypass, and the
+post-flattening `MaxNumberOfMXHosts` cap. Net10 retains the original hostname
+as `RemoteSmtpEndpoint.Host` for TLS/SNI and uses `ConnectionAddress` for TCP.
+Focused coverage is `46/46`; full Net10 is `2177 passed, 54 skipped, 0 failed`.
+
+Normal-MX address expansion, implicit-MX fallback, real DNS/socket acceptance,
+and C++/.NET paired performance remain open. Forced routes and COM identity
+remain unchanged; release status remains RED.

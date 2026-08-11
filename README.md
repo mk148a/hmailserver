@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current authoritative global-relayer status (2026-08-11)
+
+Code/test commit `90146b45e` carries legacy fixed/global relayer address
+planning into Net10. Legacy `ExternalDelivery::ResolveRecipientServers_`
+(`source/Server/SMTP/ExternalDelivery.cpp:192-280`) splits `|` hosts,
+resolves each hostname to ordered A/AAAA addresses, removes duplicate IPs, and
+applies `MaxNumberOfMXHosts` after flattening. Net10 now does the same for
+`RouteId == 0`, bypasses DNS for configured IP literals, preserves the original
+hostname for SMTP TLS/SNI, and connects through the resolved address.
+
+Focused coverage is `46/46`; full Net10 is `2177 passed, 54 skipped, 0 failed`.
+Forced routes and ordinary MX remain unchanged. Real DNS/socket acceptance,
+normal-MX address expansion, implicit-MX fallback, and paired C++ performance
+remain open; the performance gate is **RED**.
+
 ## Current authoritative null-MX status (2026-08-11)
 
 Code/test commit `b39a17abf` closes the legacy null-MX handling gap in the

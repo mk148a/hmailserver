@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, GLOBAL-RELAYER ADDRESSES)
+
+Code/test commit `90146b45e` implements global relayer (`RouteId == 0`) address
+candidate parity. Legacy anchors are
+`ExternalDelivery::ResolveRecipientServers_`
+(`source/Server/SMTP/ExternalDelivery.cpp:192-280`),
+`DNSResolver::GetIpAddresses` (`source/Server/Common/TCPIP/DNSResolver.cpp:60-119`),
+and `TCPConnection` (`source/Server/Common/TCPIP/TCPConnection.cpp:123-158`).
+Net10 now preserves host order, expands ordered addresses, deduplicates IPs,
+caps after flattening, bypasses DNS for literals, and keeps Host separate from
+ConnectionAddress for TLS/SNI. SQL global-relayer targets receive the existing
+`MaxNumberOfMXHosts` setting; forced routes are unchanged.
+
+Focused tests are `46/46`; full Net10 is `2177 passed, 54 skipped, 0 failed`.
+No COM identity, SQL schema, SMTP trust, or live reconfiguration changed.
+Real DNS/socket acceptance and paired C++ performance remain unavailable and
+RED. Next slices: approved disposable SQL/DNS/socket/TLS delivery acceptance;
+registry-isolated or separate-VM C++ benchmark execution; normal-MX
+address-level expansion and implicit-MX fallback.
+
 ## Current Authoritative Continuation (2026-08-11, NULL-MX)
 
 Code/test commit `b39a17abf` preserves legacy null-MX failure behavior. The

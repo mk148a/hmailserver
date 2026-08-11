@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T20:27:42Z / 2026-08-11T23:27:42+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; parity baseline pushed and verified; status update commit pending
-- Current HEAD: `d76f67191` (null-MX code/test and documentation; verified pushed baseline)
-- Last successfully pushed commit: `d76f67191`
-- Latest focused-test result: null-MX parser/rejection, normal-MX ordering/cap, SMTP failover, and SQL shape `40 passed, 0 failed`
-- Latest full Net10 result: `2170 passed, 54 skipped, 0 failed`
+- UTC/local timestamp: 2026-08-11T21:18:22Z / 2026-08-12T00:18:22+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; ahead 2, behind 0; push pending after verification
+- Current HEAD: `ffb33fb9b` (global-relayer code/test and documentation)
+- Last successfully pushed commit: `49982d51f`
+- Latest focused-test result: global-relayer address order/dedup/cap, DNS failure, TLS/SNI, transport connect address, normal-MX, SMTP failover, and SQL shape `46 passed, 0 failed`
+- Latest full Net10 result: `2177 passed, 54 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; real SQL/DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore/rollback, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
-- Current bounded slice: legacy normal-MX null-MX rejection; implementation and documentation are complete; paired performance gate remains RED
-- Completed milestones: backup foundations, restore foundations, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover, outbound TLS verification wiring, normal-MX host ordering/cap, and null-MX rejection
-- Open production blockers: paired C++/.NET performance RED; real SQL/DNS/socket/TLS/authentication and certificate/revocation acceptance; A/AAAA expansion/deduplication, implicit-MX fallback, endpoint cap ordering, and fixed-relayer address parity; per-recipient queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Current bounded slice: legacy global-relayer address planning; implementation is complete and documentation commit is pending; paired performance gate remains RED
+- Completed milestones: backup foundations, restore foundations, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host ordering/cap, and null-MX rejection
+- Open production blockers: paired C++/.NET performance RED; real SQL/DNS/socket/TLS/authentication and certificate/revocation acceptance; normal-MX A/AAAA expansion/deduplication, implicit-MX fallback, and endpoint cap ordering; per-recipient queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: disposable SQL/DNS/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore/rollback and installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: fixed-relayer address planner; approved disposable SQL/DNS/socket/TLS delivery acceptance; registry-isolated or separate-VM C++ benchmark runner
+- Next three independent slices: approved disposable SQL/DNS/socket/TLS delivery acceptance; registry-isolated or separate-VM C++ benchmark runner; normal-MX address planner and implicit-MX fallback

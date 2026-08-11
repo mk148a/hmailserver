@@ -4211,3 +4211,21 @@ connect-address/TLS-name separation. Next slices, in order: fixed-relayer
 address planner; approved disposable SQL/DNS/socket/TLS delivery; and
 registry-isolated or separate-VM C++ benchmark execution. Release remains
 **RED**.
+
+## Current authoritative next slice (2026-08-11, global-relayer addresses)
+
+Code/test commit `90146b45e` closes the global-relayer address-planning gap for
+`RouteId == 0`. Legacy `ExternalDelivery::ResolveRecipientServers_`
+(`source/Server/SMTP/ExternalDelivery.cpp:192-280`) expands `|` hosts into
+ordered A/AAAA candidates, deduplicates IPs, and applies the positive
+`MaxNumberOfMXHosts` limit after flattening. Net10 now preserves that order,
+bypasses DNS for literals, keeps the original TLS/SNI hostname separate from
+`ConnectionAddress`, and receives the setting through the existing SQL target
+resolver. Focused tests are `46/46`; full Net10 is `2177 passed, 54 skipped,
+0 failed`.
+
+Remaining: normal-MX address-level expansion and implicit-MX fallback, real
+SQL/DNS/socket/TLS acceptance, registry-isolated C++ execution, and release
+gates. Next slices, in order: approved disposable SQL/DNS/socket/TLS delivery;
+registry-isolated or separate-VM C++ benchmark execution; normal-MX address
+planning. Release remains **RED**.
