@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T14:45:00Z / 2026-08-11T17:45:00+03:00
+- UTC/local timestamp: 2026-08-11T15:35:00Z / 2026-08-11T18:35:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; push intentionally not performed
-- Current HEAD: `9d3853af3` (`Record current Net10 diagnostic benchmark`)
+- Current HEAD: final documentation commit for this state; verify with `git rev-parse HEAD` (unpublished)
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: shared-baseline v2 validator PASS; live collector status `NOT_EQUIVALENT` with Inbox `0`, Data-root containment `0`, outside filenames `1000`/`1029`, and Full-Text not ready on either disposable database; exact SMTP fixture/path gate remains FAIL; Net10-only offline 100k diagnostic PASS (`p50/p95/p99 7.324/8.076/8.223 ms`)
-- Latest full Net10 result: `2127 passed, 46 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: Net10-only SMTP acceptance `25/25` diagnostic; paired C++ SMTP/IMAP/POP3, FTS-backed IMAP SEARCH, equal post-run SQL/Data corpus, installer, out-of-process COM, SEC-18, AD/DC, and 24-hour soak remain blocked or unproven
-- Current bounded slice: shared-baseline v2 fixture and SQL Full-Text readiness evidence; no C++ process was launched by the new runner and no production machine state changed
-- Completed milestones: raw backup staging and hardening, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, settings restore parsing/store/execution, combined settings/domain DB-only restore, WelcomeSMTP SQL capacity parity, mode-7 isolated restore/rollback evidence, composed dispatch coverage, populated existing-state full restore coverage, benchmark evidence hardening, fragmented SMTP DATA processing, C++ benchmark isolation/provenance preflight for protocol and concurrency runners, paired comparison evidence gate, SMTP fixture accounting, exact fixture/path gate, shared-baseline fixture/FTS evidence gate
-- Open production blockers: `Application.Reinitialize`, process-kill/power-loss recovery drill, production payload-provider certification, independently isolated C++ SMTP/IMAP/POP3 target, SQL Full-Text/Search acceptance, paired C++/.NET 10 performance gate RED, delivery/queue load, credential policy, ACL restore, SEC-18, migration/installer, service/out-of-process COM, AD/DC, 24-hour soak, remaining COM/Admin parity, and release-grade SQL identity
-- Environment blocked work: separate C++ staging VM or isolated registry context, disposable SQL Server FTS, fresh equal SQL/Data/message roots, supported legacy ADO/SQL provider, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
-- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) recreate equal disposable SQL/Data/message roots and verify Inbox/filename identity, (2) provision/verify disposable SQL Server Full-Text Search and indexed corpus, (3) obtain separate registry-isolated C++ staging VM and rerun the paired matrix
+- Latest focused-test result: equal disposable pair `EQUIVALENT_START_STATE`; Net10 SMTP acceptance `25/25` PASS; protocol SMTP/IMAP `25/25` PASS; concurrent IMAP `1000/1000` PASS; sequential POP3 `0/25` and unresolved
+- Latest full Net10 result: `2127 passed, 49 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: live SQL host/queue diagnostics passed; cleanup rollback test passed; restore/installer/registry/COM/AD/DC/SEC-18/soak opt-ins remain skipped or environment-blocked
+- Current bounded slice: equal SQL/Data/message fixture and Net10 live load evidence; detailed report is `hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`
+- Completed milestones: backup/restore foundations, COM/Admin slices through the recorded backlog, equal disposable fixture/FTS readiness evidence, Net10 SMTP acceptance, Net10 protocol SMTP/IMAP, and Net10 1,000-session IMAP load evidence
+- Open production blockers: registry-isolated C++ matrix, POP3 protocol acceptance, C++/.NET 10 paired ratios, delivery/retry/queue load, live FTS query acceptance, service/COM lifecycle, migration/installer, SEC-18, AD/DC, and 24-hour soak
+- Environment-blocked work: separate C++ registry-isolated VM, out-of-process COM/installer, disposable restore/rollback acceptance, credential/AD evidence, IIS/SEC-18 cutover, and long-running soak host
+- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC18/benchmark/disposable artifacts
+- Next three independent slices: (1) run the identical matrix in a registry-isolated C++ VM, (2) diagnose and green POP3 sequential acceptance, (3) execute live FTS SEARCH plus delivery/queue throughput and soak gates

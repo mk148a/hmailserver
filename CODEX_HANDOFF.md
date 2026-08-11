@@ -1,5 +1,30 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, EQUAL LIVE FIXTURE / NET10 LOAD EVIDENCE)
+
+Code/test commit `cb65ea9a6` parameterizes the live Net10 runners for the
+fresh disposable pair and adds opt-in SQL SMTP host/queue diagnostics. The
+pair now has equal 37-table SQL schemas, equal row counts, 1,000 identical
+message files/Data SHA-256, matching Inbox/domain/account/ports, and Full-Text
+catalog/index readiness. Evidence is
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-final2/`.
+
+Net10 results are SMTP acceptance `25/25` PASS, SMTP protocol `25/25` PASS,
+IMAP protocol `25/25` PASS, and 1,000 concurrent IMAP `1000/1000` PASS. The
+sequential POP3 runner fails all 25 samples with connection resets, although a
+manual isolated banner/sequence check succeeds; POP3 is therefore unresolved.
+The C++ process was not launched because the read-only Registry32 preflight
+does not resolve the disposable Bin and legacy `/Debug` would write the
+installed AppID registration. The performance gate remains **RED** and no
+ratio or winner is valid.
+
+The full Net10 suite is `2127 passed, 49 skipped, 0 failed`. The detailed
+measurements/charts are in
+`hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`. Next
+slice: reproduce the same workload in a registry-isolated C++ VM, then resolve
+the POP3 sequential runner before comparing results. No production service,
+database/Data directory, COM identity, DCOM ACL, or public listener changed.
+
 ## Current Authoritative Continuation (2026-08-11, SHARED BASELINE V2 FIXTURE/FTS GATE)
 
 Tool commit `7e58324d7` upgrades

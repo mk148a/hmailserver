@@ -6,7 +6,32 @@
 
 
 
-## Current next slice (2026-08-11)
+## Current next slice (2026-08-11, supersedes older benchmark entries)
+
+Code/test commit `cb65ea9a6` completed the equal disposable SQL/Data/message
+fixture and first Net10 live load evidence. Both pair databases now have equal
+37-table schemas and row counts, 1,000 identical message files with equal
+Data SHA-256, matching Inbox/domain/account/loopback ports, and SQL Full-Text
+catalog/index readiness. The canonical start-state evidence is
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-final2/`.
+
+Measured Net10 evidence is SMTP acceptance `25/25`, SMTP protocol `25/25`, IMAP
+protocol `25/25`, and concurrent IMAP `1000/1000`. The sequential POP3 runner
+fails all 25 samples with connection resets despite a manual isolated banner
+check; it is not accepted as green. The legacy C++ runner remains blocked by
+the read-only Registry32/installed-Bin preflight because `/Debug` would write
+the installed AppID registration. No C++/.NET 10 performance ratio or winner
+is valid. Release performance gate remains **RED**.
+
+Next independent slices, in order:
+
+1. Run the identical SMTP/IMAP/POP3/load matrix in a registry-isolated legacy
+   C++ VM and preserve the pair fixture evidence.
+2. Diagnose and green the sequential POP3 runner, then repeat both sides.
+3. Add live SQL Full-Text SEARCH acceptance, delivery/queue throughput, and
+   soak measurements before any performance claim.
+
+## Historical current next slice (superseded, 2026-08-11)
 
 Completed in tooling commit `7e58324d7`: shared-baseline evidence now records
 the exact disposable domain/account/Inbox/listener fixture, message filename
