@@ -1004,7 +1004,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.SMTPRelayerPort
                 : _administrationSnapshot.SmtpRelayerPort;
         }
-        set => base.SMTPRelayerPort = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.SMTPRelayerPort = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateSmtpRelayerPortAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The SMTP relayer port update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SmtpRelayerPort = value
+                };
+            }
+        }
     }
 
     public override int MaxDeliveryThreads

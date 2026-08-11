@@ -18,6 +18,10 @@ public interface ISettingsAdministrationMutationStore
         bool smtpRelayerRequiresAuthentication,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateSmtpRelayerPortAsync(
+        int smtpRelayerPort,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAllowMailFromNullAsync(
         bool allowMailFromNull,
         CancellationToken cancellationToken);

@@ -286,6 +286,9 @@ public sealed class SettingsComContractTests
         var autoBanError = Assert.ThrowsExactly<COMException>(() => _ = settings.AutoBanOnLogonFailure);
         var clearLogonFailuresError = Assert.ThrowsExactly<COMException>(settings.ClearLogonFailureList);
         var relayerError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayer);
+        var relayerPortError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayerPort);
+        var relayerPortSetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerPort = 25);
         var relayerUseSslError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayerUseSSL);
         var smtpConnectionSecurityError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPConnectionSecurity);
         var tlsVersionError = Assert.ThrowsExactly<COMException>(() => _ = settings.TlsVersion10Enabled);
@@ -357,6 +360,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, autoBanError.ErrorCode);
         Assert.AreEqual(EAccessDenied, clearLogonFailuresError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayerPortError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayerPortSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerUseSslError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpConnectionSecurityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, tlsVersionError.ErrorCode);
@@ -789,6 +794,48 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(3, store.SmtpRelayerRequiresAuthenticationUpdateCount);
         Assert.IsFalse(settings.SMTPRelayerRequiresAuthentication);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SmtpRelayerPortSetterPersistsIntBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpRelayerPortUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpRelayerPort: 25),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.SMTPRelayerPort = 587;
+
+        Assert.AreEqual(1, store.SmtpRelayerPortUpdateCount);
+        Assert.AreEqual(587, store.UpdatedSmtpRelayerPort);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(587, settings.SMTPRelayerPort);
+
+        store.SmtpRelayerPortUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerPort = 2525);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.SmtpRelayerPortUpdateCount);
+        Assert.AreEqual(587, settings.SMTPRelayerPort);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerPort = 25);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.SmtpRelayerPortUpdateCount);
+        Assert.AreEqual(587, settings.SMTPRelayerPort);
     }
 
     [TestMethod]
@@ -1957,9 +2004,15 @@ public sealed class SettingsComContractTests
 
         public bool SmtpRelayerRequiresAuthenticationUpdateResult { get; set; }
 
+        public bool SmtpRelayerPortUpdateResult { get; set; }
+
         public int SmtpRelayerRequiresAuthenticationUpdateCount { get; private set; }
 
         public bool UpdatedSmtpRelayerRequiresAuthentication { get; private set; }
+
+        public int SmtpRelayerPortUpdateCount { get; private set; }
+
+        public int UpdatedSmtpRelayerPort { get; private set; }
 
         public int UpdateCount { get; private set; }
 
@@ -2130,6 +2183,16 @@ public sealed class SettingsComContractTests
             UpdatedSmtpRelayerRequiresAuthentication = smtpRelayerRequiresAuthentication;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(SmtpRelayerRequiresAuthenticationUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateSmtpRelayerPortAsync(
+            int smtpRelayerPort,
+            CancellationToken cancellationToken)
+        {
+            SmtpRelayerPortUpdateCount++;
+            UpdatedSmtpRelayerPort = smtpRelayerPort;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(SmtpRelayerPortUpdateResult);
         }
 
         public ValueTask<bool> UpdateWelcomePop3Async(

@@ -33,6 +33,12 @@ SET settinginteger = @SMTPRelayerRequiresAuthentication
 WHERE settingname = N'usesmtprelayerauthentication';
 """;
 
+    public const string UpdateSmtpRelayerPortSql = """
+UPDATE hm_settings
+SET settinginteger = @SMTPRelayerPort
+WHERE settingname = N'smtprelayerport';
+""";
+
     public const string UpdateAllowMailFromNullSql = """
 UPDATE hm_settings
 SET settinginteger = @AllowMailFromNull
@@ -438,6 +444,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var command = new SqlCommand(UpdateSmtpRelayerRequiresAuthenticationSql, connection);
         command.Parameters.Add("@SMTPRelayerRequiresAuthentication", SqlDbType.Int).Value =
             smtpRelayerRequiresAuthentication ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateSmtpRelayerPortAsync(
+        int smtpRelayerPort,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateSmtpRelayerPortSql, connection);
+        command.Parameters.Add("@SMTPRelayerPort", SqlDbType.Int).Value = smtpRelayerPort;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
