@@ -3,6 +3,25 @@ hMailServer
 
 ## Current authoritative performance-safety status (2026-08-11)
 
+Code/tool commit `fdfa2e831` hardens
+`build/generate-live-comparison-report.ps1`: it accepts explicit source report
+paths, rejects C++ JSON without registry/config isolation preflight and
+executable provenance, and refuses non-identical Data evidence. Its paired
+report now records `sameSqlRowCounts=false` because this generator does not
+receive SQL row-count evidence; `build/test-net10-live-comparison.ps1` checks
+that RED/no-ratio decision. A current explicit-input report was generated at
+`artifacts/benchmarks/live-cpp-net10-20260811/comparison-preflight-evidence-20260811/`.
+
+The default legacy preflight-less comparison input is rejected rather than
+being treated as paired evidence. The resulting release gate remains **RED**:
+no speed-up ratio or winner is valid, and the missing SQL equality, SMTP DATA
+postcondition, delivery queue, concurrent C++ run, and soak evidence remain
+open. The next smallest repository slice is fresh disposable SMTP acceptance
+evidence with fixture identity and post-run accounting; the C++ side remains
+preflight-blocked on this host.
+
+## Historical current status (2026-08-11)
+
 Code/tool commit `e2ffb0ad8` applies the shared C++ registry/config/service
 preflight and executable provenance evidence to the 1,000-session concurrent
 IMAP runner. A C++ run on this host was refused before process creation due to

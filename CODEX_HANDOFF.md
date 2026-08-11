@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, PAIRED REPORT EVIDENCE GATE)
+
+Code/test commit `fdfa2e831` hardens
+`build/generate-live-comparison-report.ps1` and adds
+`build/test-net10-live-comparison.ps1`. The generator now accepts explicit
+Net10/C++/corpus report paths, rejects preflight-less C++ input, requires C++
+executable provenance, and refuses non-identical Data evidence. It no longer
+asserts SQL row-count equality without a supplied SQL evidence artifact;
+`sameSqlRowCounts` is explicitly `false` and the validator preserves the RED
+decision with `ratio_valid=false` for every protocol row.
+
+The explicit safe-input report is under
+`artifacts/benchmarks/live-cpp-net10-20260811/comparison-preflight-evidence-20260811/`;
+the default stale C++ comparison input is rejected. Focused generator parse,
+stale-input rejection, paired validator, and full Net10 tests pass
+(`2127 passed, 46 skipped, 0 failed`). The performance gate remains **RED**.
+Next slice: fresh disposable SMTP acceptance evidence with fixture identity,
+SQL/message counts, and post-run mailbox/queue/Data accounting; do not launch
+C++ on this host and do not push.
+
 ## Current Authoritative Continuation (2026-08-11, CONCURRENT IMAP ISOLATION PREFLIGHT)
 
 Code/test commit `e2ffb0ad8` applies the shared

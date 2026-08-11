@@ -8,6 +8,21 @@
 
 ## Current next slice (2026-08-11)
 
+Completed in code/test commit `fdfa2e831`: paired comparison generation now
+requires explicit `live-protocol-v1` Net10/C++ inputs, C++ isolation and
+executable provenance, and identical Data evidence. It rejects the old
+preflight-less C++ artifact instead of accepting stale paired evidence. The
+generated report records `sameSqlRowCounts=false` because SQL equality is not
+provided to this generator; the validator requires RED and invalid ratios.
+
+The release gate remains **RED**. The next smallest independent slice is fresh
+disposable SMTP message-acceptance evidence with an explicit fixture identity,
+message/metadata/recipient counts, and post-run mailbox/queue/Data accounting.
+The C++ side must remain preflight-blocked on this host; no speed-up or winner
+may be claimed until the separate registry-isolated legacy environment exists.
+
+## Historical audit (superseded current-slice text, 2026-08-11)
+
 Completed in code/test commit `e2ffb0ad8`: the shared fail-closed C++
 registry/config/service preflight and executable provenance fields now cover
 the 1,000-session concurrent IMAP runner. The current host refused before
