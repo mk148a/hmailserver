@@ -110,6 +110,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateSmtpConnectionSecuritySql_UsesTheExactParameterizedIntFixedRowShape()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateSmtpConnectionSecuritySql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settinginteger = @SMTPConnectionSecurity\nWHERE settingname = N'SmtpDeliveryConnectionSecurity';",
+            sql);
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateWelcomePop3Sql_UpdatesOnlyTheExistingWelcomePop3RowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateWelcomePop3Sql;

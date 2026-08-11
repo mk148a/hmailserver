@@ -34,6 +34,10 @@ public interface ISettingsAdministrationMutationStore
         int smtpRelayerConnectionSecurity,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateSmtpConnectionSecurityAsync(
+        int smtpConnectionSecurity,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAllowMailFromNullAsync(
         bool allowMailFromNull,
         CancellationToken cancellationToken);

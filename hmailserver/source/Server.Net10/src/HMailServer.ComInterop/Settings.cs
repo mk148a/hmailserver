@@ -1861,7 +1861,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.SMTPConnectionSecurity
                 : (ComConnectionSecurity)_administrationSnapshot.SmtpConnectionSecurity;
         }
-        set => base.SMTPConnectionSecurity = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.SMTPConnectionSecurity = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateSmtpConnectionSecurityAsync((int)value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The SMTP connection security update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SmtpConnectionSecurity = (int)value
+                };
+            }
+        }
     }
 
     public override bool TlsVersion10Enabled

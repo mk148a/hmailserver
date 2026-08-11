@@ -1285,6 +1285,86 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_SmtpConnectionSecuritySetterPersistsBeforePublishing()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpConnectionSecurityUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpConnectionSecurity: (int)ComConnectionSecurity.None),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.SMTPConnectionSecurity = ComConnectionSecurity.StartTlsOptional;
+
+        Assert.AreEqual(1, store.SmtpConnectionSecurityUpdateCount);
+        Assert.AreEqual((int)ComConnectionSecurity.StartTlsOptional, store.UpdatedSmtpConnectionSecurity);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsOptional, settings.SMTPConnectionSecurity);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SmtpConnectionSecuritySetterFailedRowRetainsSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpConnectionSecurityUpdateResult = false
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpConnectionSecurity: (int)ComConnectionSecurity.None),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPConnectionSecurity = ComConnectionSecurity.Tls);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(1, store.SmtpConnectionSecurityUpdateCount);
+        Assert.AreEqual((int)ComConnectionSecurity.Tls, store.UpdatedSmtpConnectionSecurity);
+        Assert.AreEqual(ComConnectionSecurity.None, settings.SMTPConnectionSecurity);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SmtpConnectionSecuritySetterAdminRevocationDeniesBeforeMutation()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpConnectionSecurityUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpConnectionSecurity: (int)ComConnectionSecurity.None),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.SMTPConnectionSecurity = ComConnectionSecurity.StartTlsRequired;
+        isServerAdministrator = false;
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPConnectionSecurity = ComConnectionSecurity.Tls);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(1, store.SmtpConnectionSecurityUpdateCount);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPConnectionSecurity);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SMTPRelayerUseSSLSetterPersistsLegacyTlsModeBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -3935,6 +4015,8 @@ public sealed class SettingsComContractTests
 
         public bool SmtpRelayerConnectionSecurityUpdateResult { get; set; }
 
+        public bool SmtpConnectionSecurityUpdateResult { get; set; }
+
         public bool GateSmtpRelayerConnectionSecurityMutation { get; set; }
 
         public TaskCompletionSource<bool> SmtpRelayerConnectionSecurityMutationEntered { get; } =
@@ -3962,6 +4044,10 @@ public sealed class SettingsComContractTests
         public int SmtpRelayerConnectionSecurityUpdateCount { get; private set; }
 
         public int UpdatedSmtpRelayerConnectionSecurity { get; private set; }
+
+        public int SmtpConnectionSecurityUpdateCount { get; private set; }
+
+        public int UpdatedSmtpConnectionSecurity { get; private set; }
 
         public int UpdateCount { get; private set; }
 
@@ -4278,6 +4364,16 @@ public sealed class SettingsComContractTests
         {
             await SmtpRelayerConnectionSecurityMutationRelease.Task;
             return SmtpRelayerConnectionSecurityUpdateResult;
+        }
+
+        public ValueTask<bool> UpdateSmtpConnectionSecurityAsync(
+            int smtpConnectionSecurity,
+            CancellationToken cancellationToken)
+        {
+            SmtpConnectionSecurityUpdateCount++;
+            UpdatedSmtpConnectionSecurity = smtpConnectionSecurity;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(SmtpConnectionSecurityUpdateResult);
         }
 
         public ValueTask<bool> UpdateWelcomePop3Async(
