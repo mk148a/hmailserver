@@ -1,7 +1,7 @@
 # C++ / .NET 10 Performance Gate Report
 
 Date: 2026-08-11
-Code/test commit: `82afa4127`
+Code/test commit: `eb0c9a7ed`
 Decision: **RED**
 
 ## Executive Result
@@ -29,8 +29,15 @@ The .NET 10 listener was measured against this fixture. The legacy C++ process w
 | IMAP protocol, 25 sessions | PASS, 25/25 | 9.415 ms | 13.701 ms | 207.027 ms | n/a |
 | POP3 protocol, 25 sessions | PASS, 25/25 | 12.258 ms | 20.972 ms | 29.862 ms | n/a |
 | IMAP, 1,000 concurrent sessions | PASS, 1000/1000 | 2506.190 ms | 3611.596 ms | 3720.543 ms | 79.045 sessions/s |
+| IMAP `SEARCH TEXT needle`, 25 sessions | PASS, 25/25 | 7.900 ms | 12.802 ms | 21.557 ms | n/a |
 
 The initial POP3 run exposed a production bug in `SqlServerPop3MailboxStore.ListMessagesAsync`: `SequentialAccess` requires ordinal 0 to be read before ordinal 1. After the one-line read-order fix, the isolated SQL diagnostic passed and the updated Release host passed POP3 25/25. The focused diagnostic is opt-in and uses only the disposable pair.
+
+The live FTS acceptance prepared all 1,000 documents through the Net10
+`MessageSearchBackfillProcessor` and `MessageFileSearchDocumentSource`, then
+issued the IMAP command over `127.0.0.1:1143`. Every session returned 1,000
+`needle` matches. The search document and queue tables were cleared and
+`MessageIndexing` was disabled after the run.
 
 ## Charts
 
@@ -39,11 +46,11 @@ These charts show measured .NET 10 values only. They are deliberately not C++ co
 ```mermaid
 xychart-beta
     title "Net10 live latency percentiles"
-    x-axis [SMTP, IMAP, POP3, IMAP-1000]
+    x-axis [SMTP, IMAP, POP3, FTS, IMAP-1000]
     y-axis "Milliseconds" 0 --> 4200
-    bar [5.235, 9.415, 12.258, 2506.190]
-    bar [21.270, 13.701, 20.972, 3611.596]
-    bar [198.446, 207.027, 29.862, 3720.543]
+    bar [5.235, 9.415, 12.258, 7.900, 2506.190]
+    bar [21.270, 13.701, 20.972, 12.802, 3611.596]
+    bar [198.446, 207.027, 29.862, 21.557, 3720.543]
 ```
 
 Legend, in order: p50, p95, p99. SMTP acceptance is a message transaction; the other two rows are protocol/session scenarios.
@@ -51,25 +58,24 @@ Legend, in order: p50, p95, p99. SMTP acceptance is a message transaction; the o
 ```mermaid
 xychart-beta
     title "Live gate evidence"
-    x-axis [Fixture, SMTP, IMAP, POP3, C++]
+    x-axis [Fixture, SMTP, IMAP, POP3, FTS, C++]
     y-axis "Pass (1) / not proven (0)" 0 --> 1
-    bar [1, 1, 1, 0, 0]
+    bar [1, 1, 1, 1, 1, 0]
 ```
 
 ## Legacy Anchors and Net10 Symbols
 
 Legacy SMTP acceptance is anchored by `SMTPConnection::HandleSMTPFinalizationTaskCompleted_` (`hmailserver/source/Server/SMTP/SMTPConnection.cpp:980`), `PersistentMessage::AddObject`, `SaveRecipients_`, and the `hm_messages`/`hm_messagerecipients` schema in `hmailserver/source/DBScripts/CreateTablesMSSQL.sql:258-353`.
 
-Legacy listener startup is anchored by `IOService::DoWork` and `TCPServer::Run`/`HandleAccept` (`hmailserver/source/Server/Common/TCPIP/IOService.cpp:65-134`, `hmailserver/source/Server/Common/TCPIP/TCPServer.cpp:51-226`). Legacy POP3 banner behavior is `POP3Connection::OnConnected`/`SendBanner_` (`hmailserver/source/Server/POP3/POP3Connection.cpp`). The .NET paths are `SqlServerSmtpQueueWriter`, `SmtpSession`, `ImapTcpListener`, `Pop3TcpListener`, and `Pop3Session`.
+Legacy listener startup is anchored by `IOService::DoWork` and `TCPServer::Run`/`HandleAccept` (`hmailserver/source/Server/Common/TCPIP/IOService.cpp:65-134`, `hmailserver/source/Server/Common/TCPIP/TCPServer.cpp:51-226`). Legacy POP3 banner behavior is `POP3Connection::OnConnected`/`SendBanner_` (`hmailserver/source/Server/POP3/POP3Connection.cpp`). Legacy SEARCH is `IMAPCommandSEARCH::ExecuteCommand` and `MatchesTEXTCriteria_` (`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp`), which scans the selected folder's message files in memory. The .NET paths are `SqlServerSmtpQueueWriter`, `SmtpSession`, `ImapTcpListener`, `Pop3TcpListener`, `Pop3Session`, `MessageSearchBackfillProcessor`, `MessageFileSearchDocumentSource`, and `SqlServerMessageSearchIndex`.
 
 The disposable SQL diagnostic also exposed and provisioned the exact legacy `hm_rule_criterias` DDL from `CreateTablesMSSQL.sql:485-499`; this was applied only to the two disposable pair databases so the SQL schema remained identical.
 
 ## Acceptance Gaps
 
 1. A registry-isolated C++ installation or VM is required before any C++ process can run safely.
-2. C++/.NET 10 SMTP, IMAP, POP3, delivery, queue, and equal-load measurements are still absent as a pair.
-3. SQL Full-Text is installed and structurally ready, but live FTS query acceptance and equivalent C++ query measurements remain open.
-4. Delivery throughput/retry, POP3 large-mailbox soak, external-fetch soak, service restart/COM lifecycle, and 24-hour leak soak remain unexecuted.
+2. C++/.NET 10 SMTP, IMAP, POP3, FTS, delivery, queue, and equal-load measurements are still absent as a pair.
+3. Delivery throughput/retry, POP3 large-mailbox soak, external-fetch soak, service restart/COM lifecycle, and 24-hour leak soak remain unexecuted.
 
 ## Reproduction Commands
 
@@ -89,6 +95,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-live-concurrent-imap.ps1 `
   -Implementation net10 -Concurrency 1000 `
+  -BenchmarkStagingRoot C:\hmail-perf-pair-20260811_1748\net10 `
+  -BenchmarkDatabase hmail_perf_pair_net10_20260811_1748
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-live-imap-search.ps1 `
+  -Iterations 25 `
   -BenchmarkStagingRoot C:\hmail-perf-pair-20260811_1748\net10 `
   -BenchmarkDatabase hmail_perf_pair_net10_20260811_1748
 ```

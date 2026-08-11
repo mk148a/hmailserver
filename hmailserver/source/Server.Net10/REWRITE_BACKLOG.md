@@ -8,7 +8,7 @@
 
 ## Current next slice (2026-08-11, supersedes older benchmark entries)
 
-Code/test commit `82afa4127` completed the equal disposable SQL/Data/message
+Code/test commit `eb0c9a7ed` completed the equal disposable SQL/Data/message
 fixture and first Net10 live load evidence. Both pair databases now have equal
 37-table schemas and row counts, 1,000 identical message files with equal
 Data SHA-256, matching Inbox/domain/account/loopback ports, and SQL Full-Text
@@ -16,19 +16,21 @@ catalog/index readiness. The canonical start-state evidence is
 `artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-post-pop3-fixed/`.
 
 Measured Net10 evidence is SMTP acceptance `25/25`, SMTP/IMAP/POP3 protocol
-`25/25`, and concurrent IMAP `1000/1000`. The POP3 run exposed and fixed a
+`25/25`, concurrent IMAP `1000/1000`, and live IMAP Full-Text SEARCH `25/25`
+with 1,000 matches per session. The POP3 run exposed and fixed a
 `SequentialAccess` column-order bug in `SqlServerPop3MailboxStore`; the
-disposable SQL diagnostic and updated Release host now pass. The legacy C++
-runner remains blocked by the read-only Registry32/installed-Bin preflight
-because `/Debug` would write the installed AppID registration. No C++/.NET 10
-performance ratio or winner is valid. Release performance gate remains
-**RED**.
+disposable SQL diagnostic and updated Release host now pass. The live FTS run
+backfilled the corpus through the production search source/index path and
+cleared its disposable search state afterward. The legacy C++ runner remains
+blocked by the read-only Registry32/installed-Bin preflight because `/Debug`
+would write the installed AppID registration. No C++/.NET 10 performance ratio
+or winner is valid. Release performance gate remains **RED**.
 
 Next independent slices, in order:
 
 1. Run the identical SMTP/IMAP/POP3/load matrix in a registry-isolated legacy
    C++ VM and preserve the pair fixture evidence.
-2. Add live SQL Full-Text SEARCH acceptance and delivery/queue throughput.
+2. Measure disposable delivery/queue throughput and retry/defer behavior.
 3. Add POP3 large-mailbox, restart/COM lifecycle, and 24-hour soak gates.
 
 ## Historical current next slice (superseded, 2026-08-11)

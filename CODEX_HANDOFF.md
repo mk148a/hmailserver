@@ -1,8 +1,8 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-11, POP3 PARITY / EQUAL LIVE FIXTURE)
+## Current Authoritative Continuation (2026-08-11, LIVE FTS SEARCH / EQUAL LIVE FIXTURE)
 
-Code/test commit `82afa4127` parameterizes the live Net10 runners for the
+Code/test commit `eb0c9a7ed` parameterizes the live Net10 runners for the
 fresh disposable pair and adds opt-in SQL SMTP host/queue diagnostics. The
 pair now has equal 37-table SQL schemas, equal row counts, 1,000 identical
 message files/Data SHA-256, matching Inbox/domain/account/ports, and Full-Text
@@ -10,21 +10,25 @@ catalog/index readiness. Evidence is
 `artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-post-pop3-fixed/`.
 
 Net10 results are SMTP acceptance `25/25` PASS, SMTP/IMAP/POP3 protocol
-`25/25` PASS, and 1,000 concurrent IMAP `1000/1000` PASS. POP3 required a
+`25/25` PASS, 1,000 concurrent IMAP `1000/1000` PASS, and live IMAP Full-Text
+SEARCH `25/25` PASS with 1,000 matches per session. POP3 required a
 bounded production fix: `SqlServerPop3MailboxStore.ListMessagesAsync` now
 reads selected SQL columns in ordinal order under `SequentialAccess`. The
-focused disposable SQL diagnostic and the updated Release host both pass.
+focused disposable SQL diagnostic, FTS backfill/search diagnostic, and updated
+Release host all pass. The FTS benchmark reports SEARCH p50/p95/p99 of
+`7.900/12.802/21.557 ms`.
 The C++ process was not launched because the read-only Registry32 preflight
 does not resolve the disposable Bin and legacy `/Debug` would write the
 installed AppID registration. The performance gate remains **RED** and no
 ratio or winner is valid.
 
-The full Net10 suite is `2127 passed, 50 skipped, 0 failed`. The detailed
+The full Net10 suite is `2127 passed, 51 skipped, 0 failed`. The detailed
 measurements/charts are in
 `hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`. Next
-slice: reproduce the same workload in a registry-isolated C++ VM, then add
-live FTS, delivery/queue, and soak gates. No production service, database/Data
-directory, COM identity, DCOM ACL, or public listener changed.
+slice: reproduce the same workload in a registry-isolated C++ VM, then measure
+disposable delivery/queue throughput and retry/defer behavior. No production
+service, database/Data directory, COM identity, DCOM ACL, or public listener
+changed.
 
 ## Current Authoritative Continuation (2026-08-11, SHARED BASELINE V2 FIXTURE/FTS GATE)
 

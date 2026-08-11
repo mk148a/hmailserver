@@ -9,16 +9,17 @@ the same active domain/account/Inbox, three loopback ports, and SQL Full-Text
 catalog/index readiness. The evidence is under
 `artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-post-pop3-fixed/`.
 
-Net10 live evidence is now available: SMTP acceptance `25/25`, protocol SMTP
-`25/25`, protocol IMAP `25/25`, protocol POP3 `25/25`, and concurrent IMAP
-`1000/1000`. The POP3 result required a focused production fix: the SQL
-mailbox reader now consumes `messageid`, `messageuid`, and `messagesize` in
-the selected ordinal order required by `SequentialAccess`. The legacy C++
-process was not launched because the read-only Registry32 preflight points to
-the installed test Bin and legacy `/Debug` startup would write AppID
-registration. The paired performance gate remains **RED**: no speed-up ratio,
-regression percentage, or winner is valid until the same C++ scenarios run in a
-registry-isolated environment.
+Net10 live evidence is now available: SMTP acceptance `25/25`, protocol
+SMTP/IMAP/POP3 `25/25`, concurrent IMAP `1000/1000`, and live IMAP Full-Text
+`SEARCH TEXT needle` `25/25` with 1,000 matches per session. The POP3 result
+required a focused production fix: the SQL mailbox reader now consumes
+`messageid`, `messageuid`, and `messagesize` in the selected ordinal order
+required by `SequentialAccess`. The legacy C++ process was not launched
+because the read-only Registry32 preflight points to the installed test Bin
+and legacy `/Debug` startup would write AppID registration. The paired
+performance gate remains **RED**: no speed-up ratio, regression percentage,
+or winner is valid until the same C++ scenarios run in a registry-isolated
+environment.
 
 The measured values and charts are in
 [`hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`](hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md).

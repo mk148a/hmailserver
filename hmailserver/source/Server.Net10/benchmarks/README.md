@@ -1,6 +1,23 @@
 # .NET 10 Benchmark Pack
 
-## Current paired-fixture gate (2026-08-11)
+## Current authoritative live gate (2026-08-11)
+
+Code/test commit `eb0c9a7ed` verified the equal disposable SQL/Data/message
+pair and Net10 live acceptance: SMTP acceptance `25/25`, SMTP/IMAP/POP3
+protocol `25/25`, concurrent IMAP `1000/1000`, and IMAP Full-Text
+`SEARCH TEXT needle` `25/25` with 1,000 matches per session. The live FTS
+benchmark reports SEARCH p50/p95/p99 of `7.900/12.802/21.557 ms` and clears
+its disposable search state after the run.
+
+The legacy C++ process remains blocked by the read-only registry/configuration
+preflight because legacy `/Debug` startup would write the installed AppID
+registration. The paired performance gate remains **RED**; no ratio, regression
+percentage, or winner is valid until the identical matrix runs in a registry-
+isolated C++ environment. See
+`hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md` for the
+full evidence and remaining delivery, retry, queue, and soak gates.
+
+## Historical paired-fixture gate (superseded, 2026-08-11)
 
 Tool commit `7e58324d7` upgrades
 `build/collect-live-equivalence-evidence.ps1` to shared-baseline v2. The

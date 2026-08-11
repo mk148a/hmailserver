@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T15:55:00Z / 2026-08-11T18:55:00+03:00
+- UTC/local timestamp: 2026-08-11T16:20:00Z / 2026-08-11T19:20:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; push intentionally not performed
 - Current HEAD: documentation commit for this state; verify with `git rev-parse HEAD` (unpublished)
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: equal disposable pair `EQUIVALENT_START_STATE`; POP3 SQL diagnostic PASS; Net10 SMTP acceptance `25/25`; protocol SMTP/IMAP/POP3 `25/25`; concurrent IMAP `1000/1000`
-- Latest full Net10 result: `2127 passed, 50 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: disposable POP3/auth/mailbox, SMTP host/queue, cleanup, and live load diagnostics passed; restore/installer/registry/COM/AD/DC/SEC-18/soak opt-ins remain skipped or environment-blocked
-- Current bounded slice: fix and verify Net10 POP3 SQL mailbox loading against the equal disposable pair; detailed report is `hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`
-- Completed milestones: backup/restore foundations, COM/Admin slices through the recorded backlog, equal disposable fixture/FTS readiness evidence, Net10 SMTP acceptance, Net10 protocol SMTP/IMAP/POP3, and Net10 1,000-session IMAP load evidence
-- Open production blockers: registry-isolated C++ matrix, C++/.NET 10 paired ratios, delivery/retry/queue load, live FTS query acceptance, service/COM lifecycle, migration/installer, SEC-18, AD/DC, and 24-hour soak
+- Latest focused-test result: equal disposable pair `EQUIVALENT_START_STATE`; POP3 and FTS SQL diagnostics PASS; Net10 SMTP acceptance `25/25`; protocol SMTP/IMAP/POP3 `25/25`; concurrent IMAP `1000/1000`; live FTS SEARCH `25/25`
+- Latest full Net10 result: `2127 passed, 51 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: disposable POP3/auth/mailbox, FTS backfill/search, SMTP host/queue, cleanup, and live load diagnostics passed; restore/installer/registry/COM/AD/DC/SEC-18/soak opt-ins remain skipped or environment-blocked
+- Current bounded slice: live SQL Full-Text backfill and loopback IMAP SEARCH acceptance against the equal disposable pair; detailed report is `hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`
+- Completed milestones: backup/restore foundations, COM/Admin slices through the recorded backlog, equal disposable fixture/FTS readiness evidence, Net10 SMTP acceptance, Net10 protocol SMTP/IMAP/POP3, Net10 1,000-session IMAP load, and live Net10 FTS SEARCH acceptance
+- Open production blockers: registry-isolated C++ matrix and paired ratios, delivery/retry/queue load, POP3 large-mailbox/external-fetch soak, service/COM lifecycle, migration/installer, SEC-18, AD/DC, and 24-hour soak
 - Environment-blocked work: separate C++ registry-isolated VM, out-of-process COM/installer, disposable restore/rollback acceptance, credential/AD evidence, IIS/SEC-18 cutover, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) run the identical matrix in a registry-isolated C++ VM, (2) execute live FTS SEARCH plus delivery/queue throughput, (3) add POP3 large-mailbox, restart/COM lifecycle, and soak gates
+- Next three independent slices: (1) run the identical matrix in a registry-isolated C++ VM, (2) measure disposable delivery/queue throughput and retry/defer behavior, (3) add POP3 large-mailbox, restart/COM lifecycle, and soak gates
