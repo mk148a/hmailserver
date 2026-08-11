@@ -82,6 +82,10 @@ public interface ISettingsAdministrationMutationStore
         int maxDeliveryThreads,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateMaxAsynchronousThreadsAsync(
+        int maxAsynchronousThreads,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateMaxMessageSizeAsync(
         int maxMessageSize,
         CancellationToken cancellationToken);

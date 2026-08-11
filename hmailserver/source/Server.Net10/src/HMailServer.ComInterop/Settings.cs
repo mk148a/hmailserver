@@ -1197,6 +1197,46 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override int MaxAsynchronousThreads
+    {
+        get
+        {
+            EnsureAuthorized();
+            return _administrationSnapshot is null
+                ? base.MaxAsynchronousThreads
+                : _administrationSnapshot.MaxAsynchronousThreads;
+        }
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxAsynchronousThreads = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateMaxAsynchronousThreadsAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum asynchronous threads update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxAsynchronousThreads = value
+                };
+            }
+        }
+    }
+
     public override bool IMAPSortEnabled
     {
         get
@@ -1906,18 +1946,6 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 : _administrationSnapshot.ImapMasterUser;
         }
         set => base.IMAPMasterUser = value;
-    }
-
-    public override int MaxAsynchronousThreads
-    {
-        get
-        {
-            EnsureAuthorized();
-            return _administrationSnapshot is null
-                ? base.MaxAsynchronousThreads
-                : _administrationSnapshot.MaxAsynchronousThreads;
-        }
-        set => base.MaxAsynchronousThreads = value;
     }
 
     public override IInterfaceLogging Logging

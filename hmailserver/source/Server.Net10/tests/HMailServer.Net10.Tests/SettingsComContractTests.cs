@@ -2707,6 +2707,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxAsynchronousThreadsSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxAsynchronousThreadsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxAsynchronousThreads: 10),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MaxAsynchronousThreads = 25;
+
+        Assert.AreEqual(1, store.MaxAsynchronousThreadsUpdateCount);
+        Assert.AreEqual(25, store.UpdatedMaxAsynchronousThreads);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(25, settings.MaxAsynchronousThreads);
+
+        store.MaxAsynchronousThreadsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxAsynchronousThreads = 30);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.MaxAsynchronousThreadsUpdateCount);
+        Assert.AreEqual(25, settings.MaxAsynchronousThreads);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxAsynchronousThreads = 35);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.MaxAsynchronousThreadsUpdateCount);
+        Assert.AreEqual(25, settings.MaxAsynchronousThreads);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_RuleLoopLimitSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -4041,6 +4083,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxDeliveryThreads { get; private set; }
 
+        public bool MaxAsynchronousThreadsUpdateResult { get; set; }
+
+        public int MaxAsynchronousThreadsUpdateCount { get; private set; }
+
+        public int UpdatedMaxAsynchronousThreads { get; private set; }
+
         public bool RuleLoopLimitUpdateResult { get; set; }
 
         public int RuleLoopLimitUpdateCount { get; private set; }
@@ -4410,6 +4458,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxDeliveryThreads = maxDeliveryThreads;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxDeliveryThreadsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMaxAsynchronousThreadsAsync(
+            int maxAsynchronousThreads,
+            CancellationToken cancellationToken)
+        {
+            MaxAsynchronousThreadsUpdateCount++;
+            UpdatedMaxAsynchronousThreads = maxAsynchronousThreads;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(MaxAsynchronousThreadsUpdateResult);
         }
 
         public ValueTask<bool> UpdateRuleLoopLimitAsync(

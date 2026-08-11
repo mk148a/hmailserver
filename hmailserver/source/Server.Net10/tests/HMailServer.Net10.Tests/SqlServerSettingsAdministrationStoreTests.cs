@@ -266,6 +266,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateMaxAsynchronousThreadsSql_UsesTheExactParameterizedFixedRowShape()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateMaxAsynchronousThreadsSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settinginteger = @MaxAsynchronousThreads\nWHERE settingname = N'MaxNumberOfAsynchronousTasks';",
+            sql);
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateMaxSmtpRecipientsInBatchSql_UpdatesOnlyTheExistingRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateMaxSmtpRecipientsInBatchSql;
