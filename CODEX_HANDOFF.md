@@ -1,5 +1,37 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, SMTP RELAYER USE SSL MUTATION)
+
+Code/test commit `90ecdaa5a` implements only authenticated
+`Settings.SMTPRelayerUseSSL` (`DispId(71)`) persistence. It preserves the
+installed COM identity, VARIANT_BOOL shape, direct activation denial, and the
+existing `SMTPRelayerConnectionSecurity` projection. `true` maps to legacy
+`CSSSL`/`1`; `false` maps to `CSNone`/`0` through the existing parameterized
+`hm_settings.smtprelayerconnectionsecurity` store path. The retained snapshot
+changes only after one-row success.
+
+Legacy anchors: `IInterfaceSettings.SMTPRelayerUseSSL` in
+`source/Server/hMailServer/hMailServer.idl`,
+`InterfaceSettings::get_SMTPRelayerUseSSL` and
+`put_SMTPRelayerUseSSL` (`source/Server/COM/InterfaceSettings.cpp:1729-1760`),
+`SMTPConfiguration::Set/GetSMTPRelayerConnectionSecurity`
+(`source/Server/SMTP/SMTPConfiguration.cpp:163-174`), and the
+`smtprelayerconnectionsecurity` MSSQL seed. Focused settings/store coverage is
+`81/81`; full Net10 is `2064 passed, 39 skipped, 0 failed`.
+
+Direct activation denial, true/false mapping, failed-write retention, and
+administrator revocation are covered. Outbound relayer TLS/STARTTLS,
+notifications, and live reconfiguration were deliberately not changed.
+
+Release remains RED for disposable SQL/Data rollback, non-DB restore/
+reinitialization, SQL/FTS, matched C++/.NET protocol performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and 24-hour
+soak. Security review also found a medium retained-COM-proxy authorization
+TOCTOU blocker: revocation can race between `Settings`' live administrator
+check and the SQL mutation because no authorization lease spans both. Next
+slice: legacy-first audit of the smallest safe authorization-lease fix or
+remaining Settings mutation. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, SMTP RELAYER CONNECTION SECURITY MUTATION)
 
 Code/test commit `0f7b50282` implements only authenticated

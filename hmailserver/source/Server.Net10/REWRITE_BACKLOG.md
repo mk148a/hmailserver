@@ -1,4 +1,33 @@
 
+## Current Audit Note (2026-08-11, SMTP RELAYER USE SSL ADMIN MUTATION)
+
+Code/test commit `90ecdaa5a` closes the authenticated
+`IInterfaceSettings.SMTPRelayerUseSSL` setter (`DispId(71)`) gap. The setter
+maps `VARIANT_TRUE` to legacy `CSSSL`/`1` and every other value to
+`CSNone`/`0`, then reuses the existing parameterized
+`hm_settings.smtprelayerconnectionsecurity` administration-store update. The
+retained snapshot is published only after one-row success. Direct activation
+denial, true/false mapping, failed-write retention, and administrator
+revocation are covered by focused tests.
+
+Legacy behavior is anchored by `InterfaceSettings::get_SMTPRelayerUseSSL` and
+`put_SMTPRelayerUseSSL` (`source/Server/COM/InterfaceSettings.cpp:1729-1760`),
+`SMTPConfiguration::Set/GetSMTPRelayerConnectionSecurity`
+(`source/Server/SMTP/SMTPConfiguration.cpp:163-174`), the installed IDL
+property (`source/Server/hMailServer/hMailServer.idl:618-619`), and the
+`smtprelayerconnectionsecurity` MSSQL seed
+(`source/DBScripts/CreateTablesMSSQL.sql:872`). No outbound TLS/STARTTLS,
+notification, or live-reconfiguration behavior was changed.
+
+Focused coverage is `81/81`; full Net10 is `2064 passed, 39 skipped, 0
+failed`. Release gates remain RED for disposable SQL/Data rollback and
+restore, matched C++/.NET load, SEC-18 cutover, installer/out-of-process COM,
+AD/DC, crash/power-loss, and 24-hour soak. Security review additionally found
+a medium retained-COM-proxy authorization TOCTOU between the live administrator
+check and SQL mutation because Settings has no authorization lease spanning
+both. Next slice: legacy-first audit of the smallest safe authorization-lease
+fix or remaining Settings mutation.
+
 ## Current Audit Note (2026-08-10, MIRROR EMAIL ADMIN MUTATION)
 
 Code/test commit `3ba1d5f49` implements the authenticated

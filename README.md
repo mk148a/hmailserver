@@ -1,6 +1,42 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, SMTPRelayerUseSSL mutation)
+
+Code/test commit `90ecdaa5a` implements only the authenticated
+`IInterfaceSettings.SMTPRelayerUseSSL` setter (`DispId(71)`). It preserves the
+installed COM identity, VARIANT_BOOL contract, direct activation denial, and
+the existing `SMTPRelayerConnectionSecurity` projection. `true` maps to the
+legacy `CSSSL` value (`1`); `false` maps to `CSNone` (`0`) through the existing
+parameterized `hm_settings.smtprelayerconnectionsecurity` administration
+store path. Snapshot publication occurs only after a one-row successful write.
+
+Focused settings/store coverage is `81/81`; full Net10 is `2064 passed, 39
+skipped, 0 failed`. Tests cover direct activation denial, authorized true and
+false mapping, failed-write retention, and administrator revocation. Outbound
+relayer TLS/STARTTLS, notifications, and live reconfiguration remain outside
+this persistence slice.
+
+Legacy anchors are `IInterfaceSettings.SMTPRelayerUseSSL` (`DispId(71)`) in
+`hmailserver/source/Server/hMailServer/hMailServer.idl`,
+`InterfaceSettings::get_SMTPRelayerUseSSL` and
+`InterfaceSettings::put_SMTPRelayerUseSSL`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1729-1760`),
+`SMTPConfiguration::SetSMTPRelayerConnectionSecurity` and
+`GetSMTPRelayerConnectionSecurity`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:163-174`), and the
+`smtprelayerconnectionsecurity` seed in
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:872`.
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched C++/.NET protocol load, SEC-18 cutover,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and 24-hour
+soak remain unproven. Security review also leaves a medium retained-COM-proxy
+authorization TOCTOU blocker: revocation can race between the live admin check
+and the SQL mutation because Settings has no authorization lease spanning both.
+The next slice is a legacy-first audit of the smallest safe authorization-lease
+fix or remaining Settings mutation.
+
 ## Current parity continuation (2026-08-11, SMTPRelayerConnectionSecurity mutation)
 
 Code/test commit `0f7b50282` implements only the authenticated
