@@ -2864,6 +2864,98 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxSmtpRecipientsInBatchUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxSmtpRecipientsInBatch: 100),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.MaxSMTPRecipientsInBatch = 25;
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.MaxSmtpRecipientsInBatchUpdateCount);
+        Assert.AreEqual(25, settings.MaxSMTPRecipientsInBatch);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxSmtpRecipientsInBatchUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxSmtpRecipientsInBatch: 100),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxSMTPRecipientsInBatch = 25);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.MaxSmtpRecipientsInBatchUpdateCount);
+        Assert.AreEqual(100, settings.MaxSMTPRecipientsInBatch);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_MaxSmtpRecipientsInBatchMutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxSmtpRecipientsInBatch: 100),
+            MaxSmtpRecipientsInBatchUpdateResult = true,
+            GateMaxSmtpRecipientsInBatchMutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.MaxSMTPRecipientsInBatch = 25);
+        await store.MaxSmtpRecipientsInBatchMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.MaxSmtpRecipientsInBatchMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual(25, store.UpdatedMaxSmtpRecipientsInBatch);
+        Assert.AreEqual(25, settings.MaxSMTPRecipientsInBatch);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxNumberOfInvalidCommandsSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -3726,6 +3818,14 @@ public sealed class SettingsComContractTests
 
         public bool MaxSmtpRecipientsInBatchUpdateResult { get; set; }
 
+        public bool GateMaxSmtpRecipientsInBatchMutation { get; set; }
+
+        public TaskCompletionSource<bool> MaxSmtpRecipientsInBatchMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> MaxSmtpRecipientsInBatchMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int MaxSmtpRecipientsInBatchUpdateCount { get; private set; }
 
         public int UpdatedMaxSmtpRecipientsInBatch { get; private set; }
@@ -4086,7 +4186,19 @@ public sealed class SettingsComContractTests
             MaxSmtpRecipientsInBatchUpdateCount++;
             UpdatedMaxSmtpRecipientsInBatch = maxSmtpRecipientsInBatch;
             CancellationToken = cancellationToken;
+            if (GateMaxSmtpRecipientsInBatchMutation)
+            {
+                MaxSmtpRecipientsInBatchMutationEntered.TrySetResult(true);
+                return WaitForMaxSmtpRecipientsInBatchMutationAsync();
+            }
+
             return ValueTask.FromResult(MaxSmtpRecipientsInBatchUpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForMaxSmtpRecipientsInBatchMutationAsync()
+        {
+            await MaxSmtpRecipientsInBatchMutationRelease.Task;
+            return MaxSmtpRecipientsInBatchUpdateResult;
         }
 
         public ValueTask<bool> UpdateMaxNumberOfInvalidCommandsAsync(
