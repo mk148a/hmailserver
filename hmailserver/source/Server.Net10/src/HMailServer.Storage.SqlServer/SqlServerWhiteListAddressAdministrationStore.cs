@@ -67,6 +67,7 @@ DELETE FROM hm_whitelist;
         var addresses = new List<WhiteListAddressAdministrationSnapshot>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
+            var id = reader.GetInt64(0);
             var lowerAddress1 = reader.GetInt64(1);
             var lowerAddress2 = reader.IsDBNull(2) ? null : (long?)reader.GetInt64(2);
             var upperAddress1 = reader.GetInt64(3);
@@ -74,7 +75,7 @@ DELETE FROM hm_whitelist;
 
             addresses.Add(
                 new WhiteListAddressAdministrationSnapshot(
-                    Id: reader.GetInt64(0),
+                    Id: id,
                     LowerIpAddress: FormatLegacyAddress(lowerAddress1, lowerAddress2),
                     UpperIpAddress: FormatLegacyAddress(upperAddress1, upperAddress2),
                     EmailAddress: reader.GetString(5),

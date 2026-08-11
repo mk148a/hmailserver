@@ -23,6 +23,28 @@ public sealed class SqlServerWhiteListAddressAdministrationStoreTests
     }
 
     [TestMethod]
+    public void GetWhiteListAddressesAsync_ReadsSequentialColumnsInSelectOrder()
+    {
+        var source = ReadStoreSource();
+        var idIndex = source.IndexOf("var id = reader.GetInt64(0);", StringComparison.Ordinal);
+        var lowerAddress1Index = source.IndexOf("var lowerAddress1 = reader.GetInt64(1);", StringComparison.Ordinal);
+        var lowerAddress2Index = source.IndexOf("var lowerAddress2 = reader.IsDBNull(2)", StringComparison.Ordinal);
+        var upperAddress1Index = source.IndexOf("var upperAddress1 = reader.GetInt64(3);", StringComparison.Ordinal);
+        var upperAddress2Index = source.IndexOf("var upperAddress2 = reader.IsDBNull(4)", StringComparison.Ordinal);
+        var emailIndex = source.IndexOf("EmailAddress: reader.GetString(5)", StringComparison.Ordinal);
+        var descriptionIndex = source.IndexOf("Description: reader.GetString(6)", StringComparison.Ordinal);
+
+        Assert.IsTrue(
+            idIndex >= 0
+            && idIndex < lowerAddress1Index
+            && lowerAddress1Index < lowerAddress2Index
+            && lowerAddress2Index < upperAddress1Index
+            && upperAddress1Index < upperAddress2Index
+            && upperAddress2Index < emailIndex
+            && emailIndex < descriptionIndex);
+    }
+
+    [TestMethod]
     public void FormatLegacyAddress_ConvertsIpv4AndIpv6Columns()
     {
         Assert.AreEqual(
@@ -144,5 +166,22 @@ public sealed class SqlServerWhiteListAddressAdministrationStoreTests
             BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
         return (string)method.Invoke(null, new object?[] { address1, address2 })!;
+    }
+
+    private static string ReadStoreSource()
+    {
+        var sourcePath = Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "Server.Net10",
+            "src",
+            "HMailServer.Storage.SqlServer",
+            "SqlServerWhiteListAddressAdministrationStore.cs");
+        return File.ReadAllText(Path.GetFullPath(sourcePath));
     }
 }

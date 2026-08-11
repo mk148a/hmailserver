@@ -80,8 +80,10 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
             var remainingFolders = await folderStore
                 .GetFoldersForAccountAsync(10, CancellationToken.None)
                 .ConfigureAwait(false);
-            Assert.AreEqual(1, remainingFolders.Count);
-            Assert.AreEqual(100, remainingFolders[0].Id);
+            Assert.AreEqual(2, remainingFolders.Count);
+            CollectionAssert.AreEquivalent(
+                new[] { 100, live.Id },
+                remainingFolders.Select(static folder => folder.Id).ToArray());
 
             // This slice proves owner-qualified insertion. Message state/UID
             // publication remains a separate legacy parity item.

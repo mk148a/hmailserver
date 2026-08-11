@@ -293,7 +293,7 @@ ORDER BY messageid ASC;
             Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
             var deliveredMessageId = reader.GetInt64(0);
             Assert.AreEqual(1, reader.GetInt32(1));
-            Assert.AreEqual(100L, reader.GetInt64(2));
+            Assert.AreEqual(100, reader.GetInt32(2));
             var deliveredFileName = reader.GetString(3);
             Assert.AreEqual(2, reader.GetInt32(4));
             Assert.AreEqual("sender@example.test", reader.GetString(5));
@@ -308,7 +308,7 @@ ORDER BY messageid ASC;
             Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
             var archivedMessageId = reader.GetInt64(0);
             Assert.AreEqual(1, reader.GetInt32(1));
-            Assert.AreEqual(101L, reader.GetInt64(2));
+            Assert.AreEqual(101, reader.GetInt32(2));
             var archivedFileName = reader.GetString(3);
             Assert.AreEqual(2, reader.GetInt32(4));
             Assert.AreEqual("archive@example.test", reader.GetString(5));
@@ -323,7 +323,7 @@ ORDER BY messageid ASC;
             Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
             var queueMessageId = reader.GetInt64(0);
             Assert.AreEqual(0, reader.GetInt32(1));
-            Assert.AreEqual(0L, reader.GetInt64(2));
+            Assert.AreEqual(0, reader.GetInt32(2));
             Assert.AreEqual("queue.eml", reader.GetString(3));
             Assert.AreEqual(1, reader.GetInt32(4));
             Assert.AreEqual("sender@outside.test", reader.GetString(5));
@@ -514,6 +514,9 @@ WHERE recipientmessageid = @MessageId;
         try
         {
             await CreateSettingsSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            // Cache statistics are process-wide in the legacy runtime. Isolate this
+            // SQL-backed fixture from earlier unit-test runtime registrations.
+            CacheAdministrationRuntimeHost.Configure(null);
             var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
             SettingsAdministrationRuntimeHost.Configure(
                 new SqlServerSettingsAdministrationStore(connectionFactory),
@@ -647,8 +650,7 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual("*.bat", blockedAttachments[0].Wildcard);
             Assert.AreEqual("Batch file", blockedAttachments[0].Description);
             Assert.AreEqual("*.exe", blockedAttachments.get_ItemByDBID(20).Wildcard);
-            var pendingBlockedAttachmentSave = Assert.ThrowsExactly<COMException>(blockedAttachments[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingBlockedAttachmentSave.ErrorCode);
+            blockedAttachments[0].Save();
 
             await using (var blockedAttachmentRefreshConnection = new SqlConnection(testConnectionString))
             {
@@ -723,8 +725,7 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual(4, dnsBlackLists[0].Score);
             Assert.IsFalse(dnsBlackLists.get_ItemByDBID(20).Active);
             Assert.AreEqual(20, dnsBlackLists.get_ItemByDNSHost("BL.SPAMCOP.NET").ID);
-            var pendingDnsBlackListSave = Assert.ThrowsExactly<COMException>(dnsBlackLists[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingDnsBlackListSave.ErrorCode);
+            dnsBlackLists[0].Save();
 
             await using (var dnsBlackListRefreshConnection = new SqlConnection(testConnectionString))
             {
@@ -771,8 +772,7 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual(4, surblServers[0].Score);
             Assert.IsFalse(surblServers.get_ItemByDBID(20).Active);
             Assert.AreEqual(20, surblServers.get_ItemByDNSHost("EXAMPLE.SURBL.TEST").ID);
-            var pendingSurblServerSave = Assert.ThrowsExactly<COMException>(surblServers[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingSurblServerSave.ErrorCode);
+            surblServers[0].Save();
 
             await using (var surblServerRefreshConnection = new SqlConnection(testConnectionString))
             {
@@ -812,9 +812,7 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual("Test network", greyListingWhiteAddresses[0].Description);
             Assert.AreEqual(20, greyListingWhiteAddresses.get_ItemByDBID(20).ID);
             Assert.AreEqual(10, greyListingWhiteAddresses.get_ItemByName("192.0.2.%").ID);
-            var pendingGreyListingWhiteAddressSave = Assert.ThrowsExactly<COMException>(
-                greyListingWhiteAddresses[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingGreyListingWhiteAddressSave.ErrorCode);
+            greyListingWhiteAddresses[0].Save();
 
             await using (var greyListingWhiteAddressRefreshConnection = new SqlConnection(testConnectionString))
             {
@@ -852,8 +850,7 @@ WHERE recipientmessageid = @MessageId;
             Assert.AreEqual("*@example.test", whiteListAddresses[0].EmailAddress);
             Assert.AreEqual("Test network", whiteListAddresses[0].Description);
             Assert.AreEqual(20, whiteListAddresses.get_ItemByDBID(20).ID);
-            var pendingWhiteListAddressSave = Assert.ThrowsExactly<COMException>(whiteListAddresses[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingWhiteListAddressSave.ErrorCode);
+            whiteListAddresses[0].Save();
 
             await using (var whiteListAddressRefreshConnection = new SqlConnection(testConnectionString))
             {
@@ -1377,8 +1374,7 @@ ORDER BY messageid;
             var outsideRuleAction = Assert.ThrowsExactly<COMException>(
                 () => _ = firstRuleActions.get_ItemByDBID(30000));
             Assert.AreEqual(unchecked((int)0x8002000B), outsideRuleAction.ErrorCode);
-            var pendingRuleActionSave = Assert.ThrowsExactly<COMException>(firstRuleActions[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingRuleActionSave.ErrorCode);
+            firstRuleActions[0].Save();
 
             await using (var connection = new SqlConnection(testConnectionString))
             {
@@ -1476,8 +1472,8 @@ ORDER BY messageid;
             Assert.AreEqual(3000L, folderMessages.get_ItemByDBID(3000).ID);
             var outsideFolderMessage = Assert.ThrowsExactly<COMException>(() => _ = folderMessages.get_ItemByDBID(3001));
             Assert.AreEqual(unchecked((int)0x8002000B), outsideFolderMessage.ErrorCode);
-            var pendingMessagesDelete = Assert.ThrowsExactly<COMException>(() => folderMessages.DeleteByDBID(3000));
-            Assert.AreEqual(unchecked((int)0x80004001), pendingMessagesDelete.ErrorCode);
+            folderMessages.DeleteByDBID(3000);
+            Assert.AreEqual(0, folderMessages.Count);
             var privateFolderPermissions = Assert.ThrowsExactly<COMException>(() => _ = folders[0].Permissions);
             Assert.AreEqual(unchecked((int)0x800403E9), privateFolderPermissions.ErrorCode);
             var publicFolders = application.Settings.PublicFolders;
@@ -1505,8 +1501,7 @@ ORDER BY messageid;
             Assert.AreEqual(unchecked((int)0x8002000B), anyoneAccount.ErrorCode);
             var outsidePermission = Assert.ThrowsExactly<COMException>(() => _ = publicPermissions.get_ItemByDBID(900));
             Assert.AreEqual(unchecked((int)0x8002000B), outsidePermission.ErrorCode);
-            var pendingPermissionSave = Assert.ThrowsExactly<COMException>(publicPermissions[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingPermissionSave.ErrorCode);
+            publicPermissions[0].Save();
 
             await using (var permissionRefreshConnection = new SqlConnection(testConnectionString))
             {
@@ -1565,9 +1560,7 @@ ORDER BY messageid;
             var betaRouteAddresses = routes.get_ItemByDBID(600).Addresses;
             Assert.AreEqual(1, betaRouteAddresses.Count);
             Assert.AreEqual("beta-user@example.test", betaRouteAddresses.get_ItemByDBID(1600).Address);
-            var pendingRouteAddressSave = Assert.ThrowsExactly<COMException>(
-                alphaRouteAddresses.get_ItemByDBID(1500).Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingRouteAddressSave.ErrorCode);
+            alphaRouteAddresses.get_ItemByDBID(1500).Save();
 
             alphaRouteAddresses.get_ItemByDBID(1500).Delete();
 
@@ -1822,8 +1815,7 @@ ORDER BY messageid;
             Assert.AreEqual(
                 new DateTime(2026, 8, 1, 3, 4, 5),
                 securityRanges.get_ItemByDBID(300).ExpiresTime);
-            var pendingSecurityRangeSave = Assert.ThrowsExactly<COMException>(securityRanges[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingSecurityRangeSave.ErrorCode);
+            securityRanges[0].Save();
 
             await using (var securityRangeRefreshConnection = new SqlConnection(testConnectionString))
             {
@@ -1933,8 +1925,7 @@ ORDER BY messageid;
             Assert.AreEqual("127.0.0.1", tcpIpPorts.get_ItemByDBID(901).Address);
             Assert.IsFalse(tcpIpPorts.get_ItemByDBID(901).UseSSL);
             Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, tcpIpPorts.get_ItemByDBID(901).ConnectionSecurity);
-            var pendingTcpIpPortSave = Assert.ThrowsExactly<COMException>(tcpIpPorts[0].Save);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingTcpIpPortSave.ErrorCode);
+            tcpIpPorts[0].Save();
 
             await using (var tcpIpPortRefreshConnection = new SqlConnection(testConnectionString))
             {
@@ -2138,9 +2129,8 @@ ORDER BY messageid;
             Assert.AreEqual("admin@example.test", groupMembers[0].Account.Address);
             Assert.AreEqual(20, groupMembers.get_ItemByDBID(1400).Account.ID);
             Assert.AreEqual("user@example.test", groupMembers.get_ItemByDBID(1400).Account.Address);
-            var pendingGroupMemberAccountMutation =
-                Assert.ThrowsExactly<COMException>(() => groupMembers[0].Account.Address = "changed@example.test");
-            Assert.AreEqual(unchecked((int)0x80004001), pendingGroupMemberAccountMutation.ErrorCode);
+            groupMembers[0].Account.Address = "changed@example.test";
+            Assert.AreEqual("admin@example.test", groupMembers[0].Account.Address);
 
             await using (var groupMemberRefreshConnection = new SqlConnection(testConnectionString))
             {
@@ -2558,7 +2548,7 @@ CREATE TABLE dbo.hm_messages
     messageid bigint NOT NULL PRIMARY KEY,
     messagetype int NOT NULL,
     messagefilename nvarchar(255) NOT NULL,
-    messagefolderid bigint NOT NULL,
+    messagefolderid int NOT NULL,
     messageuid bigint NOT NULL
 );
 
@@ -2634,7 +2624,7 @@ CREATE TABLE dbo.hm_messages
 (
     messageid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
     messageaccountid int NOT NULL,
-    messagefolderid bigint NOT NULL,
+    messagefolderid int NOT NULL,
     messagefilename nvarchar(255) NOT NULL,
     messagetype int NOT NULL,
     messagefrom nvarchar(255) NOT NULL,
@@ -2752,9 +2742,9 @@ CREATE TABLE dbo.hm_routeaddresses
 
 CREATE TABLE dbo.hm_imapfolders
 (
-    folderid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+    folderid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
     folderaccountid int NOT NULL,
-    folderparentid bigint NOT NULL,
+    folderparentid int NOT NULL,
     foldername nvarchar(255) NOT NULL,
     folderissubscribed tinyint NOT NULL,
     foldercreationtime datetime NOT NULL,
@@ -2776,7 +2766,7 @@ CREATE TABLE dbo.hm_messages
 (
     messageid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
     messageaccountid int NOT NULL,
-    messagefolderid bigint NOT NULL,
+    messagefolderid int NOT NULL,
     messagefilename nvarchar(255) NOT NULL,
     messagetype int NOT NULL,
     messagefrom nvarchar(255) NOT NULL,
@@ -3330,11 +3320,20 @@ VALUES
     (101, 10, 2048),
     (200, 20, 128);
 
-INSERT INTO dbo.hm_messages (messageid, messageaccountid, messagesize)
+INSERT INTO dbo.hm_messages
+    (messageid, messageaccountid, messagefolderid, messagefilename, messagetype,
+     messagefrom, messagesize, messagecurnooftries, messagenexttrytime,
+     messageflags, messagecreatetime, messagelocked, messageuid)
 VALUES
-    (1000, 10, 2621440),
-    (1001, 100, 7340032),
-    (2000, 20, 1048576);
+    (1000, 10, 0, N'alpha-domain.eml', 2, N'', 2621440, 0,
+     CONVERT(datetime, '1901-01-01T00:00:00', 126), 0,
+     CONVERT(datetime, '2026-07-01T00:00:00', 126), 0, 1),
+    (1001, 100, 0, N'alpha-account.eml', 2, N'', 7340032, 0,
+     CONVERT(datetime, '1901-01-01T00:00:00', 126), 0,
+     CONVERT(datetime, '2026-07-01T00:00:00', 126), 0, 2),
+    (2000, 20, 0, N'beta-domain.eml', 2, N'', 1048576, 0,
+     CONVERT(datetime, '1901-01-01T00:00:00', 126), 0,
+     CONVERT(datetime, '2026-07-01T00:00:00', 126), 0, 3);
 """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -3406,7 +3405,17 @@ CREATE TABLE dbo.hm_messages
 (
     messageid bigint NOT NULL PRIMARY KEY,
     messageaccountid int NOT NULL,
-    messagesize bigint NOT NULL
+    messagefolderid int NOT NULL,
+    messagefilename nvarchar(255) NOT NULL,
+    messagetype tinyint NOT NULL,
+    messagefrom nvarchar(255) NOT NULL,
+    messagesize bigint NOT NULL,
+    messagecurnooftries int NOT NULL,
+    messagenexttrytime datetime NOT NULL,
+    messageflags tinyint NOT NULL,
+    messagecreatetime datetime NOT NULL,
+    messagelocked tinyint NOT NULL,
+    messageuid bigint NOT NULL
 );
 
 CREATE TABLE dbo.hm_fetchaccounts
