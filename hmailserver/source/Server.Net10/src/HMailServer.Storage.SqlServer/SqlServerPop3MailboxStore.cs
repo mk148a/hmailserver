@@ -122,10 +122,11 @@ WHERE
             .ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
+            var messageId = reader.GetInt64(0);
             var messageUid = reader.GetInt64(1);
             messages.Add(
                 new Pop3MessageListing(
-                    reader.GetInt64(0),
+                    messageId,
                     messageUid.ToString(CultureInfo.InvariantCulture),
                     reader.GetInt64(2)));
         }

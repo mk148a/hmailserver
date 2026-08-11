@@ -341,6 +341,7 @@ try {
     if ($null -ne $process) {
         $readinessFailures = @(Wait-ForReadiness $process.Id)
         if ($readinessFailures.Count -eq 0) {
+            Start-Sleep -Milliseconds 500
             $before = Get-Process -Id $process.Id
             foreach ($scenario in @("smtp", "imap", "pop3")) {
                 for ($iteration = 1; $iteration -le $Iterations; $iteration++) {

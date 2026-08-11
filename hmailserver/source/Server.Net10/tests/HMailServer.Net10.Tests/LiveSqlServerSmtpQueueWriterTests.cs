@@ -1,4 +1,5 @@
 using HMailServer.Core.Abstractions;
+using HMailServer.Protocols.Pop3;
 using HMailServer.Service;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
@@ -10,6 +11,54 @@ namespace HMailServer.Net10.Tests;
 [DoNotParallelize]
 public sealed class LiveSqlServerSmtpQueueWriterTests
 {
+    [TestMethod]
+    public async Task DisposablePop3AuthenticationAndMailboxLoadAreUsable()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_POP3_DIAGNOSTIC"),
+                "1",
+                StringComparison.Ordinal))
+        {
+            Assert.Inconclusive("Set HMAILSERVER_NET10_LIVE_SQL_POP3_DIAGNOSTIC=1 to run the disposable POP3 diagnostic.");
+        }
+
+        var connectionString = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_CONNECTION");
+        var dataRoot = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(dataRoot))
+        {
+            Assert.Inconclusive("HMAILSERVER_NET10_LIVE_SQL_CONNECTION and HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT are required.");
+        }
+
+        if (!dataRoot.StartsWith(@"C:\hmail-perf-", StringComparison.OrdinalIgnoreCase)
+            || connectionString.IndexOf("Database=hmail_perf_", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            Assert.Fail("The live POP3 diagnostic accepts only hmail_perf_* SQL and C:\\hmail-perf-* Data targets.");
+        }
+
+        var composition = Host.Build(
+        [
+            $"--ConnectionStrings:hMailServer={connectionString}",
+            $"--DataDirectory={dataRoot}",
+            $"--InitializationFile={Path.Combine(dataRoot!, "hMailServer.ini")}",
+            "--Smtp:Enabled=false",
+            "--Imap:Enabled=false",
+            "--Pop3:Enabled=false",
+            "--ExternalFetch:Enabled=false",
+            "--Com:LocalServerEnabled=false"
+        ]);
+
+        using var host = composition.Host;
+        var authenticator = host.Services.GetRequiredService<IImapAccountAuthenticator>();
+        var authentication = await authenticator.AuthenticateAsync("test@perf.test", "test", CancellationToken.None);
+        Assert.IsTrue(
+            authentication.Succeeded && authentication.Account is not null,
+            $"Disposable POP3 authentication failed: {authentication.FailureMessage}");
+
+        var mailboxStore = host.Services.GetRequiredService<IPop3MailboxStore>();
+        var messages = await mailboxStore.ListMessagesAsync(authentication.Account!, CancellationToken.None);
+        Assert.AreEqual(1000, messages.Count);
+    }
+
     [TestMethod]
     public async Task DisposableHostReceiverCanPersistLocalSmtpMessage()
     {
