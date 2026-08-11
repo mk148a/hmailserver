@@ -560,6 +560,38 @@ public sealed class BackupRestoreRoundTripIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_PreservesJournalWhenFullRestoreCommitOutcomeIsAmbiguous()
+    {
+        await WithFullRestoreTargetAsync(
+            "full_restore_ambiguous_commit",
+            FullRestoreArchiveXml,
+            async fixture =>
+            {
+                var executor = fixture.CreateExecutor(
+                    new FailingMetadataTransactionFactory(
+                        fixture.TransactionFactory,
+                        throwAfterCommit: true));
+
+                var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                    () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask())
+                    .ConfigureAwait(false);
+                StringAssert.Contains(exception.Message, "ambiguous");
+
+                var pending = BackupRestoreRecoveryJournal.InspectPendingRecovery(
+                    fixture.GetDataDirectory());
+                Assert.IsTrue(pending.IsPending);
+                Assert.IsTrue(pending.RequiresManualRecovery);
+                Assert.AreEqual(
+                    BackupRestoreRecoveryPhase.MetadataCommitStarted,
+                    pending.Manifest!.Phase);
+                Assert.IsTrue(File.Exists(Path.Combine(fixture.GetDataDirectory(), "restored.txt")));
+                Assert.IsTrue(File.Exists(BackupRestoreRecoveryJournal.GetJournalPath(fixture.GetDataDirectory())));
+                Assert.IsTrue(Directory.Exists(pending.Manifest.RollbackPath));
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task RestoreExecutor_RollsBackSqlAndDataOnMetadataFailure()
     {
         var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
@@ -1493,13 +1525,20 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         bool failAlias = false,
         bool failSecondRecipient = false,
         bool failRuleAction = false,
-        bool failSecondMessage = false) : IBackupRestoreMetadataTransactionFactory
+        bool failSecondMessage = false,
+        bool throwAfterCommit = false) : IBackupRestoreMetadataTransactionFactory
     {
         public async ValueTask<IBackupRestoreMetadataTransaction> BeginAsync(
             CancellationToken cancellationToken)
         {
             var transaction = await inner.BeginAsync(cancellationToken).ConfigureAwait(false);
-            return new FailingMetadataTransaction(transaction, failAlias, failSecondRecipient, failRuleAction, failSecondMessage);
+            return new FailingMetadataTransaction(
+                transaction,
+                failAlias,
+                failSecondRecipient,
+                failRuleAction,
+                failSecondMessage,
+                throwAfterCommit);
         }
     }
 
@@ -1508,7 +1547,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         bool failAlias,
         bool failSecondRecipient,
         bool failRuleAction,
-        bool failSecondMessage) : IBackupRestoreMetadataTransaction
+        bool failSecondMessage,
+        bool throwAfterCommit) : IBackupRestoreMetadataTransaction
     {
         public IDomainAdministrationStore DomainStore => inner.DomainStore;
         public IAccountAdministrationStore AccountStore => inner.AccountStore;
@@ -1534,7 +1574,14 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             inner.DeleteAllDomainsForRestoreAsync(cancellationToken);
         public ValueTask DeleteAllPublicFoldersForRestoreAsync(CancellationToken cancellationToken) =>
             inner.DeleteAllPublicFoldersForRestoreAsync(cancellationToken);
-        public ValueTask CommitAsync(CancellationToken cancellationToken) => inner.CommitAsync(cancellationToken);
+        public async ValueTask CommitAsync(CancellationToken cancellationToken)
+        {
+            await inner.CommitAsync(cancellationToken).ConfigureAwait(false);
+            if (throwAfterCommit)
+            {
+                throw new InvalidOperationException("The SQL commit outcome is ambiguous.");
+            }
+        }
         public ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 
