@@ -1,4 +1,5 @@
 using HMailServer.Core.Abstractions;
+using HMailServer.Indexing;
 using HMailServer.Protocols.Pop3;
 using HMailServer.Service;
 using HMailServer.Storage.SqlServer;
@@ -11,6 +12,120 @@ namespace HMailServer.Net10.Tests;
 [DoNotParallelize]
 public sealed class LiveSqlServerSmtpQueueWriterTests
 {
+    [TestMethod]
+    public async Task DisposableFullTextBackfillAndSearchAreUsable()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_FTS_DIAGNOSTIC"),
+                "1",
+                StringComparison.Ordinal))
+        {
+            Assert.Inconclusive("Set HMAILSERVER_NET10_LIVE_SQL_FTS_DIAGNOSTIC=1 to run the disposable SQL Full-Text diagnostic.");
+        }
+
+        var connectionString = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_CONNECTION");
+        var dataRoot = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(dataRoot))
+        {
+            Assert.Inconclusive("HMAILSERVER_NET10_LIVE_SQL_CONNECTION and HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT are required.");
+        }
+
+        if (!dataRoot.StartsWith(@"C:\hmail-perf-", StringComparison.OrdinalIgnoreCase)
+            || connectionString.IndexOf("Database=hmail_perf_", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            Assert.Fail("The live Full-Text diagnostic accepts only hmail_perf_* SQL and C:\\hmail-perf-* Data targets.");
+        }
+
+        var composition = Host.Build(
+        [
+            $"--ConnectionStrings:hMailServer={connectionString}",
+            $"--DataDirectory={dataRoot}",
+            $"--InitializationFile={Path.Combine(dataRoot!, "hMailServer.ini")}",
+            "--Smtp:Enabled=false",
+            "--Imap:Enabled=false",
+            "--Pop3:Enabled=false",
+            "--ExternalFetch:Enabled=false",
+            "--Com:LocalServerEnabled=false"
+        ]);
+
+        using var host = composition.Host;
+        var administrationStore = host.Services.GetRequiredService<IMessageIndexingAdministrationStore>();
+        var processor = host.Services.GetRequiredService<MessageSearchBackfillProcessor>();
+        var searchIndex = host.Services.GetRequiredService<IMessageSearchIndex>();
+
+        await administrationStore.SetEnabledAsync(false, CancellationToken.None);
+        await administrationStore.ClearAsync(CancellationToken.None);
+        await administrationStore.SetEnabledAsync(true, CancellationToken.None);
+
+        try
+        {
+            var options = new MessageSearchBackfillOptions(
+                LeaseOwner: "live-fts-diagnostic",
+                BatchSize: 128,
+                LeaseDuration: TimeSpan.FromMinutes(5),
+                RetryDelay: TimeSpan.FromSeconds(1),
+                MaxAttempts: 3);
+            var processed = 0;
+            for (var batch = 0; batch < 16; batch++)
+            {
+                var count = await processor.RunBatchAsync(options, CancellationToken.None);
+                processed += count;
+                if (count == 0)
+                {
+                    break;
+                }
+            }
+
+            Assert.AreEqual(1000, processed, "The disposable message corpus must be fully backfilled before live SEARCH acceptance.");
+
+            var request = new ImapSearchRequest(
+                AccountId: 1,
+                FolderId: 1,
+                MinUid: null,
+                MaxUid: null,
+                RequiredFlags: null,
+                ForbiddenFlags: null,
+                Since: null,
+                Before: null,
+                LargerThanBytes: null,
+                SmallerThanBytes: null,
+                HeaderText: null,
+                BodyText: null,
+                AnyText: "needle",
+                ReturnUid: true);
+            var matches = new List<MessageIdentity>();
+            for (var attempt = 0; attempt < 60; attempt++)
+            {
+                matches.Clear();
+                await foreach (var identity in searchIndex.SearchAsync(request, CancellationToken.None))
+                {
+                    matches.Add(identity);
+                }
+
+                if (matches.Count == 1000)
+                {
+                    break;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+            }
+
+            Assert.AreEqual(1000, matches.Count, "The indexed disposable corpus must return all needle-bearing messages.");
+            Assert.AreEqual(1000, matches.Select(identity => identity.MessageId).Distinct().Count());
+        }
+        finally
+        {
+            if (!string.Equals(
+                    Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_FTS_KEEP"),
+                    "1",
+                    StringComparison.Ordinal))
+            {
+                await administrationStore.SetEnabledAsync(false, CancellationToken.None);
+                await administrationStore.ClearAsync(CancellationToken.None);
+            }
+        }
+    }
+
     [TestMethod]
     public async Task DisposablePop3AuthenticationAndMailboxLoadAreUsable()
     {
