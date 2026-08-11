@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, MAX POP3 CONNECTIONS AUTHORIZATION LEASE)
+
+Code/test commit `0e4a70129` extends the existing authorization generation
+lease to authenticated `Settings.MaxPOP3Connections` (`DispId(6)`). The lease
+is acquired immediately before the existing parameterized
+`maxpop3connections` SQL update and held through mutation result handling and
+retained snapshot publication. No validation, SQL shape, POP3 listener
+behavior, or installed COM identity changed.
+
+Legacy anchors: `InterfaceSettings::get/put_MaxPOP3Connections`
+(`source/Server/COM/InterfaceSettings.cpp:172-202`),
+`POP3Configuration::Set/GetMaxPOP3Connections`
+(`source/Server/POP3/POP3Configuration.cpp:31-40`), IDL `DispId(6)`
+(`source/Server/hMailServer/hMailServer.idl:531-532`), and the
+`maxpop3connections` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:726`).
+Focused settings/store coverage is `88/88`; full Net10 is `2071 passed, 39
+skipped, 0 failed`. Tests cover direct activation, failed-write retention,
+lease acquire/dispose, and unavailable-lease denial.
+
+Remaining unleased Settings mutations and the SQL/Data restore, non-DB
+restore, SQL/FTS, matched C++/.NET performance, SEC-18, installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak gates remain
+RED. Next slice: fresh legacy-first audit of `MirrorEMailAddress`. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, MAX SMTP CONNECTIONS AUTHORIZATION LEASE)
 
 Code/test commit `9178d1b1b` extends the existing authorization generation
