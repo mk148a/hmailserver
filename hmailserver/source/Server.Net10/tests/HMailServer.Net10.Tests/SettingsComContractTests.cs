@@ -1940,6 +1940,98 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_WorkerThreadPrioritySetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            WorkerThreadPriorityUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                WorkerThreadPriority: 1),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.WorkerThreadPriority = 4;
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.WorkerThreadPriorityUpdateCount);
+        Assert.AreEqual(4, settings.WorkerThreadPriority);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_WorkerThreadPrioritySetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            WorkerThreadPriorityUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                WorkerThreadPriority: 1),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.WorkerThreadPriority = 4);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.WorkerThreadPriorityUpdateCount);
+        Assert.AreEqual(1, settings.WorkerThreadPriority);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_WorkerThreadPriorityMutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                WorkerThreadPriority: 1),
+            WorkerThreadPriorityUpdateResult = true,
+            GateWorkerThreadPriorityMutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.WorkerThreadPriority = 4);
+        await store.WorkerThreadPriorityMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.WorkerThreadPriorityMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual(4, store.UpdatedWorkerThreadPriority);
+        Assert.AreEqual(4, settings.WorkerThreadPriority);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_TcpIpThreadsSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -3368,6 +3460,14 @@ public sealed class SettingsComContractTests
 
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
+        public bool GateWorkerThreadPriorityMutation { get; set; }
+
+        public TaskCompletionSource<bool> WorkerThreadPriorityMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> WorkerThreadPriorityMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int WorkerThreadPriorityUpdateCount { get; private set; }
 
         public int UpdatedWorkerThreadPriority { get; private set; }
@@ -3652,7 +3752,19 @@ public sealed class SettingsComContractTests
             WorkerThreadPriorityUpdateCount++;
             UpdatedWorkerThreadPriority = workerThreadPriority;
             CancellationToken = cancellationToken;
+            if (GateWorkerThreadPriorityMutation)
+            {
+                WorkerThreadPriorityMutationEntered.TrySetResult(true);
+                return WaitForWorkerThreadPriorityMutationAsync();
+            }
+
             return ValueTask.FromResult(WorkerThreadPriorityUpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForWorkerThreadPriorityMutationAsync()
+        {
+            await WorkerThreadPriorityMutationRelease.Task;
+            return WorkerThreadPriorityUpdateResult;
         }
 
         public ValueTask<bool> UpdateTcpIpThreadsAsync(
