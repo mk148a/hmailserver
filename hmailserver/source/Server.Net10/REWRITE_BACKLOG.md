@@ -4,6 +4,36 @@
 
 
 
+
+## Current Audit Note (2026-08-11, SMTP RELAYER AUTHENTICATION AUTHORIZATION LEASE)
+
+Code/test commit `29be1faa0` extends the existing generation-bound
+authorization lease to authenticated
+`IInterfaceSettings.SMTPRelayerRequiresAuthentication` (`DispId(34)`). The
+lease is acquired immediately before the existing parameterized
+`usesmtprelayerauthentication` SQL update and held through result handling and
+retained snapshot publication. SMTP delivery authentication and live
+reconfiguration remain out of scope.
+
+Legacy behavior is anchored by
+`InterfaceSettings::get/put_SMTPRelayerRequiresAuthentication`
+(`source/Server/COM/InterfaceSettings.cpp:896-923`),
+`SMTPConfiguration::Get/SetSMTPRelayerRequiresAuthentication`
+(`source/Server/SMTP/SMTPConfiguration.cpp:249-258`), IDL `DispId(34)`
+(`source/Server/hMailServer/hMailServer.idl:565-566`), and the
+`usesmtprelayerauthentication` seed (`source/DBScripts/CreateTablesMSSQL.sql:786`).
+The .NET `UpdateSmtpRelayerRequiresAuthenticationSql` shape was not changed.
+Focused coverage is `102/102`.
+
+The unfiltered full run has 2 unrelated host/AV cleanup failures in the
+scanner test classes (`UnauthorizedAccessException` deleting temporary `.eml`
+files); excluding those classes, full Net10 is `2078 passed, 39 skipped, 0
+failed`. Remaining unleased Settings/COM/Admin mutations and the disposable
+SQL/Data restore, non-DB restore, SQL/FTS, paired performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and soak
+gates remain RED. Next slice: fresh legacy-first audit of
+`SMTPRelayerUsername`.
+
 ## Current Audit Note (2026-08-11, SMTP RELAYER AUTHORIZATION LEASE)
 
 Code/test commit `c83791c3b` extends the existing generation-bound
