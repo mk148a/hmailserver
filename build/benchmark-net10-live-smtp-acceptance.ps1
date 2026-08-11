@@ -56,6 +56,84 @@ function Get-ListenerState {
     )
 }
 
+function Get-InstalledHmailServerLocations {
+    $locations = [System.Collections.Generic.List[object]]::new()
+    foreach ($view in [Microsoft.Win32.RegistryView]::Registry64, [Microsoft.Win32.RegistryView]::Registry32) {
+        $baseKey = $null
+        $key = $null
+        try {
+            $baseKey = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
+                [Microsoft.Win32.RegistryHive]::LocalMachine,
+                $view)
+            $key = $baseKey.OpenSubKey("SOFTWARE\hMailServer")
+            if ($null -ne $key) {
+                $installLocation = [string]$key.GetValue("InstallLocation", "")
+                if (-not [string]::IsNullOrWhiteSpace($installLocation)) {
+                    $locations.Add([pscustomobject]@{
+                        view = $view.ToString()
+                        installLocation = $installLocation
+                    })
+                }
+            }
+        }
+        finally {
+            if ($null -ne $key) { $key.Dispose() }
+            if ($null -ne $baseKey) { $baseKey.Dispose() }
+        }
+    }
+    return $locations.ToArray()
+}
+
+function Get-CppIsolationPreflight {
+    param(
+        [string]$TargetExecutable,
+        [string]$ExpectedStagingRoot,
+        [string]$ExpectedDatabase
+    )
+
+    $failures = [System.Collections.Generic.List[string]]::new()
+    $targetBin = [IO.Path]::GetFullPath((Split-Path -Parent $TargetExecutable))
+    $registryLocations = @(Get-InstalledHmailServerLocations)
+    $normalizedTargetBin = $targetBin.TrimEnd('\')
+    foreach ($location in $registryLocations) {
+        $configuredBin = [IO.Path]::GetFullPath((Join-Path $location.installLocation "Bin")).TrimEnd('\')
+        if (-not [string]::Equals($configuredBin, $normalizedTargetBin, [StringComparison]::OrdinalIgnoreCase)) {
+            $failures.Add("Legacy C++ launch refused: $($location.view) HKLM hMailServer InstallLocation resolves to '$configuredBin', not the disposable target '$normalizedTargetBin'.")
+        }
+    }
+
+    $service = Get-CimInstance Win32_Service -Filter "Name='hMailServer'" -ErrorAction SilentlyContinue
+    $serviceState = if ($null -eq $service) { "missing" } else { [string]$service.State }
+    if ($null -ne $service -and $service.State -ne "Stopped") {
+        $failures.Add("Legacy C++ launch refused: hMailServer service state is '$($service.State)'; a separate staging VM is required.")
+    }
+
+    $iniPath = Join-Path $ExpectedStagingRoot "Bin\hMailServer.ini"
+    $iniText = if (Test-Path -LiteralPath $iniPath -PathType Leaf) { Get-Content -LiteralPath $iniPath -Raw } else { "" }
+    if ([string]::IsNullOrWhiteSpace($iniText)) {
+        $failures.Add("Legacy C++ launch refused: disposable hMailServer.ini is missing at '$iniPath'.")
+    }
+    else {
+        if ($iniText -notmatch "(?m)^Database=$([regex]::Escape($ExpectedDatabase))\s*$") {
+            $failures.Add("Legacy C++ launch refused: disposable INI does not name expected database '$ExpectedDatabase'.")
+        }
+        $expectedData = [regex]::Escape((Join-Path $ExpectedStagingRoot "Data"))
+        if ($iniText -notmatch "(?mi)^DataFolder=$expectedData\\?\s*$") {
+            $failures.Add("Legacy C++ launch refused: disposable INI does not point DataFolder at '$ExpectedStagingRoot\Data'.")
+        }
+    }
+
+    [pscustomobject]@{
+        targetExecutable = [IO.Path]::GetFullPath($TargetExecutable)
+        targetBin = $targetBin
+        registryInstallLocations = $registryLocations
+        serviceState = $serviceState
+        iniPath = $iniPath
+        failures = $failures.ToArray()
+        passed = $failures.Count -eq 0
+    }
+}
+
 function Wait-ForReadiness {
     param([int]$ProcessId)
 
@@ -201,36 +279,50 @@ if ($Implementation -eq "net10") {
     $env:HMAILSERVER_COM_LOCAL_SERVER_ENABLED = "false"
 }
 
-$process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
+$process = $null
 $startUtc = [DateTimeOffset]::UtcNow
 $readinessFailures = @()
 $shutdownFailures = @()
 $samples = [System.Collections.Generic.List[object]]::new()
 $before = $null
 $after = $null
+$preflight = $null
+
+if ($Implementation -eq "cpp") {
+    $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database
+    $readinessFailures = @($preflight.failures)
+}
+
+if ($null -eq $preflight -or $preflight.passed) {
+    $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
+}
 try {
-    $readinessFailures = @(Wait-ForReadiness $process.Id)
-    if ($readinessFailures.Count -eq 0) {
-        $before = Get-Process -Id $process.Id
-        for ($sequence = 1; $sequence -le $MessageCount; $sequence++) {
-            $result = Invoke-SmtpAcceptance $sequence
-            $samples.Add([pscustomobject]@{
-                scenario = "smtp-message-acceptance"
-                sequence = $sequence
-                ok = $result.ok
-                ms = $result.ms
-                error = $result.error
-                responses = $result.responses
-            })
+    if ($null -ne $process) {
+        $readinessFailures = @(Wait-ForReadiness $process.Id)
+        if ($readinessFailures.Count -eq 0) {
+            $before = Get-Process -Id $process.Id
+            for ($sequence = 1; $sequence -le $MessageCount; $sequence++) {
+                $result = Invoke-SmtpAcceptance $sequence
+                $samples.Add([pscustomobject]@{
+                    scenario = "smtp-message-acceptance"
+                    sequence = $sequence
+                    ok = $result.ok
+                    ms = $result.ms
+                    error = $result.error
+                    responses = $result.responses
+                })
+            }
+            $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
         }
-        $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
     }
 }
 finally {
-    if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
+    if ($null -ne $process -and (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
         try { Stop-Process -Id $process.Id -Force } catch { $shutdownFailures += $_.Exception.Message }
     }
-    $shutdownFailures += @(Wait-ForShutdown $process.Id)
+    if ($null -ne $process) {
+        $shutdownFailures += @(Wait-ForShutdown $process.Id)
+    }
 }
 $endUtc = [DateTimeOffset]::UtcNow
 
@@ -257,8 +349,13 @@ $report = [pscustomobject]@{
     shutdownFailures = @($shutdownFailures)
     processBefore = if ($null -ne $before) { @{ privateBytes = $before.PrivateMemorySize64; handles = $before.Handles; threads = $before.Threads.Count } } else { $null }
     processAfter = if ($null -ne $after) { @{ privateBytes = $after.PrivateMemorySize64; handles = $after.Handles; threads = $after.Threads.Count } } else { $null }
+    isolationPreflight = $preflight
     samples = $samples
-    productionSafety = "loopback-only; disposable SQL/Data roots required; production service/DB/Data are not used"
+    productionSafety = if ($Implementation -eq "cpp") {
+        "loopback-only; legacy registry/config resolution was preflighted; disposable SQL/Data roots required"
+    } else {
+        "loopback-only; disposable SQL/Data roots required; production service/DB/Data are not used"
+    }
 }
 
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null

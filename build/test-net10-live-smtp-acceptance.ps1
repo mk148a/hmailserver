@@ -17,6 +17,14 @@ if ($report.schema -ne "live-smtp-message-acceptance-v1") {
 if ($report.implementation -notin @("net10", "cpp")) {
     throw "Unexpected implementation: $($report.implementation)"
 }
+if ($report.implementation -eq "cpp") {
+    if ($null -eq $report.isolationPreflight) {
+        throw "C++ acceptance reports must include the legacy registry/config isolation preflight."
+    }
+    if ($report.status -eq "PASS" -and $report.isolationPreflight.passed -ne $true) {
+        throw "A passing C++ acceptance report must have a passing isolation preflight."
+    }
+}
 if ([int]$report.requestedMessages -lt 1) {
     throw "The report requested no messages."
 }
