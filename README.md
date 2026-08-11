@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current authoritative fixed-route hostname status (2026-08-12)
+
+Code/test commit `622d6296c` implements legacy fixed SMTP route hostname
+planning in `RemoteSmtpEndpointResolver`. Legacy
+`ExternalDelivery::ResolveRecipientServers_` (`hmailserver/source/Server/SMTP/
+ExternalDelivery.cpp:195-330`) splits route hosts on `|`, resolves A/AAAA
+addresses in order, deduplicates addresses, caps the flattened candidates with
+`MaxNumberOfMXHosts`, and retains the configured hostname for TLS/SNI while
+connecting to the numeric address. Net10 now mirrors that resolver behavior,
+including successful candidates surviving an earlier host-resolution failure.
+
+Focused resolver/self-connect coverage is `73/73`; full Net10 is `2210 passed,
+54 skipped, 0 failed`. SQL propagation of `MaxNumberOfMXHosts` into matched or
+forced route targets, partial global-relayer DNS fallback, hMailServer-owned
+listener discovery, live DNS/socket/TLS evidence, broad SMTP SSRF policy, and
+the paired C++/.NET performance gate remain open. Performance is **RED**.
+
 ## Current authoritative SMTP relay self-connect status (2026-08-12)
 
 Code/test commit `b66f00e95` extends the bounded legacy local-listener guard

@@ -4384,6 +4384,32 @@ registry-isolated or separate-VM C++ listener/benchmark execution. Preserve
 dirty `AGENTS.md`, backup/Smtp WIP, and untracked SEC-18/benchmark/disposable
 artifacts.
 
+## Current Authoritative Continuation (2026-08-12, FIXED-ROUTE HOST PLANNING)
+
+Code/test commit `622d6296c` implements the resolver half of fixed-route SMTP
+parity. `hmail_parity_explorer` verified
+`ExternalDelivery::ResolveRecipientServers_` in
+`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:195-330` and
+`TCPConnection::StartAsyncConnect_` in
+`hmailserver/source/Server/Common/TCPIP/TCPConnection.cpp:130-160`.
+`RemoteSmtpEndpointResolver.ResolveConfiguredRouteAsync` now splits `|` host
+syntax, resolves addresses in order, deduplicates, caps after flattening when
+the target carries a cap, preserves hostname TLS/SNI identity, and marks
+resolved addresses for the existing local guard. Tests are in
+`RemoteSmtpEndpointResolverTests.cs`.
+
+Focused coverage is `73/73`; full Net10 is `2210 passed, 54 skipped, 0 failed`.
+No COM/IDL/SQL schema/SMTP trust/live reconfiguration changed. SQL target
+construction still does not propagate `MaxNumberOfMXHosts` for matched/forced
+routes; global-relayer partial DNS fallback, hMailServer listener ownership,
+DNS source/question validation, live DNS/socket/TLS, broad SMTP SSRF, and
+paired C++/.NET performance remain open. Release is RED.
+
+Next three slices: (1) SQL route MX-cap propagation, (2) global-relayer
+partial-DNS fallback, and (3) approved disposable DNS/socket/TLS acceptance or
+registry-isolated C++ listener/benchmark execution. Preserve dirty `AGENTS.md`,
+backup/Smtp WIP, and untracked SEC-18/benchmark/disposable artifacts.
+
 ## Current Authoritative Continuation (2026-08-12, EXPLICIT RELAY SELF-CONNECT)
 
 Code/test commit `b66f00e95` implements the next bounded parity slice after

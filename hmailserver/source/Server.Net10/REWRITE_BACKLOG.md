@@ -4316,3 +4316,25 @@ Release remains **RED**.
 Next independent slices, in order: hostname-route resolution/failover with
 legacy listener ownership; approved disposable real DNS/socket/TLS acceptance;
 then the registry-isolated or separate-VM C++ listener/benchmark execution.
+
+## Current authoritative next slice (2026-08-12, fixed-route hostname planning)
+
+Code/test commit `622d6296c` closes the resolver portion of legacy fixed-route
+SMTP planning. `ExternalDelivery::ResolveRecipientServers_` splits `|`
+targets, resolves each hostname in order, retains all address candidates,
+deduplicates them, applies `MaxNumberOfMXHosts` after flattening, and preserves
+the hostname as the TLS/SNI identity. Net10 now does the same in
+`RemoteSmtpEndpointResolver.ResolveConfiguredRouteAsync`; local-listener guard
+metadata is attached to every resolved candidate and successful later hosts
+survive an earlier resolution failure.
+
+Focused tests are `73/73`; full Net10 is `2210 passed, 54 skipped, 0 failed`.
+The target-level SQL propagation of `MaxNumberOfMXHosts` for matched/forced
+routes is not in this commit. Global-relayer partial DNS fallback,
+hMailServer-owned listener discovery, DNS response validation, live
+DNS/socket/TLS acceptance, broad SMTP egress/SSRF policy, and paired C++/.NET
+performance remain open. Release remains **RED**.
+
+Next independent slices, in order: propagate route MX caps through the SQL
+target resolver; repair global-relayer partial DNS fallback; then approved
+disposable DNS/socket/TLS acceptance or registry-isolated C++ execution.

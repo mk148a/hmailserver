@@ -2240,3 +2240,21 @@ Hostname-route resolution/failover, hMailServer-owned listener discovery,
 real DNS/socket/TLS acceptance, DNS response validation, the shared SMTP
 egress/SSRF decision, and paired C++/.NET performance remain open. Release is
 still **RED**.
+
+## Current authoritative continuation (2026-08-12, fixed-route host planning)
+
+Code/test commit `622d6296c` expands configured non-global route targets using
+legacy pipe-separated host order. Each hostname is resolved through the
+existing address resolver, literal IPs bypass DNS, duplicate addresses are
+removed, the cap is applied after flattening when present on the target, and
+the original hostname remains the TLS/SNI name while `ConnectionAddress` is the
+socket destination. Partial host-resolution failure does not discard later
+usable candidates.
+
+Legacy anchors are `ExternalDelivery::ResolveRecipientServers_` and
+`TCPConnection::StartAsyncConnect_` (`hmailserver/source/Server/SMTP/
+ExternalDelivery.cpp:195-330`, `Server/Common/TCPIP/TCPConnection.cpp:130-160`).
+Focused coverage is `73/73`; full Net10 is `2210 passed, 54 skipped, 0 failed`.
+Route `MaxNumberOfMXHosts` SQL propagation, global-relayer partial failure,
+hMailServer listener ownership, live DNS/socket/TLS, shared SMTP SSRF policy,
+and paired C++/.NET performance remain open. Release remains **RED**.
