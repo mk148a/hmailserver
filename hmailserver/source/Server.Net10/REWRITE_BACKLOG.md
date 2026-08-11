@@ -4068,3 +4068,29 @@ Search and repair/replace the isolated legacy C++ SMTP/IMAP/POP3 target, then
 rerun message acceptance before adding delivery-queue throughput. Preserve
 production service/DB/Data, installed COM identity/DCOM, and loopback-only
 benchmark boundaries.
+## Current Audit Note (2026-08-11, GLOBAL SMTP RELAYER RUNTIME)
+
+Code/test commit `a0fc76a99` closes the ordinary global SMTP relayer runtime
+gap. Legacy `ServerTargetResolver::Resolve` and
+`GetFixedSMTPHostForDomain_` (`source/Server/SMTP/ServerTargetResolver.cpp:38-116,
+170-237`) apply forced-route, domain-route, global-relayer, then MX precedence;
+legacy `SMTPConfiguration` reads the relayer settings and
+`ExternalDelivery::DeliverToSingleServer_` passes credentials to the SMTP
+client (`source/Server/SMTP/SMTPConfiguration.cpp:139-171,249-281`,
+`source/Server/SMTP/ExternalDelivery.cpp:374-403`). Net10 now reads the same
+`hm_settings` rows in `SqlServerDeliveryTargetResolver`, decrypts the existing
+legacy password for authenticated runtime delivery, defaults port `0` to `25`,
+and rejects invalid security values or undecryptable credentials. Route and
+forced-route paths are unchanged.
+
+Focused relayer/resolver tests are `19/19`; full Net10 is `2155 passed, 54
+skipped, 0 failed`. The implementation intentionally fails closed for
+`|`-separated global relayer hosts because the current single-endpoint
+delivery contract cannot safely express legacy sequential host failover. Real
+SQL readback, loopback SMTP/TLS/authentication, queue retry, and mixed-recipient
+acceptance remain environment-blocked. `Settings.SetSMTPRelayerPassword` is
+still `E_NOTIMPL` and is the next bounded COM/Admin slice.
+
+The registry-isolated C++/.NET10 performance matrix, migration/installer,
+restore/rollback, out-of-process COM, SEC-18, AD/DC, 24-hour soak, and real
+disposable delivery evidence remain **RED** or environment-blocked.

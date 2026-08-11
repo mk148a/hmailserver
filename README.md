@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current authoritative SMTP relayer status (2026-08-11)
+
+Code/test commit `a0fc76a99` connects the persisted global SMTP relayer to
+ordinary outbound delivery. Legacy `ServerTargetResolver::Resolve` and
+`GetFixedSMTPHostForDomain_` (`source/Server/SMTP/ServerTargetResolver.cpp:38-116,
+170-237`) select forced route, domain route, global relayer, then MX. The Net10
+`SqlServerDeliveryTargetResolver` now follows that precedence, reads the
+existing `hm_settings` rows, decrypts the legacy relayer password only for an
+authenticated runtime target, defaults port `0` to `25`, and rejects invalid
+security values or undecryptable credentials. Route and forced-route behavior
+remain unchanged. Global relayer hosts containing `|` remain explicitly
+unsupported by the current single-endpoint delivery contract and fail closed.
+
+Focused relayer/resolver coverage is `19/19`; full Net10 is `2155 passed, 54
+skipped, 0 failed`. This is unit/SQL-shape evidence only: no disposable SQL
+readback or loopback SMTP/TLS/authentication acceptance was available. The
+paired C++/.NET10 performance gate and overall release gate remain **RED**.
+The next smallest production slice is authenticated `Settings.SetSMTPRelayerPassword`
+persistence parity, followed by global-relayer multi-host failover and the
+real disposable SQL/socket delivery matrix.
+
 ## Current authoritative ordinary-MX delivery status (2026-08-11)
 
 Code/test commit `921f31064` now carries persisted global

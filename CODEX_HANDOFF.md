@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, GLOBAL SMTP RELAYER RUNTIME)
+
+Code/test commit `a0fc76a99` connects the persisted global SMTP relayer to
+ordinary Net10 outbound delivery. Legacy `ServerTargetResolver::Resolve` and
+`GetFixedSMTPHostForDomain_` (`source/Server/SMTP/ServerTargetResolver.cpp:38-116,
+170-237`) use forced route, domain route, global relayer, then MX precedence.
+Net10 `SqlServerDeliveryTargetResolver` now reads the existing relayer settings,
+decrypts the legacy password only for an authenticated non-empty username,
+defaults port `0` to `25`, and fails closed for invalid security or credential
+decryption. Installed COM identity, route precedence, and SMTP listener behavior
+remain unchanged.
+
+Focused coverage is `19/19`; full Net10 is `2155 passed, 54 skipped, 0 failed`.
+The current endpoint contract cannot safely model legacy `|`-separated relayer
+host failover, so those values fail closed and remain a documented gap. Real
+SQL/socket/TLS/authentication evidence is unavailable because no approved
+disposable SQL target and loopback relay fixture are configured. The paired
+C++/.NET10 performance gate remains **RED**. Next slice: authenticated
+`Settings.SetSMTPRelayerPassword` persistence parity; then multi-host failover
+and the disposable SQL/socket acceptance matrix.
+
 ## Current Authoritative Continuation (2026-08-11, ORDINARY-MX SMTP SECURITY)
 
 Code/test commit `921f31064` carries the persisted global
