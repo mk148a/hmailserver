@@ -112,6 +112,7 @@ public sealed class SevenZipBackupArchiveRuntime
             ? Path.Combine(destination, "DataBackup")
             : null;
         var dataBackupCreated = false;
+        var backupCompleted = false;
 
         try
         {
@@ -139,6 +140,8 @@ public sealed class SevenZipBackupArchiveRuntime
                     dataBackupPath,
                     cancellationToken).ConfigureAwait(false);
             }
+
+            backupCompleted = true;
         }
         finally
         {
@@ -147,7 +150,7 @@ public sealed class SevenZipBackupArchiveRuntime
                 File.Delete(metadataPath);
             }
 
-            if (stagesCompressedMessageData
+            if ((stagesCompressedMessageData || !backupCompleted)
                 && dataBackupCreated
                 && Directory.Exists(dataBackupPath))
             {
@@ -200,9 +203,11 @@ public sealed class SevenZipBackupArchiveRuntime
         string sourceDirectory,
         string destinationDirectory)
     {
+        EnsureNotReparsePoint(sourceDirectory);
         Directory.CreateDirectory(destinationDirectory);
         foreach (var entry in Directory.EnumerateFileSystemEntries(sourceDirectory))
         {
+            EnsureNotReparsePoint(entry);
             var destinationPath = Path.Combine(
                 destinationDirectory,
                 Path.GetFileName(entry));
@@ -214,6 +219,15 @@ public sealed class SevenZipBackupArchiveRuntime
             {
                 File.Copy(entry, destinationPath);
             }
+        }
+    }
+
+    private static void EnsureNotReparsePoint(string path)
+    {
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new IOException(
+                "The backup data directory contains a reparse point: " + path);
         }
     }
 

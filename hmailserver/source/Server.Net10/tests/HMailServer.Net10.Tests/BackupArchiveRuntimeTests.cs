@@ -405,6 +405,129 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public async Task RejectsReparsePointDuringRawDataStagingAndCleansPartialDataBackup()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
+        var sourceDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-data-{Guid.NewGuid():N}");
+        var outsideDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-outside-{Guid.NewGuid():N}");
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(sourceDirectory);
+        Directory.CreateDirectory(outsideDirectory);
+        Directory.CreateDirectory(destination);
+
+        try
+        {
+            try
+            {
+                Directory.CreateSymbolicLink(
+                    Path.Combine(sourceDirectory, "linked"),
+                    outsideDirectory);
+            }
+            catch (Exception linkException) when (
+                linkException is UnauthorizedAccessException
+                or PlatformNotSupportedException
+                or IOException)
+            {
+                Assert.Inconclusive(
+                    "The Windows test host cannot create the required symbolic link: "
+                    + linkException.Message);
+            }
+
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                payloadProvider: static (_, _) => ValueTask.FromResult(
+                    new BackupArchiveXmlPayload(
+                        Settings: null,
+                        Domains: Array.Empty<DomainAdministrationSnapshot>())),
+                dataDirectory: sourceDirectory);
+
+            var exception = await Assert.ThrowsExactlyAsync<IOException>(
+                () => runtime.CreateAsync(
+                    new BackupStartPlanEvidence(
+                        Destination: destination,
+                        BackupOptions: BackupStartPlan.BackupDomainsFlag
+                            | BackupStartPlan.BackupMessagesFlag,
+                        BackupMessagesDbOnly: false,
+                        AllMessageFilesInDataDirectory: true,
+                        DestinationExists: true),
+                    CancellationToken.None).AsTask());
+
+            StringAssert.Contains(exception.Message, "reparse point");
+            Assert.IsFalse(Directory.Exists(Path.Combine(destination, "DataBackup")));
+            Assert.IsFalse(File.Exists(Path.Combine(destination, "hMailServerBackup.xml")));
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+            Directory.Delete(sourceDirectory, recursive: true);
+            Directory.Delete(outsideDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task CleansRawDataBackupWhenArchiveCreationFails()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sourceDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-data-{Guid.NewGuid():N}");
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(sourceDirectory);
+        Directory.CreateDirectory(destination);
+        File.WriteAllText(Path.Combine(sourceDirectory, "message.eml"), "message");
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                Path.Combine(destination, "missing-7za.exe"),
+                "10.0.0-B0",
+                payloadProvider: static (_, _) => ValueTask.FromResult(
+                    new BackupArchiveXmlPayload(
+                        Settings: null,
+                        Domains: Array.Empty<DomainAdministrationSnapshot>())),
+                dataDirectory: sourceDirectory);
+
+            Exception? failure = null;
+            try
+            {
+                await runtime.CreateAsync(
+                    new BackupStartPlanEvidence(
+                        Destination: destination,
+                        BackupOptions: BackupStartPlan.BackupDomainsFlag
+                            | BackupStartPlan.BackupMessagesFlag,
+                        BackupMessagesDbOnly: false,
+                        AllMessageFilesInDataDirectory: true,
+                        DestinationExists: true),
+                    CancellationToken.None);
+            }
+            catch (Exception caught)
+            {
+                failure = caught;
+            }
+
+            Assert.IsNotNull(failure);
+
+            Assert.IsFalse(Directory.Exists(Path.Combine(destination, "DataBackup")));
+            Assert.IsFalse(File.Exists(Path.Combine(destination, "hMailServerBackup.xml")));
+            Assert.IsFalse(Directory.EnumerateFiles(destination, "*.7z").Any());
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+            Directory.Delete(sourceDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task RejectsCompressedMessageBackupWithoutDataDirectory()
     {
         var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
