@@ -246,7 +246,7 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
             }
         }
 
-        if (lastResolutionFailure is not null)
+        if (lastResolutionFailure is not null && candidates.Count == 0)
         {
             throw new IOException(
                 "Global SMTP relayer host resolution failed.",

@@ -301,6 +301,64 @@ public sealed class RemoteSmtpEndpointResolverTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_GlobalRelayerRetainsGoodHostAfterBadHost()
+    {
+        var addressResolver = new FakeAddressResolver(
+            new Dictionary<string, IReadOnlyList<IPAddress>>
+            {
+                ["good.example"] = [IPAddress.Parse("192.0.2.10")]
+            },
+            new Dictionary<string, Exception>
+            {
+                ["bad.example"] = new IOException("DNS failure")
+            });
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            CreateGlobalRelayerTarget("bad.example|good.example"),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "good.example" },
+            endpoint.GetCandidates().Select(static candidate => candidate.Host).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "bad.example", "good.example" },
+            addressResolver.RequestedHosts.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_GlobalRelayerRetainsGoodHostBeforeBadHost()
+    {
+        var addressResolver = new FakeAddressResolver(
+            new Dictionary<string, IReadOnlyList<IPAddress>>
+            {
+                ["good.example"] = [IPAddress.Parse("192.0.2.10")]
+            },
+            new Dictionary<string, Exception>
+            {
+                ["bad.example"] = new IOException("DNS failure")
+            });
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            CreateGlobalRelayerTarget("good.example|bad.example"),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "good.example" },
+            endpoint.GetCandidates().Select(static candidate => candidate.Host).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "good.example", "bad.example" },
+            addressResolver.RequestedHosts.ToArray());
+    }
+
+    [TestMethod]
     public async Task ResolveAsync_ExpandsGlobalRelayerAddressesInHostAddressOrderAndDeduplicates()
     {
         var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
