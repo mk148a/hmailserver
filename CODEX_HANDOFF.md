@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, OUTBOUND TLS VERIFICATION)
+
+Code/test commit `a2be0c906` applies the existing global
+`VerifyRemoteSslCertificate` setting to remote SMTP implicit SSL and STARTTLS.
+Legacy anchors are `TCPConnection::AsyncHandshake`
+(`source/Server/Common/TCPIP/TCPConnection.cpp:308-350`),
+`InterfaceSettings::put_VerifyRemoteSslCertificate`
+(`source/Server/COM/InterfaceSettings.cpp:2244-2254`), and
+`CertificateVerifier::VerifyCertificate_` / `OverrideResult_`
+(`source/Server/Common/TCPIP/CertificateVerifier.cpp:18-45,125-171`). Net10
+propagates the setting through MX, route, forced-route, and global-relayer
+targets; missing/null rows fail closed to verification enabled; enabled TLS
+uses hostname validation plus online revocation checking; optional STARTTLS
+retains the legacy certificate-error override. Explicit `false` remains the
+only normal way to disable verification.
+
+Focused tests are `35/35`; full Net10 is `2165 passed, 54 skipped, 0 failed`.
+Real invalid-certificate/revocation socket evidence and disposable SQL/TLS
+acceptance are not available. Performance remains RED because the paired C++
+process is still blocked by Registry32 path isolation. Next independent
+slices: disposable SQL/socket/TLS/authentication acceptance; registry-isolated
+or separate-VM C++ benchmark execution; and fixed-relayer DNS/
+`MaxNumberOfMXHosts` parity.
+
 ## Current Authoritative Continuation (2026-08-11, GLOBAL SMTP RELAYER HOST FAILOVER)
 
 Code/test commit `50e6d843f` implements the bounded global SMTP relayer

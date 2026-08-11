@@ -1,6 +1,35 @@
 hMailServer
 ===========
 
+## Current authoritative outbound TLS verification status (2026-08-11)
+
+Code/test commit `a2be0c906` wires the existing global
+`VerifyRemoteSslCertificate` setting into remote SMTP implicit SSL and STARTTLS
+handshakes. Legacy `TCPConnection::AsyncHandshake`
+(`source/Server/Common/TCPIP/TCPConnection.cpp:308-350`) enables peer
+verification only for client connections when
+`Configuration::GetVerifyRemoteSslCertificate()` is true; the setting is
+exposed by `InterfaceSettings::put_VerifyRemoteSslCertificate`
+(`source/Server/COM/InterfaceSettings.cpp:2244-2254`) and seeded as `1` in
+`source/DBScripts/CreateTablesMSSQL.sql:936`. Legacy
+`CertificateVerifier::VerifyCertificate_` and `OverrideResult_`
+(`source/Server/Common/TCPIP/CertificateVerifier.cpp:18-45,125-171`) validate
+the server chain/hostname with revocation checking and preserve the explicit
+optional-STARTTLS certificate-error override.
+
+Net10 now loads the setting for MX, route, forced-route, and global-relayer
+delivery targets, defaults missing SQL rows to verification enabled, uses
+hostname validation with online revocation checking when enabled, and accepts
+certificate errors only for the legacy optional-STARTTLS exception or an
+explicit setting value of `false`. No COM identity, SQL schema, SMTP trust,
+or live reconfiguration boundary changed. Focused coverage is `35/35`; full
+Net10 is `2165 passed, 54 skipped, 0 failed`.
+
+Real invalid-certificate/revocation socket tests and disposable SQL-to-TLS
+acceptance are still missing, so this slice is not release evidence by itself.
+The paired C++/.NET performance gate remains RED and no performance ratio or
+winner is claimed.
+
 ## Current authoritative global SMTP relayer failover status (2026-08-11)
 
 Code/test commit `50e6d843f` implements the bounded legacy global relayer

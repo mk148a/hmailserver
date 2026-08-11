@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T19:34:53Z / 2026-08-11T22:34:53+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; ahead 160, behind 0; push intentionally not performed
-- Current HEAD: `7b6ab7834` (code/test `50e6d843f` plus documentation)
+- UTC/local timestamp: 2026-08-11T19:51:57Z / 2026-08-11T22:51:57+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; ahead 162, behind 0; push intentionally not performed
+- Current HEAD: `090e2cf08` (code/test `a2be0c906` plus documentation)
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: global relayer resolver/client and partial-RCPT failover safety `34 passed, 0 failed`
-- Latest full Net10 result: `2164 passed, 54 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; SQL socket/TLS/authentication, C++ paired benchmark, restore/rollback, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
-- Current bounded slice: global SMTP relayer `|`-separated host failover parity; implementation and documentation are complete
-- Completed milestones: backup foundations, restore foundations, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and global relayer host failover
-- Open production blockers: paired C++/.NET performance RED; real SQL/socket/TLS/authentication acceptance; fixed-relayer DNS/MaxNumberOfMXHosts and per-recipient queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
-- Environment-blocked work: registry-isolated C++ runner or separate staging VM; approved disposable SQL/socket/TLS/authentication fixture; restore/rollback and installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
+- Latest focused-test result: outbound TLS verification propagation, secure defaults, optional-STARTTLS override, and SQL shape `35 passed, 0 failed`
+- Latest full Net10 result: `2165 passed, 54 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; real SQL/socket/TLS/authentication, invalid-certificate/revocation, C++ paired benchmark, restore/rollback, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
+- Current bounded slice: `VerifyRemoteSslCertificate` outbound SMTP runtime parity; implementation and documentation are complete
+- Completed milestones: backup foundations, restore foundations, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover, and outbound TLS verification wiring
+- Open production blockers: paired C++/.NET performance RED; real SQL/socket/TLS/authentication and certificate/revocation acceptance; fixed-relayer DNS/MaxNumberOfMXHosts and per-recipient queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Environment-blocked work: disposable SQL/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore/rollback and installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: `VerifyRemoteSslCertificate` outbound runtime parity; approved disposable SQL/socket/TLS/authentication acceptance; registry-isolated or separate-VM C++ benchmark runner
+- Next three independent slices: approved disposable SQL/socket/TLS/authentication acceptance; registry-isolated or separate-VM C++ benchmark runner; fixed-relayer DNS/`MaxNumberOfMXHosts` parity

@@ -4112,10 +4112,10 @@ failed`. Real SQL ciphertext round-trip and out-of-process COM remain
 environment-blocked. The fixed-key reversible compatibility cipher is a
 separate security/migration risk and is not changed in this slice.
 
-Next independent slices are: approved disposable SQL/COM encryption round-trip;
-legacy `|`-separated global-relayer host failover; and
-`VerifyRemoteSslCertificate` outbound runtime parity. Release status remains
-RED until real integration, paired C++/.NET performance, and soak gates pass.
+This historical entry predates the completed global-relayer and outbound TLS
+runtime slices documented in the authoritative entries below. Release status
+remains RED until real integration, paired C++/.NET performance, and soak gates
+pass.
 
 ## Current performance audit (2026-08-11)
 
@@ -4155,3 +4155,25 @@ Next independent slices, in order: `VerifyRemoteSslCertificate` outbound
 runtime parity; approved disposable SQL/socket/TLS/authentication acceptance;
 and a registry-isolated or separate-VM C++ benchmark runner. Release status
 remains **RED**.
+
+## Current authoritative next slice (2026-08-11, outbound TLS verification)
+
+Code/test commit `a2be0c906` closes the bounded outbound SMTP wiring gap for
+`VerifyRemoteSslCertificate`. Legacy behavior is anchored by
+`TCPConnection::AsyncHandshake` (`source/Server/Common/TCPIP/TCPConnection.cpp:308-350`),
+`InterfaceSettings::put_VerifyRemoteSslCertificate`
+(`source/Server/COM/InterfaceSettings.cpp:2244-2254`), and
+`CertificateVerifier::VerifyCertificate_` / `OverrideResult_`
+(`source/Server/Common/TCPIP/CertificateVerifier.cpp:18-45,125-171`). The
+legacy SQL seed is `1` (`source/DBScripts/CreateTablesMSSQL.sql:936`). Net10
+propagates the setting to MX, route, forced-route, and global-relayer SMTP
+targets; missing/null rows use verification enabled; enabled TLS validates
+hostname and checks revocation online; optional STARTTLS preserves the legacy
+certificate-error override; explicit `false` disables validation.
+
+Focused coverage is `35/35`; full Net10 is `2165 passed, 54 skipped, 0 failed`.
+Real invalid-certificate/revocation socket tests and disposable SQL/TLS
+acceptance remain open. Do not claim this as live certificate evidence.
+Next slices, in order: approved disposable SQL/socket/TLS/authentication
+acceptance; registry-isolated or separate-VM C++ benchmark execution; and
+fixed-relayer DNS/`MaxNumberOfMXHosts` parity. Release status remains **RED**.

@@ -14,10 +14,9 @@ the parameterized `nvarchar(4000)` update, and keeps the password out of
 snapshots/backups. Legacy zero-row update `S_OK` behavior is preserved.
 
 Focused coverage is `146/146`; full Net10 is `2159 passed, 54 skipped, 0
-failed`. Next evidence target is an approved disposable SQL/COM round-trip;
-then legacy `|`-separated relayer failover and `VerifyRemoteSslCertificate`
-runtime parity. The fixed-key compatibility cipher and missing real SQL/COM
-evidence keep the release gate RED.
+failed`. This historical continuation predates the relayer and outbound TLS
+runtime slices documented above. The fixed-key compatibility cipher and
+missing real SQL/COM evidence keep the release gate RED.
 
 ## Current paired performance gate (2026-08-11)
 
@@ -2100,3 +2099,21 @@ resolution, COM identity, SQL schema, SMTP trust, and live reconfiguration are
 outside this slice. DNS address ordering, legacy `MaxNumberOfMXHosts`, exact
 per-recipient queue completion, and real SQL/socket/TLS/authentication evidence
 remain open. Release status remains RED.
+## Current authoritative continuation (2026-08-11, outbound TLS verification)
+
+Code/test commit `a2be0c906` wires `VerifyRemoteSslCertificate` from the
+existing `hm_settings` row into remote SMTP MX, route, forced-route, and
+global-relayer targets. Legacy anchors are
+`TCPConnection::AsyncHandshake` (`source/Server/Common/TCPIP/TCPConnection.cpp:308-350`),
+`InterfaceSettings::put_VerifyRemoteSslCertificate`
+(`source/Server/COM/InterfaceSettings.cpp:2244-2254`), and
+`CertificateVerifier::VerifyCertificate_` / `OverrideResult_`
+(`source/Server/Common/TCPIP/CertificateVerifier.cpp:18-45,125-171`). Net10
+defaults missing/null SQL values to verification enabled, sets online
+certificate revocation checking, preserves hostname validation, and retains
+legacy certificate-error bypass for optional STARTTLS.
+
+Focused coverage is `35/35`; full Net10 is `2165 passed, 54 skipped, 0 failed`.
+The slice changes no COM identity, SQL schema, SMTP trust, or live
+reconfiguration. Real invalid-certificate/revocation sockets and disposable
+SQL/TLS acceptance remain environment-blocked. Release status remains RED.
