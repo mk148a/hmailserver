@@ -3,6 +3,15 @@ hMailServer
 
 ## Current authoritative performance-safety status (2026-08-11)
 
+The latest bounded COM/Admin slice implements authenticated
+`Settings.MaxAsynchronousThreads` persistence. Legacy writes the existing
+`MaxNumberOfAsynchronousTasks` setting row; Net10 now uses a parameterized
+fixed-row update, publishes the retained snapshot only after a one-row success,
+and preserves authorization and failed-write retention. Focused Settings/SQL
+coverage is `138/138`; the full Net10 suite is `2129 passed, 53 skipped, 0
+failed`. This changes persistence only; asynchronous worker reconfiguration is
+intentionally out of scope.
+
 The fresh disposable pair now passes the start-state gate: both databases have
 37 tables with equal row counts, 1,000 identical Data files, equal Data SHA-256,
 the same active domain/account/Inbox, three loopback ports, and SQL Full-Text

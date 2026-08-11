@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, MAX ASYNCHRONOUS THREADS ADMIN MUTATION)
+
+Code/test commit `18c3685c8` implements the authenticated
+`IInterfaceSettings.MaxAsynchronousThreads` setter (`DispId(88)`). Legacy
+`InterfaceSettings::put_MaxAsynchronousThreads`
+(`source/Server/COM/InterfaceSettings.cpp:1578-1588`) delegates to
+`Configuration::SetAsynchronousThreads`
+(`source/Server/Common/Application/Configuration.cpp:569-578`), which writes
+the existing `MaxNumberOfAsynchronousTasks` setting row seeded by
+`source/DBScripts/CreateTablesMSSQL.sql:918` without validation or live worker
+reconfiguration. Net10 now matches that persistence boundary with a
+parameterized `hm_settings` update, one-row success requirement, retained
+snapshot publication after success, failed-write retention, and live
+server-administrator recheck. Installed COM identity and direct activation
+boundaries are unchanged.
+
+Focused Settings/SQL coverage is `138 passed, 0 failed, 0 skipped`; full Net10
+is `2129 passed, 53 skipped, 0 failed`. Next: fresh legacy-first audit of one
+remaining fixed-row Settings mutation, then the registry-isolated C++ matrix
+and isolated service/out-of-process COM lifecycle. Performance and release
+gates remain RED where previously documented.
+
 ## Current Authoritative Continuation (2026-08-11, BOUNDED PROTOCOL SOAK)
 
 Code/test commit `2737ff625` fixes process-resource serialization in

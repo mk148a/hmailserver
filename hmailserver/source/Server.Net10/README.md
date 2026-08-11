@@ -1,4 +1,26 @@
-## Current parity continuation (2026-08-11, full settings/domain/message restore)
+## Current authoritative continuation (2026-08-11, MaxAsynchronousThreads persistence)
+
+Code/test commit `18c3685c8` implements authenticated
+`Settings.MaxAsynchronousThreads` setter parity. Legacy
+`InterfaceSettings::put_MaxAsynchronousThreads`
+(`source/Server/COM/InterfaceSettings.cpp:1578-1588`) calls
+`Configuration::SetAsynchronousThreads`
+(`source/Server/Common/Application/Configuration.cpp:569-578`), which writes
+the existing `MaxNumberOfAsynchronousTasks` row from
+`source/DBScripts/CreateTablesMSSQL.sql:918`. Net10 now performs the same
+parameterized fixed-row persistence through
+`SqlServerSettingsAdministrationStore`, requires exactly one affected row,
+rechecks the server-administrator boundary, retains failed state, and publishes
+the snapshot only after success. No live asynchronous-worker reconfiguration
+was added.
+
+Focused Settings/SQL coverage is `138 passed`; full Net10 is `2129 passed, 53
+skipped, 0 failed`. The C++ paired performance gate, service/out-of-process
+COM, restore/rollback, migration/installer, SEC-18, AD/DC, and long soak gates
+remain open or environment-blocked. Next slice: fresh legacy-first audit of one
+remaining fixed-row Settings mutation.
+
+## Historical parity continuation (2026-08-11, full settings/domain/message restore)
 
 Commit `563cd0042` accepts legacy restore option `7`
 (`BOSettings|BODomains|BOMessages`). Legacy `BackupExecuter::StartRestore`

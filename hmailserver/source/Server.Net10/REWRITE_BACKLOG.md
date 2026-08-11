@@ -1,12 +1,29 @@
 
 
+## Current next slice (2026-08-11, MaxAsynchronousThreads admin mutation; supersedes older entries)
 
+Code/test commit `18c3685c8` completes the authenticated
+`IInterfaceSettings.MaxAsynchronousThreads` setter (`DispId(88)`). Legacy
+`InterfaceSettings::put_MaxAsynchronousThreads`
+(`source/Server/COM/InterfaceSettings.cpp:1578-1588`) calls
+`Configuration::SetAsynchronousThreads`
+(`source/Server/Common/Application/Configuration.cpp:569-578`), which writes
+`PROPERTY_MAX_NUMBER_OF_ASYNC_TASKS` (`Constants.h:115`) to the existing
+`MaxNumberOfAsynchronousTasks` row seeded in `CreateTablesMSSQL.sql:918`.
+There is no legacy range validation or runtime worker-pool reconfiguration in
+this setter. Net10 now uses the same parameterized fixed-row persistence,
+requires exactly one affected row, rechecks live server-administrator access,
+retains the prior snapshot on failure, and publishes only after success.
 
+Focused Settings/SQL coverage is `138/138`; full Net10 is `2129 passed, 53
+skipped, 0 failed`. Installed COM identity, direct activation, SMTP trust, and
+runtime reconfiguration boundaries remain unchanged. Next independent slice:
+fresh legacy-first audit of one remaining fixed-row Settings mutation. The
+registry-isolated C++ matrix, service/out-of-process COM, restore/rollback,
+migration/installer, SEC-18, AD/DC, and long-soak gates remain RED or
+environment-blocked.
 
-
-
-
-## Current next slice (2026-08-11, bounded protocol soak; supersedes older benchmark entries)
+## Historical current next slice (superseded, 2026-08-11, bounded protocol soak)
 
 Code/test commit `2737ff625` corrected `build/benchmark-net10-live-protocol.ps1`
 so process resource evidence is collected from the actual launched
