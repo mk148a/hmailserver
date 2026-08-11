@@ -1,5 +1,19 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, RESTART RECOVERY GATE)
+
+Code/test commit `55f252fb3` extends the ambiguous full-restore test so the
+startup gate calls `BackupRestoreRecoveryJournal.EnsureNoPendingRecovery`
+against the preserved journal. It rejects the pending manual-recovery state
+before a new mutation and leaves the new Data target intact. This is bounded
+recovery-reader evidence, not process-kill/power-loss evidence.
+
+Focused restore coverage remains `20 passed, 0 failed`; default full Net10 is
+`2126 passed, 46 skipped, 0 failed`. The next gate is environment-dependent:
+an approved SQL Server with Full-Text Search and a normal legacy C++ binary
+with SMTP/IMAP/POP3 listeners. Until both exist, the paired performance gate
+is **RED** and no ratio or winner may be claimed. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, AMBIGUOUS FULL RESTORE COMMIT)
 
 Code/test commit `8ebace0de` adds

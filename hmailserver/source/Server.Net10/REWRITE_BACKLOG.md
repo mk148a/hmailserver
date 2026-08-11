@@ -3692,3 +3692,15 @@ This does not prove process-kill, power-loss, or automatic recovery. Next
 smallest slice: add bounded restart/recovery-reader acceptance around the
 preserved journal. The paired C++/.NET10 performance gate remains **RED**;
 do not claim a speed-up ratio or winner.
+## Current authoritative next slice (2026-08-11, RESTART RECOVERY GATE)
+
+Completed code/test commit `55f252fb3` extends the ambiguous full-restore
+acceptance through `BackupRestoreRecoveryJournal.EnsureNoPendingRecovery`.
+The startup gate rejects the preserved manual-recovery journal before a new
+mutation and leaves the new Data target intact. Focused restore coverage is
+`20/20`; default full Net10 is `2126 passed, 46 skipped, 0 failed`.
+
+The next required gate is environment-blocked: provision an approved
+disposable SQL Server with Full-Text Search and a normal isolated legacy C++
+binary exposing SMTP/IMAP/POP3, then rerun the identical SQL/Data/message and
+loopback matrix. Do not claim a performance ratio or winner without it.

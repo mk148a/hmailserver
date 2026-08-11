@@ -1894,6 +1894,12 @@ POP3 readiness. No ratio or winner is valid. Default full Net10 is `2126
 passed, 44 skipped, 0 failed`; focused registration coverage is `5/5`.
 ## Current authoritative continuation (2026-08-11, ambiguous full restore commit)
 
+Code/test commit `55f252fb3` extends the ambiguous-commit acceptance through
+the startup recovery gate. `EnsureNoPendingRecovery` rejects the preserved
+manual-recovery journal before a subsequent restore can mutate SQL/Data and
+the new Data target remains intact. This is not a process-kill/power-loss
+drill. Default full Net10 remains `2126 passed, 46 skipped, 0 failed`.
+
 Code/test commit `8ebace0de` adds
 `RestoreExecutor_PreservesJournalWhenFullRestoreCommitOutcomeIsAmbiguous`.
 The disposable SQL/Data test commits the real metadata and then returns an

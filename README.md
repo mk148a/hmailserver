@@ -24,6 +24,11 @@ POP3 listener. No speed-up ratio or winner is claimed. Full default Net10 is
 
 ## Current authoritative restore status (2026-08-11)
 
+Code/test commit `55f252fb3` extends the ambiguous-commit acceptance with the
+startup/restart gate: `EnsureNoPendingRecovery` rejects the preserved journal
+before any new restore mutation and leaves the restored target intact. This
+is a recovery-reader gate, not an actual process-kill or power-loss drill.
+
 Code/test commit `8ebace0de` adds disposable SQL/Data acceptance for an
 ambiguous full-restore commit outcome. A test transaction commits the real
 SQL metadata and then reports an error; the restore preserves the
