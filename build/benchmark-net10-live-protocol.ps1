@@ -1,6 +1,8 @@
 param(
     [int]$Iterations = 25,
     [int]$DurationSeconds = 90,
+    [ValidateRange(1, 300)]
+    [int]$ReadinessTimeoutSeconds = 60,
     [string]$OutputDirectory = "",
     [ValidateSet("net10", "cpp")]
     [string]$Implementation = "net10"
@@ -47,6 +49,120 @@ function Read-UntilTag {
         }
     }
     return $lines.ToArray()
+}
+
+$expectedListeners = @(
+    [pscustomobject]@{ protocol = "smtp"; port = 2525; banner = "220" },
+    [pscustomobject]@{ protocol = "imap"; port = 1143; banner = "OK" },
+    [pscustomobject]@{ protocol = "pop3"; port = 25110; banner = "+OK" }
+)
+
+function Get-ListenerState {
+    param([int]$Port)
+
+    [pscustomobject]@{
+        connections = @(Get-NetTCPConnection -State Listen -LocalAddress 127.0.0.1 -LocalPort $Port -ErrorAction SilentlyContinue)
+        queryError = $null
+    }
+}
+
+function Test-BannerProbe {
+    param([string]$Protocol, [int]$Port, [string]$Expected)
+
+    $client = $null
+    $reader = $null
+    try {
+        $client = [Net.Sockets.TcpClient]::new("127.0.0.1", $Port)
+        $client.ReceiveTimeout = 3000
+        $reader = [IO.StreamReader]::new($client.GetStream())
+        $response = $reader.ReadLine()
+        $valid = switch ($Protocol) {
+            "smtp" { $response -like "$Expected*" }
+            "imap" { $response -like "*$Expected*" }
+            "pop3" { $response -like "$Expected*" }
+        }
+        [pscustomobject]@{ ok = [bool]$valid; response = $response; error = if ($valid) { $null } else { "Unexpected $Protocol banner: [$response]" } }
+    }
+    catch {
+        [pscustomobject]@{ ok = $false; response = $null; error = $_.Exception.Message }
+    }
+    finally {
+        if ($null -ne $reader) { $reader.Dispose() }
+        if ($null -ne $client) { $client.Dispose() }
+    }
+}
+
+function Wait-ForReadiness {
+    param([int]$ProcessId)
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ReadinessTimeoutSeconds)
+    $lastFailures = @()
+    do {
+        $failures = [System.Collections.Generic.List[string]]::new()
+        if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
+            $failures.Add("Launched process $ProcessId exited before readiness completed.")
+        }
+        foreach ($listener in $expectedListeners) {
+            $state = Get-ListenerState $listener.port
+            if ($null -ne $state.queryError) {
+                $failures.Add("$($listener.protocol) listener query failed: $($state.queryError)")
+                continue
+            }
+            if ($state.connections.Count -eq 0) {
+                $failures.Add("$($listener.protocol) listener is not listening on 127.0.0.1:$($listener.port).")
+                continue
+            }
+            $owners = @($state.connections | ForEach-Object { [int]$_.OwningProcess })
+            if ($owners.Count -eq 0) {
+                $failures.Add("$($listener.protocol) listener ownership was unavailable on port $($listener.port).")
+            }
+            elseif ($owners -notcontains $ProcessId) {
+                $failures.Add("$($listener.protocol) listener on port $($listener.port) is owned by PID(s) $($owners -join ',') instead of launched PID $ProcessId.")
+            }
+        }
+        if ($failures.Count -eq 0) {
+            foreach ($listener in $expectedListeners) {
+                $probe = Test-BannerProbe $listener.protocol $listener.port $listener.banner
+                if (-not $probe.ok) {
+                    $failures.Add("$($listener.protocol) banner probe failed on port $($listener.port): $($probe.error)")
+                }
+            }
+        }
+        if ($failures.Count -eq 0) {
+            return @()
+        }
+        $lastFailures = $failures.ToArray()
+        Start-Sleep -Milliseconds 250
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    return $lastFailures
+}
+
+function Wait-ForShutdown {
+    param([int]$ProcessId)
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    $lastFailures = @()
+    do {
+        $remaining = [System.Collections.Generic.List[string]]::new()
+        if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
+            $remaining.Add("Launched process $ProcessId is still running.")
+        }
+        foreach ($listener in $expectedListeners) {
+            $state = Get-ListenerState $listener.port
+            if ($null -ne $state.queryError) {
+                $remaining.Add("$($listener.protocol) shutdown listener query failed: $($state.queryError)")
+            }
+            elseif ($state.connections.Count -gt 0) {
+                $remaining.Add("$($listener.protocol) listener still present on 127.0.0.1:$($listener.port).")
+            }
+        }
+        if ($remaining.Count -eq 0) {
+            return @()
+        }
+        $lastFailures = $remaining.ToArray()
+        Start-Sleep -Milliseconds 250
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    return $lastFailures
 }
 
 function New-ClientResult {
@@ -183,33 +299,40 @@ if ($Implementation -eq "net10") {
 $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
 $startUtc = [DateTimeOffset]::UtcNow
 $samples = [System.Collections.Generic.List[object]]::new()
+$readinessFailures = @()
+$shutdownFailures = @()
+$before = $null
+$after = $null
 try {
-    Start-Sleep -Seconds 2
-    $before = Get-Process -Id $process.Id
-    foreach ($scenario in @("smtp", "imap", "pop3")) {
-        for ($iteration = 1; $iteration -le $Iterations; $iteration++) {
-            $result = switch ($scenario) {
-                "smtp" { Invoke-SmtpScenario }
-                "imap" { Invoke-ImapScenario }
-                "pop3" { Invoke-Pop3Scenario }
+    $readinessFailures = @(Wait-ForReadiness $process.Id)
+    if ($readinessFailures.Count -eq 0) {
+        $before = Get-Process -Id $process.Id
+        foreach ($scenario in @("smtp", "imap", "pop3")) {
+            for ($iteration = 1; $iteration -le $Iterations; $iteration++) {
+                $result = switch ($scenario) {
+                    "smtp" { Invoke-SmtpScenario }
+                    "imap" { Invoke-ImapScenario }
+                    "pop3" { Invoke-Pop3Scenario }
+                }
+                $samples.Add([pscustomobject]@{
+                    scenario = $scenario
+                    iteration = $iteration
+                    ok = $result.ok
+                    ms = $result.ms
+                    error = $result.error
+                })
             }
-            $samples.Add([pscustomobject]@{
-                scenario = $scenario
-                iteration = $iteration
-                ok = $result.ok
-                ms = $result.ms
-                error = $result.error
-            })
         }
+        $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
     }
-    $endUtc = [DateTimeOffset]::UtcNow
-    $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
 }
 finally {
     if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
-        Stop-Process -Id $process.Id -Force
+        try { Stop-Process -Id $process.Id -Force } catch { $shutdownFailures += "Unable to stop launched process $($process.Id): $($_.Exception.Message)" }
     }
+    $shutdownFailures += @(Wait-ForShutdown $process.Id)
 }
+$endUtc = [DateTimeOffset]::UtcNow
 
 $summary = foreach ($scenario in @("smtp", "imap", "pop3")) {
     $rows = @($samples | Where-Object scenario -eq $scenario)
@@ -228,7 +351,7 @@ $summary = foreach ($scenario in @("smtp", "imap", "pop3")) {
 $report = [pscustomobject]@{
     schema = "live-protocol-v1"
     implementation = $Implementation
-    status = if (($summary | Where-Object errors -gt 0).Count -eq 0) { "PASS" } else { "FAIL" }
+    status = if (($summary | Where-Object errors -gt 0).Count -eq 0 -and $readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0) { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
     endedUtc = $endUtc.ToString("o")
     database = $database
@@ -237,7 +360,9 @@ $report = [pscustomobject]@{
     ports = "SMTP 2525, IMAP 1143, POP3 25110"
     messageCount = 1000
     summary = $summary
-    processBefore = @{ privateBytes = $before.PrivateMemorySize64; handles = $before.Handles; threads = $before.Threads.Count }
+    readinessFailures = @($readinessFailures)
+    shutdownFailures = @($shutdownFailures)
+    processBefore = if ($null -ne $before) { @{ privateBytes = $before.PrivateMemorySize64; handles = $before.Handles; threads = $before.Threads.Count } } else { $null }
     processAfter = if ($null -ne $after) { @{ privateBytes = $after.PrivateMemorySize64; handles = $after.Handles; threads = $after.Threads.Count } } else { $null }
     samples = $samples
     comHostedService = if ($Implementation -eq "net10") { "not started; installed AppID preserved" } else { "legacy /Debug path; AppID hash checked separately" }

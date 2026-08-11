@@ -5,6 +5,8 @@ param(
     [int]$Concurrency = 1000,
     [ValidateRange(500, 30000)]
     [int]$TimeoutMilliseconds = 5000,
+    [ValidateRange(1, 300)]
+    [int]$ReadinessTimeoutSeconds = 60,
     [string]$OutputDirectory = ""
 )
 
@@ -34,6 +36,120 @@ if (-not (Test-Path -LiteralPath (Join-Path $stagingRoot "Data") -PathType Conta
     throw "Disposable Data directory is missing: $stagingRoot\Data"
 }
 
+$expectedListeners = @(
+    [pscustomobject]@{ protocol = "smtp"; port = 2525; banner = "220" },
+    [pscustomobject]@{ protocol = "imap"; port = 1143; banner = "OK" },
+    [pscustomobject]@{ protocol = "pop3"; port = 25110; banner = "+OK" }
+)
+
+function Get-ListenerState {
+    param([int]$Port)
+
+    [pscustomobject]@{
+        connections = @(Get-NetTCPConnection -State Listen -LocalAddress 127.0.0.1 -LocalPort $Port -ErrorAction SilentlyContinue)
+        queryError = $null
+    }
+}
+
+function Test-BannerProbe {
+    param([string]$Protocol, [int]$Port, [string]$Expected)
+
+    $client = $null
+    $reader = $null
+    try {
+        $client = [Net.Sockets.TcpClient]::new("127.0.0.1", $Port)
+        $client.ReceiveTimeout = 3000
+        $reader = [IO.StreamReader]::new($client.GetStream())
+        $response = $reader.ReadLine()
+        $valid = switch ($Protocol) {
+            "smtp" { $response -like "$Expected*" }
+            "imap" { $response -like "*$Expected*" }
+            "pop3" { $response -like "$Expected*" }
+        }
+        [pscustomobject]@{ ok = [bool]$valid; response = $response; error = if ($valid) { $null } else { "Unexpected $Protocol banner: [$response]" } }
+    }
+    catch {
+        [pscustomobject]@{ ok = $false; response = $null; error = $_.Exception.Message }
+    }
+    finally {
+        if ($null -ne $reader) { $reader.Dispose() }
+        if ($null -ne $client) { $client.Dispose() }
+    }
+}
+
+function Wait-ForReadiness {
+    param([int]$ProcessId)
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ReadinessTimeoutSeconds)
+    $lastFailures = @()
+    do {
+        $failures = [System.Collections.Generic.List[string]]::new()
+        if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
+            $failures.Add("Launched process $ProcessId exited before readiness completed.")
+        }
+        foreach ($listener in $expectedListeners) {
+            $state = Get-ListenerState $listener.port
+            if ($null -ne $state.queryError) {
+                $failures.Add("$($listener.protocol) listener query failed: $($state.queryError)")
+                continue
+            }
+            if ($state.connections.Count -eq 0) {
+                $failures.Add("$($listener.protocol) listener is not listening on 127.0.0.1:$($listener.port).")
+                continue
+            }
+            $owners = @($state.connections | ForEach-Object { [int]$_.OwningProcess })
+            if ($owners.Count -eq 0) {
+                $failures.Add("$($listener.protocol) listener ownership was unavailable on port $($listener.port).")
+            }
+            elseif ($owners -notcontains $ProcessId) {
+                $failures.Add("$($listener.protocol) listener on port $($listener.port) is owned by PID(s) $($owners -join ',') instead of launched PID $ProcessId.")
+            }
+        }
+        if ($failures.Count -eq 0) {
+            foreach ($listener in $expectedListeners) {
+                $probe = Test-BannerProbe $listener.protocol $listener.port $listener.banner
+                if (-not $probe.ok) {
+                    $failures.Add("$($listener.protocol) banner probe failed on port $($listener.port): $($probe.error)")
+                }
+            }
+        }
+        if ($failures.Count -eq 0) {
+            return @()
+        }
+        $lastFailures = $failures.ToArray()
+        Start-Sleep -Milliseconds 250
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    return $lastFailures
+}
+
+function Wait-ForShutdown {
+    param([int]$ProcessId)
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    $lastFailures = @()
+    do {
+        $remaining = [System.Collections.Generic.List[string]]::new()
+        if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
+            $remaining.Add("Launched process $ProcessId is still running.")
+        }
+        foreach ($listener in $expectedListeners) {
+            $state = Get-ListenerState $listener.port
+            if ($null -ne $state.queryError) {
+                $remaining.Add("$($listener.protocol) shutdown listener query failed: $($state.queryError)")
+            }
+            elseif ($state.connections.Count -gt 0) {
+                $remaining.Add("$($listener.protocol) listener still present on 127.0.0.1:$($listener.port).")
+            }
+        }
+        if ($remaining.Count -eq 0) {
+            return @()
+        }
+        $lastFailures = $remaining.ToArray()
+        Start-Sleep -Milliseconds 250
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    return $lastFailures
+}
+
 if (-not ("HMailServerLiveImapProbe" -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
@@ -55,28 +171,51 @@ public static class HMailServerLiveImapProbe
 {
     public static HMailServerLiveImapProbeResult[] RunMany(int count, int timeoutMilliseconds)
     {
-        var tasks = new Task<HMailServerLiveImapProbeResult>[count];
-        for (var index = 0; index < count; index++)
+        ThreadPool.GetMinThreads(out var originalMinWorkerThreads, out var originalMinCompletionPortThreads);
+        ThreadPool.SetMinThreads(
+            Math.Max(originalMinWorkerThreads, count),
+            originalMinCompletionPortThreads);
+        try
         {
-            tasks[index] = Task.Run(() => RunOne(timeoutMilliseconds));
-        }
-
-        var completed = Task.WaitAll(tasks, timeoutMilliseconds + 30000);
-        var results = new HMailServerLiveImapProbeResult[count];
-        for (var index = 0; index < count; index++)
-        {
-            results[index] = completed && tasks[index].IsCompleted
-                ? tasks[index].GetAwaiter().GetResult()
-                : new HMailServerLiveImapProbeResult
+            var tasks = new Task<HMailServerLiveImapProbeResult>[count];
+            using (var startBarrier = new ManualResetEventSlim(false))
+            {
+                var ready = 0;
+                for (var index = 0; index < count; index++)
                 {
-                    Success = false,
-                    TimedOut = true,
-                    Milliseconds = timeoutMilliseconds + 30000,
-                    Error = "The concurrent IMAP probe did not complete before the batch timeout."
-                };
-        }
+                    tasks[index] = Task.Run(() =>
+                    {
+                        if (Interlocked.Increment(ref ready) == count)
+                        {
+                            startBarrier.Set();
+                        }
+                        startBarrier.Wait();
+                        return RunOne(timeoutMilliseconds);
+                    });
+                }
 
-        return results;
+                var completed = Task.WaitAll(tasks, timeoutMilliseconds + 30000);
+                var results = new HMailServerLiveImapProbeResult[count];
+                for (var index = 0; index < count; index++)
+                {
+                    results[index] = completed && tasks[index].IsCompleted
+                        ? tasks[index].GetAwaiter().GetResult()
+                        : new HMailServerLiveImapProbeResult
+                        {
+                            Success = false,
+                            TimedOut = true,
+                            Milliseconds = timeoutMilliseconds + 30000,
+                            Error = "The concurrent IMAP probe did not complete before the batch timeout."
+                        };
+                }
+
+                return results;
+            }
+        }
+        finally
+        {
+            ThreadPool.SetMinThreads(originalMinWorkerThreads, originalMinCompletionPortThreads);
+        }
     }
 
     private static HMailServerLiveImapProbeResult RunOne(int timeoutMilliseconds)
@@ -234,17 +373,22 @@ $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -Work
 $startUtc = [DateTimeOffset]::UtcNow
 $before = $null
 $after = $null
+$readinessFailures = @()
+$shutdownFailures = @()
 $results = @()
 try {
-    Start-Sleep -Seconds 2
-    $before = Get-Process -Id $process.Id
-    $results = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds))
-    $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+    $readinessFailures = @(Wait-ForReadiness $process.Id)
+    if ($readinessFailures.Count -eq 0) {
+        $before = Get-Process -Id $process.Id
+        $results = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds))
+        $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+    }
 }
 finally {
     if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
-        Stop-Process -Id $process.Id -Force
+        try { Stop-Process -Id $process.Id -Force } catch { $shutdownFailures += "Unable to stop launched process $($process.Id): $($_.Exception.Message)" }
     }
+    $shutdownFailures += @(Wait-ForShutdown $process.Id)
 }
 
 $endUtc = [DateTimeOffset]::UtcNow
@@ -267,7 +411,7 @@ $summary = [pscustomobject]@{
 $report = [pscustomobject]@{
     schema = "live-concurrent-imap-v1"
     implementation = $Implementation
-    status = if ($summary.errors -eq 0 -and $summary.completed -eq $Concurrency) { "PASS" } else { "FAIL" }
+    status = if ($summary.errors -eq 0 -and $summary.completed -eq $Concurrency -and $readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0) { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
     endedUtc = $endUtc.ToString("o")
     database = $database
@@ -278,6 +422,8 @@ $report = [pscustomobject]@{
     concurrency = $Concurrency
     timeoutMilliseconds = $TimeoutMilliseconds
     summary = $summary
+    readinessFailures = @($readinessFailures)
+    shutdownFailures = @($shutdownFailures)
     processBefore = if ($null -ne $before) { @{ privateBytes = $before.PrivateMemorySize64; handles = $before.Handles; threads = $before.Threads.Count } } else { $null }
     processAfter = if ($null -ne $after) { @{ privateBytes = $after.PrivateMemorySize64; handles = $after.Handles; threads = $after.Threads.Count } } else { $null }
     samples = @($results | ForEach-Object {

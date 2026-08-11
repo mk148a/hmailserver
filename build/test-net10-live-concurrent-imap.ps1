@@ -18,11 +18,16 @@ if ($report.schema -ne "live-concurrent-imap-v1") {
 if ($report.concurrency -ne $ExpectedConcurrency) {
     throw "Expected concurrency $ExpectedConcurrency, got $($report.concurrency)."
 }
-if ($report.summary.completed -ne $ExpectedConcurrency) {
-    throw "Expected $ExpectedConcurrency completed samples, got $($report.summary.completed)."
+if ($report.readinessFailures.Count -eq 0) {
+    if ($report.summary.completed -ne $ExpectedConcurrency) {
+        throw "Expected $ExpectedConcurrency completed samples, got $($report.summary.completed)."
+    }
+    if (($report.summary.successes + $report.summary.errors) -ne $ExpectedConcurrency) {
+        throw "Success/error accounting does not equal the requested concurrency."
+    }
 }
-if (($report.summary.successes + $report.summary.errors) -ne $ExpectedConcurrency) {
-    throw "Success/error accounting does not equal the requested concurrency."
+elseif ($report.summary.completed -ne 0 -or $report.summary.successes -ne 0 -or $report.summary.errors -ne 0) {
+    throw "A readiness failure must prevent workload samples from starting."
 }
 if ($report.messageCount -ne 1000) {
     throw "Expected the paired 1,000-message corpus, got $($report.messageCount)."
@@ -38,6 +43,12 @@ if ($report.dataRoot -notmatch '^C:\\hmail-perf-(cpp|net10)-') {
 }
 if ($report.ratioValid -ne $false) {
     throw "Concurrent IMAP artifact must not claim a ratio."
+}
+if ($null -eq $report.readinessFailures -or $null -eq $report.shutdownFailures) {
+    throw "Concurrent IMAP artifact must record readiness and shutdown failures explicitly."
+}
+if ($report.status -eq "PASS" -and ($report.readinessFailures.Count -ne 0 -or $report.shutdownFailures.Count -ne 0)) {
+    throw "A passing concurrent IMAP artifact cannot contain readiness or shutdown failures."
 }
 if ($report.status -eq "PASS" -and $report.summary.errors -ne 0) {
     throw "A passing concurrent IMAP artifact cannot contain errors."
