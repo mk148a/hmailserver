@@ -1,6 +1,30 @@
 hMailServer
 ===========
 
+## Current authoritative performance-safety status (2026-08-11)
+
+Code/tool commit `6cc893f35` makes the isolated C++ SMTP acceptance runner
+fail closed before launching `hMailServer.exe` when legacy configuration
+resolution could escape the disposable target. The legacy source proves why:
+`Utilities::GetBinDirectory()` first reads
+`HKLM\SOFTWARE\hMailServer\InstallLocation`
+(`source/Server/Common/Util/Utilities.cpp:101-119`), and
+`IniFileSettings::GetInitializationFile()` then reads `hMailServer.ini` from
+that directory (`source/Server/Common/Application/IniFileSettings.cpp:245-260`).
+
+On this host the read-only preflight found `Registry32` resolving to
+`C:\hMailServer57-Test\Bin`, not the disposable
+`C:\hmail-perf-cpp-ascii-20260810\Bin`. The C++ target was therefore not
+launched by the new runner; the fail-closed evidence is in
+`artifacts/benchmarks/live-cpp-net10-20260811/cpp-preflight-fail-20260811/`.
+The hMailServer service definition exists but was `Stopped`; no service,
+registry, production database, or production Data directory was changed.
+
+The C++/.NET 10 paired performance gate remains **RED**. No ratio or winner is
+valid until a separate staging VM or an independently isolated legacy install
+can prove registry/config resolution, SQL/Data/message equality, and the same
+SMTP/IMAP/POP3 workload.
+
 ## Current authoritative parity status (2026-08-11)
 
 Code/test commit `8f9eb3655` fixes a network-fragmentation gap in

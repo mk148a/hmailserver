@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, C++ ISOLATION PREFLIGHT)
+
+Code/tool commit `6cc893f35` adds a fail-closed preflight to the isolated C++
+SMTP acceptance runner. Legacy `Utilities::GetBinDirectory()` reads
+`HKLM\SOFTWARE\hMailServer\InstallLocation` before falling back to the
+executable path (`source/Server/Common/Util/Utilities.cpp:101-119`), and
+`IniFileSettings::GetInitializationFile()` derives the INI from that location
+(`source/Server/Common/Application/IniFileSettings.cpp:245-260`).
+
+The live host preflight found `Registry32` pointing to
+`C:\hMailServer57-Test\Bin`, while the requested disposable target is
+`C:\hmail-perf-cpp-ascii-20260810\Bin`. The runner refused to launch the C++
+process and recorded the exact result under
+`artifacts/benchmarks/live-cpp-net10-20260811/cpp-preflight-fail-20260811/`.
+The service definition is present but stopped; no machine or production state
+was changed. PowerShell parse and the acceptance validator pass.
+
+The paired performance gate remains **RED**. Next prerequisite is a separate
+staging VM or a separately isolated legacy installation whose registry/config
+resolution, SQL/Data/message roots, SMTP/IMAP/POP3 listeners, and service
+identity can be proven independently. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, FRAGMENTED SMTP DATA PARITY)
 
 Code/test commit `8f9eb3655` fixes the network-fragmented DATA line progression

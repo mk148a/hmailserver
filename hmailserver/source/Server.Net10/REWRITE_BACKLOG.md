@@ -8,29 +8,32 @@
 
 ## Current next slice (2026-08-11)
 
-Completed in code/test commit `8f9eb3655`: fixed fragmented SMTP DATA line
-progression in `LineProtocolReader.ReadLineAsync`. The consumed cursor is now
-re-examined so a partial next line is completed when later bytes arrive. This
-is anchored to legacy `SMTPConnection::ParseData(ByteBuffer)` and
-`TransparentTransmissionBuffer::Append/Flush/RemoveTransmissionPeriod_`, with
-finalization in `SMTPConnection::HandleSMTPFinalizationTaskCompleted_`.
+Completed in code/tool commit `6cc893f35`: the isolated C++ SMTP acceptance
+runner now performs a read-only registry/config/service preflight and refuses
+to launch when legacy configuration resolution can escape the disposable
+target. Legacy `Utilities::GetBinDirectory()` reads
+`HKLM\SOFTWARE\hMailServer\InstallLocation`
+(`source/Server/Common/Util/Utilities.cpp:101-119`) before
+`IniFileSettings::GetInitializationFile()` reads the corresponding INI
+(`source/Server/Common/Application/IniFileSettings.cpp:245-260`).
 
-Focused `SmtpTcpListenerTests`/`ProtocolPipelineTests` pass `11/11`, and the
-full Net10 suite passes `2127/2127` with `46` skipped and `0` failed. The new
-loopback test covers fragmented body input, dot-unstuffing, delayed receiver
-invocation, `250 Queued`, and `221`.
+The host preflight found `Registry32` resolving to
+`C:\hMailServer57-Test\Bin`, not
+`C:\hmail-perf-cpp-ascii-20260810\Bin`; it also recorded the hMailServer
+service as stopped. The target was not launched, and the fail-closed report is
+under `artifacts/benchmarks/live-cpp-net10-20260811/cpp-preflight-fail-20260811/`.
+No production registry, service, SQL database, or Data directory was changed.
 
-The Net10-only SMTP acceptance diagnostic passes `25/25`, but the C++ target
-still fails SMTP readiness with an empty banner and lacks the required POP3
-listener. The disposable fixture was mutated by accepted Net10 samples and
-must be recreated before paired comparison. The performance release gate is
-**RED**; no speed-up ratio or winner is valid.
+PowerShell parse and the acceptance validator pass. The paired performance
+gate remains **RED**, and the disposable fixture remains unsuitable for a new
+comparison until recreated.
 
-Next smallest independent slice: repair or replace the isolated C++ target,
-provision disposable SQL Server Full-Text Search, recreate equal SQL/Data/
-message roots, and rerun the identical SMTP/IMAP/POP3, delivery, concurrency,
-and soak matrix. Preserve COM identity, production service/database/Data
-boundaries, direct activation, and SMTP trust behavior.
+Next smallest independent slice: provision a separate staging VM or otherwise
+obtain an independently isolated legacy installation whose registry/config
+resolution and service identity are proven; then recreate equal SQL/Data/
+message roots before rerunning SMTP/IMAP/POP3, delivery, concurrency, and soak
+scenarios. Preserve COM identity and all production service/database/Data
+boundaries.
 
 ## Current Audit Note (2026-08-11, SHARED SQL/DATA PERFORMANCE BASELINE)
 
