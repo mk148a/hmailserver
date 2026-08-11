@@ -1867,3 +1867,15 @@ is `46 passed, 1 skipped, 0 failed`; full default Net10 is `2125 passed, 43
 skipped, 0 failed`. The paired protocol performance gate remains **RED**.
 Next slice: harden the shared-baseline collector and make its graph use current
 latency samples.
+## Current performance evidence (2026-08-11)
+
+The disposable paired baseline has `33/33` matching SQL table row counts and
+`1000/1000` matching Data file hashes on loopback SMTP `2525`, IMAP `1143`, and
+POP3 `25110`. Live completion is not equivalent: C++ POP3 readiness fails;
+Net10 SMTP is `25/25`, IMAP and POP3 are `0/25`; concurrent IMAP is `0/1000`
+successes for Net10 and did not start for C++ because readiness failed. The
+performance release gate is **RED** and no ratio is valid.
+
+The offline Net10-only 100k SEARCH/SORT gate passes at p50 `7.101 ms`, p95
+`9.734 ms`, p99 `9.784 ms`; this is not a legacy comparison. Current evidence:
+`artifacts/benchmarks/live-cpp-net10-20260811/`.

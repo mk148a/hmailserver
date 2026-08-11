@@ -1,6 +1,40 @@
 hMailServer
 ===========
 
+## Current performance evidence (2026-08-11)
+
+The shared disposable start state is verified before live testing: both SQL
+targets report `33/33` matching table row counts, both isolated Data roots have
+`1000/1000` files with zero relative-path or SHA-256 mismatches, and both use
+loopback `127.0.0.1` on SMTP `2525`, IMAP `1143`, and POP3 `25110`.
+
+The paired live gate is **RED** and no speed-up ratio or winner is claimed:
+
+| Scenario | .NET 10 | Legacy C++ | Ratio |
+| --- | ---: | ---: | --- |
+| SMTP, 25 probes | 25/25, p95 1.02 ms | 0/0, POP3 readiness blocked the run | invalid |
+| IMAP, 25 probes | 0/25 | 0/0, readiness blocked | invalid |
+| POP3, 25 probes | 0/25 | 0/0, listener missing | invalid |
+| Concurrent IMAP, 1000 sessions | 1000 completed, 0 successes | 0 started, readiness blocked | invalid |
+
+```mermaid
+xychart-beta
+    title "Current live p95 latency (diagnostic only; no winner)"
+    x-axis [SMTP, IMAP, POP3]
+    y-axis "milliseconds" 0 --> 10
+    bar [1.02, 0, 0]
+    bar [0, 0, 0]
+```
+
+The zero values represent missing successful samples, not zero latency. The
+offline .NET 10-only 100k SEARCH/SORT benchmark passes with p50 `7.101 ms`,
+p95 `9.734 ms`, and p99 `9.784 ms`; it is not a C++ comparison. Evidence is
+under `artifacts/benchmarks/live-cpp-net10-20260811/`.
+
+The next performance gate requires a normal isolated C++ binary with all three
+listeners, a working Net10 IMAP/POP3 path, then identical message acceptance,
+delivery, queue, concurrency, and soak scenarios.
+
 ## Current parity continuation (2026-08-11, raw backup staging hardening)
 
 Code/test commit `73405caa1` hardens `SevenZipBackupArchiveRuntime.CopyDirectory`

@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, PERFORMANCE EVIDENCE HARDENING)
+
+Code/tool commit `c91323197` makes the shared baseline collector fail closed
+when `sqlcmd` cannot open a requested disposable database, fixes the concurrent
+IMAP probe's host-compiler compatibility, and derives the latency chart from
+current JSON rather than fixed historical values. The current disposable
+baseline is `33/33` SQL table row counts and `1000/1000` Data file hashes.
+
+The live paired gate remains **RED**: C++ POP3 readiness fails, Net10 SMTP is
+`25/25` but IMAP/POP3 are `0/25`, and the 1,000-session run has no successful
+IMAP sessions (`0/1000` C++ started, `0/1000` Net10 successes). The offline
+Net10-only 100k SEARCH/SORT gate passes at p50 `7.101 ms`, p95 `9.734 ms`, and
+p99 `9.784 ms`; no C++ ratio or winner is valid. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/`.
+
+Next slice: complete the real isolated backup restore executor, then repair the
+C++/Net10 live protocol pair before adding message-acceptance and delivery
+throughput scenarios. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, RAW DATABACKUP STAGING HARDENING)
 
 Code/test commit `73405caa1` makes raw DataBackup staging reject reparse-point

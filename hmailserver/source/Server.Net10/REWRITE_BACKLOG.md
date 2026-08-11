@@ -3608,3 +3608,21 @@ Next smallest slice: make `build/collect-live-equivalence-evidence.ps1` fail
 closed when `sqlcmd` cannot open either disposable database, and make
 `build/generate-live-comparison-report.ps1` derive latency chart values from the
 current JSON. The paired C++/.NET10 release gate remains **RED**.
+## Current next slice (2026-08-11)
+
+Completed code/tool commit `c91323197` makes paired benchmark evidence fail
+closed on SQL access errors, fixes the 1,000-session IMAP harness compilation
+on this host, and derives p95 graphs from current results. The disposable
+baseline is `33/33` matching SQL table row counts and `1000/1000` matching Data
+hashes, but live parity remains **RED**: C++ POP3 readiness fails, Net10
+IMAP/POP3 are `0/25`, and the concurrent IMAP run has zero successes for both
+implementations (C++ did not start due readiness).
+
+The offline Net10-only 100k SEARCH/SORT gate passes at p50 `7.101 ms`, p95
+`9.734 ms`, p99 `9.784 ms`; no C++ ratio or performance winner is valid.
+Evidence is under `artifacts/benchmarks/live-cpp-net10-20260811/`.
+
+Next smallest slice: wire composed backup dispatch to a real isolated SQL/Data
+restore executor with populated existing state, then repair the isolated C++
+protocol target and reproduce Net10 IMAP/POP3 before adding delivery and soak
+scenarios.
