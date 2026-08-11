@@ -1810,6 +1810,95 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_WelcomeImapSetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            WelcomeImapUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: "old IMAP greeting"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.WelcomeIMAP = "new IMAP greeting";
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.WelcomeImapUpdateCount);
+        Assert.AreEqual("new IMAP greeting", settings.WelcomeIMAP);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_WelcomeImapSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            WelcomeImapUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: "old IMAP greeting"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.WelcomeIMAP = "new IMAP greeting");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.WelcomeImapUpdateCount);
+        Assert.AreEqual("old IMAP greeting", settings.WelcomeIMAP);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_WelcomeImapMutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: "old IMAP greeting"),
+            WelcomeImapUpdateResult = true,
+            GateWelcomeImapMutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.WelcomeIMAP = "new IMAP greeting");
+        await store.WelcomeImapMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.WelcomeImapMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual("new IMAP greeting", store.UpdatedWelcomeImap);
+        Assert.AreEqual("new IMAP greeting", settings.WelcomeIMAP);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_WorkerThreadPrioritySetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -3265,6 +3354,14 @@ public sealed class SettingsComContractTests
 
         public bool WelcomeImapUpdateResult { get; set; }
 
+        public bool GateWelcomeImapMutation { get; set; }
+
+        public TaskCompletionSource<bool> WelcomeImapMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> WelcomeImapMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int WelcomeImapUpdateCount { get; private set; }
 
         public string? UpdatedWelcomeImap { get; private set; }
@@ -3533,7 +3630,19 @@ public sealed class SettingsComContractTests
             WelcomeImapUpdateCount++;
             UpdatedWelcomeImap = welcomeImap;
             CancellationToken = cancellationToken;
+            if (GateWelcomeImapMutation)
+            {
+                WelcomeImapMutationEntered.TrySetResult(true);
+                return WaitForWelcomeImapMutationAsync();
+            }
+
             return ValueTask.FromResult(WelcomeImapUpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForWelcomeImapMutationAsync()
+        {
+            await WelcomeImapMutationRelease.Task;
+            return WelcomeImapUpdateResult;
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(
