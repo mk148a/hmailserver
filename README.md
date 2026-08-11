@@ -1,6 +1,37 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, SMTPRelayer mutation)
+
+Code/test commit `4a5a6cf5f` implements only the authenticated
+`IInterfaceSettings.SMTPRelayer` setter (`DispId(22)`, `BSTR`). It preserves the
+installed COM identity and direct activation denial, rechecks the existing
+server-administrator boundary, updates only the existing
+`hm_settings.smtprelayer` row through a parameterized `nvarchar(4000)` command,
+and publishes the retained snapshot only after one-row success. The legacy
+relay value is written unchanged; no validation or encryption was added.
+
+Direct activation getter/setter denial, authorized BSTR write, failed-write
+retention, administrator revocation, one-row enforcement, and exact SQL
+command shape are covered. Focused settings/store coverage is `78/78`; full
+Net10 is `2061 passed, 39 skipped, 0 failed`. Fixed-relay routing,
+configuration notifications, relayer credentials, and live reconfiguration
+remain unchanged and were deliberately left out of this persistence slice.
+
+Legacy anchors are `IInterfaceSettings.SMTPRelayer`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::put_SMTPRelayer`,
+`SMTPConfiguration::SetSMTPRelayer`, the generic
+`PropertySet::SetString`/`Property::WriteStringSetting_` path,
+`ServerTargetResolver::GetFixedSMTPHostForDomain_`, and the `smtprelayer` SQL
+seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql`).
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched legacy/.NET protocol load, SEC-18 cutover,
+installer/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain
+unproven. Next slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, SMTPRelayerUsername mutation)
 
 Code/test commit `8e3e5cf16` implements only the authenticated

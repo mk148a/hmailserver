@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, SMTP RELAYER MUTATION)
+
+Code/test commit `4a5a6cf5f` implements only authenticated
+`Settings.SMTPRelayer` (`DispId(22)`, `BSTR`) persistence. It preserves the
+installed COM identity and direct activation denial, rechecks the existing
+server-administrator boundary, updates only the existing
+`hm_settings.smtprelayer` row with a parameterized `nvarchar(4000)` command,
+and changes the retained snapshot only after one-row success. The legacy relay
+value is written unchanged; no validation or encryption was added.
+
+Legacy anchors: `IInterfaceSettings.SMTPRelayer`
+(`source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::put_SMTPRelayer`,
+`SMTPConfiguration::SetSMTPRelayer`, generic
+`PropertySet::SetString`/`Property::WriteStringSetting_`,
+`ServerTargetResolver::GetFixedSMTPHostForDomain_`, and the `smtprelayer` SQL
+seed (`source/DBScripts/CreateTablesMSSQL.sql`). Focused settings/store
+coverage is `78/78`; full Net10 is `2061 passed, 39 skipped, 0 failed`.
+Fixed-relay routing, notifications, relayer credentials, and live
+reconfiguration were deliberately not changed.
+
+Release remains RED for disposable SQL/Data rollback, non-DB restore/
+reinitialization, SQL/FTS, matched C++/.NET protocol performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and 24-hour
+soak. Next slice: fresh legacy-first audit of one remaining low-risk Settings
+mutation. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, SMTP RELAYER USERNAME MUTATION)
 
 Code/test commit `8e3e5cf16` implements only authenticated

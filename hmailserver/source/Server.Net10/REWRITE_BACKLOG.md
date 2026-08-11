@@ -2505,6 +2505,38 @@ out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
 environment-blocked. Next slice: fresh legacy-first audit of one remaining
 low-risk Settings mutation.
 
+## Current Audit Note (2026-08-11, SMTP RELAYER ADMIN MUTATION)
+
+Code/test commit `4a5a6cf5f` implements the authenticated
+`IInterfaceSettings.SMTPRelayer` setter (`DispId(22)`, `BSTR`) only. The .NET
+path updates the existing `hm_settings.smtprelayer` row through a parameterized
+`nvarchar(4000)` command, requires exactly one affected row, rechecks the
+existing server-administrator boundary, and publishes the retained snapshot
+only after success. The legacy relay value is written unchanged; no
+validation or encryption is added. Direct activation denial, authorized BSTR
+write, failed-write retention, administrator revocation, one-row enforcement,
+and exact SQL shape are covered. Focused settings/store coverage is `78/78`;
+full Net10 is `2061 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `IInterfaceSettings.SMTPRelayer`
+(`source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::get_SMTPRelayer` and
+`InterfaceSettings::put_SMTPRelayer`
+(`source/Server/COM/InterfaceSettings.cpp`),
+`SMTPConfiguration::Get/SetSMTPRelayer`
+(`source/Server/SMTP/SMTPConfiguration.cpp`), generic
+`PropertySet::SetString` and `Property::WriteStringSetting_`,
+`ServerTargetResolver::GetFixedSMTPHostForDomain_`, and the `smtprelayer` seed
+(`source/DBScripts/CreateTablesMSSQL.sql`). Fixed-relay routing, configuration
+notifications, relayer credentials, and live reconfiguration were deliberately
+not changed; this is COM persistence parity only.
+
+Real SQL/Data rollback, non-DB settings restore/reinitialization, SQL/FTS,
+paired legacy/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
+environment-blocked. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation.
+
 ## Current Audit Note (2026-08-11, SMTP RELAYER USERNAME ADMIN MUTATION)
 
 Code/test commit `8e3e5cf16` implements the authenticated
