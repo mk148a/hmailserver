@@ -1,3 +1,32 @@
+## Current parity continuation (2026-08-11, DisconnectInvalidClients authorization lease)
+
+Code/test commit `bb20cb736` extends the existing generation-bound
+authorization lease to authenticated
+`IInterfaceSettings.DisconnectInvalidClients` (`DispId(64)`, `VARIANT_BOOL`).
+The lease is acquired immediately before the existing parameterized
+`disconnectinvalidclients` SQL update and held through result handling and
+retained snapshot publication. Focused settings/store coverage is `131/131`;
+full unfiltered Net10 is `2114 passed, 39 skipped, 0 failed`.
+
+Legacy references are `source/Server/COM/InterfaceSettings.cpp:1661-1693`,
+`source/Server/Common/Application/Configuration.cpp:488-498`,
+`source/Server/Common/Application/Constants.h:89`,
+`source/Server/SMTP/SMTPConnection.cpp:2210-2220`,
+`source/Server/hMailServer/hMailServer.idl:610-611`, and
+`source/DBScripts/CreateTablesMSSQL.sql:862-866`. Legacy SMTP reads this
+setting on each invalid 5xx response; Net10 Settings persistence still does
+not reconfigure the live `SmtpSessionOptions` object. That runtime gap is a
+separate slice. No COM identity, direct activation boundary, SQL shape, or
+SMTP behavior changed here.
+
+The existing paired benchmark fixture was revalidated without rerunning the
+known-broken legacy process: offline Net10 SEARCH/SORT passed with p50
+`7.272 ms`, p95 `7.994 ms`, p99 `8.048 ms`; the isolated 1,000-concurrent
+IMAP artifacts validate as Net10 `1000/1000` and C++ `0/1000` with ratio
+invalid. Performance release remains **RED**; no speed-up claim is valid.
+Next slice: fresh legacy-first audit and lease coverage for
+`Settings.MaxNumberOfInvalidCommands`.
+
 ## Current parity continuation (2026-08-11, authenticated maximum MX host count mutation)
 
 Code/test commit `3ca025ce1` adds only authenticated

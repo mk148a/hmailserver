@@ -6,6 +6,35 @@
 
 
 
+## Current Audit Note (2026-08-11, DISCONNECT INVALID CLIENTS AUTHORIZATION LEASE)
+
+Code/test commit `bb20cb736` extends the existing generation-bound
+authorization lease to authenticated
+`IInterfaceSettings.DisconnectInvalidClients` (`DispId(64)`, `VARIANT_BOOL`).
+The lease is held across the existing parameterized
+`disconnectinvalidclients` update and retained snapshot publication; focused
+settings/store coverage is `131/131`, and full unfiltered Net10 is
+`2114 passed, 39 skipped, 0 failed`.
+
+Legacy anchors are `InterfaceSettings::get/put_DisconnectInvalidClients`
+(`source/Server/COM/InterfaceSettings.cpp:1661-1693`),
+`Configuration::Get/SetDisconnectInvalidClients`
+(`source/Server/Common/Application/Configuration.cpp:488-498`),
+`PROPERTY_SMTPDISCONNECTINVALIDCLIENTS`
+(`source/Server/Common/Application/Constants.h:89`), the installed Settings
+IID and `DispId(64)` (`source/Server/hMailServer/hMailServer.idl:520-528,
+610-611`), and the `disconnectinvalidclients` seed
+(`source/DBScripts/CreateTablesMSSQL.sql:862-866`). Legacy SMTP consumes the
+setting during `SMTPConnection::SendErrorResponse_`
+(`source/Server/SMTP/SMTPConnection.cpp:2210-2220`); live Net10 SMTP policy
+reload remains open and was intentionally not changed.
+
+The paired performance fixture was revalidated only as evidence: Net10
+offline SEARCH/SORT passed, while the isolated 1,000-concurrent IMAP artifact
+validated as `1000/1000` for Net10 and `0/1000` for C++, so the ratio remains
+invalid and the performance gate remains **RED**. Next slice: legacy-first
+audit and lease coverage for `Settings.MaxNumberOfInvalidCommands`.
+
 ## Current Audit Note (2026-08-11, MAX SMTP RECIPIENTS IN BATCH AUTHORIZATION LEASE)
 
 Code/test commit `77ea84fb9` extends the existing generation-bound

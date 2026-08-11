@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, DISCONNECT INVALID CLIENTS AUTHORIZATION LEASE)
+
+Code/test commit `bb20cb736` adds the existing generation-bound authorization
+lease to authenticated `Settings.DisconnectInvalidClients` (`DispId(64)`).
+The lease spans the existing `disconnectinvalidclients` SQL mutation, result
+handling, and retained snapshot publication. Focused settings/store coverage
+is `131/131`; full unfiltered Net10 is `2114 passed, 39 skipped, 0 failed`.
+
+Legacy anchors: `InterfaceSettings::get/put_DisconnectInvalidClients`
+(`source/Server/COM/InterfaceSettings.cpp:1661-1693`),
+`Configuration::Get/SetDisconnectInvalidClients`
+(`source/Server/Common/Application/Configuration.cpp:488-498`),
+`PROPERTY_SMTPDISCONNECTINVALIDCLIENTS`
+(`source/Server/Common/Application/Constants.h:89`), installed Settings IID
+and `DispId(64)` (`source/Server/hMailServer/hMailServer.idl:520-528,610-611`),
+the MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:862-866`), and the
+legacy invalid-command disconnect path
+(`source/Server/SMTP/SMTPConnection.cpp:2210-2220`).
+
+Focused tests cover lease acquire/dispose, unavailable-lease denial before
+mutation, and reauthentication blocking during an in-flight mutation. Live
+SMTP policy reload remains a separate parity gap. Existing paired benchmark
+evidence was validated: Net10 completed 1,000 concurrent IMAP sessions, C++
+completed 0/1,000, so no ratio or speed-up claim is valid and performance is
+still **RED**. Next slice: fresh legacy-first audit of
+`Settings.MaxNumberOfInvalidCommands`. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, MAX SMTP RECIPIENTS IN BATCH AUTHORIZATION LEASE)
 
 Code/test commit `77ea84fb9` extends the existing generation-bound
