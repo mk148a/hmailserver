@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T14:40:00Z / 2026-08-11T17:40:00+03:00
+- UTC/local timestamp: 2026-08-11T14:45:00Z / 2026-08-11T17:45:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; push intentionally not performed
-- Current HEAD: `2a6f68efc` (`Document paired fixture and FTS gate`)
+- Current HEAD: `9d3853af3` (`Record current Net10 diagnostic benchmark`)
 - Last successfully pushed commit: `9d4b3791e`
 - Latest focused-test result: shared-baseline v2 validator PASS; live collector status `NOT_EQUIVALENT` with Inbox `0`, Data-root containment `0`, outside filenames `1000`/`1029`, and Full-Text not ready on either disposable database; exact SMTP fixture/path gate remains FAIL; Net10-only offline 100k diagnostic PASS (`p50/p95/p99 7.324/8.076/8.223 ms`)
 - Latest full Net10 result: `2127 passed, 46 skipped, 0 failed`
