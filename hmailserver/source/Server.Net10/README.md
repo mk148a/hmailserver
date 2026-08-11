@@ -2080,3 +2080,23 @@ with disposable SQL opt-in categories at `53/53`; default full Net10 is
 The remaining restore blockers are real `StartBackup -> LoadBackup` round trip,
 crash/power-loss and ambiguous-commit recovery evidence, service/COM lifecycle,
 and independent SQL Server certification. Release remains **RED**.
+## Current authoritative continuation (2026-08-11, global relayer host failover)
+
+Code/test commit `50e6d843f` implements legacy global SMTP relayer host
+failover for `RouteId == 0`. Legacy references are
+`ServerTargetResolver::Resolve` and `GetFixedSMTPHostForDomain_`
+(`source/Server/SMTP/ServerTargetResolver.cpp:38-116,170-237`) plus
+`ExternalDelivery::ResolveRecipientServers_` and
+`DeliverToSingleServer_` (`source/Server/SMTP/ExternalDelivery.cpp:58-107,
+109-280,373-413`). Net10 splits non-empty `|`-separated global relayer hosts
+in order, preserves shared port/security/authentication settings, advances on
+transient early SMTP or transport failures, and stops on permanent failures.
+After any RCPT recipient is accepted, same-run failover is suppressed to avoid
+duplicate delivery.
+
+Focused coverage is `34/34`; full Net10 is `2164 passed, 54 skipped, 0 failed`.
+Only global relayer targets changed. Route/forced-route precedence, ordinary MX
+resolution, COM identity, SQL schema, SMTP trust, and live reconfiguration are
+outside this slice. DNS address ordering, legacy `MaxNumberOfMXHosts`, exact
+per-recipient queue completion, and real SQL/socket/TLS/authentication evidence
+remain open. Release status remains RED.

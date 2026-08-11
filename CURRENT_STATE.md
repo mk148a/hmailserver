@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T18:43:05Z / 2026-08-11T21:43:05+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; push intentionally not performed
-- Current HEAD: code/test `b518c8e83`; docs commit pending
+- UTC/local timestamp: 2026-08-11T19:34:53Z / 2026-08-11T22:34:53+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; ahead 160, behind 0; push intentionally not performed
+- Current HEAD: `7b6ab7834` (code/test `50e6d843f` plus documentation)
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: SMTP relayer password COM authorization, lease, encryption SQL shape, and failure parity `146/146`
-- Latest full Net10 result: `2159 passed, 54 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: disposable Net10 protocol/queue/FTS/external-fetch/restart evidence passed; real SQL ciphertext round-trip, socket/TLS/authentication, restore/installer/registry/COM/AD/DC/SEC-18/24-hour soak skipped or environment-blocked
-- Current bounded slice: paired C++/.NET 10 performance-gate revalidation; start-state fixture passes, fresh C++ launch is safely refused by Registry32 isolation, and no ratio is valid
-- Completed milestones: backup/restore foundations, COM/Admin slices through SMTP security persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and global single-host SMTP relayer runtime/password wiring
-- Open production blockers: real SQL/socket/TLS/authentication acceptance, legacy multi-host relayer failover, fixed-key cipher migration decision, optional-STARTTLS handshake-failure decision, registry-isolated paired C++/.NET10 performance ratios, remote queue comparison, 24-hour soak, service/out-of-process COM, migration/installer, SEC-18, AD/DC, and long-run leak evidence
-- Environment-blocked work: approved disposable SQL/socket fixture, registry-isolated C++ runner, out-of-process COM/installer, disposable restore/rollback, credential/AD evidence, IIS/SEC-18 cutover, and long-running soak host
-- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) legacy `|`-separated global-relayer host failover, (2) `VerifyRemoteSslCertificate` outbound runtime parity, (3) isolated C++ runner on a separate staging VM or registry-isolated installation
+- Latest focused-test result: global relayer resolver/client and partial-RCPT failover safety `34 passed, 0 failed`
+- Latest full Net10 result: `2164 passed, 54 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; SQL socket/TLS/authentication, C++ paired benchmark, restore/rollback, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
+- Current bounded slice: global SMTP relayer `|`-separated host failover parity; implementation and documentation are complete
+- Completed milestones: backup foundations, restore foundations, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and global relayer host failover
+- Open production blockers: paired C++/.NET performance RED; real SQL/socket/TLS/authentication acceptance; fixed-relayer DNS/MaxNumberOfMXHosts and per-recipient queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Environment-blocked work: registry-isolated C++ runner or separate staging VM; approved disposable SQL/socket/TLS/authentication fixture; restore/rollback and installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
+- Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
+- Next three independent slices: `VerifyRemoteSslCertificate` outbound runtime parity; approved disposable SQL/socket/TLS/authentication acceptance; registry-isolated or separate-VM C++ benchmark runner

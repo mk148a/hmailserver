@@ -4131,3 +4131,27 @@ gate remains **RED** and no ratio/winner may be reported.
 
 Authoritative report: `PERFORMANCE_COMPARISON_REPORT.md`. Fresh preflight
 evidence: `artifacts/benchmarks/live-cpp-net10-20260811/cpp-preflight-current/`.
+
+## Current authoritative next slice (2026-08-11, global relayer host failover)
+
+Code/test commit `50e6d843f` implements the legacy global relayer `|`-host
+candidate slice. Legacy behavior is anchored by
+`ServerTargetResolver::Resolve` / `GetFixedSMTPHostForDomain_`
+(`source/Server/SMTP/ServerTargetResolver.cpp:38-116,170-237`) and
+`ExternalDelivery::ResolveRecipientServers_` / `DeliverToSingleServer_`
+(`source/Server/SMTP/ExternalDelivery.cpp:58-107,109-280,373-413`). Net10
+preserves candidate order and shared relay settings, retries only transient
+early failures, stops on permanent replies, and suppresses same-run failover
+after any recipient acceptance. Focused tests are `34/34`; full Net10 is
+`2164 passed, 54 skipped, 0 failed`.
+
+This closes the prior single-host rejection gap only for global relayers.
+Legacy DNS address ordering, `MaxNumberOfMXHosts`, exact per-recipient queue
+completion, and real SQL/socket/TLS/authentication acceptance remain open.
+Do not broaden this slice to domain routes, forced routes, COM identity,
+schema, SMTP trust, live reconfiguration, or other Admin collections.
+
+Next independent slices, in order: `VerifyRemoteSslCertificate` outbound
+runtime parity; approved disposable SQL/socket/TLS/authentication acceptance;
+and a registry-isolated or separate-VM C++ benchmark runner. Release status
+remains **RED**.

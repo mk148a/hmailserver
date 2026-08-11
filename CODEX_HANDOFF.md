@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, GLOBAL SMTP RELAYER HOST FAILOVER)
+
+Code/test commit `50e6d843f` implements the bounded global SMTP relayer
+`|`-host failover slice. Legacy anchors are
+`ServerTargetResolver::Resolve` and `GetFixedSMTPHostForDomain_`
+(`source/Server/SMTP/ServerTargetResolver.cpp:38-116,170-237`) and
+`ExternalDelivery::ResolveRecipientServers_` / `DeliverToSingleServer_`
+(`source/Server/SMTP/ExternalDelivery.cpp:58-107,109-280,373-413`). Net10
+preserves left-to-right non-empty host candidates only for the global relayer,
+shares the configured port/security/authentication, continues after transient
+transport or early SMTP failures, and stops on permanent replies. Once an
+RCPT recipient is accepted, it does not fail over within the same attempt,
+which avoids duplicate delivery after partial acceptance.
+
+Focused tests are `34/34`; full Net10 is `2164 passed, 54 skipped, 0 failed`.
+No COM identity, SQL schema, route/forced-route behavior, SMTP trust, or live
+reconfiguration changed. Remaining parity gaps are fixed-relayer DNS address
+ordering, legacy `MaxNumberOfMXHosts`, exact per-recipient queue accounting,
+and real disposable SQL/socket/TLS/authentication evidence. Performance gate
+is RED because the paired C++ process is still blocked by Registry32 path
+isolation; no ratio or winner is valid.
+
+Next independent slices: `VerifyRemoteSslCertificate` outbound runtime parity;
+approved disposable SQL/socket/TLS/authentication acceptance; and a
+registry-isolated or separate-VM C++ benchmark runner.
+
 ## Current Authoritative Continuation (2026-08-11, SMTP RELAYER PASSWORD PERSISTENCE)
 
 Code/test commit `b518c8e83` implements the authenticated Administrator

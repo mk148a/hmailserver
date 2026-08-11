@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current authoritative global SMTP relayer failover status (2026-08-11)
+
+Code/test commit `50e6d843f` implements the bounded legacy global relayer
+`|`-host failover slice. Legacy `ServerTargetResolver::Resolve` and
+`GetFixedSMTPHostForDomain_` (`source/Server/SMTP/ServerTargetResolver.cpp:38-116,
+170-237`) select the global relayer as one fixed `ServerInfo`; legacy
+`ExternalDelivery::ResolveRecipientServers_` and `DeliverToSingleServer_`
+(`source/Server/SMTP/ExternalDelivery.cpp:58-107,109-280,373-413`) split a
+global relayer host on `|`, preserve left-to-right order, share port/security/
+authentication, and try later candidates only after a transient failure. A
+permanent reply stops failover. The Net10 change applies only to `RouteId == 0`
+global relayer targets; domain routes, forced routes, ordinary MX delivery,
+COM identity, SQL schema, SMTP trust, and live reconfiguration are unchanged.
+
+The internal result now stops same-run failover after any recipient has been
+accepted, preventing a second host from receiving a duplicate message when a
+later RCPT or DATA operation fails. Empty host segments are ignored. Focused
+coverage is `34/34`; full Net10 is `2164 passed, 54 skipped, 0 failed`.
+
+Residual parity risks remain: Net10 does not yet reproduce legacy DNS A/AAAA
+address ordering or `MaxNumberOfMXHosts` truncation for fixed relayer hosts,
+and the queue contract still lacks exact per-recipient completion accounting
+for a later retry. Real disposable SQL/socket/TLS/authentication acceptance is
+still environment-blocked. The paired C++/.NET performance gate remains RED;
+no ratio or winner is claimed.
+
 ## Current authoritative SMTP relayer password status (2026-08-11)
 
 Code/test commit `b518c8e83` implements the authenticated Administrator
