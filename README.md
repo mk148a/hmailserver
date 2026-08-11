@@ -1,6 +1,39 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, AllowIncorrectLineEndings authorization lease)
+
+Code/test commit `b6085a478` extends the existing generation-bound
+authorization lease to authenticated
+`IInterfaceSettings.AllowIncorrectLineEndings` (`DispId(61)`). The lease is
+acquired immediately before the existing parameterized
+`smtpallowincorrectlineendings` SQL update and held through mutation result
+handling and retained snapshot publication. No VARIANT_BOOL shape, SMTP
+parser behavior, or COM identity changed.
+
+Legacy anchors are `InterfaceSettings::get/put_AllowIncorrectLineEndings`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:326-356`),
+`SMTPConfiguration::Get/SetAllowIncorrectLineEndings`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:288-297`),
+`PROPERTY_ALLOWINCORRECTLINEENDINGS`
+(`hmailserver/source/Server/Common/Application/Constants.h:73`), the
+installed Settings IID and `DispId(61)`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:520-528,604-605`),
+and the `smtpallowincorrectlineendings` seed
+(`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:842`). Focused tests
+cover lease acquire/dispose, unavailable-lease denial before mutation, and
+reauthentication blocking during an in-flight mutation.
+
+Focused settings/store coverage is `125/125`. Full unfiltered Net10 is
+`2108 passed, 39 skipped, 0 failed`. Legacy SMTP bare-LF validation consumes
+this setting (`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1259-1265`);
+that runtime path is unchanged. Disposable SQL/Data restore, non-DB
+restore/reinitialization, SQL/FTS, matched C++/.NET protocol load, protocol
+greeting runtime parity, SEC-18, migration/installer, out-of-process COM,
+AD/DC, crash/power-loss, 24-hour soak, and remaining unleased COM/Admin
+mutations keep release **RED**. Next slice is a fresh legacy-first audit of
+`Settings.MaxSMTPRecipientsInBatch`.
+
 ## Current parity continuation (2026-08-11, TCPIPThreads authorization lease)
 
 Code/test commit `752d55443` extends the existing generation-bound

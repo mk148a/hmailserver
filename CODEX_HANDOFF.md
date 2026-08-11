@@ -1,5 +1,39 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, ALLOW INCORRECT LINE ENDINGS AUTHORIZATION LEASE)
+
+Code/test commit `b6085a478` extends the existing generation-bound
+authorization lease to authenticated
+`Settings.AllowIncorrectLineEndings` (`DispId(61)`). The lease spans the
+existing parameterized `smtpallowincorrectlineendings` SQL mutation, result
+handling, and retained snapshot publication; unavailable leases fail closed
+with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_AllowIncorrectLineEndings`
+(`source/Server/COM/InterfaceSettings.cpp:326-356`),
+`SMTPConfiguration::Get/SetAllowIncorrectLineEndings`
+(`source/Server/SMTP/SMTPConfiguration.cpp:288-297`),
+`PROPERTY_ALLOWINCORRECTLINEENDINGS`
+(`source/Server/Common/Application/Constants.h:73`), the installed Settings
+IID and `DispId(61)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,604-605`), and the
+`smtpallowincorrectlineendings` MSSQL seed
+(`source/DBScripts/CreateTablesMSSQL.sql:842`). Focused settings/store
+coverage is `125/125`; full unfiltered Net10 is `2108 passed, 39 skipped,
+0 failed`.
+
+Focused tests cover lease acquire/dispose, unavailable-lease denial before
+mutation, and reauthentication blocking during an in-flight mutation. Legacy
+SMTP bare-LF validation consumes this setting, but that runtime behavior is
+unchanged. Installed COM identity, direct activation denial, and authenticated
+Settings access remain unchanged.
+
+Release remains RED for disposable SQL/Data restore, non-DB restore,
+SQL/FTS, paired C++/.NET performance, protocol greeting parity, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: fresh
+legacy-first audit of `Settings.MaxSMTPRecipientsInBatch`. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, TCPIP THREADS AUTHORIZATION LEASE)
 
 Code/test commit `752d55443` extends the existing generation-bound

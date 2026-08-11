@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T08:06:00Z / 2026-08-11T11:06:00+03:00
+- UTC/local timestamp: 2026-08-11T08:26:00Z / 2026-08-11T11:26:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `752d55443` (code/test; documentation commit follows)
+- Current HEAD: `b6085a478` (code/test; documentation commit follows)
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: settings COM/store tests 122 passed, 0 failed, 0 skipped
-- Latest full Net10 result: unfiltered full `2105 passed, 39 skipped, 0 failed`
+- Latest focused-test result: settings COM/store tests 125 passed, 0 failed, 0 skipped
+- Latest full Net10 result: unfiltered full `2108 passed, 39 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; SQL/Data rollback, SQL/FTS, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: `Settings.TCPIPThreads` (`DispId(60)`) acquires the existing generation-bound authorization lease across its existing `tcpipthreads` SQL mutation and snapshot publication; focused tests cover lease disposal, unavailable-lease denial, and reauthentication blocking, while COM identity, integer shape, listener runtime behavior, and direct activation boundaries remain unchanged
+- Current bounded slice: `Settings.AllowIncorrectLineEndings` (`DispId(61)`) acquires the existing generation-bound authorization lease across its existing `smtpallowincorrectlineendings` SQL mutation and snapshot publication; focused tests cover lease disposal, unavailable-lease denial, and reauthentication blocking, while COM identity, VARIANT_BOOL shape, SMTP parser behavior, and direct activation boundaries remain unchanged
 - Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing/store/execution, combined settings/domain DB-only restore; no release milestone complete
 - Open production blockers: Net10 SMTP/POP3/IMAP greetings do not yet consume legacy `welcomesmtp`/`welcomepop3`/`welcomeimap`, real disposable SQL/Data restore evidence, non-DB settings restore and reinitialize, live SQL/FTS backfill, credential policy, ACL restore, C++ protocol parity, paired SMTP/message-acceptance/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, 24-hour soak, and remaining unleased Settings/COM/Admin mutation paths
 - Environment blocked work: healthy isolated C++ listener binary, SQL Server with Full-Text Search and supported legacy ADO provider, approved populated SQL/Data target, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) legacy-first audit and lease coverage for `Settings.AllowIncorrectLineEndings`, (2) wire `welcomesmtp` into the Net10 SMTP greeting after a separate legacy/runtime audit, (3) execute settings/message rollback against an approved disposable SQL/Data target
+- Next three independent slices: (1) legacy-first audit and lease coverage for `Settings.MaxSMTPRecipientsInBatch`, (2) wire `welcomesmtp` into the Net10 SMTP greeting after a separate legacy/runtime audit, (3) execute settings/message rollback against an approved disposable SQL/Data target
