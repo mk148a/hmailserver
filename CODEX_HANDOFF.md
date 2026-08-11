@@ -1,24 +1,24 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-11, SMTP FIXTURE ACCOUNTING)
+## Current Authoritative Continuation (2026-08-11, EXACT SMTP FIXTURE/PATH GATE)
 
-Code/test commit `415ff0bc0` adds read-only fixture evidence to
-`build/benchmark-net10-live-smtp-acceptance.ps1` and extends its validator.
-Each report now records a content-based fixture identity, SQL counts for
-`hm_messages`/metadata/recipients/`hm_tcpipports`, a Data manifest SHA-256,
-before/after deltas, and a post-run validity flag. The gate requires the
-configured loopback SMTP/IMAP/POP3 port rows and at least one new message row
-per successful acceptance. C++ reports also require executable provenance.
-
+Code/test commit `35f1f87e0` tightens
+`build/benchmark-net10-live-smtp-acceptance.ps1` and its validator. Reports
+now require the exact active domain/account/Inbox, all three loopback
+`hm_tcpipports` rows, every message filename below the selected Data root, and
+bounded SQL evidence that each accepted message became queued or delivered.
 Legacy anchors are `SMTPConnection::HandleSMTPFinalizationTaskCompleted_`
-(`source/Server/SMTP/SMTPConnection.cpp:980`), the MSSQL schema
-(`source/DBScripts/CreateTablesMSSQL.sql:258-353`), and Net10's
-`SqlServerSmtpQueueWriter.InsertQueuedMessageSql`/
-`InsertRecipientSql`. The disposable Net10 run passed `1/1`; C++ preflight
-refused before launch. Full Net10 is `2127 passed, 46 skipped, 0 failed`.
-The paired performance gate remains **RED** because this host's fixture is
-mutated and not proven equal/fresh against C++, and SQL FTS, queue, load, and
-soak gates remain open. Do not push.
+(`source/Server/SMTP/SMTPConnection.cpp:980`), `PersistentMessage::AddObject`,
+`SaveRecipients_`, and `source/DBScripts/CreateTablesMSSQL.sql:258-353`.
+
+The current Net10 diagnostic accepted `1/1` and observed one new queued row,
+but the exact fixture gate is **FAIL**: Inbox matching is `0`, Data-root
+matching is `0`, and outside-root filenames are `1028` before / `1029` after.
+C++ preflight refused before process creation because Registry32 still points
+at the installed test Bin directory. Full Net10 remains `2127 passed, 46
+skipped, 0 failed`. The paired performance gate remains **RED**; no ratio or
+winner is valid. Next: recreate fresh equal disposable SQL/Data/message roots,
+verify SQL FTS, then rerun the same workload. Do not push.
 
 ## Current Authoritative Continuation (2026-08-11, PAIRED REPORT EVIDENCE GATE)
 

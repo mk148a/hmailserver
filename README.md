@@ -3,25 +3,29 @@ hMailServer
 
 ## Current authoritative performance-safety status (2026-08-11)
 
-Code/tool commit `415ff0bc0` extends the SMTP acceptance evidence with a
-content-based fixture identity and read-only before/after snapshots of
-`hm_messages`, `hm_message_metadata`, `hm_messagerecipients`, and
-`hm_tcpipports`, plus a Data-file manifest fingerprint. The post-run gate
-requires SQL/Data availability, the three loopback port rows, and at least one
-new message row per successful acceptance. Legacy persistence anchors are
-`SMTPConnection::HandleSMTPFinalizationTaskCompleted_`
-(`source/Server/SMTP/SMTPConnection.cpp:980`) and the schema definitions in
+Code/tool commit `35f1f87e0` tightens the SMTP acceptance gate with exact
+fixture identity and bounded post-acceptance SQL state evidence. Reports now
+require the active `perf.test` domain, `test@perf.test` account, Inbox row,
+all three loopback `hm_tcpipports` rows, and every message filename under the
+selected disposable Data root. Each accepted message must also appear as a
+new queued or delivered SQL row before the run can be valid. The legacy
+anchors are `SMTPConnection::HandleSMTPFinalizationTaskCompleted_`
+(`source/Server/SMTP/SMTPConnection.cpp:980`), `PersistentMessage::AddObject`
+and `SaveRecipients_`, with schema definitions in
 `source/DBScripts/CreateTablesMSSQL.sql:258-353`; Net10 uses
 `SqlServerSmtpQueueWriter`
 (`source/Server.Net10/src/HMailServer.Storage.SqlServer/SqlServerSmtpQueueWriter.cs`).
 
-The current disposable Net10 diagnostic passed `1/1` with SQL/Data snapshots
-available, message/recipient/Data deltas `+1`, and valid post-run accounting.
-The C++ run remained preflight-blocked with zero samples and no process start.
-This fixture is not fresh/equal to the C++ fixture yet, so the paired gate is
-still **RED** and no speed-up ratio or winner is valid. Next: provision or
-recreate the disposable SQL/FTS and equal message/Data fixtures before any
-paired run.
+The current Net10 diagnostic accepted `1/1` SMTP message and observed one new
+queued SQL state, but the exact fixture gate is **FAIL**: `inboxMatches=0`,
+`messageFilesWithinDataRoot=0`, and `messageFilesOutsideDataRoot=1028` before
+the run (`1029` after it). The C++ run remained preflight-blocked before
+process creation. This is not a performance result; the paired C++/.NET 10
+gate remains **RED** and no speed-up ratio or winner is valid. Next: recreate
+fresh equal SQL/Data/message roots and verify SQL Full-Text Search before any
+paired workload.
+
+## Historical current status (superseded, 2026-08-11)
 
 ## Historical current status (2026-08-11)
 
