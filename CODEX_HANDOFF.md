@@ -1,5 +1,30 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, C++ PROTOCOL PROVENANCE PREFLIGHT)
+
+Code/test commit `f6d06e216` applies the shared read-only C++ registry/config
+and service preflight to `build/benchmark-net10-live-protocol.ps1`, while the
+SMTP acceptance runner now consumes the same helper. C++ reports include the
+target executable path, SHA-256, byte length, and UTC write time; the new
+`build/test-net10-live-protocol.ps1` rejects reports without that isolation
+evidence or with unreconciled readiness/sample accounting.
+
+Legacy anchors are `Utilities::GetBinDirectory()`
+(`source/Server/Common/Util/Utilities.cpp:101-119`) and
+`IniFileSettings::GetInitializationFile()`
+(`source/Server/Common/Application/IniFileSettings.cpp:245-260`). The current
+Registry32 value resolves to `C:\hMailServer57-Test\Bin`, so the target
+`C:\hmail-perf-cpp-ascii-20260810\Bin` was refused before `Start-Process`.
+The resulting FAIL report is under
+`artifacts/benchmarks/live-cpp-net10-20260811/cpp-protocol-preflight-fail-20260811/`.
+
+Focused PowerShell parse, C++ protocol validator, and SMTP validator pass; the
+full Net10 suite is `2127 passed, 46 skipped, 0 failed`. The paired performance
+gate remains **RED** and no ratio or winner is claimed. Next slice: extend the
+same preflight/report contract to `build/benchmark-net10-live-concurrent-imap.ps1`,
+then rerun only after obtaining an independently isolated C++ installation and
+recreating equal SQL/Data/message roots. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, C++ ISOLATION PREFLIGHT)
 
 Code/tool commit `6cc893f35` adds a fail-closed preflight to the isolated C++

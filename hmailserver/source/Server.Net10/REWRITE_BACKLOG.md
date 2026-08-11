@@ -8,6 +8,31 @@
 
 ## Current next slice (2026-08-11)
 
+Completed in code/test commit `f6d06e216`: the shared read-only C++
+registry/config/service preflight is used by both the SMTP acceptance and
+live SMTP/IMAP/POP3 protocol benchmark runners. C++ protocol reports now carry
+executable path, SHA-256, size, and UTC write time, and
+`build/test-net10-live-protocol.ps1` validates isolation evidence and
+readiness/sample accounting.
+
+Legacy `Utilities::GetBinDirectory()`
+(`source/Server/Common/Util/Utilities.cpp:101-119`) trusts the installed
+`HKLM\SOFTWARE\hMailServer\InstallLocation` before
+`IniFileSettings::GetInitializationFile()`
+(`source/Server/Common/Application/IniFileSettings.cpp:245-260`) reads the
+INI. Registry32 currently resolves to `C:\hMailServer57-Test\Bin`, not the
+disposable target `C:\hmail-perf-cpp-ascii-20260810\Bin`; the C++ protocol
+runner therefore refused to launch and recorded the exact mismatch under
+`artifacts/benchmarks/live-cpp-net10-20260811/cpp-protocol-preflight-fail-20260811/`.
+
+The paired C++/.NET 10 performance gate remains **RED**. The next smallest
+repository slice is to apply the same preflight and provenance validation to
+`build/benchmark-net10-live-concurrent-imap.ps1`. A real paired run still
+requires a separate C++ staging environment and freshly recreated equal
+SQL/Data/message roots; no speed-up ratio or winner may be claimed.
+
+## Historical audit (superseded current-slice text, 2026-08-11)
+
 Completed in code/tool commit `6cc893f35`: the isolated C++ SMTP acceptance
 runner now performs a read-only registry/config/service preflight and refuses
 to launch when legacy configuration resolution can escape the disposable

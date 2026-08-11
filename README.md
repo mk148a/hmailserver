@@ -3,6 +3,33 @@ hMailServer
 
 ## Current authoritative performance-safety status (2026-08-11)
 
+Code/tool commit `f6d06e216` extends the C++ isolation gate from the SMTP
+acceptance runner to the live SMTP/IMAP/POP3 protocol runner. Both runners now
+share a read-only preflight that checks the legacy registry-selected Bin
+directory, hMailServer service state, disposable INI database/DataFolder, and
+the target executable's SHA-256, size, and UTC write time. The protocol runner
+also has a report validator requiring these fields for C++ evidence.
+
+The legacy sources make this mandatory: `Utilities::GetBinDirectory()` first
+trusts `HKLM\SOFTWARE\hMailServer\InstallLocation`
+(`source/Server/Common/Util/Utilities.cpp:101-119`), and
+`IniFileSettings::GetInitializationFile()` reads `hMailServer.ini` from that
+resolved directory (`source/Server/Common/Application/IniFileSettings.cpp:245-260`).
+On this host the read-only preflight found Registry32 pointing to
+`C:\hMailServer57-Test\Bin`, not the disposable
+`C:\hmail-perf-cpp-ascii-20260810\Bin`; therefore the C++ process was not
+launched. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/cpp-protocol-preflight-fail-20260811/`.
+
+The paired C++/.NET 10 performance gate remains **RED**. No speed-up ratio or
+winner is valid until a separately isolated legacy installation proves the
+same registry/config resolution, SQL/Data/message roots, loopback ports, and
+SMTP/IMAP/POP3 workload. The next repository slice is to apply this common
+preflight to the 1,000-session IMAP runner; the actual paired run still needs a
+separate C++ staging environment and a freshly recreated equal fixture.
+
+## Current authoritative performance-safety status (2026-08-11)
+
 Code/tool commit `6cc893f35` makes the isolated C++ SMTP acceptance runner
 fail closed before launching `hMailServer.exe` when legacy configuration
 resolution could escape the disposable target. The legacy source proves why:

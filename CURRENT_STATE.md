@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T13:09:44Z / 2026-08-11T16:09:44+03:00
+- UTC/local timestamp: 2026-08-11T13:33:48Z / 2026-08-11T16:33:48+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; push intentionally not performed
-- Current HEAD: `6cc893f35` (`Fail closed on unsafe C++ benchmark isolation`); documentation commit follows
+- Current HEAD: `f6d06e216` (`Fail closed on unsafe C++ protocol benchmark isolation`); documentation commit follows
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: PowerShell parse PASS; C++ SMTP preflight report/validator PASS as evidence validation, with target launch refused because Registry32 resolves to `C:\hMailServer57-Test\Bin`
+- Latest focused-test result: PowerShell parse PASS; C++ protocol and SMTP preflight reports/validators PASS as evidence validation, with target launch refused because Registry32 resolves to `C:\hMailServer57-Test\Bin`
 - Latest full Net10 result: default `2127 passed, 46 skipped, 0 failed` (last full suite before this build-only slice)
 - Opt-in tests passed/skipped/blocked: Net10-only SMTP acceptance `25/25` diagnostic; paired C++ SMTP/IMAP/POP3, FTS-backed IMAP SEARCH, equal post-run SQL/Data corpus, installer, out-of-process COM, SEC-18, AD/DC, and 24-hour soak remain blocked or unproven
-- Current bounded slice: fail-closed C++ benchmark isolation preflight; no C++ process was launched by the new runner and no production machine state changed
+- Current bounded slice: shared fail-closed C++ benchmark isolation/provenance preflight for SMTP acceptance and live SMTP/IMAP/POP3 protocol runners; no C++ process was launched by the new runner and no production machine state changed
 - Completed milestones: raw backup staging and hardening, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, settings restore parsing/store/execution, combined settings/domain DB-only restore, WelcomeSMTP SQL capacity parity, mode-7 isolated restore/rollback evidence, composed dispatch coverage, populated existing-state full restore coverage, benchmark evidence hardening, fragmented SMTP DATA processing, and C++ benchmark isolation preflight
 - Open production blockers: `Application.Reinitialize`, process-kill/power-loss recovery drill, production payload-provider certification, independently isolated C++ SMTP/IMAP/POP3 target, SQL Full-Text/Search acceptance, paired C++/.NET 10 performance gate RED, delivery/queue load, credential policy, ACL restore, SEC-18, migration/installer, service/out-of-process COM, AD/DC, 24-hour soak, remaining COM/Admin parity, and release-grade SQL identity
 - Environment blocked work: separate C++ staging VM or isolated registry context, disposable SQL Server FTS, fresh equal SQL/Data/message roots, supported legacy ADO/SQL provider, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) obtain separate isolated C++ staging environment, (2) provision disposable SQL Server Full-Text Search, (3) recreate equal SQL/Data/message roots and rerun the identical paired SMTP/IMAP/POP3/load matrix
+- Next three independent slices: (1) apply the shared preflight/provenance contract to the 1,000-session IMAP runner, (2) obtain separate isolated C++ staging environment, (3) provision disposable SQL Server Full-Text Search and recreate equal SQL/Data/message roots
