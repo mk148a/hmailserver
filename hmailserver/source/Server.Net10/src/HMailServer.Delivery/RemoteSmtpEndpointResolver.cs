@@ -274,7 +274,8 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
                 Port: 25,
                 connectionSecurity,
                 VerifyRemoteSslCertificate: verifyRemoteSslCertificate,
-                ConnectionAddress: address.ToString()));
+                ConnectionAddress: address.ToString(),
+                EnforceLocalEndpointGuard: true));
         }
     }
 

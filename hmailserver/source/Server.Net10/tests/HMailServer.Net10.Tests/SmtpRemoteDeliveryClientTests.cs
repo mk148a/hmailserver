@@ -420,6 +420,50 @@ public sealed class SmtpRemoteDeliveryClientTests
         using var accepted = await acceptedTask;
     }
 
+    [TestMethod]
+    public async Task TcpTransportFactory_RejectsDnsDerivedLocalListeningEndpointBeforeConnect()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var localEndpoint = (IPEndPoint)listener.LocalEndpoint;
+        var policy = new RemoteSmtpLocalEndpointPolicy(() => [localEndpoint]);
+        var endpoint = new RemoteSmtpEndpoint(
+            "local-alias.example",
+            localEndpoint.Port,
+            RemoteSmtpConnectionSecurity.None,
+            ConnectionAddress: IPAddress.Loopback.ToString(),
+            EnforceLocalEndpointGuard: true);
+
+        await Assert.ThrowsExactlyAsync<RemoteSmtpLocalEndpointDeniedException>(() =>
+            new TcpRemoteSmtpTransportFactory(policy)
+                .ConnectAsync(endpoint, CancellationToken.None)
+                .AsTask());
+    }
+
+    [TestMethod]
+    public async Task SendAsync_ContinuesToNextCandidateAfterLocalEndpointDenial()
+    {
+        var second = CreateSuccessfulTransport();
+        var factory = new FakeTransportFactory(second)
+        {
+            FirstException = new RemoteSmtpLocalEndpointDeniedException("local listener")
+        };
+        var client = new SmtpRemoteDeliveryClient(factory);
+        var request = CreateRequest(RemoteSmtpConnectionSecurity.None) with
+        {
+            Endpoint = new RemoteSmtpEndpoint(
+                "first.example",
+                25,
+                RemoteSmtpConnectionSecurity.None,
+                HostCandidates: ["first.example", "second.example"])
+        };
+
+        var result = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual(2, factory.Endpoints.Count);
+    }
+
     private static RemoteSmtpSendRequest CreateRequest(RemoteSmtpConnectionSecurity security) =>
         new(
             new RemoteSmtpEndpoint("mx.example", 25, security),
@@ -449,11 +493,18 @@ public sealed class SmtpRemoteDeliveryClientTests
 
         public List<RemoteSmtpEndpoint> Endpoints { get; } = [];
 
+        public Exception? FirstException { get; init; }
+
         public ValueTask<IRemoteSmtpTransport> ConnectAsync(
             RemoteSmtpEndpoint endpoint,
             CancellationToken cancellationToken)
         {
             Endpoints.Add(endpoint);
+            if (Endpoints.Count == 1 && FirstException is not null)
+            {
+                throw FirstException;
+            }
+
             if (_transports.Count == 0)
             {
                 throw new InvalidOperationException("No scripted transport remains.");

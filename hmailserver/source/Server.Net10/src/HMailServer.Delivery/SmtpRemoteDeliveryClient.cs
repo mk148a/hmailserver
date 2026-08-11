@@ -45,6 +45,11 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
             {
                 throw;
             }
+            catch (RemoteSmtpLocalEndpointDeniedException ex)
+            {
+                result = RemoteSmtpSendResult.Failure(
+                    "Remote SMTP local endpoint was rejected: " + ex.Message);
+            }
             catch (Exception ex) when (IsTransientTransportFailure(ex))
             {
                 result = RemoteSmtpSendResult.Failure(
@@ -421,10 +426,18 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
 
 public sealed class TcpRemoteSmtpTransportFactory : IRemoteSmtpTransportFactory
 {
+    private readonly RemoteSmtpLocalEndpointPolicy _localEndpointPolicy;
+
+    public TcpRemoteSmtpTransportFactory(RemoteSmtpLocalEndpointPolicy? localEndpointPolicy = null)
+    {
+        _localEndpointPolicy = localEndpointPolicy ?? new RemoteSmtpLocalEndpointPolicy();
+    }
+
     public async ValueTask<IRemoteSmtpTransport> ConnectAsync(
         RemoteSmtpEndpoint endpoint,
         CancellationToken cancellationToken)
     {
+        _localEndpointPolicy.EnsureAllowed(endpoint);
         var client = CreateTcpClient(endpoint);
         try
         {

@@ -11,7 +11,8 @@ public sealed record RemoteSmtpEndpoint(
     IReadOnlyList<string>? HostCandidates = null,
     bool VerifyRemoteSslCertificate = true,
     string? ConnectionAddress = null,
-    IReadOnlyList<RemoteSmtpEndpoint>? Candidates = null)
+    IReadOnlyList<RemoteSmtpEndpoint>? Candidates = null,
+    bool EnforceLocalEndpointGuard = false)
 {
     public IReadOnlyList<RemoteSmtpEndpoint> GetCandidates()
     {
