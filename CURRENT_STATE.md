@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T04:48:14Z / 2026-08-11T07:48:14+03:00
+- UTC/local timestamp: 2026-08-11T06:02:19Z / 2026-08-11T09:02:19+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `06af4facd` (code/test; documentation commit follows)
+- Current HEAD: `c83791c3b` (code/test; documentation commit follows)
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: settings COM/store tests 98 passed, 0 failed, 0 skipped
-- Latest full Net10 result: `2081 passed, 39 skipped, 0 failed`
+- Latest focused-test result: settings COM/store tests 100 passed, 0 failed, 0 skipped
+- Latest full Net10 result: filtered full `2076 passed, 39 skipped, 0 failed`; unfiltered run had 2 known host/AV scanner cleanup failures
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; SQL/Data rollback, SQL/FTS, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: `Settings.SMTPMinutesBetweenTry` (`DispId(20)`) acquires the existing generation-bound authorization lease across its existing `smtpminutesbetweenretries` SQL mutation and snapshot publication; unavailable leases fail closed, while COM identity, retry scheduling/delivery behavior, live reconfiguration, and direct activation boundaries remain unchanged
+- Current bounded slice: `Settings.SMTPRelayer` (`DispId(22)`) acquires the existing generation-bound authorization lease across its existing `smtprelayer` SQL mutation and snapshot publication; unavailable leases fail closed, while COM identity, BSTR shape, SMTP delivery behavior, live reconfiguration, and direct activation boundaries remain unchanged
 - Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing/store/execution, combined settings/domain DB-only restore; no release milestone complete
 - Open production blockers: real disposable SQL/Data restore evidence, non-DB settings restore and reinitialize, live SQL/FTS backfill, credential policy, ACL restore, C++ protocol parity, paired SMTP/message-acceptance/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, 24-hour soak, and remaining unleased Settings/COM/Admin mutation paths
 - Environment blocked work: healthy isolated C++ listener binary, SQL Server with Full-Text Search and supported legacy ADO provider, approved populated SQL/Data target, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) legacy-first audit and lease coverage for `Settings.SMTPRelayer`, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision
+- Next three independent slices: (1) legacy-first audit and lease coverage for `Settings.SMTPRelayerRequiresAuthentication`, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision

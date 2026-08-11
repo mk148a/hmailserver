@@ -1,6 +1,34 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, SMTPRelayer authorization lease)
+
+Code/test commit `c83791c3b` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.SMTPRelayer`
+(`DispId(22)`). The lease is acquired immediately before the existing
+parameterized `smtprelayer` SQL update and held through mutation result
+handling and retained snapshot publication. No BSTR shape, SMTP delivery
+behavior, live reconfiguration, or COM identity changed.
+
+Legacy anchors are `InterfaceSettings::get/put_SMTPRelayer`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:574-605`),
+`SMTPConfiguration::Get/SetSMTPRelayer`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:139-148`), the
+installed IDL property (`hmailserver/source/Server/hMailServer/hMailServer.idl:545-546`),
+the `smtprelayer` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:760`),
+and the .NET `UpdateSmtpRelayerSql` path. Focused tests cover lease
+acquire/dispose and unavailable-lease denial before mutation.
+
+Focused settings/store coverage is `100/100`. Full Net10 excluding the two
+known host/AV-locked scanner cleanup classes is `2076 passed, 39 skipped,
+0 failed`; the unfiltered run reached the scanner cleanup tests and reported
+2 unrelated `UnauthorizedAccessException` failures deleting temporary `.eml`
+files. Disposable SQL/Data restore, non-DB restore/reinitialization, SQL/FTS,
+matched C++/.NET protocol load, SEC-18, migration/installer, out-of-process
+COM, AD/DC, crash/power-loss, 24-hour soak, and remaining unleased COM/Admin
+mutations keep release **RED**. Next slice is a fresh legacy-first audit of
+`SMTPRelayerRequiresAuthentication`.
+
 ## Current parity continuation (2026-08-11, SMTPMinutesBetweenTry authorization lease)
 
 Code/test commit `06af4facd` extends the existing generation-bound
