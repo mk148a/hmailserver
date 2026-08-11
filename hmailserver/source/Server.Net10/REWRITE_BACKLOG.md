@@ -8,6 +8,22 @@
 
 ## Current next slice (2026-08-11)
 
+Completed in tooling commit `7e58324d7`: shared-baseline evidence now records
+the exact disposable domain/account/Inbox/listener fixture, message filename
+containment under each Data root, and SQL Full-Text service/catalog/table/index
+readiness. `build/test-live-equivalence-evidence.ps1` verifies the schema and
+fails closed when Full-Text evidence is missing.
+
+The live read-only rerun is `NOT_EQUIVALENT`: domain/account and listener rows
+match, but Inbox matches are `0`, message files inside the selected roots are
+`0` with `1000`/`1029` outside, and Full-Text is not ready on either side.
+Earlier row-count/Data-hash equality is therefore insufficient to establish a
+paired corpus. The release gate remains **RED**. Next smallest slice: recreate
+fresh equal SQL/Data/message roots with correct Inbox/file provenance, then
+enable and verify SQL Full-Text and indexed corpus readiness.
+
+## Historical current next slice (superseded, 2026-08-11)
+
 Completed in code/test commit `35f1f87e0`: SMTP acceptance reports now enforce
 the exact disposable fixture shape and bounded post-acceptance SQL state. The
 gate checks the active `perf.test` domain, `test@perf.test` account, Inbox,

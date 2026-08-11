@@ -1,5 +1,24 @@
 # .NET 10 Benchmark Pack
 
+## Current paired-fixture gate (2026-08-11)
+
+Tool commit `7e58324d7` upgrades
+`build/collect-live-equivalence-evidence.ps1` to shared-baseline v2. The
+read-only collector now records the active domain/account/Inbox, exact
+loopback listener rows, message filename containment under each Data root, and
+SQL Full-Text service/catalog/table/index readiness for both disposable
+databases. It reports `NOT_EQUIVALENT` unless those checks, row counts, and
+Data hashes all pass.
+
+The live rerun found domain/account and all three listener rows in both
+databases, but Inbox matching was `0`, message files under the selected Data
+roots were `0` (`1000`/`1029` outside), and Full-Text was not ready on either
+side. This is a fixture/SQL prerequisite failure, not a performance result.
+The paired release gate remains **RED** and no ratio or winner is valid.
+
+The focused validator is `build/test-live-equivalence-evidence.ps1`; it also
+proves missing Full-Text evidence fails closed.
+
 ## Current SMTP acceptance gate (2026-08-11)
 
 Code/tool commit `b34b2b415` adds
@@ -16,7 +35,7 @@ reaches SMTP `354` but does not return the final acceptance `250` (`0/1`),
 while the C++ target fails SMTP readiness (`0/1`). No performance ratio is
 valid until both sides pass the same acceptance and cleanup gates.
 
-## Latest paired live evidence: RED
+## Historical paired live evidence: RED
 
 On 2026-08-11 the benchmark pack restored one disposable C++ SQL backup into
 both target databases and verified the starting state: 33/33 table row counts

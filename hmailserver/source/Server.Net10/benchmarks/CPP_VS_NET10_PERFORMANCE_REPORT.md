@@ -1,5 +1,25 @@
 # Legacy C++ vs .NET 10 Performance Report
 
+## Current authoritative fixture/FTS status (2026-08-11)
+
+Tool commit `7e58324d7` added shared-baseline v2 evidence to
+`build/collect-live-equivalence-evidence.ps1`. The collector now checks the
+active `perf.test` domain, `test@perf.test` account, Inbox, exact loopback
+SMTP/IMAP/POP3 rows, message filename containment under each selected Data
+root, and SQL Full-Text service/catalog/table/index readiness.
+
+The read-only rerun against the disposable databases reported
+`NOT_EQUIVALENT`: both sides had domain/account matches `1` and loopback rows
+`3`, but Inbox matches were `0`, message files under the selected Data roots
+were `0` (`1000`/`1029` outside), and Full-Text readiness was `false` on both
+sides. The detailed evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-v2-live/`.
+
+This supersedes any earlier start-state statement that treated row-count and
+Data-file equality alone as sufficient. The performance release gate is
+**RED**; the existing charts below are historical diagnostic measurements and
+must not be used to calculate a C++/.NET 10 speed-up.
+
 **Run date:** 2026-08-10
 **Repository commit:** `21cc042c9`
 **Host:** Windows 11 build `10.0.26200`, x64, 16 logical processors

@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, SHARED BASELINE V2 FIXTURE/FTS GATE)
+
+Tool commit `7e58324d7` upgrades
+`build/collect-live-equivalence-evidence.ps1` to shared-baseline v2 and adds
+`build/test-live-equivalence-evidence.ps1`. The read-only collector now
+records exact disposable fixture shape, Data filename containment, and SQL
+Full-Text service/catalog/table/index readiness for both databases. The
+focused validator proves missing Full-Text evidence is rejected.
+
+The live collector rerun reported `NOT_EQUIVALENT`: both databases have the
+expected domain/account and three loopback listener rows, but Inbox matches
+are `0`, message files under the selected Data roots are `0` with
+`1000`/`1029` outside, and Full-Text is not ready on either side. This closes
+the earlier false confidence from row-count/Data-hash equality alone. The
+paired performance gate remains **RED** and no ratio is valid.
+
+Next slice: recreate fresh equal disposable SQL/Data/message roots with
+correct Inbox/file provenance, enable/verify Full-Text and index the same
+corpus, then rerun acceptance/load scenarios. No production DB/Data/service,
+COM registration, or C++ process was touched. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, EXACT SMTP FIXTURE/PATH GATE)
 
 Code/test commit `35f1f87e0` tightens
