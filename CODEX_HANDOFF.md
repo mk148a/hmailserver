@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, FRAGMENTED SMTP DATA PARITY)
+
+Code/test commit `8f9eb3655` fixes the network-fragmented DATA line progression
+in `Server.Net10` `LineProtocolReader.ReadLineAsync` by re-examining the
+consumed cursor. The legacy reference is
+`SMTPConnection::ParseData(ByteBuffer)` plus
+`TransparentTransmissionBuffer::Append`, `Flush`, and
+`RemoveTransmissionPeriod_`, followed by
+`SMTPConnection::HandleSMTPFinalizationTaskCompleted_`.
+
+`SmtpTcpListenerTests.RunAsync_StagesFragmentedDataUntilTerminatorAndQueuesAfterReceiverRelease`
+passes on the real loopback listener and verifies fragmented body staging,
+dot-unstuffing, delayed receiver invocation, `250 Queued`, and `221`.
+Focused listener/protocol tests are `11/11`; the full Net10 suite is
+`2127 passed, 46 skipped, 0 failed`.
+
+The isolated Net10 SMTP acceptance run is `25/25` with p50 `4.053 ms`, p95
+`7.176 ms`, and p99 `219.175 ms`, diagnostic only. The isolated C++ target
+still fails SMTP readiness with an empty banner and lacks the paired POP3
+listener. Successful Net10 samples mutated the disposable fixture, so both
+SQL/Data roots must be recreated before the next paired run. The performance
+gate remains **RED**; no ratio or winner is valid.
+
+Next slice: repair or replace the isolated C++ SMTP/IMAP/POP3 target, provision
+disposable SQL Full-Text Search, recreate the equal fixture, and rerun the
+identical protocol/load matrix. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, SMTP MESSAGE ACCEPTANCE HARNESS)
 
 Code/tool commit `b34b2b415` adds the loopback disposable

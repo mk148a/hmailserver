@@ -8,32 +8,29 @@
 
 ## Current next slice (2026-08-11)
 
-Completed: full `BOSettings|BODomains|BOMessages` restore in code/test commit
-`563cd0042`. Legacy `BackupExecuter::StartRestore` accepts option `7` and
-restores domains/Data/messages before settings
-(`source/Server/Common/Application/BackupExecuter.cpp:230-388`,
-`source/Server/Common/Application/Configuration.cpp:716-760`). Net10 stages
-Data, deletes domains/public folders in one SQL transaction, restores settings
-and populated message metadata, and keeps the recovery journal when a full
-restore SQL commit outcome is ambiguous. The installed COM identity is
-unchanged.
+Completed in code/test commit `8f9eb3655`: fixed fragmented SMTP DATA line
+progression in `LineProtocolReader.ReadLineAsync`. The consumed cursor is now
+re-examined so a partial next line is completed when later bytes arrive. This
+is anchored to legacy `SMTPConnection::ParseData(ByteBuffer)` and
+`TransparentTransmissionBuffer::Append/Flush/RemoveTransmissionPeriod_`, with
+finalization in `SMTPConnection::HandleSMTPFinalizationTaskCompleted_`.
 
-Focused restore coverage is `19/19`; opt-in restore integration is `17/17`;
-fresh full Net10 isolated-create opt-in is `2163 passed, 2 skipped, 0 failed`.
-The fixture uses a hand-built archive and configured local SQL endpoint, so
-independent disposable-instance proof, real `StartBackup`, existing-state and
-public-folder round trip, and crash/power-loss evidence remain open. Slice is
-**YELLOW** and the project remains **RED**.
+Focused `SmtpTcpListenerTests`/`ProtocolPipelineTests` pass `11/11`, and the
+full Net10 suite passes `2127/2127` with `46` skipped and `0` failed. The new
+loopback test covers fragmented body input, dot-unstuffing, delayed receiver
+invocation, `250 Queued`, and `221`.
 
-Next smallest independent slice: implement/accept a true isolated
-`StartBackup -> LoadBackup` populated existing-state round trip with public
-folders and message bytes. The
-performance release gate is **RED** until both implementations complete the
-same scenarios. Do not claim a ratio or winner. Legacy C++ still accepts raw
-multiline values; the .NET10 rejection is an intentional security divergence
-requiring release-policy acceptance. Preserve COM identity,
-production service/database/Data boundaries, and the existing direct activation
-and SMTP trust boundaries.
+The Net10-only SMTP acceptance diagnostic passes `25/25`, but the C++ target
+still fails SMTP readiness with an empty banner and lacks the required POP3
+listener. The disposable fixture was mutated by accepted Net10 samples and
+must be recreated before paired comparison. The performance release gate is
+**RED**; no speed-up ratio or winner is valid.
+
+Next smallest independent slice: repair or replace the isolated C++ target,
+provision disposable SQL Server Full-Text Search, recreate equal SQL/Data/
+message roots, and rerun the identical SMTP/IMAP/POP3, delivery, concurrency,
+and soak matrix. Preserve COM identity, production service/database/Data
+boundaries, direct activation, and SMTP trust behavior.
 
 ## Current Audit Note (2026-08-11, SHARED SQL/DATA PERFORMANCE BASELINE)
 

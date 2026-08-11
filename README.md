@@ -1,6 +1,34 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-11)
+
+Code/test commit `8f9eb3655` fixes a network-fragmentation gap in
+`Server.Net10` `LineProtocolReader.ReadLineAsync`: after consuming a line, the
+reader now re-examines the consumed cursor so a partial next line is completed
+when its remaining bytes arrive. This matches the legacy DATA buffering path in
+`SMTPConnection::ParseData(ByteBuffer)`,
+`TransparentTransmissionBuffer::Append/Flush/RemoveTransmissionPeriod_`, and
+`SMTPConnection::HandleSMTPFinalizationTaskCompleted_`.
+
+`SmtpTcpListenerTests.RunAsync_StagesFragmentedDataUntilTerminatorAndQueuesAfterReceiverRelease`
+proves fragmented DATA input, dot-unstuffing, no receiver call before
+`CRLF.CRLF`, `250 Queued`, and `221` on the real loopback listener. The focused
+listener/protocol tests pass `11/11`; the full Net10 suite passes `2127`, with
+`46` skipped and `0` failed.
+
+The isolated Net10 SMTP acceptance diagnostic passes `25/25` (p50 `4.053 ms`,
+p95 `7.176 ms`, p99 `219.175 ms`), but the C++ target still fails SMTP
+readiness with an empty banner and does not provide the required paired POP3
+listener. The current disposable fixture was mutated by successful Net10
+acceptance samples and must be recreated before the next equal-start-state
+comparison. The paired C++/.NET 10 performance release gate remains **RED**;
+no speed-up ratio or winner is claimed.
+
+Next: repair or replace the isolated C++ protocol target, provision disposable
+SQL Server Full-Text Search, recreate equal SQL/Data/message fixtures, then run
+the identical SMTP/IMAP/POP3, delivery, concurrency, and soak matrix.
+
 ## Current authoritative benchmark status (2026-08-11)
 
 Code/tool commit `b34b2b415` adds
