@@ -1,5 +1,31 @@
 
 
+
+## Current Audit Note (2026-08-11, DENY MAIL FROM NULL AUTHORIZATION LEASE)
+
+Code/test commit `a146723f4` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.DenyMailFromNull`
+(`DispId(11)`). The lease is acquired immediately before the existing
+parameterized `allowmailfromnull` SQL update and held through result handling
+and retained snapshot publication. The legacy inverted boolean persistence is
+unchanged; SMTP empty-sender enforcement and live reconfiguration remain out
+of scope.
+
+Legacy behavior is anchored by `InterfaceSettings::get/put_DenyMailFromNull`
+(`source/Server/COM/InterfaceSettings.cpp:284-321`),
+`SMTPConfiguration::Set/GetAllowMailFromNull`
+(`source/Server/SMTP/SMTPConfiguration.cpp:75-85`), the SMTP empty-sender
+check (`source/Server/SMTP/SMTPConnection.cpp:601-614`), IDL `DispId(11)`
+(`source/Server/hMailServer/hMailServer.idl:537-538`), and the
+`allowmailfromnull` seed (`source/DBScripts/CreateTablesMSSQL.sql:736`).
+The .NET `UpdateAllowMailFromNullSql` shape was not changed. Focused coverage
+is `94/94`; full Net10 is `2077 passed, 39 skipped, 0 failed`.
+
+Remaining unleased Settings/COM/Admin mutations and the disposable SQL/Data
+restore, non-DB restore, SQL/FTS, paired performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and soak
+gates remain RED. Next slice: fresh legacy-first audit of `SMTPNoOfTries`.
+
 ## Current Audit Note (2026-08-11, ALLOW SMTP AUTH PLAIN AUTHORIZATION LEASE)
 
 Code/test commit `2d42c0006` extends the existing generation-bound

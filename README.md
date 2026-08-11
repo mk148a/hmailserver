@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, DenyMailFromNull authorization lease)
+
+Code/test commit `a146723f4` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.DenyMailFromNull`
+(`DispId(11)`). The lease is acquired immediately before the existing
+parameterized `allowmailfromnull` SQL mutation and held through mutation result
+handling and retained snapshot publication. The legacy inversion remains
+unchanged: `DenyMailFromNull = TRUE` persists `allowmailfromnull = 0`.
+
+Legacy anchors are `InterfaceSettings::get/put_DenyMailFromNull`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:284-321`),
+`SMTPConfiguration::Set/GetAllowMailFromNull`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:75-85`), the SMTP
+empty-sender check (`hmailserver/source/Server/SMTP/SMTPConnection.cpp:601-614`),
+the installed IDL property (`hmailserver/source/Server/hMailServer/hMailServer.idl:537-538`),
+the `allowmailfromnull` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:736`),
+and the .NET `UpdateAllowMailFromNullSql` path. Focused tests cover inversion,
+lease acquire/dispose, and unavailable-lease denial before mutation.
+
+Focused settings/store coverage is `94/94`; full Net10 is `2077 passed, 39
+skipped, 0 failed`. Disposable SQL/Data restore, non-DB restore/reinitialization,
+SQL/FTS, matched C++/.NET protocol load, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, and remaining
+unleased COM/Admin mutations keep release **RED**. Next slice is a fresh
+legacy-first audit of `SMTPNoOfTries`.
+
 ## Current parity continuation (2026-08-11, AllowSMTPAuthPlain authorization lease)
 
 Code/test commit `2d42c0006` extends the existing generation-bound
