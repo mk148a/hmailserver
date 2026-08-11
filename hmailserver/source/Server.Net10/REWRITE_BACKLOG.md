@@ -1,5 +1,28 @@
 
 
+## Current next slice (2026-08-11, SMTPConnectionSecurity SQL evidence harness; supersedes older entries)
+
+Code/test commit `81b77ac35` adds the dedicated opt-in
+`SqlServerSettingsAdministrationStoreSmtpConnectionSecurityIntegrationTests`
+fixture. It follows the legacy fixed-row behavior anchored by
+`InterfaceSettings::put_SMTPConnectionSecurity`
+(`source/Server/COM/InterfaceSettings.cpp:1799-1813`) and
+`SMTPConfiguration::SetSMTPConnectionSecurity`
+(`source/Server/SMTP/SMTPConfiguration.cpp:175-184`). The test requires an
+explicitly approved local SQL/LocalDB connection plus
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1`, rejects
+non-local data sources and `AttachDbFilename`, creates a random database,
+seeds only `SmtpDeliveryConnectionSecurity`, verifies values `0..3` and
+missing-row `false`, and drops the database in `finally`.
+
+The focused integration run skipped safely because the approval variables are
+unset; full Net10 is `2133 passed, 54 skipped, 0 failed`. This closes the
+harness gap but not live SQL evidence. Next independent slice: legacy-first
+audit and bounded plan for applying global `SMTPConnectionSecurity` to
+ordinary MX delivery. The paired C++ matrix, service/out-of-process COM,
+restore/rollback, migration/installer, SEC-18, AD/DC, and long-soak gates
+remain RED or environment-blocked.
+
 ## Current next slice (2026-08-11, SMTPConnectionSecurity admin mutation; supersedes older entries)
 
 Code/test commit `7b3373deb` completes the authenticated

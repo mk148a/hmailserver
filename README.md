@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current authoritative SQL-evidence status (2026-08-11)
+
+The `SMTPConnectionSecurity` persistence slice now has a dedicated disposable
+SQL integration harness in
+`hmailserver/source/Server.Net10/tests/HMailServer.Net10.Tests/SqlServerSettingsAdministrationStoreSmtpConnectionSecurityIntegrationTests.cs`.
+It accepts only an explicitly approved local SQL/LocalDB connection, requires
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1`, creates a
+random database, mutates all four legacy enum values, verifies read-back and
+missing-row behavior, and drops the database in `finally`. The focused run
+skipped safely because those approval variables are currently absent; the
+full Net10 suite is `2133 passed, 54 skipped, 0 failed`. This is harness
+coverage, not live SQL PASS evidence.
+
+The next parity gap is separate: legacy ordinary MX delivery consumes global
+`SMTPConnectionSecurity` through `ServerTargetResolver`, while the current
+Net10 remote-MX endpoint path still resolves `None`. No delivery/TLS runtime
+change is included in the SQL-evidence slice. The paired C++/.NET10
+performance gate remains **RED**.
+
 ## Current authoritative parity status (2026-08-11)
 
 The latest bounded COM/Admin slice implements authenticated

@@ -1,4 +1,20 @@
-## Current authoritative continuation (2026-08-11, SMTPConnectionSecurity persistence)
+## Current authoritative continuation (2026-08-11, SMTPConnectionSecurity SQL evidence harness)
+
+Code/test commit `81b77ac35` adds the opt-in
+`SqlServerSettingsAdministrationStoreSmtpConnectionSecurityIntegrationTests`
+fixture. It requires an explicitly approved local SQL/LocalDB connection and
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1`, rejects
+non-local sources and attached database files, creates a random database,
+mutates and reads back all four `SmtpDeliveryConnectionSecurity` values,
+checks missing-row `false`, and drops the database in `finally`. The focused
+run skipped safely because the approval variables are absent; full Net10 is
+`2133 passed, 54 skipped, 0 failed`. No live SQL PASS is claimed.
+
+Next slice: legacy-first audit of global `SMTPConnectionSecurity` in ordinary
+MX delivery. Keep `RemoteSmtpEndpointResolver`/TLS runtime wiring separate
+from this test-only evidence slice.
+
+## Historical parity continuation (2026-08-11, SMTPConnectionSecurity persistence)
 
 Code/test commit `7b3373deb` implements authenticated
 `Settings.SMTPConnectionSecurity` setter parity (`DispId(92)`). Legacy

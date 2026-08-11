@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, SMTP SECURITY SQL EVIDENCE HARNESS)
+
+Code/test commit `81b77ac35` adds
+`SqlServerSettingsAdministrationStoreSmtpConnectionSecurityIntegrationTests`.
+The test is destructive only against an explicitly approved local SQL/LocalDB
+target: it requires
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION` and
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1`, rejects
+non-local data sources and `AttachDbFilename`, creates a random database,
+seeds only the legacy `SmtpDeliveryConnectionSecurity` row, verifies values
+`0..3`, verifies missing-row `false`, and drops the database in `finally`.
+
+The focused integration test skipped safely because the approval variables are
+unset. Full Net10 is `2133 passed, 54 skipped, 0 failed`; no real SQL mutation
+PASS is claimed. The next legacy-first production gap is ordinary MX delivery:
+legacy `ServerTargetResolver.cpp:104-106` passes global SMTP connection
+security into `SMTPClientConnection`, while Net10
+`RemoteSmtpEndpointResolver.cs:60-66` currently uses `None`. Keep that runtime
+delivery/TLS change separate from this evidence harness. Performance remains
+RED, and service/out-of-process COM, restore/rollback, migration/installer,
+SEC-18, AD/DC, and long-soak gates remain open or environment-blocked.
+
 ## Current Authoritative Continuation (2026-08-11, SMTP CONNECTION SECURITY ADMIN MUTATION)
 
 Code/test commit `7b3373deb` implements the authenticated
