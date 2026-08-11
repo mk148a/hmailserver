@@ -81,20 +81,8 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
                 return await ResolveGlobalRelayerAsync(target, route, cancellationToken).ConfigureAwait(false);
             }
 
-            var routeConnectionAddress = IPAddress.TryParse(route.TargetHost, out _)
-                ? route.TargetHost
-                : null;
-
-            return new RemoteSmtpEndpoint(
-                route.TargetHost,
-                route.TargetPort <= 0 ? 25 : route.TargetPort,
-                (RemoteSmtpConnectionSecurity)route.ConnectionSecurity,
-                route.RequiresAuthentication,
-                route.AuthenticationUsername,
-                route.AuthenticationPassword,
-                VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate,
-                ConnectionAddress: routeConnectionAddress,
-                EnforceLocalEndpointGuard: routeConnectionAddress is not null);
+            return await ResolveConfiguredRouteAsync(target, route, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (target.Kind == DeliveryTargetKind.RemoteDomain)
@@ -128,6 +116,85 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
         }
 
         throw new InvalidOperationException("Local delivery targets do not have remote SMTP endpoints.");
+    }
+
+    private async ValueTask<RemoteSmtpEndpoint> ResolveConfiguredRouteAsync(
+        DeliveryTarget target,
+        SmtpRouteResolution route,
+        CancellationToken cancellationToken)
+    {
+        var hosts = route.TargetHost.Split(
+            '|',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var candidates = new List<RemoteSmtpEndpoint>();
+        var seenAddresses = new HashSet<IPAddress>();
+        Exception? lastResolutionFailure = null;
+
+        foreach (var host in hosts)
+        {
+            if (IPAddress.TryParse(host, out var configuredAddress))
+            {
+                AddAddressCandidate(host, configuredAddress);
+                continue;
+            }
+
+            IReadOnlyList<IPAddress> addresses;
+            try
+            {
+                addresses = await _addressResolver
+                    .ResolveAddressesAsync(host, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                lastResolutionFailure = ex;
+                continue;
+            }
+
+            foreach (var address in addresses)
+            {
+                if (address is not null)
+                {
+                    AddAddressCandidate(host, address);
+                }
+            }
+        }
+
+        if (candidates.Count == 0)
+        {
+            throw new IOException("SMTP route host resolution failed.", lastResolutionFailure);
+        }
+
+        if (target.MaxNumberOfMxHosts > 0)
+        {
+            candidates = candidates.Take(target.MaxNumberOfMxHosts).ToList();
+        }
+
+        var first = candidates[0];
+        return first with { Candidates = candidates.ToArray() };
+
+        void AddAddressCandidate(string host, IPAddress address)
+        {
+            if (!seenAddresses.Add(address))
+            {
+                return;
+            }
+
+            candidates.Add(new RemoteSmtpEndpoint(
+                host,
+                route.TargetPort <= 0 ? 25 : route.TargetPort,
+                (RemoteSmtpConnectionSecurity)route.ConnectionSecurity,
+                route.RequiresAuthentication,
+                route.AuthenticationUsername,
+                route.AuthenticationPassword,
+                VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate,
+                ConnectionAddress: address.ToString(),
+                EnforceLocalEndpointGuard: true));
+        }
     }
 
     private async ValueTask<RemoteSmtpEndpoint> ResolveGlobalRelayerAsync(
