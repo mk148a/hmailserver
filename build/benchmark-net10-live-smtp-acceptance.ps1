@@ -3,6 +3,8 @@ param(
     [int]$MessageCount = 100,
     [ValidateRange(1, 300)]
     [int]$ReadinessTimeoutSeconds = 60,
+    [ValidateRange(1, 60)]
+    [int]$PostAcceptanceTimeoutSeconds = 10,
     [string]$OutputDirectory = "",
     [ValidateSet("net10", "cpp")]
     [string]$Implementation = "net10"
@@ -63,10 +65,11 @@ function Get-ListenerState {
 }
 
 function Get-SqlFixtureSnapshot {
-    param([string]$Database)
+    param([string]$Database, [string]$DataRoot)
 
     try {
-        $query = @'
+        $dataRootSql = $DataRoot.Replace("'", "''")
+        $query = @"
 SET NOCOUNT ON;
 SELECT
     (SELECT COUNT_BIG(*) FROM hm_messages),
@@ -78,16 +81,28 @@ SELECT
     (SELECT COUNT_BIG(*) FROM hm_tcpipports WHERE
         (portprotocol = 1 AND portnumber = 2525 AND portaddress1 = 2130706433) OR
         (portprotocol = 5 AND portnumber = 1143 AND portaddress1 = 2130706433) OR
-        (portprotocol = 3 AND portnumber = 25110 AND portaddress1 = 2130706433));
-'@
+        (portprotocol = 3 AND portnumber = 25110 AND portaddress1 = 2130706433)),
+    (SELECT COUNT_BIG(*) FROM hm_domains WHERE domainname = N'perf.test' AND domainactive <> 0),
+    (SELECT COUNT_BIG(*) FROM hm_accounts WHERE accountaddress = N'test@perf.test' AND accountactive <> 0),
+    (SELECT COUNT_BIG(*) FROM hm_imapfolders WHERE folderaccountid = 1 AND folderparentid = -1 AND LOWER(foldername) = N'inbox'),
+    (SELECT COUNT_BIG(*) FROM hm_messages WHERE LEFT(messagefilename, LEN(N'$dataRootSql')) = N'$dataRootSql'),
+    (SELECT COUNT_BIG(*) FROM hm_messages WHERE LEFT(messagefilename, LEN(N'$dataRootSql')) <> N'$dataRootSql');
+"@
         $lines = @(sqlcmd -S localhost -E -d $Database -W -s '|' -h-1 -b -Q $query)
         if ($LASTEXITCODE -ne 0 -or $lines.Count -ne 1) {
             throw "sqlcmd returned no single fixture snapshot row (exit code $LASTEXITCODE)."
         }
         $parts = $lines[0].Trim().Split('|')
-        if ($parts.Count -ne 7) {
-            throw "sqlcmd fixture snapshot returned $($parts.Count) fields instead of 7."
+        if ($parts.Count -ne 12) {
+            throw "sqlcmd fixture snapshot returned $($parts.Count) fields instead of 12."
         }
+        $tcpipPorts = [int64]$parts[5].Trim()
+        $matchingLoopbackPorts = [int64]$parts[6].Trim()
+        $domainMatches = [int64]$parts[7].Trim()
+        $accountMatches = [int64]$parts[8].Trim()
+        $inboxMatches = [int64]$parts[9].Trim()
+        $messageFilesWithinDataRoot = [int64]$parts[10].Trim()
+        $messageFilesOutsideDataRoot = [int64]$parts[11].Trim()
         [pscustomobject]@{
             available = $true
             messages = [int64]$parts[0].Trim()
@@ -95,9 +110,15 @@ SELECT
             deliveredMessages = [int64]$parts[2].Trim()
             metadata = [int64]$parts[3].Trim()
             recipients = [int64]$parts[4].Trim()
-            tcpipPorts = [int64]$parts[5].Trim()
-            matchingLoopbackPorts = [int64]$parts[6].Trim()
-            loopbackFixtureValid = ([int64]$parts[5].Trim() -eq 3 -and [int64]$parts[6].Trim() -eq 3)
+            tcpipPorts = $tcpipPorts
+            matchingLoopbackPorts = $matchingLoopbackPorts
+            domainMatches = $domainMatches
+            accountMatches = $accountMatches
+            inboxMatches = $inboxMatches
+            messageFilesWithinDataRoot = $messageFilesWithinDataRoot
+            messageFilesOutsideDataRoot = $messageFilesOutsideDataRoot
+            loopbackFixtureValid = ($tcpipPorts -eq 3 -and $matchingLoopbackPorts -eq 3)
+            fixtureValid = ($tcpipPorts -eq 3 -and $matchingLoopbackPorts -eq 3 -and $domainMatches -eq 1 -and $accountMatches -eq 1 -and $inboxMatches -eq 1 -and $messageFilesOutsideDataRoot -eq 0)
             error = $null
         }
     }
@@ -111,7 +132,13 @@ SELECT
             recipients = $null
             tcpipPorts = $null
             matchingLoopbackPorts = $null
+            domainMatches = $null
+            accountMatches = $null
+            inboxMatches = $null
+            messageFilesWithinDataRoot = $null
+            messageFilesOutsideDataRoot = $null
             loopbackFixtureValid = $false
+            fixtureValid = $false
             error = $_.Exception.Message
         }
     }
@@ -171,6 +198,41 @@ function Get-FixtureIdentity {
     }
     finally {
         $sha.Dispose()
+    }
+}
+
+function Wait-ForAcceptedMessageState {
+    param([int64]$ExpectedNewMessages)
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($PostAcceptanceTimeoutSeconds)
+    $last = $null
+    do {
+        $last = Get-SqlFixtureSnapshot -Database $database -DataRoot $dataRoot
+        if ($last.available -and $sqlBefore.available) {
+            $newMessages = $last.messages - $sqlBefore.messages
+            $newQueued = $last.queuedMessages - $sqlBefore.queuedMessages
+            $newDelivered = $last.deliveredMessages - $sqlBefore.deliveredMessages
+            if ($newMessages -ge $ExpectedNewMessages -and ($newQueued + $newDelivered) -ge $ExpectedNewMessages) {
+                return [pscustomobject]@{
+                    observed = $true
+                    expectedNewMessages = $ExpectedNewMessages
+                    messages = $newMessages
+                    queuedMessages = $newQueued
+                    deliveredMessages = $newDelivered
+                    snapshot = $last
+                }
+            }
+        }
+        Start-Sleep -Milliseconds 250
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    [pscustomobject]@{
+        observed = $false
+        expectedNewMessages = $ExpectedNewMessages
+        messages = if ($null -ne $last -and $last.available -and $sqlBefore.available) { $last.messages - $sqlBefore.messages } else { $null }
+        queuedMessages = if ($null -ne $last -and $last.available -and $sqlBefore.available) { $last.queuedMessages - $sqlBefore.queuedMessages } else { $null }
+        deliveredMessages = if ($null -ne $last -and $last.available -and $sqlBefore.available) { $last.deliveredMessages - $sqlBefore.deliveredMessages } else { $null }
+        snapshot = $last
     }
 }
 
@@ -326,12 +388,13 @@ $startUtc = [DateTimeOffset]::UtcNow
 $readinessFailures = @()
 $shutdownFailures = @()
 $samples = [System.Collections.Generic.List[object]]::new()
+$acceptedStates = [System.Collections.Generic.List[object]]::new()
 $before = $null
 $after = $null
 $preflight = $null
 $provenance = $null
 
-$sqlBefore = Get-SqlFixtureSnapshot -Database $database
+$sqlBefore = Get-SqlFixtureSnapshot -Database $database -DataRoot $dataRoot
 $dataBefore = Get-DataFixtureSnapshot -Root $dataRoot
 $fixtureIdentity = Get-FixtureIdentity -Sql $sqlBefore -Data $dataBefore -RequestedMessages $MessageCount
 
@@ -351,6 +414,9 @@ try {
             $before = Get-Process -Id $process.Id
             for ($sequence = 1; $sequence -le $MessageCount; $sequence++) {
                 $result = Invoke-SmtpAcceptance $sequence
+                if ($result.ok) {
+                    $acceptedStates.Add((Wait-ForAcceptedMessageState -ExpectedNewMessages ($acceptedStates.Count + 1)))
+                }
                 $samples.Add([pscustomobject]@{
                     scenario = "smtp-message-acceptance"
                     sequence = $sequence
@@ -373,7 +439,7 @@ finally {
     }
 }
 $endUtc = [DateTimeOffset]::UtcNow
-$sqlAfter = Get-SqlFixtureSnapshot -Database $database
+$sqlAfter = Get-SqlFixtureSnapshot -Database $database -DataRoot $dataRoot
 $dataAfter = Get-DataFixtureSnapshot -Root $dataRoot
 
 $successful = @($samples | Where-Object ok)
@@ -381,11 +447,14 @@ $durationSeconds = ($endUtc - $startUtc).TotalSeconds
 $postRunAccounting = [pscustomobject]@{
     sqlAvailable = $sqlBefore.available -and $sqlAfter.available
     dataAvailable = $dataBefore.available -and $dataAfter.available
+    fixtureValidBefore = $sqlBefore.fixtureValid
+    fixtureValidAfter = $sqlAfter.fixtureValid
     messageRowDelta = if ($sqlBefore.available -and $sqlAfter.available) { $sqlAfter.messages - $sqlBefore.messages } else { $null }
     metadataRowDelta = if ($sqlBefore.available -and $sqlAfter.available) { $sqlAfter.metadata - $sqlBefore.metadata } else { $null }
     recipientRowDelta = if ($sqlBefore.available -and $sqlAfter.available) { $sqlAfter.recipients - $sqlBefore.recipients } else { $null }
     dataFileDelta = if ($dataBefore.available -and $dataAfter.available) { $dataAfter.fileCount - $dataBefore.fileCount } else { $null }
-    valid = ($sqlBefore.available -and $sqlAfter.available -and $dataBefore.available -and $dataAfter.available -and $sqlBefore.loopbackFixtureValid -and $sqlAfter.loopbackFixtureValid -and (($sqlAfter.messages - $sqlBefore.messages) -ge $successful.Count))
+    acceptedStatesObserved = @($acceptedStates | Where-Object observed).Count
+    valid = ($sqlBefore.available -and $sqlAfter.available -and $dataBefore.available -and $dataAfter.available -and $sqlBefore.fixtureValid -and $sqlAfter.fixtureValid -and (($sqlAfter.messages - $sqlBefore.messages) -ge $successful.Count) -and (@($acceptedStates | Where-Object observed).Count -eq $successful.Count))
 }
 $report = [pscustomobject]@{
     schema = "live-smtp-message-acceptance-v1"
@@ -419,6 +488,7 @@ $report = [pscustomobject]@{
         after = [pscustomobject]@{ sql = $sqlAfter; data = $dataAfter }
     }
     postRunAccounting = $postRunAccounting
+    acceptedMessageStates = @($acceptedStates)
     samples = $samples
     productionSafety = if ($Implementation -eq "cpp") {
         "loopback-only; legacy registry/config resolution was preflighted; disposable SQL/Data roots required"
@@ -444,6 +514,9 @@ $markdown = @(
     "Requested/accepted: $($report.requestedMessages) / $($report.acceptedMessages)",
     "p50/p95/p99: $($report.p50_ms) / $($report.p95_ms) / $($report.p99_ms) ms",
     "Throughput: $($report.throughput_messages_per_second) messages/s",
+    "Fixture identity: $($report.fixture.identity)",
+    "Fixture valid before/after: $($report.fixture.before.sql.fixtureValid) / $($report.fixture.after.sql.fixtureValid)",
+    "Post-run accounting: $($report.postRunAccounting.valid); message/data deltas $($report.postRunAccounting.messageRowDelta) / $($report.postRunAccounting.dataFileDelta)",
     "",
     "This is a loopback disposable-target measurement. A C++/.NET 10 ratio is valid only when both implementations pass the same readiness, SQL/Data, message, and cleanup gates."
 )

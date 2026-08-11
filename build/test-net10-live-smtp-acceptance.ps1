@@ -37,8 +37,17 @@ if ($null -eq $report.fixture -or $null -eq $report.postRunAccounting) {
 if ([string]::IsNullOrWhiteSpace($report.fixture.identity) -or $report.fixture.database -ne $report.database -or $report.fixture.dataRoot -ne $report.dataRoot) {
     throw "SMTP acceptance fixture identity or target roots are invalid."
 }
+if ($null -eq $report.fixture.before -or $null -eq $report.fixture.after -or $null -eq $report.fixture.before.sql -or $null -eq $report.fixture.after.sql -or $null -eq $report.fixture.before.data -or $null -eq $report.fixture.after.data) {
+    throw "SMTP acceptance reports must include complete before/after SQL and Data fixture snapshots."
+}
+if (@($report.PSObject.Properties.Name) -notcontains "acceptedMessageStates") {
+    throw "SMTP acceptance reports must include bounded accepted-message state evidence."
+}
 if ($report.status -eq "PASS" -and $report.postRunAccounting.valid -ne $true) {
     throw "A passing SMTP acceptance report must have valid SQL/Data post-run accounting."
+}
+if ($report.status -eq "PASS" -and @($report.acceptedMessageStates | Where-Object observed).Count -ne [int]$report.acceptedMessages) {
+    throw "A passing SMTP acceptance report must observe every accepted message in SQL queue/delivery state."
 }
 if ([int]$report.requestedMessages -lt 1) {
     throw "The report requested no messages."
