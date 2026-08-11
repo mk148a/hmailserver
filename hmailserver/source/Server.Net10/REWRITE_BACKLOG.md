@@ -4272,3 +4272,25 @@ CNAME acceptance; shared outbound egress/SSRF hardening; registry-isolated or
 separate-VM C++ listener/benchmark execution; and a separately designed
 restore protocol drain/reinitialize lifecycle slice. Do not restart the
 completed CNAME slice.
+
+## Current authoritative next slice (2026-08-12, SMTP self-connect guard)
+
+Code/test commit `9e1bbb53b` implements the bounded legacy self-connect parity
+guard. `TCPConnection::StartAsyncConnect_` and
+`LocalIPAddresses::IsLocalPort` reject connections to the server's own active
+listening address/port, while unused loopback remains connectable. Net10
+applies the check before socket creation to normal MX/implicit address
+candidates only; fixed routes and global relayers retain their existing
+behavior. Wildcard listeners are restricted to actual local addresses,
+IPv4-mapped IPv6 addresses are normalized, and denial is queue-safe for MX
+failover.
+
+Focused tests are `65/65`; full Net10 is `2202 passed, 54 skipped, 0 failed`.
+This does not close the broader outbound egress/SSRF policy, DNS response
+validation, or live DNS/socket/TLS acceptance. The paired C++/.NET performance
+gate remains **RED**.
+
+Next independent slices, in order: approved disposable real DNS/socket/TLS
+acceptance; separate shared SMTP egress/SSRF policy review and implementation;
+registry-isolated or separate-VM C++ listener/benchmark execution; then the
+restore protocol drain/reinitialize lifecycle contract.

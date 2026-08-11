@@ -4351,3 +4351,35 @@ or separate-VM C++ listener/benchmark execution, and (4) a separately
 designed restore protocol drain/reinitialize lifecycle contract. Preserve
 dirty `AGENTS.md`, existing backup/Smtp WIP, and all untracked
 SEC-18/benchmark/disposable artifacts.
+
+## Current Authoritative Continuation (2026-08-12, SMTP SELF-CONNECT GUARD)
+
+Code/test commit `9e1bbb53b` implements one bounded legacy SMTP self-connect
+slice. `hmail_parity_explorer` verified
+`TCPConnection::StartAsyncConnect_` and `LocalIPAddresses::IsLocalPort` in
+`hmailserver/source/Server/Common/TCPIP/TCPConnection.cpp:75` and
+`hmailserver/source/Server/Common/LocalIPAddresses.cpp:101`: an active local
+listening address/port is rejected, but an unused loopback port is allowed.
+The implementation is in
+`hmailserver/source/Server.Net10/src/HMailServer.Delivery/RemoteSmtpLocalEndpointPolicy.cs`,
+with candidate marking in `RemoteSmtpEndpointResolver.cs` and the pre-connect
+check in `SmtpRemoteDeliveryClient.cs`; `RemoteSmtpEndpoint.cs` carries the
+optional guard flag. Focused tests are in
+`RemoteSmtpLocalEndpointPolicyTests.cs` and
+`SmtpRemoteDeliveryClientTests.cs`.
+
+Focused coverage is `65/65`; full Net10 is `2202 passed, 54 skipped, 0 failed`.
+The slice preserves installed COM identity, authenticated Admin boundaries,
+SMTP trust behavior, explicit routes, and global relayers. Wildcard listeners
+match only actual local addresses, mapped IPv6 is normalized, and guard denial
+is converted into a transient endpoint result so MX failover can continue.
+This is not the broader SMTP SSRF policy: private/link-local/mixed-answer
+restrictions, DNS source/question validation, aggregate DNS deadlines, live
+DNS/socket/TLS acceptance, and paired C++/.NET performance remain open.
+Release remains RED.
+
+Next three independent slices: (1) approved disposable real DNS/socket/TLS
+acceptance, (2) separately reviewed shared SMTP egress/SSRF policy, and (3)
+registry-isolated or separate-VM C++ listener/benchmark execution. Preserve
+dirty `AGENTS.md`, backup/Smtp WIP, and untracked SEC-18/benchmark/disposable
+artifacts.

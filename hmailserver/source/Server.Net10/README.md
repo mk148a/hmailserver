@@ -2205,3 +2205,22 @@ reconfiguration changed. Release remains RED.
 Next independent work: approved disposable real DNS/socket/TLS acceptance;
 shared outbound egress/SSRF policy hardening; registry-isolated or separate-VM
 C++ listener execution; and the restore protocol drain/reinitialize contract.
+
+## Current authoritative continuation (2026-08-12, SMTP self-connect parity)
+
+Code/test commit `9e1bbb53b` closes the bounded legacy local-listening-port
+guard for ordinary DNS-derived SMTP delivery. Legacy behavior is anchored by
+`TCPConnection::StartAsyncConnect_` and `LocalIPAddresses::IsLocalPort`
+(`hmailserver/source/Server/Common/TCPIP/TCPConnection.cpp:75` and
+`hmailserver/source/Server/Common/LocalIPAddresses.cpp:101`): the server's own
+active listening endpoint is rejected, but loopback to an unused port remains
+allowed. Net10 checks active TCP listeners before creating the socket only for
+normal MX/implicit address candidates; explicit routes and global relayers are
+not broadened. Wildcard listeners are matched only to actual local addresses,
+and IPv4-mapped IPv6 targets are normalized.
+
+Focused coverage is `65/65`; full Net10 is `2202 passed, 54 skipped, 0 failed`.
+Guard denials are represented as transient endpoint results so sequential MX
+failover and queue handling remain deterministic. The shared outbound
+egress/SSRF policy, DNS response validation, real DNS/socket/TLS evidence, and
+paired C++/.NET performance gate remain open. Release remains **RED**.

@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current authoritative SMTP self-connect status (2026-08-12)
+
+Code/test commit `9e1bbb53b` preserves the legacy local-listening-endpoint
+guard for ordinary DNS-derived SMTP delivery. The legacy references are
+`TCPConnection::StartAsyncConnect_` and `LocalIPAddresses::IsLocalPort`
+(`hmailserver/source/Server/Common/TCPIP/TCPConnection.cpp:75` and
+`hmailserver/source/Server/Common/LocalIPAddresses.cpp:101`): a connection to
+the server's own listening address and port is rejected, while loopback to an
+unused port is allowed. Net10 applies that guard only to normal MX/implicit
+address candidates before socket creation. Explicit fixed routes and the
+global relayer remain unchanged for compatibility.
+
+Focused self-connect/resolver coverage is `65/65`; full Net10 is `2202 passed,
+54 skipped, 0 failed`. This is a bounded parity guard, not a complete SMTP
+egress/SSRF policy. Private/link-local/mixed-answer policy, DNS response
+validation, live DNS/socket/TLS acceptance, and the paired C++/.NET
+performance release gate remain open; performance status is **RED**.
+
 ## Current authoritative normal-MX CNAME status (2026-08-12)
 
 Code/test commit `bf6018662` closes the bounded legacy no-MX CNAME target
