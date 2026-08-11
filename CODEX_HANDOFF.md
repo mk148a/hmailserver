@@ -1,5 +1,36 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, TCPIP THREADS AUTHORIZATION LEASE)
+
+Code/test commit `752d55443` extends the existing generation-bound
+authorization lease to authenticated `Settings.TCPIPThreads` (`DispId(60)`).
+The lease spans the existing parameterized `tcpipthreads` SQL mutation,
+result handling, and retained snapshot publication; unavailable leases fail
+closed with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_TCPIPThreads`
+(`source/Server/COM/InterfaceSettings.cpp:1530-1557`),
+`Configuration::Get/SetTCPIPThreads`
+(`source/Server/Common/Application/Configuration.cpp:142-151`),
+`PROPERTY_TCPIPTHREADS` (`source/Server/Common/Application/Constants.h:72`),
+the installed Settings IID and `DispId(60)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,601-602`), and the
+`tcpipthreads` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:840`).
+Focused settings/store coverage is `122/122`; full unfiltered Net10 is
+`2105 passed, 39 skipped, 0 failed`.
+
+Focused tests cover lease acquire/dispose, unavailable-lease denial before
+mutation, and reauthentication blocking during an in-flight mutation. Legacy
+and Net10 both persist this setting; listener-thread runtime use remains
+unproven and unchanged. Installed COM identity, direct activation denial, and
+authenticated Settings access remain unchanged.
+
+Release remains RED for disposable SQL/Data restore, non-DB restore,
+SQL/FTS, paired C++/.NET performance, protocol greeting parity, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: fresh
+legacy-first audit of `Settings.AllowIncorrectLineEndings`. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, WORKER THREAD PRIORITY AUTHORIZATION LEASE)
 
 Code/test commit `3ab7c8aef` extends the existing generation-bound

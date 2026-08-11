@@ -6,6 +6,35 @@
 
 
 
+## Current Audit Note (2026-08-11, TCPIP THREADS AUTHORIZATION LEASE)
+
+Code/test commit `752d55443` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.TCPIPThreads`
+(`DispId(60)`). The lease is acquired immediately before the existing
+parameterized `tcpipthreads` SQL update and held through result handling and
+retained snapshot publication. Listener-thread runtime behavior remains out
+of scope for this bounded mutation slice.
+
+Legacy behavior is anchored by `InterfaceSettings::get/put_TCPIPThreads`
+(`source/Server/COM/InterfaceSettings.cpp:1530-1557`),
+`Configuration::Get/SetTCPIPThreads`
+(`source/Server/Common/Application/Configuration.cpp:142-151`),
+`PROPERTY_TCPIPTHREADS` (`source/Server/Common/Application/Constants.h:72`),
+the installed Settings IID and `DispId(60)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,601-602`), and the
+`tcpipthreads` seed (`source/DBScripts/CreateTablesMSSQL.sql:840`). The .NET
+`UpdateTcpIpThreadsSql` shape was not changed. Focused coverage is `122/122`,
+including unavailable-lease denial and in-flight reauthentication blocking.
+
+Both legacy and Net10 currently persist the setting; no separate listener
+thread application path was established here. Full unfiltered Net10 is
+`2105 passed, 39 skipped, 0 failed`. Release remains **RED** for disposable
+SQL/Data restore, non-DB restore, SQL/FTS, paired C++/.NET performance,
+protocol greeting parity, SEC-18, migration/installer, out-of-process COM,
+AD/DC, crash/power-loss, 24-hour soak, and remaining unleased COM/Admin
+mutations. Next slice: fresh legacy-first audit of
+`Settings.AllowIncorrectLineEndings`.
+
 ## Current Audit Note (2026-08-11, WORKER THREAD PRIORITY AUTHORIZATION LEASE)
 
 Code/test commit `3ab7c8aef` extends the existing generation-bound

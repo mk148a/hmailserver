@@ -1,6 +1,36 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, TCPIPThreads authorization lease)
+
+Code/test commit `752d55443` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.TCPIPThreads`
+(`DispId(60)`). The lease is acquired immediately before the existing
+parameterized `tcpipthreads` SQL update and held through mutation result
+handling and retained snapshot publication. No integer COM shape, listener
+runtime behavior, or COM identity changed.
+
+Legacy anchors are `InterfaceSettings::get/put_TCPIPThreads`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1530-1557`),
+`Configuration::Get/SetTCPIPThreads`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:142-151`),
+`PROPERTY_TCPIPTHREADS`
+(`hmailserver/source/Server/Common/Application/Constants.h:72`), the
+installed Settings IID and `DispId(60)`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:520-528,601-602`),
+and the `tcpipthreads` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:840`).
+Focused tests cover lease acquire/dispose, unavailable-lease denial before
+mutation, and reauthentication blocking during an in-flight mutation.
+
+Focused settings/store coverage is `122/122`. Full unfiltered Net10 is
+`2105 passed, 39 skipped, 0 failed`. Legacy and Net10 paths both persist this
+setting; no separate listener-thread application path was established in this
+slice. Disposable SQL/Data restore, non-DB restore/reinitialization, SQL/FTS,
+matched C++/.NET protocol load, protocol greeting runtime parity, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations keep release **RED**. Next
+slice is a fresh legacy-first audit of `Settings.AllowIncorrectLineEndings`.
+
 ## Current parity continuation (2026-08-11, WorkerThreadPriority authorization lease)
 
 Code/test commit `3ab7c8aef` extends the existing generation-bound
