@@ -16,6 +16,12 @@ speed-up, regression percentage, or performance winner is claimed. Evidence is
 under `artifacts/benchmarks/live-cpp-net10-20260811/`; the repeatable start
 state collector is `build/collect-live-equivalence-evidence.ps1`.
 
+The latest opt-in validation is green for the available isolated SQL path:
+`2156 passed, 2 skipped, 0 failed` against disposable MSSQL/Data resources.
+The skips are the explicit installer-artifact and native-registry integration
+gates. This does not clear the paired performance gate, SQL FTS, restore
+round-trip, COM activation, SEC-18, or soak gates.
+
 ```mermaid
 xychart-beta
     title "Shared-baseline protocol success counts"

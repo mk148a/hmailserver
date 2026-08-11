@@ -29,6 +29,11 @@ written below `artifacts/benchmarks/live-cpp-net10-20260811/`. This does not
 prove SQL FTS, message acceptance, delivery throughput, restore behavior, or
 24-hour leak freedom.
 
+The latest full opt-in Net10 validation against disposable MSSQL/Data
+resources is `2156 passed, 2 skipped, 0 failed`. The two skips are the explicit
+installer artifact and native registry integration tests. This green test run
+does not change the paired live-performance gate above.
+
 The first offline acceptance scenario is a deterministic 100,000-message IMAP SEARCH/SORT run. It is intentionally independent of SQL Server, the hMailServer service, COM registration, and any mail data directory.
 
 Run it from the repository root:

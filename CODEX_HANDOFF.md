@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, DISPOSABLE SQL OPT-IN GREEN)
+
+Code/test commit `8972eb9d4` repairs the isolated SQL evidence fixtures and a
+real `SequentialAccess` reader-order defect in
+`SqlServerWhiteListAddressAdministrationStore.GetWhiteListAddressesAsync`.
+Legacy `hm_imapfolders.folderid/folderparentid` and
+`hm_messages.messagefolderid` are `int` in
+`source/DBScripts/CreateTablesMSSQL.sql:261,355-359`; the public import fixture
+now matches that contract. The retained-folder test now counts the intentionally
+undeleted `Live` folder, and the domain/account/fetch fixture supplies every
+non-null message column used by the SQL path. Cache runtime state is reset at
+the isolated fixture boundary.
+
+Focused SQL/IMAP/COM integration coverage is `16/16`; whitelist store coverage
+is `11/11`. The full opt-in MSSQL disposable run is **2156 passed, 2 skipped,
+0 failed**. The two skips are the explicit installer artifact and native
+registry integration gates. No production database, Data directory, service,
+COM registration, or DCOM ACL was changed.
+
+The performance gate remains **RED**. The paired start state is equivalent by
+33/33 row counts and 1,000/1,000 Data-file hashes, but C++ protocol probes did
+not complete and the collector does not prove row-content equivalence. No
+speed-up ratio or performance winner is valid. Next slice: repair or replace
+the isolated C++/Net10 protocol target and rerun the identical loopback matrix.
+Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, SHARED SQL/DATA PERFORMANCE BASELINE)
 
 Code/tool commit `8558b7a44` adds

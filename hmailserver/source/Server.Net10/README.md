@@ -1746,3 +1746,17 @@ The paired C++/.NET10 performance release gate remains **RED**. Existing
 artifacts do not prove identical SQL/Data copies and message corpora, and the
 C++ concurrent IMAP run is `0/1000` versus Net10 `1000/1000`; no speed-up or
 performance superiority is claimed.
+## Current parity continuation (2026-08-11, DISPOSABLE SQL OPT-IN GREEN)
+
+Code/test commit `8972eb9d4` repairs the isolated SQL integration fixtures and
+fixes `SqlServerWhiteListAddressAdministrationStore.GetWhiteListAddressesAsync`
+to consume `SequentialAccess` columns in the legacy SELECT order. Focused
+SQL/IMAP/COM integration coverage is `16/16`; whitelist store coverage is
+`11/11`; the full opt-in MSSQL disposable run is `2156 passed, 2 skipped,
+0 failed`. Installer artifact and native registry integration remain explicit
+skips. No production SQL/Data/service/COM registration or DCOM ACL changed.
+
+The paired C++/.NET10 performance gate remains **RED** because the shared
+start state does not yet produce a completed equivalent protocol workload.
+Next slice: repair or replace the isolated C++/Net10 protocol target before
+claiming any speed-up.

@@ -3506,3 +3506,27 @@ paired legacy/.NET protocol performance, SEC-18, migration/installer,
 out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
 environment-blocked. Next slice: fresh legacy-first audit of one remaining
 low-risk Settings mutation.
+## Current Audit Note (2026-08-11, DISPOSABLE SQL OPT-IN GREEN)
+
+Code/test commit `8972eb9d4` repairs the disposable SQL integration fixtures
+and fixes the `SequentialAccess` read order in
+`SqlServerWhiteListAddressAdministrationStore.GetWhiteListAddressesAsync`.
+Legacy MSSQL uses `int` IMAP folder IDs (`source/DBScripts/CreateTablesMSSQL.sql:355-359`),
+and legacy `MailImporter::Import` plus `MessageUtilities::MoveToIMAPFolder`
+requires the existing public-folder `Insert` ACL
+(`source/Server/Common/Util/MailImporter.cpp:39-192`,
+`source/Server/Common/Util/MessageUtilities.cpp:47-93`). The test fixture now
+matches those contracts; domain/account/fetch message seeds include all
+non-null columns required by their SQL paths, and process-global cache state is
+isolated.
+
+Focused SQL/IMAP/COM integration coverage is `16/16`; whitelist store coverage
+is `11/11`. Full opt-in MSSQL disposable Net10 is **2156 passed, 2 skipped,
+0 failed**. Installer artifact and native registry integration remain explicit
+skips. No production SQL/Data/service/COM registration/DCOM state changed.
+
+The paired C++/.NET10 performance gate remains **RED**: start-state row counts
+and Data hashes match, but C++ protocol completion is still `0/25` and the
+collector does not prove row-content equivalence. No performance ratio is
+valid. Next slice: repair or replace the isolated C++/Net10 protocol target
+before any speed-up claim.
