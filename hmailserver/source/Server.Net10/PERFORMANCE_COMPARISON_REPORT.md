@@ -1,7 +1,7 @@
 # C++ / .NET 10 Performance Gate Report
 
 Date: 2026-08-11
-Code/test commit: `cb65ea9a6`
+Code/test commit: `82afa4127`
 Decision: **RED**
 
 ## Executive Result
@@ -16,7 +16,7 @@ The SQL/Data/message fixture is now equivalent at the start of the run:
 - SQL Full-Text service, catalog, search-document table, and index present on both sides
 - SMTP `2525`, IMAP `1143`, POP3 `25110`, all bound to `127.0.0.1`
 
-Evidence: `artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-final2/paired-shared-baseline.json`.
+Evidence: `artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-post-pop3-fixed/paired-shared-baseline.json`.
 
 The .NET 10 listener was measured against this fixture. The legacy C++ process was **not** launched: the read-only preflight found the installed Registry32 path and `/Debug` startup would write the installed AppID registration. Therefore no C++ latency, throughput, ratio, regression, or winner is reported.
 
@@ -24,13 +24,13 @@ The .NET 10 listener was measured against this fixture. The legacy C++ process w
 
 | Scenario | Result | p50 | p95 | p99 | Throughput |
 | --- | --- | ---: | ---: | ---: | ---: |
-| SMTP acceptance, 25 messages | PASS, 25/25 | 17.573 ms | 76.988 ms | 320.452 ms | 4.170 msg/s |
-| SMTP protocol, 25 sessions | PASS, 25/25 | 0.862 ms | 1.404 ms | 17.935 ms | n/a |
-| IMAP protocol, 25 sessions | PASS, 25/25 | 13.609 ms | 22.084 ms | 445.018 ms | n/a |
-| IMAP, 1,000 concurrent sessions | PASS, 1000/1000 | 2850.032 ms | 3984.891 ms | 4023.059 ms | 75.354 sessions/s |
-| POP3 protocol, 25 sessions | FAIL in sequential harness | n/a | n/a | n/a | n/a |
+| SMTP acceptance, 25 messages | PASS, 25/25 | 5.235 ms | 21.270 ms | 198.446 ms | 6.505 msg/s |
+| SMTP protocol, 25 sessions | PASS, 25/25 | 0.677 ms | 1.194 ms | 16.073 ms | n/a |
+| IMAP protocol, 25 sessions | PASS, 25/25 | 9.415 ms | 13.701 ms | 207.027 ms | n/a |
+| POP3 protocol, 25 sessions | PASS, 25/25 | 12.258 ms | 20.972 ms | 29.862 ms | n/a |
+| IMAP, 1,000 concurrent sessions | PASS, 1000/1000 | 2506.190 ms | 3611.596 ms | 3720.543 ms | 79.045 sessions/s |
 
-The POP3 listener returned a banner in an isolated socket check and after a manually reproduced SMTP/IMAP sequence, but the automated sequential protocol runner received connection resets for all 25 POP3 samples. This is an unresolved acceptance/harness issue, not a PASS.
+The initial POP3 run exposed a production bug in `SqlServerPop3MailboxStore.ListMessagesAsync`: `SequentialAccess` requires ordinal 0 to be read before ordinal 1. After the one-line read-order fix, the isolated SQL diagnostic passed and the updated Release host passed POP3 25/25. The focused diagnostic is opt-in and uses only the disposable pair.
 
 ## Charts
 
@@ -39,11 +39,11 @@ These charts show measured .NET 10 values only. They are deliberately not C++ co
 ```mermaid
 xychart-beta
     title "Net10 live latency percentiles"
-    x-axis [SMTP, IMAP, IMAP-1000]
+    x-axis [SMTP, IMAP, POP3, IMAP-1000]
     y-axis "Milliseconds" 0 --> 4200
-    bar [17.573, 13.609, 2850.032]
-    bar [76.988, 22.084, 3984.891]
-    bar [320.452, 445.018, 4023.059]
+    bar [5.235, 9.415, 12.258, 2506.190]
+    bar [21.270, 13.701, 20.972, 3611.596]
+    bar [198.446, 207.027, 29.862, 3720.543]
 ```
 
 Legend, in order: p50, p95, p99. SMTP acceptance is a message transaction; the other two rows are protocol/session scenarios.
@@ -67,10 +67,9 @@ The disposable SQL diagnostic also exposed and provisioned the exact legacy `hm_
 ## Acceptance Gaps
 
 1. A registry-isolated C++ installation or VM is required before any C++ process can run safely.
-2. The POP3 sequential protocol runner requires independent diagnosis and a green repeatable run.
-3. C++/.NET 10 SMTP, IMAP, POP3, delivery, queue, and equal-load measurements are still absent as a pair.
-4. SQL Full-Text is installed and structurally ready, but live FTS query acceptance and equivalent C++ query measurements remain open.
-5. Delivery throughput/retry, POP3 large-mailbox soak, external-fetch soak, service restart/COM lifecycle, and 24-hour leak soak remain unexecuted.
+2. C++/.NET 10 SMTP, IMAP, POP3, delivery, queue, and equal-load measurements are still absent as a pair.
+3. SQL Full-Text is installed and structurally ready, but live FTS query acceptance and equivalent C++ query measurements remain open.
+4. Delivery throughput/retry, POP3 large-mailbox soak, external-fetch soak, service restart/COM lifecycle, and 24-hour leak soak remain unexecuted.
 
 ## Reproduction Commands
 
@@ -81,7 +80,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\collect-live-equ
   -CppDataRoot C:\hmail-perf-pair-20260811_1748\cpp\Data `
   -Net10DataRoot C:\hmail-perf-pair-20260811_1748\net10\Data `
   -BackupPath C:\hmail-perf-cpp-ascii-20260810\Database\baseline-20260811.bak `
-  -OutputDirectory .\artifacts\benchmarks\live-cpp-net10-20260811\shared-baseline-pair-20260811_1748-final2
+  -OutputDirectory .\artifacts\benchmarks\live-cpp-net10-20260811\shared-baseline-pair-20260811_1748-post-pop3-fixed
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-live-smtp-acceptance.ps1 `
   -Implementation net10 -MessageCount 25 `
