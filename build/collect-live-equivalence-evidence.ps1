@@ -89,7 +89,7 @@ SET NOCOUNT ON;
 SELECT
     (SELECT COUNT_BIG(*) FROM hm_domains WHERE domainname = N'perf.test' AND domainactive <> 0),
     (SELECT COUNT_BIG(*) FROM hm_accounts WHERE accountaddress = N'test@perf.test' AND accountactive <> 0),
-    (SELECT COUNT_BIG(*) FROM hm_imapfolders WHERE folderaccountid = 1 AND folderparentid = -1 AND LOWER(foldername) = N'inbox'),
+    (SELECT COUNT_BIG(*) FROM hm_imapfolders WHERE folderaccountid = 1 AND folderparentid = -1 AND UPPER(foldername) = N'INBOX'),
     (SELECT COUNT_BIG(*) FROM hm_tcpipports WHERE
         (portprotocol = 1 AND portnumber = 2525 AND portaddress1 = 2130706433) OR
         (portprotocol = 3 AND portnumber = 25110 AND portaddress1 = 2130706433) OR
