@@ -1,8 +1,24 @@
 # C++ / .NET 10 Performance Gate Report
 
 Date: 2026-08-11
-Code/test commit: `2737ff625`
+Measurement harness commit: `2737ff625`; current parity HEAD: `b518c8e83`
 Decision: **RED**
+
+## Latest Verification
+
+The paired fixture remains valid at start state. The v2 final2 collector
+validation passed for equal SQL row counts and equal Data SHA-256. A fresh
+read-only C++ preflight was run against the disposable copy and refused to
+launch because the installed Registry32 path is
+`C:\hMailServer57-Test\Bin`, while the target is
+`C:\hmail-perf-cpp-ascii-20260810\Bin`. No C++ process was started and no
+registry, service, production database/Data directory, COM registration, or
+port was changed. Fresh refusal evidence is in
+`artifacts/benchmarks/live-cpp-net10-20260811/cpp-preflight-current/`.
+
+This confirms the existing RED decision; it does not create a performance
+ratio. The Net10 measurements below are valid Net10-only observations from
+the disposable fixture and must not be read as C++ comparisons.
 
 ## Executive Result
 

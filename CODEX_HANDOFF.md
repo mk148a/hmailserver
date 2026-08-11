@@ -18,6 +18,18 @@ security/migration risk. Next slices: approved disposable SQL/COM round-trip,
 legacy `|`-separated relayer failover, then `VerifyRemoteSslCertificate`
 runtime parity. Release status remains RED.
 
+## Current Performance Gate Verification (2026-08-11)
+
+The disposable paired fixture has equal SQL row counts and equal Data SHA-256
+for 1,000 message files on loopback SMTP/IMAP/POP3 ports `2525/1143/25110`.
+Fresh C++ read-only preflight remains RED: Registry32 resolves the installed
+`C:\hMailServer57-Test\Bin`, not the disposable
+`C:\hmail-perf-cpp-ascii-20260810\Bin`, so no C++ process was launched. Net10
+live measurements remain Net10-only; no speed-up, regression percentage, or
+winner is valid. Evidence is in
+`hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md` and
+`artifacts/benchmarks/live-cpp-net10-20260811/cpp-preflight-current/`.
+
 ## Current Authoritative Continuation (2026-08-11, GLOBAL SMTP RELAYER RUNTIME)
 
 Code/test commit `a0fc76a99` connects the persisted global SMTP relayer to

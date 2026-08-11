@@ -22,6 +22,41 @@ failed`. Real SQL ciphertext round-trip and out-of-process COM evidence remain
 unavailable, and the fixed-key reversible legacy cipher remains a release risk
 requiring a separate migration/security decision. Release status remains RED.
 
+## Current authoritative paired performance gate (2026-08-11)
+
+The disposable comparison fixture is prepared and its start state is
+validated: `hmail_perf_pair_cpp_20260811_1748` and
+`hmail_perf_pair_net10_20260811_1748`, separate Data roots, 1,000 identical
+message files with equal SHA-256, equal SQL row counts, the same active test
+domain/account/Inbox, and loopback SMTP/IMAP/POP3 ports `2525/1143/25110`.
+Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-final2/`.
+
+The fresh C++ run is **RED and correctly refused**. Its read-only preflight
+found the installed Registry32 hMailServer path at
+`C:\hMailServer57-Test\Bin`, not the disposable
+`C:\hmail-perf-cpp-ascii-20260810\Bin`; no C++ process, registry change,
+production service, or production port was touched. Fresh evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/cpp-preflight-current/`.
+
+Net10-only measurements and charts are recorded in
+[`PERFORMANCE_COMPARISON_REPORT.md`](hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md).
+They include SMTP acceptance, SMTP/IMAP/POP3 sessions, 1,000 concurrent IMAP,
+FTS SEARCH, queue/local delivery, POP3 large mailbox, external fetch, and a
+bounded 900-session soak. They do not establish a C++ comparison.
+
+```mermaid
+xychart-beta
+    title "Paired performance gate: no valid ratio"
+    x-axis [Fixture, Net10-only, C++]
+    y-axis "Valid comparable result" 0 --> 1
+    bar [1, 1, 0]
+```
+
+**No speed-up, regression percentage, or performance winner is claimed.** A
+registry-isolated legacy binary or separate staging VM is still required
+before running the identical C++ matrix and publishing comparison ratios.
+
 ## Current authoritative SMTP relayer status (2026-08-11)
 
 Code/test commit `a0fc76a99` connects the persisted global SMTP relayer to

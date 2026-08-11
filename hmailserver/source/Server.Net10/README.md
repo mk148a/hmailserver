@@ -19,6 +19,18 @@ then legacy `|`-separated relayer failover and `VerifyRemoteSslCertificate`
 runtime parity. The fixed-key compatibility cipher and missing real SQL/COM
 evidence keep the release gate RED.
 
+## Current paired performance gate (2026-08-11)
+
+The disposable C++/.NET 10 start-state fixture is validated with equal SQL
+row counts and equal 1,000-file Data SHA-256. The fresh C++ read-only preflight
+still refuses launch because Registry32 resolves the installed hMailServer
+path `C:\hMailServer57-Test\Bin` instead of the disposable target
+`C:\hmail-perf-cpp-ascii-20260810\Bin`. No C++ process or machine state was
+changed. Net10-only SMTP/IMAP/POP3, 1,000-concurrent IMAP, FTS, queue, POP3
+large-mailbox, external-fetch, and bounded soak artifacts are documented in
+`PERFORMANCE_COMPARISON_REPORT.md`; no ratio or winner is valid. The gate is
+RED pending a registry-isolated legacy binary or separate staging VM.
+
 ## Historical continuation (superseded)
 
 The following global SMTP relayer runtime entry is retained as history.

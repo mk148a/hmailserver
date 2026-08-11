@@ -4116,3 +4116,18 @@ Next independent slices are: approved disposable SQL/COM encryption round-trip;
 legacy `|`-separated global-relayer host failover; and
 `VerifyRemoteSslCertificate` outbound runtime parity. Release status remains
 RED until real integration, paired C++/.NET performance, and soak gates pass.
+
+## Current performance audit (2026-08-11)
+
+The paired disposable SQL/Data/message fixture is prepared and its v2 start
+state validates equal SQL row counts, equal 1,000-file Data SHA-256, and the
+same loopback ports. Fresh C++ execution is still refused by the read-only
+Registry32 isolation preflight because the installed path is
+`C:\hMailServer57-Test\Bin`, not the disposable target
+`C:\hmail-perf-cpp-ascii-20260810\Bin`. No C++ process or registry state was
+changed. Net10-only protocol, FTS, queue, large-mailbox, external-fetch, and
+bounded soak evidence does not establish a C++ comparison. The performance
+gate remains **RED** and no ratio/winner may be reported.
+
+Authoritative report: `PERFORMANCE_COMPARISON_REPORT.md`. Fresh preflight
+evidence: `artifacts/benchmarks/live-cpp-net10-20260811/cpp-preflight-current/`.
