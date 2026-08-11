@@ -2149,6 +2149,22 @@ The remaining legacy gap is A/AAAA expansion and deduplication, implicit-MX
 fallback, and deterministic address-to-TLS-name separation. Real SQL/DNS/
 socket acceptance remains blocked. Release status remains RED.
 
+## Current authoritative continuation (2026-08-12, normal-MX addresses)
+
+Code/test commit `1ffc564cb` implements address-level planning for ordinary
+remote MX delivery. Legacy `DNSResolver::GetEmailServersRecursive_`
+(`source/Server/Common/TCPIP/DNSResolver.cpp:170-330`) resolves every ordered
+MX exchange to A/AAAA addresses, removes duplicate IPs, caps the flattened
+list with `MaxNumberOfMXHosts`, and uses implicit domain A/AAAA addresses when
+no MX exists. Net10 now preserves the original host for TLS/SNI and connects
+through `ConnectionAddress`; null MX and failed/no-address resolution fail
+closed. Focused coverage is `52/52`; full Net10 is `2184 passed, 54 skipped,
+0 failed`.
+
+CNAME target-name preservation and real DNS/socket acceptance remain open.
+Global relayer, forced routes, COM identity, SQL schema, SMTP trust, and live
+reconfiguration are unchanged; release remains RED.
+
 ## Current authoritative continuation (2026-08-11, global-relayer addresses)
 
 Code/test commit `90146b45e` implements legacy address planning for global

@@ -4212,6 +4212,24 @@ address planner; approved disposable SQL/DNS/socket/TLS delivery; and
 registry-isolated or separate-VM C++ benchmark execution. Release remains
 **RED**.
 
+## Current authoritative next slice (2026-08-12, normal-MX addresses)
+
+Code/test commit `1ffc564cb` closes the normal-MX address flattening gap.
+Legacy `DNSResolver::GetEmailServersRecursive_`
+(`source/Server/Common/TCPIP/DNSResolver.cpp:170-330`) expands preference-
+ordered MX exchanges to A/AAAA addresses, deduplicates IPs, applies the
+positive `MaxNumberOfMXHosts` cap after flattening, and uses implicit domain
+A/AAAA addresses when no MX exists. Net10 preserves the host used for TLS/SNI
+separately from `ConnectionAddress`; literal MX IPs, null MX, address failure,
+and no-address behavior are tested. Focused tests are `52/52`; full Net10 is
+`2184 passed, 54 skipped, 0 failed`.
+
+Remaining: CNAME target-name preservation, real DNS/socket/TLS acceptance,
+registry-isolated C++ execution, restore/migration/SEC-18, and performance/soak
+gates. Next slices, in order: approved disposable SQL/DNS/socket/TLS delivery;
+registry-isolated or separate-VM C++ benchmark execution; real CNAME/normal-MX
+acceptance. Release remains **RED**.
+
 ## Current authoritative next slice (2026-08-11, global-relayer addresses)
 
 Code/test commit `90146b45e` closes the global-relayer address-planning gap for

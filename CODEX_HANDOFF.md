@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-12, NORMAL-MX ADDRESSES)
+
+Code/test commit `1ffc564cb` implements normal-MX address candidate parity.
+Legacy `DNSResolver::GetEmailServersRecursive_`
+(`source/Server/Common/TCPIP/DNSResolver.cpp:170-330`) expands ordered MX
+exchanges to A/AAAA addresses, deduplicates IPs, applies the positive cap after
+flattening, and uses implicit domain A/AAAA addresses when MX is absent. Net10
+now uses the same candidate shape as global relayers: original `Host` for
+TLS/SNI and `ConnectionAddress` for TCP. Literal MX IPs, null MX, failures, and
+no-address outcomes are covered by focused tests.
+
+Focused tests are `52/52`; full Net10 is `2184 passed, 54 skipped, 0 failed`.
+Real DNS/CNAME/socket acceptance and paired C++ performance remain unavailable;
+release is **RED**. Next slices: approved disposable SQL/DNS/socket/TLS
+delivery acceptance; registry-isolated or separate-VM C++ benchmark execution;
+and real CNAME/normal-MX acceptance.
+
 ## Current Authoritative Continuation (2026-08-11, GLOBAL-RELAYER ADDRESSES)
 
 Code/test commit `90146b45e` implements global relayer (`RouteId == 0`) address

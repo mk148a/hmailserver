@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current authoritative normal-MX address status (2026-08-12)
+
+Code/test commit `1ffc564cb` extends ordinary remote delivery from MX hostname
+selection to legacy-style address candidates. Legacy
+`DNSResolver::GetEmailServersRecursive_`
+(`source/Server/Common/TCPIP/DNSResolver.cpp:170-330`) expands every
+preference-ordered MX exchange to A/AAAA addresses, removes duplicate IPs, and
+applies `MaxNumberOfMXHosts` after flattening; with no MX it uses the domain's
+implicit A/AAAA addresses. Net10 now preserves the original MX/domain host for
+TLS/SNI and connects through `ConnectionAddress`, including literal MX IPs.
+
+Focused coverage is `52/52`; full Net10 is `2184 passed, 54 skipped, 0 failed`.
+Null MX remains fail-closed. CNAME target-name preservation and real DNS/socket
+acceptance remain unproven, and the paired C++/.NET performance gate remains
+**RED**.
+
 ## Current authoritative global-relayer status (2026-08-11)
 
 Code/test commit `90146b45e` carries legacy fixed/global relayer address
