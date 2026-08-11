@@ -13,6 +13,20 @@ FROM hm_settings
 WHERE settingname = N'SmtpDeliveryConnectionSecurity';
 """;
 
+    public const string SelectSmtpRelayerSql = """
+SELECT
+    COALESCE(MAX(CASE WHEN settingname = N'smtprelayer' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'usesmtprelayerauthentication' THEN settinginteger END), 0),
+    COALESCE(MAX(CASE WHEN settingname = N'smtprelayerusername' THEN settingstring END), N''),
+    COALESCE(MAX(CASE WHEN settingname = N'smtprelayerport' THEN settinginteger END), 0),
+COALESCE(MAX(CASE WHEN settingname = N'smtprelayerconnectionsecurity' THEN settinginteger END), 0),
+COALESCE(MAX(CASE WHEN settingname = N'smtprelayerpassword' THEN settingstring END), N'')
+FROM hm_settings
+WHERE settingname IN (
+    N'smtprelayer', N'usesmtprelayerauthentication', N'smtprelayerusername',
+    N'smtprelayerport', N'smtprelayerconnectionsecurity', N'smtprelayerpassword');
+""";
+
     public const string SelectRoutesSql = """
 SELECT
     routeid,
@@ -61,6 +75,8 @@ WHERE routeid = @RouteId;
             ? await LoadRouteByIdAsync(connection, message.RuleForcedRouteId, cancellationToken).ConfigureAwait(false)
             : null;
         int? remoteConnectionSecurity = null;
+        RelayerInfo? smtpRelayer = null;
+        var smtpRelayerLoaded = false;
         var groups = new Dictionary<string, TargetGroup>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var recipient in message.Recipients)
@@ -73,6 +89,16 @@ WHERE routeid = @RouteId;
                         connection,
                         recipient,
                         async () => remoteConnectionSecurity ??= await LoadSmtpConnectionSecurityAsync(connection, cancellationToken).ConfigureAwait(false),
+                        async () =>
+                        {
+                            if (!smtpRelayerLoaded)
+                            {
+                                smtpRelayer = await LoadSmtpRelayerAsync(connection, cancellationToken).ConfigureAwait(false);
+                                smtpRelayerLoaded = true;
+                            }
+
+                            return smtpRelayer;
+                        },
                         cancellationToken).ConfigureAwait(false);
             var groupKey = target.Key;
             if (!groups.TryGetValue(groupKey, out var group))
@@ -120,6 +146,7 @@ WHERE routeid = @RouteId;
         SqlConnection connection,
         DeliveryQueueRecipient recipient,
         Func<ValueTask<int>> loadRemoteConnectionSecurityAsync,
+        Func<ValueTask<RelayerInfo?>> loadSmtpRelayerAsync,
         CancellationToken cancellationToken)
     {
         var domainName = TrySplitAddress(recipient.Address, out _, out var domain)
@@ -134,6 +161,17 @@ WHERE routeid = @RouteId;
             return new DeliveryTarget(
                 DeliveryTargetKind.Route,
                 Key: "route:" + route.RouteId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                DomainName: domainName,
+                Route: resolution);
+        }
+
+        var smtpRelayer = await loadSmtpRelayerAsync().ConfigureAwait(false);
+        if (smtpRelayer is not null)
+        {
+            var resolution = smtpRelayer.ToResolution(domainName);
+            return new DeliveryTarget(
+                DeliveryTargetKind.Route,
+                Key: "relayer:" + smtpRelayer.Host,
                 DomainName: domainName,
                 Route: resolution);
         }
@@ -154,6 +192,55 @@ WHERE routeid = @RouteId;
         return value is null or DBNull
             ? 0
             : Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static async ValueTask<RelayerInfo?> LoadSmtpRelayerAsync(
+        SqlConnection connection,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(SelectSmtpRelayerSql, connection);
+        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        var host = reader.GetString(0).Trim();
+        if (host.Length == 0)
+        {
+            return null;
+        }
+
+        var requiresAuthentication = ToBoolean(reader.GetValue(1));
+        var username = reader.GetString(2);
+        var encryptedPassword = reader.GetString(5);
+        var password = string.Empty;
+        var shouldAuthenticate = requiresAuthentication && username.Length != 0;
+        if (host.Contains('|', StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Multiple global SMTP relayer hosts are not supported by the Net10 delivery target contract.");
+        }
+
+        var connectionSecurity = Convert.ToInt32(reader.GetValue(4), System.Globalization.CultureInfo.InvariantCulture);
+        if (connectionSecurity is < 0 or > 3)
+        {
+            throw new InvalidOperationException(
+                $"Global SMTP relayer connection security value {connectionSecurity} is invalid.");
+        }
+
+        if (shouldAuthenticate && encryptedPassword.Length != 0 && !LegacyBlowfishPasswordCipher.TryDecrypt(encryptedPassword, out password))
+        {
+            throw new InvalidOperationException("The configured SMTP relayer password could not be decrypted.");
+        }
+
+        return new RelayerInfo(
+            host,
+            shouldAuthenticate,
+            username,
+            Convert.ToInt32(reader.GetValue(3), System.Globalization.CultureInfo.InvariantCulture),
+            connectionSecurity,
+            password);
     }
 
     private static async ValueTask<RouteInfo?> LoadRouteAsync(
@@ -191,17 +278,20 @@ WHERE routeid = @RouteId;
         return ReadRouteInfo(reader);
     }
 
-    private static RouteInfo ReadRouteInfo(SqlDataReader reader) =>
-        new(
+    private static RouteInfo ReadRouteInfo(SqlDataReader reader)
+    {
+        var requiresAuthentication = ToBoolean(reader.GetValue(6));
+        return new(
             reader.GetInt32(0),
             reader.GetString(1),
             reader.GetString(2),
             Convert.ToInt32(reader.GetValue(3), System.Globalization.CultureInfo.InvariantCulture),
             Convert.ToInt32(reader.GetValue(4), System.Globalization.CultureInfo.InvariantCulture),
             ToBoolean(reader.GetValue(5)),
-            ToBoolean(reader.GetValue(6)),
+            requiresAuthentication,
             reader.GetString(7),
             DecryptRoutePassword(reader.GetString(8)));
+    }
 
     private static bool TrySplitAddress(
         string address,
@@ -309,5 +399,26 @@ WHERE routeid = @RouteId;
                 RequiresAuthentication,
                 AuthenticationUsername,
                 AuthenticationPassword);
+    }
+
+    private sealed record RelayerInfo(
+        string Host,
+        bool RequiresAuthentication,
+        string Username,
+        int Port,
+        int ConnectionSecurity,
+        string Password)
+    {
+        public SmtpRouteResolution ToResolution(string domainName) =>
+            new(
+                RouteId: 0,
+                DomainName: domainName,
+                TargetHost: Host,
+                TargetPort: Port,
+                ConnectionSecurity,
+                TreatRecipientAsLocal: false,
+                RequiresAuthentication,
+                Username,
+                Password);
     }
 }

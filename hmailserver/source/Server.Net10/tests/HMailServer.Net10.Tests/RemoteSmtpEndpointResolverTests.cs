@@ -41,6 +41,89 @@ public sealed class RemoteSmtpEndpointResolverTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_UsesRelayerTargetWithoutMx_AndDefaultsPort()
+    {
+        var mxResolver = new FakeMxResolver();
+        var resolver = new RemoteSmtpEndpointResolver(
+            mxResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.Route,
+            "relayer:relay.example",
+            "one.example",
+            Route: new SmtpRouteResolution(
+                RouteId: 0,
+                DomainName: "*",
+                TargetHost: "relay.example",
+                TargetPort: 0,
+                ConnectionSecurity: (int)RemoteSmtpConnectionSecurity.None,
+                TreatRecipientAsLocal: false));
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+
+        Assert.AreEqual("relay.example", endpoint.Host);
+        Assert.AreEqual(25, endpoint.Port);
+        Assert.IsFalse(endpoint.RequiresAuthentication);
+        Assert.AreEqual(0, mxResolver.CallCount);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_UsesAuthenticatedRelayerCredentials()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.Route,
+            "relayer:relay.example",
+            "one.example",
+            Route: new SmtpRouteResolution(
+                0,
+                "*",
+                "relay.example",
+                2525,
+                (int)RemoteSmtpConnectionSecurity.StartTlsRequired,
+                false,
+                true,
+                "relay-user",
+                "relay-secret"));
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+
+        Assert.IsTrue(endpoint.RequiresAuthentication);
+        Assert.AreEqual("relay-user", endpoint.AuthenticationUsername);
+        Assert.AreEqual("relay-secret", endpoint.AuthenticationPassword);
+        Assert.AreEqual(RemoteSmtpConnectionSecurity.StartTlsRequired, endpoint.ConnectionSecurity);
+    }
+
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    public async Task ResolveAsync_MapsRelayerConnectionSecurity(int security)
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.Route,
+            "relayer:relay.example",
+            "one.example",
+            Route: new SmtpRouteResolution(
+                0,
+                "*",
+                "relay.example",
+                25,
+                security,
+                false));
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+
+        Assert.AreEqual((RemoteSmtpConnectionSecurity)security, endpoint.ConnectionSecurity);
+    }
+
+    [TestMethod]
     public async Task ResolveAsync_UsesLowestPreferenceMxAndCachesResult()
     {
         var mxResolver = new FakeMxResolver(

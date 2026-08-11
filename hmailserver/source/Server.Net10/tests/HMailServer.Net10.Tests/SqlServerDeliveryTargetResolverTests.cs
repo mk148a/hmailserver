@@ -15,6 +15,32 @@ public sealed class SqlServerDeliveryTargetResolverTests
     }
 
     [TestMethod]
+    public void TargetResolverSql_LoadsLegacySmtpRelayerSettingsOnlyForDelivery()
+    {
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectSmtpRelayerSql, "smtprelayer");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectSmtpRelayerSql, "smtprelayerpassword");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectSmtpRelayerSql, "smtprelayerport");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectSmtpRelayerSql, "smtprelayerconnectionsecurity");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectSmtpRelayerSql, "usesmtprelayerauthentication");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectSmtpRelayerSql, "WHERE settingname IN");
+    }
+
+    [TestMethod]
+    public void TargetResolverSql_LoadsLegacyGlobalSmtpRelayerSettingsAndCredential()
+    {
+        var sql = SqlServerDeliveryTargetResolver.SelectSmtpRelayerSql;
+
+        StringAssert.Contains(sql, "FROM hm_settings");
+        StringAssert.Contains(sql, "settingname = N'smtprelayer'");
+        StringAssert.Contains(sql, "settingname = N'usesmtprelayerauthentication'");
+        StringAssert.Contains(sql, "settingname = N'smtprelayerusername'");
+        StringAssert.Contains(sql, "settingname = N'smtprelayerport'");
+        StringAssert.Contains(sql, "settingname = N'smtprelayerconnectionsecurity'");
+        StringAssert.Contains(sql, "settingname = N'smtprelayerpassword'");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void TargetResolverSql_LoadsRoutesNeededForDeliveryClassification()
     {
         StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectRoutesSql, "FROM hm_routes");
