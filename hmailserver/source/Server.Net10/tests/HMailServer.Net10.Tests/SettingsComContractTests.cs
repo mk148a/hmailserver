@@ -1591,6 +1591,95 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_WelcomeSmtpSetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            WelcomeSmtpUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: "old SMTP greeting",
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.WelcomeSMTP = "new SMTP greeting";
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.WelcomeSmtpUpdateCount);
+        Assert.AreEqual("new SMTP greeting", settings.WelcomeSMTP);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_WelcomeSmtpSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            WelcomeSmtpUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: "old SMTP greeting",
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.WelcomeSMTP = "new SMTP greeting");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.WelcomeSmtpUpdateCount);
+        Assert.AreEqual("old SMTP greeting", settings.WelcomeSMTP);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_WelcomeSmtpMutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: "old SMTP greeting",
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            WelcomeSmtpUpdateResult = true,
+            GateWelcomeSmtpMutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.WelcomeSMTP = "new SMTP greeting");
+        await store.WelcomeSmtpMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.WelcomeSmtpMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual("new SMTP greeting", store.UpdatedWelcomeSmtp);
+        Assert.AreEqual("new SMTP greeting", settings.WelcomeSMTP);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_WelcomeImapSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -3065,6 +3154,14 @@ public sealed class SettingsComContractTests
 
         public bool WelcomeSmtpUpdateResult { get; set; }
 
+        public bool GateWelcomeSmtpMutation { get; set; }
+
+        public TaskCompletionSource<bool> WelcomeSmtpMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> WelcomeSmtpMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int WelcomeSmtpUpdateCount { get; private set; }
 
         public string? UpdatedWelcomeSmtp { get; private set; }
@@ -3305,7 +3402,19 @@ public sealed class SettingsComContractTests
             WelcomeSmtpUpdateCount++;
             UpdatedWelcomeSmtp = welcomeSmtp;
             CancellationToken = cancellationToken;
+            if (GateWelcomeSmtpMutation)
+            {
+                WelcomeSmtpMutationEntered.TrySetResult(true);
+                return WaitForWelcomeSmtpMutationAsync();
+            }
+
             return ValueTask.FromResult(WelcomeSmtpUpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForWelcomeSmtpMutationAsync()
+        {
+            await WelcomeSmtpMutationRelease.Task;
+            return WelcomeSmtpUpdateResult;
         }
 
         public ValueTask<bool> UpdateWelcomeImapAsync(
