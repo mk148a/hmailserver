@@ -1,6 +1,31 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, AllowSMTPAuthPlain authorization lease)
+
+Code/test commit `2d42c0006` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.AllowSMTPAuthPlain`
+(`DispId(8)`). The lease is acquired immediately before the existing
+parameterized `authallowplaintext` SQL update and held through mutation result
+handling and retained snapshot publication. No SMTP trust behavior, live
+reconfiguration, VARIANT_BOOL mapping, or COM identity changed.
+
+Legacy anchors are `InterfaceSettings::get/put_AllowSMTPAuthPlain`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:242-280`),
+`SMTPConfiguration::Set/GetAuthAllowPlainText`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:63-72`), the installed
+IDL property (`hmailserver/source/Server/hMailServer/hMailServer.idl:535-536`),
+the `authallowplaintext` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:734`),
+and the .NET `UpdateAllowSmtpAuthPlainSql` path. Focused tests cover lease
+acquire/dispose and unavailable-lease denial before mutation.
+
+Focused settings/store coverage is `92/92`; full Net10 is `2075 passed, 39
+skipped, 0 failed`. Disposable SQL/Data restore, non-DB restore/reinitialization,
+SQL/FTS, matched C++/.NET protocol load, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, and remaining
+unleased COM/Admin mutations keep release **RED**. Next slice is a fresh
+legacy-first audit of `DenyMailFromNull`.
+
 ## Current parity continuation (2026-08-11, MirrorEMailAddress authorization lease)
 
 Code/test commit `59e433449` extends the existing generation-bound

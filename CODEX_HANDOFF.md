@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, ALLOW SMTP AUTH PLAIN AUTHORIZATION LEASE)
+
+Code/test commit `2d42c0006` extends the existing generation-bound
+authorization lease to authenticated `Settings.AllowSMTPAuthPlain`
+(`DispId(8)`). The lease spans the existing parameterized
+`authallowplaintext` SQL mutation, result handling, and retained snapshot
+publication; unavailable leases fail closed with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_AllowSMTPAuthPlain`
+(`source/Server/COM/InterfaceSettings.cpp:242-280`),
+`SMTPConfiguration::Set/GetAuthAllowPlainText`
+(`source/Server/SMTP/SMTPConfiguration.cpp:63-72`), IDL `DispId(8)`
+(`source/Server/hMailServer/hMailServer.idl:535-536`), and the
+`authallowplaintext` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:734`).
+Focused settings/store coverage is `92/92`; full Net10 is `2075 passed, 39
+skipped, 0 failed`. Tests cover lease acquire/dispose and unavailable-lease
+denial before SQL mutation. SMTP trust, live reconfiguration, installed COM
+identity, direct activation denial, and authenticated Settings access remain
+unchanged.
+
+Release remains RED for disposable SQL/Data restore, non-DB restore,
+SQL/FTS, paired C++/.NET performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, and remaining
+unleased COM/Admin mutations. Next slice: fresh legacy-first audit of
+`DenyMailFromNull`. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, MIRROR EMAIL AUTHORIZATION LEASE)
 
 Code/test commit `59e433449` extends the existing authorization generation

@@ -1,4 +1,28 @@
 
+
+## Current Audit Note (2026-08-11, ALLOW SMTP AUTH PLAIN AUTHORIZATION LEASE)
+
+Code/test commit `2d42c0006` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.AllowSMTPAuthPlain`
+(`DispId(8)`). The lease is acquired immediately before the existing
+parameterized `authallowplaintext` SQL update and held through result handling
+and retained snapshot publication. Unavailable leases fail closed before SQL
+mutation; SMTP trust and live reconfiguration remain out of scope.
+
+Legacy behavior is anchored by `InterfaceSettings::get/put_AllowSMTPAuthPlain`
+(`source/Server/COM/InterfaceSettings.cpp:242-280`),
+`SMTPConfiguration::Set/GetAuthAllowPlainText`
+(`source/Server/SMTP/SMTPConfiguration.cpp:63-72`), IDL `DispId(8)`
+(`source/Server/hMailServer/hMailServer.idl:535-536`), and the
+`authallowplaintext` seed (`source/DBScripts/CreateTablesMSSQL.sql:734`).
+The .NET `UpdateAllowSmtpAuthPlainSql` shape was not changed. Focused coverage
+is `92/92`; full Net10 is `2075 passed, 39 skipped, 0 failed`.
+
+Remaining unleased Settings/COM/Admin mutations and the disposable SQL/Data
+restore, non-DB restore, SQL/FTS, paired performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and soak
+gates remain RED. Next slice: fresh legacy-first audit of `DenyMailFromNull`.
+
 ## Current Audit Note (2026-08-11, MIRROR EMAIL AUTHORIZATION LEASE)
 
 Code/test commit `59e433449` extends the existing generation-bound
