@@ -2074,6 +2074,98 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_TcpIpThreadsSetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            TcpIpThreadsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                TcpIpThreads: 15),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.TCPIPThreads = 24;
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.TcpIpThreadsUpdateCount);
+        Assert.AreEqual(24, settings.TCPIPThreads);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_TcpIpThreadsSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            TcpIpThreadsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                TcpIpThreads: 15),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.TCPIPThreads = 24);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.TcpIpThreadsUpdateCount);
+        Assert.AreEqual(15, settings.TCPIPThreads);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_TcpIpThreadsMutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                TcpIpThreads: 15),
+            TcpIpThreadsUpdateResult = true,
+            GateTcpIpThreadsMutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.TCPIPThreads = 24);
+        await store.TcpIpThreadsMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.TcpIpThreadsMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual(24, store.UpdatedTcpIpThreads);
+        Assert.AreEqual(24, settings.TCPIPThreads);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpMinutesBetweenTrySetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -3474,6 +3566,14 @@ public sealed class SettingsComContractTests
 
         public bool TcpIpThreadsUpdateResult { get; set; }
 
+        public bool GateTcpIpThreadsMutation { get; set; }
+
+        public TaskCompletionSource<bool> TcpIpThreadsMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> TcpIpThreadsMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int TcpIpThreadsUpdateCount { get; private set; }
 
         public int UpdatedTcpIpThreads { get; private set; }
@@ -3774,7 +3874,19 @@ public sealed class SettingsComContractTests
             TcpIpThreadsUpdateCount++;
             UpdatedTcpIpThreads = tcpIpThreads;
             CancellationToken = cancellationToken;
+            if (GateTcpIpThreadsMutation)
+            {
+                TcpIpThreadsMutationEntered.TrySetResult(true);
+                return WaitForTcpIpThreadsMutationAsync();
+            }
+
             return ValueTask.FromResult(TcpIpThreadsUpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForTcpIpThreadsMutationAsync()
+        {
+            await TcpIpThreadsMutationRelease.Task;
+            return TcpIpThreadsUpdateResult;
         }
 
         public ValueTask<bool> UpdateSmtpNoOfTriesAsync(
