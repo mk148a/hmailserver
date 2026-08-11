@@ -772,7 +772,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.SMTPRelayer
                 : _administrationSnapshot.SmtpRelayer;
         }
-        set => base.SMTPRelayer = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.SMTPRelayer = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateSmtpRelayerAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The SMTP relayer update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SmtpRelayer = value
+                };
+            }
+        }
     }
 
     public override string WelcomeSMTP
