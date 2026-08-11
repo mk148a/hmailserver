@@ -1774,7 +1774,9 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.SMTPRelayerUseSSL
                 : _administrationSnapshot.SmtpRelayerConnectionSecurity == (int)ComConnectionSecurity.Tls;
         }
-        set => base.SMTPRelayerUseSSL = value;
+        set => SMTPRelayerConnectionSecurity = value
+            ? ComConnectionSecurity.Tls
+            : ComConnectionSecurity.None;
     }
 
     public override ComConnectionSecurity SMTPConnectionSecurity

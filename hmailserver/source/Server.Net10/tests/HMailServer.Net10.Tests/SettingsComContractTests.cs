@@ -56,6 +56,7 @@ public sealed class SettingsComContractTests
             (Name: nameof(IInterfaceSettings.IMAPIdleEnabled), DispId: 56),
             (Name: nameof(IInterfaceSettings.AllowIncorrectLineEndings), DispId: 61),
             (Name: nameof(IInterfaceSettings.DisconnectInvalidClients), DispId: 64),
+            (Name: nameof(IInterfaceSettings.SMTPRelayerUseSSL), DispId: 71),
             (Name: nameof(IInterfaceSettings.AddDeliveredToHeader), DispId: 73),
             (Name: nameof(IInterfaceSettings.IMAPACLEnabled), DispId: 75),
             (Name: nameof(IInterfaceSettings.AutoBanOnLogonFailure), DispId: 82),
@@ -309,6 +310,8 @@ public sealed class SettingsComContractTests
         var relayerConnectionSecuritySetterError = Assert.ThrowsExactly<COMException>(
             () => settings.SMTPRelayerConnectionSecurity = ComConnectionSecurity.None);
         var relayerUseSslError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayerUseSSL);
+        var relayerUseSslSetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerUseSSL = true);
         var smtpConnectionSecurityError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPConnectionSecurity);
         var tlsVersionError = Assert.ThrowsExactly<COMException>(() => _ = settings.TlsVersion10Enabled);
         var imapMasterUserError = Assert.ThrowsExactly<COMException>(() => _ = settings.IMAPMasterUser);
@@ -387,6 +390,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, relayerConnectionSecurityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerConnectionSecuritySetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerUseSslError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayerUseSslSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpConnectionSecurityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, tlsVersionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, imapMasterUserError.ErrorCode);
@@ -989,6 +993,57 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(2, store.SmtpRelayerConnectionSecurityUpdateCount);
         Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SMTPRelayerUseSSLSetterPersistsLegacyTlsModeBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpRelayerConnectionSecurityUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.None),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.SMTPRelayerUseSSL = true;
+
+        Assert.AreEqual(1, store.SmtpRelayerConnectionSecurityUpdateCount);
+        Assert.AreEqual((int)ComConnectionSecurity.Tls, store.UpdatedSmtpRelayerConnectionSecurity);
+        Assert.AreEqual(ComConnectionSecurity.Tls, settings.SMTPRelayerConnectionSecurity);
+        Assert.IsTrue(settings.SMTPRelayerUseSSL);
+
+        settings.SMTPRelayerUseSSL = false;
+
+        Assert.AreEqual(2, store.SmtpRelayerConnectionSecurityUpdateCount);
+        Assert.AreEqual((int)ComConnectionSecurity.None, store.UpdatedSmtpRelayerConnectionSecurity);
+        Assert.AreEqual(ComConnectionSecurity.None, settings.SMTPRelayerConnectionSecurity);
+        Assert.IsFalse(settings.SMTPRelayerUseSSL);
+
+        store.SmtpRelayerConnectionSecurityUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerUseSSL = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(3, store.SmtpRelayerConnectionSecurityUpdateCount);
+        Assert.AreEqual(ComConnectionSecurity.None, settings.SMTPRelayerConnectionSecurity);
+        Assert.IsFalse(settings.SMTPRelayerUseSSL);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerUseSSL = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(3, store.SmtpRelayerConnectionSecurityUpdateCount);
+        Assert.AreEqual(ComConnectionSecurity.None, settings.SMTPRelayerConnectionSecurity);
+        Assert.IsFalse(settings.SMTPRelayerUseSSL);
     }
 
     [TestMethod]
