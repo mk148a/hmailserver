@@ -587,6 +587,12 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 Assert.IsTrue(File.Exists(Path.Combine(fixture.GetDataDirectory(), "restored.txt")));
                 Assert.IsTrue(File.Exists(BackupRestoreRecoveryJournal.GetJournalPath(fixture.GetDataDirectory())));
                 Assert.IsTrue(Directory.Exists(pending.Manifest.RollbackPath));
+
+                var restartGateException = Assert.ThrowsExactly<InvalidOperationException>(
+                    () => BackupRestoreRecoveryJournal.EnsureNoPendingRecovery(
+                        fixture.GetDataDirectory()));
+                StringAssert.Contains(restartGateException.Message, "manual recovery");
+                Assert.IsTrue(File.Exists(Path.Combine(fixture.GetDataDirectory(), "restored.txt")));
             }).ConfigureAwait(false);
     }
 
