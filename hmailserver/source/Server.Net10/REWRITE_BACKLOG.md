@@ -3594,3 +3594,17 @@ creation. Preserve legacy backup option behavior and do not change production
 database/Data boundaries. The paired C++/.NET10 performance gate remains
 **RED** until both servers complete the identical SQL/Data/message and
 SMTP/IMAP/POP3 loopback workload.
+## Current next slice (2026-08-11)
+
+Completed code/test commit `73405caa1` hardens raw `DataBackup` staging. The
+Net10 runtime now rejects reparse-point entries before copying and removes
+partial raw staging when archive creation fails, while preserving successful
+raw backup output. Legacy reference: `BackupExecuter::BackupDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:96-211`). Focused
+coverage is `46 passed, 1 skipped, 0 failed`; full default Net10 is `2125
+passed, 43 skipped, 0 failed`.
+
+Next smallest slice: make `build/collect-live-equivalence-evidence.ps1` fail
+closed when `sqlcmd` cannot open either disposable database, and make
+`build/generate-live-comparison-report.ps1` derive latency chart values from the
+current JSON. The paired C++/.NET10 release gate remains **RED**.

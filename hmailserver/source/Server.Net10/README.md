@@ -1858,3 +1858,12 @@ recording test double, so this is not a SQL/Data restore acceptance test.
 Focused coverage is `1 passed, 0 failed`; full default Net10 is `2124 passed,
 42 skipped, 0 failed`. The paired protocol performance gate remains **RED**.
 Next slice: raw DataBackup reparse-point rejection and failure cleanup.
+## Current parity continuation (2026-08-11, raw DataBackup staging hardening)
+
+Code/test commit `73405caa1` rejects reparse points in
+`SevenZipBackupArchiveRuntime.CopyDirectory` and cleans partial raw
+`DataBackup` staging after an unsuccessful archive creation. Focused coverage
+is `46 passed, 1 skipped, 0 failed`; full default Net10 is `2125 passed, 43
+skipped, 0 failed`. The paired protocol performance gate remains **RED**.
+Next slice: harden the shared-baseline collector and make its graph use current
+latency samples.

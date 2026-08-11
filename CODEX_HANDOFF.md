@@ -1,5 +1,18 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, RAW DATABACKUP STAGING HARDENING)
+
+Code/test commit `73405caa1` makes raw DataBackup staging reject reparse-point
+entries before copying and removes partial raw staging after archive failure or
+cancellation. Legacy behavior is anchored at
+`BackupExecuter::BackupDataDirectory_` (`source/Server/Common/Application/
+BackupExecuter.cpp:96-211`). Focused coverage is `46 passed, 1 skipped, 0
+failed`; full default Net10 is `2125 passed, 43 skipped, 0 failed`. The skip is
+the host's inability to create a symbolic link, not a production pass claim.
+
+Next slice: fail closed in the paired benchmark collector when SQL access fails
+and make the latency graph data-driven. Performance remains **RED**.
+
 ## Current Authoritative Continuation (2026-08-11, COMPOSED MODE-7 DISPATCH)
 
 Code/test commit `149770381` adds `BackupManagerMode7DispatchTests`, which

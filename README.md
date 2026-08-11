@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, raw backup staging hardening)
+
+Code/test commit `73405caa1` hardens `SevenZipBackupArchiveRuntime.CopyDirectory`
+against source reparse points and removes a partially staged raw `DataBackup`
+when archive creation fails or is cancelled. This matches the legacy staging
+boundary in `BackupExecuter::BackupDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:96-211`) while failing
+closed for junction/symlink traversal. Successful raw backups still retain the
+external `DataBackup` directory as required by the legacy `Format="Raw"` path.
+
+`BackupArchiveRuntimeTests` passes `46` with `1` host-permission skip; full
+default Net10 is `2125 passed, 43 skipped, 0 failed`. The paired C++/.NET10
+performance gate remains **RED**. Next slice: make the benchmark collector
+fail closed on SQL errors and generate graphs from the current run rather than
+stale latency constants.
+
 ## Current parity continuation (2026-08-11, composed mode-7 backup dispatch)
 
 Code/test commit `149770381` adds focused queue coverage for the composed
