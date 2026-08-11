@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, EXTERNAL FETCH ACCEPTANCE)
+
+Code/test commit `fe915d3fb` adds a disposable real TCP/SQL external-fetch
+acceptance. Legacy anchors are `ExternalFetchManager::DoWork` /
+`FetchIsAllowed_`, `ExternalFetchTask::DoWork`, and `ExternalFetch::Start`; the
+Net10 paths are `ExternalFetchProcessor.RunBatchAsync`,
+`SqlServerExternalFetchAccountStore`, and `TcpExternalFetchSessionFactory`.
+
+The wrapper ran five successive loopback POP3 snapshots of ten messages using
+the disposable pair. Net10 downloaded and accepted `50/50`, left the current
+ten UID rows, released the lease on every cycle, and recorded five allowed
+egress decisions for explicit `127.0.0.0/8`. Latest cycle p50/p95/p99 was
+`23.998/24.229/24.229 ms`; JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-external-fetch/`. Temporary
+SQL fetch rows were cleaned to `0/0`; no message files were persisted.
+
+Full Net10 is `2127 passed, 53 skipped, 0 failed`. The paired performance gate
+remains **RED** because the C++ Registry32/AppID-isolation environment is not
+available. Next: longer bounded resource-growth soak, then registry-isolated
+C++ matrix and isolated Windows service/out-of-process COM lifecycle.
+
 ## Current Authoritative Continuation (2026-08-11, RESTART LIFECYCLE)
 
 Code/test commit `46db432c6` adds the disposable Net10 restart lifecycle

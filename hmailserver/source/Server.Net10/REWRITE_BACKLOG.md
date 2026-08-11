@@ -8,6 +8,35 @@
 
 ## Current next slice (2026-08-11, supersedes older benchmark entries)
 
+Code/test commit `fe915d3fb` completed the disposable external-fetch TCP/SQL
+acceptance. Legacy `ExternalFetchManager::DoWork` and `FetchIsAllowed_`
+(`source/Server/ExternalFetcher/ExternalFetchManager.cpp`) refresh due active
+accounts, lock them, and schedule `ExternalFetchTask::DoWork`; that task calls
+`ExternalFetch::Start` and then `PersistentFetchAccount::SetNextTryTime` and
+`Unlock` (`source/Server/ExternalFetcher/ExternalFetchTask.cpp`). The Net10
+corresponding path is `ExternalFetchProcessor.RunBatchAsync`,
+`SqlServerExternalFetchAccountStore.LeaseReadyAccountsAsync` / `CompleteAsync`,
+and `TcpExternalFetchSessionFactory`.
+
+The opt-in test uses the approved `hmail_perf_pair_net10_20260811_1748` database
+and `C:\hmail-perf-pair-20260811_1748\net10\Data` only. A real loopback POP3
+fixture served five successive remote snapshots of ten messages; Net10
+downloaded and accepted `50/50`, retained the current ten UID rows, released
+the fetch lease after every batch, and allowed every endpoint decision under
+the explicit `127.0.0.0/8` test CIDR. Cycle p50/p95/p99 in the latest wrapper
+run were `23.998/24.229/24.229 ms`; JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-external-fetch/`. The
+temporary fetch account and UID rows were `0/0` after cleanup, and the receiver
+did not persist message files.
+
+This is Net10-only external-fetch acceptance, not a C++ comparison or speed-up
+claim. The paired performance gate remains **RED** because the C++ process is
+still blocked by installed Registry32/AppID isolation. Next independent slices
+are longer bounded resource-growth soak, registry-isolated C++ matrix, and
+isolated Windows service/out-of-process COM lifecycle.
+
+## Historical current next slice (superseded, 2026-08-11)
+
 Code/test commit `46db432c6` completed the disposable Net10 restart lifecycle
 slice. `build/benchmark-net10-live-restart-lifecycle.ps1` starts the isolated
 `LiveListenerHost.exe` twice against

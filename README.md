@@ -37,6 +37,15 @@ Start-ready p50 was `1636.538 ms`; stop p50 was `1546.317 ms`. This is process
 and listener evidence only; COM local server was disabled, so Windows service
 and out-of-process COM lifecycle remain open.
 
+The disposable external-fetch acceptance completed five real TCP/SQL cycles
+against a loopback POP3 fixture: `50/50` messages downloaded and accepted,
+final UID snapshot `10`, all leases released, and temporary fetch rows cleaned
+to `0/0`. Cycle p50/p95/p99 was `23.998/24.229/24.229 ms` with explicit
+`127.0.0.0/8` egress allow evidence. This is Net10-only acceptance; no C++
+ratio or speed-up claim is valid while the C++ registry-isolated runner is
+blocked. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-external-fetch/`.
+
 The delivery report is
 `artifacts/benchmarks/live-cpp-net10-20260811/net10-live-delivery-queue/`.
 The POP3 large-mailbox report is

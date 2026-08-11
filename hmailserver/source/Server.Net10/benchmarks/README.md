@@ -43,6 +43,21 @@ under `artifacts/benchmarks/live-cpp-net10-20260811/net10-restart-lifecycle/`.
 COM local server is intentionally disabled, so this is not Windows service or
 out-of-process COM evidence.
 
+The external-fetch benchmark uses a real loopback POP3 fixture and the
+disposable SQL fetch-account store for five successive ten-message cycles. It
+passed `50/50` downloaded/accepted messages, retained the current ten UID rows,
+released every lease, and cleaned temporary SQL rows to `0/0`; the latest cycle
+p50/p95/p99 was `23.998/24.229/24.229 ms`. Run it with:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-live-external-fetch.ps1 `
+  -BenchmarkDatabase hmail_perf_pair_net10_20260811_1748 `
+  -BenchmarkDataRoot C:\hmail-perf-pair-20260811_1748\net10\Data
+```
+
+Evidence is under `artifacts/benchmarks/live-cpp-net10-20260811/net10-external-fetch/`.
+This is Net10-only evidence; the paired C++ performance gate remains RED.
+
 The legacy C++ process remains blocked by the read-only registry/configuration
 preflight because legacy `/Debug` startup would write the installed AppID
 registration. The paired performance gate remains **RED**; no ratio, regression

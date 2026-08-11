@@ -1,7 +1,7 @@
 # C++ / .NET 10 Performance Gate Report
 
 Date: 2026-08-11
-Code/test commit: `46db432c6`
+Code/test commit: `fe915d3fb`
 Decision: **RED**
 
 ## Executive Result
@@ -65,6 +65,15 @@ of the three ports. Start-ready p50 was `1636.538 ms` and stop p50 was
 `1546.317 ms`. This does not prove Windows service or out-of-process COM
 lifecycle because COM local server was disabled.
 
+The disposable external-fetch acceptance ran five real TCP/SQL cycles against
+a loopback POP3 fixture. Each cycle leased one due account, downloaded and
+accepted ten messages, completed and released the lease, and retained the
+current ten UID rows. Total was `50/50` downloaded/accepted; cycle p50/p95/p99
+was `23.998/24.229/24.229 ms`. Explicit `127.0.0.0/8` egress policy decisions
+were allowed for all five connections. Temporary fetch-account and UID rows
+were cleaned to `0/0`; the fake receiver did not persist message files. This
+is Net10-only evidence, not C++ parity or a speed-up result.
+
 ## Charts
 
 These charts show measured .NET 10 values only. They are deliberately not C++ comparison charts.
@@ -101,7 +110,7 @@ The disposable SQL diagnostic also exposed and provisioned the exact legacy `hm_
 
 1. A registry-isolated C++ installation or VM is required before any C++ process can run safely.
 2. C++/.NET 10 SMTP, IMAP, POP3, FTS, delivery, queue, and equal-load measurements are still absent as a pair.
-3. Remote-delivery throughput/retry comparison, external-fetch soak, Windows service/out-of-process COM lifecycle, and 24-hour leak soak remain unexecuted.
+3. Remote-delivery throughput/retry comparison, longer bounded resource-growth soak, Windows service/out-of-process COM lifecycle, and 24-hour leak soak remain unexecuted.
 
 ## Reproduction Commands
 
@@ -138,6 +147,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-
   -Iterations 5 `
   -BenchmarkStagingRoot C:\hmail-perf-pair-20260811_1748\net10 `
   -BenchmarkDatabase hmail_perf_pair_net10_20260811_1748
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-live-external-fetch.ps1 `
+  -BenchmarkDatabase hmail_perf_pair_net10_20260811_1748 `
+  -BenchmarkDataRoot C:\hmail-perf-pair-20260811_1748\net10\Data
 ```
 
 No production service, production database/Data directory, installed COM identity, DCOM ACL, or public listener was changed.
