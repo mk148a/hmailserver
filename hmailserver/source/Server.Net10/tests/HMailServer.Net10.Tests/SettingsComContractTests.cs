@@ -1530,6 +1530,65 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_SmtpNoOfTriesSetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpNoOfTriesUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpNoOfTries: 4),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.SMTPNoOfTries = 8;
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.SmtpNoOfTriesUpdateCount);
+        Assert.AreEqual(8, settings.SMTPNoOfTries);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SmtpNoOfTriesSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpNoOfTriesUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpNoOfTries: 4),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPNoOfTries = 8);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.SmtpNoOfTriesUpdateCount);
+        Assert.AreEqual(4, settings.SMTPNoOfTries);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpConnectionsSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
