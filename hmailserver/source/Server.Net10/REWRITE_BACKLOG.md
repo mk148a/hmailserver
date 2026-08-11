@@ -4177,3 +4177,20 @@ acceptance remain open. Do not claim this as live certificate evidence.
 Next slices, in order: approved disposable SQL/socket/TLS/authentication
 acceptance; registry-isolated or separate-VM C++ benchmark execution; and
 fixed-relayer DNS/`MaxNumberOfMXHosts` parity. Release status remains **RED**.
+
+## Current authoritative next slice (2026-08-11, normal-MX candidate ordering)
+
+Code/test commit `d569a0780` carries the legacy normal-MX exchange list and
+`MaxNumberOfMXHosts` cap into Net10 ordinary remote delivery. Legacy behavior is
+anchored by `ExternalDelivery::ResolveRecipientServers_`
+(`source/Server/SMTP/ExternalDelivery.cpp:192-280`),
+`DNSResolver::GetEmailServers` (`source/Server/Common/TCPIP/DNSResolver.cpp:170-330`),
+and `SMTPConfiguration::GetMaxNumberOfMXHosts`. Focused tests are `36/36`; full
+Net10 is `2166 passed, 54 skipped, 0 failed`.
+
+The slice intentionally leaves legacy A/AAAA expansion/deduplication,
+implicit-MX fallback, fixed-relayer address expansion, and connect-address vs
+TLS-name separation open. It changes no COM identity, SQL schema, SMTP trust,
+or live reconfiguration. Next slices, in order: fixed-relayer address planner;
+approved disposable SQL/DNS/socket/TLS delivery; and registry-isolated or
+separate-VM C++ benchmark execution. Release status remains **RED**.

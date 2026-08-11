@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current authoritative normal-MX candidate status (2026-08-11)
+
+Code/test commit `d569a0780` carries legacy normal-MX exchange ordering into
+the Net10 outbound target path. Legacy
+`ExternalDelivery::ResolveRecipientServers_`
+(`source/Server/SMTP/ExternalDelivery.cpp:192-280`) calls
+`DNSResolver::GetEmailServers`, preserves MX preference order, and truncates
+the final candidate list with `MaxNumberOfMXHosts`. Net10 now retains all
+ordered MX exchange hostnames, loads the existing `MaxNumberOfMXHosts` SQL row
+for ordinary remote targets, applies the same positive limit, and sends the
+candidate list through the existing sequential SMTP failover loop.
+
+This is intentionally a partial slice. Legacy expands each MX exchange to
+ordered A/AAAA addresses, removes duplicate addresses, and falls back to the
+domain A/AAAA set when no MX exists; Net10 still delegates hostname address
+resolution to `TcpClient`. Fixed/global relayer address expansion is also
+unchanged. Focused coverage is `36/36`; full Net10 is `2166 passed, 54
+skipped, 0 failed`. Real DNS/socket and disposable SQL acceptance remain
+unavailable. The paired C++/.NET performance gate remains RED.
+
 ## Current authoritative outbound TLS verification status (2026-08-11)
 
 Code/test commit `a2be0c906` wires the existing global

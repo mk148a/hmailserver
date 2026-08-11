@@ -2117,3 +2117,19 @@ Focused coverage is `35/35`; full Net10 is `2165 passed, 54 skipped, 0 failed`.
 The slice changes no COM identity, SQL schema, SMTP trust, or live
 reconfiguration. Real invalid-certificate/revocation sockets and disposable
 SQL/TLS acceptance remain environment-blocked. Release status remains RED.
+## Current authoritative continuation (2026-08-11, normal-MX candidate ordering)
+
+Code/test commit `d569a0780` preserves all ordered MX exchange hostnames for
+ordinary remote delivery and applies the existing `MaxNumberOfMXHosts` setting
+before handing candidates to the SMTP failover loop. Legacy anchors are
+`ExternalDelivery::ResolveRecipientServers_`
+(`source/Server/Common/../SMTP/ExternalDelivery.cpp:192-280`),
+`DNSResolver::GetEmailServers` (`source/Server/Common/TCPIP/DNSResolver.cpp:170-330`),
+and `SMTPConfiguration::GetMaxNumberOfMXHosts`. The setting is loaded from the
+existing `hm_settings` row only for ordinary remote targets; routes and global
+relayers are unchanged.
+
+Focused coverage is `36/36`; full Net10 is `2166 passed, 54 skipped, 0 failed`.
+The remaining legacy gap is A/AAAA expansion and deduplication, implicit-MX
+fallback, and deterministic address-to-TLS-name separation. Real SQL/DNS/
+socket acceptance remains blocked. Release status remains RED.

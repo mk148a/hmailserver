@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, NORMAL-MX CANDIDATES)
+
+Code/test commit `d569a0780` preserves all ordered MX exchanges for ordinary
+remote delivery and applies `MaxNumberOfMXHosts` from `hm_settings` before the
+existing sequential SMTP candidate loop. Legacy references are
+`ExternalDelivery::ResolveRecipientServers_`
+(`source/Server/SMTP/ExternalDelivery.cpp:192-280`),
+`DNSResolver::GetEmailServers` (`source/Server/Common/TCPIP/DNSResolver.cpp:170-330`),
+and `SMTPConfiguration::GetMaxNumberOfMXHosts`. This slice does not alter
+routes, forced routes, or global relayers.
+
+Focused tests are `36/36`; full Net10 is `2166 passed, 54 skipped, 0 failed`.
+It does not yet expand MX exchanges to legacy A/AAAA address candidates,
+deduplicate addresses, preserve implicit-MX A/AAAA fallback, or separate
+resolved connect addresses from TLS/SNI hostnames. Real SQL/DNS/socket
+acceptance and paired C++ performance remain unavailable and RED. Next slices:
+fixed-relayer address planner; approved disposable SQL/DNS/socket/TLS delivery;
+and registry-isolated or separate-VM C++ benchmark execution.
+
 ## Current Authoritative Continuation (2026-08-11, OUTBOUND TLS VERIFICATION)
 
 Code/test commit `a2be0c906` applies the existing global

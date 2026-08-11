@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T19:51:57Z / 2026-08-11T22:51:57+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; ahead 162, behind 0; push intentionally not performed
-- Current HEAD: `090e2cf08` (code/test `a2be0c906` plus documentation)
+- UTC/local timestamp: 2026-08-11T20:02:12Z / 2026-08-11T23:02:12+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; ahead 164, behind 0; push intentionally not performed
+- Current HEAD: `48ae2ab84` (normal-MX code/test and documentation)
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: outbound TLS verification propagation, secure defaults, optional-STARTTLS override, and SQL shape `35 passed, 0 failed`
-- Latest full Net10 result: `2165 passed, 54 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; real SQL/socket/TLS/authentication, invalid-certificate/revocation, C++ paired benchmark, restore/rollback, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
-- Current bounded slice: `VerifyRemoteSslCertificate` outbound SMTP runtime parity; implementation and documentation are complete
-- Completed milestones: backup foundations, restore foundations, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover, and outbound TLS verification wiring
-- Open production blockers: paired C++/.NET performance RED; real SQL/socket/TLS/authentication and certificate/revocation acceptance; fixed-relayer DNS/MaxNumberOfMXHosts and per-recipient queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
-- Environment-blocked work: disposable SQL/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore/rollback and installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
+- Latest focused-test result: normal-MX ordered candidates, `MaxNumberOfMXHosts` cap, SMTP failover, and SQL shape `36 passed, 0 failed`
+- Latest full Net10 result: `2166 passed, 54 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; real SQL/DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore/rollback, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
+- Current bounded slice: normal-MX candidate ordering and `MaxNumberOfMXHosts`; implementation and documentation are complete
+- Completed milestones: backup foundations, restore foundations, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover, outbound TLS verification wiring, and normal-MX host candidate ordering
+- Open production blockers: paired C++/.NET performance RED; real SQL/DNS/socket/TLS/authentication and certificate/revocation acceptance; A/AAAA expansion and implicit-MX fallback; fixed-relayer address parity; per-recipient queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Environment-blocked work: disposable SQL/DNS/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore/rollback and installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: approved disposable SQL/socket/TLS/authentication acceptance; registry-isolated or separate-VM C++ benchmark runner; fixed-relayer DNS/`MaxNumberOfMXHosts` parity
+- Next three independent slices: fixed-relayer address planner; approved disposable SQL/DNS/socket/TLS delivery acceptance; registry-isolated or separate-VM C++ benchmark runner
