@@ -12,6 +12,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
+
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 $serviceExe = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260810_152708\LiveListenerHost\bin\Release\net10.0-windows\LiveListenerHost.exe"
 $stagingRoot = "C:\hmail-perf-net10-ascii-20260810"
@@ -372,26 +374,42 @@ if ($Implementation -eq "net10") {
     $env:HMAILSERVER_COM_LOCAL_SERVER_ENABLED = "false"
 }
 
-$process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
+$process = $null
 $startUtc = [DateTimeOffset]::UtcNow
 $before = $null
 $after = $null
 $readinessFailures = @()
 $shutdownFailures = @()
 $results = @()
+$preflight = $null
+$provenance = $null
+
+if ($Implementation -eq "cpp") {
+    $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database
+    $provenance = Get-CppExecutableProvenance -TargetExecutable $serviceExe
+    $readinessFailures = @($preflight.failures)
+}
+
+if ($null -eq $preflight -or $preflight.passed) {
+    $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
+}
 try {
-    $readinessFailures = @(Wait-ForReadiness $process.Id)
-    if ($readinessFailures.Count -eq 0) {
-        $before = Get-Process -Id $process.Id
-        $results = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds))
-        $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+    if ($null -ne $process) {
+        $readinessFailures = @(Wait-ForReadiness $process.Id)
+        if ($readinessFailures.Count -eq 0) {
+            $before = Get-Process -Id $process.Id
+            $results = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds))
+            $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+        }
     }
 }
 finally {
-    if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
+    if ($null -ne $process -and (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
         try { Stop-Process -Id $process.Id -Force } catch { $shutdownFailures += "Unable to stop launched process $($process.Id): $($_.Exception.Message)" }
     }
-    $shutdownFailures += @(Wait-ForShutdown $process.Id)
+    if ($null -ne $process) {
+        $shutdownFailures += @(Wait-ForShutdown $process.Id)
+    }
 }
 
 $endUtc = [DateTimeOffset]::UtcNow
@@ -429,6 +447,8 @@ $report = [pscustomobject]@{
     shutdownFailures = @($shutdownFailures)
     processBefore = if ($null -ne $before) { @{ privateBytes = $before.PrivateMemorySize64; handles = $before.Handles; threads = $before.Threads.Count } } else { $null }
     processAfter = if ($null -ne $after) { @{ privateBytes = $after.PrivateMemorySize64; handles = $after.Handles; threads = $after.Threads.Count } } else { $null }
+    isolationPreflight = $preflight
+    executableProvenance = $provenance
     samples = @($results | ForEach-Object {
         [pscustomobject]@{
             ok = $_.Success

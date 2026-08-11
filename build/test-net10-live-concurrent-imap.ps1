@@ -15,6 +15,26 @@ $report = Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json
 if ($report.schema -ne "live-concurrent-imap-v1") {
     throw "Unexpected concurrent IMAP report schema: $($report.schema)"
 }
+if ($report.implementation -notin @("net10", "cpp")) {
+    throw "Unexpected implementation: $($report.implementation)"
+}
+if ($report.implementation -eq "cpp") {
+    if ($null -eq $report.isolationPreflight) {
+        throw "C++ concurrent IMAP reports must include the legacy registry/config isolation preflight."
+    }
+    if ($null -eq $report.executableProvenance) {
+        throw "C++ concurrent IMAP reports must include executable provenance."
+    }
+    if ($report.executableProvenance.path -notmatch "(?i)\\hMailServer\.exe$") {
+        throw "C++ executable provenance path is not hMailServer.exe: $($report.executableProvenance.path)"
+    }
+    if ($report.executableProvenance.sha256 -notmatch "^[0-9A-Fa-f]{64}$" -or [int64]$report.executableProvenance.length -le 0) {
+        throw "C++ executable provenance is incomplete or invalid."
+    }
+    if ($report.status -eq "PASS" -and $report.isolationPreflight.passed -ne $true) {
+        throw "A passing C++ concurrent IMAP report must have a passing isolation preflight."
+    }
+}
 if ($report.concurrency -ne $ExpectedConcurrency) {
     throw "Expected concurrency $ExpectedConcurrency, got $($report.concurrency)."
 }
@@ -44,7 +64,7 @@ if ($report.dataRoot -notmatch '^C:\\hmail-perf-(cpp|net10)-') {
 if ($report.ratioValid -ne $false) {
     throw "Concurrent IMAP artifact must not claim a ratio."
 }
-if ($null -eq $report.readinessFailures -or $null -eq $report.shutdownFailures) {
+if (@($report.PSObject.Properties.Name) -notcontains "readinessFailures" -or @($report.PSObject.Properties.Name) -notcontains "shutdownFailures") {
     throw "Concurrent IMAP artifact must record readiness and shutdown failures explicitly."
 }
 if ($report.status -eq "PASS" -and ($report.readinessFailures.Count -ne 0 -or $report.shutdownFailures.Count -ne 0)) {
@@ -52,6 +72,9 @@ if ($report.status -eq "PASS" -and ($report.readinessFailures.Count -ne 0 -or $r
 }
 if ($report.status -eq "PASS" -and $report.summary.errors -ne 0) {
     throw "A passing concurrent IMAP artifact cannot contain errors."
+}
+if ($report.status -notin @("PASS", "FAIL")) {
+    throw "Unexpected concurrent IMAP report status: $($report.status)"
 }
 
 Write-Output "Validated $($report.implementation) concurrent IMAP artifact: $($report.summary.successes)/$ExpectedConcurrency success, $($report.summary.timeouts) timeouts, status $($report.status)."
