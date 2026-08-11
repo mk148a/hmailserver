@@ -298,6 +298,23 @@ function Get-Percentile {
     return [math]::Round(([double]$sorted[$lower] + (([double]$sorted[$upper] - [double]$sorted[$lower]) * ($rank - $lower))), 3)
 }
 
+function Get-ProcessMetrics {
+    param([int]$ProcessId)
+
+    $target = [Diagnostics.Process]::GetProcessById($ProcessId)
+    try {
+        $target.Refresh()
+        return [pscustomobject]@{
+            privateBytes = $target.PrivateMemorySize64
+            handles = $target.HandleCount
+            threads = $target.Threads.Count
+        }
+    }
+    finally {
+        $target.Dispose()
+    }
+}
+
 if ($Implementation -eq "net10") {
     $env:HMAILSERVER_SQLSERVER_CONNECTION = "Server=localhost;Database=$database;Integrated Security=True;TrustServerCertificate=True;"
     $env:HMAILSERVER_DATA_DIRECTORY = Join-Path $stagingRoot "Data"
@@ -342,7 +359,7 @@ try {
         $readinessFailures = @(Wait-ForReadiness $process.Id)
         if ($readinessFailures.Count -eq 0) {
             Start-Sleep -Milliseconds 500
-            $before = Get-Process -Id $process.Id
+            $before = Get-ProcessMetrics $process.Id
             foreach ($scenario in @("smtp", "imap", "pop3")) {
                 for ($iteration = 1; $iteration -le $Iterations; $iteration++) {
                     $result = switch ($scenario) {
@@ -359,7 +376,9 @@ try {
                     })
                 }
             }
-            $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+            if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
+                $after = Get-ProcessMetrics $process.Id
+            }
         }
     }
 }
@@ -401,8 +420,8 @@ $report = [pscustomobject]@{
     summary = $summary
     readinessFailures = @($readinessFailures)
     shutdownFailures = @($shutdownFailures)
-    processBefore = if ($null -ne $before) { @{ privateBytes = $before.PrivateMemorySize64; handles = $before.Handles; threads = $before.Threads.Count } } else { $null }
-    processAfter = if ($null -ne $after) { @{ privateBytes = $after.PrivateMemorySize64; handles = $after.Handles; threads = $after.Threads.Count } } else { $null }
+    processBefore = if ($null -ne $before) { @{ privateBytes = $before.privateBytes; handles = $before.handles; threads = $before.threads } } else { $null }
+    processAfter = if ($null -ne $after) { @{ privateBytes = $after.privateBytes; handles = $after.handles; threads = $after.threads } } else { $null }
     isolationPreflight = $preflight
     executableProvenance = $provenance
     samples = $samples
