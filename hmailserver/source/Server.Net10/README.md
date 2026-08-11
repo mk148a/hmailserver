@@ -1879,6 +1879,19 @@ performance release gate is **RED** and no ratio is valid.
 The offline Net10-only 100k SEARCH/SORT gate passes at p50 `7.101 ms`, p95
 `9.734 ms`, p99 `9.784 ms`; this is not a legacy comparison. Current evidence:
 `artifacts/benchmarks/live-cpp-net10-20260811/`.
+
+## Current benchmark continuation (2026-08-11, listener-only COM isolation)
+
+Code/tool commit `f754c86c3` adds the explicit
+`HMAILSERVER_COM_LOCAL_SERVER_ENABLED=false` benchmark switch. It preserves
+the production default and prevents the existing installed Application AppID
+from stopping a listener-only process with `0x80004015`. Disposable probes
+verify SMTP `220`, IMAP `* OK`, and POP3 `+OK` on the configured loopback ports.
+
+The live gate remains **RED**: the disposable SQL instance lacks Full-Text
+Search for the `SEARCH TEXT needle` scenario, and the C++ target still lacks
+POP3 readiness. No ratio or winner is valid. Default full Net10 is `2126
+passed, 44 skipped, 0 failed`; focused registration coverage is `5/5`.
 ## Current authoritative continuation (2026-08-11, queued full restore)
 
 Code/test commit `2564cc45b` proves the real authenticated restore composition

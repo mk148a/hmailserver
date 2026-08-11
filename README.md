@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current authoritative benchmark status (2026-08-11)
+
+Code/tool commit `f754c86c3` adds an explicit
+`HMAILSERVER_COM_LOCAL_SERVER_ENABLED=false` listener-only mode for isolated
+benchmarks. Production defaults remain unchanged: COM local-server startup is
+still enabled unless this setting is explicitly selected. The host now proves
+SMTP, IMAP, and POP3 banners on the disposable loopback target without touching
+the installed Application registration or DCOM ACLs.
+
+The live Net10 protocol workload is still **RED**. The disposable SQL instance
+does not have Full-Text Search, so the `SEARCH TEXT needle` workload cannot be
+accepted as a valid live result; the copied C++ target still lacks the required
+POP3 listener. No speed-up ratio or winner is claimed. Full default Net10 is
+`2126 passed, 44 skipped, 0 failed`.
+
 ## Current authoritative restore status (2026-08-11)
 
 Code/test commit `2564cc45b` adds disposable SQL/Data acceptance for the real

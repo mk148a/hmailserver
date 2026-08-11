@@ -3656,3 +3656,24 @@ evidence, (2) repair the isolated C++ protocol target and reproduce Net10
 IMAP/POP3, and (3) add paired SMTP acceptance and delivery-queue workloads
 after both protocol baselines are runnable. Older continuation entries below
 this one are historical.
+## Current Authoritative Continuation (2026-08-11, LISTENER-ONLY BENCHMARK COM ISOLATION)
+
+Code/tool commit `f754c86c3` adds an explicit
+`HMAILSERVER_COM_LOCAL_SERVER_ENABLED=false` setting to `Host.Build()` and the
+listener benchmark scripts. `AddProductionHostedServices` keeps the COM local
+server enabled by default and omits only that hosted service when the setting
+is explicitly false. This preserves the installed Application IID/CLSID/ProgID,
+AppID, type library, registration, and DCOM permissions.
+
+The disposable listener probe now opens SMTP `220`, IMAP `* OK`, and POP3
+`+OK` on loopback. Focused registration/composition coverage is `5/5`; default
+full Net10 is `2126 passed, 44 skipped, 0 failed`. The live gate remains RED:
+the available SQL instance has no Full-Text Search for `SEARCH TEXT needle`,
+and the copied C++ target still does not provide POP3 readiness. Therefore no
+speed-up ratio or winner is valid.
+
+Next independent work is isolated full-restore crash/ambiguous-commit evidence,
+then approved SQL Server FTS provisioning and a normal legacy C++ listener
+target, followed by paired SMTP acceptance/delivery/load scenarios. No
+production service, database, Data directory, COM registration, DCOM ACL, IIS,
+or firewall state changed.

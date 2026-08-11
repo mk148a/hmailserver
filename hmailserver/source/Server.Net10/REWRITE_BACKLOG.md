@@ -3645,3 +3645,18 @@ evidence. Real `StartBackup -> LoadBackup`, independent SQL Server
 certification, service/COM lifecycle, migration/installer, SEC-18, and the
 paired C++/.NET10 performance gate remain open. Do not claim a speed-up ratio
 or winner while the identical live SMTP/IMAP/POP3 matrix is incomplete.
+
+## Current benchmark continuation (2026-08-11)
+
+Code/tool commit `f754c86c3` adds the explicit listener-only COM isolation
+switch `HMAILSERVER_COM_LOCAL_SERVER_ENABLED=false` to the Net10 host and live
+benchmark scripts. The production default remains COM-enabled; installed
+Application identity and DCOM permissions are unchanged. Focused registration
+coverage is `5/5`; default full Net10 is `2126 passed, 44 skipped, 0 failed`.
+
+The switch proves all three disposable Net10 listener banners, but the live
+protocol gate remains RED because the available SQL instance has no Full-Text
+Search for the SEARCH workload and the copied C++ target has no POP3 listener.
+Next environment action is an approved disposable SQL Server with FTS plus a
+normal legacy C++ binary exposing SMTP/IMAP/POP3. No performance ratio is
+valid before those conditions are met.
