@@ -35,6 +35,12 @@ $dataRoot = Join-Path $stagingRoot "Data"
 if (-not (Test-Path -LiteralPath $dataRoot -PathType Container)) {
     throw "The isolated benchmark Data root is missing: $dataRoot"
 }
+if ($database -notmatch '^hmail_perf_(net|cpp)_sql_[a-z0-9_]+$') {
+    throw "Refusing non-disposable benchmark database: $database"
+}
+if ([IO.Path]::GetFullPath($stagingRoot) -notmatch '(?i)^C:\\hmail-perf-(net10|cpp)-') {
+    throw "Refusing non-disposable benchmark Data root: $stagingRoot"
+}
 
 function Read-SmtpResponse {
     param([IO.StreamReader]$Reader)
@@ -54,6 +60,118 @@ function Get-ListenerState {
     @(
         Get-NetTCPConnection -State Listen -LocalAddress 127.0.0.1 -LocalPort 2525 -ErrorAction SilentlyContinue
     )
+}
+
+function Get-SqlFixtureSnapshot {
+    param([string]$Database)
+
+    try {
+        $query = @'
+SET NOCOUNT ON;
+SELECT
+    (SELECT COUNT_BIG(*) FROM hm_messages),
+    (SELECT COUNT_BIG(*) FROM hm_messages WHERE messagetype = 1),
+    (SELECT COUNT_BIG(*) FROM hm_messages WHERE messagetype = 2),
+    (SELECT COUNT_BIG(*) FROM hm_message_metadata),
+    (SELECT COUNT_BIG(*) FROM hm_messagerecipients),
+    (SELECT COUNT_BIG(*) FROM hm_tcpipports),
+    (SELECT COUNT_BIG(*) FROM hm_tcpipports WHERE
+        (portprotocol = 1 AND portnumber = 2525 AND portaddress1 = 2130706433) OR
+        (portprotocol = 5 AND portnumber = 1143 AND portaddress1 = 2130706433) OR
+        (portprotocol = 3 AND portnumber = 25110 AND portaddress1 = 2130706433));
+'@
+        $lines = @(sqlcmd -S localhost -E -d $Database -W -s '|' -h-1 -b -Q $query)
+        if ($LASTEXITCODE -ne 0 -or $lines.Count -ne 1) {
+            throw "sqlcmd returned no single fixture snapshot row (exit code $LASTEXITCODE)."
+        }
+        $parts = $lines[0].Trim().Split('|')
+        if ($parts.Count -ne 7) {
+            throw "sqlcmd fixture snapshot returned $($parts.Count) fields instead of 7."
+        }
+        [pscustomobject]@{
+            available = $true
+            messages = [int64]$parts[0].Trim()
+            queuedMessages = [int64]$parts[1].Trim()
+            deliveredMessages = [int64]$parts[2].Trim()
+            metadata = [int64]$parts[3].Trim()
+            recipients = [int64]$parts[4].Trim()
+            tcpipPorts = [int64]$parts[5].Trim()
+            matchingLoopbackPorts = [int64]$parts[6].Trim()
+            loopbackFixtureValid = ([int64]$parts[5].Trim() -eq 3 -and [int64]$parts[6].Trim() -eq 3)
+            error = $null
+        }
+    }
+    catch {
+        [pscustomobject]@{
+            available = $false
+            messages = $null
+            queuedMessages = $null
+            deliveredMessages = $null
+            metadata = $null
+            recipients = $null
+            tcpipPorts = $null
+            matchingLoopbackPorts = $null
+            loopbackFixtureValid = $false
+            error = $_.Exception.Message
+        }
+    }
+}
+
+function Get-DataFixtureSnapshot {
+    param([string]$Root)
+
+    try {
+        $fullRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+        $entries = @(
+            Get-ChildItem -LiteralPath $fullRoot -Recurse -File |
+                ForEach-Object {
+                    $relative = $_.FullName.Substring($fullRoot.Length).TrimStart('\')
+                    "$relative|$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)"
+                } |
+                Sort-Object
+        )
+        $bytes = [Text.Encoding]::UTF8.GetBytes(($entries -join "`n"))
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try {
+            $digest = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '')
+        }
+        finally {
+            $sha.Dispose()
+        }
+        [pscustomobject]@{
+            available = $true
+            fileCount = $entries.Count
+            sha256 = $digest
+            error = $null
+        }
+    }
+    catch {
+        [pscustomobject]@{
+            available = $false
+            fileCount = $null
+            sha256 = $null
+            error = $_.Exception.Message
+        }
+    }
+}
+
+function Get-FixtureIdentity {
+    param([object]$Sql, [object]$Data, [int]$RequestedMessages)
+
+    $canonical = [pscustomobject]@{
+        requestedMessages = $RequestedMessages
+        sql = $Sql
+        data = $Data
+        protocolPorts = "SMTP:2525;IMAP:1143;POP3:25110;bind:127.0.0.1"
+    } | ConvertTo-Json -Compress -Depth 8
+    $bytes = [Text.Encoding]::UTF8.GetBytes($canonical)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '')
+    }
+    finally {
+        $sha.Dispose()
+    }
 }
 
 . (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
@@ -211,9 +329,15 @@ $samples = [System.Collections.Generic.List[object]]::new()
 $before = $null
 $after = $null
 $preflight = $null
+$provenance = $null
+
+$sqlBefore = Get-SqlFixtureSnapshot -Database $database
+$dataBefore = Get-DataFixtureSnapshot -Root $dataRoot
+$fixtureIdentity = Get-FixtureIdentity -Sql $sqlBefore -Data $dataBefore -RequestedMessages $MessageCount
 
 if ($Implementation -eq "cpp") {
     $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database
+    $provenance = Get-CppExecutableProvenance -TargetExecutable $serviceExe
     $readinessFailures = @($preflight.failures)
 }
 
@@ -249,13 +373,24 @@ finally {
     }
 }
 $endUtc = [DateTimeOffset]::UtcNow
+$sqlAfter = Get-SqlFixtureSnapshot -Database $database
+$dataAfter = Get-DataFixtureSnapshot -Root $dataRoot
 
 $successful = @($samples | Where-Object ok)
 $durationSeconds = ($endUtc - $startUtc).TotalSeconds
+$postRunAccounting = [pscustomobject]@{
+    sqlAvailable = $sqlBefore.available -and $sqlAfter.available
+    dataAvailable = $dataBefore.available -and $dataAfter.available
+    messageRowDelta = if ($sqlBefore.available -and $sqlAfter.available) { $sqlAfter.messages - $sqlBefore.messages } else { $null }
+    metadataRowDelta = if ($sqlBefore.available -and $sqlAfter.available) { $sqlAfter.metadata - $sqlBefore.metadata } else { $null }
+    recipientRowDelta = if ($sqlBefore.available -and $sqlAfter.available) { $sqlAfter.recipients - $sqlBefore.recipients } else { $null }
+    dataFileDelta = if ($dataBefore.available -and $dataAfter.available) { $dataAfter.fileCount - $dataBefore.fileCount } else { $null }
+    valid = ($sqlBefore.available -and $sqlAfter.available -and $dataBefore.available -and $dataAfter.available -and $sqlBefore.loopbackFixtureValid -and $sqlAfter.loopbackFixtureValid -and (($sqlAfter.messages - $sqlBefore.messages) -ge $successful.Count))
+}
 $report = [pscustomobject]@{
     schema = "live-smtp-message-acceptance-v1"
     implementation = $Implementation
-    status = if ($readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0 -and $successful.Count -eq $MessageCount) { "PASS" } else { "FAIL" }
+    status = if ($readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0 -and $successful.Count -eq $MessageCount -and $postRunAccounting.valid) { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
     endedUtc = $endUtc.ToString("o")
     database = $database
@@ -274,6 +409,16 @@ $report = [pscustomobject]@{
     processBefore = if ($null -ne $before) { @{ privateBytes = $before.PrivateMemorySize64; handles = $before.Handles; threads = $before.Threads.Count } } else { $null }
     processAfter = if ($null -ne $after) { @{ privateBytes = $after.PrivateMemorySize64; handles = $after.Handles; threads = $after.Threads.Count } } else { $null }
     isolationPreflight = $preflight
+    executableProvenance = $provenance
+    fixture = [pscustomobject]@{
+        identity = $fixtureIdentity
+        database = $database
+        dataRoot = $dataRoot
+        messageCountRequested = $MessageCount
+        before = [pscustomobject]@{ sql = $sqlBefore; data = $dataBefore }
+        after = [pscustomobject]@{ sql = $sqlAfter; data = $dataAfter }
+    }
+    postRunAccounting = $postRunAccounting
     samples = $samples
     productionSafety = if ($Implementation -eq "cpp") {
         "loopback-only; legacy registry/config resolution was preflighted; disposable SQL/Data roots required"

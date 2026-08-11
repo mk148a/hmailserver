@@ -21,9 +21,24 @@ if ($report.implementation -eq "cpp") {
     if ($null -eq $report.isolationPreflight) {
         throw "C++ acceptance reports must include the legacy registry/config isolation preflight."
     }
+    if ($null -eq $report.executableProvenance) {
+        throw "C++ acceptance reports must include executable provenance."
+    }
+    if ($report.executableProvenance.sha256 -notmatch "^[0-9A-Fa-f]{64}$" -or [int64]$report.executableProvenance.length -le 0) {
+        throw "C++ executable provenance is incomplete or invalid."
+    }
     if ($report.status -eq "PASS" -and $report.isolationPreflight.passed -ne $true) {
         throw "A passing C++ acceptance report must have a passing isolation preflight."
     }
+}
+if ($null -eq $report.fixture -or $null -eq $report.postRunAccounting) {
+    throw "SMTP acceptance reports must include fixture and post-run accounting evidence."
+}
+if ([string]::IsNullOrWhiteSpace($report.fixture.identity) -or $report.fixture.database -ne $report.database -or $report.fixture.dataRoot -ne $report.dataRoot) {
+    throw "SMTP acceptance fixture identity or target roots are invalid."
+}
+if ($report.status -eq "PASS" -and $report.postRunAccounting.valid -ne $true) {
+    throw "A passing SMTP acceptance report must have valid SQL/Data post-run accounting."
 }
 if ([int]$report.requestedMessages -lt 1) {
     throw "The report requested no messages."
