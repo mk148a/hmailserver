@@ -6,6 +6,37 @@
 
 
 
+## Current Audit Note (2026-08-11, WORKER THREAD PRIORITY AUTHORIZATION LEASE)
+
+Code/test commit `3ab7c8aef` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.WorkerThreadPriority`
+(`DispId(57)`). The lease is acquired immediately before the existing
+parameterized `workerthreadpriority` SQL update and held through result
+handling and retained snapshot publication. Thread scheduling behavior
+remains out of scope for this bounded mutation slice.
+
+Legacy behavior is anchored by
+`InterfaceSettings::get/put_WorkerThreadPriority`
+(`source/Server/COM/InterfaceSettings.cpp:1496-1528`),
+`Configuration::Get/SetWorkerThreadPriority`
+(`source/Server/Common/Application/Configuration.cpp:129-139`),
+`PROPERTY_WORKERTHREADPRIORITY`
+(`source/Server/Common/Application/Constants.h:70`), the installed Settings
+IID and `DispId(57)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,599-600`), and the
+`workerthreadpriority` seed (`source/DBScripts/CreateTablesMSSQL.sql:836`).
+The .NET `UpdateWorkerThreadPrioritySql` shape was not changed. Focused
+coverage is `119/119`, including unavailable-lease denial and in-flight
+reauthentication blocking.
+
+Source tracing found no legacy or Net10 path that applies this setting to OS
+thread priority; both paths persist the value only. Full unfiltered Net10 is
+`2102 passed, 39 skipped, 0 failed`. Release remains **RED** for disposable
+SQL/Data restore, non-DB restore, SQL/FTS, paired C++/.NET performance,
+protocol greeting parity, SEC-18, migration/installer, out-of-process COM,
+AD/DC, crash/power-loss, 24-hour soak, and remaining unleased COM/Admin
+mutations. Next slice: fresh legacy-first audit of `Settings.TCPIPThreads`.
+
 ## Current Audit Note (2026-08-11, WELCOME IMAP AUTHORIZATION LEASE)
 
 Code/test commit `7645f6f70` extends the existing generation-bound

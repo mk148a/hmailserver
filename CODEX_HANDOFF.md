@@ -1,5 +1,37 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, WORKER THREAD PRIORITY AUTHORIZATION LEASE)
+
+Code/test commit `3ab7c8aef` extends the existing generation-bound
+authorization lease to authenticated `Settings.WorkerThreadPriority`
+(`DispId(57)`). The lease spans the existing parameterized
+`workerthreadpriority` SQL mutation, result handling, and retained snapshot
+publication; unavailable leases fail closed with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_WorkerThreadPriority`
+(`source/Server/COM/InterfaceSettings.cpp:1496-1528`),
+`Configuration::Get/SetWorkerThreadPriority`
+(`source/Server/Common/Application/Configuration.cpp:129-139`),
+`PROPERTY_WORKERTHREADPRIORITY`
+(`source/Server/Common/Application/Constants.h:70`), the installed Settings
+IID and `DispId(57)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,599-600`), and the
+`workerthreadpriority` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:836`).
+Focused settings/store coverage is `119/119`; full unfiltered Net10 is
+`2102 passed, 39 skipped, 0 failed`.
+
+Focused tests cover lease acquire/dispose, unavailable-lease denial before
+mutation, and reauthentication blocking during an in-flight mutation. Source
+tracing found no actual C++ or Net10 OS thread-priority application path, so
+the setting remains persistence-only in this slice. Installed COM identity,
+direct activation denial, and authenticated Settings access remain unchanged.
+
+Release remains RED for disposable SQL/Data restore, non-DB restore,
+SQL/FTS, paired C++/.NET performance, protocol greeting parity, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: fresh
+legacy-first audit of `Settings.TCPIPThreads`. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, WELCOME IMAP AUTHORIZATION LEASE)
 
 Code/test commit `7645f6f70` extends the existing generation-bound

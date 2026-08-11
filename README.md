@@ -1,6 +1,37 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, WorkerThreadPriority authorization lease)
+
+Code/test commit `3ab7c8aef` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.WorkerThreadPriority`
+(`DispId(57)`). The lease is acquired immediately before the existing
+parameterized `workerthreadpriority` SQL update and held through mutation
+result handling and retained snapshot publication. No integer COM shape,
+thread scheduling behavior, or COM identity changed.
+
+Legacy anchors are `InterfaceSettings::get/put_WorkerThreadPriority`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1496-1528`),
+`Configuration::Get/SetWorkerThreadPriority`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:129-139`),
+`PROPERTY_WORKERTHREADPRIORITY`
+(`hmailserver/source/Server/Common/Application/Constants.h:70`), the
+installed Settings IID and `DispId(57)`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:520-528,599-600`),
+and the `workerthreadpriority` seed
+(`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:836`). Focused tests
+cover lease acquire/dispose, unavailable-lease denial before mutation, and
+reauthentication blocking during an in-flight mutation.
+
+Focused settings/store coverage is `119/119`. Full unfiltered Net10 is
+`2102 passed, 39 skipped, 0 failed`. Legacy source tracing found no actual
+thread-priority application path; both implementations currently persist the
+setting only. Disposable SQL/Data restore, non-DB restore/reinitialization,
+SQL/FTS, matched C++/.NET protocol load, greeting runtime parity, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations keep release **RED**. Next
+slice is a fresh legacy-first audit of `Settings.TCPIPThreads`.
+
 ## Current parity continuation (2026-08-11, WelcomeIMAP authorization lease)
 
 Code/test commit `7645f6f70` extends the existing generation-bound
