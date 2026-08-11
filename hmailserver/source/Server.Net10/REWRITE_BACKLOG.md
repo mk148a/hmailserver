@@ -8,6 +8,45 @@
 
 ## Current next slice (2026-08-11, supersedes older benchmark entries)
 
+Code/test commit `7d2aecdc0` completed the disposable delivery slice.
+Legacy `LocalDelivery::Perform` / `DeliverToLocalAccount_` and
+`PersistentMessage::CopyFromQueueToInbox` anchor local queue-to-Inbox
+semantics (`source/Server/SMTP/LocalDelivery.cpp:60-112,270-317`). Legacy
+external retry behavior is anchored by `ExternalDelivery::RescheduleDelivery_`
+and `GetRetryOptions_` (`source/Server/SMTP/ExternalDelivery.cpp:496-688`),
+which retains the queue row, increments retries, and sets the next try time
+until the retry limit. `PersistentMessage::SetNextTryTime`
+(`source/Server/Common/Persistence/PersistentMessage.cpp:670-695`) restores
+queue type and persists the schedule.
+
+The Net10 acceptance uses the real `SqlServerSmtpQueueWriter`,
+`SqlServerDeliveryQueueLeaseStore`, `SqlServerDeliveryQueueMessageStore`,
+`SqlServerDeliveryQueueRecipientStore`, `SqlServerLocalDeliveryStore`, and
+`DeliveryQueueProcessor`. Fifty disposable local messages reached Inbox
+(`50/50`) at `73.308` messages/s with p50/p95/p99 batch latency
+`4.376/8.405/48.484 ms`. A controlled transient target left one SQL queue row
+unlocked with retry count 1, a future `messagenexttrytime`, null lease owner,
+and its recipient retained. The run and cleanup report is
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-live-delivery-queue/`.
+
+The live fixture exposed a Turkish-collation failure in the Net10 Inbox lookup;
+`SqlServerLocalDeliveryStore.AllocateInboxUidSql` now uses
+`UPPER(foldername) = N'INBOX'`, preserving the legacy Inbox contract across
+the disposable SQL collation. This bounded production fix is covered by
+`SqlServerLocalDeliveryStoreTests` and the live acceptance. The paired C++ /
+.NET 10 performance gate remains **RED** because the C++ process is still
+registry/AppID-isolation blocked, so no ratio or winner is claimed.
+
+Next independent slices, in order:
+
+1. Run the identical SMTP/IMAP/POP3/delivery matrix in a registry-isolated
+   legacy C++ VM when that environment exists.
+2. Add Net10 POP3 large-mailbox and external-fetch soak acceptance.
+3. Add service restart/COM lifecycle and bounded memory/handle/thread/socket
+   leak evidence.
+
+## Historical current next slice (superseded, 2026-08-11)
+
 Code/test commit `eb0c9a7ed` completed the equal disposable SQL/Data/message
 fixture and first Net10 live load evidence. Both pair databases now have equal
 37-table schemas and row counts, 1,000 identical message files with equal

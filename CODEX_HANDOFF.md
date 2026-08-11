@@ -1,5 +1,34 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, DELIVERY QUEUE ACCEPTANCE)
+
+Code/test commit `7d2aecdc0` completed the next disposable delivery slice.
+Legacy anchors are `LocalDelivery::Perform` /
+`LocalDelivery::DeliverToLocalAccount_` and
+`PersistentMessage::CopyFromQueueToInbox`
+(`source/Server/SMTP/LocalDelivery.cpp:60-112,270-317`), plus
+`ExternalDelivery::RescheduleDelivery_` / `GetRetryOptions_`
+(`source/Server/SMTP/ExternalDelivery.cpp:496-688`) and
+`PersistentMessage::SetNextTryTime`
+(`source/Server/Common/Persistence/PersistentMessage.cpp:670-695`).
+
+The real SQL/Data acceptance processed 50 local queue messages to Inbox
+(`50/50`) at `73.308` messages/s with p50/p95/p99 batch latency
+`4.376/8.405/48.484 ms`. A controlled transient target verified SQL defer:
+the queue row remained type 1, unlocked, retry count 1, lease owner null,
+next-try in the future, and recipient retained. The Turkish-collation Inbox
+lookup gap was fixed with `UPPER(foldername) = N'INBOX'` in
+`SqlServerLocalDeliveryStore`; focused and live tests pass. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-live-delivery-queue/` and
+the post-run pair remains `EQUIVALENT_START_STATE`.
+
+Full Net10: `2127 passed, 52 skipped, 0 failed`. The paired performance gate
+remains **RED**: the C++ runner is registry/AppID-isolation blocked, so no
+ratio, regression, or winner is valid. Next: registry-isolated C++ matrix
+when available; otherwise Net10 POP3 large-mailbox/external-fetch soak, then
+service restart/COM lifecycle and leak evidence. No production state changed;
+do not push.
+
 ## Current Authoritative Continuation (2026-08-11, LIVE FTS SEARCH / EQUAL LIVE FIXTURE)
 
 Code/test commit `eb0c9a7ed` parameterizes the live Net10 runners for the

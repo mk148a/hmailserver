@@ -2,12 +2,30 @@
 
 ## Current authoritative live gate (2026-08-11)
 
-Code/test commit `eb0c9a7ed` verified the equal disposable SQL/Data/message
+Code/test commit `7d2aecdc0` verified the equal disposable SQL/Data/message
 pair and Net10 live acceptance: SMTP acceptance `25/25`, SMTP/IMAP/POP3
 protocol `25/25`, concurrent IMAP `1000/1000`, and IMAP Full-Text
 `SEARCH TEXT needle` `25/25` with 1,000 matches per session. The live FTS
 benchmark reports SEARCH p50/p95/p99 of `7.900/12.802/21.557 ms` and clears
 its disposable search state after the run.
+
+The delivery-queue benchmark now processes 50 local messages through the real
+SQL queue and Inbox path with `50/50` commits, `73.308` messages/s, and
+p50/p95/p99 batch latency `4.376/8.405/48.484 ms`. Its controlled transient
+target proves SQL defer state without network access: the row remains queued,
+unlocked, retry count 1, future next-try, and recipient retained. Run it with:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\benchmark-net10-live-delivery-queue.ps1 `
+  -MessageCount 50 `
+  -BenchmarkStagingRoot C:\hmail-perf-pair-20260811_1748\net10 `
+  -BenchmarkDatabase hmail_perf_pair_net10_20260811_1748
+```
+
+The JSON/CSV/Markdown output is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-live-delivery-queue/`.
+The run also caught and fixed a Turkish-collation Inbox lookup in
+`SqlServerLocalDeliveryStore` by using `UPPER(foldername) = N'INBOX'`.
 
 The legacy C++ process remains blocked by the read-only registry/configuration
 preflight because legacy `/Debug` startup would write the installed AppID

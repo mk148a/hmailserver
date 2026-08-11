@@ -6,12 +6,17 @@ hMailServer
 The fresh disposable pair now passes the start-state gate: both databases have
 37 tables with equal row counts, 1,000 identical Data files, equal Data SHA-256,
 the same active domain/account/Inbox, three loopback ports, and SQL Full-Text
-catalog/index readiness. The evidence is under
-`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-post-pop3-fixed/`.
+catalog/index readiness. The latest post-delivery evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-delivery/`.
 
 Net10 live evidence is now available: SMTP acceptance `25/25`, protocol
 SMTP/IMAP/POP3 `25/25`, concurrent IMAP `1000/1000`, and live IMAP Full-Text
-`SEARCH TEXT needle` `25/25` with 1,000 matches per session. The POP3 result
+`SEARCH TEXT needle` `25/25` with 1,000 matches per session. Net10 local
+delivery also processed 50 disposable queue messages with 50/50 Inbox
+commits, `73.308` messages/s, and p50/p95/p99 batch latency
+`4.376/8.405/48.484 ms`; a controlled transient remote target retained one
+unlocked SQL queue row with retry count 1 and a future next-try timestamp.
+The POP3 result
 required a focused production fix: the SQL mailbox reader now consumes
 `messageid`, `messageuid`, and `messagesize` in the selected ordinal order
 required by `SequentialAccess`. The legacy C++ process was not launched
@@ -21,6 +26,8 @@ performance gate remains **RED**: no speed-up ratio, regression percentage,
 or winner is valid until the same C++ scenarios run in a registry-isolated
 environment.
 
+The delivery report is
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-live-delivery-queue/`.
 The measured values and charts are in
 [`hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`](hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md).
 
