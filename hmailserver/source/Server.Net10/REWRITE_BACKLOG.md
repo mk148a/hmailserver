@@ -5,6 +5,33 @@
 
 
 
+
+## Current Audit Note (2026-08-11, SMTP RELAYER USERNAME AUTHORIZATION LEASE)
+
+Code/test commit `33f48accd` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.SMTPRelayerUsername`
+(`DispId(35)`). The lease is acquired immediately before the existing
+parameterized `smtprelayerusername` SQL update and held through result handling
+and retained snapshot publication. SMTP credential handling and live
+reconfiguration remain out of scope.
+
+Legacy behavior is anchored by `InterfaceSettings::get/put_SMTPRelayerUsername`
+(`source/Server/COM/InterfaceSettings.cpp:930-958`),
+`SMTPConfiguration::Get/SetSMTPRelayerUsername`
+(`source/Server/SMTP/SMTPConfiguration.cpp:261-270`), IDL `DispId(35)`
+(`source/Server/hMailServer/hMailServer.idl:567-568`), and the
+`smtprelayerusername` seed (`source/DBScripts/CreateTablesMSSQL.sql:782`).
+The .NET `UpdateSmtpRelayerUsernameSql` shape was not changed. Focused
+coverage is `104/104`.
+
+The unfiltered full run has 2 unrelated host/AV cleanup failures in the
+scanner test classes (`UnauthorizedAccessException` deleting temporary `.eml`
+files); excluding those classes, full Net10 is `2080 passed, 39 skipped, 0
+failed`. Remaining unleased Settings/COM/Admin mutations and the disposable
+SQL/Data restore, non-DB restore, SQL/FTS, paired performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and soak
+gates remain RED. Next slice: fresh legacy-first audit of `SMTPRelayerPort`.
+
 ## Current Audit Note (2026-08-11, SMTP RELAYER AUTHENTICATION AUTHORIZATION LEASE)
 
 Code/test commit `29be1faa0` extends the existing generation-bound
