@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, SMTP RELAYER PASSWORD PERSISTENCE)
+
+Code/test commit `b518c8e83` implements the authenticated Administrator
+`Settings.SetSMTPRelayerPassword` persistence slice. Legacy references are
+`InterfaceSettings.cpp:998-1012`, `SMTPConfiguration.cpp:273-281`,
+`PropertySet.cpp:153-159`, and `Property.cpp:81-96`; installed COM identity
+and DISPID 36 are unchanged. Net10 authorizes the caller and server
+administrator, acquires the generation lease, encrypts before the parameterized
+`nvarchar(4000)` update, and preserves legacy zero-row `S_OK`. The password is
+not added to snapshots or backups.
+
+Focused coverage is `146/146`; full Net10 is `2159 passed, 54 skipped, 0
+failed`. Real SQL ciphertext round-trip and out-of-process COM evidence are
+still unavailable. The fixed-key compatibility cipher remains a separate
+security/migration risk. Next slices: approved disposable SQL/COM round-trip,
+legacy `|`-separated relayer failover, then `VerifyRemoteSslCertificate`
+runtime parity. Release status remains RED.
+
 ## Current Authoritative Continuation (2026-08-11, GLOBAL SMTP RELAYER RUNTIME)
 
 Code/test commit `a0fc76a99` connects the persisted global SMTP relayer to

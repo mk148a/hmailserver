@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current authoritative SMTP relayer password status (2026-08-11)
+
+Code/test commit `b518c8e83` implements the authenticated Administrator
+`Settings.SetSMTPRelayerPassword` persistence slice. Legacy
+`InterfaceSettings::SetSMTPRelayerPassword`, `SMTPConfiguration::SetSMTPRelayerPassword`,
+`PropertySet::SetString`, and `Property::WriteStringSetting_`
+(`source/Server/Common/InterfaceSettings.cpp:998-1012`,
+`source/Server/SMTP/SMTPConfiguration.cpp:273-281`,
+`source/Server/Common/PropertySet.cpp:153-159`,
+`source/Server/Common/Property.cpp:81-96`) preserve the installed IID and
+DISPID 36 contract. Net10 now authorizes the caller and server administrator,
+acquires the existing generation lease, encrypts the value with the legacy
+compatibility cipher, and updates the parameterized `nvarchar(4000)` setting.
+The password remains absent from snapshots and backups. Legacy zero-row update
+success is intentionally preserved as COM `S_OK`.
+
+Focused coverage is `146/146`; full Net10 is `2159 passed, 54 skipped, 0
+failed`. Real SQL ciphertext round-trip and out-of-process COM evidence remain
+unavailable, and the fixed-key reversible legacy cipher remains a release risk
+requiring a separate migration/security decision. Release status remains RED.
+
 ## Current authoritative SMTP relayer status (2026-08-11)
 
 Code/test commit `a0fc76a99` connects the persisted global SMTP relayer to

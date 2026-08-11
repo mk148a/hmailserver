@@ -1,3 +1,28 @@
+## Current authoritative continuation (2026-08-11, SMTP relayer password persistence)
+
+Code/test commit `b518c8e83` implements authenticated Administrator
+`Settings.SetSMTPRelayerPassword` persistence. Legacy references are
+`InterfaceSettings::SetSMTPRelayerPassword`,
+`SMTPConfiguration::SetSMTPRelayerPassword`, `PropertySet::SetString`, and
+`Property::WriteStringSetting_`
+(`source/Server/Common/InterfaceSettings.cpp:998-1012`,
+`source/Server/SMTP/SMTPConfiguration.cpp:273-281`,
+`source/Server/Common/PropertySet.cpp:153-159`,
+`source/Server/Common/Property.cpp:81-96`). Net10 preserves the installed
+COM identity, authenticates and leases the Settings mutation, encrypts before
+the parameterized `nvarchar(4000)` update, and keeps the password out of
+snapshots/backups. Legacy zero-row update `S_OK` behavior is preserved.
+
+Focused coverage is `146/146`; full Net10 is `2159 passed, 54 skipped, 0
+failed`. Next evidence target is an approved disposable SQL/COM round-trip;
+then legacy `|`-separated relayer failover and `VerifyRemoteSslCertificate`
+runtime parity. The fixed-key compatibility cipher and missing real SQL/COM
+evidence keep the release gate RED.
+
+## Historical continuation (superseded)
+
+The following global SMTP relayer runtime entry is retained as history.
+
 ## Current authoritative continuation (2026-08-11, global SMTP relayer runtime)
 
 Code/test commit `a0fc76a99` connects the configured global SMTP relayer to

@@ -4094,3 +4094,25 @@ still `E_NOTIMPL` and is the next bounded COM/Admin slice.
 The registry-isolated C++/.NET10 performance matrix, migration/installer,
 restore/rollback, out-of-process COM, SEC-18, AD/DC, 24-hour soak, and real
 disposable delivery evidence remain **RED** or environment-blocked.
+## Current audit (2026-08-11, SMTP relayer password persistence)
+
+Code/test commit `b518c8e83` closes the authenticated Administrator
+`Settings.SetSMTPRelayerPassword` persistence slice. Legacy behavior is in
+`source/Server/Common/InterfaceSettings.cpp:998-1012`,
+`source/Server/SMTP/SMTPConfiguration.cpp:273-281`,
+`source/Server/Common/PropertySet.cpp:153-159`, and
+`source/Server/Common/Property.cpp:81-96`: the installed COM contract remains
+unchanged, the setting is encrypted before the SQL update, and a zero-row
+update still returns `S_OK`. Net10 keeps the password out of snapshots/backups
+and enforces the existing authenticated Administrator plus generation-lease
+boundary.
+
+Focused tests are `146/146`; full Net10 is `2159 passed, 54 skipped, 0
+failed`. Real SQL ciphertext round-trip and out-of-process COM remain
+environment-blocked. The fixed-key reversible compatibility cipher is a
+separate security/migration risk and is not changed in this slice.
+
+Next independent slices are: approved disposable SQL/COM encryption round-trip;
+legacy `|`-separated global-relayer host failover; and
+`VerifyRemoteSslCertificate` outbound runtime parity. Release status remains
+RED until real integration, paired C++/.NET performance, and soak gates pass.
