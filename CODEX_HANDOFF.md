@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, ORDINARY-MX SMTP SECURITY)
+
+Code/test commit `921f31064` carries the persisted global
+`SmtpDeliveryConnectionSecurity` value from
+`SqlServerDeliveryTargetResolver` into ordinary-MX `DeliveryTarget` records;
+`RemoteSmtpEndpointResolver` maps values `0..3`. Legacy behavior is anchored by
+`ServerTargetResolver::Resolve` and `ExternalDelivery::DeliverToSingleServer_`
+(`source/Server/SMTP/ServerTargetResolver.cpp:104-106`,
+`source/Server/SMTP/ExternalDelivery.cpp:373-392`). Route and forced-route
+security/authentication are unchanged. Unknown global values fail closed.
+
+The SMTP client now preserves plaintext only for optional STARTTLS when the
+server does not advertise STARTTLS and the endpoint has no authentication.
+STARTTLS rejection may retry once without TLS only for that unauthenticated
+optional case; TLS handshake/certificate failures, authenticated endpoints,
+required STARTTLS, and implicit SSL do not downgrade. This is a deliberate
+security divergence from legacy optional-handshake plaintext retry and requires
+product/security disposition before release.
+
+Focused delivery/resolver coverage is `21 passed, 0 failed`; full Net10 is
+`2147 passed, 54 skipped, 0 failed`. Real disposable SQL-to-MX/socket evidence
+is still missing. Configured SMTP relayer parity remains a separate open gap;
+the paired C++ matrix, service/out-of-process COM, restore/rollback,
+migration/installer, SEC-18, AD/DC, and long-soak gates remain RED or
+environment-blocked. Next: approved disposable SQL/socket matrix, then the
+legacy-first SMTP relayer slice.
+
 ## Current Authoritative Continuation (2026-08-11, SMTP SECURITY SQL EVIDENCE HARNESS)
 
 Code/test commit `81b77ac35` adds

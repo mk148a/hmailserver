@@ -1,4 +1,22 @@
-## Current authoritative continuation (2026-08-11, SMTPConnectionSecurity SQL evidence harness)
+## Current authoritative continuation (2026-08-11, ordinary-MX SMTPConnectionSecurity)
+
+Code/test commit `921f31064` carries persisted global
+`SmtpDeliveryConnectionSecurity` into ordinary-MX delivery targets. Legacy
+`ServerTargetResolver::Resolve` supplies the global setting to
+`ExternalDelivery::DeliverToSingleServer_`; Net10 now maps the same values
+`0..3` through `DeliveryTarget` and `RemoteSmtpEndpointResolver`. Route and
+forced-route security/authentication remain independent, and invalid global
+values fail closed.
+
+Optional STARTTLS remains plaintext only for an unauthenticated endpoint when
+STARTTLS is not advertised. Authenticated endpoints, TLS handshake failures,
+required STARTTLS, and implicit SSL do not downgrade. Legacy optional-handshake
+plaintext retry is intentionally not reproduced until security/product review.
+Focused coverage is `21 passed`; full Net10 is `2147 passed, 54 skipped, 0
+failed`. Real SQL/socket acceptance is environment-blocked. Next slice: the
+approved disposable SQL-to-MX/socket matrix.
+
+## Historical parity continuation (2026-08-11, SMTPConnectionSecurity SQL evidence harness)
 
 Code/test commit `81b77ac35` adds the opt-in
 `SqlServerSettingsAdministrationStoreSmtpConnectionSecurityIntegrationTests`

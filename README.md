@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current authoritative ordinary-MX delivery status (2026-08-11)
+
+Code/test commit `921f31064` now carries persisted global
+`SMTPConnectionSecurity` into ordinary MX `DeliveryTarget` resolution. Legacy
+anchors are `ServerTargetResolver::Resolve` and
+`ExternalDelivery::DeliverToSingleServer_`
+(`source/Server/SMTP/ServerTargetResolver.cpp:104-106`,
+`source/Server/SMTP/ExternalDelivery.cpp:373-392`). Route and forced-route
+security/authentication remain independent. Global values `0..3` are mapped;
+invalid values fail closed. Optional STARTTLS remains plaintext only when no
+STARTTLS is advertised and no authentication is configured; authenticated
+connections and TLS handshake failures never downgrade to plaintext.
+
+Focused delivery/resolver coverage is `21/21`; full Net10 is `2147 passed, 54
+skipped, 0 failed`. The real SQL-to-MX/socket matrix is not yet proven because
+the disposable SQL approval variables and remote SMTP fixture are unavailable.
+Legacy retries plaintext after optional STARTTLS handshake failure; Net10
+intentionally refuses that downgrade pending a security/product decision. The
+paired C++/.NET10 performance gate remains **RED**.
+
 ## Current authoritative SQL-evidence status (2026-08-11)
 
 The `SMTPConnectionSecurity` persistence slice now has a dedicated disposable
@@ -14,11 +34,9 @@ skipped safely because those approval variables are currently absent; the
 full Net10 suite is `2133 passed, 54 skipped, 0 failed`. This is harness
 coverage, not live SQL PASS evidence.
 
-The next parity gap is separate: legacy ordinary MX delivery consumes global
-`SMTPConnectionSecurity` through `ServerTargetResolver`, while the current
-Net10 remote-MX endpoint path still resolves `None`. No delivery/TLS runtime
-change is included in the SQL-evidence slice. The paired C++/.NET10
-performance gate remains **RED**.
+This SQL harness remains an environment-gated evidence tool. Its real mutation
+and the ordinary-MX socket path must be run together on an explicitly approved
+disposable target before release claims are made.
 
 ## Current authoritative parity status (2026-08-11)
 

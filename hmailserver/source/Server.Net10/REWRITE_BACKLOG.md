@@ -1,4 +1,29 @@
 
+## Current next slice (2026-08-11, ordinary-MX SMTP security runtime; supersedes older entries)
+
+Code/test commit `921f31064` carries persisted global
+`SmtpDeliveryConnectionSecurity` into ordinary-MX delivery. Legacy
+`ServerTargetResolver::Resolve` and `ExternalDelivery::DeliverToSingleServer_`
+(`source/Server/SMTP/ServerTargetResolver.cpp:104-106`,
+`source/Server/SMTP/ExternalDelivery.cpp:373-392`) use the global setting only
+when no fixed route/relayer target wins. Net10 now attaches the setting to
+ordinary remote `DeliveryTarget` records and maps values `0..3` in
+`RemoteSmtpEndpointResolver`; route/forced-route security/authentication are
+unchanged. Unknown global values fail closed.
+
+Optional STARTTLS remains plaintext only when STARTTLS is not advertised and no
+authentication is configured. Authenticated endpoints and TLS handshake
+failures never downgrade; this is a deliberate security divergence from the
+legacy optional-handshake plaintext retry and requires security/product review.
+Focused delivery/resolver coverage is `21/21`; full Net10 is `2147 passed, 54
+skipped, 0 failed`. Next independent slice: run the approved disposable
+SQL-to-MX/socket matrix covering values `0..3`, STARTTLS absence/rejection,
+handshake failure, authentication, queue retry, and duplicate prevention. The
+SMTP relayer parity gap, paired C++ matrix, service/out-of-process COM,
+restore/rollback, migration/installer, SEC-18, AD/DC, and long-soak gates
+remain RED or environment-blocked.
+
+## Historical current next slice (superseded, 2026-08-11, SMTPConnectionSecurity SQL evidence harness)
 
 ## Current next slice (2026-08-11, SMTPConnectionSecurity SQL evidence harness; supersedes older entries)
 
