@@ -84,6 +84,19 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         </Backup>
         """;
 
+    private static readonly string FullRestoreArchiveXml = NonDbArchiveXml
+        .Replace("Mode=\"6\"", "Mode=\"7\"", StringComparison.Ordinal)
+        .Replace(
+            "<Domains>",
+            "<Properties><welcomesmtp StringValue=\"restored greeting\" LongValue=\"0\" /></Properties>\n          <Domains>",
+            StringComparison.Ordinal);
+
+    private static readonly string FullRestoreArchiveXmlWithTwoMessages = FullRestoreArchiveXml
+        .Replace(
+            "Filename=\"one.eml\" FromAddress=\"sender@example.test\" State=\"2\" Size=\"42\" NoOfRetries=\"9\" Flags=\"1\" ID=\"77\" UID=\"8\" />",
+            "Filename=\"one.eml\" FromAddress=\"sender@example.test\" State=\"2\" Size=\"42\" NoOfRetries=\"9\" Flags=\"1\" ID=\"77\" UID=\"8\" />\n                            <Message CreateTime=\"2026-07-01 12:33:00\" Filename=\"two.eml\" FromAddress=\"sender2@example.test\" State=\"2\" Size=\"43\" NoOfRetries=\"4\" Flags=\"1\" ID=\"78\" UID=\"9\" />",
+            StringComparison.Ordinal);
+
     private const string ArchiveXml = """
         <Backup>
           <Domains>
@@ -317,6 +330,54 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_RestoresFullSettingsDomainsAndMessagesInOneTransaction()
+    {
+        await WithFullRestoreTargetAsync(
+            "full_restore",
+            FullRestoreArchiveXml,
+            async fixture =>
+            {
+                await fixture.CreateExecutor().ExecuteAsync(fixture.Backup, CancellationToken.None).ConfigureAwait(false);
+
+                Assert.AreEqual(
+                    "restored greeting",
+                    await ReadSettingStringAsync(fixture.ConnectionString, "welcomesmtp").ConfigureAwait(false));
+                Assert.AreEqual(1, (await fixture.DomainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false)).Count);
+                Assert.AreEqual(1, (await fixture.AccountStore.GetAccountsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
+                Assert.AreEqual(2, await CountRowsAsync(fixture.ConnectionString, "hm_imapfolders", "folderaccountid", 1).ConfigureAwait(false));
+                Assert.AreEqual(1, await CountRowsAsync(fixture.ConnectionString, "hm_messages", "messageaccountid", 1).ConfigureAwait(false));
+                Assert.AreEqual("restored", await File.ReadAllTextAsync(Path.Combine(fixture.GetDataDirectory(), "restored.txt")));
+                Assert.IsFalse(File.Exists(Path.Combine(fixture.GetDataDirectory(), "original.txt")));
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_RollsBackFullSettingsMetadataAndDataWhenSecondMessageInsertFails()
+    {
+        await WithFullRestoreTargetAsync(
+            "full_restore_message_failure",
+            FullRestoreArchiveXmlWithTwoMessages,
+            async fixture =>
+            {
+                var executor = fixture.CreateExecutor(
+                    new FailingMetadataTransactionFactory(fixture.TransactionFactory, failSecondMessage: true));
+
+                await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                    () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask()).ConfigureAwait(false);
+
+                Assert.AreEqual("old greeting", await ReadSettingStringAsync(fixture.ConnectionString, "welcomesmtp").ConfigureAwait(false));
+                Assert.AreEqual(0, (await fixture.DomainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false)).Count);
+                Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_imapfolders", "folderaccountid", 1).ConfigureAwait(false));
+                Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_messages", "messageaccountid", 1).ConfigureAwait(false));
+                Assert.AreEqual("original", await File.ReadAllTextAsync(Path.Combine(fixture.GetDataDirectory(), "original.txt")));
+                Assert.IsFalse(File.Exists(Path.Combine(fixture.GetDataDirectory(), "restored.txt")));
+                Assert.IsFalse(Directory.Exists(Path.Combine(fixture.GetDataDirectory(), "roundtrip.example")));
+            }).ConfigureAwait(false);
     }
 
     [TestMethod]
@@ -1005,6 +1066,72 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             .Replace("Mode=\"6\"", "Mode=\"2\"", StringComparison.Ordinal)
             .Replace("<DataFiles Format=\"Raw\" FolderName=\"DataBackup\" />", string.Empty, StringComparison.Ordinal);
 
+    private static async Task WithFullRestoreTargetAsync(
+        string name,
+        string archiveXml,
+        Func<DbOnlyRestoreFixture, Task> action)
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_{name}_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        var root = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-{name}-{Guid.NewGuid():N}");
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateTargetSchemaAsync(testConnectionString).ConfigureAwait(false);
+            var source = Path.Combine(root, "source");
+            var dataDirectory = Path.Combine(root, "data");
+            var dataBackup = Path.Combine(root, "DataBackup");
+            var archivePath = Path.Combine(root, "backup.7z");
+            Directory.CreateDirectory(source);
+            Directory.CreateDirectory(dataDirectory);
+            Directory.CreateDirectory(dataBackup);
+            File.WriteAllText(Path.Combine(dataDirectory, "original.txt"), "original");
+            File.WriteAllText(Path.Combine(dataBackup, "restored.txt"), "restored");
+            var messagePath = Path.Combine(dataBackup, "roundtrip.example", "user", "ne");
+            Directory.CreateDirectory(messagePath);
+            File.WriteAllText(Path.Combine(messagePath, "one.eml"), "From: sender@example.test\r\n\r\nbody one");
+            File.WriteAllText(Path.Combine(messagePath, "two.eml"), "From: sender2@example.test\r\n\r\nbody two");
+            File.WriteAllText(Path.Combine(source, "hMailServerBackup.xml"), archiveXml);
+            await CreateArchiveAsync(archivePath, source).ConfigureAwait(false);
+
+            var factory = new SqlServerConnectionFactory(testConnectionString);
+            using var binding = BackupArchiveBinding.TryCreate(archivePath);
+            Assert.IsNotNull(binding);
+            var backup = Backup.CreateAuthorized(
+                7,
+                binding.ArchivePath,
+                archiveIdentity: binding.Identity,
+                archiveBinding: binding,
+                rawDataBackupIdentity: binding.RawDataBackupIdentity);
+            backup.RestoreSettings = true;
+            backup.RestoreDomains = true;
+            backup.RestoreMessages = true;
+            await action(new DbOnlyRestoreFixture(
+                Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+                dataDirectory,
+                backup,
+                testConnectionString,
+                new SqlServerDomainAdministrationStore(factory),
+                new SqlServerAccountAdministrationStore(factory),
+                new SqlServerAliasAdministrationStore(factory),
+                new SqlServerDistributionListAdministrationStore(factory),
+                new SqlServerDistributionListRecipientAdministrationStore(factory),
+                new SqlServerFetchAccountAdministrationStore(factory),
+                new SqlServerBackupRestoreMetadataTransactionFactory(factory))).ConfigureAwait(false);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     private static async Task WithDbOnlyRestoreTargetAsync(
         string name,
         string archiveXml,
@@ -1075,6 +1202,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         SqlServerBackupRestoreMetadataTransactionFactory transactionFactory)
     {
         internal Backup Backup { get; } = backup;
+        internal string GetDataDirectory() => dataDirectory;
         internal string ConnectionString { get; } = connectionString;
         internal SqlServerDomainAdministrationStore DomainStore { get; } = domainStore;
         internal SqlServerAccountAdministrationStore AccountStore { get; } = accountStore;
@@ -1129,13 +1257,14 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         IBackupRestoreMetadataTransactionFactory inner,
         bool failAlias = false,
         bool failSecondRecipient = false,
-        bool failRuleAction = false) : IBackupRestoreMetadataTransactionFactory
+        bool failRuleAction = false,
+        bool failSecondMessage = false) : IBackupRestoreMetadataTransactionFactory
     {
         public async ValueTask<IBackupRestoreMetadataTransaction> BeginAsync(
             CancellationToken cancellationToken)
         {
             var transaction = await inner.BeginAsync(cancellationToken).ConfigureAwait(false);
-            return new FailingMetadataTransaction(transaction, failAlias, failSecondRecipient, failRuleAction);
+            return new FailingMetadataTransaction(transaction, failAlias, failSecondRecipient, failRuleAction, failSecondMessage);
         }
     }
 
@@ -1143,7 +1272,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         IBackupRestoreMetadataTransaction inner,
         bool failAlias,
         bool failSecondRecipient,
-        bool failRuleAction) : IBackupRestoreMetadataTransaction
+        bool failRuleAction,
+        bool failSecondMessage) : IBackupRestoreMetadataTransaction
     {
         public IDomainAdministrationStore DomainStore => inner.DomainStore;
         public IAccountAdministrationStore AccountStore => inner.AccountStore;
@@ -1162,9 +1292,13 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             : inner.RuleActionStore;
         public IImapFolderAdministrationRestoreStore? FolderRestoreStore => inner.FolderRestoreStore;
 
-        public IMessageAdministrationRestoreStore? MessageRestoreStore => inner.MessageRestoreStore;
+        public IMessageAdministrationRestoreStore? MessageRestoreStore => failSecondMessage
+            ? new FailingOnSecondMessageAdministrationRestoreStore(inner.MessageRestoreStore!)
+            : inner.MessageRestoreStore;
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             inner.DeleteAllDomainsForRestoreAsync(cancellationToken);
+        public ValueTask DeleteAllPublicFoldersForRestoreAsync(CancellationToken cancellationToken) =>
+            inner.DeleteAllPublicFoldersForRestoreAsync(cancellationToken);
         public ValueTask CommitAsync(CancellationToken cancellationToken) => inner.CommitAsync(cancellationToken);
         public ValueTask DisposeAsync() => inner.DisposeAsync();
     }
@@ -1400,6 +1534,13 @@ public sealed class BackupRestoreRoundTripIntegrationTests
     private static async Task CreateTargetSchemaAsync(string connectionString)
     {
         const string sql = """
+            CREATE TABLE dbo.hm_settings (
+                settingname nvarchar(30) NOT NULL PRIMARY KEY,
+                settingstring nvarchar(4000) NOT NULL,
+                settinginteger bigint NOT NULL
+            );
+            INSERT INTO dbo.hm_settings (settingname, settingstring, settinginteger)
+            VALUES (N'welcomesmtp', N'old greeting', 0);
             CREATE TABLE dbo.hm_domains (
                 domainid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
                 domainname nvarchar(255) NOT NULL,
@@ -1532,7 +1673,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 recipientmessageid bigint NOT NULL
             );
             CREATE TABLE dbo.hm_message_metadata (
-                metadata_accountid int NOT NULL
+                metadata_accountid int NOT NULL,
+                metadata_messageid bigint NOT NULL
             );
             CREATE TABLE dbo.hm_message_search_queue (
                 messageid bigint NOT NULL
@@ -1608,6 +1750,18 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         return Convert.ToInt64(
             await command.ExecuteScalarAsync().ConfigureAwait(false),
             CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<string> ReadSettingStringAsync(string connectionString, string settingName)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT settingstring FROM dbo.hm_settings WHERE settingname = @Name;",
+            connection);
+        command.Parameters.Add("@Name", SqlDbType.NVarChar, 30).Value = settingName;
+        return (string)(await command.ExecuteScalarAsync().ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Missing setting {settingName}."));
     }
 
     private static async Task DropDatabaseAsync(string connectionString, string databaseName)

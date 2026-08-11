@@ -33,6 +33,10 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         BackupStartPlan.BackupSettingsFlag | BackupStartPlan.BackupDomainsFlag;
     private const int SupportedDataRestoreOptions =
         BackupStartPlan.BackupDomainsFlag | BackupStartPlan.BackupMessagesFlag;
+    private const int SupportedFullRestoreOptions =
+        BackupStartPlan.BackupSettingsFlag
+        | BackupStartPlan.BackupDomainsFlag
+        | BackupStartPlan.BackupMessagesFlag;
 
     private readonly BackupRestoreIntegrityRuntime _integrityRuntime;
     private readonly string _dataDirectory;
@@ -126,7 +130,15 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
 
         if (backup.RestoreOptions == SupportedDataRestoreOptions)
         {
-            await ExecuteNonDbDataRestoreAsync(backup, cancellationToken).ConfigureAwait(false);
+            await ExecuteNonDbDataRestoreAsync(backup, fullRestore: false, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (backup.RestoreOptions == SupportedFullRestoreOptions)
+        {
+            await ExecuteNonDbDataRestoreAsync(backup, fullRestore: true, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
@@ -134,7 +146,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             or SupportedDbOnlyRestoreOptionsWithSettings))
         {
             throw new InvalidOperationException(
-                "Only RestoreDomains (DB-only) or RestoreDomains|RestoreMessages (non-DB-only) is supported.");
+                "Only RestoreDomains (DB-only), RestoreDomains|RestoreMessages (non-DB-only), or full RestoreSettings|RestoreDomains|RestoreMessages is supported.");
         }
 
         await ExecuteDbOnlyMetadataRestoreAsync(backup, cancellationToken).ConfigureAwait(false);
@@ -287,6 +299,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
 
     private async ValueTask ExecuteNonDbDataRestoreAsync(
         Backup backup,
+        bool fullRestore,
         CancellationToken cancellationToken)
     {
         using var archiveReadLock = BackupArchiveIdentity.OpenReadLock(backup.ArchivePath);
@@ -298,7 +311,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         if (!dryRun.EvidenceIsValid
             || dryRun.FailureReason is not null
             || dryRun.MissingRestoreOptions != 0
-            || dryRun.RestoreSettings
+            || (!fullRestore && dryRun.RestoreSettings)
             || !dryRun.RestoreDomains
             || !dryRun.RestoreMessages
             || !dryRun.RequiresFilesystemStaging
@@ -306,18 +319,31 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         {
             throw new InvalidOperationException(
                 dryRun.FailureReason
-                    ?? "Only RestoreDomains|RestoreMessages non-DB-only restore is supported by this slice.");
+                    ?? (fullRestore
+                        ? "Only full RestoreSettings|RestoreDomains|RestoreMessages non-DB-only restore is supported by this slice."
+                        : "Only RestoreDomains|RestoreMessages non-DB-only restore is supported by this slice."));
         }
 
+        var expectedRestoreOptions = fullRestore
+            ? SupportedFullRestoreOptions
+            : SupportedDataRestoreOptions;
         if (evidence.BackupOptions is not int backupOptions
             || (backupOptions & (BackupStartPlan.BackupSettingsFlag
                 | BackupStartPlan.BackupDomainsFlag
                 | BackupStartPlan.BackupMessagesFlag))
-                != SupportedDataRestoreOptions
+                != expectedRestoreOptions
             || evidence.BackupMessagesDbOnly)
         {
             throw new InvalidOperationException(
-                "The archive is not a non-DB-only RestoreDomains|RestoreMessages backup.");
+                fullRestore
+                    ? "The archive is not a full non-DB-only RestoreSettings|RestoreDomains|RestoreMessages backup."
+                    : "The archive is not a non-DB-only RestoreDomains|RestoreMessages backup.");
+        }
+
+        if (fullRestore && _metadataTransactionFactory is null)
+        {
+            throw new InvalidOperationException(
+                "Full restore requires a SQL metadata transaction factory.");
         }
 
         using var boundary = _dataDirectoryBoundaryFactory();
@@ -355,6 +381,18 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             throw new InvalidDataException("The backup contains no domain metadata to restore.");
         }
 
+        IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
+        if (fullRestore)
+        {
+            settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
+            if (settingsProperties.Any(static property =>
+                    string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException(
+                    "Settings restore archives must not contain the SMTP relayer credential.");
+            }
+        }
+
         using var authorizationLease = await backup
             .AcquireAuthorizationLeaseAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -376,11 +414,13 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 cancellationToken,
                 commitAsync: ct => RestoreMetadataAsync(
                     domains,
-                    requireEmptyStore: true,
-                    useSqlTransaction: false,
+                    requireEmptyStore: !fullRestore,
+                    useSqlTransaction: fullRestore,
                     authorizationLeaseFactory: null,
-                    cancellationToken: ct),
-                commitOutcomeMayBeAmbiguous: false)
+                    cancellationToken: ct,
+                    settingsProperties: settingsProperties,
+                    restorePublicFolders: fullRestore),
+                commitOutcomeMayBeAmbiguous: fullRestore)
             .ConfigureAwait(false);
     }
 
@@ -390,7 +430,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         bool useSqlTransaction,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
         CancellationToken cancellationToken,
-        IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null)
+        IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null,
+        bool restorePublicFolders = false)
     {
         var existingDomains = await _domainStore
             .GetDomainsAsync(cancellationToken)
@@ -506,6 +547,12 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 await metadataTransaction
                     .DeleteAllDomainsForRestoreAsync(cancellationToken)
                     .ConfigureAwait(false);
+                if (restorePublicFolders)
+                {
+                    await metadataTransaction
+                        .DeleteAllPublicFoldersForRestoreAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
 
             await BackupRestoreTransactionBoundary.ExecuteAsync(
