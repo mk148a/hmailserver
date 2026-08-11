@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using HMailServer.Core.Abstractions;
 using HMailServer.Delivery;
@@ -379,6 +381,45 @@ public sealed class SmtpRemoteDeliveryClientTests
         Assert.IsFalse(transport.VerifyRemoteSslCertificate);
     }
 
+    [TestMethod]
+    public async Task SendAsync_UsesConnectionAddressForTransportAndHostForTls()
+    {
+        var transport = CreateSuccessfulTransport();
+        var factory = new FakeTransportFactory(transport);
+        var client = new SmtpRemoteDeliveryClient(factory);
+        var request = CreateRequest(RemoteSmtpConnectionSecurity.Ssl) with
+        {
+            Endpoint = new RemoteSmtpEndpoint(
+                "relay.example",
+                25,
+                RemoteSmtpConnectionSecurity.Ssl,
+                ConnectionAddress: "192.0.2.1")
+        };
+
+        var result = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual("192.0.2.1", factory.Endpoints.Single().ConnectionAddress);
+        Assert.AreEqual("relay.example", transport.TargetHost);
+    }
+
+    [TestMethod]
+    public async Task TcpTransportFactory_ConnectsUsingConnectionAddress()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var acceptedTask = listener.AcceptTcpClientAsync();
+        await using var transport = await new TcpRemoteSmtpTransportFactory().ConnectAsync(
+            new RemoteSmtpEndpoint(
+                "unresolvable.invalid",
+                port,
+                RemoteSmtpConnectionSecurity.None,
+                ConnectionAddress: IPAddress.Loopback.ToString()),
+            CancellationToken.None);
+        using var accepted = await acceptedTask;
+    }
+
     private static RemoteSmtpSendRequest CreateRequest(RemoteSmtpConnectionSecurity security) =>
         new(
             new RemoteSmtpEndpoint("mx.example", 25, security),
@@ -439,12 +480,15 @@ public sealed class SmtpRemoteDeliveryClientTests
 
         public bool VerifyRemoteSslCertificate { get; private set; }
 
+        public string? TargetHost { get; private set; }
+
         public ValueTask UpgradeToTlsAsync(
             string targetHost,
             bool verifyRemoteSslCertificate,
             CancellationToken cancellationToken)
         {
             UpgradeCallCount++;
+            TargetHost = targetHost;
             VerifyRemoteSslCertificate = verifyRemoteSslCertificate;
             if (_upgradeException is not null)
             {

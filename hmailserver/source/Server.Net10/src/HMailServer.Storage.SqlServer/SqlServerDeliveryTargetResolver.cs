@@ -206,7 +206,8 @@ WHERE routeid = @RouteId;
                 Key: "relayer:" + smtpRelayer.Host,
                 DomainName: domainName,
                 Route: resolution,
-                VerifyRemoteSslCertificate: await loadVerifyRemoteSslCertificateAsync().ConfigureAwait(false));
+                VerifyRemoteSslCertificate: await loadVerifyRemoteSslCertificateAsync().ConfigureAwait(false),
+                MaxNumberOfMxHosts: await loadMaxNumberOfMxHostsAsync().ConfigureAwait(false));
         }
 
         return new DeliveryTarget(

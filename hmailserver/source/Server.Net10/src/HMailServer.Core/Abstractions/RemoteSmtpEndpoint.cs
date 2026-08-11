@@ -9,10 +9,23 @@ public sealed record RemoteSmtpEndpoint(
     string AuthenticationPassword = "",
     string? LocalBindAddress = null,
     IReadOnlyList<string>? HostCandidates = null,
-    bool VerifyRemoteSslCertificate = true)
+    bool VerifyRemoteSslCertificate = true,
+    string? ConnectionAddress = null,
+    IReadOnlyList<RemoteSmtpEndpoint>? Candidates = null)
 {
     public IReadOnlyList<RemoteSmtpEndpoint> GetCandidates()
     {
+        if (Candidates is { Count: > 0 })
+        {
+            return Candidates
+                .Select(candidate => candidate with
+                {
+                    LocalBindAddress = LocalBindAddress ?? candidate.LocalBindAddress,
+                    VerifyRemoteSslCertificate = VerifyRemoteSslCertificate
+                })
+                .ToArray();
+        }
+
         if (HostCandidates is not { Count: > 0 })
         {
             return [this];

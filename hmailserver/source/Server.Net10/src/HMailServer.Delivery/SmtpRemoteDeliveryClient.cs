@@ -428,7 +428,10 @@ public sealed class TcpRemoteSmtpTransportFactory : IRemoteSmtpTransportFactory
         var client = CreateTcpClient(endpoint);
         try
         {
-            await client.ConnectAsync(endpoint.Host, endpoint.Port, cancellationToken).ConfigureAwait(false);
+            await client.ConnectAsync(
+                endpoint.ConnectionAddress ?? endpoint.Host,
+                endpoint.Port,
+                cancellationToken).ConfigureAwait(false);
             return new TcpRemoteSmtpTransport(client);
         }
         catch
@@ -453,6 +456,11 @@ public sealed class TcpRemoteSmtpTransportFactory : IRemoteSmtpTransportFactory
                 client.Dispose();
                 throw;
             }
+        }
+
+        if (IPAddress.TryParse(endpoint.ConnectionAddress?.Trim(), out var remoteAddress))
+        {
+            return new TcpClient(remoteAddress.AddressFamily);
         }
 
         return new TcpClient();

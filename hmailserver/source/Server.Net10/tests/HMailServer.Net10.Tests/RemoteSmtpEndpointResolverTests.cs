@@ -1,5 +1,7 @@
+using System.Net;
 using HMailServer.Core.Abstractions;
 using HMailServer.Delivery;
+using HMailServer.Security;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HMailServer.Net10.Tests;
@@ -46,6 +48,7 @@ public sealed class RemoteSmtpEndpointResolverTests
         var mxResolver = new FakeMxResolver();
         var resolver = new RemoteSmtpEndpointResolver(
             mxResolver,
+            CreateAddressResolver("relay.example"),
             RemoteSmtpEndpointResolverOptions.Default);
         var target = new DeliveryTarget(
             DeliveryTargetKind.Route,
@@ -72,6 +75,7 @@ public sealed class RemoteSmtpEndpointResolverTests
     {
         var resolver = new RemoteSmtpEndpointResolver(
             new FakeMxResolver(),
+            CreateAddressResolver("relay.example"),
             RemoteSmtpEndpointResolverOptions.Default);
         var target = new DeliveryTarget(
             DeliveryTargetKind.Route,
@@ -101,6 +105,11 @@ public sealed class RemoteSmtpEndpointResolverTests
     {
         var resolver = new RemoteSmtpEndpointResolver(
             new FakeMxResolver(),
+            new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+            {
+                ["first.example"] = [IPAddress.Parse("192.0.2.1")],
+                ["second.example"] = [IPAddress.Parse("192.0.2.2")]
+            }),
             RemoteSmtpEndpointResolverOptions.Default);
         var target = new DeliveryTarget(
             DeliveryTargetKind.Route,
@@ -131,6 +140,156 @@ public sealed class RemoteSmtpEndpointResolverTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_ExpandsGlobalRelayerAddressesInHostAddressOrderAndDeduplicates()
+    {
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["first.example"] =
+            [
+                IPAddress.Parse("192.0.2.1"),
+                IPAddress.Parse("2001:db8::1"),
+                IPAddress.Parse("192.0.2.1")
+            ],
+            ["second.example"] =
+            [
+                IPAddress.Parse("192.0.2.1"),
+                IPAddress.Parse("192.0.2.2")
+            ]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = CreateGlobalRelayerTarget(" first.example | second.example ");
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+        var candidates = endpoint.GetCandidates();
+
+        CollectionAssert.AreEqual(
+            new[] { "first.example", "first.example", "second.example" },
+            candidates.Select(static candidate => candidate.Host).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "192.0.2.1", "2001:db8::1", "192.0.2.2" },
+            candidates.Select(static candidate => candidate.ConnectionAddress).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "first.example", "second.example" },
+            addressResolver.RequestedHosts.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_AppliesGlobalRelayerMxCapAfterAddressFlattening()
+    {
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["first.example"] = [IPAddress.Parse("192.0.2.1"), IPAddress.Parse("192.0.2.2")],
+            ["second.example"] = [IPAddress.Parse("192.0.2.3"), IPAddress.Parse("192.0.2.4")]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = CreateGlobalRelayerTarget(
+            "first.example|second.example",
+            maxNumberOfMxHosts: 3);
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "192.0.2.1", "192.0.2.2", "192.0.2.3" },
+            endpoint.GetCandidates().Select(static candidate => candidate.ConnectionAddress).ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_GlobalRelayerConfiguredIpBypassesDns()
+    {
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["relay.example"] = [IPAddress.Parse("192.0.2.2")]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = CreateGlobalRelayerTarget("192.0.2.1|relay.example");
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "192.0.2.1", "192.0.2.2" },
+            endpoint.GetCandidates().Select(static candidate => candidate.ConnectionAddress).ToArray());
+        CollectionAssert.AreEqual(new[] { "relay.example" }, addressResolver.RequestedHosts.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_GlobalRelayerDnsFailureReturnsIOException()
+    {
+        var addressResolver = new FakeAddressResolver(
+            new IOException("DNS failure"));
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = CreateGlobalRelayerTarget("relay.example");
+
+        await Assert.ThrowsExactlyAsync<IOException>(
+            () => resolver.ResolveAsync(target, CancellationToken.None).AsTask());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_GlobalRelayerRetainsHostnameForTlsAndSni()
+    {
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["relay.example"] = [IPAddress.Parse("192.0.2.1")]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = CreateGlobalRelayerTarget(
+            "relay.example",
+            connectionSecurity: (int)RemoteSmtpConnectionSecurity.Ssl);
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+        var candidate = endpoint.GetCandidates().Single();
+
+        Assert.AreEqual("relay.example", candidate.Host);
+        Assert.AreEqual("192.0.2.1", candidate.ConnectionAddress);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_GlobalRelayerCandidatesInheritRuleBindAddress()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            CreateAddressResolver("relay.example"),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = CreateGlobalRelayerTarget("relay.example");
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+        var candidates = (endpoint with { LocalBindAddress = "192.0.2.10" }).GetCandidates();
+
+        Assert.AreEqual("192.0.2.10", candidates.Single().LocalBindAddress);
+    }
+
+    private static DeliveryTarget CreateGlobalRelayerTarget(
+        string targetHost,
+        int maxNumberOfMxHosts = 0,
+        int connectionSecurity = (int)RemoteSmtpConnectionSecurity.None) =>
+        new(
+            DeliveryTargetKind.Route,
+            "relayer:" + targetHost,
+            "one.example",
+            Route: new SmtpRouteResolution(
+                0,
+                "*",
+                targetHost,
+                25,
+                connectionSecurity,
+                false),
+            MaxNumberOfMxHosts: maxNumberOfMxHosts);
+
+    [TestMethod]
     [DataRow(0)]
     [DataRow(1)]
     [DataRow(2)]
@@ -139,6 +298,7 @@ public sealed class RemoteSmtpEndpointResolverTests
     {
         var resolver = new RemoteSmtpEndpointResolver(
             new FakeMxResolver(),
+            CreateAddressResolver("relay.example"),
             RemoteSmtpEndpointResolverOptions.Default);
         var target = new DeliveryTarget(
             DeliveryTargetKind.Route,
@@ -322,6 +482,12 @@ public sealed class RemoteSmtpEndpointResolverTests
         Assert.AreEqual("mx.example.net", endpoint.Host);
     }
 
+    private static IDnsAddressResolver CreateAddressResolver(params string[] hosts) =>
+        new FakeAddressResolver(
+            hosts.ToDictionary(
+                static host => host,
+                static _ => (IReadOnlyList<IPAddress>)[IPAddress.Parse("192.0.2.1")]));
+
     private sealed class FakeMxResolver : IDnsMxResolver
     {
         private readonly IReadOnlyList<DnsMxRecord> _records;
@@ -339,6 +505,37 @@ public sealed class RemoteSmtpEndpointResolverTests
         {
             CallCount++;
             return ValueTask.FromResult(_records);
+        }
+    }
+
+    private sealed class FakeAddressResolver : IDnsAddressResolver
+    {
+        private readonly IReadOnlyDictionary<string, IReadOnlyList<IPAddress>>? _addresses;
+        private readonly Exception? _failure;
+
+        public FakeAddressResolver(IReadOnlyDictionary<string, IReadOnlyList<IPAddress>> addresses)
+        {
+            _addresses = addresses;
+        }
+
+        public FakeAddressResolver(Exception failure)
+        {
+            _failure = failure;
+        }
+
+        public List<string> RequestedHosts { get; } = [];
+
+        public ValueTask<IReadOnlyList<IPAddress>> ResolveAddressesAsync(
+            string hostName,
+            CancellationToken cancellationToken)
+        {
+            RequestedHosts.Add(hostName);
+            if (_failure is not null)
+            {
+                throw _failure;
+            }
+
+            return ValueTask.FromResult(_addresses![hostName]);
         }
     }
 }

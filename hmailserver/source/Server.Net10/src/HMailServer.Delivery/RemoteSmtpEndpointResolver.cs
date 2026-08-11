@@ -1,4 +1,7 @@
 using HMailServer.Core.Abstractions;
+using HMailServer.Security;
+using System.Net;
+using System.Net.Sockets;
 using System.Collections.Concurrent;
 
 namespace HMailServer.Delivery;
@@ -6,28 +9,50 @@ namespace HMailServer.Delivery;
 public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
 {
     private readonly IDnsMxResolver _mxResolver;
+    private readonly IDnsAddressResolver _addressResolver;
     private readonly RemoteSmtpEndpointResolverOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
 
     public RemoteSmtpEndpointResolver()
-        : this(new SystemDnsMxResolver(), RemoteSmtpEndpointResolverOptions.Default, TimeProvider.System)
+        : this(
+            new SystemDnsMxResolver(),
+            new SystemDnsAddressResolver(),
+            RemoteSmtpEndpointResolverOptions.Default,
+            TimeProvider.System)
     {
     }
 
     public RemoteSmtpEndpointResolver(
         IDnsMxResolver mxResolver,
         RemoteSmtpEndpointResolverOptions options)
-        : this(mxResolver, options, TimeProvider.System)
+        : this(mxResolver, new SystemDnsAddressResolver(), options, TimeProvider.System)
+    {
+    }
+
+    public RemoteSmtpEndpointResolver(
+        IDnsAddressResolver addressResolver,
+        RemoteSmtpEndpointResolverOptions options)
+        : this(new SystemDnsMxResolver(), addressResolver, options, TimeProvider.System)
     {
     }
 
     public RemoteSmtpEndpointResolver(
         IDnsMxResolver mxResolver,
+        IDnsAddressResolver addressResolver,
+        RemoteSmtpEndpointResolverOptions options)
+        : this(mxResolver, addressResolver, options, TimeProvider.System)
+    {
+    }
+
+    public RemoteSmtpEndpointResolver(
+        IDnsMxResolver mxResolver,
+        IDnsAddressResolver addressResolver,
         RemoteSmtpEndpointResolverOptions options,
         TimeProvider timeProvider)
     {
         _mxResolver = mxResolver;
+        _addressResolver = addressResolver;
         _options = options;
         _timeProvider = timeProvider;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.DefaultCacheTtl.Ticks, 0);
@@ -48,20 +73,18 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
             }
 
             var route = target.Route;
-            var hostCandidates = route.RouteId == 0
-                ? route.TargetHost.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                : Array.Empty<string>();
-            var host = route.RouteId == 0
-                ? hostCandidates.FirstOrDefault() ?? string.Empty
-                : route.TargetHost;
+            if (route.RouteId == 0)
+            {
+                return await ResolveGlobalRelayerAsync(target, route, cancellationToken).ConfigureAwait(false);
+            }
+
             return new RemoteSmtpEndpoint(
-                host,
+                route.TargetHost,
                 route.TargetPort <= 0 ? 25 : route.TargetPort,
                 (RemoteSmtpConnectionSecurity)route.ConnectionSecurity,
                 route.RequiresAuthentication,
                 route.AuthenticationUsername,
                 route.AuthenticationPassword,
-                HostCandidates: route.RouteId == 0 ? hostCandidates : null,
                 VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate);
         }
 
@@ -92,6 +115,100 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
         }
 
         throw new InvalidOperationException("Local delivery targets do not have remote SMTP endpoints.");
+    }
+
+    private async ValueTask<RemoteSmtpEndpoint> ResolveGlobalRelayerAsync(
+        DeliveryTarget target,
+        SmtpRouteResolution route,
+        CancellationToken cancellationToken)
+    {
+        var hosts = route.TargetHost.Split(
+            '|',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var candidates = new List<RemoteSmtpEndpoint>();
+        var seenAddresses = new HashSet<IPAddress>();
+        Exception? lastResolutionFailure = null;
+
+        foreach (var host in hosts)
+        {
+            if (IPAddress.TryParse(host, out var configuredAddress))
+            {
+                AddAddressCandidate(host, configuredAddress, host);
+                continue;
+            }
+
+            IReadOnlyList<IPAddress> addresses;
+            try
+            {
+                addresses = await _addressResolver
+                    .ResolveAddressesAsync(host, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (IOException ex)
+            {
+                lastResolutionFailure = ex;
+                continue;
+            }
+            catch (SocketException ex)
+            {
+                lastResolutionFailure = ex;
+                continue;
+            }
+            catch (ArgumentException ex)
+            {
+                lastResolutionFailure = ex;
+                continue;
+            }
+
+            foreach (var address in addresses)
+            {
+                AddAddressCandidate(host, address, address.ToString());
+            }
+        }
+
+        if (lastResolutionFailure is not null)
+        {
+            throw new IOException(
+                "Global SMTP relayer host resolution failed.",
+                lastResolutionFailure);
+        }
+
+        if (candidates.Count == 0)
+        {
+            throw new IOException(
+                "Global SMTP relayer host resolution failed.",
+                lastResolutionFailure);
+        }
+
+        if (target.MaxNumberOfMxHosts > 0)
+        {
+            candidates = candidates.Take(target.MaxNumberOfMxHosts).ToList();
+        }
+
+        var first = candidates[0];
+        return first with
+        {
+            Candidates = candidates.ToArray(),
+            VerifyRemoteSslCertificate = target.VerifyRemoteSslCertificate
+        };
+
+        void AddAddressCandidate(string host, IPAddress address, string connectionAddress)
+        {
+            if (!seenAddresses.Add(address))
+            {
+                return;
+            }
+
+            candidates.Add(new RemoteSmtpEndpoint(
+                host,
+                route.TargetPort <= 0 ? 25 : route.TargetPort,
+                (RemoteSmtpConnectionSecurity)route.ConnectionSecurity,
+                route.RequiresAuthentication,
+                route.AuthenticationUsername,
+                route.AuthenticationPassword,
+                VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate,
+                ConnectionAddress: connectionAddress));
+        }
     }
 
     private async ValueTask<IReadOnlyList<string>> ResolveRemoteHostsAsync(
