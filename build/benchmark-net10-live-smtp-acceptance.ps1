@@ -6,6 +6,9 @@ param(
     [ValidateRange(1, 60)]
     [int]$PostAcceptanceTimeoutSeconds = 10,
     [string]$OutputDirectory = "",
+    [string]$BenchmarkStagingRoot = "",
+    [string]$BenchmarkDatabase = "",
+    [string]$BenchmarkServiceExecutable = "",
     [ValidateSet("net10", "cpp")]
     [string]$Implementation = "net10"
 )
@@ -25,6 +28,12 @@ if ($Implementation -eq "cpp") {
     $argumentList = "/Debug"
 }
 
+if ($Implementation -eq "net10") {
+    if (-not [string]::IsNullOrWhiteSpace($BenchmarkStagingRoot)) { $stagingRoot = [IO.Path]::GetFullPath($BenchmarkStagingRoot) }
+    if (-not [string]::IsNullOrWhiteSpace($BenchmarkDatabase)) { $database = $BenchmarkDatabase }
+    if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) { $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable) }
+}
+
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260811\$Implementation-smtp-acceptance"
 }
@@ -37,10 +46,10 @@ $dataRoot = Join-Path $stagingRoot "Data"
 if (-not (Test-Path -LiteralPath $dataRoot -PathType Container)) {
     throw "The isolated benchmark Data root is missing: $dataRoot"
 }
-if ($database -notmatch '^hmail_perf_(net|cpp)_sql_[a-z0-9_]+$') {
+if ($database -notmatch '^hmail_perf_[a-z0-9_]+$') {
     throw "Refusing non-disposable benchmark database: $database"
 }
-if ([IO.Path]::GetFullPath($stagingRoot) -notmatch '(?i)^C:\\hmail-perf-(net10|cpp)-') {
+if ([IO.Path]::GetFullPath($stagingRoot) -notmatch '(?i)^C:\\hmail-perf-') {
     throw "Refusing non-disposable benchmark Data root: $stagingRoot"
 }
 
@@ -85,8 +94,13 @@ SELECT
     (SELECT COUNT_BIG(*) FROM hm_domains WHERE domainname = N'perf.test' AND domainactive <> 0),
     (SELECT COUNT_BIG(*) FROM hm_accounts WHERE accountaddress = N'test@perf.test' AND accountactive <> 0),
     (SELECT COUNT_BIG(*) FROM hm_imapfolders WHERE folderaccountid = 1 AND folderparentid = -1 AND UPPER(foldername) = N'INBOX'),
-    (SELECT COUNT_BIG(*) FROM hm_messages WHERE LEFT(messagefilename, LEN(N'$dataRootSql')) = N'$dataRootSql'),
-    (SELECT COUNT_BIG(*) FROM hm_messages WHERE LEFT(messagefilename, LEN(N'$dataRootSql')) <> N'$dataRootSql');
+    (SELECT COUNT_BIG(*) FROM hm_messages WHERE
+        LEFT(messagefilename, LEN(N'$dataRootSql')) = N'$dataRootSql' OR
+        (LEFT(messagefilename, 1) <> N'{' AND messagefilename NOT LIKE N'%:%' AND messagefilename NOT LIKE N'%\%' AND messagefilename NOT LIKE N'%/%')),
+    (SELECT COUNT_BIG(*) FROM hm_messages WHERE
+        LEFT(messagefilename, LEN(N'$dataRootSql')) <> N'$dataRootSql' AND
+        LEFT(messagefilename, 1) <> N'{' AND
+        (messagefilename LIKE N'%:%' OR messagefilename LIKE N'%\%' OR messagefilename LIKE N'%/%'));
 "@
         $lines = @(sqlcmd -S localhost -E -d $Database -W -s '|' -h-1 -b -Q $query)
         if ($LASTEXITCODE -ne 0 -or $lines.Count -ne 1) {

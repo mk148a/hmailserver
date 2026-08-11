@@ -4,6 +4,9 @@ param(
     [ValidateRange(1, 300)]
     [int]$ReadinessTimeoutSeconds = 60,
     [string]$OutputDirectory = "",
+    [string]$BenchmarkStagingRoot = "",
+    [string]$BenchmarkDatabase = "",
+    [string]$BenchmarkServiceExecutable = "",
     [ValidateSet("net10", "cpp")]
     [string]$Implementation = "net10"
 )
@@ -23,6 +26,19 @@ if ($Implementation -eq "cpp") {
     $stagingRoot = "C:\hmail-perf-cpp-ascii-20260810"
     $database = "hmail_perf_cpp_sql_20260810_152708"
     $argumentList = "/Debug"
+}
+
+if ($Implementation -eq "net10") {
+    if (-not [string]::IsNullOrWhiteSpace($BenchmarkStagingRoot)) { $stagingRoot = [IO.Path]::GetFullPath($BenchmarkStagingRoot) }
+    if (-not [string]::IsNullOrWhiteSpace($BenchmarkDatabase)) { $database = $BenchmarkDatabase }
+    if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) { $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable) }
+}
+
+if ($database -notmatch '^hmail_perf_[a-z0-9_]+$') {
+    throw "Refusing non-disposable benchmark database: $database"
+}
+if ([IO.Path]::GetFullPath($stagingRoot) -notmatch '(?i)^C:\\hmail-perf-') {
+    throw "Refusing non-disposable benchmark root: $stagingRoot"
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
