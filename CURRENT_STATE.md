@@ -1,17 +1,42 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T09:38:03Z / 2026-08-11T12:38:03+03:00
+- UTC/local timestamp: 2026-08-11T10:02:25Z / 2026-08-11T13:02:25+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `b56bfb541` (code/test `a414c88db` plus documentation; push intentionally not performed)
+- Current HEAD: `884100918` (code/test `e3434d4b1` plus documentation; push intentionally not performed)
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: SMTP/Settings greeting and authorization coverage `136 passed, 0 failed`; benchmark PowerShell parsers and embedded IMAP C# compile passed; live artifacts validated as explicit FAIL paths
-- Latest full Net10 result: default `2123 passed, 39 skipped, 0 failed`; fresh opt-in MSSQL disposable run `2160 passed, 2 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: SQL/Data restore and SQL/Admin integration passed; installer artifact and native registry integration skipped by explicit opt-in gate; SQL FTS, legacy C++ listeners, out-of-process COM, SEC-18 cutover, AD/DC, and 24-hour soak remain blocked or unproven
-- Current bounded slice: completed legacy-first `WelcomeSMTP` framing hardening; authenticated setters reject CR/LF with `E_INVALIDARG`, and runtime greeting formatting fails safe for pre-existing unsafe rows
+- Latest focused-test result: `SqlServerSettingsAdministrationStore` filter `33 passed, 0 skipped, 0 failed`; SMTP/Settings greeting and authorization coverage `136 passed, 0 failed`
+- Latest full Net10 result: default `2123 passed, 40 skipped, 0 failed`; fresh opt-in MSSQL disposable run `2161 passed, 2 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: SQL/Data restore and SQL/Admin integration passed against the configured local isolated-create path; installer artifact and native registry integration skipped by explicit opt-in gate; approved disposable SQL identity, SQL FTS, legacy C++ listeners, out-of-process COM, SEC-18 cutover, AD/DC, and 24-hour soak remain blocked or unproven
+- Current bounded slice: completed legacy-first `WelcomeSMTP` SQL capacity parity; `@WelcomeSMTP` uses `nvarchar(4000)` metadata and a 300-character disposable SQL round trip is exact
 - Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, settings restore parsing/store/execution, combined settings/domain DB-only restore, disposable SQL/Data start-state equivalence, and SQL/Admin opt-in integration; no release milestone complete
-- Open production blockers: paired C++/Net10 protocol completion and all performance claims, live SMTP/POP3/IMAP policy reload beyond greeting, WelcomeSMTP SQL length parity (`nvarchar(255)` vs legacy `nvarchar(4000)`), delivery batching/default parity, populated restore round-trip and rollback, non-DB settings reinitialize, SQL/FTS backfill, credential policy, ACL restore, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, and remaining COM/Admin parity
-- Environment blocked work: healthy isolated C++ listener binary and stable Net10 POP3/IMAP live path, SQL Server with FTS and supported legacy ADO provider, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
+- Open production blockers: paired C++/Net10 protocol completion and all performance claims, live SMTP/POP3/IMAP policy reload beyond greeting, delivery batching/default parity, populated restore round-trip and rollback, non-DB settings reinitialize, SQL/FTS backfill, credential policy, ACL restore, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, remaining COM/Admin parity, approved disposable SQL identity, and release-policy decision for the intentional legacy-vs-Net10 WelcomeSMTP CR/LF behavior
+- Environment blocked work: healthy isolated C++ listener binary and stable Net10 POP3/IMAP live path, independently approved disposable SQL/LocalDB target, SQL Server with FTS and supported legacy ADO provider, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) repair or replace the isolated C++ binary and fix/reproduce Net10 live IMAP/POP3 before rerunning the identical matrix, (2) legacy-first WelcomeSMTP SQL length and long-value parity, (3) populated disposable settings/message restore plus rollback acceptance
+- Next three independent slices: (1) repair or replace the isolated C++ binary and fix/reproduce Net10 live IMAP/POP3 before rerunning the identical matrix, (2) populated disposable settings/message restore plus rollback acceptance, (3) bounded non-DB-only BODomains|BOMessages DataBackup staging and archive equivalence
+
+## Current Audit Note (2026-08-11, WELCOMESMTP SQL CAPACITY PARITY)
+
+Code/test commit `e3434d4b1` changes only the Net10 `WelcomeSMTP` SQL
+parameter metadata from `nvarchar(255)` to `nvarchar(4000)`, matching the
+legacy `hm_settings.settingstring nvarchar(4000)` schema. Legacy references
+are `CreateTablesMSSQL.sql:299-303`,
+`InterfaceSettings::put_WelcomeSMTP` (`source/Server/COM/InterfaceSettings.cpp:696-710`),
+`Property::SetString`/`SQLStatement`/`ADOConnection` long-string handling
+(`source/Server/DBOperation/Property.cpp:43-47,81-96`,
+`source/Server/DBOperation/SQLStatement.cpp:40-67,222-257`,
+`source/Server/DBOperation/ADOConnection.cpp:449-499`).
+
+`SqlServerSettingsAdministrationStoreWelcomeSmtpIntegrationTests` creates a
+random database on the configured local SQL endpoint, writes a 300-character
+value, reads it back exactly, and drops the database. The focused store filter
+is `33 passed`; full default Net10 is `2123 passed, 40 skipped, 0 failed`;
+fresh isolated-create MSSQL/Data opt-in is `2161 passed, 2 skipped, 0 failed`.
+The test targets no named hMailServer production database or Data directory,
+but independent proof that the SQL instance itself is disposable remains
+required. The paired live C++/.NET10 performance gate remains
+**RED** because the identical SMTP/IMAP/POP3 workload still does not complete.
+Next slice: populated disposable settings/message restore plus rollback
+acceptance. Legacy C++ still accepts raw multiline `WelcomeSMTP`; the separate
+.NET10 CR/LF hardening remains an intentional release-policy divergence.
 
 ## Current Audit Note (2026-08-11, WELCOMESMTP CRLF HARDENING)
 

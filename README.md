@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, WelcomeSMTP SQL capacity parity)
+
+Commit `e3434d4b1` changes the Net10 `WelcomeSMTP` SQL parameter metadata from
+`nvarchar(255)` to `nvarchar(4000)`, matching the legacy
+`hm_settings.settingstring nvarchar(4000)` schema
+(`source/DBScripts/CreateTablesMSSQL.sql:299-303`). The disposable SQL
+integration test writes and reads a 300-character value exactly in a random
+database on the configured local SQL endpoint and drops it afterward. Focused
+store coverage is `33 passed`; full default Net10 is `2123 passed, 40 skipped,
+0 failed`; fresh isolated-create opt-in is `2161 passed, 2 skipped, 0 failed`.
+It targets no named hMailServer production database or Data directory, but the
+SQL instance's independent disposability is still an environment gate.
+
+The paired C++/.NET10 performance gate remains **RED** because the identical
+SMTP/IMAP/POP3 workload is incomplete; no speedup ratio or winner is claimed.
+Next slice: populated disposable settings/message restore plus rollback
+acceptance. Legacy C++ still accepts raw multiline `WelcomeSMTP`; the separate
+.NET10 CR/LF rejection is an intentional release-policy divergence.
+
 ## Current parity continuation (2026-08-11, WelcomeSMTP CR/LF hardening)
 
 Commit `a414c88db` rejects CR/LF in authenticated `WelcomeSMTP` setters with

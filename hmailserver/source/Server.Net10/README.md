@@ -1,3 +1,21 @@
+## Current parity continuation (2026-08-11, WelcomeSMTP SQL capacity parity)
+
+Commit `e3434d4b1` changes only the Net10 `WelcomeSMTP` SQL parameter metadata
+from `nvarchar(255)` to `nvarchar(4000)`, matching legacy
+`hm_settings.settingstring nvarchar(4000)`
+(`source/DBScripts/CreateTablesMSSQL.sql:299-303`). The disposable integration
+test writes and reads a 300-character value exactly in a random database on the
+configured local SQL endpoint and drops it. Focused store coverage is `33
+passed`; full default Net10 is `2123 passed, 40 skipped, 0 failed`; fresh
+isolated-create opt-in is `2161 passed, 2 skipped, 0 failed`. The SQL
+instance's independent disposability remains an environment gate.
+
+Performance remains **RED** because the identical C++/.NET10 SMTP/IMAP/POP3
+workload is incomplete. Next slice: populated disposable settings/message
+restore plus rollback acceptance. Legacy C++ still accepts raw multiline
+WelcomeSMTP; the .NET10 CR/LF rejection remains an intentional release-policy
+divergence.
+
 ## Current parity continuation (2026-08-11, WelcomeSMTP CR/LF hardening)
 
 Code/test commit `a414c88db` rejects CR/LF in authenticated `WelcomeSMTP`

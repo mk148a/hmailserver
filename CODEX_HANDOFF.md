@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, WELCOMESMTP SQL CAPACITY PARITY)
+
+Code/test commit `e3434d4b1` changes the Net10 `WelcomeSMTP` SQL parameter
+metadata from `nvarchar(255)` to `nvarchar(4000)`, matching the legacy
+`hm_settings.settingstring nvarchar(4000)` definition
+(`source/DBScripts/CreateTablesMSSQL.sql:299-303`). Legacy long-string behavior
+is anchored in `Property::SetString`, `SQLStatement`, and `ADOConnection`
+(`source/Server/DBOperation/Property.cpp:43-47,81-96`,
+`source/Server/DBOperation/SQLStatement.cpp:40-67,222-257`,
+`source/Server/DBOperation/ADOConnection.cpp:449-499`); COM remains the
+installed BSTR/DISPID 23 contract at `InterfaceSettings.cpp:696-710`.
+
+`SqlServerSettingsAdministrationStoreWelcomeSmtpIntegrationTests` creates a
+random database on the configured local SQL endpoint, writes a 300-character
+WelcomeSMTP, reads the exact value back, and drops the database. Focused store
+coverage is `33 passed, 0 failed`; full default Net10 is `2123 passed, 40
+skipped, 0 failed`; fresh isolated-create MSSQL/Data opt-in is `2161 passed, 2
+skipped, 0 failed`. It targets no named hMailServer production database or
+Data directory, but independent proof that the SQL instance is disposable is
+still an environment gate. Performance remains **RED** because
+the paired C++/.NET10 SMTP/IMAP/POP3 workload is incomplete, so no ratio or
+winner is valid. Next slice: populated disposable settings/message restore and
+rollback acceptance. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, WELCOMESMTP CRLF HARDENING)
 
 Code/test commit `a414c88db` adds a bounded security hardening slice for the

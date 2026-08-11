@@ -8,16 +8,21 @@
 
 ## Current next slice (2026-08-11)
 
-Completed: `WelcomeSMTP` CR/LF hardening in code/test commit `a414c88db`.
-Legacy `put_WelcomeSMTP` and `SetWelcomeMessage` accept the BSTR unchanged,
-while `SMTPConnection::SendBanner_` frames it directly
+Completed: `WelcomeSMTP` SQL capacity parity in code/test commit `e3434d4b1`.
+Legacy `hm_settings.settingstring` is `nvarchar(4000)`
+(`source/DBScripts/CreateTablesMSSQL.sql:299-303`), and the legacy COM/SQL
+path is `InterfaceSettings::put_WelcomeSMTP`, `Property::SetString`,
+`SQLStatement`, and `ADOConnection`
 (`source/Server/COM/InterfaceSettings.cpp:696-710`,
-`source/Server/SMTP/SMTPConfiguration.cpp:120-123`,
-`source/Server/SMTP/SMTPConnection.cpp:167-185`). Net10 now rejects CR/LF
-before SQL/publication and fails safe for pre-existing unsafe rows; valid
-formatting and the installed BSTR/DISPID 23 contract remain unchanged.
-Focused coverage is `136/136`; full default Net10 is `2123 passed` with `39`
-explicit skips; fresh disposable opt-in is `2160 passed, 2 skipped, 0 failed`.
+`source/Server/DBOperation/Property.cpp:43-47,81-96`,
+`source/Server/DBOperation/SQLStatement.cpp:40-67,222-257`,
+`source/Server/DBOperation/ADOConnection.cpp:449-499`). Net10 now uses
+`nvarchar(4000)` parameter metadata. An isolated-create local SQL test writes
+and reads a 300-character value exactly, then drops its random test database;
+independent proof that the SQL instance itself is disposable remains an
+environment gate.
+Focused store coverage is `33/33`; full default Net10 is `2123 passed, 40
+skipped, 0 failed`; fresh disposable opt-in is `2161 passed, 2 skipped, 0 failed`.
 
 Next smallest independent slice: repair or replace the isolated C++ protocol
 target and reproduce the Net10 live IMAP/POP3 listener path, then rerun the
@@ -27,8 +32,7 @@ same scenarios. Do not claim a ratio or winner. Legacy C++ still accepts raw
 multiline values; the .NET10 rejection is an intentional security divergence
 requiring release-policy acceptance. Preserve COM identity,
 production service/database/Data boundaries, and the existing direct activation
-and SMTP trust boundaries. Follow-up parity slice: reconcile the Net10
-`nvarchar(255)` WelcomeSMTP parameter with the legacy `nvarchar(4000)` setting.
+and SMTP trust boundaries.
 
 ## Current Audit Note (2026-08-11, SHARED SQL/DATA PERFORMANCE BASELINE)
 
