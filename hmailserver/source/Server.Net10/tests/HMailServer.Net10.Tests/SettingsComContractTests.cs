@@ -198,6 +198,16 @@ public sealed class SettingsComContractTests
             Assert.AreEqual(item.DispId, property.GetCustomAttribute<DispIdAttribute>()?.Value);
             Assert.AreEqual(typeof(ComConnectionSecurity), property.PropertyType);
         }
+
+        var values = Enum.GetNames<ComConnectionSecurity>()
+            .ToDictionary(
+                static name => name,
+                static name => Convert.ToInt32(Enum.Parse<ComConnectionSecurity>(name)));
+
+        Assert.AreEqual(0, values[nameof(ComConnectionSecurity.None)]);
+        Assert.AreEqual(1, values[nameof(ComConnectionSecurity.Tls)]);
+        Assert.AreEqual(2, values[nameof(ComConnectionSecurity.StartTlsOptional)]);
+        Assert.AreEqual(3, values[nameof(ComConnectionSecurity.StartTlsRequired)]);
     }
 
     [TestMethod]
@@ -294,6 +304,10 @@ public sealed class SettingsComContractTests
         var relayerPortError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayerPort);
         var relayerPortSetterError = Assert.ThrowsExactly<COMException>(
             () => settings.SMTPRelayerPort = 25);
+        var relayerConnectionSecurityError = Assert.ThrowsExactly<COMException>(
+            () => _ = settings.SMTPRelayerConnectionSecurity);
+        var relayerConnectionSecuritySetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerConnectionSecurity = ComConnectionSecurity.None);
         var relayerUseSslError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayerUseSSL);
         var smtpConnectionSecurityError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPConnectionSecurity);
         var tlsVersionError = Assert.ThrowsExactly<COMException>(() => _ = settings.TlsVersion10Enabled);
@@ -370,6 +384,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, relayerUsernameSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerPortError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerPortSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayerConnectionSecurityError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayerConnectionSecuritySetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerUseSslError.ErrorCode);
         Assert.AreEqual(EAccessDenied, smtpConnectionSecurityError.ErrorCode);
         Assert.AreEqual(EAccessDenied, tlsVersionError.ErrorCode);
@@ -929,6 +945,50 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(2, store.SmtpRelayerPortUpdateCount);
         Assert.AreEqual(587, settings.SMTPRelayerPort);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SmtpRelayerConnectionSecuritySetterPersistsIntBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpRelayerConnectionSecurityUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.None),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.SMTPRelayerConnectionSecurity = ComConnectionSecurity.StartTlsRequired;
+
+        Assert.AreEqual(1, store.SmtpRelayerConnectionSecurityUpdateCount);
+        Assert.AreEqual((int)ComConnectionSecurity.StartTlsRequired, store.UpdatedSmtpRelayerConnectionSecurity);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
+        Assert.IsFalse(settings.SMTPRelayerUseSSL);
+
+        store.SmtpRelayerConnectionSecurityUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerConnectionSecurity = ComConnectionSecurity.Tls);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.SmtpRelayerConnectionSecurityUpdateCount);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
+        Assert.IsFalse(settings.SMTPRelayerUseSSL);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerConnectionSecurity = ComConnectionSecurity.None);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.SmtpRelayerConnectionSecurityUpdateCount);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, settings.SMTPRelayerConnectionSecurity);
     }
 
     [TestMethod]
@@ -2103,6 +2163,8 @@ public sealed class SettingsComContractTests
 
         public bool SmtpRelayerPortUpdateResult { get; set; }
 
+        public bool SmtpRelayerConnectionSecurityUpdateResult { get; set; }
+
         public int SmtpRelayerRequiresAuthenticationUpdateCount { get; private set; }
 
         public bool UpdatedSmtpRelayerRequiresAuthentication { get; private set; }
@@ -2118,6 +2180,10 @@ public sealed class SettingsComContractTests
         public int SmtpRelayerPortUpdateCount { get; private set; }
 
         public int UpdatedSmtpRelayerPort { get; private set; }
+
+        public int SmtpRelayerConnectionSecurityUpdateCount { get; private set; }
+
+        public int UpdatedSmtpRelayerConnectionSecurity { get; private set; }
 
         public int UpdateCount { get; private set; }
 
@@ -2318,6 +2384,16 @@ public sealed class SettingsComContractTests
             UpdatedSmtpRelayerPort = smtpRelayerPort;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(SmtpRelayerPortUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateSmtpRelayerConnectionSecurityAsync(
+            int smtpRelayerConnectionSecurity,
+            CancellationToken cancellationToken)
+        {
+            SmtpRelayerConnectionSecurityUpdateCount++;
+            UpdatedSmtpRelayerConnectionSecurity = smtpRelayerConnectionSecurity;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(SmtpRelayerConnectionSecurityUpdateResult);
         }
 
         public ValueTask<bool> UpdateWelcomePop3Async(

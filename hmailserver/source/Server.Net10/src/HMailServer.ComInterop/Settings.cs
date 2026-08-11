@@ -1734,7 +1734,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.SMTPRelayerConnectionSecurity
                 : (ComConnectionSecurity)_administrationSnapshot.SmtpRelayerConnectionSecurity;
         }
-        set => base.SMTPRelayerConnectionSecurity = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.SMTPRelayerConnectionSecurity = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateSmtpRelayerConnectionSecurityAsync((int)value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The SMTP relayer connection security update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SmtpRelayerConnectionSecurity = (int)value
+                };
+            }
+        }
     }
 
     public override bool SMTPRelayerUseSSL

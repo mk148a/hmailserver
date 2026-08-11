@@ -51,6 +51,12 @@ SET settinginteger = @SMTPRelayerPort
 WHERE settingname = N'smtprelayerport';
 """;
 
+    public const string UpdateSmtpRelayerConnectionSecuritySql = """
+UPDATE hm_settings
+SET settinginteger = @SMTPRelayerConnectionSecurity
+WHERE settingname = N'smtprelayerconnectionsecurity';
+""";
+
     public const string UpdateAllowMailFromNullSql = """
 UPDATE hm_settings
 SET settinginteger = @AllowMailFromNull
@@ -489,6 +495,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateSmtpRelayerPortSql, connection);
         command.Parameters.Add("@SMTPRelayerPort", SqlDbType.Int).Value = smtpRelayerPort;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateSmtpRelayerConnectionSecurityAsync(
+        int smtpRelayerConnectionSecurity,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateSmtpRelayerConnectionSecuritySql, connection);
+        command.Parameters.Add("@SMTPRelayerConnectionSecurity", SqlDbType.Int).Value = smtpRelayerConnectionSecurity;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
