@@ -1,4 +1,27 @@
 
+## Current Audit Note (2026-08-11, MIRROR EMAIL AUTHORIZATION LEASE)
+
+Code/test commit `59e433449` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.MirrorEMailAddress`
+(`DispId(7)`). The lease is acquired immediately before the existing
+parameterized `mirroremailaddress` SQL update and held through result handling
+and retained snapshot publication. Direct activation denial, failed-write
+retention, lease acquire/dispose, and unavailable-lease denial are covered.
+
+Legacy behavior is anchored by `InterfaceSettings::get/put_MirrorEMailAddress`
+(`source/Server/COM/InterfaceSettings.cpp:207-239`),
+`Configuration::SetMirrorAddress`
+(`source/Server/Common/Application/Configuration.cpp:240-248`), the installed
+IDL property (`source/Server/hMailServer/hMailServer.idl:533-534`), and the
+`mirroremailaddress` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:730`).
+The .NET `UpdateMirrorEmailAddressSql` shape and email-mirroring runtime were
+not changed.
+
+Focused coverage is `90/90`; full Net10 is `2073 passed, 39 skipped, 0
+failed`. Remaining unleased Settings mutation paths and restore, performance,
+SEC-18, installer, AD/DC, crash/power-loss, and soak gates remain RED. Next
+slice: fresh legacy-first audit of `AllowSMTPAuthPlain`.
+
 ## Current Audit Note (2026-08-11, MAX POP3 CONNECTIONS AUTHORIZATION LEASE)
 
 Code/test commit `0e4a70129` extends the existing generation-bound
