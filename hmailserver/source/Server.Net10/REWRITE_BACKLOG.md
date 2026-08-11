@@ -4339,7 +4339,25 @@ Next independent slices, in order: propagate route MX caps through the SQL
 target resolver; repair global-relayer partial DNS fallback; then approved
 disposable DNS/socket/TLS acceptance or registry-isolated C++ execution.
 
-## Current authoritative next slice (2026-08-12, route MX-cap propagation)
+## Current authoritative next slice (2026-08-12, after global-relayer partial DNS)
+
+Code/test commit `85ab61f04` closes the global-relayer partial DNS fallback
+gap. Legacy `ExternalDelivery::ResolveRecipientServers_`
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:204-280`) continues
+after a failed pipe-member lookup and succeeds with the non-empty set of
+resolved candidates. `RemoteSmtpEndpointResolver.ResolveGlobalRelayerAsync`
+now throws only when no candidate remains. Focused coverage is `47/47`; full
+Net10 is `2214 passed, 54 skipped, 0 failed`.
+
+The slice is offline deterministic evidence only. It does not prove real DNS,
+socket, TLS/SNI, DNS source/question validation, or outbound SSRF policy.
+Release remains **RED**.
+
+Next independent slices, in order: exact hMailServer listener ownership for
+self-connect parity; approved disposable DNS/socket/TLS acceptance; then
+registry-isolated C++ execution and paired benchmark evidence.
+
+## Historical continuation (2026-08-12, route MX-cap propagation)
 
 Code/test commit `c519f6e87` completes the SQL target propagation portion of
 legacy fixed-route cap parity. Legacy

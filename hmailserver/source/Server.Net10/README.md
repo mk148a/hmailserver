@@ -2259,7 +2259,27 @@ Route `MaxNumberOfMXHosts` SQL propagation, global-relayer partial failure,
 hMailServer listener ownership, live DNS/socket/TLS, shared SMTP SSRF policy,
 and paired C++/.NET performance remain open. Release remains **RED**.
 
-## Current authoritative continuation (2026-08-12, route MX cap propagation)
+## Current authoritative continuation (2026-08-12, global-relayer partial DNS)
+
+Code/test commit `85ab61f04` restores the legacy global-relayer fallback in
+`RemoteSmtpEndpointResolver.ResolveGlobalRelayerAsync`. Legacy
+`ExternalDelivery::ResolveRecipientServers_`
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:204-280`) keeps
+successful pipe members when another member's DNS lookup fails and reports no
+servers only when the successful candidate set is empty. The Net10 resolver
+now matches this behavior. Focused resolver coverage is `47/47`; full Net10 is
+`2214 passed, 54 skipped, 0 failed`.
+
+No COM/IDL identity, SQL schema, SMTP trust, TLS policy, or live
+reconfiguration changed. Real DNS/socket/TLS, DNS response validation,
+hMailServer-owned listener discovery, broad SMTP egress/SSRF, and paired
+C++/.NET performance remain open. Release remains **RED**.
+
+Next independent slices: exact hMailServer listener ownership for self-connect
+parity; approved disposable real DNS/socket/TLS acceptance; registry-isolated
+C++ execution and paired benchmarking.
+
+## Historical continuation (2026-08-12, route MX cap propagation)
 
 Code/test commit `c519f6e87` closes the SQL-to-target propagation gap for
 `MaxNumberOfMXHosts`. `SqlServerDeliveryTargetResolver` now loads the cached

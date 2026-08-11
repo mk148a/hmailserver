@@ -4410,7 +4410,30 @@ partial-DNS fallback, and (3) approved disposable DNS/socket/TLS acceptance or
 registry-isolated C++ listener/benchmark execution. Preserve dirty `AGENTS.md`,
 backup/Smtp WIP, and untracked SEC-18/benchmark/disposable artifacts.
 
-## Current Authoritative Continuation (2026-08-12, ROUTE MX CAP)
+## Current Authoritative Continuation (2026-08-12, GLOBAL-RELAYER PARTIAL DNS)
+
+Code/test commit `85ab61f04` implements one bounded legacy parity slice.
+`hmail_parity_explorer` verified
+`ExternalDelivery::ResolveRecipientServers_`
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:204-280`): each
+pipe-separated global-relayer member is resolved independently, successful
+addresses are retained, and failure occurs only when the result is empty.
+`RemoteSmtpEndpointResolver.ResolveGlobalRelayerAsync` now follows that rule.
+Focused resolver tests are `47 passed, 0 failed, 0 skipped`; full Net10 is
+`2214 passed, 54 skipped, 0 failed`.
+
+Security review found no new authorization, SSRF-scope, local-endpoint-guard,
+TLS/SNI, ordering, COM, or SQL regression in this bounded change. Reality
+review remains RED because real DNS/socket/TLS evidence, DNS validation,
+hMailServer-owned listener discovery, broad SMTP egress/SSRF policy, and paired
+C++/.NET performance evidence are still absent.
+
+Next three slices: (1) exact listener ownership for self-connect parity, (2)
+approved disposable DNS/socket/TLS acceptance, and (3) registry-isolated C++
+execution with paired benchmark evidence. Preserve dirty `AGENTS.md`,
+backup/Smtp WIP, and untracked SEC-18/benchmark/disposable artifacts.
+
+## Historical continuation (2026-08-12, ROUTE MX CAP)
 
 Code/test commit `c519f6e87` completes one bounded SQL-to-target parity gap.
 `hmail_parity_explorer` verified legacy

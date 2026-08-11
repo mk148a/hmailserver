@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current authoritative global-relayer DNS status (2026-08-12)
+
+Code/test commit `85ab61f04` restores legacy partial-resolution behavior for
+global SMTP relayers. Legacy `ExternalDelivery::ResolveRecipientServers_`
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:204-280`) resolves
+pipe-separated members independently, retains every successful address, and
+fails only when no candidates remain. Net10 `ResolveGlobalRelayerAsync`
+(`hmailserver/source/Server.Net10/src/HMailServer.Delivery/RemoteSmtpEndpointResolver.cs:200-293`)
+now follows that rule. Focused resolver coverage is `47 passed, 0 failed,
+0 skipped`; full Net10 is `2214 passed, 54 skipped, 0 failed`.
+
+This slice changes no COM identity, SQL schema, SMTP trust, TLS policy, or
+live reconfiguration. Real DNS/socket/TLS acceptance, DNS response validation,
+hMailServer-owned listener discovery, broader SMTP egress/SSRF policy, and the
+paired C++/.NET performance gate remain open. Performance is **RED**.
+
 ## Current authoritative route MX-cap status (2026-08-12)
 
 Code/test commit `c519f6e87` propagates the existing `hm_settings`/
@@ -11,8 +27,8 @@ positive cap after fixed-route host/address expansion; Net10 now supplies the
 same value to `RemoteSmtpEndpointResolver` for those route paths. Zero remains
 the legacy no-cap value.
 
-Focused SQL-target/resolver coverage is `51/51`; full Net10 is `2212 passed,
-54 skipped, 0 failed`. Global-relayer partial DNS fallback, hMailServer-owned
+Focused SQL-target/resolver coverage is `51/51`; full Net10 at that earlier
+continuation was `2212 passed, 54 skipped, 0 failed`. hMailServer-owned
 listener discovery, live DNS/socket/TLS evidence, shared SMTP SSRF policy, and
 the paired C++/.NET performance gate remain open. Performance is **RED**.
 
