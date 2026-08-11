@@ -93,6 +93,10 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
     private static bool IsTransientTransportFailure(Exception exception) =>
         exception is IOException or SocketException or TimeoutException or AuthenticationException;
 
+    private static bool ShouldVerifyRemoteCertificate(RemoteSmtpEndpoint endpoint) =>
+        endpoint.VerifyRemoteSslCertificate
+        && endpoint.ConnectionSecurity != RemoteSmtpConnectionSecurity.StartTlsOptional;
+
     private async ValueTask<RemoteSmtpSendResult> SendAttemptAsync(
         RemoteSmtpSendRequest request,
         CancellationToken cancellationToken)
@@ -101,7 +105,10 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
         await using var transport = await _transportFactory.ConnectAsync(request.Endpoint, cancellationToken).ConfigureAwait(false);
         if (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.Ssl)
         {
-            await transport.UpgradeToTlsAsync(request.Endpoint.Host, cancellationToken).ConfigureAwait(false);
+            await transport.UpgradeToTlsAsync(
+                request.Endpoint.Host,
+                ShouldVerifyRemoteCertificate(request.Endpoint),
+                cancellationToken).ConfigureAwait(false);
         }
 
         var reader = new StreamReader(transport.Stream, Encoding.ASCII, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
@@ -158,7 +165,10 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
                 await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
-                    await transport.UpgradeToTlsAsync(request.Endpoint.Host, cancellationToken).ConfigureAwait(false);
+                    await transport.UpgradeToTlsAsync(
+                        request.Endpoint.Host,
+                        ShouldVerifyRemoteCertificate(request.Endpoint),
+                        cancellationToken).ConfigureAwait(false);
                 }
                 catch (AuthenticationException ex) when (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsOptional)
                 {
@@ -464,12 +474,21 @@ public sealed class TcpRemoteSmtpTransport : IRemoteSmtpTransport
 
     public async ValueTask UpgradeToTlsAsync(
         string targetHost,
+        bool verifyRemoteSslCertificate,
         CancellationToken cancellationToken)
     {
         var sslStream = new SslStream(_stream, leaveInnerStreamOpen: false);
-        await sslStream.AuthenticateAsClientAsync(
-            new SslClientAuthenticationOptions { TargetHost = targetHost },
-            cancellationToken).ConfigureAwait(false);
+        var options = new SslClientAuthenticationOptions
+        {
+            TargetHost = targetHost,
+            CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.Online
+        };
+        if (!verifyRemoteSslCertificate)
+        {
+            options.RemoteCertificateValidationCallback = static (_, _, _, _) => true;
+        }
+
+        await sslStream.AuthenticateAsClientAsync(options, cancellationToken).ConfigureAwait(false);
         _stream = sslStream;
     }
 

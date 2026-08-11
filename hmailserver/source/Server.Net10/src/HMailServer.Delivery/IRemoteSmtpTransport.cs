@@ -6,5 +6,6 @@ public interface IRemoteSmtpTransport : IAsyncDisposable
 
     ValueTask UpgradeToTlsAsync(
         string targetHost,
+        bool verifyRemoteSslCertificate,
         CancellationToken cancellationToken);
 }

@@ -13,6 +13,12 @@ FROM hm_settings
 WHERE settingname = N'SmtpDeliveryConnectionSecurity';
 """;
 
+    public const string SelectVerifyRemoteSslCertificateSql = """
+SELECT settinginteger
+FROM hm_settings
+WHERE settingname = N'VerifyRemoteSslCertificate';
+""";
+
     public const string SelectSmtpRelayerSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'smtprelayer' THEN settingstring END), N''),
@@ -75,31 +81,44 @@ WHERE routeid = @RouteId;
             ? await LoadRouteByIdAsync(connection, message.RuleForcedRouteId, cancellationToken).ConfigureAwait(false)
             : null;
         int? remoteConnectionSecurity = null;
+        bool? verifyRemoteSslCertificate = null;
         RelayerInfo? smtpRelayer = null;
         var smtpRelayerLoaded = false;
         var groups = new Dictionary<string, TargetGroup>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var recipient in message.Recipients)
         {
-            var target = recipient.LocalAccountId > 0
-                    ? CreateLocalTarget(recipient)
-                    : forcedRoute is not null
-                        ? CreateForcedRouteTarget(recipient, forcedRoute)
-                    : await CreateRemoteOrRouteTargetAsync(
-                        connection,
-                        recipient,
-                        async () => remoteConnectionSecurity ??= await LoadSmtpConnectionSecurityAsync(connection, cancellationToken).ConfigureAwait(false),
-                        async () =>
+            DeliveryTarget target;
+            if (recipient.LocalAccountId > 0)
+            {
+                target = CreateLocalTarget(recipient);
+            }
+            else if (forcedRoute is not null)
+            {
+                verifyRemoteSslCertificate ??= await LoadVerifyRemoteSslCertificateAsync(
+                    connection,
+                    cancellationToken).ConfigureAwait(false);
+                target = CreateForcedRouteTarget(recipient, forcedRoute, verifyRemoteSslCertificate.Value);
+            }
+            else
+            {
+                target = await CreateRemoteOrRouteTargetAsync(
+                    connection,
+                    recipient,
+                    async () => remoteConnectionSecurity ??= await LoadSmtpConnectionSecurityAsync(connection, cancellationToken).ConfigureAwait(false),
+                    async () => verifyRemoteSslCertificate ??= await LoadVerifyRemoteSslCertificateAsync(connection, cancellationToken).ConfigureAwait(false),
+                    async () =>
+                    {
+                        if (!smtpRelayerLoaded)
                         {
-                            if (!smtpRelayerLoaded)
-                            {
-                                smtpRelayer = await LoadSmtpRelayerAsync(connection, cancellationToken).ConfigureAwait(false);
-                                smtpRelayerLoaded = true;
-                            }
+                            smtpRelayer = await LoadSmtpRelayerAsync(connection, cancellationToken).ConfigureAwait(false);
+                            smtpRelayerLoaded = true;
+                        }
 
-                            return smtpRelayer;
-                        },
-                        cancellationToken).ConfigureAwait(false);
+                        return smtpRelayer;
+                    },
+                    cancellationToken).ConfigureAwait(false);
+            }
             var groupKey = target.Key;
             if (!groups.TryGetValue(groupKey, out var group))
             {
@@ -129,7 +148,8 @@ WHERE routeid = @RouteId;
 
     private static DeliveryTarget CreateForcedRouteTarget(
         DeliveryQueueRecipient recipient,
-        RouteInfo route)
+        RouteInfo route,
+        bool verifyRemoteSslCertificate)
     {
         var domainName = TrySplitAddress(recipient.Address, out _, out var domain)
             ? domain
@@ -139,13 +159,15 @@ WHERE routeid = @RouteId;
             DeliveryTargetKind.Route,
             Key: "route:" + route.RouteId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             DomainName: domainName,
-            Route: resolution);
+            Route: resolution,
+            VerifyRemoteSslCertificate: verifyRemoteSslCertificate);
     }
 
     private static async ValueTask<DeliveryTarget> CreateRemoteOrRouteTargetAsync(
         SqlConnection connection,
         DeliveryQueueRecipient recipient,
         Func<ValueTask<int>> loadRemoteConnectionSecurityAsync,
+        Func<ValueTask<bool>> loadVerifyRemoteSslCertificateAsync,
         Func<ValueTask<RelayerInfo?>> loadSmtpRelayerAsync,
         CancellationToken cancellationToken)
     {
@@ -162,7 +184,8 @@ WHERE routeid = @RouteId;
                 DeliveryTargetKind.Route,
                 Key: "route:" + route.RouteId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 DomainName: domainName,
-                Route: resolution);
+                Route: resolution,
+                VerifyRemoteSslCertificate: await loadVerifyRemoteSslCertificateAsync().ConfigureAwait(false));
         }
 
         var smtpRelayer = await loadSmtpRelayerAsync().ConfigureAwait(false);
@@ -173,14 +196,16 @@ WHERE routeid = @RouteId;
                 DeliveryTargetKind.Route,
                 Key: "relayer:" + smtpRelayer.Host,
                 DomainName: domainName,
-                Route: resolution);
+                Route: resolution,
+                VerifyRemoteSslCertificate: await loadVerifyRemoteSslCertificateAsync().ConfigureAwait(false));
         }
 
         return new DeliveryTarget(
             DeliveryTargetKind.RemoteDomain,
             Key: "remote:" + domainName,
             DomainName: domainName,
-            RemoteConnectionSecurity: await loadRemoteConnectionSecurityAsync().ConfigureAwait(false));
+            RemoteConnectionSecurity: await loadRemoteConnectionSecurityAsync().ConfigureAwait(false),
+            VerifyRemoteSslCertificate: await loadVerifyRemoteSslCertificateAsync().ConfigureAwait(false));
     }
 
     private static async ValueTask<int> LoadSmtpConnectionSecurityAsync(
@@ -192,6 +217,17 @@ WHERE routeid = @RouteId;
         return value is null or DBNull
             ? 0
             : Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static async ValueTask<bool> LoadVerifyRemoteSslCertificateAsync(
+        SqlConnection connection,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(SelectVerifyRemoteSslCertificateSql, connection);
+        var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return value is null
+            or DBNull
+            || Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) != 0;
     }
 
     private static async ValueTask<RelayerInfo?> LoadSmtpRelayerAsync(

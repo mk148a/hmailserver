@@ -195,11 +195,13 @@ public sealed class RemoteSmtpEndpointResolverTests
             DeliveryTargetKind.RemoteDomain,
             "remote:example.net",
             "example.net",
-            RemoteConnectionSecurity: security);
+            RemoteConnectionSecurity: security,
+            VerifyRemoteSslCertificate: true);
 
         var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
 
         Assert.AreEqual((RemoteSmtpConnectionSecurity)security, endpoint.ConnectionSecurity);
+        Assert.IsTrue(endpoint.VerifyRemoteSslCertificate);
     }
 
     [TestMethod]

@@ -6,4 +6,5 @@ public sealed record DeliveryTarget(
     string DomainName,
     int LocalAccountId = 0,
     SmtpRouteResolution? Route = null,
-    int RemoteConnectionSecurity = 0);
+    int RemoteConnectionSecurity = 0,
+    bool VerifyRemoteSslCertificate = true);

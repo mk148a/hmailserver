@@ -61,7 +61,8 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
                 route.RequiresAuthentication,
                 route.AuthenticationUsername,
                 route.AuthenticationPassword,
-                HostCandidates: route.RouteId == 0 ? hostCandidates : null);
+                HostCandidates: route.RouteId == 0 ? hostCandidates : null,
+                VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate);
         }
 
         if (target.Kind == DeliveryTargetKind.RemoteDomain)
@@ -79,7 +80,8 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
             return new RemoteSmtpEndpoint(
                 mxHost,
                 Port: 25,
-                connectionSecurity);
+                connectionSecurity,
+                VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate);
         }
 
         throw new InvalidOperationException("Local delivery targets do not have remote SMTP endpoints.");

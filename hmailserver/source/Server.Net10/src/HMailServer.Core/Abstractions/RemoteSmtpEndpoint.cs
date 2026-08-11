@@ -8,7 +8,8 @@ public sealed record RemoteSmtpEndpoint(
     string AuthenticationUsername = "",
     string AuthenticationPassword = "",
     string? LocalBindAddress = null,
-    IReadOnlyList<string>? HostCandidates = null)
+    IReadOnlyList<string>? HostCandidates = null,
+    bool VerifyRemoteSslCertificate = true)
 {
     public IReadOnlyList<RemoteSmtpEndpoint> GetCandidates()
     {

@@ -303,6 +303,7 @@ public sealed class SmtpRemoteDeliveryClientTests
         Assert.AreEqual(DeliveryFailureKind.Transient, result.FailureKind);
         Assert.AreEqual(1, factory.Endpoints.Count);
         Assert.AreEqual(1, first.UpgradeCallCount);
+        Assert.IsFalse(first.VerifyRemoteSslCertificate);
     }
 
     [TestMethod]
@@ -353,7 +354,29 @@ public sealed class SmtpRemoteDeliveryClientTests
 
         Assert.IsTrue(result.Succeeded);
         Assert.AreEqual(1, transport.UpgradeCallCount);
+        Assert.IsTrue(transport.VerifyRemoteSslCertificate);
         Assert.IsFalse(transport.GetClientText().Contains("STARTTLS", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task SendAsync_SslHonorsExplicitCertificateVerificationDisable()
+    {
+        var transport = CreateSuccessfulTransport();
+        var factory = new FakeTransportFactory(transport);
+        var client = new SmtpRemoteDeliveryClient(factory);
+        var request = CreateRequest(RemoteSmtpConnectionSecurity.Ssl) with
+        {
+            Endpoint = new RemoteSmtpEndpoint(
+                "mx.example",
+                25,
+                RemoteSmtpConnectionSecurity.Ssl,
+                VerifyRemoteSslCertificate: false)
+        };
+
+        var result = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsFalse(transport.VerifyRemoteSslCertificate);
     }
 
     private static RemoteSmtpSendRequest CreateRequest(RemoteSmtpConnectionSecurity security) =>
@@ -414,11 +437,15 @@ public sealed class SmtpRemoteDeliveryClientTests
 
         public int UpgradeCallCount { get; private set; }
 
+        public bool VerifyRemoteSslCertificate { get; private set; }
+
         public ValueTask UpgradeToTlsAsync(
             string targetHost,
+            bool verifyRemoteSslCertificate,
             CancellationToken cancellationToken)
         {
             UpgradeCallCount++;
+            VerifyRemoteSslCertificate = verifyRemoteSslCertificate;
             if (_upgradeException is not null)
             {
                 throw _upgradeException;
