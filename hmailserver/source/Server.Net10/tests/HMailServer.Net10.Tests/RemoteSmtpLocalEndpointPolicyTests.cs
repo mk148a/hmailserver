@@ -72,6 +72,16 @@ public sealed class RemoteSmtpLocalEndpointPolicyTests
     }
 
     [TestMethod]
+    public void EnsureAllowed_RejectsIpv4MappedLoopbackForIpv6WildcardListener()
+    {
+        var endpoint = CreateEndpoint(IPAddress.Parse("::ffff:127.0.0.1"), 2525);
+        var policy = new RemoteSmtpLocalEndpointPolicy(() =>
+            [new IPEndPoint(IPAddress.IPv6Any, 2525)]);
+
+        Assert.ThrowsExactly<RemoteSmtpLocalEndpointDeniedException>(() => policy.EnsureAllowed(endpoint));
+    }
+
+    [TestMethod]
     public void EnsureAllowed_DoesNotInspectUnmarkedRouteEndpoint()
     {
         var endpoint = new RemoteSmtpEndpoint(

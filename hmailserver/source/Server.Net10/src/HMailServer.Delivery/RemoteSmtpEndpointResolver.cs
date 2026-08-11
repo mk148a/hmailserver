@@ -81,6 +81,10 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
                 return await ResolveGlobalRelayerAsync(target, route, cancellationToken).ConfigureAwait(false);
             }
 
+            var routeConnectionAddress = IPAddress.TryParse(route.TargetHost, out _)
+                ? route.TargetHost
+                : null;
+
             return new RemoteSmtpEndpoint(
                 route.TargetHost,
                 route.TargetPort <= 0 ? 25 : route.TargetPort,
@@ -88,7 +92,9 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
                 route.RequiresAuthentication,
                 route.AuthenticationUsername,
                 route.AuthenticationPassword,
-                VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate);
+                VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate,
+                ConnectionAddress: routeConnectionAddress,
+                EnforceLocalEndpointGuard: routeConnectionAddress is not null);
         }
 
         if (target.Kind == DeliveryTargetKind.RemoteDomain)
@@ -214,7 +220,8 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
                 route.AuthenticationUsername,
                 route.AuthenticationPassword,
                 VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate,
-                ConnectionAddress: connectionAddress));
+                ConnectionAddress: connectionAddress,
+                EnforceLocalEndpointGuard: true));
         }
     }
 

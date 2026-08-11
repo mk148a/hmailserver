@@ -464,6 +464,24 @@ public sealed class SmtpRemoteDeliveryClientTests
         Assert.AreEqual(2, factory.Endpoints.Count);
     }
 
+    [TestMethod]
+    public async Task SendAsync_LocalEndpointDenialRemainsTransientForQueueRetry()
+    {
+        var factory = new FakeTransportFactory
+        {
+            FirstException = new RemoteSmtpLocalEndpointDeniedException("local listener")
+        };
+        var client = new SmtpRemoteDeliveryClient(factory);
+
+        var result = await client.SendAsync(
+            CreateRequest(RemoteSmtpConnectionSecurity.None),
+            CancellationToken.None);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(DeliveryFailureKind.Transient, result.FailureKind);
+        Assert.IsTrue(result.TryNextEndpoint);
+    }
+
     private static RemoteSmtpSendRequest CreateRequest(RemoteSmtpConnectionSecurity security) =>
         new(
             new RemoteSmtpEndpoint("mx.example", 25, security),

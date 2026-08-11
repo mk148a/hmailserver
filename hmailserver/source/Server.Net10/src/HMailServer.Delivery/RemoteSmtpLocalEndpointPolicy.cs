@@ -46,6 +46,7 @@ public sealed class RemoteSmtpLocalEndpointPolicy
         IPAddress remoteAddress,
         IReadOnlyList<IPAddress> localAddresses)
     {
+        var remoteWasIpv4Mapped = remoteAddress.IsIPv4MappedToIPv6;
         listenerAddress = NormalizeAddress(listenerAddress);
         remoteAddress = NormalizeAddress(remoteAddress);
 
@@ -57,7 +58,8 @@ public sealed class RemoteSmtpLocalEndpointPolicy
 
         if (listenerAddress.Equals(IPAddress.IPv6Any))
         {
-            return remoteAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+            return (remoteAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+                    || remoteWasIpv4Mapped)
                 && IsLocalAddress(remoteAddress, localAddresses);
         }
 

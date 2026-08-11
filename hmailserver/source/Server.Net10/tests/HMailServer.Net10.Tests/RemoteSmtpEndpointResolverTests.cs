@@ -39,7 +39,61 @@ public sealed class RemoteSmtpEndpointResolverTests
         Assert.IsTrue(endpoint.RequiresAuthentication);
         Assert.AreEqual("relay-user", endpoint.AuthenticationUsername);
         Assert.AreEqual("relay-secret", endpoint.AuthenticationPassword);
+        Assert.IsFalse(endpoint.EnforceLocalEndpointGuard);
+        Assert.IsNull(endpoint.ConnectionAddress);
         Assert.AreEqual(0, mxResolver.CallCount);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_RejectsLiteralConfiguredRouteActiveListener()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.Route,
+            "route:5",
+            "customer.example",
+            Route: new SmtpRouteResolution(
+                5,
+                "*.customer.example",
+                IPAddress.Loopback.ToString(),
+                2525,
+                (int)RemoteSmtpConnectionSecurity.None,
+                false));
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+        var policy = new RemoteSmtpLocalEndpointPolicy(() =>
+            [new IPEndPoint(IPAddress.Loopback, 2525)]);
+
+        Assert.IsTrue(endpoint.EnforceLocalEndpointGuard);
+        Assert.AreEqual(IPAddress.Loopback.ToString(), endpoint.ConnectionAddress);
+        Assert.ThrowsExactly<RemoteSmtpLocalEndpointDeniedException>(() => policy.EnsureAllowed(endpoint));
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_AllowsLiteralConfiguredRouteUnusedLoopbackPort()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.Route,
+            "route:5",
+            "customer.example",
+            Route: new SmtpRouteResolution(
+                5,
+                "*.customer.example",
+                IPAddress.Loopback.ToString(),
+                2526,
+                (int)RemoteSmtpConnectionSecurity.None,
+                false));
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+        var policy = new RemoteSmtpLocalEndpointPolicy(() =>
+            [new IPEndPoint(IPAddress.Loopback, 2525)]);
+
+        policy.EnsureAllowed(endpoint);
     }
 
     [TestMethod]
@@ -67,6 +121,7 @@ public sealed class RemoteSmtpEndpointResolverTests
         Assert.AreEqual("relay.example", endpoint.Host);
         Assert.AreEqual(25, endpoint.Port);
         Assert.IsFalse(endpoint.RequiresAuthentication);
+        Assert.IsTrue(endpoint.GetCandidates().Single().EnforceLocalEndpointGuard);
         Assert.AreEqual(0, mxResolver.CallCount);
     }
 
@@ -218,6 +273,23 @@ public sealed class RemoteSmtpEndpointResolverTests
             new[] { "192.0.2.1", "192.0.2.2" },
             endpoint.GetCandidates().Select(static candidate => candidate.ConnectionAddress).ToArray());
         CollectionAssert.AreEqual(new[] { "relay.example" }, addressResolver.RequestedHosts.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_RejectsLiteralGlobalRelayerActiveListener()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>()),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = CreateGlobalRelayerTarget(IPAddress.Loopback.ToString(), maxNumberOfMxHosts: 1);
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+        var policy = new RemoteSmtpLocalEndpointPolicy(() =>
+            [new IPEndPoint(IPAddress.Loopback, 25)]);
+
+        Assert.IsTrue(endpoint.GetCandidates().Single().EnforceLocalEndpointGuard);
+        Assert.ThrowsExactly<RemoteSmtpLocalEndpointDeniedException>(() => policy.EnsureAllowed(endpoint));
     }
 
     [TestMethod]
