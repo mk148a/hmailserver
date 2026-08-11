@@ -670,6 +670,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 return;
             }
 
+            using var authorizationLease = AcquireAuthorizationLease();
             if (!_settingsMutationStore
                 .UpdateAllowMailFromNullAsync(!value, CancellationToken.None)
                 .GetAwaiter()
