@@ -84,6 +84,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateSmtpRelayerPasswordSql_UsesTheExactParameterizedFixedRowShape()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateSmtpRelayerPasswordSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settingstring = @SMTPRelayerPassword\nWHERE settingname = N'smtprelayerpassword';",
+            sql);
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateSmtpRelayerPortSql_UsesTheExactParameterizedIntFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateSmtpRelayerPortSql;

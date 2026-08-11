@@ -1,5 +1,6 @@
 using System.Data;
 using HMailServer.Core.Abstractions;
+using HMailServer.Security;
 using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
@@ -43,6 +44,12 @@ WHERE settingname = N'smtprelayer';
 UPDATE hm_settings
 SET settingstring = @SMTPRelayerUsername
 WHERE settingname = N'smtprelayerusername';
+""";
+
+    public const string UpdateSmtpRelayerPasswordSql = """
+UPDATE hm_settings
+SET settingstring = @SMTPRelayerPassword
+WHERE settingname = N'smtprelayerpassword';
 """;
 
     public const string UpdateSmtpRelayerPortSql = """
@@ -496,6 +503,18 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateSmtpRelayerUsernameSql, connection);
         command.Parameters.Add("@SMTPRelayerUsername", SqlDbType.NVarChar, 4000).Value = smtpRelayerUsername;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateSmtpRelayerPasswordAsync(
+        string smtpRelayerPassword,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateSmtpRelayerPasswordSql, connection);
+        command.Parameters.Add("@SMTPRelayerPassword", SqlDbType.NVarChar, 4000).Value =
+            LegacyBlowfishPasswordCipher.Encrypt(smtpRelayerPassword);
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

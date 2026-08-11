@@ -26,6 +26,10 @@ public interface ISettingsAdministrationMutationStore
         string smtpRelayerUsername,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateSmtpRelayerPasswordAsync(
+        string smtpRelayerPassword,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateSmtpRelayerPortAsync(
         int smtpRelayerPort,
         CancellationToken cancellationToken);

@@ -1076,6 +1076,24 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override void SetSMTPRelayerPassword(string newVal)
+    {
+        EnsureAuthorized();
+        EnsureServerAdministrator();
+
+        if (_settingsMutationStore is null)
+        {
+            base.SetSMTPRelayerPassword(newVal);
+            return;
+        }
+
+        using var authorizationLease = AcquireAuthorizationLease();
+        _settingsMutationStore
+            .UpdateSmtpRelayerPasswordAsync(newVal, CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+    }
+
     public override int SMTPRelayerPort
     {
         get
@@ -2434,7 +2452,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual string HostName { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool SMTPRelayerRequiresAuthentication { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string SMTPRelayerUsername { get => Unavailable<string>(); set => Unavailable(); }
-    public void SetSMTPRelayerPassword(string newVal) => Unavailable();
+    public virtual void SetSMTPRelayerPassword(string newVal) => Unavailable();
     public virtual int SMTPRelayerPort { get => Unavailable<int>(); set => Unavailable(); }
     public virtual string UserInterfaceLanguage { get => Unavailable<string>(); set => Unavailable(); }
     public virtual IInterfaceScripting Scripting => Unavailable<IInterfaceScripting>();

@@ -303,6 +303,8 @@ public sealed class SettingsComContractTests
         var relayerUsernameError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayerUsername);
         var relayerUsernameSetterError = Assert.ThrowsExactly<COMException>(
             () => settings.SMTPRelayerUsername = "direct-activation user");
+        var relayerPasswordError = Assert.ThrowsExactly<COMException>(
+            () => settings.SetSMTPRelayerPassword("direct-activation password"));
         var relayerPortError = Assert.ThrowsExactly<COMException>(() => _ = settings.SMTPRelayerPort);
         var relayerPortSetterError = Assert.ThrowsExactly<COMException>(
             () => settings.SMTPRelayerPort = 25);
@@ -386,6 +388,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, relayerSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerUsernameError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerUsernameSetterError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, relayerPasswordError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerPortError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerPortSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerConnectionSecurityError.ErrorCode);
@@ -1104,6 +1107,96 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(0, store.SmtpRelayerUsernameUpdateCount);
         Assert.AreEqual("old-user", settings.SMTPRelayerUsername);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SmtpRelayerPasswordMutationRetainsAuthorizationAndFailedWriteState()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpRelayerPasswordUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.SetSMTPRelayerPassword("new-password");
+
+        Assert.AreEqual(1, store.SmtpRelayerPasswordUpdateCount);
+        Assert.AreEqual("new-password", store.UpdatedSmtpRelayerPassword);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+
+        store.SmtpRelayerPasswordUpdateResult = false;
+        settings.SetSMTPRelayerPassword("failed-password");
+
+        Assert.AreEqual(2, store.SmtpRelayerPasswordUpdateCount);
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SetSMTPRelayerPassword("denied-password"));
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.SmtpRelayerPasswordUpdateCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SmtpRelayerPasswordMutationAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpRelayerPasswordUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.SetSMTPRelayerPassword("new-password");
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.SmtpRelayerPasswordUpdateCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_SmtpRelayerPasswordMutationUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpRelayerPasswordUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SetSMTPRelayerPassword("new-password"));
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.SmtpRelayerPasswordUpdateCount);
     }
 
     [TestMethod]
@@ -4003,6 +4096,8 @@ public sealed class SettingsComContractTests
 
         public bool SmtpRelayerUsernameUpdateResult { get; set; }
 
+        public bool SmtpRelayerPasswordUpdateResult { get; set; }
+
         public bool SmtpRelayerPortUpdateResult { get; set; }
 
         public bool GateSmtpRelayerPortMutation { get; set; }
@@ -4036,6 +4131,10 @@ public sealed class SettingsComContractTests
         public int SmtpRelayerUsernameUpdateCount { get; private set; }
 
         public string? UpdatedSmtpRelayerUsername { get; private set; }
+
+        public int SmtpRelayerPasswordUpdateCount { get; private set; }
+
+        public string? UpdatedSmtpRelayerPassword { get; private set; }
 
         public int SmtpRelayerPortUpdateCount { get; private set; }
 
@@ -4320,6 +4419,16 @@ public sealed class SettingsComContractTests
             UpdatedSmtpRelayerUsername = smtpRelayerUsername;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(SmtpRelayerUsernameUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateSmtpRelayerPasswordAsync(
+            string smtpRelayerPassword,
+            CancellationToken cancellationToken)
+        {
+            SmtpRelayerPasswordUpdateCount++;
+            UpdatedSmtpRelayerPassword = smtpRelayerPassword;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(SmtpRelayerPasswordUpdateResult);
         }
 
         public ValueTask<bool> UpdateSmtpRelayerPortAsync(
