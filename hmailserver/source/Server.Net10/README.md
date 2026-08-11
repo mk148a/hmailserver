@@ -2261,7 +2261,7 @@ and paired C++/.NET performance remain open. Release remains **RED**.
 
 ## Current authoritative continuation (2026-08-12, route MX cap propagation)
 
-Code/test commit `54cfef96a` closes the SQL-to-target propagation gap for
+Code/test commit `c519f6e87` closes the SQL-to-target propagation gap for
 `MaxNumberOfMXHosts`. `SqlServerDeliveryTargetResolver` now loads the cached
 setting for matched routes and forced routes and places it on
 `DeliveryTarget`; the existing `RemoteSmtpEndpointResolver` applies it after

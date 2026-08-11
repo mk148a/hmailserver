@@ -3,7 +3,7 @@ hMailServer
 
 ## Current authoritative route MX-cap status (2026-08-12)
 
-Code/test commit `54cfef96a` propagates the existing `hm_settings`/
+Code/test commit `c519f6e87` propagates the existing `hm_settings`/
 `MaxNumberOfMXHosts` value into both matched and forced SMTP route targets.
 Legacy `ExternalDelivery::ResolveRecipientServers_`
 (`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:195-280`) applies this

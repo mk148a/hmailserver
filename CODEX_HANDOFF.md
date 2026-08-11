@@ -4412,7 +4412,7 @@ backup/Smtp WIP, and untracked SEC-18/benchmark/disposable artifacts.
 
 ## Current Authoritative Continuation (2026-08-12, ROUTE MX CAP)
 
-Code/test commit `54cfef96a` completes one bounded SQL-to-target parity gap.
+Code/test commit `c519f6e87` completes one bounded SQL-to-target parity gap.
 `hmail_parity_explorer` verified legacy
 `ExternalDelivery::ResolveRecipientServers_` (`hmailserver/source/Server/SMTP/
 ExternalDelivery.cpp:195-280`) applies `MaxNumberOfMXHosts` after fixed-route

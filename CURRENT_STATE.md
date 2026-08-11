@@ -1,12 +1,12 @@
 # Current State
 - UTC/local timestamp: 2026-08-12T05:30:00Z / 2026-08-12T08:30:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; docs commit is ready and push is pending
-- Current HEAD: `54cfef96a` (route MaxNumberOfMXHosts propagation code/test)
-- Last successfully pushed commit: `c509987b4`
+- Current HEAD: `c519f6e87` (route MaxNumberOfMXHosts propagation code/test)
+- Last successfully pushed commit: `60fcb51c3`
 - Latest focused-test result: SQL-target/resolver coverage `51 passed, 0 failed, 0 skipped`
 - Latest full Net10 result: `2212 passed, 54 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; real SQL/DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
-- Current bounded slice: SQL propagation of route MaxNumberOfMXHosts; code/test is committed in `54cfef96a`, docs commit is pending, paired performance gate remains RED
+- Current bounded slice: SQL propagation of route MaxNumberOfMXHosts; code/test is committed in `c519f6e87`, docs commit is pending, paired performance gate remains RED
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, and no-MX CNAME planning
 - Open production blockers: paired C++/.NET performance RED; live DNS/socket/TLS/SNI and certificate/revocation acceptance; shared outbound egress/SSRF and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: disposable SQL/DNS/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host

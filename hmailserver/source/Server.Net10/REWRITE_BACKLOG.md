@@ -4341,7 +4341,7 @@ disposable DNS/socket/TLS acceptance or registry-isolated C++ execution.
 
 ## Current authoritative next slice (2026-08-12, route MX-cap propagation)
 
-Code/test commit `54cfef96a` completes the SQL target propagation portion of
+Code/test commit `c519f6e87` completes the SQL target propagation portion of
 legacy fixed-route cap parity. Legacy
 `ExternalDelivery::ResolveRecipientServers_` reads
 `SMTPConfiguration::GetMaxNumberOfMXHosts` and truncates the flattened fixed
