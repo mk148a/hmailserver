@@ -1,3 +1,21 @@
+## Current parity continuation (2026-08-11, bootstrap SMTP greeting)
+
+Code/test commit `7a7e4b77b` loads the configured settings snapshot during
+`SettingsAdministrationRuntimeHost.Configure` and publishes persisted
+`WelcomeSmtp` before SMTP listener use. This matches legacy
+`Application::InitInstance` / `Configuration::Load` ordering and
+`SMTPConnection::SendBanner_` plus `SMTPConfiguration::GetWelcomeMessage`
+(`source/Server/Common/Application/Application.cpp:108`,
+`source/Server/Common/Application/Configuration.cpp:56`,
+`source/Server/SMTP/SMTPConnection.cpp:167-205`). Focused coverage is `158
+passed`; full default Net10 is `2120 passed, 39 skipped, 0 failed`.
+
+The performance release gate remains **RED**: the isolated C++ target does not
+provide the required POP3 listener and Net10 live IMAP/POP3 probes do not
+complete the paired workload. No speedup claim is valid. Next slice is repair
+or replacement of the isolated protocol target followed by the identical
+loopback matrix.
+
 ## Current benchmark continuation (2026-08-11)
 
 Code/test commit `2fe577f62` hardens the live protocol benchmark harness with

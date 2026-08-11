@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, bootstrap SMTP greeting)
+
+Commit `7a7e4b77b` makes Net10 publish persisted `WelcomeSMTP` during settings
+bootstrap, matching legacy `Application::InitInstance` /
+`Configuration::Load` before protocol startup and
+`SMTPConnection::SendBanner_` reading `SMTPConfiguration::GetWelcomeMessage`
+(`source/Server/Common/Application/Application.cpp:108`,
+`source/Server/Common/Application/Configuration.cpp:56`,
+`source/Server/SMTP/SMTPConnection.cpp:167-205`). Focused coverage is `158
+passed`; full default Net10 is `2120 passed, 39 skipped, 0 failed`.
+
+The paired C++/.NET10 performance gate is still **RED**. The identical SQL/Data
+start state exists, but the isolated C++ listener and Net10 live IMAP/POP3
+paths do not yet complete the same workload. No performance ratio or winner is
+claimed. Next slice: repair or replace the isolated protocol target and rerun
+the complete loopback matrix.
+
 ## Current performance gate (2026-08-11)
 
 The paired release gate is **RED**. A disposable C++ SQL backup was restored

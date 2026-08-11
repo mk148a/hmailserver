@@ -1,5 +1,30 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, BOOTSTRAP SMTP GREETING)
+
+Code/test commit `7a7e4b77b` completes one legacy-first parity slice. Legacy
+`Application::InitInstance` / `Configuration::Load` load persisted properties
+before protocol startup (`source/Server/Common/Application/Application.cpp:108`,
+`source/Server/Common/Application/Configuration.cpp:56`), while
+`SMTPConnection::SendBanner_` reads `SMTPConfiguration::GetWelcomeMessage`
+(`source/Server/SMTP/SMTPConnection.cpp:167-205`). Net10 now loads the
+configured settings snapshot in `SettingsAdministrationRuntimeHost.Configure`
+and publishes `WelcomeSmtp` before SMTP use, including startup with no COM
+Settings access.
+
+Focused COM coverage is `158 passed, 0 failed`; full default Net10 is `2120
+passed, 39 skipped, 0 failed`. The fresh disposable MSSQL/Data opt-in baseline
+remains `2156 passed, 2 skipped, 0 failed`. No installed COM identity, direct
+activation boundary, SMTP trust behavior, or live policy reload was changed.
+
+Performance remains **RED**. The isolated C++ target still lacks the required
+POP3 listener and Net10 live IMAP/POP3 probes do not complete; no ratio or
+winner is valid. Next slice: repair or replace the isolated protocol target,
+then rerun the identical C++/.NET10 SQL/Data/message and loopback matrix.
+Separate security follow-up: review CR/LF sanitization for administrator-
+controlled `WelcomeSMTP` before SMTP framing. It was not changed in this
+legacy-parity slice. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, LIVE PROTOCOL HARNESS FAIL-CLOSED)
 
 Code/test commit `2fe577f62` hardens the live protocol benchmark scripts with

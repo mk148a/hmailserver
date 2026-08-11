@@ -6,6 +6,27 @@
 
 
 
+## Current next slice (2026-08-11)
+
+Completed: bootstrap publication of persisted `WelcomeSMTP` in code/test
+commit `7a7e4b77b`. Legacy `Application::InitInstance` and
+`Configuration::Load` load settings before `StartServers`, and
+`SMTPConnection::SendBanner_` reads `SMTPConfiguration::GetWelcomeMessage`
+(`source/Server/Common/Application/Application.cpp:108`,
+`source/Server/Common/Application/Configuration.cpp:56`,
+`source/Server/SMTP/SMTPConnection.cpp:167-205`). Net10 now performs the
+configured settings snapshot read during `SettingsAdministrationRuntimeHost.Configure`;
+focused coverage is `158/158`, and full default Net10 is `2120 passed` with
+`39` explicit skips.
+
+Next smallest independent slice: repair or replace the isolated C++ protocol
+target and reproduce the Net10 live IMAP/POP3 listener path, then rerun the
+identical SQL/Data/message and loopback SMTP/IMAP/POP3 workload matrix. The
+performance release gate is **RED** until both implementations complete the
+same scenarios. Do not claim a ratio or winner. Preserve COM identity,
+production service/database/Data boundaries, and the existing direct activation
+and SMTP trust boundaries.
+
 ## Current Audit Note (2026-08-11, SHARED SQL/DATA PERFORMANCE BASELINE)
 
 Code/tool commit `8558b7a44` adds the repeatable
