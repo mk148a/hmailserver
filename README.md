@@ -1,6 +1,37 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, WelcomeIMAP authorization lease)
+
+Code/test commit `7645f6f70` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.WelcomeIMAP`
+(`DispId(25)`). The lease is acquired immediately before the existing
+parameterized `welcomeimap` SQL update and held through mutation result
+handling and retained snapshot publication. No BSTR shape, installed COM
+identity, or IMAP runtime wiring changed.
+
+Legacy anchors are `InterfaceSettings::get/put_WelcomeIMAP`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:747-780`),
+`IMAPConfiguration::Get/SetWelcomeMessage`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:54-63`),
+`PROPERTY_WELCOMEIMAP` (`hmailserver/source/Server/Common/Application/Constants.h:13`),
+the installed Settings IID and `DispId(25)`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:520-528,551-552`),
+and the `welcomeimap` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:754`).
+Focused tests cover lease acquire/dispose, unavailable-lease denial before
+mutation, and reauthentication blocking during an in-flight mutation.
+
+Focused settings/store coverage is `116/116`. Full unfiltered Net10 is
+`2099 passed, 39 skipped, 0 failed`. Legacy `IMAPConnection::SendBanner_`
+consumes `welcomeimap` per connection
+(`hmailserver/source/Server/IMAP/IMAPConnection.cpp:118-135`), while Net10
+still uses its session greeting options; this runtime wiring is a separate
+open parity blocker. Disposable SQL/Data restore, non-DB
+restore/reinitialization, SQL/FTS, matched C++/.NET protocol load, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations keep release **RED**. Next
+slice is a fresh legacy-first audit of `Settings.WorkerThreadPriority`.
+
 ## Current parity continuation (2026-08-11, WelcomePOP3 authorization lease)
 
 Code/test commit `52c92f050` extends the existing generation-bound

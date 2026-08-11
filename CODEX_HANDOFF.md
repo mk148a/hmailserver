@@ -1,5 +1,37 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, WELCOME IMAP AUTHORIZATION LEASE)
+
+Code/test commit `7645f6f70` extends the existing generation-bound
+authorization lease to authenticated `Settings.WelcomeIMAP` (`DispId(25)`).
+The lease spans the existing parameterized `welcomeimap` SQL mutation, result
+handling, and retained snapshot publication; unavailable leases fail closed
+with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_WelcomeIMAP`
+(`source/Server/COM/InterfaceSettings.cpp:747-780`),
+`IMAPConfiguration::Get/SetWelcomeMessage`
+(`source/Server/IMAP/IMAPConfiguration.cpp:54-63`),
+`PROPERTY_WELCOMEIMAP` (`source/Server/Common/Application/Constants.h:13`),
+the installed Settings IID and `DispId(25)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,551-552`), and the
+`welcomeimap` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:754`).
+Focused settings/store coverage is `116/116`; full unfiltered Net10 is
+`2099 passed, 39 skipped, 0 failed`.
+
+The focused tests cover lease acquire/dispose, unavailable-lease denial
+before mutation, and reauthentication blocking during an in-flight mutation.
+Legacy `IMAPConnection::SendBanner_` reads `welcomeimap` per connection, but
+Net10 still uses its session greeting options; live IMAP greeting wiring is a
+separate open protocol-runtime parity blocker. Installed COM identity,
+direct activation denial, and authenticated Settings access remain unchanged.
+
+Release remains RED for the greeting blocker, disposable SQL/Data restore,
+non-DB restore, SQL/FTS, paired C++/.NET performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: fresh
+legacy-first audit of `Settings.WorkerThreadPriority`. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, WELCOME POP3 AUTHORIZATION LEASE)
 
 Code/test commit `52c92f050` extends the existing generation-bound
