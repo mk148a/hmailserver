@@ -1006,7 +1006,13 @@ public static class Host
         serviceProvider.GetRequiredService<IImapMailboxDiscoveryStore>(),
         mailboxOptions.HierarchyDelimiter));
     builder.Services.AddSingleton<MessageSearchBackfillProcessor>();
-    builder.Services.AddProductionHostedServices(externalFetchEnabled);
+    var enableComLocalServer = ReadBool(
+        builder.Configuration["Com:LocalServerEnabled"]
+            ?? builder.Configuration["HMAILSERVER_COM_LOCAL_SERVER_ENABLED"],
+        defaultValue: true);
+    builder.Services.AddProductionHostedServices(
+        externalFetchEnabled,
+        enableComLocalServer);
         return new HostBuildResult(
             builder.Build(),
             dataDirectory,

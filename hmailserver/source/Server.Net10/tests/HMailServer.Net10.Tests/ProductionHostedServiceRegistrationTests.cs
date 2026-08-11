@@ -43,6 +43,25 @@ public sealed class ProductionHostedServiceRegistrationTests
         }
     }
 
+    [TestMethod]
+    public void AddProductionHostedServices_CanDisableOnlyComForListenerBenchmark()
+    {
+        var services = new ServiceCollection();
+
+        services.AddProductionHostedServices(
+            externalFetchEnabled: false,
+            enableComLocalServer: false);
+
+        Assert.IsFalse(
+            services.Any(descriptor => descriptor.ImplementationType?.Name == "ComLocalServerHostedService"));
+        Assert.IsTrue(
+            services.Any(descriptor => descriptor.ImplementationType == typeof(ImapTcpListenerHostedService)));
+        Assert.IsTrue(
+            services.Any(descriptor => descriptor.ImplementationType == typeof(Pop3TcpListenerHostedService)));
+        Assert.IsTrue(
+            services.Any(descriptor => descriptor.ImplementationType == typeof(SmtpTcpListenerHostedService)));
+    }
+
     private static Type GetServiceType(string name) =>
         typeof(ServerBootstrapper).Assembly.GetType($"HMailServer.Service.{name}", throwOnError: true)!;
 }

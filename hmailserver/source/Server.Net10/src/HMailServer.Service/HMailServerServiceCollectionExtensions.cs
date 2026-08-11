@@ -9,7 +9,8 @@ public static class HMailServerServiceCollectionExtensions
 {
     public static IServiceCollection AddProductionHostedServices(
         this IServiceCollection services,
-        bool externalFetchEnabled)
+        bool externalFetchEnabled,
+        bool enableComLocalServer = true)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -47,7 +48,10 @@ public static class HMailServerServiceCollectionExtensions
             return listenerStartupTasks;
         });
         services.AddHostedService<ServerStartupCoordinator>();
-        services.AddHostedService<ComLocalServerHostedService>();
+        if (enableComLocalServer)
+        {
+            services.AddHostedService<ComLocalServerHostedService>();
+        }
 
         return services;
     }

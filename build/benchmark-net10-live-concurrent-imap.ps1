@@ -369,6 +369,7 @@ if ($Implementation -eq "net10") {
     $env:HMAILSERVER_POP3_BIND_ADDRESS = "127.0.0.1"
     $env:HMAILSERVER_POP3_PORT = "25110"
     $env:HMAILSERVER_EXTERNAL_FETCH_ENABLED = "false"
+    $env:HMAILSERVER_COM_LOCAL_SERVER_ENABLED = "false"
 }
 
 $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden

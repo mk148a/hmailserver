@@ -294,6 +294,10 @@ if ($Implementation -eq "net10") {
     $env:HMAILSERVER_POP3_BIND_ADDRESS = "127.0.0.1"
     $env:HMAILSERVER_POP3_PORT = "25110"
     $env:HMAILSERVER_EXTERNAL_FETCH_ENABLED = "false"
+    # The installed Application AppID rejects this listener-only benchmark host.
+    # Keep COM enabled by default in production; this opt-in prevents the host
+    # from stopping after the protocol listeners become ready.
+    $env:HMAILSERVER_COM_LOCAL_SERVER_ENABLED = "false"
 }
 
 $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
