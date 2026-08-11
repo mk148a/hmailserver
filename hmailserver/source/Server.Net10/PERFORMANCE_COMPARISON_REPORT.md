@@ -1,7 +1,7 @@
 # C++ / .NET 10 Performance Gate Report
 
 Date: 2026-08-11
-Measurement harness commit: `2737ff625`; current parity HEAD: `d569a0780`
+Measurement harness commit: `2737ff625`; current parity HEAD: `b39a17abf`
 Decision: **RED**
 
 ## Latest Verification

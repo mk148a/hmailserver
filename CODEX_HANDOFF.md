@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, NULL-MX)
+
+Code/test commit `b39a17abf` preserves legacy null-MX failure behavior. The
+legacy anchor is `DNSResolver::GetEmailServersRecursive_`
+(`source/Server/Common/TCPIP/DNSResolver.cpp:208-260`), which rejects MX
+exchange `.` at preference `0` before implicit-MX fallback. Net10 preserves the
+root DNS name in `SystemDnsMxResolver` and returns an `IOException` from
+`RemoteSmtpEndpointResolver`; the dispatcher maps resolution failure to its
+existing transient result. No COM identity, SQL schema, SMTP trust, or route
+behavior changed.
+
+Focused tests are `40/40`; full Net10 is `2170 passed, 54 skipped, 0 failed`.
+Remaining normal-MX gaps are A/AAAA expansion and deduplication, implicit-MX
+fallback, endpoint cap position, and connect-address versus TLS/SNI-name
+separation. Release remains **RED**. Next slices: fixed-relayer address
+planner; approved disposable SQL/DNS/socket/TLS delivery; registry-isolated or
+separate-VM C++ benchmark execution.
+
 ## Current Authoritative Continuation (2026-08-11, NORMAL-MX CANDIDATES)
 
 Code/test commit `d569a0780` preserves all ordered MX exchanges for ordinary

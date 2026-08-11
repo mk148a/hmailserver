@@ -4194,3 +4194,20 @@ TLS-name separation open. It changes no COM identity, SQL schema, SMTP trust,
 or live reconfiguration. Next slices, in order: fixed-relayer address planner;
 approved disposable SQL/DNS/socket/TLS delivery; and registry-isolated or
 separate-VM C++ benchmark execution. Release status remains **RED**.
+
+## Current authoritative next slice (2026-08-11, null-MX parity)
+
+Code/test commit `b39a17abf` closes the legacy null-MX handling gap. The legacy
+`DNSResolver::GetEmailServersRecursive_`
+(`source/Server/Common/TCPIP/DNSResolver.cpp:208-260`) rejects an MX exchange
+of `.` with preference `0`; Net10 now preserves the root exchange through DNS
+packet parsing and fails endpoint resolution instead of using the domain as an
+implicit MX. Focused tests are `40/40`; full Net10 is `2170 passed, 54 skipped,
+0 failed`.
+
+Still open: address-level A/AAAA expansion and deduplication, implicit-MX
+fallback, endpoint-level cap ordering, fixed-relayer address parity, and
+connect-address/TLS-name separation. Next slices, in order: fixed-relayer
+address planner; approved disposable SQL/DNS/socket/TLS delivery; and
+registry-isolated or separate-VM C++ benchmark execution. Release remains
+**RED**.

@@ -2117,6 +2117,21 @@ Focused coverage is `35/35`; full Net10 is `2165 passed, 54 skipped, 0 failed`.
 The slice changes no COM identity, SQL schema, SMTP trust, or live
 reconfiguration. Real invalid-certificate/revocation sockets and disposable
 SQL/TLS acceptance remain environment-blocked. Release status remains RED.
+
+## Current authoritative continuation (2026-08-11, null-MX parity)
+
+Code/test commit `b39a17abf` preserves legacy null-MX rejection in ordinary
+remote delivery. `DNSResolver::GetEmailServersRecursive_`
+(`source/Server/Common/TCPIP/DNSResolver.cpp:208-260`) rejects an MX exchange
+of `.` with preference `0`; Net10 now preserves that root exchange in
+`SystemDnsMxResolver` and fails `RemoteSmtpEndpointResolver` with an
+`IOException` instead of falling back to the domain. Focused coverage is
+`40/40`; full Net10 is `2170 passed, 54 skipped, 0 failed`.
+
+The slice leaves A/AAAA expansion/deduplication, implicit-MX fallback,
+endpoint-level `MaxNumberOfMXHosts`, and fixed-relayer address expansion open.
+No COM identity, SQL schema, SMTP trust, or live reconfiguration changed.
+Real DNS/socket acceptance remains blocked; release remains RED.
 ## Current authoritative continuation (2026-08-11, normal-MX candidate ordering)
 
 Code/test commit `d569a0780` preserves all ordered MX exchange hostnames for

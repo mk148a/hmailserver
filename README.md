@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current authoritative null-MX status (2026-08-11)
+
+Code/test commit `b39a17abf` closes the legacy null-MX handling gap in the
+normal remote-delivery resolver. Legacy
+`DNSResolver::GetEmailServersRecursive_`
+(`source/Server/Common/TCPIP/DNSResolver.cpp:208-260`) returns failure for an
+MX record whose exchange is `.` with preference `0`; it does not fall back to
+the domain A/AAAA records. Net10 now preserves the root DNS name during packet
+parsing and fails endpoint resolution with an `IOException`, which the remote
+dispatcher records as a transient resolution failure.
+
+Focused coverage is `40/40`; full Net10 is `2170 passed, 54 skipped, 0 failed`.
+This slice does not implement legacy A/AAAA expansion/deduplication, implicit
+MX fallback, or fixed-relayer address planning. Real DNS/socket and disposable
+SQL acceptance remain unavailable, and the paired C++/.NET performance gate is
+still **RED**.
+
 ## Current authoritative normal-MX candidate status (2026-08-11)
 
 Code/test commit `d569a0780` carries legacy normal-MX exchange ordering into
