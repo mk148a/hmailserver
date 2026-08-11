@@ -20,7 +20,7 @@ OUTPUT INSERTED.folderid, INSERTED.foldercurrentuid
 WHERE
     folderaccountid = @AccountId
     AND folderparentid = -1
-    AND LOWER(foldername) = 'inbox';
+    AND UPPER(foldername) = N'INBOX';
 """;
 
     public const string AllocateFolderUidSql = """
