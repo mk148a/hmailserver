@@ -529,6 +529,94 @@ public sealed class RemoteSmtpEndpointResolverTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_UsesSingleCnameTargetForTlsAndAddressResolution()
+    {
+        var cnameResolver = new FakeMxAndCnameResolver(
+            new Dictionary<string, IReadOnlyList<DnsCnameRecord>>
+            {
+                ["example.net"] = [new DnsCnameRecord("target.example.net.", TimeSpan.FromMinutes(10))]
+            });
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["target.example.net"] = [IPAddress.Parse("192.0.2.25")]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            cnameResolver,
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(
+                DeliveryTargetKind.RemoteDomain,
+                "remote:example.net",
+                "example.net",
+                RemoteConnectionSecurity: (int)RemoteSmtpConnectionSecurity.Ssl),
+            CancellationToken.None);
+
+        var candidate = endpoint.GetCandidates().Single();
+        Assert.AreEqual("target.example.net", candidate.Host);
+        Assert.AreEqual("192.0.2.25", candidate.ConnectionAddress);
+        Assert.AreEqual(RemoteSmtpConnectionSecurity.Ssl, candidate.ConnectionSecurity);
+        CollectionAssert.AreEqual(new[] { "target.example.net" }, addressResolver.RequestedHosts.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_DoesNotRecurseWhenMultipleCnameRecordsExist()
+    {
+        var cnameResolver = new FakeMxAndCnameResolver(
+            new Dictionary<string, IReadOnlyList<DnsCnameRecord>>
+            {
+                ["example.net"] =
+                [
+                    new DnsCnameRecord("first.example.net.", TimeSpan.FromMinutes(10)),
+                    new DnsCnameRecord("second.example.net.", TimeSpan.FromMinutes(10))
+                ]
+            });
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["example.net"] = [IPAddress.Parse("192.0.2.1")]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            cnameResolver,
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+            CancellationToken.None);
+
+        Assert.AreEqual("example.net", endpoint.Host);
+        CollectionAssert.AreEqual(new[] { "example.net" }, addressResolver.RequestedHosts.ToArray());
+        CollectionAssert.AreEqual(new[] { "example.net" }, cnameResolver.RequestedDomains.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_FailsClosedWhenCnameRecursionExceedsBound()
+    {
+        var cnameRecords = Enumerable.Range(0, 10)
+            .ToDictionary(
+                index => $"alias{index}.example.net",
+                index => (IReadOnlyList<DnsCnameRecord>)[
+                    new DnsCnameRecord($"alias{index + 1}.example.net", TimeSpan.FromMinutes(10))]);
+        var cnameResolver = new FakeMxAndCnameResolver(cnameRecords);
+        var resolver = new RemoteSmtpEndpointResolver(
+            cnameResolver,
+            new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>()),
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        await Assert.ThrowsExactlyAsync<IOException>(
+            () => resolver.ResolveAsync(
+                new DeliveryTarget(
+                    DeliveryTargetKind.RemoteDomain,
+                    "remote:alias0.example.net",
+                    "alias0.example.net"),
+                CancellationToken.None).AsTask());
+
+        Assert.IsTrue(cnameResolver.RequestedDomains.Count <= 11);
+        Assert.IsFalse(cnameResolver.RequestedDomains.Contains("alias11.example.net"));
+    }
+
+    [TestMethod]
     public async Task ResolveAsync_DoesNotFallBackToDomainWhenMxIsNull()
     {
         var resolver = new RemoteSmtpEndpointResolver(
@@ -638,6 +726,155 @@ public sealed class RemoteSmtpEndpointResolverTests
         Assert.AreEqual("mx.example.net", endpoint.Host);
     }
 
+    [TestMethod]
+    public async Task ResolveAsync_NoMxFollowsSingleCnameBeforeAddressResolution()
+    {
+        var mxResolver = new FakeCnameMxResolver(
+            new Dictionary<string, IReadOnlyList<DnsMxRecord>>
+            {
+                ["alias.example.net"] = [],
+                ["canonical.example.net"] = []
+            },
+            new Dictionary<string, IReadOnlyList<DnsCnameRecord>>
+            {
+                ["alias.example.net"] =
+                [new DnsCnameRecord("canonical.example.net", TimeSpan.FromMinutes(5))]
+            });
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["canonical.example.net"] = [IPAddress.Parse("192.0.2.31")]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            mxResolver,
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:alias.example.net", "alias.example.net"),
+            CancellationToken.None);
+
+        Assert.AreEqual("canonical.example.net", endpoint.Host);
+        Assert.AreEqual("192.0.2.31", endpoint.ConnectionAddress);
+        CollectionAssert.AreEqual(new[] { "canonical.example.net" }, addressResolver.RequestedHosts.ToArray());
+        CollectionAssert.AreEqual(new[] { "alias.example.net", "canonical.example.net" }, mxResolver.RequestedMxHosts.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_NoCnameUsesOriginalDomainImplicitAddresses()
+    {
+        var mxResolver = new FakeCnameMxResolver(
+            new Dictionary<string, IReadOnlyList<DnsMxRecord>>
+            {
+                ["alias.example.net"] = []
+            },
+            new Dictionary<string, IReadOnlyList<DnsCnameRecord>>
+            {
+                ["alias.example.net"] = []
+            });
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["alias.example.net"] = [IPAddress.Parse("192.0.2.32")]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            mxResolver,
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:alias.example.net", "alias.example.net"),
+            CancellationToken.None);
+
+        Assert.AreEqual("alias.example.net", endpoint.Host);
+        Assert.AreEqual("192.0.2.32", endpoint.ConnectionAddress);
+        CollectionAssert.AreEqual(new[] { "alias.example.net" }, addressResolver.RequestedHosts.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_MultipleCnamesUsesOriginalDomainImplicitAddresses()
+    {
+        var mxResolver = new FakeCnameMxResolver(
+            new Dictionary<string, IReadOnlyList<DnsMxRecord>>
+            {
+                ["alias.example.net"] = []
+            },
+            new Dictionary<string, IReadOnlyList<DnsCnameRecord>>
+            {
+                ["alias.example.net"] =
+                [
+                    new DnsCnameRecord("one.example.net", TimeSpan.FromMinutes(5)),
+                    new DnsCnameRecord("two.example.net", TimeSpan.FromMinutes(5))
+                ]
+            });
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["alias.example.net"] = [IPAddress.Parse("192.0.2.33")]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            mxResolver,
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:alias.example.net", "alias.example.net"),
+            CancellationToken.None);
+
+        Assert.AreEqual("alias.example.net", endpoint.Host);
+        CollectionAssert.AreEqual(new[] { "alias.example.net" }, addressResolver.RequestedHosts.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_CnameLookupFailureUsesOriginalDomainImplicitAddresses()
+    {
+        var mxResolver = new FakeCnameMxResolver(
+            new Dictionary<string, IReadOnlyList<DnsMxRecord>>
+            {
+                ["alias.example.net"] = []
+            },
+            new Dictionary<string, IReadOnlyList<DnsCnameRecord>>())
+        {
+            CnameFailure = new IOException("CNAME lookup failed")
+        };
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["alias.example.net"] = [IPAddress.Parse("192.0.2.34")]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            mxResolver,
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:alias.example.net", "alias.example.net"),
+            CancellationToken.None);
+
+        Assert.AreEqual("alias.example.net", endpoint.Host);
+        Assert.AreEqual("192.0.2.34", endpoint.ConnectionAddress);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_CnameCycleFailsClosed()
+    {
+        var mxResolver = new FakeCnameMxResolver(
+            new Dictionary<string, IReadOnlyList<DnsMxRecord>>
+            {
+                ["one.example.net"] = [],
+                ["two.example.net"] = []
+            },
+            new Dictionary<string, IReadOnlyList<DnsCnameRecord>>
+            {
+                ["one.example.net"] = [new DnsCnameRecord("two.example.net", TimeSpan.FromMinutes(5))],
+                ["two.example.net"] = [new DnsCnameRecord("one.example.net", TimeSpan.FromMinutes(5))]
+            });
+        var resolver = new RemoteSmtpEndpointResolver(
+            mxResolver,
+            new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>()),
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        await Assert.ThrowsExactlyAsync<IOException>(() => resolver.ResolveAsync(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:one.example.net", "one.example.net"),
+            CancellationToken.None).AsTask());
+    }
+
     private static IDnsAddressResolver CreateAddressResolver(params string[] hosts) =>
         new FakeAddressResolver(
             hosts.ToDictionary(
@@ -661,6 +898,72 @@ public sealed class RemoteSmtpEndpointResolverTests
         {
             CallCount++;
             return ValueTask.FromResult(_records);
+        }
+    }
+
+    private sealed class FakeCnameMxResolver : IDnsMxResolver, IDnsCnameResolver
+    {
+        private readonly IReadOnlyDictionary<string, IReadOnlyList<DnsMxRecord>> _mxRecords;
+        private readonly IReadOnlyDictionary<string, IReadOnlyList<DnsCnameRecord>> _cnameRecords;
+
+        public FakeCnameMxResolver(
+            IReadOnlyDictionary<string, IReadOnlyList<DnsMxRecord>> mxRecords,
+            IReadOnlyDictionary<string, IReadOnlyList<DnsCnameRecord>> cnameRecords)
+        {
+            _mxRecords = mxRecords;
+            _cnameRecords = cnameRecords;
+        }
+
+        public List<string> RequestedMxHosts { get; } = [];
+
+        public Exception? CnameFailure { get; init; }
+
+        public ValueTask<IReadOnlyList<DnsMxRecord>> ResolveMxAsync(
+            string domainName,
+            CancellationToken cancellationToken)
+        {
+            RequestedMxHosts.Add(domainName);
+            return ValueTask.FromResult(_mxRecords.GetValueOrDefault(domainName, []));
+        }
+
+        public ValueTask<IReadOnlyList<DnsCnameRecord>> ResolveCnameAsync(
+            string domainName,
+            CancellationToken cancellationToken)
+        {
+            if (CnameFailure is not null)
+            {
+                throw CnameFailure;
+            }
+
+            return ValueTask.FromResult(_cnameRecords.GetValueOrDefault(domainName, []));
+        }
+    }
+
+    private sealed class FakeMxAndCnameResolver : IDnsMxResolver, IDnsCnameResolver
+    {
+        private readonly IReadOnlyDictionary<string, IReadOnlyList<DnsCnameRecord>> _records;
+
+        public FakeMxAndCnameResolver(IReadOnlyDictionary<string, IReadOnlyList<DnsCnameRecord>> records)
+        {
+            _records = records;
+        }
+
+        public List<string> RequestedDomains { get; } = [];
+
+        public ValueTask<IReadOnlyList<DnsMxRecord>> ResolveMxAsync(
+            string domainName,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DnsMxRecord>>([]);
+
+        public ValueTask<IReadOnlyList<DnsCnameRecord>> ResolveCnameAsync(
+            string domainName,
+            CancellationToken cancellationToken)
+        {
+            RequestedDomains.Add(domainName);
+            return ValueTask.FromResult(
+                _records.TryGetValue(domainName, out var records)
+                    ? records
+                    : (IReadOnlyList<DnsCnameRecord>)[]);
         }
     }
 

@@ -8,7 +8,9 @@ namespace HMailServer.Delivery;
 
 public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
 {
+    private const int MaxCnameRecursionDepth = 10;
     private readonly IDnsMxResolver _mxResolver;
+    private readonly IDnsCnameResolver? _cnameResolver;
     private readonly IDnsAddressResolver _addressResolver;
     private readonly RemoteSmtpEndpointResolverOptions _options;
     private readonly TimeProvider _timeProvider;
@@ -52,6 +54,7 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
         TimeProvider timeProvider)
     {
         _mxResolver = mxResolver;
+        _cnameResolver = mxResolver as IDnsCnameResolver;
         _addressResolver = addressResolver;
         _options = options;
         _timeProvider = timeProvider;
@@ -279,7 +282,25 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
         string domainName,
         CancellationToken cancellationToken)
     {
+        return await ResolveRemoteHostsAsync(
+            domainName,
+            depth: 0,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<IReadOnlyList<string>> ResolveRemoteHostsAsync(
+        string domainName,
+        int depth,
+        HashSet<string> visitedDomains,
+        CancellationToken cancellationToken)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(domainName);
+
+        if (!visitedDomains.Add(domainName.TrimEnd('.')))
+        {
+            throw new IOException("DNS CNAME recursion cycle detected.");
+        }
 
         var now = _timeProvider.GetUtcNow();
         if (_cache.TryGetValue(domainName, out var cached) && cached.ExpiresUtc > now)
@@ -302,17 +323,56 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
             .ToArray();
         if (hosts.Length == 0)
         {
+            if (_cnameResolver is not null)
+            {
+                IReadOnlyList<DnsCnameRecord> cnameRecords;
+                try
+                {
+                    cnameRecords = await _cnameResolver
+                        .ResolveCnameAsync(domainName, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (IOException)
+                {
+                    cnameRecords = Array.Empty<DnsCnameRecord>();
+                }
+                if (cnameRecords.Count == 1)
+                {
+                    if (depth >= MaxCnameRecursionDepth)
+                    {
+                        throw new IOException("DNS CNAME recursion limit exceeded.");
+                    }
+
+                    var cnameTarget = cnameRecords[0].Target.TrimEnd('.');
+                    if (string.IsNullOrWhiteSpace(cnameTarget) || cnameTarget == ".")
+                    {
+                        throw new IOException("DNS CNAME lookup returned an invalid target.");
+                    }
+
+                    hosts = (await ResolveRemoteHostsAsync(
+                        cnameTarget,
+                        depth + 1,
+                        visitedDomains,
+                        cancellationToken).ConfigureAwait(false)).ToArray();
+                    _cache[domainName] = new CacheEntry(
+                        hosts,
+                        now.Add(GetCacheTtl(cnameRecords[0].TimeToLive)));
+                    return hosts;
+                }
+            }
+
             hosts = [domainName];
         }
 
         var ttl = records.Count == 0
             ? _options.NegativeCacheTtl
-            : records.Min(static record => record.TimeToLive) <= TimeSpan.Zero
-                ? _options.DefaultCacheTtl
-                : records.Min(static record => record.TimeToLive);
+            : GetCacheTtl(records.Min(static record => record.TimeToLive));
         _cache[domainName] = new CacheEntry(hosts, now.Add(ttl));
         return hosts;
     }
+
+    private TimeSpan GetCacheTtl(TimeSpan ttl) =>
+        ttl <= TimeSpan.Zero ? _options.DefaultCacheTtl : ttl;
 
     private sealed record CacheEntry(
         IReadOnlyList<string> Hosts,
