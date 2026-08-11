@@ -105,7 +105,14 @@ WHERE routeid = @RouteId;
                 verifyRemoteSslCertificate ??= await LoadVerifyRemoteSslCertificateAsync(
                     connection,
                     cancellationToken).ConfigureAwait(false);
-                target = CreateForcedRouteTarget(recipient, forcedRoute, verifyRemoteSslCertificate.Value);
+                maxNumberOfMxHosts ??= await LoadMaxNumberOfMxHostsAsync(
+                    connection,
+                    cancellationToken).ConfigureAwait(false);
+                target = CreateForcedRouteTarget(
+                    recipient,
+                    forcedRoute,
+                    verifyRemoteSslCertificate.Value,
+                    maxNumberOfMxHosts.Value);
             }
             else
             {
@@ -157,7 +164,8 @@ WHERE routeid = @RouteId;
     private static DeliveryTarget CreateForcedRouteTarget(
         DeliveryQueueRecipient recipient,
         RouteInfo route,
-        bool verifyRemoteSslCertificate)
+        bool verifyRemoteSslCertificate,
+        int maxNumberOfMxHosts)
     {
         var domainName = TrySplitAddress(recipient.Address, out _, out var domain)
             ? domain
@@ -168,7 +176,8 @@ WHERE routeid = @RouteId;
             Key: "route:" + route.RouteId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             DomainName: domainName,
             Route: resolution,
-            VerifyRemoteSslCertificate: verifyRemoteSslCertificate);
+            VerifyRemoteSslCertificate: verifyRemoteSslCertificate,
+            MaxNumberOfMxHosts: maxNumberOfMxHosts);
     }
 
     private static async ValueTask<DeliveryTarget> CreateRemoteOrRouteTargetAsync(
@@ -194,7 +203,8 @@ WHERE routeid = @RouteId;
                 Key: "route:" + route.RouteId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 DomainName: domainName,
                 Route: resolution,
-                VerifyRemoteSslCertificate: await loadVerifyRemoteSslCertificateAsync().ConfigureAwait(false));
+                VerifyRemoteSslCertificate: await loadVerifyRemoteSslCertificateAsync().ConfigureAwait(false),
+                MaxNumberOfMxHosts: await loadMaxNumberOfMxHostsAsync().ConfigureAwait(false));
         }
 
         var smtpRelayer = await loadSmtpRelayerAsync().ConfigureAwait(false);

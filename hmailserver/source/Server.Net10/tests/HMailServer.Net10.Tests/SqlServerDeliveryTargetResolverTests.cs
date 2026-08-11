@@ -59,4 +59,67 @@ public sealed class SqlServerDeliveryTargetResolverTests
         StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectRouteByIdSql, "FROM hm_routes");
         StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectRouteByIdSql, "WHERE routeid = @RouteId");
     }
+
+    [TestMethod]
+    public void TargetResolverSource_PropagatesMaxNumberOfMxHostsToMatchedAndForcedRoutes()
+    {
+        var source = ReadResolverSource();
+        var forcedRouteStart = source.IndexOf("else if (forcedRoute is not null)", StringComparison.Ordinal);
+        var forcedRouteEnd = source.IndexOf("else\n            {", forcedRouteStart, StringComparison.Ordinal);
+        var matchedRouteStart = source.IndexOf("if (route is not null)", StringComparison.Ordinal);
+        var matchedRouteEnd = source.IndexOf("var smtpRelayer = await loadSmtpRelayerAsync", matchedRouteStart, StringComparison.Ordinal);
+
+        Assert.IsTrue(forcedRouteStart >= 0);
+        Assert.IsTrue(forcedRouteEnd > forcedRouteStart);
+        Assert.IsTrue(matchedRouteStart >= 0);
+        Assert.IsTrue(matchedRouteEnd > matchedRouteStart);
+
+        var forcedRouteBranch = source.Substring(forcedRouteStart, forcedRouteEnd - forcedRouteStart);
+        var matchedRouteBranch = source.Substring(matchedRouteStart, matchedRouteEnd - matchedRouteStart);
+
+        StringAssert.Contains(forcedRouteBranch, "maxNumberOfMxHosts ??= await LoadMaxNumberOfMxHostsAsync");
+        StringAssert.Contains(forcedRouteBranch, "maxNumberOfMxHosts.Value");
+        StringAssert.Contains(source, "MaxNumberOfMxHosts: maxNumberOfMxHosts);");
+        StringAssert.Contains(matchedRouteBranch, "MaxNumberOfMxHosts: await loadMaxNumberOfMxHostsAsync().ConfigureAwait(false)");
+    }
+
+    [TestMethod]
+    public void TargetResolverSource_DefaultsMissingOrNegativeMaxNumberOfMxHostsAndPropagatesConversionErrors()
+    {
+        var source = ReadResolverSource();
+        var loadStart = source.IndexOf("private static async ValueTask<int> LoadMaxNumberOfMxHostsAsync", StringComparison.Ordinal);
+        var loadEnd = source.IndexOf("private static async ValueTask<RelayerInfo?> LoadSmtpRelayerAsync", loadStart, StringComparison.Ordinal);
+
+        Assert.IsTrue(loadStart >= 0);
+        Assert.IsTrue(loadEnd > loadStart);
+        var loadMethod = source.Substring(loadStart, loadEnd - loadStart);
+
+        StringAssert.Contains(loadMethod, "return value is null or DBNull");
+        StringAssert.Contains(loadMethod, "? 0");
+        StringAssert.Contains(loadMethod, "Math.Max(0, Convert.ToInt32(value");
+        Assert.IsFalse(loadMethod.Contains("catch", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string ReadResolverSource()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            var path = Path.Combine(
+                directory.FullName,
+                "hmailserver",
+                "source",
+                "Server.Net10",
+                "src",
+                "HMailServer.Storage.SqlServer",
+                "SqlServerDeliveryTargetResolver.cs");
+
+            if (File.Exists(path))
+                return File.ReadAllText(path);
+        }
+
+        Assert.Fail("Could not locate SqlServerDeliveryTargetResolver.cs from the test output directory.");
+        return string.Empty;
+    }
 }
