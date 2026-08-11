@@ -40,7 +40,7 @@ public sealed class LineProtocolReader : IAsyncDisposable
                 }
 
                 var decodedLine = Decode(line);
-                _reader.AdvanceTo(buffer.Start, buffer.End);
+                _reader.AdvanceTo(buffer.Start, buffer.Start);
                 return decodedLine;
             }
 

@@ -39,6 +39,80 @@ public sealed class SmtpTcpListenerTests
     }
 
     [TestMethod]
+    public async Task RunAsync_StagesFragmentedDataUntilTerminatorAndQueuesAfterReceiverRelease()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var receiver = new ControllableMessageReceiver();
+        var listener = new SmtpTcpListener(
+            new SmtpSession(
+                new SmtpSessionOptions { ServerName = "mx.example.test" },
+                receiver),
+            new PlainSmtpConnectionStreamFactory(),
+            new SmtpTcpListenerOptions
+            {
+                ListenAddress = IPAddress.Loopback,
+                Port = 0,
+                Backlog = 16,
+                MaxConcurrentConnections = 1,
+                ShutdownGracePeriod = TimeSpan.FromSeconds(1)
+            });
+        var runTask = listener.RunAsync(cts.Token);
+
+        try
+        {
+            var endpoint = await listener.Started.WaitAsync(cts.Token);
+            using var client = new TcpClient();
+            await client.ConnectAsync(endpoint.Address, endpoint.Port, cts.Token);
+            await using var stream = client.GetStream();
+            using var reader = CreateReader(stream);
+            await using var writer = CreateWriter(stream);
+
+            Assert.AreEqual("220 hMailServer .NET 10 ESMTP ready", await ReadLineAsync(reader, cts.Token));
+            await WriteLineAsync(writer, "EHLO client.example", cts.Token);
+            Assert.AreEqual("250-mx.example.test", await ReadLineAsync(reader, cts.Token));
+            Assert.AreEqual("250-SIZE 20971520", await ReadLineAsync(reader, cts.Token));
+            Assert.AreEqual("250 HELP", await ReadLineAsync(reader, cts.Token));
+
+            await WriteLineAsync(writer, "MAIL FROM:<sender@example.test>", cts.Token);
+            Assert.AreEqual("250 OK", await ReadLineAsync(reader, cts.Token));
+            await WriteLineAsync(writer, "RCPT TO:<recipient@example.test>", cts.Token);
+            Assert.AreEqual("250 OK", await ReadLineAsync(reader, cts.Token));
+            await WriteLineAsync(writer, "DATA", cts.Token);
+            Assert.AreEqual("354 Start mail input; end with <CRLF>.<CRLF>", await ReadLineAsync(reader, cts.Token));
+
+            await WriteFragmentAsync(writer, "Subject: Fragmented\r\n\r\nfirst\r\n", cts.Token);
+            await WriteFragmentAsync(writer, "..dot-stuffed\r\nlast", cts.Token);
+            await Task.Delay(100, cts.Token);
+
+            Assert.AreEqual(0, receiver.InvocationCount);
+            Assert.IsFalse(receiver.InvocationStarted.Task.IsCompleted);
+
+            await WriteFragmentAsync(writer, "\r\n.\r\n", cts.Token);
+            await receiver.InvocationStarted.Task.WaitAsync(cts.Token);
+
+            Assert.IsNotNull(receiver.LastRequest);
+            Assert.AreEqual("sender@example.test", receiver.LastRequest.MailFrom);
+            CollectionAssert.AreEqual(
+                new[] { "recipient@example.test" },
+                receiver.LastRequest.Recipients.Select(static recipient => recipient.Address).ToArray());
+            Assert.AreEqual(
+                "Subject: Fragmented\r\n\r\nfirst\r\n.dot-stuffed\r\nlast\r\n",
+                Encoding.Latin1.GetString(receiver.LastRequest.MessageData));
+
+            receiver.Release();
+            Assert.AreEqual("250 Queued", await ReadLineAsync(reader, cts.Token));
+
+            await WriteLineAsync(writer, "QUIT", cts.Token);
+            Assert.AreEqual("221 mx.example.test closing connection", await ReadLineAsync(reader, cts.Token));
+        }
+        finally
+        {
+            receiver.Release();
+            await StopListenerAsync(runTask, cts);
+        }
+    }
+
+    [TestMethod]
     public async Task RunAsync_PropagatesLoopbackAddressToSmtpAuthenticationBoundary()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -254,6 +328,15 @@ public sealed class SmtpTcpListenerTests
         await runTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
     }
 
+    private static async Task WriteFragmentAsync(
+        StreamWriter writer,
+        string fragment,
+        CancellationToken cancellationToken)
+    {
+        await writer.WriteAsync(fragment.AsMemory(), cancellationToken).ConfigureAwait(false);
+        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private sealed class FakeEventScriptExecutor : ISmtpEventScriptExecutor
     {
         private readonly Func<SmtpEventScriptExecutionRequest, SmtpRuleScriptExecutionResult> _execute;
@@ -284,5 +367,31 @@ public sealed class SmtpTcpListenerTests
 
             return ValueTask.FromResult(ImapAuthenticationResult.Failure("Invalid user name or password."));
         }
+    }
+
+    private sealed class ControllableMessageReceiver : ISmtpMessageReceiver
+    {
+        private readonly TaskCompletionSource<bool> _release =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> InvocationStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int InvocationCount { get; private set; }
+
+        public SmtpReceiveRequest? LastRequest { get; private set; }
+
+        public async ValueTask<SmtpReceiveResult> ReceiveAsync(
+            SmtpReceiveRequest request,
+            CancellationToken cancellationToken)
+        {
+            InvocationCount++;
+            LastRequest = request;
+            InvocationStarted.TrySetResult(true);
+            await _release.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return SmtpReceiveResult.Success();
+        }
+
+        public void Release() => _release.TrySetResult(true);
     }
 }
