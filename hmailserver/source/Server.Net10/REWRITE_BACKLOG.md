@@ -3678,3 +3678,17 @@ performance gate remains **RED** because the legacy target lacks POP3,
 Net10 FTS-backed SEARCH is not accepted, and no speed-up ratio or winner is
 valid. Preserve production SQL/Data, service, installed COM identity/DCOM,
 and direct activation boundaries.
+## Current authoritative next slice (2026-08-11, AMBIGUOUS FULL RESTORE COMMIT)
+
+Completed code/test commit `8ebace0de` adds disposable SQL/Data acceptance for
+an ambiguous full-restore SQL commit. The real transaction commits metadata
+and then returns an error; the executor preserves the
+`MetadataCommitStarted` journal, new Data target, and rollback artifact for
+manual recovery. Focused restore coverage is `20/20`; disposable SQL/opt-in/
+native-registry categories are `55/55`; default full Net10 is
+`2126 passed, 46 skipped, 0 failed`.
+
+This does not prove process-kill, power-loss, or automatic recovery. Next
+smallest slice: add bounded restart/recovery-reader acceptance around the
+preserved journal. The paired C++/.NET10 performance gate remains **RED**;
+do not claim a speed-up ratio or winner.

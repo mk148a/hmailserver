@@ -24,6 +24,13 @@ POP3 listener. No speed-up ratio or winner is claimed. Full default Net10 is
 
 ## Current authoritative restore status (2026-08-11)
 
+Code/test commit `8ebace0de` adds disposable SQL/Data acceptance for an
+ambiguous full-restore commit outcome. A test transaction commits the real
+SQL metadata and then reports an error; the restore preserves the
+`MetadataCommitStarted` recovery journal, the new Data target, and the
+rollback artifact for manual reconciliation. This is not a process-kill or
+power-loss drill.
+
 Code/test commit `0d03adfac` adds disposable SQL/Data acceptance for the real
 queued Administrator backup and restore path. `BackupManager.StartBackup`
 creates the real archive/DataBackup, `LoadBackup` reads it, and
@@ -36,8 +43,8 @@ readback, and durable completion dispatch. Legacy references are
 `BackupManager::StartRestore` and `BackupExecuter::StartRestore`/
 `RestoreDataDirectory_` in `source/Server/Common/Application`.
 
-The focused restore class passes `19/19`; the disposable SQL opt-in categories
-pass `54/54`; default full Net10 is `2126 passed, 45 skipped, 0 failed`.
+The focused restore class passes `20/20`; the disposable SQL opt-in categories
+pass `55/55`; default full Net10 is `2126 passed, 46 skipped, 0 failed`.
 This closes the bounded queued archive/restore execution coverage, but not
 crash/power-loss recovery, production payload-provider certification, service/
 COM lifecycle, or independent SQL Server certification. Release remains

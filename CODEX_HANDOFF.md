@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, AMBIGUOUS FULL RESTORE COMMIT)
+
+Code/test commit `8ebace0de` adds
+`RestoreExecutor_PreservesJournalWhenFullRestoreCommitOutcomeIsAmbiguous`.
+On the disposable SQL/Data target, the transaction performs the real SQL
+commit and then reports an error. The full restore executor fails closed and
+preserves a `MetadataCommitStarted` journal, the new Data target, and the
+rollback artifact for manual recovery. This proves ambiguous-commit evidence,
+not an actual process-kill or power-loss drill.
+
+Focused restore coverage is `20 passed, 0 failed`; disposable SQL/opt-in/
+native-registry categories are `55 passed, 0 skipped, 0 failed`; default full
+Net10 is `2126 passed, 46 skipped, 0 failed`. The performance gate remains
+**RED** because C++ POP3 readiness and Net10 FTS-backed IMAP SEARCH are still
+not valid for the paired workload, so no ratio or winner is claimed.
+
+Next slice: add a bounded restart/recovery-reader acceptance around the
+preserved journal, then repair the C++/Net10 live protocol pair. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, REAL BACKUP/RESTORE CHAIN)
 
 Code/test commit `0d03adfac` adds the disposable SQL/Data acceptance test

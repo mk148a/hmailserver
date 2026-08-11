@@ -1892,6 +1892,18 @@ The live gate remains **RED**: the disposable SQL instance lacks Full-Text
 Search for the `SEARCH TEXT needle` scenario, and the C++ target still lacks
 POP3 readiness. No ratio or winner is valid. Default full Net10 is `2126
 passed, 44 skipped, 0 failed`; focused registration coverage is `5/5`.
+## Current authoritative continuation (2026-08-11, ambiguous full restore commit)
+
+Code/test commit `8ebace0de` adds
+`RestoreExecutor_PreservesJournalWhenFullRestoreCommitOutcomeIsAmbiguous`.
+The disposable SQL/Data test commits the real metadata and then returns an
+error from the commit boundary. Net10 preserves the
+`MetadataCommitStarted` recovery journal, new Data target, and rollback
+artifact, requiring manual reconciliation. This is bounded ambiguous-commit
+evidence; a process-kill/power-loss drill remains open. Focused restore
+coverage is `20/20`; disposable opt-in is `55/55`; default full Net10 is
+`2126 passed, 46 skipped, 0 failed`.
+
 ## Current authoritative continuation (2026-08-11, queued full restore)
 
 Code/test commit `0d03adfac` extends the disposable acceptance boundary to
