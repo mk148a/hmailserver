@@ -8,6 +8,28 @@
 
 ## Current next slice (2026-08-11)
 
+Completed in code/test commit `e2ffb0ad8`: the shared fail-closed C++
+registry/config/service preflight and executable provenance fields now cover
+the 1,000-session concurrent IMAP runner. The current host refused before
+`Start-Process` because Registry32 selects `C:\hMailServer57-Test\Bin` instead
+of the disposable C++ Bin; the evidence has zero workload samples.
+
+Legacy `IOService::DoWork()` loads `hm_tcpipports` and maps SMTP/POP3/IMAP
+session types before `TCPServer::Run()` binds listeners
+(`source/Server/Common/TCPIP/IOService.cpp:65-134`,
+`source/Server/Common/TCPIP/TCPServer.cpp:51-226`). The runner's SQL ports
+2525/1143/25110 and launched-PID ownership checks are therefore required
+preconditions, not performance results.
+
+The parity explorer also confirmed that legacy `/Debug` invokes
+`ChMailServerModule::RegisterAppID()` and writes the AppID registration before
+starting (`source/Server/hMailServer/hMailServer.cpp:136-162,192-197`). A
+real C++ run must use a registry-isolated staging VM; no AppID or DCOM change
+was made here. The paired performance gate remains **RED** and no ratio or
+winner is valid.
+
+## Historical audit (superseded current-slice text, 2026-08-11)
+
 Completed in code/test commit `f6d06e216`: the shared read-only C++
 registry/config/service preflight is used by both the SMTP acceptance and
 live SMTP/IMAP/POP3 protocol benchmark runners. C++ protocol reports now carry

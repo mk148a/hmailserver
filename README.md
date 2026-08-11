@@ -3,6 +3,25 @@ hMailServer
 
 ## Current authoritative performance-safety status (2026-08-11)
 
+Code/tool commit `e2ffb0ad8` applies the shared C++ registry/config/service
+preflight and executable provenance evidence to the 1,000-session concurrent
+IMAP runner. A C++ run on this host was refused before process creation due to
+the Registry32 path mismatch; the report contains zero workload samples and is
+under `artifacts/benchmarks/live-cpp-net10-20260811/cpp-concurrent-imap-preflight-fail-20260811/`.
+The Net10 path ran only against its disposable loopback fixture and reported
+its expected workload failure without claiming a ratio.
+
+The legacy C++ reference adds a separate boundary: `_tWinMain` enters the
+`/Debug` path after `_AtlModule.RegisterAppID()` and
+`ChMailServerModule::RegisterAppID()` writes the AppID registration
+(`source/Server/hMailServer/hMailServer.cpp:136-162,192-197`). Therefore a
+real C++ benchmark requires an isolated Windows registry/installation in
+addition to equal SQL/Data/message roots; this host remains unsuitable. The
+paired C++/.NET 10 performance gate is **RED**, with no speed-up ratio or
+winner claimed.
+
+## Historical current status (2026-08-11)
+
 Code/tool commit `f6d06e216` extends the C++ isolation gate from the SMTP
 acceptance runner to the live SMTP/IMAP/POP3 protocol runner. Both runners now
 share a read-only preflight that checks the legacy registry-selected Bin

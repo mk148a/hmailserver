@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, CONCURRENT IMAP ISOLATION PREFLIGHT)
+
+Code/test commit `e2ffb0ad8` applies the shared
+`Get-CppIsolationPreflight`/`Get-CppExecutableProvenance` contract to
+`build/benchmark-net10-live-concurrent-imap.ps1` and extends its validator.
+The C++ preflight report records Registry32 `C:\hMailServer57-Test\Bin` versus
+the disposable target `C:\hmail-perf-cpp-ascii-20260810\Bin`, so the C++
+process was not launched and the 1,000-session workload did not start.
+
+Parity references are `IOService::DoWork()` and `TCPServer::Run()`/
+`HandleAccept()` (`source/Server/Common/TCPIP/IOService.cpp:65-134`,
+`source/Server/Common/TCPIP/TCPServer.cpp:51-226`): the SQL `hm_tcpipports`
+rows define the disposable 2525/1143/25110 ports, and launched-PID ownership
+plus banners are required before IMAP concurrency begins.
+
+The explorer also confirmed that legacy `/Debug` calls
+`ChMailServerModule::RegisterAppID()`, which writes AppID registration before
+the debug server starts (`source/Server/hMailServer/hMailServer.cpp:136-162,
+192-197`). This is why the actual C++ benchmark remains environment-blocked
+on this host even though the preflight is read-only. Full Net10 remains
+`2127 passed, 46 skipped, 0 failed`; paired performance remains **RED** and no
+ratio is valid. Next independent work is a separate registry-isolated C++ VM,
+then fresh equal SQL/Data/message fixtures. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, C++ PROTOCOL PROVENANCE PREFLIGHT)
 
 Code/test commit `f6d06e216` applies the shared read-only C++ registry/config
