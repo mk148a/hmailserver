@@ -1,8 +1,8 @@
 # Current State
-- UTC/local timestamp: 2026-08-12T00:37:12Z / 2026-08-12T03:37:12+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; ahead 2, behind 0; push pending after verification
-- Current HEAD: `9040db92d` (normal-MX address code/test and documentation)
-- Last successfully pushed commit: `3b8ebdd1c`
+- UTC/local timestamp: 2026-08-12T00:42:18Z / 2026-08-12T03:42:18+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; normal-MX parity push verified; status record update pending
+- Current HEAD: `95872ecef` (normal-MX address code/test and documentation; verified pushed baseline)
+- Last successfully pushed commit: `95872ecef`
 - Latest focused-test result: normal-MX address order/dedup/cap, implicit A/AAAA fallback, literal MX IP, null MX, failure, TLS/SNI, global relayer, SMTP failover, and SQL shape `52 passed, 0 failed`
 - Latest full Net10 result: `2184 passed, 54 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; real SQL/DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore/rollback, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
