@@ -1,6 +1,9 @@
 param(
     [string]$InputDirectory = "",
-    [string]$OutputDirectory = ""
+    [string]$OutputDirectory = "",
+    [string]$Net10ReportPath = "",
+    [string]$CppReportPath = "",
+    [string]$CorpusPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,10 +14,66 @@ if ([string]::IsNullOrWhiteSpace($InputDirectory)) {
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = $InputDirectory
 }
+if ([string]::IsNullOrWhiteSpace($Net10ReportPath)) {
+    $Net10ReportPath = Join-Path $InputDirectory "net10-live-protocol.json"
+}
+if ([string]::IsNullOrWhiteSpace($CppReportPath)) {
+    $CppReportPath = Join-Path $InputDirectory "cpp-live-protocol\net10-live-protocol.json"
+}
+if ([string]::IsNullOrWhiteSpace($CorpusPath)) {
+    $CorpusPath = Join-Path $InputDirectory "corpus-equality.json"
+}
 
-$net10 = Get-Content (Join-Path $InputDirectory "net10-live-protocol.json") -Raw | ConvertFrom-Json
-$cpp = Get-Content (Join-Path $InputDirectory "cpp-live-protocol\net10-live-protocol.json") -Raw | ConvertFrom-Json
-$corpus = Get-Content (Join-Path $InputDirectory "corpus-equality.json") -Raw | ConvertFrom-Json
+$net10 = Get-Content -LiteralPath $Net10ReportPath -Raw | ConvertFrom-Json
+$cpp = Get-Content -LiteralPath $CppReportPath -Raw | ConvertFrom-Json
+$corpus = Get-Content -LiteralPath $CorpusPath -Raw | ConvertFrom-Json
+
+if ($net10.schema -ne "live-protocol-v1" -or $net10.implementation -ne "net10") {
+    throw "The .NET 10 input is not a live-protocol-v1 net10 report: $Net10ReportPath"
+}
+if ($cpp.schema -ne "live-protocol-v1" -or $cpp.implementation -ne "cpp") {
+    throw "The C++ input is not a live-protocol-v1 cpp report: $CppReportPath"
+}
+if ($null -eq $cpp.isolationPreflight) {
+    throw "The C++ input is missing the required registry/config isolation preflight."
+}
+if ($null -eq $cpp.executableProvenance) {
+    throw "The C++ input is missing executable provenance."
+}
+if ($cpp.executableProvenance.sha256 -notmatch "^[0-9A-Fa-f]{64}$" -or [int64]$cpp.executableProvenance.length -le 0) {
+    throw "The C++ executable provenance is incomplete or invalid."
+}
+if ($cpp.status -eq "PASS" -and $cpp.isolationPreflight.passed -ne $true) {
+    throw "A passing C++ input must have a passing isolation preflight."
+}
+if ($corpus.identical -ne $true) {
+    throw "The input corpus-equality evidence is not identical; no paired comparison report is allowed."
+}
+
+$blockers = [System.Collections.Generic.List[string]]::new()
+if ($cpp.isolationPreflight.passed -ne $true) {
+    $blockers.Add("C++ launch was refused by the registry/config isolation preflight; no C++ workload result exists.")
+}
+else {
+    $cppImap = @($cpp.summary | Where-Object scenario -eq "imap")
+    $cppPop3 = @($cpp.summary | Where-Object scenario -eq "pop3")
+    if ($cppImap.Count -eq 1 -and $cppImap[0].errors -gt 0) {
+        $blockers.Add("C++ IMAP protocol did not complete its requested matrix.")
+    }
+    if ($cppPop3.Count -eq 1 -and $cppPop3[0].errors -gt 0) {
+        $blockers.Add("C++ POP3 protocol did not complete its requested matrix.")
+    }
+}
+if ($cpp.status -ne "PASS") {
+    $blockers.Add("The C++ live protocol report is FAIL, so no paired performance result is valid.")
+}
+if ($net10.status -ne "PASS") {
+    $blockers.Add("The .NET 10 live protocol report is FAIL, so no paired performance result is valid.")
+}
+$blockers.Add("The C++ executable is a temporary /Debug probe and not a normal reproducible release build.")
+$blockers.Add("Net10 production host COM local-server registration is blocked by existing AppID security identity 0x80004015; listener-only helper was used.")
+$blockers.Add("SQL row-count equality was not supplied to this comparison generator and is not asserted.")
+$blockers.Add("No SMTP message-acceptance, delivery-queue, 1000-concurrent IMAP, or 24-hour soak was completed.")
 
 $rows = foreach ($scenario in @("smtp", "imap", "pop3")) {
     $netRow = $net10.summary | Where-Object scenario -eq $scenario
@@ -42,17 +101,17 @@ $report = [pscustomobject]@{
     status = "RED"
     decision = "No speed-up, regression percentage, or winner is valid."
     sameCorpus = $corpus.identical
-    sameSqlRowCounts = $true
+    sameSqlRowCounts = $false
     loopback = "127.0.0.1"
     ports = "SMTP 2525, IMAP 1143, POP3 25110"
+    sourceReports = [ordered]@{
+        net10 = [IO.Path]::GetFullPath($Net10ReportPath)
+        cpp = [IO.Path]::GetFullPath($CppReportPath)
+        corpus = [IO.Path]::GetFullPath($CorpusPath)
+    }
+    cppExecutableProvenance = $cpp.executableProvenance
     scenarios = $rows
-    blockers = @(
-        "C++ POP3 listener did not open on the selected isolated binary.",
-        "C++ IMAP scenario completed only 4/25 sessions.",
-        "C++ executable is a temporary /Debug probe and not a normal reproducible release build.",
-        "Net10 production host COM local-server registration is blocked by existing AppID security identity 0x80004015; listener-only helper was used.",
-        "No SMTP message-acceptance, delivery-queue, 1000-concurrent IMAP, or 24-hour soak was completed."
-    )
+    blockers = $blockers.ToArray()
 }
 
 $net10P95Values = ($rows | ForEach-Object {
@@ -71,7 +130,7 @@ $markdown = @(
     "",
     "## Decision",
     "",
-    "**RED. No performance winner or speed-up ratio is valid.** The Data corpus is byte-identical and both SQL targets contain 1,000 messages, metadata rows, and recipients, but the legacy run did not complete the same protocol matrix.",
+    "**RED. No performance winner or speed-up ratio is valid.** The input Data corpus-equality evidence is identical, but the legacy run did not complete the same protocol matrix.",
     "",
     "| Scenario | .NET 10 | C++ | Ratio |",
     "| --- | --- | --- | --- |"
@@ -94,7 +153,7 @@ $markdown += @(
     "",
     "The first bar series is .NET 10 and the second is C++. The C++ POP3 value is zero only because no successful sample exists; it must not be interpreted as a performance result.",
     "",
-    "Artifacts: net10-live-protocol.json, cpp-live-protocol/net10-live-protocol.json, corpus-equality.json.",
+    "Artifacts: the input report paths are recorded in paired-live-comparison.json; C++ preflight and executable provenance are mandatory.",
     "",
     "Required next environment step: obtain a normal legacy binary that can open SMTP/IMAP/POP3 from the isolated configuration, then repeat the identical workload and add message acceptance, queue, concurrency, and soak scenarios."
 )
