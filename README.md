@@ -1,6 +1,31 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, SMTPNoOfTries authorization lease)
+
+Code/test commit `0bf71cd8f` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.SMTPNoOfTries`
+(`DispId(19)`). The lease is acquired immediately before the existing
+parameterized `smtpnoofretries` SQL update and held through mutation result
+handling and retained snapshot publication. No retry policy validation,
+delivery behavior, live reconfiguration, or COM identity changed.
+
+Legacy anchors are `InterfaceSettings::get/put_SMTPNoOfTries`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:465-496`),
+`SMTPConfiguration::Set/GetNoOfRetries`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:88-97`), the installed
+IDL property (`hmailserver/source/Server/hMailServer/hMailServer.idl:541-542`),
+the `smtpnoofretries` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:742`),
+and the .NET `UpdateSmtpNoOfTriesSql` path. Focused tests cover lease
+acquire/dispose and unavailable-lease denial before mutation.
+
+Focused settings/store coverage is `96/96`; full Net10 is `2079 passed, 39
+skipped, 0 failed`. Disposable SQL/Data restore, non-DB restore/reinitialization,
+SQL/FTS, matched C++/.NET protocol load, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, and remaining
+unleased COM/Admin mutations keep release **RED**. Next slice is a fresh
+legacy-first audit of `SMTPMinutesBetweenTry`.
+
 ## Current parity continuation (2026-08-11, DenyMailFromNull authorization lease)
 
 Code/test commit `a146723f4` extends the existing generation-bound

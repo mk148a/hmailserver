@@ -1,5 +1,30 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, SMTP NO OF TRIES AUTHORIZATION LEASE)
+
+Code/test commit `0bf71cd8f` extends the existing generation-bound
+authorization lease to authenticated `Settings.SMTPNoOfTries` (`DispId(19)`).
+The lease spans the existing parameterized `smtpnoofretries` SQL mutation,
+result handling, and retained snapshot publication; unavailable leases fail
+closed with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_SMTPNoOfTries`
+(`source/Server/COM/InterfaceSettings.cpp:465-496`),
+`SMTPConfiguration::Set/GetNoOfRetries`
+(`source/Server/SMTP/SMTPConfiguration.cpp:88-97`), IDL `DispId(19)`
+(`source/Server/hMailServer/hMailServer.idl:541-542`), and the
+`smtpnoofretries` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:742`).
+Focused settings/store coverage is `96/96`; full Net10 is `2079 passed, 39
+skipped, 0 failed`. Retry policy, delivery runtime, live reconfiguration,
+installed COM identity, direct activation denial, and authenticated Settings
+access remain unchanged.
+
+Release remains RED for disposable SQL/Data restore, non-DB restore,
+SQL/FTS, paired C++/.NET performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, and remaining
+unleased COM/Admin mutations. Next slice: fresh legacy-first audit of
+`SMTPMinutesBetweenTry`. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, DENY MAIL FROM NULL AUTHORIZATION LEASE)
 
 Code/test commit `a146723f4` extends the existing generation-bound

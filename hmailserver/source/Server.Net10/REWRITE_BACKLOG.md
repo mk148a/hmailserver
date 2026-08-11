@@ -1,6 +1,31 @@
 
 
 
+
+## Current Audit Note (2026-08-11, SMTP NO OF TRIES AUTHORIZATION LEASE)
+
+Code/test commit `0bf71cd8f` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.SMTPNoOfTries`
+(`DispId(19)`). The lease is acquired immediately before the existing
+parameterized `smtpnoofretries` SQL update and held through result handling
+and retained snapshot publication. Retry policy validation, delivery runtime,
+and live reconfiguration remain out of scope.
+
+Legacy behavior is anchored by `InterfaceSettings::get/put_SMTPNoOfTries`
+(`source/Server/COM/InterfaceSettings.cpp:465-496`),
+`SMTPConfiguration::Set/GetNoOfRetries`
+(`source/Server/SMTP/SMTPConfiguration.cpp:88-97`), IDL `DispId(19)`
+(`source/Server/hMailServer/hMailServer.idl:541-542`), and the
+`smtpnoofretries` seed (`source/DBScripts/CreateTablesMSSQL.sql:742`).
+The .NET `UpdateSmtpNoOfTriesSql` shape was not changed. Focused coverage is
+`96/96`; full Net10 is `2079 passed, 39 skipped, 0 failed`.
+
+Remaining unleased Settings/COM/Admin mutations and the disposable SQL/Data
+restore, non-DB restore, SQL/FTS, paired performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and soak
+gates remain RED. Next slice: fresh legacy-first audit of
+`SMTPMinutesBetweenTry`.
+
 ## Current Audit Note (2026-08-11, DENY MAIL FROM NULL AUTHORIZATION LEASE)
 
 Code/test commit `a146723f4` extends the existing generation-bound
