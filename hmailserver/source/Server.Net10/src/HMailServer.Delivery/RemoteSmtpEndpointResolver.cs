@@ -60,10 +60,19 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
         if (target.Kind == DeliveryTargetKind.RemoteDomain)
         {
             var mxHost = await ResolveRemoteHostAsync(target.DomainName, cancellationToken).ConfigureAwait(false);
+            var connectionSecurity = target.RemoteConnectionSecurity switch
+            {
+                (int)RemoteSmtpConnectionSecurity.None => RemoteSmtpConnectionSecurity.None,
+                (int)RemoteSmtpConnectionSecurity.Ssl => RemoteSmtpConnectionSecurity.Ssl,
+                (int)RemoteSmtpConnectionSecurity.StartTlsOptional => RemoteSmtpConnectionSecurity.StartTlsOptional,
+                (int)RemoteSmtpConnectionSecurity.StartTlsRequired => RemoteSmtpConnectionSecurity.StartTlsRequired,
+                _ => throw new InvalidOperationException(
+                    $"Global SMTP connection security value {target.RemoteConnectionSecurity} is invalid.")
+            };
             return new RemoteSmtpEndpoint(
                 mxHost,
                 Port: 25,
-                RemoteSmtpConnectionSecurity.None);
+                connectionSecurity);
         }
 
         throw new InvalidOperationException("Local delivery targets do not have remote SMTP endpoints.");

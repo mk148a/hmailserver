@@ -101,36 +101,219 @@ public sealed class SmtpRemoteDeliveryClientTests
         StringAssert.Contains(result.Error, "550");
     }
 
+    [TestMethod]
+    public async Task SendAsync_OptionalStartTlsStaysPlaintextWhenNotAdvertised()
+    {
+        var transport = new ScriptedSmtpTransport(
+            "220 mx.example ESMTP\r\n" +
+            "250 mx.example\r\n" +
+            "250 sender ok\r\n" +
+            "250 recipient ok\r\n" +
+            "354 go ahead\r\n" +
+            "250 queued\r\n" +
+            "221 bye\r\n");
+        var factory = new FakeTransportFactory(transport);
+        var client = new SmtpRemoteDeliveryClient(factory);
+        var request = CreateRequest(RemoteSmtpConnectionSecurity.StartTlsOptional);
+
+        var result = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual(1, factory.Endpoints.Count);
+        Assert.AreEqual(0, transport.UpgradeCallCount);
+        Assert.IsFalse(transport.GetClientText().Contains("STARTTLS", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task SendAsync_OptionalStartTlsDoesNotSendAuthenticatedCredentialsWithoutTls()
+    {
+        var transport = new ScriptedSmtpTransport(
+            "220 mx.example ESMTP\r\n" +
+            "250 mx.example\r\n");
+        var factory = new FakeTransportFactory(transport);
+        var client = new SmtpRemoteDeliveryClient(factory);
+        var request = CreateRequest(RemoteSmtpConnectionSecurity.StartTlsOptional) with
+        {
+            Endpoint = new RemoteSmtpEndpoint(
+                "mx.example",
+                25,
+                RemoteSmtpConnectionSecurity.StartTlsOptional,
+                RequiresAuthentication: true,
+                AuthenticationUsername: "user",
+                AuthenticationPassword: "secret")
+        };
+
+        var result = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.IsFalse(result.Succeeded);
+        StringAssert.Contains(result.Error, "did not advertise STARTTLS");
+        Assert.AreEqual(1, factory.Endpoints.Count);
+        Assert.IsFalse(transport.GetClientText().Contains("AUTH LOGIN", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task SendAsync_OptionalStartTlsNegativeReplyRetriesOnceWithoutTls()
+    {
+        var first = new ScriptedSmtpTransport(
+            "220 mx.example ESMTP\r\n" +
+            "250-mx.example\r\n" +
+            "250 STARTTLS\r\n" +
+            "454 TLS unavailable\r\n");
+        var second = CreateSuccessfulTransport();
+        var factory = new FakeTransportFactory(first, second);
+        var client = new SmtpRemoteDeliveryClient(factory);
+
+        var result = await client.SendAsync(CreateRequest(RemoteSmtpConnectionSecurity.StartTlsOptional), CancellationToken.None);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual(2, factory.Endpoints.Count);
+        Assert.AreEqual(RemoteSmtpConnectionSecurity.StartTlsOptional, factory.Endpoints[0].ConnectionSecurity);
+        Assert.AreEqual(RemoteSmtpConnectionSecurity.None, factory.Endpoints[1].ConnectionSecurity);
+        StringAssert.Contains(first.GetClientText(), "STARTTLS\r\n");
+        Assert.IsFalse(second.GetClientText().Contains("STARTTLS", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task SendAsync_OptionalStartTlsHandshakeFailureDoesNotDowngrade()
+    {
+        var first = new ScriptedSmtpTransport(
+            "220 mx.example ESMTP\r\n" +
+            "250-mx.example\r\n" +
+            "250 STARTTLS\r\n" +
+            "220 ready to start TLS\r\n",
+            new InvalidOperationException("TLS handshake failed"));
+        var factory = new FakeTransportFactory(first);
+        var client = new SmtpRemoteDeliveryClient(factory);
+
+        var result = await client.SendAsync(CreateRequest(RemoteSmtpConnectionSecurity.StartTlsOptional), CancellationToken.None);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(DeliveryFailureKind.Transient, result.FailureKind);
+        Assert.AreEqual(1, factory.Endpoints.Count);
+        Assert.AreEqual(1, first.UpgradeCallCount);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_OptionalStartTlsDoesNotFallbackAfterTlsSucceeds()
+    {
+        var transport = new ScriptedSmtpTransport(
+            "220 mx.example ESMTP\r\n" +
+            "250-mx.example\r\n" +
+            "250 STARTTLS\r\n" +
+            "220 ready to start TLS\r\n" +
+            "250 mx.example\r\n" +
+            "550 sender denied\r\n");
+        var factory = new FakeTransportFactory(transport);
+        var client = new SmtpRemoteDeliveryClient(factory);
+
+        var result = await client.SendAsync(CreateRequest(RemoteSmtpConnectionSecurity.StartTlsOptional), CancellationToken.None);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(DeliveryFailureKind.Permanent, result.FailureKind);
+        Assert.AreEqual(1, factory.Endpoints.Count);
+        Assert.AreEqual(1, transport.UpgradeCallCount);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_RequiredStartTlsStillFailsWhenNotAdvertised()
+    {
+        var transport = new ScriptedSmtpTransport(
+            "220 mx.example ESMTP\r\n" +
+            "250 mx.example\r\n");
+        var factory = new FakeTransportFactory(transport);
+        var client = new SmtpRemoteDeliveryClient(factory);
+
+        var result = await client.SendAsync(CreateRequest(RemoteSmtpConnectionSecurity.StartTlsRequired), CancellationToken.None);
+
+        Assert.IsFalse(result.Succeeded);
+        StringAssert.Contains(result.Error, "did not advertise STARTTLS");
+        Assert.AreEqual(1, factory.Endpoints.Count);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_SslStillUpgradesBeforeGreetingWithoutStartTlsFallback()
+    {
+        var transport = CreateSuccessfulTransport();
+        var factory = new FakeTransportFactory(transport);
+        var client = new SmtpRemoteDeliveryClient(factory);
+
+        var result = await client.SendAsync(CreateRequest(RemoteSmtpConnectionSecurity.Ssl), CancellationToken.None);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual(1, transport.UpgradeCallCount);
+        Assert.IsFalse(transport.GetClientText().Contains("STARTTLS", StringComparison.Ordinal));
+    }
+
+    private static RemoteSmtpSendRequest CreateRequest(RemoteSmtpConnectionSecurity security) =>
+        new(
+            new RemoteSmtpEndpoint("mx.example", 25, security),
+            "mail.local.test",
+            "sender@example.test",
+            ["recipient@example.net"],
+            "Subject: Test\r\n\r\nHello\r\n"u8.ToArray());
+
+    private static ScriptedSmtpTransport CreateSuccessfulTransport() =>
+        new(
+            "220 mx.example ESMTP\r\n" +
+            "250 mx.example\r\n" +
+            "250 sender ok\r\n" +
+            "250 recipient ok\r\n" +
+            "354 go ahead\r\n" +
+            "250 queued\r\n" +
+            "221 bye\r\n");
+
     private sealed class FakeTransportFactory : IRemoteSmtpTransportFactory
     {
-        private readonly ScriptedSmtpTransport _transport;
+        private readonly Queue<ScriptedSmtpTransport> _transports;
 
-        public FakeTransportFactory(ScriptedSmtpTransport transport)
+        public FakeTransportFactory(params ScriptedSmtpTransport[] transports)
         {
-            _transport = transport;
+            _transports = new Queue<ScriptedSmtpTransport>(transports);
         }
+
+        public List<RemoteSmtpEndpoint> Endpoints { get; } = [];
 
         public ValueTask<IRemoteSmtpTransport> ConnectAsync(
             RemoteSmtpEndpoint endpoint,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IRemoteSmtpTransport>(_transport);
+            CancellationToken cancellationToken)
+        {
+            Endpoints.Add(endpoint);
+            if (_transports.Count == 0)
+            {
+                throw new InvalidOperationException("No scripted transport remains.");
+            }
+
+            return ValueTask.FromResult<IRemoteSmtpTransport>(_transports.Dequeue());
+        }
     }
 
     private sealed class ScriptedSmtpTransport : IRemoteSmtpTransport
     {
         private readonly ScriptedSmtpStream _stream;
+        private readonly Exception? _upgradeException;
 
-        public ScriptedSmtpTransport(string serverScript)
+        public ScriptedSmtpTransport(string serverScript, Exception? upgradeException = null)
         {
             _stream = new ScriptedSmtpStream(serverScript);
+            _upgradeException = upgradeException;
         }
 
         public Stream Stream => _stream;
 
+        public int UpgradeCallCount { get; private set; }
+
         public ValueTask UpgradeToTlsAsync(
             string targetHost,
-            CancellationToken cancellationToken) =>
-            ValueTask.CompletedTask;
+            CancellationToken cancellationToken)
+        {
+            UpgradeCallCount++;
+            if (_upgradeException is not null)
+            {
+                throw _upgradeException;
+            }
+
+            return ValueTask.CompletedTask;
+        }
 
         public ValueTask DisposeAsync() =>
             ValueTask.CompletedTask;
@@ -170,12 +353,12 @@ public sealed class SmtpRemoteDeliveryClientTests
             Task.CompletedTask;
 
         public override int Read(byte[] buffer, int offset, int count) =>
-            _serverBytes.Read(buffer, offset, count);
+            _serverBytes.Read(buffer, offset, Math.Min(count, 1));
 
         public override ValueTask<int> ReadAsync(
             Memory<byte> buffer,
             CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(_serverBytes.Read(buffer.Span));
+            ValueTask.FromResult(_serverBytes.Read(buffer.Span[..Math.Min(buffer.Length, 1)]));
 
         public override long Seek(long offset, SeekOrigin origin) =>
             throw new NotSupportedException();

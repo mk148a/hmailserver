@@ -7,6 +7,14 @@ namespace HMailServer.Net10.Tests;
 public sealed class SqlServerDeliveryTargetResolverTests
 {
     [TestMethod]
+    public void TargetResolverSql_LoadsGlobalSmtpConnectionSecurityAsAConstantSettingLookup()
+    {
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectSmtpConnectionSecuritySql, "FROM hm_settings");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectSmtpConnectionSecuritySql, "settinginteger");
+        StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectSmtpConnectionSecuritySql, "settingname = N'SmtpDeliveryConnectionSecurity'");
+    }
+
+    [TestMethod]
     public void TargetResolverSql_LoadsRoutesNeededForDeliveryClassification()
     {
         StringAssert.Contains(SqlServerDeliveryTargetResolver.SelectRoutesSql, "FROM hm_routes");

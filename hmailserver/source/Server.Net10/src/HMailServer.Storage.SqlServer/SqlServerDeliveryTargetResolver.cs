@@ -7,6 +7,12 @@ namespace HMailServer.Storage.SqlServer;
 
 public sealed class SqlServerDeliveryTargetResolver : IDeliveryTargetResolver
 {
+    public const string SelectSmtpConnectionSecuritySql = """
+SELECT settinginteger
+FROM hm_settings
+WHERE settingname = N'SmtpDeliveryConnectionSecurity';
+""";
+
     public const string SelectRoutesSql = """
 SELECT
     routeid,
@@ -54,15 +60,20 @@ WHERE routeid = @RouteId;
         var forcedRoute = message.RuleForcedRouteId > 0
             ? await LoadRouteByIdAsync(connection, message.RuleForcedRouteId, cancellationToken).ConfigureAwait(false)
             : null;
+        int? remoteConnectionSecurity = null;
         var groups = new Dictionary<string, TargetGroup>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var recipient in message.Recipients)
         {
             var target = recipient.LocalAccountId > 0
-                ? CreateLocalTarget(recipient)
-                : forcedRoute is not null
-                    ? CreateForcedRouteTarget(recipient, forcedRoute)
-                    : await CreateRemoteOrRouteTargetAsync(connection, recipient, cancellationToken).ConfigureAwait(false);
+                    ? CreateLocalTarget(recipient)
+                    : forcedRoute is not null
+                        ? CreateForcedRouteTarget(recipient, forcedRoute)
+                    : await CreateRemoteOrRouteTargetAsync(
+                        connection,
+                        recipient,
+                        async () => remoteConnectionSecurity ??= await LoadSmtpConnectionSecurityAsync(connection, cancellationToken).ConfigureAwait(false),
+                        cancellationToken).ConfigureAwait(false);
             var groupKey = target.Key;
             if (!groups.TryGetValue(groupKey, out var group))
             {
@@ -108,6 +119,7 @@ WHERE routeid = @RouteId;
     private static async ValueTask<DeliveryTarget> CreateRemoteOrRouteTargetAsync(
         SqlConnection connection,
         DeliveryQueueRecipient recipient,
+        Func<ValueTask<int>> loadRemoteConnectionSecurityAsync,
         CancellationToken cancellationToken)
     {
         var domainName = TrySplitAddress(recipient.Address, out _, out var domain)
@@ -129,7 +141,19 @@ WHERE routeid = @RouteId;
         return new DeliveryTarget(
             DeliveryTargetKind.RemoteDomain,
             Key: "remote:" + domainName,
-            DomainName: domainName);
+            DomainName: domainName,
+            RemoteConnectionSecurity: await loadRemoteConnectionSecurityAsync().ConfigureAwait(false));
+    }
+
+    private static async ValueTask<int> LoadSmtpConnectionSecurityAsync(
+        SqlConnection connection,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(SelectSmtpConnectionSecuritySql, connection);
+        var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return value is null or DBNull
+            ? 0
+            : Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static async ValueTask<RouteInfo?> LoadRouteAsync(

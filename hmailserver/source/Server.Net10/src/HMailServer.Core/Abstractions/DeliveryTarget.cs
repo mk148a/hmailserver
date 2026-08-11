@@ -5,4 +5,5 @@ public sealed record DeliveryTarget(
     string Key,
     string DomainName,
     int LocalAccountId = 0,
-    SmtpRouteResolution? Route = null);
+    SmtpRouteResolution? Route = null,
+    int RemoteConnectionSecurity = 0);

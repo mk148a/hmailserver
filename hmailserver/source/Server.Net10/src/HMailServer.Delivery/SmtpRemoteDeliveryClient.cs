@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Text;
 using HMailServer.Core.Abstractions;
 
@@ -29,6 +30,33 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
         {
             return RemoteSmtpSendResult.Failure("Remote SMTP send requires at least one recipient.");
         }
+
+        if (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsOptional)
+        {
+            try
+            {
+                return await SendAttemptAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OptionalStartTlsFallbackException)
+            {
+                var fallbackRequest = request with
+                {
+                    Endpoint = request.Endpoint with
+                    {
+                        ConnectionSecurity = RemoteSmtpConnectionSecurity.None
+                    }
+                };
+                return await SendAttemptAsync(fallbackRequest, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return await SendAttemptAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<RemoteSmtpSendResult> SendAttemptAsync(
+        RemoteSmtpSendRequest request,
+        CancellationToken cancellationToken)
+    {
 
         await using var transport = await _transportFactory.ConnectAsync(request.Endpoint, cancellationToken).ConfigureAwait(false);
         if (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.Ssl)
@@ -63,9 +91,14 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
         {
             if (!ehlo.Lines.Any(static line => line.Contains("STARTTLS", StringComparison.OrdinalIgnoreCase)))
             {
-                if (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsRequired)
+                if (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsRequired
+                    || (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsOptional
+                        && request.Endpoint.RequiresAuthentication))
                 {
-                    return RemoteSmtpSendResult.Failure("Remote SMTP server did not advertise STARTTLS.");
+                    return RemoteSmtpSendResult.Failure(
+                        request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsRequired
+                            ? "Remote SMTP server did not advertise STARTTLS."
+                            : "Remote SMTP server did not advertise STARTTLS for an authenticated connection.");
                 }
             }
             else
@@ -73,11 +106,38 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
                 var startTls = await SendCommandAsync(writer, reader, "STARTTLS", cancellationToken).ConfigureAwait(false);
                 if (!startTls.IsPositiveCompletion)
                 {
+                    if (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsOptional
+                        && !request.Endpoint.RequiresAuthentication)
+                    {
+                        throw new OptionalStartTlsFallbackException();
+                    }
+
                     return FailureFromReply("Remote SMTP STARTTLS failed: ", startTls);
                 }
 
                 await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-                await transport.UpgradeToTlsAsync(request.Endpoint.Host, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await transport.UpgradeToTlsAsync(request.Endpoint.Host, cancellationToken).ConfigureAwait(false);
+                }
+                catch (AuthenticationException ex) when (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsOptional)
+                {
+                    return RemoteSmtpSendResult.Failure(
+                        "Remote SMTP STARTTLS handshake failed: " + ex.Message,
+                        failureKind: DeliveryFailureKind.Transient);
+                }
+                catch (IOException ex) when (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsOptional)
+                {
+                    return RemoteSmtpSendResult.Failure(
+                        "Remote SMTP STARTTLS handshake failed: " + ex.Message,
+                        failureKind: DeliveryFailureKind.Transient);
+                }
+                catch (InvalidOperationException ex) when (request.Endpoint.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsOptional)
+                {
+                    return RemoteSmtpSendResult.Failure(
+                        "Remote SMTP STARTTLS handshake failed: " + ex.Message,
+                        failureKind: DeliveryFailureKind.Transient);
+                }
                 reader = new StreamReader(transport.Stream, Encoding.ASCII, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
                 writer = new StreamWriter(transport.Stream, Encoding.ASCII, bufferSize: 1024, leaveOpen: true)
                 {
@@ -279,6 +339,10 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
         public bool IsPositiveCompletion => Code is >= 200 and <= 299;
 
         public string Format() => string.Join(" | ", Lines);
+    }
+
+    private sealed class OptionalStartTlsFallbackException : Exception
+    {
     }
 }
 

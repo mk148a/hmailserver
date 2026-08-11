@@ -65,6 +65,70 @@ public sealed class RemoteSmtpEndpointResolverTests
     }
 
     [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    public async Task ResolveAsync_MapsConfiguredRemoteConnectionSecurity(int security)
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.RemoteDomain,
+            "remote:example.net",
+            "example.net",
+            RemoteConnectionSecurity: security);
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+
+        Assert.AreEqual((RemoteSmtpConnectionSecurity)security, endpoint.ConnectionSecurity);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_RejectsInvalidGlobalConnectionSecurity()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.RemoteDomain,
+            "remote:example.net",
+            "example.net",
+            RemoteConnectionSecurity: 4);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => resolver.ResolveAsync(target, CancellationToken.None).AsTask());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_RouteSecurityOverridesRemoteConnectionSecurity()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.Route,
+            "route:5",
+            "customer.example",
+            Route: new SmtpRouteResolution(
+                RouteId: 5,
+                DomainName: "*.customer.example",
+                TargetHost: "relay.customer.example",
+                TargetPort: 2525,
+                ConnectionSecurity: (int)RemoteSmtpConnectionSecurity.StartTlsRequired,
+                TreatRecipientAsLocal: false,
+                RequiresAuthentication: false,
+                AuthenticationUsername: "",
+                AuthenticationPassword: ""),
+            RemoteConnectionSecurity: (int)RemoteSmtpConnectionSecurity.None);
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+
+        Assert.AreEqual(RemoteSmtpConnectionSecurity.StartTlsRequired, endpoint.ConnectionSecurity);
+    }
+
+    [TestMethod]
     public async Task ResolveAsync_FallsBackToDomainWhenMxIsEmpty()
     {
         var resolver = new RemoteSmtpEndpointResolver(
