@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, REAL BACKUP/RESTORE CHAIN)
+
+Code/test commit `0d03adfac` adds the disposable SQL/Data acceptance test
+`BackupManager_StartBackupLoadBackupAndRestoreRoundTripsRealArchive` in
+`BackupRestoreRoundTripIntegrationTests`. It drives the authenticated
+`BackupManager.StartBackup` queue, real `SevenZipBackupArchiveRuntime`
+archive/DataBackup creation, `LoadBackup`, and the real
+`MetadataBackupRestoreExecutor` through queued restore. The test verifies
+settings/domain replacement, raw message-file staging, and cleanup of the
+old Data root. No production code, installed COM identity, service, or
+production SQL/Data state changed.
+
+Focused restore coverage is `19 passed, 0 failed`; disposable SQL/opt-in/
+native-registry categories are `54 passed, 0 skipped, 0 failed`; default full
+Net10 is `2126 passed, 45 skipped, 0 failed`. The performance gate remains
+**RED**: C++ lacks the required POP3 listener, Net10 FTS-backed IMAP SEARCH
+is not accepted on the current disposable SQL instance, and no ratio or
+winner is valid.
+
+Next slice: add isolated crash/ambiguous-commit recovery acceptance for the
+full restore journal, then repair the C++/Net10 live protocol pair before
+adding SMTP message-acceptance and delivery-queue scenarios. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, PERFORMANCE EVIDENCE HARDENING)
 
 Code/tool commit `c91323197` makes the shared baseline collector fail closed

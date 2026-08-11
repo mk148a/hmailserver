@@ -3660,3 +3660,21 @@ Search for the SEARCH workload and the copied C++ target has no POP3 listener.
 Next environment action is an approved disposable SQL Server with FTS plus a
 normal legacy C++ binary exposing SMTP/IMAP/POP3. No performance ratio is
 valid before those conditions are met.
+## Current authoritative next slice (2026-08-11, REAL BACKUP/RESTORE CHAIN)
+
+Completed code/test commit `0d03adfac` adds disposable SQL/Data acceptance for
+the real authenticated `BackupManager.StartBackup -> LoadBackup ->
+StartRestore` chain. The test creates the real 7z archive and raw `DataBackup`
+through `SevenZipBackupArchiveRuntime`, loads it through `BackupManager`, and
+executes the real `MetadataBackupRestoreExecutor` against an isolated target.
+It verifies settings/domain replacement, message-file staging, and old Data
+root cleanup. Focused restore coverage is `19/19`; disposable SQL/opt-in/
+native-registry categories are `54/54`; default full Net10 is
+`2126 passed, 45 skipped, 0 failed`.
+
+The next smallest independent slice is isolated crash/ambiguous-commit
+recovery acceptance for the full restore journal. The paired C++/.NET10
+performance gate remains **RED** because the legacy target lacks POP3,
+Net10 FTS-backed SEARCH is not accepted, and no speed-up ratio or winner is
+valid. Preserve production SQL/Data, service, installed COM identity/DCOM,
+and direct activation boundaries.

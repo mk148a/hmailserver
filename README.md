@@ -3,6 +3,12 @@ hMailServer
 
 ## Current authoritative benchmark status (2026-08-11)
 
+Code/test commit `0d03adfac` adds a disposable acceptance test for the real
+`BackupManager.StartBackup -> LoadBackup -> StartRestore` chain. The test
+creates a real 7z archive and raw `DataBackup`, loads it through the COM
+manager, and restores it through the real SQL/Data executor. The same commit
+does not change production code or installed COM state.
+
 Code/tool commit `f754c86c3` adds an explicit
 `HMAILSERVER_COM_LOCAL_SERVER_ENABLED=false` listener-only mode for isolated
 benchmarks. Production defaults remain unchanged: COM local-server startup is
@@ -14,12 +20,14 @@ The live Net10 protocol workload is still **RED**. The disposable SQL instance
 does not have Full-Text Search, so the `SEARCH TEXT needle` workload cannot be
 accepted as a valid live result; the copied C++ target still lacks the required
 POP3 listener. No speed-up ratio or winner is claimed. Full default Net10 is
-`2126 passed, 44 skipped, 0 failed`.
+`2126 passed, 45 skipped, 0 failed`.
 
 ## Current authoritative restore status (2026-08-11)
 
-Code/test commit `2564cc45b` adds disposable SQL/Data acceptance for the real
-queued Administrator restore path. `BackupManager.StartRestore` now runs
+Code/test commit `0d03adfac` adds disposable SQL/Data acceptance for the real
+queued Administrator backup and restore path. `BackupManager.StartBackup`
+creates the real archive/DataBackup, `LoadBackup` reads it, and
+`BackupManager.StartRestore` runs
 through `BackupTaskQueue`, `BackupTaskHostedService`, and the real
 `MetadataBackupRestoreExecutor` against a populated target containing an
 existing domain, public-folder rows, account folders, message metadata, and a
@@ -28,11 +36,12 @@ readback, and durable completion dispatch. Legacy references are
 `BackupManager::StartRestore` and `BackupExecuter::StartRestore`/
 `RestoreDataDirectory_` in `source/Server/Common/Application`.
 
-The focused restore class passes `18/18`; the disposable SQL opt-in categories
-pass `53/53`; default full Net10 is `2125 passed, 44 skipped, 0 failed`.
-This closes queued full-restore execution coverage, but not real
-`StartBackup -> LoadBackup`, crash/power-loss recovery, service/COM lifecycle,
-or independent SQL Server certification. Release remains **RED**.
+The focused restore class passes `19/19`; the disposable SQL opt-in categories
+pass `54/54`; default full Net10 is `2126 passed, 45 skipped, 0 failed`.
+This closes the bounded queued archive/restore execution coverage, but not
+crash/power-loss recovery, production payload-provider certification, service/
+COM lifecycle, or independent SQL Server certification. Release remains
+**RED**.
 
 Next independent slices are full-restore crash/ambiguous-commit recovery
 evidence, repair of the isolated legacy C++ protocol target so IMAP/POP3 can be

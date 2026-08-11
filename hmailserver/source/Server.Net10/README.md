@@ -1894,6 +1894,23 @@ POP3 readiness. No ratio or winner is valid. Default full Net10 is `2126
 passed, 44 skipped, 0 failed`; focused registration coverage is `5/5`.
 ## Current authoritative continuation (2026-08-11, queued full restore)
 
+Code/test commit `0d03adfac` extends the disposable acceptance boundary to
+the real authenticated `BackupManager.StartBackup -> LoadBackup ->
+StartRestore` chain. `BackupRestoreRoundTripIntegrationTests` creates a real
+7z archive and raw `DataBackup` through `SevenZipBackupArchiveRuntime`, loads
+the archive through `BackupManager`, and restores it with the real
+`MetadataBackupRestoreExecutor` against an isolated SQL/Data target. It
+verifies settings/domain replacement, message-file staging, and old-root
+cleanup. Focused restore coverage is `19/19`; disposable SQL opt-in is
+`54/54`; default full Net10 is `2126 passed, 45 skipped, 0 failed`.
+
+This closes only the bounded queue/archive/restore execution path. Full
+production payload-provider readback, crash/power-loss recovery, independent
+SQL Server certification, service/COM lifecycle, SEC-18, migration/installer,
+and the paired C++/.NET10 performance gate remain open and **RED**.
+
+## Current authoritative continuation (2026-08-11, queued full restore)
+
 Code/test commit `2564cc45b` proves the real authenticated restore composition
 against a disposable LocalDB target. `BackupManager.StartRestore` dispatches
 through `BackupTaskQueue` and `BackupTaskHostedService` into
