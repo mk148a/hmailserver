@@ -3050,6 +3050,98 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AllowIncorrectLineEndingsSetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AllowIncorrectLineEndingsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AllowIncorrectLineEndings: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.AllowIncorrectLineEndings = true;
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.AllowIncorrectLineEndingsUpdateCount);
+        Assert.IsTrue(settings.AllowIncorrectLineEndings);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AllowIncorrectLineEndingsSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AllowIncorrectLineEndingsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AllowIncorrectLineEndings: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.AllowIncorrectLineEndings = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.AllowIncorrectLineEndingsUpdateCount);
+        Assert.IsFalse(settings.AllowIncorrectLineEndings);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_AllowIncorrectLineEndingsMutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AllowIncorrectLineEndings: false),
+            AllowIncorrectLineEndingsUpdateResult = true,
+            GateAllowIncorrectLineEndingsMutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.AllowIncorrectLineEndings = true);
+        await store.AllowIncorrectLineEndingsMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.AllowIncorrectLineEndingsMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.IsTrue(store.UpdatedAllowIncorrectLineEndings);
+        Assert.IsTrue(settings.AllowIncorrectLineEndings);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AllowSmtpAuthPlainSetterPersistsTrueAndFalseBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -3658,6 +3750,14 @@ public sealed class SettingsComContractTests
 
         public bool AllowIncorrectLineEndingsUpdateResult { get; set; }
 
+        public bool GateAllowIncorrectLineEndingsMutation { get; set; }
+
+        public TaskCompletionSource<bool> AllowIncorrectLineEndingsMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> AllowIncorrectLineEndingsMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int AllowIncorrectLineEndingsUpdateCount { get; private set; }
 
         public bool UpdatedAllowIncorrectLineEndings { get; private set; }
@@ -4026,7 +4126,19 @@ public sealed class SettingsComContractTests
             AllowIncorrectLineEndingsUpdateCount++;
             UpdatedAllowIncorrectLineEndings = allowIncorrectLineEndings;
             CancellationToken = cancellationToken;
+            if (GateAllowIncorrectLineEndingsMutation)
+            {
+                AllowIncorrectLineEndingsMutationEntered.TrySetResult(true);
+                return WaitForAllowIncorrectLineEndingsMutationAsync();
+            }
+
             return ValueTask.FromResult(AllowIncorrectLineEndingsUpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForAllowIncorrectLineEndingsMutationAsync()
+        {
+            await AllowIncorrectLineEndingsMutationRelease.Task;
+            return AllowIncorrectLineEndingsUpdateResult;
         }
 
         public ValueTask<bool> UpdateAllowSmtpAuthPlainAsync(
