@@ -875,6 +875,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 return;
             }
 
+            using var authorizationLease = AcquireAuthorizationLease();
             if (!_settingsMutationStore
                 .UpdateWelcomePop3Async(value, CancellationToken.None)
                 .GetAwaiter()

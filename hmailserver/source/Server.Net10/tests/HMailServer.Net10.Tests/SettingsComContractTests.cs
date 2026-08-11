@@ -1550,6 +1550,95 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_WelcomePop3SetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            WelcomePop3UpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: "old POP3 greeting",
+                WelcomeImap: string.Empty),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.WelcomePOP3 = "new POP3 greeting";
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.WelcomePop3UpdateCount);
+        Assert.AreEqual("new POP3 greeting", settings.WelcomePOP3);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_WelcomePop3SetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            WelcomePop3UpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: "old POP3 greeting",
+                WelcomeImap: string.Empty),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.WelcomePOP3 = "new POP3 greeting");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.WelcomePop3UpdateCount);
+        Assert.AreEqual("old POP3 greeting", settings.WelcomePOP3);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_WelcomePop3MutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: "old POP3 greeting",
+                WelcomeImap: string.Empty),
+            WelcomePop3UpdateResult = true,
+            GateWelcomePop3Mutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.WelcomePOP3 = "new POP3 greeting");
+        await store.WelcomePop3MutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.WelcomePop3MutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual("new POP3 greeting", store.UpdatedWelcomePop3);
+        Assert.AreEqual("new POP3 greeting", settings.WelcomePOP3);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_WelcomeSmtpSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -3148,6 +3237,14 @@ public sealed class SettingsComContractTests
 
         public bool WelcomePop3UpdateResult { get; set; }
 
+        public bool GateWelcomePop3Mutation { get; set; }
+
+        public TaskCompletionSource<bool> WelcomePop3MutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> WelcomePop3MutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int WelcomePop3UpdateCount { get; private set; }
 
         public string? UpdatedWelcomePop3 { get; private set; }
@@ -3392,7 +3489,19 @@ public sealed class SettingsComContractTests
             WelcomePop3UpdateCount++;
             UpdatedWelcomePop3 = welcomePop3;
             CancellationToken = cancellationToken;
+            if (GateWelcomePop3Mutation)
+            {
+                WelcomePop3MutationEntered.TrySetResult(true);
+                return WaitForWelcomePop3MutationAsync();
+            }
+
             return ValueTask.FromResult(WelcomePop3UpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForWelcomePop3MutationAsync()
+        {
+            await WelcomePop3MutationRelease.Task;
+            return WelcomePop3UpdateResult;
         }
 
         public ValueTask<bool> UpdateWelcomeSmtpAsync(
