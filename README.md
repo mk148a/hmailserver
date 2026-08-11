@@ -1,6 +1,31 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, SMTPMinutesBetweenTry authorization lease)
+
+Code/test commit `06af4facd` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.SMTPMinutesBetweenTry`
+(`DispId(20)`). The lease is acquired immediately before the existing
+parameterized `smtpminutesbetweenretries` SQL update and held through mutation
+result handling and retained snapshot publication. No retry scheduling,
+delivery behavior, live reconfiguration, or COM identity changed.
+
+Legacy anchors are `InterfaceSettings::get/put_SMTPMinutesBetweenTry`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:500-533`),
+`SMTPConfiguration::Set/GetMinutesBetweenTry`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:101-110`), the installed
+IDL property (`hmailserver/source/Server/hMailServer/hMailServer.idl:543-544`),
+the `smtpminutesbetweenretries` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:744`),
+and the .NET `UpdateSmtpMinutesBetweenTrySql` path. Focused tests cover lease
+acquire/dispose and unavailable-lease denial before mutation.
+
+Focused settings/store coverage is `98/98`; full Net10 is `2081 passed, 39
+skipped, 0 failed`. Disposable SQL/Data restore, non-DB restore/reinitialization,
+SQL/FTS, matched C++/.NET protocol load, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, and remaining
+unleased COM/Admin mutations keep release **RED**. Next slice is a fresh
+legacy-first audit of `SMTPRelayer`.
+
 ## Current parity continuation (2026-08-11, SMTPNoOfTries authorization lease)
 
 Code/test commit `0bf71cd8f` extends the existing generation-bound

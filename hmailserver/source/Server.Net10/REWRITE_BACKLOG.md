@@ -2,6 +2,30 @@
 
 
 
+
+## Current Audit Note (2026-08-11, SMTP MINUTES BETWEEN TRY AUTHORIZATION LEASE)
+
+Code/test commit `06af4facd` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.SMTPMinutesBetweenTry`
+(`DispId(20)`). The lease is acquired immediately before the existing
+parameterized `smtpminutesbetweenretries` SQL update and held through result
+handling and retained snapshot publication. Retry scheduling, delivery
+runtime, and live reconfiguration remain out of scope.
+
+Legacy behavior is anchored by `InterfaceSettings::get/put_SMTPMinutesBetweenTry`
+(`source/Server/COM/InterfaceSettings.cpp:500-533`),
+`SMTPConfiguration::Set/GetMinutesBetweenTry`
+(`source/Server/SMTP/SMTPConfiguration.cpp:101-110`), IDL `DispId(20)`
+(`source/Server/hMailServer/hMailServer.idl:543-544`), and the
+`smtpminutesbetweenretries` seed (`source/DBScripts/CreateTablesMSSQL.sql:744`).
+The .NET `UpdateSmtpMinutesBetweenTrySql` shape was not changed. Focused
+coverage is `98/98`; full Net10 is `2081 passed, 39 skipped, 0 failed`.
+
+Remaining unleased Settings/COM/Admin mutations and the disposable SQL/Data
+restore, non-DB restore, SQL/FTS, paired performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, and soak
+gates remain RED. Next slice: fresh legacy-first audit of `SMTPRelayer`.
+
 ## Current Audit Note (2026-08-11, SMTP NO OF TRIES AUTHORIZATION LEASE)
 
 Code/test commit `0bf71cd8f` extends the existing generation-bound

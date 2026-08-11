@@ -1,5 +1,30 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, SMTP MINUTES BETWEEN TRY AUTHORIZATION LEASE)
+
+Code/test commit `06af4facd` extends the existing generation-bound
+authorization lease to authenticated `Settings.SMTPMinutesBetweenTry`
+(`DispId(20)`). The lease spans the existing parameterized
+`smtpminutesbetweenretries` SQL mutation, result handling, and retained
+snapshot publication; unavailable leases fail closed with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_SMTPMinutesBetweenTry`
+(`source/Server/COM/InterfaceSettings.cpp:500-533`),
+`SMTPConfiguration::Set/GetMinutesBetweenTry`
+(`source/Server/SMTP/SMTPConfiguration.cpp:101-110`), IDL `DispId(20)`
+(`source/Server/hMailServer/hMailServer.idl:543-544`), and the
+`smtpminutesbetweenretries` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:744`).
+Focused settings/store coverage is `98/98`; full Net10 is `2081 passed, 39
+skipped, 0 failed`. Retry scheduling, delivery runtime, live reconfiguration,
+installed COM identity, direct activation denial, and authenticated Settings
+access remain unchanged.
+
+Release remains RED for disposable SQL/Data restore, non-DB restore,
+SQL/FTS, paired C++/.NET performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, and remaining
+unleased COM/Admin mutations. Next slice: fresh legacy-first audit of
+`SMTPRelayer`. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, SMTP NO OF TRIES AUTHORIZATION LEASE)
 
 Code/test commit `0bf71cd8f` extends the existing generation-bound
