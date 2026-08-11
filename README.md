@@ -1,6 +1,39 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, SMTPRelayerUsername mutation)
+
+Code/test commit `8e3e5cf16` implements only the authenticated
+`IInterfaceSettings.SMTPRelayerUsername` setter (`DispId(35)`, `BSTR`). It
+preserves the installed COM identity and direct activation denial, rechecks
+the existing server-administrator boundary, updates only the existing
+`hm_settings.smtprelayerusername` row through a parameterized `nvarchar(4000)`
+command, and publishes the retained snapshot only after one-row success. The
+legacy username value is written unchanged; no validation or encryption was
+added, matching the legacy path where only the relayer password is encrypted.
+
+Direct activation getter/setter denial, authorized BSTR write, failed-write
+retention, administrator revocation, one-row enforcement, and exact SQL
+command shape are covered. Focused settings/store coverage is `76/76`; full
+Net10 is `2059 passed, 39 skipped, 0 failed`. Relayer password storage,
+fixed-relay routing, configuration notifications, and live reconfiguration
+remain unchanged and were deliberately left out of this persistence slice.
+
+Legacy anchors are `IInterfaceSettings.SMTPRelayerUsername`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::put_SMTPRelayerUsername`,
+`SMTPConfiguration::SetSMTPRelayerUsername`, the generic
+`PropertySet::SetString`/`Property::WriteStringSetting_` path,
+`ServerTargetResolver::GetFixedSMTPHostForDomain_`, and the
+`smtprelayerusername` SQL seed
+(`hmailserver/source/DBScripts/CreateTablesMSSQL.sql`).
+
+Release remains RED: disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched legacy/.NET protocol load, SEC-18 cutover,
+installer/out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain
+unproven. Next slice is a fresh legacy-first audit of one remaining low-risk
+Settings mutation.
+
 ## Current parity continuation (2026-08-11, SMTPRelayerPort mutation)
 
 Code/test commit `0707fda27` implements only the authenticated

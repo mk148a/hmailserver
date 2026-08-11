@@ -2505,6 +2505,41 @@ out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
 environment-blocked. Next slice: fresh legacy-first audit of one remaining
 low-risk Settings mutation.
 
+## Current Audit Note (2026-08-11, SMTP RELAYER USERNAME ADMIN MUTATION)
+
+Code/test commit `8e3e5cf16` implements the authenticated
+`IInterfaceSettings.SMTPRelayerUsername` setter (`DispId(35)`, `BSTR`) only.
+The .NET path updates the existing `hm_settings.smtprelayerusername` row
+through a parameterized `nvarchar(4000)` command, requires exactly one
+affected row, rechecks the existing server-administrator boundary, and
+publishes the retained snapshot only after success. The legacy username value
+is written unchanged; no validation or encryption is added, matching the
+legacy path where only `smtprelayerpassword` is encrypted. Direct activation
+denial, authorized BSTR write, failed-write retention, administrator
+revocation, one-row enforcement, and exact SQL shape are covered. Focused
+settings/store coverage is `76/76`; full Net10 is `2059 passed, 39 skipped,
+0 failed`.
+
+Legacy anchors are `IInterfaceSettings.SMTPRelayerUsername`
+(`source/Server/hMailServer/hMailServer.idl`),
+`InterfaceSettings::get_SMTPRelayerUsername` and
+`InterfaceSettings::put_SMTPRelayerUsername`
+(`source/Server/COM/InterfaceSettings.cpp`),
+`SMTPConfiguration::Get/SetSMTPRelayerUsername`
+(`source/Server/SMTP/SMTPConfiguration.cpp`), generic
+`PropertySet::SetString` and `Property::WriteStringSetting_`,
+`ServerTargetResolver::GetFixedSMTPHostForDomain_`, and the
+`smtprelayerusername` seed (`source/DBScripts/CreateTablesMSSQL.sql`).
+Relayer password storage, fixed-relay routing, configuration notifications,
+and live reconfiguration were deliberately not changed; this is COM
+persistence parity only.
+
+Real SQL/Data rollback, non-DB settings restore/reinitialization, SQL/FTS,
+paired legacy/.NET protocol performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, and 24-hour soak remain RED or
+environment-blocked. Next slice: fresh legacy-first audit of one remaining
+low-risk Settings mutation.
+
 ## Current Audit Note (2026-08-11, SMTP RELAYER PORT ADMIN MUTATION)
 
 Code/test commit `0707fda27` implements the authenticated

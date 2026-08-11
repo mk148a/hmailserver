@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T00:02:23Z / 2026-08-11T03:02:23+03:00
+- UTC/local timestamp: 2026-08-11T00:16:51Z / 2026-08-11T03:16:51+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`
-- Current HEAD: `0707fda27`
+- Current HEAD: `8e3e5cf16`
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: settings COM/store tests 74 passed, 0 failed, 0 skipped
-- Latest full Net10 result: `2057 passed, 39 skipped, 0 failed`
+- Latest focused-test result: settings COM/store tests 76 passed, 0 failed, 0 skipped
+- Latest full Net10 result: `2059 passed, 39 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: raw graph acceptance passed previously; SQL/Data rollback, SQL/FTS, recipients/search/ACL, C++ listeners, SMTP/delivery, SEC-18, installer, out-of-process COM, AD/DC, and 24-hour soak remain skipped or blocked
-- Current bounded slice: authenticated `Settings.SMTPRelayerPort` (`DispId(37)`, `int`) persists only the fixed existing `hm_settings.smtprelayerport` row through a parameterized `SqlDbType.Int` update, rechecks the live administrator callback, and publishes the retained snapshot only after one-row success; fixed-relayer routing, value `0` fallback, change notifications, and reconfiguration remain unchanged
+- Current bounded slice: authenticated `Settings.SMTPRelayerUsername` (`DispId(35)`, `BSTR`) persists only the fixed existing `hm_settings.smtprelayerusername` row through a parameterized `nvarchar(4000)` update, rechecks the existing server-administrator boundary, and publishes the retained snapshot only after one-row success; relayer password, fixed-relay routing, change notifications, and reconfiguration remain unchanged
 - Completed milestones: raw backup staging, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, root and partial message failure coverage, settings restore parsing/store/execution, combined settings/domain DB-only restore; no release milestone complete
 - Open production blockers: real disposable SQL/Data restore evidence, non-DB settings restore and reinitialize, live SQL/FTS backfill, credential policy, ACL restore, C++ protocol parity, paired SMTP/message-acceptance/delivery evidence, SEC-18 cutover, migration/installer, service/out-of-process COM, AD/DC, performance/load, crash/power-loss, and 24-hour soak
 - Environment blocked work: healthy isolated C++ listener binary, SQL Server with Full-Text Search and supported legacy ADO provider, approved populated SQL/Data target, isolated IIS/COM cutover, migration VM, domain-controller credentials, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and backup WIP files, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) fresh legacy-first audit of the next low-risk Settings mutation after SMTPRelayerPort, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision
+- Next three independent slices: (1) fresh legacy-first audit of the next low-risk Settings mutation after SMTPRelayerUsername, (2) execute settings/message rollback against an approved disposable SQL/Data target, (3) non-DB combined settings restore containment/order decision
