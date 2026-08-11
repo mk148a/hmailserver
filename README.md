@@ -1,6 +1,39 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, Settings mutation authorization lease)
+
+Code/test commit `62f5ef553` closes the retained-COM authorization race for the
+bounded `SMTPRelayerUseSSL`/`SMTPRelayerConnectionSecurity` mutation path. The
+existing `ApplicationAuthorizationAuthority` generation and lease are now
+captured by `Application.Settings`, passed through
+`SettingsAdministrationRuntimeHost`, and held from immediately before the
+parameterized SQL mutation through snapshot publication. Reauthentication
+cannot invalidate the generation or acquire the authentication gate while this
+write is in flight; an unavailable lease fails with `E_ACCESSDENIED`.
+
+Legacy behavior was verified at
+`InterfaceApplication::get_Settings`, `InterfaceSettings::LoadSettings`, and
+`InterfaceSettings::put_SMTPRelayerUseSSL`: legacy retained scalar Settings
+objects use acquisition-time `config_` authorization, while the .NET rewrite
+keeps its stricter live mutation check and now makes the SQL write atomic with
+that authorization generation. COM identity, `DispId(71)`/`DispId(91)`,
+VARIANT_BOOL mapping, direct activation denial, and SMTP runtime behavior are
+unchanged.
+
+Focused settings/store coverage is `84/84`; full Net10 is `2067 passed, 39
+skipped, 0 failed`. The revoke-race test blocks authentication until the
+mutation releases its lease, then confirms the retained proxy cannot mutate
+under the old generation. Other Settings mutation paths still need the same
+lease treatment before security sign-off.
+
+Release remains RED for disposable SQL/Data rollback, non-DB restore and
+reinitialization, SQL/FTS, matched C++/.NET protocol load, SEC-18 cutover,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: extend the
+authorization lease to the next smallest already-implemented Settings
+mutation family.
+
 ## Current parity continuation (2026-08-11, SMTPRelayerUseSSL mutation)
 
 Code/test commit `90ecdaa5a` implements only the authenticated

@@ -1,4 +1,32 @@
 
+## Current Audit Note (2026-08-11, SETTINGS MUTATION AUTHORIZATION LEASE)
+
+Code/test commit `62f5ef553` closes the retained-COM authorization race for
+the bounded `SMTPRelayerUseSSL`/`SMTPRelayerConnectionSecurity` mutation
+path. `Application.Settings` captures the authorization generation and passes
+the existing `ApplicationAuthorizationAuthority.AcquireLeaseAsync` through
+`SettingsAdministrationRuntimeHost` into `Settings`. The lease spans the
+parameterized `hm_settings.smtprelayerconnectionsecurity` update and retained
+snapshot publication; unavailable leases fail closed with `E_ACCESSDENIED`.
+
+Legacy behavior is anchored by `InterfaceApplication::get_Settings`,
+`InterfaceSettings::LoadSettings`, and
+`InterfaceSettings::put_SMTPRelayerUseSSL` (`source/Server/COM`), where
+retained scalar Settings use acquisition-time `config_` authorization. The
+.NET path keeps its stricter live mutation check and now serializes the write
+with the authorization generation. Installed COM identity, `DispId(71)` and
+`DispId(91)`, direct activation denial, SMTP runtime behavior, and legacy
+boolean mapping remain unchanged.
+
+Focused coverage is `84/84`; full Net10 is `2067 passed, 39 skipped, 0
+failed`. The revoke-race test proves reauthentication waits for the mutation
+lease and the old retained proxy cannot mutate after invalidation. Other
+Settings mutation paths still need lease coverage. Release gates remain RED
+for disposable SQL/Data restore, matched C++/.NET load, SEC-18, installer/
+out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, and remaining
+unleased COM/Admin mutations. Next slice: extend the lease to the next
+smallest existing Settings mutation family.
+
 ## Current Audit Note (2026-08-11, SMTP RELAYER USE SSL ADMIN MUTATION)
 
 Code/test commit `90ecdaa5a` closes the authenticated

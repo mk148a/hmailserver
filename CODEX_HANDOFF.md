@@ -1,5 +1,36 @@
 # CODEX_HANDOFF.md
 
+# Current Authoritative Continuation (2026-08-11, SETTINGS MUTATION AUTHORIZATION LEASE)
+
+Code/test commit `62f5ef553` closes the retained-COM authorization race for the
+bounded `Settings.SMTPRelayerUseSSL`/`SMTPRelayerConnectionSecurity` mutation
+path. `Application.Settings` captures the current authorization generation and
+passes the existing `ApplicationAuthorizationAuthority.AcquireLeaseAsync`
+through `SettingsAdministrationRuntimeHost` into `Settings`. The lease is held
+from immediately before the parameterized SQL update through retained snapshot
+publication; an unavailable lease fails with `E_ACCESSDENIED`.
+
+Legacy anchors inspected: `InterfaceApplication::get_Settings`,
+`InterfaceSettings::LoadSettings`, and
+`InterfaceSettings::put_SMTPRelayerUseSSL` in
+`source/Server/COM/InterfaceApplication.cpp` and
+`source/Server/COM/InterfaceSettings.cpp`. Legacy retained scalar Settings
+objects use acquisition-time `config_` authorization. The .NET rewrite retains
+its stricter live mutation check, now serialized with the authorization
+generation. Installed COM identity, `DispId(71)`/`DispId(91)`, VARIANT_BOOL
+mapping, direct activation denial, and SMTP runtime behavior remain unchanged.
+
+Focused settings/store coverage is `84/84`; full Net10 is `2067 passed, 39
+skipped, 0 failed`. The race test proves reauthentication waits for the write
+lease and the old retained proxy cannot mutate after generation invalidation.
+Other Settings mutation paths still need the same lease treatment.
+
+Release remains RED for disposable SQL/Data rollback, non-DB restore/
+reinitialization, SQL/FTS, matched C++/.NET protocol performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: extend the lease
+to the next smallest existing Settings mutation. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, SMTP RELAYER USE SSL MUTATION)
 
 Code/test commit `90ecdaa5a` implements only authenticated
