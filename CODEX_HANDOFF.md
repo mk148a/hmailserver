@@ -1,5 +1,40 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, MAX SMTP RECIPIENTS IN BATCH AUTHORIZATION LEASE)
+
+Code/test commit `77ea84fb9` extends the existing generation-bound
+authorization lease to authenticated
+`Settings.MaxSMTPRecipientsInBatch` (`DispId(62)`). The lease spans the
+existing parameterized `maxsmtprecipientsinbatch` SQL mutation, result
+handling, and retained snapshot publication; unavailable leases fail closed
+with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_MaxSMTPRecipientsInBatch`
+(`source/Server/COM/InterfaceSettings.cpp:1627-1659`),
+`SMTPConfiguration::Get/SetMaxSMTPRecipientsInBatch`
+(`source/Server/SMTP/SMTPConfiguration.cpp:211-220`),
+`PROPERTY_MAXSMTPRECIPIENTSINBATCH`
+(`source/Server/Common/Application/Constants.h:74`), the installed Settings
+IID and `DispId(62)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,606-607`), and the
+`maxsmtprecipientsinbatch` MSSQL seed
+(`source/DBScripts/CreateTablesMSSQL.sql:862`). Focused settings/store
+coverage is `128/128`; full unfiltered Net10 is `2111 passed, 39 skipped,
+0 failed`.
+
+Focused tests cover lease acquire/dispose, unavailable-lease denial before
+mutation, and reauthentication blocking during an in-flight mutation. Legacy
+delivery batching and its `0`-means-unlimited behavior remain unrepresented
+in Net10; absent-row default `0` versus legacy install default `100` is also
+open. Installed COM identity, direct activation denial, and authenticated
+Settings access remain unchanged.
+
+Release remains RED for disposable SQL/Data restore, non-DB restore,
+SQL/FTS, paired C++/.NET performance, protocol/delivery parity, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: fresh
+legacy-first audit of `Settings.DisconnectInvalidClients`. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, ALLOW INCORRECT LINE ENDINGS AUTHORIZATION LEASE)
 
 Code/test commit `b6085a478` extends the existing generation-bound

@@ -1,6 +1,42 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, MaxSMTPRecipientsInBatch authorization lease)
+
+Code/test commit `77ea84fb9` extends the existing generation-bound
+authorization lease to authenticated
+`IInterfaceSettings.MaxSMTPRecipientsInBatch` (`DispId(62)`). The lease is
+acquired immediately before the existing parameterized
+`maxsmtprecipientsinbatch` SQL update and held through mutation result
+handling and retained snapshot publication. No integer COM shape, delivery
+batching behavior, or COM identity changed.
+
+Legacy anchors are `InterfaceSettings::get/put_MaxSMTPRecipientsInBatch`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1627-1659`),
+`SMTPConfiguration::Get/SetMaxSMTPRecipientsInBatch`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:211-220`),
+`PROPERTY_MAXSMTPRECIPIENTSINBATCH`
+(`hmailserver/source/Server/Common/Application/Constants.h:74`), the
+installed Settings IID and `DispId(62)`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:520-528,606-607`),
+and the `maxsmtprecipientsinbatch` seed
+(`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:862`). Focused tests
+cover lease acquire/dispose, unavailable-lease denial before mutation, and
+reauthentication blocking during an in-flight mutation.
+
+Focused settings/store coverage is `128/128`. Full unfiltered Net10 is
+`2111 passed, 39 skipped, 0 failed`. Legacy `ExternalDelivery::Run` applies
+the value and maps `0` to unlimited
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:67-89`); no equivalent
+Net10 delivery batching consumer was found. Net10 also falls back to `0`
+when the row is absent while the installed legacy default is `100`. These
+are separate parity blockers. Disposable SQL/Data restore, non-DB
+restore/reinitialization, SQL/FTS, matched C++/.NET protocol load, protocol
+greeting runtime parity, SEC-18, migration/installer, out-of-process COM,
+AD/DC, crash/power-loss, 24-hour soak, and remaining unleased COM/Admin
+mutations keep release **RED**. Next slice is a fresh legacy-first audit of
+`Settings.DisconnectInvalidClients`.
+
 ## Current parity continuation (2026-08-11, AllowIncorrectLineEndings authorization lease)
 
 Code/test commit `b6085a478` extends the existing generation-bound
