@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, WELCOMESMTP CRLF HARDENING)
+
+Code/test commit `a414c88db` adds a bounded security hardening slice for the
+legacy `WelcomeSMTP` BSTR/DISPID 23 path. Legacy
+`InterfaceSettings::put_WelcomeSMTP` and `SMTPConfiguration::SetWelcomeMessage`
+accept the value unchanged (`source/Server/COM/InterfaceSettings.cpp:696-710`,
+`source/Server/SMTP/SMTPConfiguration.cpp:120-123`), and
+`SMTPConnection::SendBanner_` frames it directly
+(`source/Server/SMTP/SMTPConnection.cpp:167-185`). Net10 now rejects CR/LF
+before SQL/publication with `E_INVALIDARG` while retaining valid legacy
+formatting; `SmtpSession.GetGreeting` also fails safe for unsafe pre-existing
+rows. Installed COM identity, direct activation, and SMTP trust boundaries are
+unchanged.
+
+Focused coverage is `136 passed, 0 failed`; full default Net10 is `2123
+passed, 39 skipped, 0 failed`; fresh disposable MSSQL/Data opt-in is `2160
+passed, 2 skipped, 0 failed`. The legacy C++ setter remains raw by design;
+the .NET10 rejection is an intentional security divergence requiring
+release-policy acceptance. Performance remains **RED** because the C++ and
+Net10 live SMTP/IMAP/POP3 workload pair is incomplete. Next slice: repair or
+replace the isolated protocol target, then rerun the identical SQL/Data/message
+and loopback matrix. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, BOOTSTRAP SMTP GREETING)
 
 Code/test commit `7a7e4b77b` completes one legacy-first parity slice. Legacy

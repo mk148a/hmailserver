@@ -1,3 +1,24 @@
+## Current parity continuation (2026-08-11, WelcomeSMTP CR/LF hardening)
+
+Code/test commit `a414c88db` rejects CR/LF in authenticated `WelcomeSMTP`
+setters with `E_INVALIDARG` before SQL mutation/publication and provides a safe
+fallback for pre-existing unsafe persisted values at `SmtpSession.GetGreeting`.
+Valid legacy empty/custom/`ESMTP`-suffixed formatting is unchanged. Legacy
+anchors are `InterfaceSettings::put_WelcomeSMTP`
+(`source/Server/COM/InterfaceSettings.cpp:696-710`),
+`SMTPConfiguration::SetWelcomeMessage`
+(`source/Server/SMTP/SMTPConfiguration.cpp:120-123`), and
+`SMTPConnection::SendBanner_` (`source/Server/SMTP/SMTPConnection.cpp:167-185`).
+The installed BSTR/DISPID 23 contract and activation boundaries are unchanged.
+
+Focused coverage is `136 passed`; full default Net10 is `2123 passed, 39
+skipped, 0 failed`; fresh disposable opt-in is `2160 passed, 2 skipped, 0
+failed`. Legacy C++ still accepts raw multiline values; the .NET10 rejection
+is an intentional security divergence requiring release-policy acceptance.
+Performance remains **RED** until the identical C++/.NET10 live
+protocol workload completes. Next slice: repair or replace the isolated C++
+protocol target and rerun the loopback matrix.
+
 ## Current parity continuation (2026-08-11, bootstrap SMTP greeting)
 
 Code/test commit `7a7e4b77b` loads the configured settings snapshot during

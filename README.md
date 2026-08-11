@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, WelcomeSMTP CR/LF hardening)
+
+Commit `a414c88db` rejects CR/LF in authenticated `WelcomeSMTP` setters with
+`E_INVALIDARG` before SQL mutation or runtime publication, while preserving
+legacy formatting for valid values. Legacy anchors are
+`InterfaceSettings::put_WelcomeSMTP`, `SMTPConfiguration::SetWelcomeMessage`,
+`SMTPConnection::SendBanner_`, and `EnqueueWrite_`
+(`source/Server/COM/InterfaceSettings.cpp:696-710`,
+`source/Server/SMTP/SMTPConfiguration.cpp:120-123`,
+`source/Server/SMTP/SMTPConnection.cpp:167-185,1548-1561`). The installed
+BSTR/DISPID 23 contract is unchanged.
+
+Focused coverage is `136 passed`; full default Net10 is `2123 passed, 39
+skipped, 0 failed`; fresh disposable opt-in is `2160 passed, 2 skipped, 0
+failed`. Legacy C++ still accepts raw multiline values; the .NET10 rejection
+is an intentional security divergence requiring release-policy acceptance.
+The paired C++/.NET10 performance gate remains **RED** because the
+live protocol matrix is incomplete and no performance ratio is valid.
+
+Next slice: repair or replace the isolated C++ protocol target, then rerun the
+identical SQL/Data/message and SMTP/IMAP/POP3 loopback workload.
+
 ## Current parity continuation (2026-08-11, bootstrap SMTP greeting)
 
 Commit `7a7e4b77b` makes Net10 publish persisted `WelcomeSMTP` during settings
