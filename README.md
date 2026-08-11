@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current authoritative normal-MX CNAME status (2026-08-12)
+
+Code/test commit `bf6018662` closes the bounded legacy no-MX CNAME target
+planning gap. Legacy `DNSResolver::GetEmailServersRecursive_`
+(`source/Server/Common/TCPIP/DNSResolver.cpp:208-260`) queries CNAME only
+when MX is empty, follows exactly one usable target recursively, and otherwise
+uses implicit A/AAAA addresses for the original domain. Net10 now performs the
+same bounded raw DNS CNAME lookup, preserves the resolved target as the SMTP
+Host/TLS name when it is the implicit target, falls back for zero or multiple
+CNAME records, and fails closed on cycles or excessive recursion.
+
+Focused CNAME/MX/parser coverage is `42/42`; full Net10 is `2193 passed, 54
+skipped, 0 failed`. This proves parser/fake-resolver parity only. Live
+CNAME-to-MX/A/AAAA/socket/TLS acceptance remains unproven, the shared outbound
+egress/SSRF policy remains open, and the paired C++/.NET performance release
+gate remains **RED**.
+
 ## Current authoritative normal-MX address status (2026-08-12)
 
 Code/test commit `1ffc564cb` extends ordinary remote delivery from MX hostname

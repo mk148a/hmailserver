@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-12T00:42:18Z / 2026-08-12T03:42:18+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; normal-MX parity push verified; status record update pending
-- Current HEAD: `95872ecef` (normal-MX address code/test and documentation; verified pushed baseline)
-- Last successfully pushed commit: `95872ecef`
-- Latest focused-test result: normal-MX address order/dedup/cap, implicit A/AAAA fallback, literal MX IP, null MX, failure, TLS/SNI, global relayer, SMTP failover, and SQL shape `52 passed, 0 failed`
-- Latest full Net10 result: `2184 passed, 54 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; real SQL/DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore/rollback, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
-- Current bounded slice: legacy normal-MX address planning; implementation is complete and documentation commit is pending; paired performance gate remains RED
-- Completed milestones: backup foundations, restore foundations, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, and null-MX rejection
-- Open production blockers: paired C++/.NET performance RED; real SQL/DNS/CNAME/socket/TLS/authentication and certificate/revocation acceptance; CNAME target-name preservation; per-recipient queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
-- Environment-blocked work: disposable SQL/DNS/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore/rollback and installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
+- UTC/local timestamp: 2026-08-12T01:30:00Z / 2026-08-12T04:30:00+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; code/test commit is ready and docs push is pending
+- Current HEAD: `bf6018662` (bounded normal-MX no-MX CNAME code/test baseline)
+- Last successfully pushed commit: `bfb3e14b7`
+- Latest focused-test result: CNAME/MX resolver and DNS parser coverage `42 passed, 0 failed, 0 skipped`
+- Latest full Net10 result: `2193 passed, 54 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; real SQL/DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
+- Current bounded slice: legacy normal-domain no-MX CNAME target planning; code/test is committed in `bf6018662`, docs commit is pending, paired performance gate remains RED
+- Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, and no-MX CNAME planning
+- Open production blockers: paired C++/.NET performance RED; live DNS/socket/TLS/SNI and certificate/revocation acceptance; shared outbound egress/SSRF and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Environment-blocked work: disposable SQL/DNS/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: approved disposable SQL/DNS/socket/TLS delivery acceptance; registry-isolated or separate-VM C++ benchmark runner; real CNAME/normal-MX acceptance and TLS/SNI evidence
+- Next three independent slices: approved disposable real DNS/socket/TLS CNAME acceptance; shared outbound egress/SSRF hardening; registry-isolated or separate-VM C++ listener/benchmark execution

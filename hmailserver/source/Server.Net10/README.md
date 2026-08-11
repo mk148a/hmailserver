@@ -2179,3 +2179,29 @@ Focused coverage is `46/46`; full Net10 is `2177 passed, 54 skipped, 0 failed`.
 Normal-MX address expansion, implicit-MX fallback, real DNS/socket acceptance,
 and C++/.NET paired performance remain open. Forced routes and COM identity
 remain unchanged; release status remains RED.
+
+## Current authoritative continuation (2026-08-12, normal-MX CNAME parity)
+
+Code/test commit `bf6018662` implements the bounded legacy no-MX CNAME
+behavior. The legacy reference is
+`DNSResolver::GetEmailServersRecursive_`
+(`hmailserver/source/Server/Common/TCPIP/DNSResolver.cpp:208-260`): when MX
+is empty it queries `DNS_TYPE_CNAME`, follows one target recursively, and uses
+implicit A/AAAA records for the original name when there is no single CNAME.
+Net10 adds `IDnsCnameResolver`/`DnsCnameRecord`, raw CNAME parsing in
+`SystemDnsMxResolver`, bounded cycle/depth handling in
+`RemoteSmtpEndpointResolver`, and preserves the canonical target as the
+implicit SMTP Host/TLS name while `ConnectionAddress` carries the resolved IP.
+
+Focused resolver/parser coverage is `42/42`; full Net10 is `2193 passed, 54
+skipped, 0 failed`. Tests cover one CNAME, zero/multiple CNAME fallback,
+CNAME lookup failure fallback, cycles, parser TTL/target preservation, and
+implicit target address resolution. Real DNS/socket/TLS/SNI evidence remains
+environment-blocked. The security review also leaves the shared outbound
+egress/SSRF policy, DNS response validation, and aggregate DNS deadline open.
+No COM identity, SQL schema, SMTP trust, route behavior, or live
+reconfiguration changed. Release remains RED.
+
+Next independent work: approved disposable real DNS/socket/TLS acceptance;
+shared outbound egress/SSRF policy hardening; registry-isolated or separate-VM
+C++ listener execution; and the restore protocol drain/reinitialize contract.

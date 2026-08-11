@@ -4247,3 +4247,28 @@ SQL/DNS/socket/TLS acceptance, registry-isolated C++ execution, and release
 gates. Next slices, in order: approved disposable SQL/DNS/socket/TLS delivery;
 registry-isolated or separate-VM C++ benchmark execution; normal-MX address
 planning. Release remains **RED**.
+
+## Current authoritative next slice (2026-08-12, normal-MX CNAME parity)
+
+Code/test commit `bf6018662` closes the bounded normal-domain no-MX CNAME
+planning gap. Legacy `DNSResolver::GetEmailServersRecursive_`
+(`hmailserver/source/Server/Common/TCPIP/DNSResolver.cpp:208-260`) performs
+MX lookup first, queries `DNS_TYPE_CNAME` only when MX is empty, follows one
+usable CNAME target recursively, and otherwise uses implicit A/AAAA records
+for the original domain. Net10 now has a raw CNAME query/parser, a dedicated
+`IDnsCnameResolver` contract, target-name/TLS preservation for implicit
+delivery, zero/multiple-CNAME fallback, and cycle/depth fail-closed handling.
+
+Focused resolver/parser coverage is `42/42`; full Net10 is `2193 passed, 54
+skipped, 0 failed`. The slice does not provide live DNS, socket, TLS,
+certificate/revocation, SQL, C++ runtime, or performance evidence. The shared
+outbound egress/SSRF policy, DNS response authentication/validation, and
+aggregate DNS query deadline are also open security work. Existing MX address
+planning, null-MX rejection, global-relayer behavior, COM identity, SMTP
+trust, and route behavior remain unchanged. Release remains **RED**.
+
+Next production-gate slices, in order: approved disposable real DNS/socket/TLS
+CNAME acceptance; shared outbound egress/SSRF hardening; registry-isolated or
+separate-VM C++ listener/benchmark execution; and a separately designed
+restore protocol drain/reinitialize lifecycle slice. Do not restart the
+completed CNAME slice.

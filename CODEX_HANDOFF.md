@@ -4314,3 +4314,40 @@ then approved SQL Server FTS provisioning and a normal legacy C++ listener
 target, followed by paired SMTP acceptance/delivery/load scenarios. No
 production service, database, Data directory, COM registration, DCOM ACL, IIS,
 or firewall state changed.
+
+## Current Authoritative Continuation (2026-08-12, NORMAL-MX CNAME)
+
+Code/test commit `bf6018662` completes one bounded normal-domain no-MX CNAME
+parity slice. `hmail_parity_explorer` inspected legacy
+`DNSResolver::GetEmailServersRecursive_` in
+`hmailserver/source/Server/Common/TCPIP/DNSResolver.cpp:208-260`, plus
+`BackupExecuter::StartRestore`, `RestoreDataDirectory_`,
+`BackupManager::StartRestore`, `BackupTask::DoWork`, and
+`Reinitializator::ReInitialize`; the restore journal/crash-evidence slice is
+already implemented and was not restarted. Legacy DNS behavior is MX first,
+single-CNAME recursion only when MX is empty, then implicit A/AAAA for the
+original name.
+
+The code adds `IDnsCnameResolver.cs`, `DnsCnameRecord.cs`, raw CNAME query and
+parser support in `SystemDnsMxResolver.cs`, and bounded CNAME target selection
+in `RemoteSmtpEndpointResolver.cs`. Focused tests in
+`RemoteSmtpEndpointResolverTests.cs` and `SystemDnsMxResolverTests.cs` pass
+`42/42`; full Net10 passes `2193/54/0` (passed/skipped/failed), and
+`git diff --check` passes. Coverage includes one target, zero/multiple target
+fallback, lookup failure fallback, implicit target address/SNI preservation,
+parser TTL/target readback, and cycle fail-closed behavior.
+
+The security/reality review is YELLOW for this bounded code slice and RED for
+release. The shared outbound egress/SSRF policy, DNS response source/question
+validation, and aggregate DNS deadline remain open findings. Live CNAME to
+MX/A/AAAA/socket/TLS acceptance, reproducible C++ listeners, paired
+performance, restore lifecycle reinitialization, migration/installer,
+SEC-18, AD/DC, and 24-hour soak also remain open. Do not claim a C++/.NET
+speed ratio or production readiness.
+
+Next independent slices: (1) approved disposable real DNS/socket/TLS CNAME
+acceptance, (2) shared outbound egress/SSRF hardening, (3) registry-isolated
+or separate-VM C++ listener/benchmark execution, and (4) a separately
+designed restore protocol drain/reinitialize lifecycle contract. Preserve
+dirty `AGENTS.md`, existing backup/Smtp WIP, and all untracked
+SEC-18/benchmark/disposable artifacts.
