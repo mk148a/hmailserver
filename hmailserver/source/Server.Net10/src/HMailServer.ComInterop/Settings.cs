@@ -425,6 +425,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
+    private const int EInvalidArg = unchecked((int)0x80070057);
     private const int TlsVersion10Flag = 2;
     private const int TlsVersion11Flag = 4;
     private const int TlsVersion12Flag = 8;
@@ -827,16 +828,22 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         {
             EnsureAuthorized();
             EnsureServerAdministrator();
+            if (value?.Contains('\r') == true || value?.Contains('\n') == true)
+            {
+                throw new COMException(
+                    "The SMTP welcome message cannot contain carriage returns or line feeds.",
+                    EInvalidArg);
+            }
 
             if (_settingsMutationStore is null)
             {
-                base.WelcomeSMTP = value;
+                base.WelcomeSMTP = value!;
                 return;
             }
 
             using var authorizationLease = AcquireAuthorizationLease();
             if (!_settingsMutationStore
-                .UpdateWelcomeSmtpAsync(value, CancellationToken.None)
+                .UpdateWelcomeSmtpAsync(value!, CancellationToken.None)
                 .GetAwaiter()
                 .GetResult())
             {
@@ -849,11 +856,11 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
             {
                 _administrationSnapshot = _administrationSnapshot with
                 {
-                    WelcomeSmtp = value
+                    WelcomeSmtp = value!
                 };
             }
 
-            SettingsAdministrationRuntimeHost.PublishSmtpGreeting(value);
+            SettingsAdministrationRuntimeHost.PublishSmtpGreeting(value!);
         }
     }
 

@@ -51,6 +51,47 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_UsesSafeServerNameGreetingForPersistedWelcomeWithLineBreak()
+    {
+        foreach (var unsafeWelcome in new[]
+        {
+            "malicious welcome\r250 injected",
+            "malicious welcome\n250 injected"
+        })
+        {
+            await using var stream = new DuplexMemoryStream("QUIT\r\n");
+            var session = new SmtpSession(new SmtpSessionOptions
+            {
+                ServerName = "mx.example.test",
+                GreetingProvider = () => unsafeWelcome
+            });
+
+            await session.RunAsync(stream, CancellationToken.None);
+
+            Assert.AreEqual(
+                "220 mx.example.test ESMTP\r\n221 mx.example.test closing connection\r\n",
+                stream.GetOutputText());
+        }
+    }
+
+    [TestMethod]
+    public async Task RunAsync_UsesSafeServerNameGreetingForUnsafeOptionsGreeting()
+    {
+        await using var stream = new DuplexMemoryStream("QUIT\r\n");
+        var session = new SmtpSession(new SmtpSessionOptions
+        {
+            ServerName = "mx.example.test",
+            Greeting = "220 legit\r\n250 injected\r\n"
+        });
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        Assert.AreEqual(
+            "220 mx.example.test ESMTP\r\n221 mx.example.test closing connection\r\n",
+            stream.GetOutputText());
+    }
+
+    [TestMethod]
     public async Task RunAsync_HandlesHelo()
     {
         await using var stream = new DuplexMemoryStream("HELO client.example\r\nQUIT\r\n");

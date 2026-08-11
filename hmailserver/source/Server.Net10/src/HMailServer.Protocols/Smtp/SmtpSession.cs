@@ -163,13 +163,33 @@ public sealed class SmtpSession
         var welcome = _options.GreetingProvider?.Invoke();
         if (welcome is null)
         {
-            return _options.Greeting;
+            return IsSingleLineGreeting(_options.Greeting)
+                ? _options.Greeting
+                : $"220 {_options.ServerName} ESMTP\r\n";
+        }
+
+        if (welcome.Contains('\r') || welcome.Contains('\n'))
+        {
+            welcome = string.Empty;
         }
 
         var banner = string.IsNullOrEmpty(welcome)
             ? $"220 {_options.ServerName} ESMTP"
             : $"220 {welcome}{(welcome.EndsWith(" ESMTP", StringComparison.Ordinal) ? string.Empty : " ESMTP")}";
         return banner + "\r\n";
+    }
+
+    private static bool IsSingleLineGreeting(string greeting)
+    {
+        var terminatorIndex = greeting.IndexOf("\r\n", StringComparison.Ordinal);
+        if (terminatorIndex < 0)
+        {
+            return !greeting.Contains('\r') && !greeting.Contains('\n');
+        }
+
+        return terminatorIndex == greeting.Length - 2 &&
+               greeting.IndexOf('\r', terminatorIndex + 2) < 0 &&
+               greeting.IndexOf('\n', terminatorIndex + 2) < 0;
     }
 
     private LineProtocolReader CreateReader(Stream stream) =>

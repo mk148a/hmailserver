@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class SettingsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EInvalidArg = unchecked((int)0x80070057);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     [TestMethod]
@@ -1696,6 +1697,39 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(2, store.WelcomeSmtpUpdateCount);
         Assert.AreEqual("new SMTP greeting", settings.WelcomeSMTP);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_WelcomeSmtpRejectsLineBreakBeforeMutationOrPublication()
+    {
+        foreach (var unsafeWelcome in new[]
+        {
+            "malicious\r250 injected",
+            "malicious\n250 injected"
+        })
+        {
+            var store = new FakeSettingsAdministrationMutationStore
+            {
+                Snapshot = new SettingsAdministrationSnapshot(
+                    HostName: "mail.example.test",
+                    WelcomeSmtp: "old SMTP greeting",
+                    WelcomePop3: string.Empty,
+                    WelcomeImap: string.Empty)
+            };
+            SettingsAdministrationRuntimeHost.Configure(store);
+            IInterfaceSettings settings = Settings.CreateAuthorized(
+                store.Snapshot,
+                isServerAdministrator: static () => true,
+                settingsMutationStore: store);
+
+            var error = Assert.ThrowsExactly<COMException>(
+                () => settings.WelcomeSMTP = unsafeWelcome);
+
+            Assert.AreEqual(EInvalidArg, error.ErrorCode);
+            Assert.AreEqual(0, store.WelcomeSmtpUpdateCount);
+            Assert.AreEqual("old SMTP greeting", settings.WelcomeSMTP);
+            Assert.AreEqual("old SMTP greeting", SettingsAdministrationRuntimeHost.GetSmtpGreeting());
+        }
     }
 
     [TestMethod]
