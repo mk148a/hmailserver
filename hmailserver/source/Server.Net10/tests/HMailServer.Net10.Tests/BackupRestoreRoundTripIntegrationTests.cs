@@ -419,6 +419,122 @@ public sealed class BackupRestoreRoundTripIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task BackupManager_StartBackupLoadBackupAndRestoreRoundTripsRealArchive()
+    {
+        await WithFullRestoreTargetAsync(
+            "manager_backup_restore",
+            FullRestoreArchiveXml,
+            async fixture =>
+            {
+                var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+                var destination = Path.Combine(
+                    Directory.GetParent(fixture.GetDataDirectory())!.FullName,
+                    "generated-backup");
+                Directory.CreateDirectory(destination);
+                var generatedMessagePath = Path.Combine(
+                    fixture.GetDataDirectory(),
+                    "roundtrip.example",
+                    "user",
+                    "ne");
+                Directory.CreateDirectory(generatedMessagePath);
+                await File.WriteAllTextAsync(
+                    Path.Combine(generatedMessagePath, "generated.eml"),
+                    "From: generated@example.test\r\n\r\ncreated by StartBackup")
+                    .ConfigureAwait(false);
+
+                using var queue = new BackupTaskQueue();
+                using var service = new BackupTaskHostedService(
+                    queue,
+                    NullLogger<BackupTaskHostedService>.Instance);
+                var dispatcher = new RecordingBackupEventDispatcher();
+                var evidence = new BackupStartPlanEvidence(
+                    Destination: destination,
+                    BackupOptions: 1 | 2 | 4,
+                    BackupMessagesDbOnly: false,
+                    AllMessageFilesInDataDirectory: true,
+                    DestinationExists: true,
+                    Settings: new SettingsAdministrationSnapshot(
+                        "generated.example",
+                        "generated smtp",
+                        "generated pop3",
+                        "generated imap"));
+                var archiveRuntime = new SevenZipBackupArchiveRuntime(
+                    sevenZipPath,
+                    "10.0.0-B0",
+                    static () => new DateTime(2026, 8, 11, 4, 5, 7),
+                    payloadProvider: (startEvidence, _) => ValueTask.FromResult(
+                        new BackupArchiveXmlPayload(
+                            startEvidence.Settings,
+                            new[]
+                            {
+                                new DomainAdministrationSnapshot(
+                                    0,
+                                    "generated.example",
+                                    true,
+                                    Postmaster: "postmaster@generated.example")
+                            })),
+                    dataDirectory: fixture.GetDataDirectory());
+                var operationRuntime = new BackupOperationRuntime(
+                    queue,
+                    startPlanEvidence: _ => ValueTask.FromResult(evidence),
+                    executeBackupAsync: (startEvidence, cancellationToken) =>
+                        archiveRuntime.CreateAsync(startEvidence, cancellationToken));
+                var manager = BackupManager.CreateAuthorized(
+                    new SevenZipBackupArchiveMetadataReader(sevenZipPath),
+                    operationRuntime,
+                    eventDispatcher: dispatcher,
+                    restoreExecutor: fixture.CreateExecutor());
+
+                await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
+                manager.StartBackup();
+                await dispatcher.Completed.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+
+                var archivePath = Path.Combine(destination, "HMBackup 2026-08-11 040507.7z");
+                Assert.IsTrue(File.Exists(archivePath), archivePath);
+                Assert.IsTrue(File.Exists(Path.Combine(destination, "DataBackup", "roundtrip.example", "user", "ne", "generated.eml")));
+
+                var backup = (Backup)manager.LoadBackup(archivePath);
+                try
+                {
+                    Assert.IsTrue(backup.ContainsSettings);
+                    Assert.IsTrue(backup.ContainsDomains);
+                    Assert.IsTrue(backup.ContainsMessages);
+                    backup.RestoreSettings = true;
+                    backup.RestoreDomains = true;
+                    backup.RestoreMessages = true;
+                    backup.StartRestore();
+                    var restoreCompletion = await Task.WhenAny(
+                        dispatcher.SecondCompleted.Task,
+                        dispatcher.Failed.Task).WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                    if (ReferenceEquals(restoreCompletion, dispatcher.Failed.Task))
+                    {
+                        Assert.Fail("The real StartBackup-to-restore flow failed: " + dispatcher.Failed.Task.Result);
+                    }
+
+                    Assert.AreEqual(
+                        "generated smtp",
+                        await ReadSettingStringAsync(fixture.ConnectionString, "welcomesmtp").ConfigureAwait(false));
+                    var domains = await fixture.DomainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false);
+                    Assert.AreEqual(1, domains.Count);
+                    Assert.AreEqual("generated.example", domains[0].Name);
+                    Assert.IsTrue(File.Exists(Path.Combine(
+                        fixture.GetDataDirectory(),
+                        "roundtrip.example",
+                        "user",
+                        "ne",
+                        "generated.eml")));
+                    Assert.IsFalse(File.Exists(Path.Combine(fixture.GetDataDirectory(), "original.txt")));
+                }
+                finally
+                {
+                    backup.CleanupArchiveBinding();
+                    await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task RestoreExecutor_RollsBackFullSettingsMetadataAndDataWhenSecondMessageInsertFails()
     {
         await WithFullRestoreTargetAsync(
@@ -1346,13 +1462,28 @@ public sealed class BackupRestoreRoundTripIntegrationTests
 
     private sealed class RecordingBackupEventDispatcher : IBackupEventDispatcher
     {
+        private int _completedCount;
+
         internal TaskCompletionSource<object?> Completed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal TaskCompletionSource<object?> SecondCompleted { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         internal TaskCompletionSource<string> Failed { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public void OnBackupCompleted() => Completed.TrySetResult(null);
+        public void OnBackupCompleted()
+        {
+            if (Interlocked.Increment(ref _completedCount) == 1)
+            {
+                Completed.TrySetResult(null);
+            }
+            else
+            {
+                SecondCompleted.TrySetResult(null);
+            }
+        }
 
         public void OnBackupFailed(string reason) => Failed.TrySetResult(reason);
     }
