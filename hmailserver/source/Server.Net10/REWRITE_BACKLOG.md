@@ -8,6 +8,25 @@
 
 ## Current next slice (2026-08-11)
 
+Completed in code/test commit `415ff0bc0`: SMTP acceptance reports now include
+a content-based fixture identity, SQL/Data before/after snapshots, exact
+`hm_tcpipports` loopback configuration evidence, and post-run message,
+recipient, and Data deltas. The legacy reference is
+`SMTPConnection::HandleSMTPFinalizationTaskCompleted_`
+(`source/Server/SMTP/SMTPConnection.cpp:980`) with schema rows from
+`source/DBScripts/CreateTablesMSSQL.sql:258-353`; the Net10 persistence path is
+`SqlServerSmtpQueueWriter`.
+
+The disposable Net10 diagnostic passed `1/1` and its post-run accounting was
+valid. The C++ runner remained blocked before process creation by Registry32
+configuration resolution. The current Net10 fixture is already mutated and is
+not an equal fresh C++/Net10 start state, so the release gate remains **RED**.
+Next smallest slice: recreate disposable SQL/Data/message fixtures, enable and
+verify SQL Server FTS, then rerun the same acceptance workload without any
+ratio claim until both sides pass.
+
+## Historical audit (superseded current-slice text, 2026-08-11)
+
 Completed in code/test commit `fdfa2e831`: paired comparison generation now
 requires explicit `live-protocol-v1` Net10/C++ inputs, C++ isolation and
 executable provenance, and identical Data evidence. It rejects the old

@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, SMTP FIXTURE ACCOUNTING)
+
+Code/test commit `415ff0bc0` adds read-only fixture evidence to
+`build/benchmark-net10-live-smtp-acceptance.ps1` and extends its validator.
+Each report now records a content-based fixture identity, SQL counts for
+`hm_messages`/metadata/recipients/`hm_tcpipports`, a Data manifest SHA-256,
+before/after deltas, and a post-run validity flag. The gate requires the
+configured loopback SMTP/IMAP/POP3 port rows and at least one new message row
+per successful acceptance. C++ reports also require executable provenance.
+
+Legacy anchors are `SMTPConnection::HandleSMTPFinalizationTaskCompleted_`
+(`source/Server/SMTP/SMTPConnection.cpp:980`), the MSSQL schema
+(`source/DBScripts/CreateTablesMSSQL.sql:258-353`), and Net10's
+`SqlServerSmtpQueueWriter.InsertQueuedMessageSql`/
+`InsertRecipientSql`. The disposable Net10 run passed `1/1`; C++ preflight
+refused before launch. Full Net10 is `2127 passed, 46 skipped, 0 failed`.
+The paired performance gate remains **RED** because this host's fixture is
+mutated and not proven equal/fresh against C++, and SQL FTS, queue, load, and
+soak gates remain open. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, PAIRED REPORT EVIDENCE GATE)
 
 Code/test commit `fdfa2e831` hardens

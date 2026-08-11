@@ -3,6 +3,28 @@ hMailServer
 
 ## Current authoritative performance-safety status (2026-08-11)
 
+Code/tool commit `415ff0bc0` extends the SMTP acceptance evidence with a
+content-based fixture identity and read-only before/after snapshots of
+`hm_messages`, `hm_message_metadata`, `hm_messagerecipients`, and
+`hm_tcpipports`, plus a Data-file manifest fingerprint. The post-run gate
+requires SQL/Data availability, the three loopback port rows, and at least one
+new message row per successful acceptance. Legacy persistence anchors are
+`SMTPConnection::HandleSMTPFinalizationTaskCompleted_`
+(`source/Server/SMTP/SMTPConnection.cpp:980`) and the schema definitions in
+`source/DBScripts/CreateTablesMSSQL.sql:258-353`; Net10 uses
+`SqlServerSmtpQueueWriter`
+(`source/Server.Net10/src/HMailServer.Storage.SqlServer/SqlServerSmtpQueueWriter.cs`).
+
+The current disposable Net10 diagnostic passed `1/1` with SQL/Data snapshots
+available, message/recipient/Data deltas `+1`, and valid post-run accounting.
+The C++ run remained preflight-blocked with zero samples and no process start.
+This fixture is not fresh/equal to the C++ fixture yet, so the paired gate is
+still **RED** and no speed-up ratio or winner is valid. Next: provision or
+recreate the disposable SQL/FTS and equal message/Data fixtures before any
+paired run.
+
+## Historical current status (2026-08-11)
+
 Code/tool commit `fdfa2e831` hardens
 `build/generate-live-comparison-report.ps1`: it accepts explicit source report
 paths, rejects C++ JSON without registry/config isolation preflight and
