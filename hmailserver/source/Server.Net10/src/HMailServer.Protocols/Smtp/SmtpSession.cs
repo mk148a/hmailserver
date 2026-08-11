@@ -74,7 +74,7 @@ public sealed class SmtpSession
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        await WriteAsync(stream, _options.Greeting, cancellationToken).ConfigureAwait(false);
+        await WriteAsync(stream, GetGreeting(), cancellationToken).ConfigureAwait(false);
 
         var state = new SessionState(CreateConnectionContext(connectionContext));
         LineProtocolReader? reader = null;
@@ -156,6 +156,20 @@ public sealed class SmtpSession
                 await reader.DisposeAsync().ConfigureAwait(false);
             }
         }
+    }
+
+    private string GetGreeting()
+    {
+        var welcome = _options.GreetingProvider?.Invoke();
+        if (welcome is null)
+        {
+            return _options.Greeting;
+        }
+
+        var banner = string.IsNullOrEmpty(welcome)
+            ? $"220 {_options.ServerName} ESMTP"
+            : $"220 {welcome}{(welcome.EndsWith(" ESMTP", StringComparison.Ordinal) ? string.Empty : " ESMTP")}";
+        return banner + "\r\n";
     }
 
     private LineProtocolReader CreateReader(Stream stream) =>

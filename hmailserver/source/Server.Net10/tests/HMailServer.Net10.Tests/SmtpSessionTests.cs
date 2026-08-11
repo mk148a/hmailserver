@@ -25,6 +25,32 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_UsesLegacySettingsBackedGreetingFormatting(
+        )
+    {
+        var cases = new Dictionary<string, string>
+        {
+            [string.Empty] = "220 mx.example.test ESMTP\r\n",
+            ["custom welcome"] = "220 custom welcome ESMTP\r\n",
+            ["custom welcome ESMTP"] = "220 custom welcome ESMTP\r\n"
+        };
+
+        foreach (var (welcomeSmtp, expectedGreeting) in cases)
+        {
+            await using var stream = new DuplexMemoryStream("QUIT\r\n");
+            var session = new SmtpSession(new SmtpSessionOptions
+            {
+                ServerName = "mx.example.test",
+                GreetingProvider = () => welcomeSmtp
+            });
+
+            await session.RunAsync(stream, CancellationToken.None);
+
+            StringAssert.StartsWith(stream.GetOutputText(), expectedGreeting);
+        }
+    }
+
+    [TestMethod]
     public async Task RunAsync_HandlesHelo()
     {
         await using var stream = new DuplexMemoryStream("HELO client.example\r\nQUIT\r\n");

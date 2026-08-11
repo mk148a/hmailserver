@@ -12,6 +12,8 @@ public sealed record SmtpSessionOptions
 
     public string Greeting { get; init; } = "220 hMailServer .NET 10 ESMTP ready\r\n";
 
+    public Func<string>? GreetingProvider { get; init; }
+
     public bool RequireTlsForAuthentication { get; init; }
 
     public bool DisconnectInvalidClients { get; init; }

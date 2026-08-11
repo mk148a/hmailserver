@@ -852,6 +852,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                     WelcomeSmtp = value
                 };
             }
+
+            SettingsAdministrationRuntimeHost.PublishSmtpGreeting(value);
         }
     }
 
@@ -2461,6 +2463,12 @@ public static class SettingsAdministrationRuntimeHost
         ISettingsAdministrationMutationStore? MutationStore);
 
     private static RuntimeConfiguration? _configuration;
+    private static string _smtpGreeting = string.Empty;
+
+    public static string GetSmtpGreeting() => Volatile.Read(ref _smtpGreeting);
+
+    internal static void PublishSmtpGreeting(string welcomeSmtp) =>
+        Volatile.Write(ref _smtpGreeting, welcomeSmtp ?? string.Empty);
 
     public static void Configure(
         ISettingsAdministrationStore store,
@@ -2492,6 +2500,7 @@ public static class SettingsAdministrationRuntimeHost
             .AsTask()
             .GetAwaiter()
             .GetResult();
+        PublishSmtpGreeting(snapshot.WelcomeSmtp);
 
         return Settings.CreateAuthorized(
             snapshot,

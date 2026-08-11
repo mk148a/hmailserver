@@ -1,5 +1,6 @@
 using HMailServer.Core.Abstractions;
 using HMailServer.ComInterop;
+using HMailServer.Protocols.Smtp;
 using HMailServer.Service;
 using Microsoft.Extensions.DependencyInjection;
 using Hosting = Microsoft.Extensions.Hosting;
@@ -71,6 +72,7 @@ public sealed class ProductionHostCompositionTests
                 ]);
 
             using var host = composition.Host;
+            Assert.IsNotNull(host.Services.GetRequiredService<SmtpSessionOptions>().GreetingProvider);
             var hostedServices = host.Services
                 .GetServices<Hosting.IHostedService>()
                 .ToArray();

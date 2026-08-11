@@ -507,6 +507,7 @@ public static class Host
         ServerName = builder.Configuration["Smtp:ServerName"]
             ?? builder.Configuration["HMAILSERVER_SMTP_SERVER_NAME"]
             ?? Environment.MachineName,
+        GreetingProvider = SettingsAdministrationRuntimeHost.GetSmtpGreeting,
         MaxMessageBytes = ReadLong(
             builder.Configuration["Smtp:MaxMessageBytes"] ?? builder.Configuration["HMAILSERVER_SMTP_MAX_MESSAGE_BYTES"],
             defaultValue: 20L * 1024 * 1024),
