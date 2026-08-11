@@ -325,6 +325,7 @@ public sealed class RemoteSmtpEndpointResolverTests
             new DnsMxRecord("mx10.example.net.", 10, TimeSpan.FromMinutes(10)));
         var resolver = new RemoteSmtpEndpointResolver(
             mxResolver,
+            CreateAddressResolver("mx20.example.net", "mx10.example.net"),
             RemoteSmtpEndpointResolverOptions.Default);
         var target = new DeliveryTarget(
             DeliveryTargetKind.RemoteDomain,
@@ -348,8 +349,15 @@ public sealed class RemoteSmtpEndpointResolverTests
             new DnsMxRecord("mx30.example.net.", 30, TimeSpan.FromMinutes(10)),
             new DnsMxRecord("mx10.example.net.", 10, TimeSpan.FromMinutes(10)),
             new DnsMxRecord("mx20.example.net.", 20, TimeSpan.FromMinutes(10)));
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["mx10.example.net"] = [IPAddress.Parse("192.0.2.10")],
+            ["mx20.example.net"] = [IPAddress.Parse("192.0.2.20")],
+            ["mx30.example.net"] = [IPAddress.Parse("192.0.2.30")]
+        });
         var resolver = new RemoteSmtpEndpointResolver(
             mxResolver,
+            addressResolver,
             RemoteSmtpEndpointResolverOptions.Default);
         var target = new DeliveryTarget(
             DeliveryTargetKind.RemoteDomain,
@@ -366,6 +374,72 @@ public sealed class RemoteSmtpEndpointResolverTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_FlattensAddressOrderAndDeduplicatesAcrossMxHosts()
+    {
+        var addressResolver = new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+        {
+            ["mx10.example.net"] =
+            [
+                IPAddress.Parse("192.0.2.10"),
+                IPAddress.Parse("2001:db8::10"),
+                IPAddress.Parse("192.0.2.10")
+            ],
+            ["mx20.example.net"] =
+            [
+                IPAddress.Parse("192.0.2.10"),
+                IPAddress.Parse("192.0.2.20")
+            ]
+        });
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(
+                new DnsMxRecord("mx20.example.net.", 20, TimeSpan.FromMinutes(10)),
+                new DnsMxRecord("mx10.example.net.", 10, TimeSpan.FromMinutes(10))),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "mx10.example.net", "mx10.example.net", "mx20.example.net" },
+            endpoint.GetCandidates().Select(static candidate => candidate.Host).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "192.0.2.10", "2001:db8::10", "192.0.2.20" },
+            endpoint.GetCandidates().Select(static candidate => candidate.ConnectionAddress).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "mx10.example.net", "mx20.example.net" },
+            addressResolver.RequestedHosts.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_AppliesMxCapAfterFlatteningAddresses()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(
+                new DnsMxRecord("mx10.example.net.", 10, TimeSpan.FromMinutes(10)),
+                new DnsMxRecord("mx20.example.net.", 20, TimeSpan.FromMinutes(10))),
+            new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+            {
+                ["mx10.example.net"] = [IPAddress.Parse("192.0.2.10"), IPAddress.Parse("192.0.2.11")],
+                ["mx20.example.net"] = [IPAddress.Parse("192.0.2.20"), IPAddress.Parse("192.0.2.21")]
+            }),
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(
+                DeliveryTargetKind.RemoteDomain,
+                "remote:example.net",
+                "example.net",
+                MaxNumberOfMxHosts: 3),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "192.0.2.10", "192.0.2.11", "192.0.2.20" },
+            endpoint.GetCandidates().Select(static candidate => candidate.ConnectionAddress).ToArray());
+    }
+
+    [TestMethod]
     [DataRow(0)]
     [DataRow(1)]
     [DataRow(2)]
@@ -374,6 +448,7 @@ public sealed class RemoteSmtpEndpointResolverTests
     {
         var resolver = new RemoteSmtpEndpointResolver(
             new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            CreateAddressResolver("mx.example.net"),
             RemoteSmtpEndpointResolverOptions.Default);
         var target = new DeliveryTarget(
             DeliveryTargetKind.RemoteDomain,
@@ -393,6 +468,7 @@ public sealed class RemoteSmtpEndpointResolverTests
     {
         var resolver = new RemoteSmtpEndpointResolver(
             new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            CreateAddressResolver("mx.example.net"),
             RemoteSmtpEndpointResolverOptions.Default);
         var target = new DeliveryTarget(
             DeliveryTargetKind.RemoteDomain,
@@ -436,6 +512,7 @@ public sealed class RemoteSmtpEndpointResolverTests
     {
         var resolver = new RemoteSmtpEndpointResolver(
             new FakeMxResolver(),
+            CreateAddressResolver("example.net"),
             RemoteSmtpEndpointResolverOptions.Default);
         var target = new DeliveryTarget(
             DeliveryTargetKind.RemoteDomain,
@@ -447,6 +524,8 @@ public sealed class RemoteSmtpEndpointResolverTests
         Assert.AreEqual("example.net", endpoint.Host);
         Assert.AreEqual(25, endpoint.Port);
         Assert.AreEqual(RemoteSmtpConnectionSecurity.None, endpoint.ConnectionSecurity);
+        Assert.AreEqual("192.0.2.1", endpoint.ConnectionAddress);
+        Assert.AreEqual("192.0.2.1", endpoint.GetCandidates().Single().ConnectionAddress);
     }
 
     [TestMethod]
@@ -467,10 +546,87 @@ public sealed class RemoteSmtpEndpointResolverTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_UsesLiteralMxIpWithoutAddressLookup()
+    {
+        var addressResolver = new FakeAddressResolver(
+            new Dictionary<string, IReadOnlyList<IPAddress>>());
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(new DnsMxRecord("192.0.2.25.", 10, TimeSpan.FromMinutes(10))),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+            CancellationToken.None);
+        var candidate = endpoint.GetCandidates().Single();
+
+        Assert.AreEqual("192.0.2.25", candidate.Host);
+        Assert.AreEqual("192.0.2.25", candidate.ConnectionAddress);
+        Assert.AreEqual(0, addressResolver.RequestedHosts.Count);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_AddressLookupFailureReturnsIOException()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            new FakeAddressResolver(new IOException("DNS failure")),
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        await Assert.ThrowsExactlyAsync<IOException>(
+            () => resolver.ResolveAsync(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+                CancellationToken.None).AsTask());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_NoUsableMxAddressReturnsIOException()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+            {
+                ["mx.example.net"] = []
+            }),
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        await Assert.ThrowsExactlyAsync<IOException>(
+            () => resolver.ResolveAsync(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+                CancellationToken.None).AsTask());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_RetainsMxHostForTlsAndSni()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+            {
+                ["mx.example.net"] = [IPAddress.Parse("192.0.2.25")]
+            }),
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(
+                DeliveryTargetKind.RemoteDomain,
+                "remote:example.net",
+                "example.net",
+                RemoteConnectionSecurity: (int)RemoteSmtpConnectionSecurity.Ssl),
+            CancellationToken.None);
+        var candidate = endpoint.GetCandidates().Single();
+
+        Assert.AreEqual("mx.example.net", candidate.Host);
+        Assert.AreEqual("192.0.2.25", candidate.ConnectionAddress);
+        Assert.AreEqual(RemoteSmtpConnectionSecurity.Ssl, candidate.ConnectionSecurity);
+    }
+
+    [TestMethod]
     public async Task ResolveAsync_UsesNonNullMxInsteadOfDomainFallback()
     {
         var resolver = new RemoteSmtpEndpointResolver(
             new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            CreateAddressResolver("mx.example.net"),
             RemoteSmtpEndpointResolverOptions.Default);
         var target = new DeliveryTarget(
             DeliveryTargetKind.RemoteDomain,

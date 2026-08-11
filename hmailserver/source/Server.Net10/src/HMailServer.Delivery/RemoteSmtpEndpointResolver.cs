@@ -91,12 +91,6 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
         if (target.Kind == DeliveryTargetKind.RemoteDomain)
         {
             var mxHosts = await ResolveRemoteHostsAsync(target.DomainName, cancellationToken).ConfigureAwait(false);
-            if (target.MaxNumberOfMxHosts > 0)
-            {
-                mxHosts = mxHosts.Take(target.MaxNumberOfMxHosts).ToArray();
-            }
-
-            var mxHost = mxHosts[0];
             var connectionSecurity = target.RemoteConnectionSecurity switch
             {
                 (int)RemoteSmtpConnectionSecurity.None => RemoteSmtpConnectionSecurity.None,
@@ -106,12 +100,22 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
                 _ => throw new InvalidOperationException(
                     $"Global SMTP connection security value {target.RemoteConnectionSecurity} is invalid.")
             };
-            return new RemoteSmtpEndpoint(
-                mxHost,
-                Port: 25,
+            var candidates = await ResolveRemoteAddressCandidatesAsync(
+                mxHosts,
                 connectionSecurity,
-                VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate,
-                HostCandidates: mxHosts.Count > 1 ? mxHosts : null);
+                target.VerifyRemoteSslCertificate,
+                cancellationToken).ConfigureAwait(false);
+            if (target.MaxNumberOfMxHosts > 0)
+            {
+                candidates = candidates.Take(target.MaxNumberOfMxHosts).ToArray();
+            }
+
+            if (candidates.Count == 0)
+            {
+                throw new IOException("No usable address was found for remote SMTP delivery.");
+            }
+
+            return candidates[0] with { Candidates = candidates };
         }
 
         throw new InvalidOperationException("Local delivery targets do not have remote SMTP endpoints.");
@@ -208,6 +212,66 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
                 route.AuthenticationPassword,
                 VerifyRemoteSslCertificate: target.VerifyRemoteSslCertificate,
                 ConnectionAddress: connectionAddress));
+        }
+    }
+
+    private async ValueTask<IReadOnlyList<RemoteSmtpEndpoint>> ResolveRemoteAddressCandidatesAsync(
+        IReadOnlyList<string> hosts,
+        RemoteSmtpConnectionSecurity connectionSecurity,
+        bool verifyRemoteSslCertificate,
+        CancellationToken cancellationToken)
+    {
+        var candidates = new List<RemoteSmtpEndpoint>();
+        var seenAddresses = new HashSet<IPAddress>();
+
+        foreach (var host in hosts)
+        {
+            if (IPAddress.TryParse(host, out var literalAddress))
+            {
+                AddCandidate(host, literalAddress);
+                continue;
+            }
+
+            IReadOnlyList<IPAddress> addresses;
+            try
+            {
+                addresses = await _addressResolver
+                    .ResolveAddressesAsync(host, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new IOException($"SMTP host address resolution failed for '{host}'.", ex);
+            }
+
+            foreach (var address in addresses)
+            {
+                if (address is not null)
+                {
+                    AddCandidate(host, address);
+                }
+            }
+        }
+
+        return candidates;
+
+        void AddCandidate(string host, IPAddress address)
+        {
+            if (!seenAddresses.Add(address))
+            {
+                return;
+            }
+
+            candidates.Add(new RemoteSmtpEndpoint(
+                host,
+                Port: 25,
+                connectionSecurity,
+                VerifyRemoteSslCertificate: verifyRemoteSslCertificate,
+                ConnectionAddress: address.ToString()));
         }
     }
 
