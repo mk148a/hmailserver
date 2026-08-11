@@ -1,5 +1,34 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, SMTP RELAYER PORT AUTHORIZATION LEASE)
+
+Code/test commit `f8875b316` extends the existing generation-bound
+authorization lease to authenticated `Settings.SMTPRelayerPort`
+(`DispId(37)`). The lease spans the existing parameterized
+`smtprelayerport` SQL mutation, result handling, and retained snapshot
+publication; unavailable leases fail closed with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_SMTPRelayerPort`
+(`source/Server/COM/InterfaceSettings.cpp:609-642`),
+`SMTPConfiguration::Get/SetSMTPRelayerPort`
+(`source/Server/SMTP/SMTPConfiguration.cpp:151-160`), the installed Settings
+IID and `DispId(37)` (`source/Server/hMailServer/hMailServer.idl:520-528,570-571`),
+and the `smtprelayerport` MSSQL seed
+(`source/DBScripts/CreateTablesMSSQL.sql:788`). Focused settings/store
+coverage is `107/107`; full unfiltered Net10 is `2090 passed, 39 skipped,
+0 failed`.
+
+The focused tests cover lease acquire/dispose, unavailable-lease denial
+before mutation, and reauthentication blocking during an in-flight mutation.
+SMTP relay resolution, live reconfiguration, installed COM identity, direct
+activation denial, and authenticated Settings access remain unchanged.
+
+Release remains RED for disposable SQL/Data restore, non-DB restore,
+SQL/FTS, paired C++/.NET performance, SEC-18, migration/installer,
+out-of-process COM, AD/DC, crash/power-loss, 24-hour soak, and remaining
+unleased COM/Admin mutations. Next slice: fresh legacy-first audit of
+`Settings.WelcomeSMTP`. Do not push.
+
 # Current Authoritative Continuation (2026-08-11, SMTP RELAYER USERNAME AUTHORIZATION LEASE)
 
 Code/test commit `33f48accd` extends the existing generation-bound

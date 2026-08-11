@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, SMTPRelayerPort authorization lease)
+
+Code/test commit `f8875b316` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.SMTPRelayerPort`
+(`DispId(37)`). The lease is acquired immediately before the existing
+parameterized `smtprelayerport` SQL update and held through mutation result
+handling and retained snapshot publication. No integer COM shape, SMTP relay
+resolution, live reconfiguration, or COM identity changed.
+
+Legacy anchors are `InterfaceSettings::get/put_SMTPRelayerPort`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:609-642`),
+`SMTPConfiguration::Get/SetSMTPRelayerPort`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:151-160`), the
+installed Settings IID and property (`hmailserver/source/Server/hMailServer/hMailServer.idl:520-528,570-571`),
+the `smtprelayerport` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:788`),
+and the .NET `UpdateSmtpRelayerPortSql` path. Focused tests cover lease
+acquire/dispose, unavailable-lease denial before mutation, and reauthentication
+blocking during an in-flight port mutation.
+
+Focused settings/store coverage is `107/107`. Full unfiltered Net10 is
+`2090 passed, 39 skipped, 0 failed`. Disposable SQL/Data restore,
+non-DB restore/reinitialization, SQL/FTS, matched C++/.NET protocol load,
+SEC-18, migration/installer, out-of-process COM, AD/DC, crash/power-loss,
+24-hour soak, and remaining unleased COM/Admin mutations keep release
+**RED**. Next slice is a fresh legacy-first audit of `Settings.WelcomeSMTP`.
+
 ## Current parity continuation (2026-08-11, SMTPRelayerUsername authorization lease)
 
 Code/test commit `33f48accd` extends the existing generation-bound
