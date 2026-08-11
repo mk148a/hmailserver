@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-12T04:30:00Z / 2026-08-12T07:30:00+03:00
+- UTC/local timestamp: 2026-08-12T05:30:00Z / 2026-08-12T08:30:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; docs commit is ready and push is pending
-- Current HEAD: `622d6296c` (fixed-route hostname planning code/test)
-- Last successfully pushed commit: `045a46c2a`
-- Latest focused-test result: fixed-route/self-connect coverage `73 passed, 0 failed, 0 skipped`
-- Latest full Net10 result: `2210 passed, 54 skipped, 0 failed`
+- Current HEAD: `54cfef96a` (route MaxNumberOfMXHosts propagation code/test)
+- Last successfully pushed commit: `c509987b4`
+- Latest focused-test result: SQL-target/resolver coverage `51 passed, 0 failed, 0 skipped`
+- Latest full Net10 result: `2212 passed, 54 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; real SQL/DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
-- Current bounded slice: legacy fixed-route hostname/pipe address planning; code/test is committed in `622d6296c`, docs commit is pending, paired performance gate remains RED
+- Current bounded slice: SQL propagation of route MaxNumberOfMXHosts; code/test is committed in `54cfef96a`, docs commit is pending, paired performance gate remains RED
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, and no-MX CNAME planning
 - Open production blockers: paired C++/.NET performance RED; live DNS/socket/TLS/SNI and certificate/revocation acceptance; shared outbound egress/SSRF and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: disposable SQL/DNS/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: SQL route MX-cap propagation; global-relayer partial DNS fallback; approved disposable real DNS/socket/TLS acceptance or registry-isolated C++ execution
+- Next three independent slices: global-relayer partial DNS fallback; exact listener ownership for self-connect parity; approved disposable real DNS/socket/TLS acceptance or registry-isolated C++ execution

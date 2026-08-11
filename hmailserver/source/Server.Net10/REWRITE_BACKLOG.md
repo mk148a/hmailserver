@@ -4338,3 +4338,23 @@ performance remain open. Release remains **RED**.
 Next independent slices, in order: propagate route MX caps through the SQL
 target resolver; repair global-relayer partial DNS fallback; then approved
 disposable DNS/socket/TLS acceptance or registry-isolated C++ execution.
+
+## Current authoritative next slice (2026-08-12, route MX-cap propagation)
+
+Code/test commit `54cfef96a` completes the SQL target propagation portion of
+legacy fixed-route cap parity. Legacy
+`ExternalDelivery::ResolveRecipientServers_` reads
+`SMTPConfiguration::GetMaxNumberOfMXHosts` and truncates the flattened fixed
+route candidate list when the value is positive. Net10 now loads the existing
+`hm_settings` value for both matched and forced route construction in
+`SqlServerDeliveryTargetResolver`; the downstream route resolver already
+applies the cap after expansion.
+
+Focused tests are `51/51`; full Net10 is `2212 passed, 54 skipped, 0 failed`.
+Global-relayer partial DNS fallback, hMailServer-owned listener discovery, DNS
+response validation, live DNS/socket/TLS acceptance, broad SMTP egress/SSRF,
+and paired C++/.NET performance remain open. Release remains **RED**.
+
+Next independent slices, in order: global-relayer partial DNS fallback;
+listener ownership boundary for self-connect parity; approved disposable
+DNS/socket/TLS acceptance; then registry-isolated C++ execution.

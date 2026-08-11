@@ -2258,3 +2258,17 @@ Focused coverage is `73/73`; full Net10 is `2210 passed, 54 skipped, 0 failed`.
 Route `MaxNumberOfMXHosts` SQL propagation, global-relayer partial failure,
 hMailServer listener ownership, live DNS/socket/TLS, shared SMTP SSRF policy,
 and paired C++/.NET performance remain open. Release remains **RED**.
+
+## Current authoritative continuation (2026-08-12, route MX cap propagation)
+
+Code/test commit `54cfef96a` closes the SQL-to-target propagation gap for
+`MaxNumberOfMXHosts`. `SqlServerDeliveryTargetResolver` now loads the cached
+setting for matched routes and forced routes and places it on
+`DeliveryTarget`; the existing `RemoteSmtpEndpointResolver` applies it after
+route host/address flattening. This matches legacy
+`ExternalDelivery::ResolveRecipientServers_` and preserves zero as no cap.
+
+Focused coverage is `51/51`; full Net10 is `2212 passed, 54 skipped, 0 failed`.
+Global-relayer partial DNS fallback, hMailServer listener ownership, DNS
+response validation, live DNS/socket/TLS, broad SMTP egress/SSRF, and paired
+C++/.NET performance remain open. Release remains **RED**.

@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current authoritative route MX-cap status (2026-08-12)
+
+Code/test commit `54cfef96a` propagates the existing `hm_settings`/
+`MaxNumberOfMXHosts` value into both matched and forced SMTP route targets.
+Legacy `ExternalDelivery::ResolveRecipientServers_`
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:195-280`) applies this
+positive cap after fixed-route host/address expansion; Net10 now supplies the
+same value to `RemoteSmtpEndpointResolver` for those route paths. Zero remains
+the legacy no-cap value.
+
+Focused SQL-target/resolver coverage is `51/51`; full Net10 is `2212 passed,
+54 skipped, 0 failed`. Global-relayer partial DNS fallback, hMailServer-owned
+listener discovery, live DNS/socket/TLS evidence, shared SMTP SSRF policy, and
+the paired C++/.NET performance gate remain open. Performance is **RED**.
+
 ## Current authoritative fixed-route hostname status (2026-08-12)
 
 Code/test commit `622d6296c` implements legacy fixed SMTP route hostname
