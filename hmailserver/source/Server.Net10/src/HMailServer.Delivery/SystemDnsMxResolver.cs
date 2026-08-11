@@ -239,7 +239,7 @@ public sealed class SystemDnsMxResolver : IDnsMxResolver
             offset = cursor;
         }
 
-        return string.Join('.', labels);
+        return labels.Count == 0 ? "." : string.Join('.', labels);
     }
 
     private static void SkipName(byte[] message, ref int offset)

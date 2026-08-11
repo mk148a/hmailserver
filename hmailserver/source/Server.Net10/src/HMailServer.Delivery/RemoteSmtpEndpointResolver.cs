@@ -107,6 +107,11 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
         }
 
         var records = await _mxResolver.ResolveMxAsync(domainName, cancellationToken).ConfigureAwait(false);
+        if (records.Any(static record => record.Preference == 0 && record.Exchange == "."))
+        {
+            throw new IOException("DNS MX lookup returned a null MX record.");
+        }
+
         var hosts = records
             .OrderBy(static record => record.Preference)
             .ThenBy(static record => record.Exchange, StringComparer.OrdinalIgnoreCase)

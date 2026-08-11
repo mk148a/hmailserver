@@ -289,6 +289,39 @@ public sealed class RemoteSmtpEndpointResolverTests
         Assert.AreEqual(RemoteSmtpConnectionSecurity.None, endpoint.ConnectionSecurity);
     }
 
+    [TestMethod]
+    public async Task ResolveAsync_DoesNotFallBackToDomainWhenMxIsNull()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(new DnsMxRecord(".", 0, TimeSpan.FromMinutes(10))),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.RemoteDomain,
+            "remote:example.net",
+            "example.net");
+
+        var exception = await Assert.ThrowsExactlyAsync<IOException>(
+            () => resolver.ResolveAsync(target, CancellationToken.None).AsTask());
+
+        StringAssert.Contains(exception.Message, "null MX");
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_UsesNonNullMxInsteadOfDomainFallback()
+    {
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            RemoteSmtpEndpointResolverOptions.Default);
+        var target = new DeliveryTarget(
+            DeliveryTargetKind.RemoteDomain,
+            "remote:example.net",
+            "example.net");
+
+        var endpoint = await resolver.ResolveAsync(target, CancellationToken.None);
+
+        Assert.AreEqual("mx.example.net", endpoint.Host);
+    }
+
     private sealed class FakeMxResolver : IDnsMxResolver
     {
         private readonly IReadOnlyList<DnsMxRecord> _records;
