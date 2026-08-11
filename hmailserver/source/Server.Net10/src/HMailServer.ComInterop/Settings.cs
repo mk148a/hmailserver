@@ -436,6 +436,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
     private readonly SettingsRuntimeConfiguration _runtimeConfiguration = new();
     private readonly Func<bool>? _isServerAdministrator;
     private readonly ISettingsAdministrationMutationStore? _settingsMutationStore;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public Settings()
     {
@@ -446,13 +447,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         SettingsAdministrationSnapshot? administrationSnapshot = null,
         SettingsRuntimeConfiguration? runtimeConfiguration = null,
         Func<bool>? isServerAdministrator = null,
-        ISettingsAdministrationMutationStore? settingsMutationStore = null)
+        ISettingsAdministrationMutationStore? settingsMutationStore = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         _authorized = authorized;
         _administrationSnapshot = administrationSnapshot;
         _runtimeConfiguration = runtimeConfiguration ?? new SettingsRuntimeConfiguration();
         _isServerAdministrator = isServerAdministrator;
         _settingsMutationStore = settingsMutationStore;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public override string UserInterfaceLanguage
@@ -1745,6 +1748,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 return;
             }
 
+            using var authorizationLease = AcquireAuthorizationLease();
             if (!_settingsMutationStore
                 .UpdateSmtpRelayerConnectionSecurityAsync((int)value, CancellationToken.None)
                 .GetAwaiter()
@@ -2262,14 +2266,20 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
 
     private static bool HasFlag(int value, int flag) => (value & flag) != 0;
 
-    internal static Settings CreateAuthorized(Func<bool>? isServerAdministrator = null) =>
-        new(authorized: true, isServerAdministrator: isServerAdministrator);
+    internal static Settings CreateAuthorized(
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        new(
+            authorized: true,
+            isServerAdministrator: isServerAdministrator,
+            authorizationLeaseFactory: authorizationLeaseFactory);
 
     internal static Settings CreateAuthorized(
         SettingsAdministrationSnapshot snapshot,
         SettingsRuntimeConfiguration? runtimeConfiguration = null,
         Func<bool>? isServerAdministrator = null,
-        ISettingsAdministrationMutationStore? settingsMutationStore = null)
+        ISettingsAdministrationMutationStore? settingsMutationStore = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new Settings(
@@ -2277,7 +2287,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
             administrationSnapshot: snapshot,
             runtimeConfiguration: runtimeConfiguration,
             isServerAdministrator: isServerAdministrator,
-            settingsMutationStore: settingsMutationStore);
+            settingsMutationStore: settingsMutationStore,
+            authorizationLeaseFactory: authorizationLeaseFactory);
     }
 
     void ISettingsAuthorizationBoundary.EnsureAuthorized() => EnsureAuthorized();
@@ -2296,6 +2307,19 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         {
             throw new COMException("Settings access requires an authenticated server administrator.", EAccessDenied);
         }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException("Settings access requires an authenticated server administrator.", EAccessDenied);
     }
 }
 
@@ -2431,12 +2455,16 @@ public static class SettingsAdministrationRuntimeHost
                 store as ISettingsAdministrationMutationStore));
     }
 
-    internal static Settings CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
+    internal static Settings CreateAuthorizedAdapter(
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var configuration = Volatile.Read(ref _configuration);
         if (configuration is null)
         {
-            return Settings.CreateAuthorized(isServerAdministrator);
+            return Settings.CreateAuthorized(
+                isServerAdministrator,
+                authorizationLeaseFactory: authorizationLeaseFactory);
         }
 
         var snapshot = configuration.Store
@@ -2449,7 +2477,8 @@ public static class SettingsAdministrationRuntimeHost
             snapshot,
             configuration.Settings,
             isServerAdministrator,
-            configuration.MutationStore);
+            configuration.MutationStore,
+            authorizationLeaseFactory);
     }
 }
 

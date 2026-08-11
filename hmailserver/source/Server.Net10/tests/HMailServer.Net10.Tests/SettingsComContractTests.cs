@@ -1047,6 +1047,98 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public async Task ApplicationSettings_SMTPRelayerMutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.None),
+            SmtpRelayerConnectionSecurityUpdateResult = true,
+            GateSmtpRelayerConnectionSecurityMutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.SMTPRelayerUseSSL = true);
+        await store.SmtpRelayerConnectionSecurityMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.SmtpRelayerConnectionSecurityMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual((int)ComConnectionSecurity.Tls, store.UpdatedSmtpRelayerConnectionSecurity);
+        Assert.AreEqual(ComConnectionSecurity.Tls, settings.SMTPRelayerConnectionSecurity);
+        Assert.IsTrue(settings.SMTPRelayerUseSSL);
+        var retainedMutationDenied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerUseSSL = false);
+        Assert.AreEqual(EAccessDenied, retainedMutationDenied.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_UnavailableAuthorizationLeaseReturnsAccessDeniedBeforeMutation()
+    {
+        var authority = new ApplicationAuthorizationAuthority();
+        var attempt = authority.BeginAuthentication();
+        Assert.IsTrue(authority.CompleteAuthentication(attempt, isServerAdministrator: true));
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpRelayerConnectionSecurityUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.None),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: cancellationToken =>
+                authority.AcquireLeaseAsync(attempt.Generation, cancellationToken));
+
+        authority.BeginAuthentication();
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPRelayerConnectionSecurity = ComConnectionSecurity.Tls);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.SmtpRelayerConnectionSecurityUpdateCount);
+    }
+
+    [TestMethod]
+    public void ApplicationSettings_SMTPRelayerUseSSLRetainsLegacyTlsMapping()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpRelayerConnectionSecurity: (int)ComConnectionSecurity.None),
+            SmtpRelayerConnectionSecurityUpdateResult = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        settings.SMTPRelayerUseSSL = true;
+
+        Assert.AreEqual((int)ComConnectionSecurity.Tls, store.UpdatedSmtpRelayerConnectionSecurity);
+        Assert.AreEqual(ComConnectionSecurity.Tls, settings.SMTPRelayerConnectionSecurity);
+        Assert.IsTrue(settings.SMTPRelayerUseSSL);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MirrorEmailSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -2204,8 +2296,24 @@ public sealed class SettingsComContractTests
         }
     }
 
-    private sealed class FakeSettingsAdministrationMutationStore : ISettingsAdministrationMutationStore
+    private sealed class RecordingAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
     {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            username.Equals("Administrator", StringComparison.OrdinalIgnoreCase)
+            && attemptedPassword == password;
+    }
+
+    private sealed class FakeSettingsAdministrationMutationStore :
+        ISettingsAdministrationStore,
+        ISettingsAdministrationMutationStore
+    {
+        public SettingsAdministrationSnapshot Snapshot { get; set; } = new(
+            HostName: string.Empty,
+            WelcomeSmtp: string.Empty,
+            WelcomePop3: string.Empty,
+            WelcomeImap: string.Empty);
+
         public bool UpdateResult { get; set; }
 
         public bool MirrorUpdateResult { get; set; }
@@ -2219,6 +2327,14 @@ public sealed class SettingsComContractTests
         public bool SmtpRelayerPortUpdateResult { get; set; }
 
         public bool SmtpRelayerConnectionSecurityUpdateResult { get; set; }
+
+        public bool GateSmtpRelayerConnectionSecurityMutation { get; set; }
+
+        public TaskCompletionSource<bool> SmtpRelayerConnectionSecurityMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> SmtpRelayerConnectionSecurityMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int SmtpRelayerRequiresAuthenticationUpdateCount { get; private set; }
 
@@ -2382,6 +2498,10 @@ public sealed class SettingsComContractTests
 
         public CancellationToken CancellationToken { get; private set; }
 
+        public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(Snapshot);
+
         public ValueTask<bool> UpdateDefaultDomainAsync(
             string defaultDomain,
             CancellationToken cancellationToken)
@@ -2448,7 +2568,19 @@ public sealed class SettingsComContractTests
             SmtpRelayerConnectionSecurityUpdateCount++;
             UpdatedSmtpRelayerConnectionSecurity = smtpRelayerConnectionSecurity;
             CancellationToken = cancellationToken;
+            if (GateSmtpRelayerConnectionSecurityMutation)
+            {
+                SmtpRelayerConnectionSecurityMutationEntered.TrySetResult(true);
+                return WaitForSmtpRelayerConnectionSecurityMutationAsync();
+            }
+
             return ValueTask.FromResult(SmtpRelayerConnectionSecurityUpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForSmtpRelayerConnectionSecurityMutationAsync()
+        {
+            await SmtpRelayerConnectionSecurityMutationRelease.Task;
+            return SmtpRelayerConnectionSecurityUpdateResult;
         }
 
         public ValueTask<bool> UpdateWelcomePop3Async(
