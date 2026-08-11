@@ -4,8 +4,10 @@ using System.Globalization;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 using HMailServer.Security;
+using HMailServer.Service;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HMailServer.Net10.Tests;
 
@@ -352,6 +354,66 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 Assert.AreEqual(1, await CountRowsAsync(fixture.ConnectionString, "hm_messages", "messageaccountid", 1).ConfigureAwait(false));
                 Assert.AreEqual("restored", await File.ReadAllTextAsync(Path.Combine(fixture.GetDataDirectory(), "restored.txt")));
                 Assert.IsFalse(File.Exists(Path.Combine(fixture.GetDataDirectory(), "original.txt")));
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task BackupManager_StartRestoreDispatchesRealFullRestoreIntoPopulatedTarget()
+    {
+        await WithFullRestoreTargetAsync(
+            "manager_full_restore",
+            FullRestoreArchiveXml,
+            async fixture =>
+            {
+                await fixture.SeedExistingDomainAndPublicFolderAsync().ConfigureAwait(false);
+
+                using var queue = new BackupTaskQueue();
+                using var service = new BackupTaskHostedService(
+                    queue,
+                    NullLogger<BackupTaskHostedService>.Instance);
+                var dispatcher = new RecordingBackupEventDispatcher();
+                var manager = BackupManager.CreateAuthorized(
+                    new SevenZipBackupArchiveMetadataReader(Path.Combine(AppContext.BaseDirectory, "7za.exe")),
+                    new BackupOperationRuntime(queue),
+                    eventDispatcher: dispatcher,
+                    restoreExecutor: fixture.CreateExecutor());
+
+                var backup = (Backup)manager.LoadBackup(fixture.ArchivePath);
+                try
+                {
+                    backup.RestoreSettings = true;
+                    backup.RestoreDomains = true;
+                    backup.RestoreMessages = true;
+
+                    await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
+                    backup.StartRestore();
+
+                    var completed = await Task.WhenAny(
+                        dispatcher.Completed.Task,
+                        dispatcher.Failed.Task).WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                    if (ReferenceEquals(completed, dispatcher.Failed.Task))
+                    {
+                        Assert.Fail("The real queued restore failed: " + dispatcher.Failed.Task.Result);
+                    }
+
+                    Assert.AreEqual(
+                        "restored greeting",
+                        await ReadSettingStringAsync(fixture.ConnectionString, "welcomesmtp").ConfigureAwait(false));
+                    Assert.AreEqual(1, (await fixture.DomainStore.GetDomainsAsync(CancellationToken.None).ConfigureAwait(false)).Count);
+                    Assert.AreEqual(
+                        0,
+                        await CountRowsAsync(fixture.ConnectionString, "hm_imapfolders", "folderaccountid", 0).ConfigureAwait(false));
+                    Assert.AreEqual(2, await CountRowsAsync(fixture.ConnectionString, "hm_imapfolders", "folderaccountid", 1).ConfigureAwait(false));
+                    Assert.AreEqual(1, await CountRowsAsync(fixture.ConnectionString, "hm_messages", "messageaccountid", 1).ConfigureAwait(false));
+                    Assert.AreEqual("restored", await File.ReadAllTextAsync(Path.Combine(fixture.GetDataDirectory(), "restored.txt")).ConfigureAwait(false));
+                    Assert.IsFalse(File.Exists(Path.Combine(fixture.GetDataDirectory(), "original.txt")));
+                }
+                finally
+                {
+                    backup.CleanupArchiveBinding();
+                    await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
             }).ConfigureAwait(false);
     }
 
@@ -1111,6 +1173,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             await action(new DbOnlyRestoreFixture(
                 Path.Combine(AppContext.BaseDirectory, "7za.exe"),
                 dataDirectory,
+                archivePath,
                 backup,
                 testConnectionString,
                 new SqlServerDomainAdministrationStore(factory),
@@ -1167,6 +1230,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             await action(new DbOnlyRestoreFixture(
                 Path.Combine(AppContext.BaseDirectory, "7za.exe"),
                 dataDirectory,
+                archivePath,
                 backup,
                 testConnectionString,
                 new SqlServerDomainAdministrationStore(factory),
@@ -1191,6 +1255,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
     private sealed class DbOnlyRestoreFixture(
         string sevenZipExecutablePath,
         string dataDirectory,
+        string archivePath,
         Backup backup,
         string connectionString,
         SqlServerDomainAdministrationStore domainStore,
@@ -1202,6 +1267,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         SqlServerBackupRestoreMetadataTransactionFactory transactionFactory)
     {
         internal Backup Backup { get; } = backup;
+        internal string ArchivePath { get; } = archivePath;
         internal string GetDataDirectory() => dataDirectory;
         internal string ConnectionString { get; } = connectionString;
         internal SqlServerDomainAdministrationStore DomainStore { get; } = domainStore;
@@ -1251,6 +1317,44 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 messageStore: new SqlServerMessageAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 metadataTransactionFactory: null,
                 requireSqlTransaction: true);
+
+        internal async Task SeedExistingDomainAndPublicFolderAsync()
+        {
+            await DomainStore.InsertDomainAsync(
+                new DomainAdministrationSnapshot(0, "stale.example", true, Postmaster: "postmaster@stale.example"),
+                CancellationToken.None).ConfigureAwait(false);
+
+            const string sql = """
+                DECLARE @FolderId int;
+                INSERT INTO dbo.hm_imapfolders
+                    (folderaccountid, folderparentid, foldername, folderissubscribed, foldercurrentuid, foldercreationtime)
+                VALUES (0, 0, N'#Shared', 1, 7, '2026-07-01 12:00:00');
+                SET @FolderId = CONVERT(int, SCOPE_IDENTITY());
+                INSERT INTO dbo.hm_messages
+                    (messageaccountid, messagefolderid, messagefilename, messagetype, messagefrom,
+                     messagesize, messagecurnooftries, messagenexttrytime, messageflags, messagecreatetime,
+                     messagelocked, messageuid)
+                VALUES (0, @FolderId, N'stale.eml', 0, N'stale@example.test', 12, 0,
+                        '2026-07-01 12:00:00', 0, '2026-07-01 12:00:00', 0, 1);
+                """;
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync().ConfigureAwait(false);
+            await using var command = new SqlCommand(sql, connection);
+            await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
+    }
+
+    private sealed class RecordingBackupEventDispatcher : IBackupEventDispatcher
+    {
+        internal TaskCompletionSource<object?> Completed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal TaskCompletionSource<string> Failed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void OnBackupCompleted() => Completed.TrySetResult(null);
+
+        public void OnBackupFailed(string reason) => Failed.TrySetResult(reason);
     }
 
     private sealed class FailingMetadataTransactionFactory(
