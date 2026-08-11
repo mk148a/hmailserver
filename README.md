@@ -6,8 +6,8 @@ hMailServer
 The fresh disposable pair now passes the start-state gate: both databases have
 37 tables with equal row counts, 1,000 identical Data files, equal Data SHA-256,
 the same active domain/account/Inbox, three loopback ports, and SQL Full-Text
-catalog/index readiness. The latest post-delivery evidence is under
-`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-delivery/`.
+catalog/index readiness. The latest post-restart evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-restart-lifecycle/`.
 
 Net10 live evidence is now available: SMTP acceptance `25/25`, protocol
 SMTP/IMAP/POP3 `25/25`, concurrent IMAP `1000/1000`, and live IMAP Full-Text
@@ -29,6 +29,13 @@ and legacy `/Debug` startup would write AppID registration. The paired
 performance gate remains **RED**: no speed-up ratio, regression percentage,
 or winner is valid until the same C++ scenarios run in a registry-isolated
 environment.
+
+The disposable Net10 restart acceptance also passed `2/2` start/readiness/stop
+cycles. Each launched PID owned and banner-served all three loopback ports, and
+no launched PID retained SMTP `2525`, IMAP `1143`, or POP3 `25110` after stop.
+Start-ready p50 was `1636.538 ms`; stop p50 was `1546.317 ms`. This is process
+and listener evidence only; COM local server was disabled, so Windows service
+and out-of-process COM lifecycle remain open.
 
 The delivery report is
 `artifacts/benchmarks/live-cpp-net10-20260811/net10-live-delivery-queue/`.

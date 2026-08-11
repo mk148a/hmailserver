@@ -2,7 +2,7 @@
 
 ## Current authoritative live gate (2026-08-11)
 
-Code/test commit `0ec49598b` verified the equal disposable SQL/Data/message
+Code/test commit `46db432c6` verified the equal disposable SQL/Data/message
 pair and Net10 live acceptance: SMTP acceptance `25/25`, SMTP/IMAP/POP3
 protocol `25/25`, concurrent IMAP `1000/1000`, and IMAP Full-Text
 `SEARCH TEXT needle` `25/25` with 1,000 matches per session. The live FTS
@@ -34,6 +34,14 @@ total p50/p95/p99 `54.757/290.599/333.589 ms`, LIST p50/p95
 `14.963/56.093 ms`, UIDL p50 `15.060 ms`, and RETR p50 `1.466 ms`.
 The report is under
 `artifacts/benchmarks/live-cpp-net10-20260811/net10-pop3-large-mailbox/`.
+
+The disposable restart lifecycle runner starts the isolated Net10 host twice,
+checks PID ownership and SMTP/IMAP/POP3 banners on `127.0.0.1:2525`, `1143`,
+and `25110`, then verifies port release after stop. It passed `2/2` cycles;
+start-ready p50 was `1636.538 ms` and stop p50 was `1546.317 ms`. Evidence is
+under `artifacts/benchmarks/live-cpp-net10-20260811/net10-restart-lifecycle/`.
+COM local server is intentionally disabled, so this is not Windows service or
+out-of-process COM evidence.
 
 The legacy C++ process remains blocked by the read-only registry/configuration
 preflight because legacy `/Debug` startup would write the installed AppID

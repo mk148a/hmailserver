@@ -8,6 +8,29 @@
 
 ## Current next slice (2026-08-11, supersedes older benchmark entries)
 
+Code/test commit `46db432c6` completed the disposable Net10 restart lifecycle
+slice. `build/benchmark-net10-live-restart-lifecycle.ps1` starts the isolated
+`LiveListenerHost.exe` twice against
+`hmail_perf_pair_net10_20260811_1748` and
+`C:\hmail-perf-pair-20260811_1748\net10\Data`, requires the launched PID to
+own loopback SMTP `2525`, IMAP `1143`, and POP3 `25110`, validates each real
+protocol banner, then verifies that the launched PID owns none of those ports
+after forced shutdown. The run passed `2/2` cycles with start-ready p50
+`1636.538 ms` and stop p50 `1546.317 ms`; JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-restart-lifecycle/`.
+
+This is disposable process lifecycle evidence only: COM local server was
+disabled, and no Windows service, COM registration, DCOM ACL, registry, or
+production resource was changed. The post-run paired collector and validator
+remain `EQUIVALENT_START_STATE` under
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-restart-lifecycle/`.
+The C++ side remains blocked by installed Registry32/AppID isolation, so no
+comparison ratio or winner is claimed. Next independent slices are external-
+fetch soak with bounded resource evidence, then a registry-isolated C++ matrix
+and isolated Windows service/out-of-process COM lifecycle acceptance.
+
+## Historical current next slice (superseded, 2026-08-11)
+
 Code/test commit `0ec49598b` completed the Net10 large-mailbox POP3
 acceptance. Legacy `POP3Connection::ProtocolSTAT_`, `ProtocolLIST_`,
 `ProtocolUIDL_`, and `ProtocolRETR_` (`source/Server/POP3/POP3Connection.cpp:

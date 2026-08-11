@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, RESTART LIFECYCLE)
+
+Code/test commit `46db432c6` adds the disposable Net10 restart lifecycle
+acceptance. The runner starts the isolated `LiveListenerHost.exe` twice,
+proves the launched PID owns loopback SMTP `2525`, IMAP `1143`, and POP3
+`25110`, validates SMTP/IMAP/POP3 banners, and verifies all three ports are no
+longer owned by that PID after shutdown. The run passed `2/2` cycles with
+start-ready p50 `1636.538 ms` and stop p50 `1546.317 ms`. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/net10-restart-lifecycle/`.
+
+The paired read-only post-run collector and validator report
+`EQUIVALENT_START_STATE` under
+`artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-restart-lifecycle/`.
+COM local server was disabled; this does not prove Windows service or
+out-of-process COM lifecycle and changed no production state. Full Net10 is
+`2127 passed, 52 skipped, 0 failed`. The paired performance gate remains
+**RED** because the C++ registry/AppID-isolation environment is unavailable.
+Next: external-fetch soak with bounded resource evidence, then the isolated C++
+matrix and Windows service/out-of-process COM lifecycle.
+
 ## Current Authoritative Continuation (2026-08-11, POP3 LARGE MAILBOX)
 
 Code/test commit `0ec49598b` adds a real loopback Net10 POP3 large-mailbox

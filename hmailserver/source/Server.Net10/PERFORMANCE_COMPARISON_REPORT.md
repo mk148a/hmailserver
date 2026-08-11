@@ -1,7 +1,7 @@
 # C++ / .NET 10 Performance Gate Report
 
 Date: 2026-08-11
-Code/test commit: `0ec49598b`
+Code/test commit: `46db432c6`
 Decision: **RED**
 
 ## Executive Result
@@ -16,7 +16,7 @@ The SQL/Data/message fixture is now equivalent at the start of the run:
 - SQL Full-Text service, catalog, search-document table, and index present on both sides
 - SMTP `2525`, IMAP `1143`, POP3 `25110`, all bound to `127.0.0.1`
 
-Evidence: `artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-delivery/paired-shared-baseline.json`.
+Evidence: `artifacts/benchmarks/live-cpp-net10-20260811/shared-baseline-pair-20260811_1748-after-restart-lifecycle/paired-shared-baseline.json`.
 
 The .NET 10 listener was measured against this fixture. The legacy C++ process was **not** launched: the read-only preflight found the installed Registry32 path and `/Debug` startup would write the installed AppID registration. Therefore no C++ latency, throughput, ratio, regression, or winner is reported.
 
@@ -58,6 +58,13 @@ dot-terminated `RETR 1` response for all five sessions. The SQL mailbox row
 count remained 1,000/1,000 after shutdown. This closes the Net10 large-mailbox
 read/list/stream gate, but is not a C++ comparison or a long-duration soak.
 
+The disposable restart lifecycle passed `2/2` cycles. Each launched
+`LiveListenerHost.exe` PID owned all three loopback listeners and served the
+expected SMTP/IMAP/POP3 banners; after shutdown, no launched PID retained any
+of the three ports. Start-ready p50 was `1636.538 ms` and stop p50 was
+`1546.317 ms`. This does not prove Windows service or out-of-process COM
+lifecycle because COM local server was disabled.
+
 ## Charts
 
 These charts show measured .NET 10 values only. They are deliberately not C++ comparison charts.
@@ -94,7 +101,7 @@ The disposable SQL diagnostic also exposed and provisioned the exact legacy `hm_
 
 1. A registry-isolated C++ installation or VM is required before any C++ process can run safely.
 2. C++/.NET 10 SMTP, IMAP, POP3, FTS, delivery, queue, and equal-load measurements are still absent as a pair.
-3. Remote-delivery throughput/retry comparison, external-fetch soak, service restart/COM lifecycle, and 24-hour leak soak remain unexecuted.
+3. Remote-delivery throughput/retry comparison, external-fetch soak, Windows service/out-of-process COM lifecycle, and 24-hour leak soak remain unexecuted.
 
 ## Reproduction Commands
 

@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T16:32:00Z / 2026-08-11T19:32:00+03:00
+- UTC/local timestamp: 2026-08-11T16:39:17Z / 2026-08-11T19:39:17+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; push intentionally not performed
-- Current HEAD: `ec510f073` documentation commit (unpublished)
+- Current HEAD: `93af4df50` documentation commit (unpublished; code/test `46db432c6`)
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: equal disposable pair `EQUIVALENT_START_STATE`; delivery queue `50/50` local commits and retry/defer PASS; POP3 large mailbox `5/5` with STAT/LIST/UIDL/RETR and `1000/1000` SQL rows; POP3/FTS SQL diagnostics PASS; SMTP `25/25`; protocol SMTP/IMAP/POP3 `25/25`; concurrent IMAP `1000/1000`; FTS SEARCH `25/25`
+- Latest focused-test result: equal disposable pair `EQUIVALENT_START_STATE`; restart lifecycle `2/2` start/readiness/stop PASS with no launched PID retaining loopback ports; delivery queue `50/50` local commits and retry/defer PASS; POP3 large mailbox `5/5` with STAT/LIST/UIDL/RETR and `1000/1000` SQL rows; POP3/FTS SQL diagnostics PASS; SMTP `25/25`; protocol SMTP/IMAP/POP3 `25/25`; concurrent IMAP `1000/1000`; FTS SEARCH `25/25`
 - Latest full Net10 result: `2127 passed, 52 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: disposable delivery queue, POP3/auth/mailbox, FTS backfill/search, SMTP host/queue, cleanup, and live load diagnostics passed; restore/installer/registry/COM/AD/DC/SEC-18/soak opt-ins remain skipped or environment-blocked
-- Current bounded slice: service restart/COM lifecycle and bounded memory/handle/thread/socket evidence, after the delivery and POP3 slices; detailed report is `hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`
-- Completed milestones: backup/restore foundations, COM/Admin slices through the recorded backlog, equal disposable fixture/FTS readiness evidence, Net10 SMTP acceptance, Net10 protocol SMTP/IMAP/POP3, Net10 1,000-session IMAP load, live Net10 FTS SEARCH, disposable delivery queue acceptance, and 1,000-message POP3 large-mailbox acceptance
-- Open production blockers: registry-isolated C++ matrix and paired ratios, remote delivery/queue comparison, external-fetch soak, service/COM lifecycle, migration/installer, SEC-18, AD/DC, and 24-hour soak
+- Current bounded slice: external-fetch soak and bounded memory/handle/thread/socket evidence; the disposable restart lifecycle is complete, while Windows service and out-of-process COM remain unproven; detailed report is `hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`
+- Completed milestones: backup/restore foundations, COM/Admin slices through the recorded backlog, equal disposable fixture/FTS readiness evidence, Net10 SMTP acceptance, Net10 protocol SMTP/IMAP/POP3, Net10 1,000-session IMAP load, live Net10 FTS SEARCH, disposable delivery queue acceptance, 1,000-message POP3 large-mailbox acceptance, and disposable Net10 restart/loopback PID ownership acceptance
+- Open production blockers: registry-isolated C++ matrix and paired ratios, remote delivery/queue comparison, external-fetch soak, Windows service/out-of-process COM lifecycle, migration/installer, SEC-18, AD/DC, and 24-hour soak
 - Environment-blocked work: separate C++ registry-isolated VM, out-of-process COM/installer, disposable restore/rollback acceptance, credential/AD evidence, IIS/SEC-18 cutover, and long-running soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC18/benchmark/disposable artifacts
-- Next three independent slices: (1) run the identical matrix in a registry-isolated C++ VM when available, (2) add service restart/COM lifecycle acceptance on disposable resources, (3) add external-fetch soak and bounded memory/handle/thread/socket evidence
+- Next three independent slices: (1) add external-fetch disposable soak and bounded resource evidence, (2) run the identical matrix in a registry-isolated C++ VM when available, (3) complete Windows service and out-of-process COM lifecycle acceptance in an isolated installation
