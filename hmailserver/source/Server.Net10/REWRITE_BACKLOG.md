@@ -6,6 +6,36 @@
 
 
 
+## Current Audit Note (2026-08-11, WELCOME POP3 AUTHORIZATION LEASE)
+
+Code/test commit `52c92f050` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.WelcomePOP3`
+(`DispId(24)`). The lease is acquired immediately before the existing
+parameterized `welcomepop3` SQL update and held through result handling and
+retained snapshot publication. POP3 banner runtime wiring remains out of
+scope for this bounded mutation slice.
+
+Legacy behavior is anchored by `InterfaceSettings::get/put_WelcomePOP3`
+(`source/Server/COM/InterfaceSettings.cpp:713-745`),
+`POP3Configuration::Get/SetWelcomeMessage`
+(`source/Server/POP3/POP3Configuration.cpp:43-53`),
+`PROPERTY_WELCOMEPOP3` (`source/Server/Common/Application/Constants.h:14`),
+the installed Settings IID and `DispId(24)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,549-550`), and the
+`welcomepop3` seed (`source/DBScripts/CreateTablesMSSQL.sql:756`). The .NET
+`UpdateWelcomePop3Sql` shape was not changed. Focused coverage is `113/113`,
+including unavailable-lease denial and in-flight reauthentication blocking.
+
+Legacy `POP3Connection::SendBanner_` reads `welcomepop3` per connection
+(`source/Server/POP3/POP3Connection.cpp:100-116`); Net10 `Pop3Session` still
+uses `Pop3SessionOptions.Greeting`, so live POP3 greeting parity is an open
+protocol-runtime blocker. Full unfiltered Net10 is `2096 passed, 39 skipped,
+0 failed`. Release remains **RED** for that blocker plus disposable SQL/Data
+restore, non-DB restore, SQL/FTS, paired C++/.NET performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: fresh
+legacy-first audit of `Settings.WelcomeIMAP`.
+
 ## Current Audit Note (2026-08-11, WELCOME SMTP AUTHORIZATION LEASE)
 
 Code/test commit `6f5a12cc6` extends the existing generation-bound

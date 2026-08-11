@@ -1,5 +1,38 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, WELCOME POP3 AUTHORIZATION LEASE)
+
+Code/test commit `52c92f050` extends the existing generation-bound
+authorization lease to authenticated `Settings.WelcomePOP3` (`DispId(24)`).
+The lease spans the existing parameterized `welcomepop3` SQL mutation, result
+handling, and retained snapshot publication; unavailable leases fail closed
+with `E_ACCESSDENIED`.
+
+Legacy anchors: `InterfaceSettings::get/put_WelcomePOP3`
+(`source/Server/COM/InterfaceSettings.cpp:713-745`),
+`POP3Configuration::Get/SetWelcomeMessage`
+(`source/Server/POP3/POP3Configuration.cpp:43-53`),
+`PROPERTY_WELCOMEPOP3` (`source/Server/Common/Application/Constants.h:14`),
+the installed Settings IID and `DispId(24)`
+(`source/Server/hMailServer/hMailServer.idl:520-528,549-550`), and the
+`welcomepop3` MSSQL seed (`source/DBScripts/CreateTablesMSSQL.sql:756`).
+Focused settings/store coverage is `113/113`; full unfiltered Net10 is
+`2096 passed, 39 skipped, 0 failed`.
+
+The focused tests cover lease acquire/dispose, unavailable-lease denial
+before mutation, and reauthentication blocking during an in-flight mutation.
+Legacy `POP3Connection::SendBanner_` reads `welcomepop3` per connection, but
+Net10 `Pop3Session` still uses `Pop3SessionOptions.Greeting`; live POP3
+greeting wiring is a separate open protocol-runtime parity blocker. Installed
+COM identity, direct activation denial, and authenticated Settings access
+remain unchanged.
+
+Release remains RED for the greeting blocker, disposable SQL/Data restore,
+non-DB restore, SQL/FTS, paired C++/.NET performance, SEC-18,
+migration/installer, out-of-process COM, AD/DC, crash/power-loss, 24-hour
+soak, and remaining unleased COM/Admin mutations. Next slice: fresh
+legacy-first audit of `Settings.WelcomeIMAP`. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, WELCOME SMTP AUTHORIZATION LEASE)
 
 Code/test commit `6f5a12cc6` extends the existing generation-bound

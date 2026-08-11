@@ -1,6 +1,38 @@
 hMailServer
 ===========
 
+## Current parity continuation (2026-08-11, WelcomePOP3 authorization lease)
+
+Code/test commit `52c92f050` extends the existing generation-bound
+authorization lease to authenticated `IInterfaceSettings.WelcomePOP3`
+(`DispId(24)`). The lease is acquired immediately before the existing
+parameterized `welcomepop3` SQL update and held through mutation result
+handling and retained snapshot publication. No BSTR shape, installed COM
+identity, or POP3 runtime wiring changed.
+
+Legacy anchors are `InterfaceSettings::get/put_WelcomePOP3`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:713-745`),
+`POP3Configuration::Get/SetWelcomeMessage`
+(`hmailserver/source/Server/POP3/POP3Configuration.cpp:43-53`),
+`PROPERTY_WELCOMEPOP3` (`hmailserver/source/Server/Common/Application/Constants.h:14`),
+the installed Settings IID and `DispId(24)`
+(`hmailserver/source/Server/hMailServer/hMailServer.idl:520-528,549-550`),
+and the `welcomepop3` seed (`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:756`).
+Focused tests cover lease acquire/dispose, unavailable-lease denial before
+mutation, and reauthentication blocking during an in-flight mutation.
+
+Focused settings/store coverage is `113/113`. Full unfiltered Net10 is
+`2096 passed, 39 skipped, 0 failed`. Legacy `POP3Connection::SendBanner_`
+consumes `welcomepop3` per connection
+(`hmailserver/source/Server/POP3/POP3Connection.cpp:100-116`), while Net10
+still uses the fixed `Pop3SessionOptions.Greeting`; this runtime wiring is a
+separate open parity blocker. Disposable SQL/Data restore,
+non-DB restore/reinitialization, SQL/FTS, matched C++/.NET protocol load,
+SEC-18, migration/installer, out-of-process COM, AD/DC, crash/power-loss,
+24-hour soak, and remaining unleased COM/Admin mutations keep release
+**RED**. Next slice is a fresh legacy-first audit of
+`Settings.WelcomeIMAP`.
+
 ## Current parity continuation (2026-08-11, WelcomeSMTP authorization lease)
 
 Code/test commit `6f5a12cc6` extends the existing generation-bound
