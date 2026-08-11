@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-11)
+
+The latest bounded COM/Admin slice implements authenticated
+`Settings.SMTPConnectionSecurity` persistence. Legacy
+`InterfaceSettings::put_SMTPConnectionSecurity`
+(`source/Server/COM/InterfaceSettings.cpp:1799-1813`) delegates to
+`SMTPConfiguration::SetSMTPConnectionSecurity`
+(`source/Server/SMTP/SMTPConfiguration.cpp:175-184`), which updates the
+existing `SmtpDeliveryConnectionSecurity` row seeded by
+`source/DBScripts/CreateTablesMSSQL.sql:934`. Net10 now performs the same
+parameterized fixed-row update, requires one affected row, preserves the
+previous snapshot on failure, and rechecks the authenticated server-admin
+boundary. Focused Settings/SQL coverage is `142/142`; full Net10 is `2133
+passed, 53 skipped, 0 failed`. This slice does not add enum validation, live
+SMTP/TLS reconfiguration, or delivery behavior changes.
+
+The paired C++/.NET10 performance gate remains **RED**: the registry-isolated
+C++ runner is still unavailable, so no speed-up ratio, regression percentage,
+or winner is claimed. Service/out-of-process COM, restore/rollback,
+migration/installer, SEC-18, AD/DC, and 24-hour soak gates remain open or
+environment-blocked.
+
 ## Current authoritative performance-safety status (2026-08-11)
 
 The latest bounded COM/Admin slice implements authenticated

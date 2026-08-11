@@ -1,4 +1,25 @@
-## Current authoritative continuation (2026-08-11, MaxAsynchronousThreads persistence)
+## Current authoritative continuation (2026-08-11, SMTPConnectionSecurity persistence)
+
+Code/test commit `7b3373deb` implements authenticated
+`Settings.SMTPConnectionSecurity` setter parity (`DispId(92)`). Legacy
+`InterfaceSettings::put_SMTPConnectionSecurity`
+(`source/Server/COM/InterfaceSettings.cpp:1799-1813`) calls
+`SMTPConfiguration::SetSMTPConnectionSecurity`
+(`source/Server/SMTP/SMTPConfiguration.cpp:175-184`), which writes the
+existing `SmtpDeliveryConnectionSecurity` row seeded by
+`source/DBScripts/CreateTablesMSSQL.sql:934`. Net10 now performs the same
+parameterized fixed-row persistence, requires one affected row, rechecks the
+server-admin boundary, retains failed state, and publishes the snapshot only
+after success. No enum validation, live SMTP/TLS reconfiguration, or delivery
+behavior change was added.
+
+Focused Settings/SQL coverage is `142 passed`; full Net10 is `2133 passed, 53
+skipped, 0 failed`. The paired C++ performance gate, service/out-of-process
+COM, restore/rollback, migration/installer, SEC-18, AD/DC, and long-soak gates
+remain open or environment-blocked. Next slice: fresh legacy-first audit of
+one remaining fixed-row Settings mutation.
+
+## Historical parity continuation (2026-08-11, MaxAsynchronousThreads persistence)
 
 Code/test commit `18c3685c8` implements authenticated
 `Settings.MaxAsynchronousThreads` setter parity. Legacy

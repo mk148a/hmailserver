@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, SMTP CONNECTION SECURITY ADMIN MUTATION)
+
+Code/test commit `7b3373deb` implements the authenticated
+`IInterfaceSettings.SMTPConnectionSecurity` setter (`DispId(92)`). Legacy
+`InterfaceSettings::put_SMTPConnectionSecurity`
+(`source/Server/COM/InterfaceSettings.cpp:1799-1813`) calls
+`SMTPConfiguration::SetSMTPConnectionSecurity`
+(`source/Server/SMTP/SMTPConfiguration.cpp:175-184`), which writes
+`PROPERTY_SMTPCONNECTIONSECURITY` (`Constants.h:121`) to the existing
+`SmtpDeliveryConnectionSecurity` row seeded by `source/DBScripts/CreateTablesMSSQL.sql:934`.
+There is no legacy enum-range validation and legacy returns S_OK after the
+setter path. Net10 now uses a parameterized one-row update, authenticated
+server-admin revalidation, failed-write retention, and post-success snapshot
+publication. Installed COM identity, direct activation, SMTP trust behavior,
+and runtime TLS reconfiguration are unchanged.
+
+Focused Settings/SQL coverage is `142 passed, 0 failed, 0 skipped`; full Net10
+is `2133 passed, 53 skipped, 0 failed`. Performance remains RED because the
+registry-isolated C++ matrix is unavailable. Next: fresh legacy-first audit of
+one remaining fixed-row Settings mutation, then the registry-isolated C++
+matrix and isolated service/out-of-process COM lifecycle.
+
 ## Current Authoritative Continuation (2026-08-11, MAX ASYNCHRONOUS THREADS ADMIN MUTATION)
 
 Code/test commit `18c3685c8` implements the authenticated
