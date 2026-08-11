@@ -47,6 +47,10 @@ GROUP BY s.name, t.name
 ORDER BY 1;
 '@
     $lines = @(sqlcmd -S localhost -E -d $Database -W -s '|' -h-1 -Q $query)
+    if ($LASTEXITCODE -ne 0) {
+        throw "sqlcmd could not read disposable database '$Database' (exit code $LASTEXITCODE)."
+    }
+
     foreach ($line in $lines) {
         if ($line -notmatch '\|') {
             continue

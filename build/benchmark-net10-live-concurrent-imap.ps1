@@ -171,7 +171,9 @@ public static class HMailServerLiveImapProbe
 {
     public static HMailServerLiveImapProbeResult[] RunMany(int count, int timeoutMilliseconds)
     {
-        ThreadPool.GetMinThreads(out var originalMinWorkerThreads, out var originalMinCompletionPortThreads);
+        int originalMinWorkerThreads;
+        int originalMinCompletionPortThreads;
+        ThreadPool.GetMinThreads(out originalMinWorkerThreads, out originalMinCompletionPortThreads);
         ThreadPool.SetMinThreads(
             Math.Max(originalMinWorkerThreads, count),
             originalMinCompletionPortThreads);

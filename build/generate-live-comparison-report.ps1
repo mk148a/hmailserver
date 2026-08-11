@@ -55,6 +55,13 @@ $report = [pscustomobject]@{
     )
 }
 
+$net10P95Values = ($rows | ForEach-Object {
+    if ($null -eq $_.net10_p95_ms) { 0 } else { [math]::Round([double]$_.net10_p95_ms, 3) }
+}) -join ', '
+$cppP95Values = ($rows | ForEach-Object {
+    if ($null -eq $_.cpp_p95_ms) { 0 } else { [math]::Round([double]$_.cpp_p95_ms, 3) }
+}) -join ', '
+
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $report | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $OutputDirectory "paired-live-comparison.json") -Encoding UTF8
 $rows | Export-Csv (Join-Path $OutputDirectory "paired-live-comparison.csv") -NoTypeInformation
@@ -81,8 +88,8 @@ $markdown += @(
     '    title "Raw p95 latency (diagnostic only; no winner)"',
     '    x-axis [SMTP, IMAP, POP3]',
     '    y-axis "milliseconds" 0 --> 250',
-    '    bar [13.616, 3.027, 5.962]',
-    '    bar [10.948, 29.929, 0]',
+    "    bar [$net10P95Values]",
+    "    bar [$cppP95Values]",
     '```',
     "",
     "The first bar series is .NET 10 and the second is C++. The C++ POP3 value is zero only because no successful sample exists; it must not be interpreted as a performance result.",
