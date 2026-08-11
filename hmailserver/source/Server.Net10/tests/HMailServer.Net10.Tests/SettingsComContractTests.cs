@@ -2998,6 +2998,98 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxNumberOfInvalidCommandsSetterAcquiresAndDisposesAuthorizationLease()
+    {
+        var lease = new TrackingAuthorizationLease();
+        var leaseAcquireCount = 0;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxNumberOfInvalidCommandsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxNumberOfInvalidCommands: 100),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseAcquireCount++;
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+
+        settings.MaxNumberOfInvalidCommands = 25;
+
+        Assert.AreEqual(1, leaseAcquireCount);
+        Assert.IsTrue(lease.Disposed);
+        Assert.AreEqual(1, store.MaxNumberOfInvalidCommandsUpdateCount);
+        Assert.AreEqual(25, settings.MaxNumberOfInvalidCommands);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_MaxNumberOfInvalidCommandsSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxNumberOfInvalidCommandsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxNumberOfInvalidCommands: 100),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxNumberOfInvalidCommands = 25);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.MaxNumberOfInvalidCommandsUpdateCount);
+        Assert.AreEqual(100, settings.MaxNumberOfInvalidCommands);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_MaxNumberOfInvalidCommandsMutationLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxNumberOfInvalidCommands: 100),
+            MaxNumberOfInvalidCommandsUpdateResult = true,
+            GateMaxNumberOfInvalidCommandsMutation = true
+        };
+        SettingsAdministrationRuntimeHost.Configure(store);
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+
+        var mutation = Task.Run(() => settings.MaxNumberOfInvalidCommands = 25);
+        await store.MaxNumberOfInvalidCommandsMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.MaxNumberOfInvalidCommandsMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual(25, store.UpdatedMaxNumberOfInvalidCommands);
+        Assert.AreEqual(25, settings.MaxNumberOfInvalidCommands);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_DisconnectInvalidClientsSetterPersistsTrueAndFalseBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -3924,6 +4016,14 @@ public sealed class SettingsComContractTests
 
         public bool MaxNumberOfInvalidCommandsUpdateResult { get; set; }
 
+        public bool GateMaxNumberOfInvalidCommandsMutation { get; set; }
+
+        public TaskCompletionSource<bool> MaxNumberOfInvalidCommandsMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> MaxNumberOfInvalidCommandsMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int MaxNumberOfInvalidCommandsUpdateCount { get; private set; }
 
         public int UpdatedMaxNumberOfInvalidCommands { get; private set; }
@@ -4308,7 +4408,19 @@ public sealed class SettingsComContractTests
             MaxNumberOfInvalidCommandsUpdateCount++;
             UpdatedMaxNumberOfInvalidCommands = maxNumberOfInvalidCommands;
             CancellationToken = cancellationToken;
+            if (GateMaxNumberOfInvalidCommandsMutation)
+            {
+                MaxNumberOfInvalidCommandsMutationEntered.TrySetResult(true);
+                return WaitForMaxNumberOfInvalidCommandsMutationAsync();
+            }
+
             return ValueTask.FromResult(MaxNumberOfInvalidCommandsUpdateResult);
+        }
+
+        private async ValueTask<bool> WaitForMaxNumberOfInvalidCommandsMutationAsync()
+        {
+            await MaxNumberOfInvalidCommandsMutationRelease.Task;
+            return MaxNumberOfInvalidCommandsUpdateResult;
         }
 
         public ValueTask<bool> UpdateDisconnectInvalidClientsAsync(

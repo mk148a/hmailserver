@@ -1536,6 +1536,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 return;
             }
 
+            using var authorizationLease = AcquireAuthorizationLease();
             if (!_settingsMutationStore
                 .UpdateMaxNumberOfInvalidCommandsAsync(value, CancellationToken.None)
                 .GetAwaiter()
