@@ -1,10 +1,10 @@
 # Current State
-- UTC/local timestamp: 2026-08-11T14:25:00Z / 2026-08-11T17:25:00+03:00
+- UTC/local timestamp: 2026-08-11T14:40:00Z / 2026-08-11T17:40:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; push intentionally not performed
-- Current HEAD: `7e58324d7` (`Gate paired evidence on fixture and FTS readiness`); documentation commit follows
+- Current HEAD: `2a6f68efc` (`Document paired fixture and FTS gate`)
 - Last successfully pushed commit: `9d4b3791e`
-- Latest focused-test result: shared-baseline v2 validator PASS for fail-closed fixture/FTS evidence; live collector status `NOT_EQUIVALENT` with Inbox `0`, Data-root containment `0`, outside filenames `1000`/`1029`, and Full-Text not ready on either disposable database; exact SMTP fixture/path gate remains FAIL
-- Latest full Net10 result: default `2127 passed, 46 skipped, 0 failed` (last full suite before this build-only slice)
+- Latest focused-test result: shared-baseline v2 validator PASS; live collector status `NOT_EQUIVALENT` with Inbox `0`, Data-root containment `0`, outside filenames `1000`/`1029`, and Full-Text not ready on either disposable database; exact SMTP fixture/path gate remains FAIL; Net10-only offline 100k diagnostic PASS (`p50/p95/p99 7.324/8.076/8.223 ms`)
+- Latest full Net10 result: `2127 passed, 46 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: Net10-only SMTP acceptance `25/25` diagnostic; paired C++ SMTP/IMAP/POP3, FTS-backed IMAP SEARCH, equal post-run SQL/Data corpus, installer, out-of-process COM, SEC-18, AD/DC, and 24-hour soak remain blocked or unproven
 - Current bounded slice: shared-baseline v2 fixture and SQL Full-Text readiness evidence; no C++ process was launched by the new runner and no production machine state changed
 - Completed milestones: raw backup staging and hardening, restore transaction foundations, FetchAccount/UID, Rules/Criteria/Actions, folder/message metadata, raw message-file acceptance, failed-commit rollback, settings restore parsing/store/execution, combined settings/domain DB-only restore, WelcomeSMTP SQL capacity parity, mode-7 isolated restore/rollback evidence, composed dispatch coverage, populated existing-state full restore coverage, benchmark evidence hardening, fragmented SMTP DATA processing, C++ benchmark isolation/provenance preflight for protocol and concurrency runners, paired comparison evidence gate, SMTP fixture accounting, exact fixture/path gate, shared-baseline fixture/FTS evidence gate

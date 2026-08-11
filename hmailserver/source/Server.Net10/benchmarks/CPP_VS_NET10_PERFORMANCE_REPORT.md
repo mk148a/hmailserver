@@ -20,6 +20,19 @@ Data-file equality alone as sufficient. The performance release gate is
 **RED**; the existing charts below are historical diagnostic measurements and
 must not be used to calculate a C++/.NET 10 speed-up.
 
+The current Net10-only offline 100k diagnostic at commit `2a6f68efc` passed
+correctness and threshold checks with p50/p95/p99 of `7.324/8.076/8.223 ms`.
+It is an in-memory diagnostic and is deliberately excluded from the paired
+performance decision.
+
+```mermaid
+xychart-beta
+    title "Net10-only offline SEARCH/SORT diagnostic"
+    x-axis [p50, p95, p99]
+    y-axis "milliseconds" 0 --> 10
+    bar [7.324, 8.076, 8.223]
+```
+
 **Run date:** 2026-08-10
 **Repository commit:** `21cc042c9`
 **Host:** Windows 11 build `10.0.26200`, x64, 16 logical processors

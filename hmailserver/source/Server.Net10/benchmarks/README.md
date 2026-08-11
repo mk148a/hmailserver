@@ -19,6 +19,19 @@ The paired release gate remains **RED** and no ratio or winner is valid.
 The focused validator is `build/test-live-equivalence-evidence.ps1`; it also
 proves missing Full-Text evidence fails closed.
 
+The current Net10-only offline 100k diagnostic at commit `2a6f68efc` passed
+with 100,000 messages, deterministic correctness, and p50/p95/p99 of
+`7.324/8.076/8.223 ms`. This workload is in-memory and does not exercise SQL
+Full-Text, live IMAP, C++, or the paired release gate.
+
+```mermaid
+xychart-beta
+    title "Net10-only offline SEARCH/SORT diagnostic"
+    x-axis [p50, p95, p99]
+    y-axis "milliseconds" 0 --> 10
+    bar [7.324, 8.076, 8.223]
+```
+
 ## Current SMTP acceptance gate (2026-08-11)
 
 Code/tool commit `b34b2b415` adds
