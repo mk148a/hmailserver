@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, SHARED SQL/DATA PERFORMANCE BASELINE)
+
+Code/tool commit `8558b7a44` adds
+`build/collect-live-equivalence-evidence.ps1`. A disposable C++ SQL backup was
+restored to both targets; the collector verified 33/33 matching table row
+counts and two 1,000-file Data trees with zero path/SHA-256 mismatches. Both
+implementations then used loopback `127.0.0.1` on SMTP `2525`, IMAP `1143`, and
+POP3 `25110`.
+
+The shared-baseline protocol result is still **RED**: C++ was `0/25` for SMTP,
+IMAP, and POP3; Net10 was SMTP `25/25`, IMAP `0/25`, POP3 `0/25`; 1,000-session
+IMAP was `0/1000` for both. No speed-up or performance winner is valid. JSON
+and Markdown evidence are under
+`artifacts/benchmarks/live-cpp-net10-20260811/`; the SQL backup is outside the
+repository under the isolated C++ staging directory and was not committed.
+
+Next slice: repair or replace the isolated C++/Net10 protocol target so both
+complete the same SMTP/IMAP/POP3 acceptance matrix. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, SMTP GREETING RUNTIME PROPAGATION)
 
 Code/test commit `c26479d9b` wires legacy `WelcomeSMTP` formatting into the

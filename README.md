@@ -1,6 +1,30 @@
 hMailServer
 ===========
 
+## Current performance gate (2026-08-11)
+
+The paired release gate is **RED**. A disposable C++ SQL backup was restored
+to both benchmark databases, and the two isolated Data directories were
+verified as 1,000/1,000 files with zero relative-path or SHA-256 mismatches.
+Both implementations used loopback `127.0.0.1` with SMTP `2525`, IMAP `1143`,
+and POP3 `25110`.
+
+The shared-baseline run did not complete an equivalent workload: C++ completed
+`0/25` SMTP, IMAP, and POP3 probes; Net10 completed SMTP `25/25`, IMAP `0/25`,
+and POP3 `0/25`. The 1,000-session IMAP run completed `0/1000` for both. No
+speed-up, regression percentage, or performance winner is claimed. Evidence is
+under `artifacts/benchmarks/live-cpp-net10-20260811/`; the repeatable start
+state collector is `build/collect-live-equivalence-evidence.ps1`.
+
+```mermaid
+xychart-beta
+    title "Shared-baseline protocol success counts"
+    x-axis [SMTP, IMAP, POP3, IMAP-1k]
+    y-axis "successful sessions" 0 --> 25
+    bar [0, 0, 0, 0]
+    bar [25, 0, 0, 0]
+```
+
 ## Current parity continuation (2026-08-11, MaxSMTPRecipientsInBatch authorization lease)
 
 Code/test commit `77ea84fb9` extends the existing generation-bound

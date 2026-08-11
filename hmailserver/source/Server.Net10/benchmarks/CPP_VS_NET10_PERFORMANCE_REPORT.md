@@ -5,6 +5,36 @@
 **Host:** Windows 11 build `10.0.26200`, x64, 16 logical processors
 **Decision:** `RED - no valid C++ vs .NET 10 comparison yet`
 
+## Latest shared-baseline rerun (2026-08-11)
+
+The disposable C++ SQL database was backed up with `COPY_ONLY` and restored
+into the disposable Net10 database. The start-state collector reported 33/33
+matching table row counts. The two isolated Data directories contained 1,000
+files each with zero relative-path or SHA-256 mismatches. The runs used
+loopback `127.0.0.1` and SMTP `2525`, IMAP `1143`, POP3 `25110`.
+
+| Scenario | C++ | .NET 10 | Ratio |
+| --- | ---: | ---: | --- |
+| SMTP protocol, 25 iterations | 0/25 | 25/25 | invalid |
+| IMAP protocol, 25 iterations | 0/25 | 0/25 | invalid |
+| POP3 protocol, 25 iterations | 0/25 | 0/25 | invalid |
+| IMAP concurrent, 1,000 sessions | 0/1000 | 0/1000 | invalid |
+
+```mermaid
+xychart-beta
+    title "Shared-baseline protocol success counts"
+    x-axis [SMTP, IMAP, POP3, IMAP-1k]
+    y-axis "successful sessions" 0 --> 25
+    bar [0, 0, 0, 0]
+    bar [25, 0, 0, 0]
+```
+
+The shared SQL/Data start state is now proven, but neither implementation
+completed the same matrix. The release gate remains **RED** and no speed-up,
+regression percentage, or winner is valid. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/`; the checker is
+`build/collect-live-equivalence-evidence.ps1`.
+
 ## Executive result
 
 The .NET 10 benchmark pack produced reproducible offline measurements. A later

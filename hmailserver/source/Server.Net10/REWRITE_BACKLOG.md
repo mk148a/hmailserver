@@ -6,6 +6,23 @@
 
 
 
+## Current Audit Note (2026-08-11, SHARED SQL/DATA PERFORMANCE BASELINE)
+
+Code/tool commit `8558b7a44` adds the repeatable
+`build/collect-live-equivalence-evidence.ps1` collector. One disposable C++
+SQL backup was restored into both benchmark databases; 33/33 table row counts
+matched. The C++ and Net10 Data roots each contained 1,000 files with zero
+relative-path or SHA-256 mismatches. Both runs used loopback SMTP `2525`, IMAP
+`1143`, and POP3 `25110`.
+
+The shared-baseline live matrix is still **RED**: C++ completed `0/25` SMTP,
+IMAP, and POP3 probes; Net10 completed SMTP `25/25`, IMAP `0/25`, and POP3
+`0/25`; 1,000-session IMAP completed `0/1000` for both. The start state is
+equivalent, but protocol completion is not, so no speed-up ratio or winner is
+valid. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260811/`. Next slice: repair or replace
+the isolated protocol target and rerun the identical matrix.
+
 ## Current Audit Note (2026-08-11, SMTP GREETING RUNTIME PROPAGATION)
 
 Code/test commit `c26479d9b` wires the installed settings-backed
