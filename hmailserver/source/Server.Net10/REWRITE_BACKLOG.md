@@ -3704,3 +3704,17 @@ The next required gate is environment-blocked: provision an approved
 disposable SQL Server with Full-Text Search and a normal isolated legacy C++
 binary exposing SMTP/IMAP/POP3, then rerun the identical SQL/Data/message and
 loopback matrix. Do not claim a performance ratio or winner without it.
+## Current authoritative next slice (2026-08-11, SMTP MESSAGE ACCEPTANCE HARNESS)
+
+Code/tool commit `b34b2b415` adds the isolated loopback SMTP acceptance runner
+and validator. The runner measures `EHLO -> MAIL FROM -> RCPT TO -> DATA ->
+250 accepted -> QUIT`, emits JSON/CSV/Markdown, and fails closed on readiness,
+response, or shutdown errors. Parser/validator tests pass. The disposable
+smoke is **FAIL** for both targets: Net10 `0/1` reaches `354` without final
+`250`; C++ `0/1` fails readiness. This is not a speed comparison.
+
+Next smallest executable gate is to provision approved SQL Server Full-Text
+Search and repair/replace the isolated legacy C++ SMTP/IMAP/POP3 target, then
+rerun message acceptance before adding delivery-queue throughput. Preserve
+production service/DB/Data, installed COM identity/DCOM, and loopback-only
+benchmark boundaries.

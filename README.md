@@ -3,6 +3,15 @@ hMailServer
 
 ## Current authoritative benchmark status (2026-08-11)
 
+Code/tool commit `b34b2b415` adds
+`build/benchmark-net10-live-smtp-acceptance.ps1` and its fail-closed
+validator. The runner measures the full SMTP `EHLO -> MAIL FROM -> RCPT TO ->
+DATA -> 250 accepted -> QUIT` transaction on isolated loopback targets and
+emits JSON/CSV/Markdown with p50/p95/p99 and throughput. A disposable smoke
+run currently fails `0/1` for both Net10 and C++: Net10 reaches `354` but does
+not return the final `250`, while the C++ target fails readiness. No ratio or
+winner is claimed.
+
 Code/test commit `0d03adfac` adds a disposable acceptance test for the real
 `BackupManager.StartBackup -> LoadBackup -> StartRestore` chain. The test
 creates a real 7z archive and raw `DataBackup`, loads it through the COM

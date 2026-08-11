@@ -1,5 +1,21 @@
 # .NET 10 Benchmark Pack
 
+## Current SMTP acceptance gate (2026-08-11)
+
+Code/tool commit `b34b2b415` adds
+`build/benchmark-net10-live-smtp-acceptance.ps1`, which measures the complete
+loopback SMTP message transaction (`EHLO`, `MAIL FROM`, `RCPT TO`, `DATA`,
+final `250`, and `QUIT`) for either the isolated `net10` or `cpp` target. It
+emits JSON, CSV, and Markdown with message count, accepted/error counts,
+p50/p95/p99, throughput, process metrics, and readiness/shutdown evidence.
+`build/test-net10-live-smtp-acceptance.ps1` rejects inconsistent or falsely
+successful reports.
+
+The 2026-08-11 disposable smoke reports are intentionally **FAIL**: Net10
+reaches SMTP `354` but does not return the final acceptance `250` (`0/1`),
+while the C++ target fails SMTP readiness (`0/1`). No performance ratio is
+valid until both sides pass the same acceptance and cleanup gates.
+
 ## Latest paired live evidence: RED
 
 On 2026-08-11 the benchmark pack restored one disposable C++ SQL backup into

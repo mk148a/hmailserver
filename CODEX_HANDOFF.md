@@ -1,5 +1,20 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-11, SMTP MESSAGE ACCEPTANCE HARNESS)
+
+Code/tool commit `b34b2b415` adds the loopback disposable
+`build/benchmark-net10-live-smtp-acceptance.ps1` runner and
+`build/test-net10-live-smtp-acceptance.ps1` validator. It measures the full
+SMTP acceptance transaction and emits JSON/CSV/Markdown. Parser and report
+validation pass. Fresh smoke evidence is **FAIL** for both implementations:
+Net10 `0/1` reaches `354` but never returns final `250`, and C++ `0/1` fails
+SMTP readiness. This is blocker evidence, not performance data; no ratio or
+winner is valid.
+
+Next slice: provision an approved SQL Server with Full-Text Search and repair
+or replace the legacy C++ listener target, then rerun the same message,
+protocol, queue, and concurrency matrix. Do not push.
+
 ## Current Authoritative Continuation (2026-08-11, RESTART RECOVERY GATE)
 
 Code/test commit `55f252fb3` extends the ambiguous full-restore test so the
