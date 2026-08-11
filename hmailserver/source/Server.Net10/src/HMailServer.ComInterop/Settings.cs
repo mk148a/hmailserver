@@ -992,7 +992,35 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.SMTPRelayerUsername
                 : _administrationSnapshot.SmtpRelayerUsername;
         }
-        set => base.SMTPRelayerUsername = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.SMTPRelayerUsername = value;
+                return;
+            }
+
+            if (!_settingsMutationStore
+                .UpdateSmtpRelayerUsernameAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The SMTP relayer username update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SmtpRelayerUsername = value
+                };
+            }
+        }
     }
 
     public override int SMTPRelayerPort
