@@ -1,5 +1,30 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, IMAP folder mutation authorization lease)
+
+Legacy `InterfaceIMAPFolders::Add/DeleteByDBID` and
+`InterfaceIMAPFolder::Save/Delete` are in
+`source/Server/COM/InterfaceIMAPFolders.cpp` and
+`InterfaceIMAPFolder.cpp`; collection ownership follows the legacy lookup
+and delete paths. Code/test commit `59dd1d7d1` consumes the existing
+generation-bound authorization lease around IMAP folder insert, update, and
+delete callbacks. Add and Save recheck the live authentication predicate
+when a state-backed object has no lease factory; null lease acquisition fails
+closed with `E_ACCESSDENIED`, unknown IDs remain `DISP_E_BADINDEX`, and the
+owning snapshot is appended/updated only after successful store completion.
+COM identity, direct activation denial, SMTP trust, live reconfiguration, and
+SQL schema were unchanged.
+
+Focused IMAP folder/permission/SQL-store coverage: `60 passed, 0 failed`.
+Full Net10: `2266 passed, 55 skipped, 0 failed`. The next bounded security
+slice is IMAP folder-permission mutation lease consumption. Live SQL/readback,
+registered COM/service/worker, paired C++/.NET performance, restore, SEC-18,
+and soak gates remain unproven; release is **RED**.
+
+Next independent slices: consume the lease across IMAP folder permissions;
+approved disposable SQL FetchAccount UPDATE/readback; registry-isolated C++
+paired performance execution.
+
 ## Current Authoritative Continuation (2026-08-13, Group/GroupMember mutation authorization lease)
 
 Legacy `InterfaceGroup::Save/Delete`, `InterfaceGroupMembers::DeleteByDBID`,

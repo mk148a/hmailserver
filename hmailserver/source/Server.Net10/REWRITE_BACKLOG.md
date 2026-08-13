@@ -4748,3 +4748,27 @@ GroupMember, IMAP folder, and IMAP permission mutations themselves still do
 not consume the lease and are the next high-risk security slice. Live SQL,
 registered COM/service/worker, paired C++/.NET performance, restore, SEC-18,
 and soak gates remain unproven; release remains RED.
+
+## Current next slice (2026-08-13, IMAP folder mutation authorization lease; supersedes older entries)
+
+Legacy `InterfaceIMAPFolders::Add/DeleteByDBID` and
+`InterfaceIMAPFolder::Save/Delete` are implemented in
+`source/Server/COM/InterfaceIMAPFolders.cpp` and
+`InterfaceIMAPFolder.cpp`; collection ownership follows the legacy lookup and
+delete paths. Code/test commit `59dd1d7d1` consumes the existing
+generation-bound authorization lease across IMAP folder insert, update, and
+delete callbacks. Add and Save recheck live authentication when no lease
+factory is present; null leases fail closed with `E_ACCESSDENIED`, unknown IDs
+remain `DISP_E_BADINDEX`, and the owning snapshot changes only after success.
+Installed COM identity, direct activation boundaries, SMTP trust, live
+reconfiguration, and SQL schema remain unchanged.
+
+Focused IMAP folder/permission/SQL-store coverage is `60 passed, 0 failed`;
+full Net10 is `2266 passed, 55 skipped, 0 failed`. Release remains **RED**
+because IMAP folder-permission lease consumption, approved SQL/Data readback,
+paired C++/.NET performance, restore, installer/rollback, SEC-18, and soak
+gates remain open.
+
+Next independent slices: consume the lease across IMAP folder permissions;
+approved disposable SQL FetchAccount UPDATE/readback; registry-isolated C++
+execution and paired benchmark evidence.
