@@ -542,6 +542,46 @@ public sealed class IMAPFolderPermissionsComContractTests
     }
 
     [TestMethod]
+    public void RetainedPermission_AllowsLegacyReadAndStageAfterLogoutButSaveRemainsDenied()
+    {
+        var authenticated = true;
+        var snapshot = new ImapFolderPermissionAdministrationSnapshot(10, 50, 0, 0, 100, 1);
+        var updateCalls = 0;
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            50,
+            new[] { snapshot },
+            () => new[] { snapshot },
+            delete: null,
+            update: (_, _, _, _, _) =>
+            {
+                updateCalls++;
+                return ValueTask.FromResult(true);
+            },
+            isAuthenticated: () => authenticated);
+
+        var retained = permissions[0];
+        authenticated = false;
+
+        Assert.AreEqual(10, retained.ID);
+        Assert.AreEqual(50, retained.ShareFolderID);
+        Assert.AreEqual(ComAclPermissionType.User, retained.PermissionType);
+        Assert.IsTrue(retained.get_Permission(ComAclPermission.Lookup));
+
+        retained.PermissionType = ComAclPermissionType.User;
+        retained.PermissionAccountID = 200;
+        retained.set_Permission(ComAclPermission.Read, true);
+
+        Assert.AreEqual(200, retained.PermissionAccountID);
+        Assert.IsTrue(retained.get_Permission(ComAclPermission.Read));
+        var saveError = Assert.ThrowsExactly<COMException>(retained.Save);
+
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(0, updateCalls);
+        Assert.AreEqual(1, permissions.Count);
+        Assert.AreEqual(100, permissions[0].PermissionAccountID);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_AddStagesNewPermissionAndAppendsOnlyAfterValidatedSave()
     {
         var calls = new List<(int Type, int GroupId, int AccountId, int Value)>();
