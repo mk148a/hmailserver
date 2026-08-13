@@ -64,9 +64,10 @@ public sealed class SqlServerDistributionListAdministrationStoreTests
     }
 
     [TestMethod]
-    public void UpdateDistributionListSql_UsesAllLegacyFieldsAndIdentityPredicate()
+    public void UpdateDistributionListSql_UsesAllLegacyFieldsAndOwnerScopedIdentityPredicate()
     {
         var sql = SqlServerDistributionListAdministrationStore.UpdateDistributionListSql;
+        var whereClause = sql[sql.IndexOf("WHERE", StringComparison.OrdinalIgnoreCase)..];
 
         StringAssert.Contains(sql, "UPDATE hm_distributionlists");
         StringAssert.Contains(sql, "distributionlistdomainid = @DomainID");
@@ -75,7 +76,22 @@ public sealed class SqlServerDistributionListAdministrationStoreTests
         StringAssert.Contains(sql, "distributionlistrequireauth = @RequireSMTPAuth");
         StringAssert.Contains(sql, "distributionlistrequireaddress = @RequireSenderAddress");
         StringAssert.Contains(sql, "distributionlistmode = @Mode");
-        StringAssert.Contains(sql, "WHERE distributionlistid = @ID");
+        StringAssert.Contains(whereClause, "WHERE distributionlistid = @ID");
+        StringAssert.Contains(whereClause, "AND distributionlistdomainid = @DomainID");
+        foreach (var parameterName in new[]
+                 {
+                     "@ID",
+                     "@DomainID",
+                     "@Active",
+                     "@Address",
+                     "@RequireSMTPAuth",
+                     "@RequireSenderAddress",
+                     "@Mode"
+                 })
+        {
+            StringAssert.Contains(sql, parameterName);
+        }
+
         Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("OUTPUT", StringComparison.OrdinalIgnoreCase));
     }

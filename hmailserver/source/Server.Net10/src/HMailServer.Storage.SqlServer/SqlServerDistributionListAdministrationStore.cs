@@ -38,7 +38,8 @@ SET
     distributionlistrequireauth = @RequireSMTPAuth,
     distributionlistrequireaddress = @RequireSenderAddress,
     distributionlistmode = @Mode
-WHERE distributionlistid = @ID;
+WHERE distributionlistid = @ID
+  AND distributionlistdomainid = @DomainID;
 """;
 
     public const string DeleteDistributionListRecipientsSql = """
