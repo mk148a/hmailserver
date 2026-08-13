@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: 2026-08-13T13:35:00Z / 2026-08-13T16:35:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is one code/docs slice ahead, push pending
-- Current HEAD: `54694e852` (external-fetch egress default)
+- Current HEAD: `b98317392` (external-fetch egress gate documentation)
 - Last successfully pushed commit: `e7bf254a1`
 - Latest focused-test result: external-fetch host/policy/session tests passed; full runner reported `2220 passed, 54 skipped, 0 failed`
 - Latest full Net10 result: `2220 passed, 54 skipped, 0 failed`
