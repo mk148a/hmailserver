@@ -1475,6 +1475,7 @@ public sealed class BackupXmlPayloadRuntime
                 folderRestoreStore: _folderRestoreStore,
                 folderRestoreDeletionStore: _folderStore as IImapFolderAdministrationRestoreDeletionStore,
                 messageRestoreStore: _messageStore as IMessageAdministrationRestoreStore,
-                messageStore: _messageStore));
+                messageStore: _messageStore,
+                requireReinitialize: true));
     }
 }

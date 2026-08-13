@@ -75,6 +75,82 @@ public sealed class BackupRestoreExecutionTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_InvokesInjectedReinitializeOnceAfterSuccessfulRestore()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(ArchiveXml);
+        var stores = new RecordingStores();
+        var reinitializeCount = 0;
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            _ =>
+            {
+                reinitializeCount++;
+                return ValueTask.CompletedTask;
+            });
+        var backup = Backup.CreateAuthorized(2, fixture.ArchivePath);
+        backup.RestoreDomains = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        Assert.AreEqual(1, reinitializeCount);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_DoesNotInvokeInjectedReinitializeWhenRestoreFails()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(ArchiveXml);
+        var stores = new RecordingStores { FailAliasInsert = true };
+        var reinitializeCount = 0;
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            _ =>
+            {
+                reinitializeCount++;
+                return ValueTask.CompletedTask;
+            });
+        var backup = Backup.CreateAuthorized(2, fixture.ArchivePath);
+        backup.RestoreDomains = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(0, reinitializeCount);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_FailsClosedBeforeMutationWhenProductionReinitializeIsMissing()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(ArchiveXml);
+        var stores = new RecordingStores();
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            requireReinitialize: true);
+        var backup = Backup.CreateAuthorized(2, fixture.ArchivePath);
+        backup.RestoreDomains = true;
+
+        var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        StringAssert.Contains(error.Message, "reinitialization is not configured");
+        Assert.AreEqual(0, stores.Domains.Items.Count);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_RestoresSettingsOnlyInsideTheSqlTransaction()
     {
         if (!OperatingSystem.IsWindows())
@@ -779,7 +855,10 @@ public sealed class BackupRestoreExecutionTests
         public bool FailAliasInsert { get; init; }
         public bool FailDistributionListInsertAfterFirst { get; init; }
 
-        public MetadataBackupRestoreExecutor CreateExecutor(string dataDirectory)
+        public MetadataBackupRestoreExecutor CreateExecutor(
+            string dataDirectory,
+            Func<CancellationToken, ValueTask>? reinitialize = null,
+            bool requireReinitialize = false)
         {
             DistributionLists.FailInsertAfterFirst = FailDistributionListInsertAfterFirst;
             return new(
@@ -789,7 +868,9 @@ public sealed class BackupRestoreExecutionTests
                 Accounts,
                 FailAliasInsert ? new FailingAliasStore(Aliases) : Aliases,
                 DistributionLists,
-                Recipients);
+                Recipients,
+                reinitialize: reinitialize,
+                requireReinitialize: requireReinitialize);
         }
     }
 

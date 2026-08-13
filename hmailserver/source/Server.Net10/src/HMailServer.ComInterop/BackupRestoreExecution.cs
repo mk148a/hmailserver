@@ -58,6 +58,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
     private readonly Func<BackupRestoreDataDirectoryBoundary> _dataDirectoryBoundaryFactory;
     private readonly IBackupRestoreMetadataTransactionFactory? _metadataTransactionFactory;
     private readonly bool _requireSqlTransaction;
+    private readonly Func<CancellationToken, ValueTask> _reinitialize;
+    private readonly bool _reinitializeConfigured;
 
     internal MetadataBackupRestoreExecutor(
         string sevenZipExecutablePath,
@@ -78,7 +80,9 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IImapFolderAdministrationRestoreStore? folderRestoreStore = null,
         IImapFolderAdministrationRestoreDeletionStore? folderRestoreDeletionStore = null,
         IMessageAdministrationRestoreStore? messageRestoreStore = null,
-        IMessageAdministrationStore? messageStore = null)
+        IMessageAdministrationStore? messageStore = null,
+        Func<CancellationToken, ValueTask>? reinitialize = null,
+        bool requireReinitialize = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
@@ -111,11 +115,18 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 Path.Combine(Path.GetTempPath(), $"hmailserver-restore-{Guid.NewGuid():N}.rollback")));
         _metadataTransactionFactory = metadataTransactionFactory;
         _requireSqlTransaction = requireSqlTransaction;
+        _reinitializeConfigured = reinitialize is not null || !requireReinitialize;
+        _reinitialize = reinitialize ?? (static _ => ValueTask.CompletedTask);
     }
 
     public async ValueTask ExecuteAsync(Backup backup, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(backup);
+        if (!_reinitializeConfigured)
+        {
+            throw new InvalidOperationException(
+                "Restore reinitialization is not configured for the production runtime.");
+        }
         if (backup.RestoreOptions == BackupStartPlan.BackupSettingsFlag)
         {
             if (!backup.ContainsSettings)
@@ -125,6 +136,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             }
 
             await ExecuteSettingsOnlyRestoreAsync(backup, cancellationToken).ConfigureAwait(false);
+            await _reinitialize(cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -132,6 +144,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         {
             await ExecuteNonDbDataRestoreAsync(backup, fullRestore: false, cancellationToken)
                 .ConfigureAwait(false);
+            await _reinitialize(cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -139,6 +152,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         {
             await ExecuteNonDbDataRestoreAsync(backup, fullRestore: true, cancellationToken)
                 .ConfigureAwait(false);
+            await _reinitialize(cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -150,6 +164,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         }
 
         await ExecuteDbOnlyMetadataRestoreAsync(backup, cancellationToken).ConfigureAwait(false);
+        await _reinitialize(cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask ExecuteSettingsOnlyRestoreAsync(
