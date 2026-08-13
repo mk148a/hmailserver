@@ -1,5 +1,26 @@
 
-## Current next slice (2026-08-14, stale DistributionList facade invalidation completed)
+## Current next slice (2026-08-14, Links cross-facade lifetime completed)
+
+Completed code/test commit `88ef1006b` closes the lifetime inconsistency
+between `Application.Links.get_DistributionList` and
+`Domain.DistributionLists`. Legacy `InterfaceLinks::get_DistributionList`
+returns a detached wrapper and does not provide cross-facade invalidation.
+Net10 now shares a process-local `(DomainId, DistributionListId)` lifetime
+registry between the authenticated Links and Domain paths. Domain deletion or
+refresh invalidates retained Links list/recipient facades, and runtime store
+reconfiguration resets the registry. Focused Links/distribution-list coverage
+is `54 passed, 0 failed`; full Net10 Debug is `2290 passed, 56 skipped,
+0 failed`.
+
+No COM identity, direct activation, SQL schema, SMTP, or protocol behavior
+changed. SQL parent/recipient deletion remains non-transactional and recipient
+SQL still lacks parent/domain predicates; restore/reinitialization, rollback,
+paired C++ performance, SEC-18, migration/installer, and soak remain open.
+Release remains **RED**. Next independent work: service-owned restore
+reinitialization adapter, isolated restore/rollback, and registry-isolated
+C++/.NET paired performance.
+
+## Historical next slice (2026-08-14, stale DistributionList facade invalidation; superseded)
 
 Completed code/test commit `7e5afe134` adds a process-local parent lifetime
 boundary for authenticated distribution-list facades. Legacy anchors are

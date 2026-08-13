@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-14, Links cross-facade lifetime)
+
+Code/test commit `88ef1006b` shares a process-local lifetime registry keyed by
+`(DomainId, DistributionListId)` between `Application.Links` and
+`Domain.DistributionLists`. Legacy `InterfaceLinks::get_DistributionList`
+creates a detached wrapper without cross-facade invalidation; Net10 retains
+the stricter fail-closed contract. Domain collection deletion/refresh now
+invalidates retained Links list, recipient collection, and child facades, and
+runtime store reconfiguration resets the registry. COM identities, direct
+activation, SQL schema, SMTP behavior, and protocol paths are unchanged.
+
+Focused Links/distribution-list coverage: `54 passed, 0 failed`. Full Net10
+Debug: `2290 passed, 56 skipped, 0 failed`. Remaining blockers include
+non-transactional SQL parent/recipient deletion, missing recipient
+parent/domain predicates, restore/reinitialization and rollback, paired C++
+performance, SEC-18, migration/installer, and soak. Release remains **RED**.
+
 ## Current Authoritative Continuation (2026-08-14, stale DistributionList facades)
 
 Code/test commit `7e5afe134` closes one bounded stale-object safety gap for

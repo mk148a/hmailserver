@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current authoritative Links cross-facade lifetime status (2026-08-14)
+
+Code/test commit `88ef1006b` closes the lifetime inconsistency between
+`Application.Links.get_DistributionList` and `Domain.DistributionLists`.
+Legacy `InterfaceLinks::get_DistributionList` returns a detached wrapper and
+does not notify other COM facades. Net10 now shares a process-local
+`(DomainId, DistributionListId)` lifetime registry between the two
+authenticated paths. Domain deletion or refresh invalidates retained Links
+list/recipient facades too; runtime store reconfiguration resets the registry.
+No COM identity, direct activation, schema, SMTP, or protocol behavior changed.
+
+Focused Links/distribution-list coverage passed `54/54`; full Net10 Debug
+passed `2290`, skipped `56`, failed `0`. SQL parent/recipient deletion is
+still non-transactional and recipient SQL still lacks parent/domain predicates;
+these remain separate release blockers. Release remains **RED**.
+
 ## Current authoritative stale DistributionList facade status (2026-08-14)
 
 Code/test commit `7e5afe134` adds a process-local lifetime boundary for

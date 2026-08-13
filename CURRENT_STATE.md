@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-14T01:45:00Z / 2026-08-14T04:45:00+03:00
+- UTC/local timestamp: 2026-08-14T03:15:00Z / 2026-08-14T06:15:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `bc6f79e91` (stale DistributionList facade invalidation documentation)
+- Current HEAD: `8de1b6a3a` (Links cross-facade distribution-list lifetime documentation)
 - Last successfully pushed commit: `10f0efab0`
-- Latest focused-test result: DistributionLists/DistributionListRecipients/Links `53 passed, 0 failed`
-- Latest full Net10 result: normal Debug `2289 passed, 56 skipped, 0 failed`
+- Latest focused-test result: Links/DistributionLists/DistributionListRecipients `54 passed, 0 failed`
+- Latest full Net10 result: normal Debug `2290 passed, 56 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: disposable SQL/Data FetchAccount acceptance passed; registry/COM, installer, AD/DC, SEC-18, live protocol/load, paired C++ benchmark, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: stale DistributionList/Recipients facade lifetime invalidation
+- Current bounded slice: cross-facade DistributionList lifetime invalidation for Links and Domain paths
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, DNS/MX safety slices, SecurityRanges managed parity coverage, IncomingRelays authorization and mutation lease coverage, AntiSpam local target pinning, Account.DeleteMessages parity, FetchAccount Save parity and mutation lease propagation, indirect FetchAccount lease propagation, Group/GroupMember mutation lease consumption, IMAP folder mutation lease consumption, IMAP folder-permission mutation lease consumption, Route and RouteAddress mutation lease consumption, and matched-fixture Net10 load evidence
-- Open production blockers: SQL parent/recipient deletion ordering and domain predicates; separate Links facade lifetime registry; service-owned restore reinitialization wiring and isolated round-trip/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Open production blockers: SQL parent/recipient deletion ordering and domain predicates; service-owned restore reinitialization wiring and isolated round-trip/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host. User-owned disposable SQL/Data staging is READY under `C:\hmail-perf-pair-run-20260813_223908` and evidence is under `artifacts/benchmarks/live-cpp-net10-20260813/`.
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
 - Next three independent slices: service-owned restore reinitialization adapter; isolated disposable restore/rollback round-trip; registry-isolated C++ paired benchmark evidence
