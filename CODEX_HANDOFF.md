@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, FetchAccount mutation authorization lease)
+
+Legacy `InterfaceFetchAccount::DownloadNow`, `Save`, and `Delete`, together
+with `InterfaceFetchAccounts::Add`, `Delete`, and `DeleteByDBID`, are in
+`source/Server/COM/InterfaceFetchAccount.cpp` and `InterfaceFetchAccounts.cpp`.
+Code/test commit `0589d0862` carries the existing generation-bound lease from
+the authenticated `AccountComClass.FetchAccounts` boundary across direct
+DownloadNow, insert, update, and delete store calls. Null lease acquisition
+returns `E_ACCESSDENIED`; successful mutations dispose the lease after the
+store/wake operation and publish only the owning snapshot. COM identity,
+direct activation denial, owner scoping, SMTP trust, and external-fetch
+runtime behavior are unchanged.
+
+Focused FetchAccounts coverage: `29 passed, 0 failed`. Full Net10:
+`2255 passed, 55 skipped, 0 failed`. The next bounded security slice is to
+propagate the same lease factory through `Links`, `GroupMembers`, and
+`IMAPFolderPermissions` Account adapters. No live SQL/readback, registered
+COM/service/worker, paired performance, restore, SEC-18, or soak gate is
+proven; release remains **RED**.
+
 ## Current Authoritative Continuation (2026-08-13, FetchAccount Save UPDATE parity)
 
 Legacy `InterfaceFetchAccount::Save` (`source/Server/COM/InterfaceFetchAccount.cpp`)

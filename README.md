@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current authoritative FetchAccount mutation authorization status (2026-08-13)
+
+Code/test commit `0589d0862` closes the bounded direct authenticated
+`Account -> FetchAccounts` mutation lease slice. The legacy anchors are
+`InterfaceFetchAccount::DownloadNow`, `Save`, and `Delete`, plus
+`InterfaceFetchAccounts::Add`, `Delete`, and `DeleteByDBID` in
+`hmailserver/source/Server/COM/InterfaceFetchAccount.cpp` and
+`InterfaceFetchAccounts.cpp`. Net10 now carries the existing generation-bound
+authorization lease from the authenticated `AccountComClass.FetchAccounts`
+boundary through DownloadNow, insert, update, and delete store calls. A null
+lease fails closed with `E_ACCESSDENIED`; successful calls dispose the lease
+after the store/wake operation and publish only the owning snapshot.
+
+Focused FetchAccounts COM coverage is `29 passed, 0 failed`; full Net10 is
+`2255 passed, 55 skipped, 0 failed`. Installed IIDs/vtables/DISPIDs, direct
+activation denial, owner scoping, SMTP trust, and external-fetch runtime
+behavior were unchanged. `Links`, `GroupMembers`, and
+`IMAPFolderPermissions` still create Account adapters without this lease
+factory and are the next bounded authorization slice. Live SQL/readback,
+registered COM, service/worker, paired C++/.NET performance, restore, SEC-18,
+and soak evidence remain unavailable; release remains **RED**.
+
 ## Current authoritative FetchAccount Save parity status (2026-08-13)
 
 Code/test commit `6573fdeda` closes the bounded authenticated existing-row

@@ -1,5 +1,24 @@
 
 
+
+## Current next slice (2026-08-13, direct FetchAccount mutation authorization lease; supersedes older entries)
+
+Legacy `InterfaceFetchAccount::DownloadNow`, `Save`, and `Delete`, and
+`InterfaceFetchAccounts::Add`, `Delete`, and `DeleteByDBID` are implemented in
+`source/Server/COM/InterfaceFetchAccount.cpp` and
+`source/Server/COM/InterfaceFetchAccounts.cpp`. Code/test commit `0589d0862`
+propagates the existing generation-bound authorization lease from the direct
+authenticated `Account -> FetchAccounts` boundary across DownloadNow, insert,
+update, and delete store/wake calls. Null lease acquisition fails closed with
+`E_ACCESSDENIED`; success disposes the lease after mutation and updates only
+the owning snapshot. Focused coverage is `29/29`; full Net10 is `2255 passed,
+55 skipped, 0 failed`.
+
+The next bounded security slice is lease propagation for Account adapters
+created through `Links`, `GroupMembers`, and `IMAPFolderPermissions`. Live
+SQL/readback, registered COM/service/worker, paired C++/.NET performance,
+restore, SEC-18, and soak gates remain unproven; release remains RED.
+
 ## Current next slice (2026-08-13, AntiSpam local target pinning; supersedes older entries)
 
 Legacy `SpamAssassinTestConnect::TestConnect`
