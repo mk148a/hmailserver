@@ -1,6 +1,27 @@
 
 
-## Current next slice (2026-08-13, IncomingRelays mutation authorization lease; supersedes older entries)
+## Current next slice (2026-08-13, ordinary-MX partial DNS resolution; supersedes older entries)
+
+Legacy `DNSResolver::GetEmailServersRecursive_`
+(`source/Server/Common/TCPIP/DNSResolver.cpp`) continues after an individual
+MX address lookup failure and only reports unusable delivery when no address
+remains. Code/test commit `575734089` updates
+`RemoteSmtpEndpointResolver.ResolveRemoteAddressCandidatesAsync` to retain
+healthy candidates, continue only for expected DNS failures, propagate caller
+cancellation, and surface unexpected exceptions. Focused resolver coverage is
+`52/52`; full Net10 is `2237 passed, 55 skipped, 0 failed`.
+
+No COM identity, SQL schema, SMTP trust, service, listener, Data directory, or
+live reconfiguration behavior changed. Legacy does not provide a generic
+private/link-local DNS rejection policy; that separate security design remains
+open. Real DNS/socket/TLS/SNI/revocation acceptance remains unproven.
+
+Release remains RED. Next independent slice: approved disposable real
+DNS/MX-to-TCP SMTP and STARTTLS/implicit-TLS acceptance, or registry-isolated
+C++ execution for the paired performance matrix. No performance ratio or
+winner may be claimed until both implementations run on the same fixture.
+
+## Historical next slice (2026-08-13, IncomingRelays mutation authorization lease; superseded)
 
 Legacy `InterfaceIncomingRelays::Delete` and `DeleteByDBID`, and child
 `InterfaceIncomingRelay::Save` and `Delete`, are anchored in

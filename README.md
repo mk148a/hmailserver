@@ -1,7 +1,28 @@
 hMailServer
 ===========
 
-## Current authoritative Admin parity status (2026-08-13)
+## Current authoritative delivery parity status (2026-08-13)
+
+The bounded ordinary-MX DNS resolution slice is complete in code/test commit
+`575734089`. Legacy `DNSResolver::GetEmailServersRecursive_` in
+`hmailserver/source/Server/Common/TCPIP/DNSResolver.cpp` continues after an
+individual MX A/AAAA lookup failure and only stops delivery when no usable
+address remains. Net10 `RemoteSmtpEndpointResolver.ResolveRemoteAddressCandidatesAsync`
+now preserves successful MX candidates, continues only for expected DNS
+failures, propagates caller cancellation, and leaves unexpected exceptions
+visible. Focused resolver coverage is `52 passed, 0 failed`; the full Net10
+suite is `2237 passed, 55 skipped, 0 failed`.
+
+No COM identity, authentication boundary, SMTP trust policy, SQL schema,
+listener, service, Data directory, or live reconfiguration behavior changed.
+Real DNS/socket/TLS acceptance remains unproven. Legacy private/link-local
+destination filtering was not added because the C++ reference only prevents
+self-connection to a local listening endpoint.
+
+Release status remains **RED**: paired C++/.NET performance, live network,
+restore/migration, COM lifecycle, SEC-18, and soak gates remain open.
+
+## Historical Admin parity status (2026-08-13)
 
 The bounded `Settings.IncomingRelays` slice now threads the existing
 generation-bound authorization lease through retained collection and child
@@ -11,7 +32,7 @@ local snapshot publication. Legacy references are
 `InterfaceIncomingRelay::Save` and `Delete`, in
 `hmailserver/source/Server/COM/InterfaceIncomingRelays.cpp` and
 `InterfaceIncomingRelay.cpp`. Focused .NET coverage is `23 passed, 0 failed`,
-and the full Net10 suite is `2232 passed, 55 skipped, 0 failed`.
+and the full Net10 suite at that historical commit was `2232 passed, 55 skipped, 0 failed`.
 
 Installed COM identity, direct activation boundaries, SMTP trust behavior, and
 live reconfiguration were unchanged. Release status remains **RED** because

@@ -1,6 +1,29 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-13, IncomingRelays mutation authorization lease)
+## Current Authoritative Continuation (2026-08-13, ordinary-MX partial DNS resolution)
+
+Legacy `DNSResolver::GetEmailServersRecursive_` in
+`hmailserver/source/Server/Common/TCPIP/DNSResolver.cpp` continues collecting
+healthy MX host addresses after an individual address lookup fails; it reports
+overall failure only when no usable address remains. Net10
+`RemoteSmtpEndpointResolver.ResolveRemoteAddressCandidatesAsync` now matches
+that delivery behavior while narrowing failure handling to expected DNS
+exceptions. Caller-requested cancellation and unexpected exceptions propagate;
+non-requested DNS cancellation is treated as a transient per-host timeout.
+
+Code/test commit: `575734089`. Focused resolver tests: `52 passed, 0 failed`.
+Full Net10: `2237 passed, 55 skipped, 0 failed`. No COM, SQL schema, service,
+listener, SMTP trust, Data directory, or live reconfiguration changes were
+made. Security review found no new issue in the bounded parity change, but
+generic private/link-local DNS egress remains a separate policy question and
+real DNS/socket/TLS/SNI/revocation acceptance is still absent.
+
+Release remains **RED**. The paired C++/.NET performance matrix is still
+blocked by safe legacy Registry32 isolation, so no ratio or winner is valid.
+Next independent slice: approved disposable real DNS/MX-to-TCP SMTP and
+STARTTLS/implicit-TLS acceptance, or a registry-isolated C++ benchmark VM.
+
+## Historical Authoritative Continuation (2026-08-13, IncomingRelays mutation authorization lease)
 
 Legacy `InterfaceIncomingRelays::Delete` and `DeleteByDBID`, and child
 `InterfaceIncomingRelay::Save` and `Delete`, are anchored in
@@ -16,7 +39,7 @@ behavior, and live reconfiguration boundary are unchanged. Null leases fail
 closed with `E_ACCESSDENIED`; store failures retain the existing `E_FAIL`
 mapping and dispose the lease.
 
-Focused IncomingRelays coverage is `23/23`; full Net10 is `2232 passed, 55
+Focused IncomingRelays coverage is `23/23`; full Net10 at that historical commit is `2232 passed, 55
 skipped, 0 failed`. Release remains **RED**: paired C++ performance,
 restore/migration, service/out-of-process COM, SEC-18, live network, and
 long-soak evidence are still unavailable or incomplete. Next independent slice:
