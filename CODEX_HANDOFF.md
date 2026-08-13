@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, Route mutation authorization lease)
+
+Code/test commit `6567adc72` closes the bounded generation-bound authorization
+lease gap for legacy `Settings.Routes` mutations. The legacy anchors are
+`InterfaceRoute::Save`/`Delete` in
+`source/Server/COM/InterfaceRoute.cpp` and persistence in
+`source/Server/Common/Persistence/PersistentRoute.cpp`. Net10 holds the
+authenticated lease across existing/new `Route.Save`, child `Route.Delete`,
+and direct `Routes.DeleteByDBID`; child deletion delegates to the owning
+collection without nested lease acquisition and updates only that snapshot.
+Null leases fail closed with `E_ACCESSDENIED`. Installed COM identity,
+direct activation boundaries, SMTP route runtime behavior, and SQL schema are
+unchanged.
+
+Focused Route plus SQL store coverage: `23 passed, 0 failed`. Full Net10
+Debug: `2272 passed, 56 skipped, 0 failed`. Paired C++/.NET performance remains
+**RED** because the equivalent registry-isolated legacy run is unavailable;
+no speedup claim is made. Next: registry-isolated C++ paired benchmark,
+isolated restore/rollback acceptance, then the next legacy-anchored
+Admin/protocol slice.
+
 ## Current Authoritative Continuation (2026-08-13, FetchAccount SQL UPDATE/readback acceptance)
 
 Code/test commit `abfed117e` adds isolated SQL acceptance for legacy

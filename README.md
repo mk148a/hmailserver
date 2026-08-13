@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current authoritative Route mutation authorization status (2026-08-13)
+
+Code/test commit `6567adc72` closes the bounded generation-bound authorization
+lease gap for legacy `Settings.Routes` mutations. Legacy
+`InterfaceRoute::Save`/`Delete` and `PersistentRoute::SaveObject` behavior are
+anchored in `hmailserver/source/Server/COM/InterfaceRoute.cpp` and
+`hmailserver/source/Server/Common/Persistence/PersistentRoute.cpp`. Net10 now
+holds the authenticated lease over existing/new `Route.Save`, child
+`Route.Delete`, and direct collection `Routes.DeleteByDBID`; child deletion
+avoids nested lease acquisition while still using the owning collection
+snapshot. Null leases fail closed with `E_ACCESSDENIED`, and the installed
+`Routes`/`Route` COM identity and direct activation boundaries are unchanged.
+
+Focused Route plus SQL store coverage is `23 passed, 0 failed`; full Net10
+Debug is `2272 passed, 56 skipped, 0 failed`. The paired C++/.NET performance
+gate remains **RED** because equivalent registry-isolated legacy execution is
+not available; no performance superiority or ratio is claimed.
+
+Next independent slices: obtain registry-isolated C++ execution for the paired
+benchmark matrix; then isolated restore/rollback acceptance and the next
+legacy-anchored Admin/protocol gap.
+
 ## Current authoritative FetchAccount SQL acceptance status (2026-08-13)
 
 Code/test commit `abfed117e` adds the isolated SQL acceptance for the legacy
