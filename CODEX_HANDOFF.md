@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, IncomingRelays retained authorization)
+
+Legacy `InterfaceIncomingRelays::Delete` and `DeleteByDBID`
+(`hmailserver/source/Server/COM/InterfaceIncomingRelays.cpp`) mutate an
+already acquired incoming-relay collection. The .NET retained collection now
+rechecks the current server-administrator callback immediately before each
+collection delete store call, preserving index snapshot behavior and the
+existing `IncomingRelays`/`IncomingRelay` COM identity, direct activation
+boundary, and SMTP trust behavior.
+
+Code/test commit `b06f01257` adds focused denial coverage for both collection
+mutation paths after administrator reauthentication fails. IncomingRelays
+coverage is `14/14`; full Net10 is `2223 passed, 55 skipped, 0 failed`.
+
+Security review found one medium residual risk: the callback check and store
+mutation are not atomic. A concurrent authorization revocation can race a
+retained mutation. The next bounded slice is to plumb the existing
+authorization lease through IncomingRelays and hold it across insert/update/
+delete. Release remains **RED**; the paired C++/.NET performance gate is still
+blocked by registry-isolated legacy execution.
+
 ## Current Authoritative Continuation (2026-08-13, SecurityRanges retained authorization)
 
 Legacy `InterfaceSecurityRanges::Delete`, `DeleteByDBID`, and `SetDefault`

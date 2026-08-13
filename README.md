@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current authoritative Admin parity status (2026-08-13)
+
+The bounded `Settings.IncomingRelays` slice now rechecks the authenticated
+server-administrator boundary immediately before retained-collection
+`Delete` and `DeleteByDBID` store mutations. Legacy references are
+`InterfaceIncomingRelays::Delete` and `DeleteByDBID` in
+`hmailserver/source/Server/COM/InterfaceIncomingRelays.cpp`; focused .NET
+coverage is `14 passed, 0 failed`, and the full Net10 suite is `2223 passed,
+55 skipped, 0 failed`. Installed COM identity, direct activation boundaries,
+SMTP trust behavior, and live reconfiguration were unchanged.
+
+The security review still identifies a medium residual risk: the callback
+check and store mutation are separate, so a concurrent authorization revocation
+can race a retained mutation. The next bounded slice is to hold the existing
+authorization lease across IncomingRelays insert/update/delete. Release
+status remains **RED**, including the paired C++/.NET performance gate.
+
 ## Current security gate (2026-08-13)
 
 The .NET 10 external-fetch path now enforces its endpoint egress policy by

@@ -1,4 +1,22 @@
 
+
+## Current next slice (2026-08-13, IncomingRelays retained authorization; supersedes older entries)
+
+Legacy `InterfaceIncomingRelays::Delete` and `DeleteByDBID`
+(`source/Server/COM/InterfaceIncomingRelays.cpp`) operate on the acquired
+incoming-relay collection. Code/test commit `b06f01257` adds the .NET
+server-administrator recheck immediately before both retained collection
+delete store mutations, with `IncomingRelays` focused coverage `14/14` and
+full Net10 coverage `2223 passed, 55 skipped, 0 failed`.
+
+Installed COM identity, direct activation denial, SMTP trust behavior, and
+live reconfiguration were not changed. The remaining security gap is that
+the authorization callback check and store call are separate; an existing
+retained object can race a concurrent authorization revocation. Next slice:
+hold the existing authorization lease across IncomingRelays insert/update/
+delete. The paired C++/.NET performance gate remains RED because the legacy
+process still requires registry-isolated execution.
+
 ## Current next slice (2026-08-13, clean paired performance evidence; supersedes older entries)
 
 The clean disposable SQL/Data pair was recreated and verified before the
