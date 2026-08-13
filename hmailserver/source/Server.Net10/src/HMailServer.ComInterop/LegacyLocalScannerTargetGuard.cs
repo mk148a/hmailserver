@@ -39,6 +39,10 @@ public static class LegacyLocalScannerTargetGuard
             {
                 return false;
             }
+            catch (ArgumentException)
+            {
+                return false;
+            }
         }
 
         if (addresses.Count == 0 || !addresses.All(IsLocalAddress))
@@ -46,7 +50,9 @@ public static class LegacyLocalScannerTargetGuard
             return false;
         }
 
-        address = addresses[0];
+        address = addresses.FirstOrDefault(static candidate =>
+            candidate.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            ?? addresses[0];
         return true;
     }
 

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
@@ -519,6 +520,61 @@ public sealed class AntiSpamComContractTests
         Assert.AreEqual(EFail, error.ErrorCode);
         Assert.AreEqual(0, runtime.CallCount);
     }
+
+    [TestMethod]
+    public void TestSpamAssassinConnection_ReplacesLocalHostnameWithValidatedIpBeforeRuntime()
+    {
+        var runtime = new FakeSpamAssassinConnectionTestRuntime(
+            new SpamAssassinConnectionTestResult(true, "OK"));
+        IInterfaceAntiSpam antiSpam = AntiSpam.CreateAuthorized(
+            new AntiSpamAdministrationSnapshot(),
+            spamAssassinConnectionTestRuntime: runtime);
+
+        Assert.IsTrue(antiSpam.TestSpamAssassinConnection("localhost", 1783, out _));
+        Assert.IsTrue(IPAddress.TryParse(runtime.Hostname, out var address));
+        Assert.IsTrue(LegacyLocalScannerTargetGuard.IsLocalAddress(address));
+        Assert.AreNotEqual("localhost", runtime.Hostname);
+    }
+
+    [TestMethod]
+    public void TestSpamAssassinConnection_MalformedHostnameFailsBeforeRuntime()
+    {
+        var runtime = new FakeSpamAssassinConnectionTestRuntime(
+            new SpamAssassinConnectionTestResult(true, "OK"));
+        IInterfaceAntiSpam antiSpam = AntiSpam.CreateAuthorized(
+            new AntiSpamAdministrationSnapshot(),
+            spamAssassinConnectionTestRuntime: runtime);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => antiSpam.TestSpamAssassinConnection("invalid host name", 1783, out _));
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, runtime.CallCount);
+    }
+
+    [TestMethod]
+    public void TestSpamAssassinConnection_PrefersIpv4WhenLocalHostnameResolvesDualStack()
+    {
+        var addresses = Dns.GetHostAddresses("localhost");
+        var ipv4 = addresses.FirstOrDefault(static address =>
+            address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+        var ipv6 = addresses.FirstOrDefault(static address =>
+            address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6);
+        if (ipv4 is null || ipv6 is null)
+        {
+            Assert.Inconclusive("localhost is not dual-stack on this test host.");
+        }
+
+        var runtime = new FakeSpamAssassinConnectionTestRuntime(
+            new SpamAssassinConnectionTestResult(true, "OK"));
+        IInterfaceAntiSpam antiSpam = AntiSpam.CreateAuthorized(
+            new AntiSpamAdministrationSnapshot(),
+            spamAssassinConnectionTestRuntime: runtime);
+
+        Assert.IsTrue(antiSpam.TestSpamAssassinConnection("localhost", 1783, out _));
+        Assert.AreEqual(ipv4.ToString(), runtime.Hostname);
+    }
+
     private static void AssertPending(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);

@@ -356,7 +356,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             return Unavailable<bool>();
         }
 
-        if (!LegacyLocalScannerTargetGuard.IsLocalTarget(hostname ?? string.Empty))
+        if (!LegacyLocalScannerTargetGuard.TryGetValidatedLocalAddress(
+                hostname ?? string.Empty,
+                out var validatedAddress))
         {
             throw new COMException(
                 "Only a locally hosted SpamAssassin scanner can be tested.",
@@ -366,7 +368,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         try
         {
             var result = _spamAssassinConnectionTestRuntime.TestConnection(
-                hostname ?? string.Empty,
+                validatedAddress.ToString(),
                 port);
             resultText = result.ResultText ?? string.Empty;
             return result.Succeeded;
