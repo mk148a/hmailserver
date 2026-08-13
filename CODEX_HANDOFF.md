@@ -1,5 +1,19 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, external-fetch egress default)
+
+Code/test commit `54694e852` changes `Host.Build` so
+`ExternalFetch:EgressEnforce` defaults to `true`. The explicit configuration
+override remains supported. This closes the default fail-open configuration
+gap in the existing `ExternalFetchEndpointPolicy` path; it does not unify
+scanner production traffic, implement live Diagnostics probes, or claim legacy
+network behavior parity. Focused host/external-fetch coverage passed as part of
+the latest full run: `2220 passed, 54 skipped, 0 failed`.
+
+Next slice: registry-isolated C++ execution for the paired performance gate.
+If that remains unavailable, continue with the approved disposable DNS/
+socket/TLS acceptance slice. Release reality remains **RED**.
+
 ## Current Authoritative Continuation (2026-08-13, clean paired performance rerun)
 
 The fresh disposable C++/.NET 10 SQL/Data pair was verified equivalent before

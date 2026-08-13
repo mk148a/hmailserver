@@ -4452,3 +4452,22 @@ services. Next independent work is disposable SQL/DNS/socket/TLS acceptance;
 the C++ paired benchmark, restore/rollback, migration/installer, out-of-process
 COM, SEC-18, AD/DC, DKIM/DMARC/SPF/greylisting, and long-soak gates remain RED
 or environment-blocked.
+## Current next slice (2026-08-13, external-fetch egress default)
+
+Code/test commit `54694e852` makes `ExternalFetch:EgressEnforce` default to
+`true` in `HMailServer.Service.Host.Build`. The existing explicit `false`
+override remains available for controlled audit-only operation. This closes
+the default fail-open configuration gap in the existing
+`ExternalFetchEndpointPolicy`/`TcpExternalFetchSessionFactory` path. Legacy
+`ExternalFetch::Start` and `POP3ClientConnection` do not enforce this policy;
+the change is a .NET 10 security hardening and is intentionally limited to
+external POP3 fetch. Scanner production traffic and Diagnostics runtime
+network behavior remain separate gaps.
+
+Focused host/external-fetch coverage passed; the latest full run is `2220
+passed, 54 skipped, 0 failed`. The release gate remains **RED** because paired
+C++ performance, live DNS/socket/TLS, restore/migration, service/COM, SEC-18,
+and long-soak evidence remain unavailable.
+
+Next independent slice: registry-isolated C++ execution on the clean paired
+fixture. If unavailable, run the approved disposable DNS/socket/TLS matrix.
