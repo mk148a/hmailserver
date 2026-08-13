@@ -1,5 +1,8 @@
+using System.Net;
+using System.Net.Sockets;
 using HMailServer.Core.Abstractions;
 using HMailServer.ComInterop;
+using HMailServer.Delivery;
 using HMailServer.Protocols.Smtp;
 using HMailServer.Service;
 using Microsoft.Extensions.DependencyInjection;
@@ -109,6 +112,44 @@ public sealed class ProductionHostCompositionTests
     }
 
     [TestMethod]
+    public void HostBuild_RemoteSmtpLocalEndpointPolicyUsesEnabledListenerOptionsOnly()
+    {
+        using var unrelatedListener = new TcpListener(IPAddress.Loopback, 0);
+        unrelatedListener.Start();
+        var disabledPop3Port = ((IPEndPoint)unrelatedListener.LocalEndpoint).Port;
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-host-listener-policy-{Guid.NewGuid():N}");
+        var initializationFile = Path.Combine(dataDirectory, "hMailServer.ini");
+
+        var composition = HMailServer.Service.Host.Build(
+            [
+                "--ConnectionStrings:hMailServer=Server=127.0.0.1;Database=NeverOpened;Integrated Security=False;User Id=never;Password=never;TrustServerCertificate=True",
+                $"--DataDirectory={dataDirectory}",
+                $"--InitializationFile={initializationFile}",
+                "--Imap:Enabled=true",
+                "--Imap:BindAddress=127.0.0.1",
+                "--Imap:Port=2143",
+                "--Smtp:Enabled=true",
+                "--Smtp:BindAddress=::1",
+                "--Smtp:Port=2525",
+                "--Pop3:Enabled=false",
+                "--Pop3:BindAddress=127.0.0.1",
+                $"--Pop3:Port={disabledPop3Port}",
+                "--ExternalFetch:Enabled=false"
+            ]);
+
+        using var host = composition.Host;
+        var policy = host.Services.GetRequiredService<RemoteSmtpLocalEndpointPolicy>();
+
+        Assert.ThrowsExactly<RemoteSmtpLocalEndpointDeniedException>(() => policy.EnsureAllowed(
+            CreateGuardedEndpoint(IPAddress.Loopback, 2143)));
+        Assert.ThrowsExactly<RemoteSmtpLocalEndpointDeniedException>(() => policy.EnsureAllowed(
+            CreateGuardedEndpoint(IPAddress.IPv6Loopback, 2525)));
+        policy.EnsureAllowed(CreateGuardedEndpoint(IPAddress.Loopback, disabledPop3Port));
+    }
+
+    [TestMethod]
     public async Task ComLocalServerHostedService_WaitsForReadinessBeforeStartingCom()
     {
         var dataDirectory = Path.Combine(
@@ -144,4 +185,12 @@ public sealed class ProductionHostCompositionTests
         Assert.IsFalse(readiness.WaitAsync(CancellationToken.None).IsCompleted);
         Assert.IsFalse(Directory.Exists(dataDirectory));
     }
+
+    private static RemoteSmtpEndpoint CreateGuardedEndpoint(IPAddress address, int port) =>
+        new(
+            "dns-derived.example",
+            port,
+            RemoteSmtpConnectionSecurity.None,
+            ConnectionAddress: address.ToString(),
+            EnforceLocalEndpointGuard: true);
 }

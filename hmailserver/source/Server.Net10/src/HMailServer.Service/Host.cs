@@ -599,6 +599,25 @@ public static class Host
     builder.Services.AddSingleton(imapOptions);
     builder.Services.AddSingleton(smtpOptions);
     builder.Services.AddSingleton(pop3Options);
+    builder.Services.AddSingleton<RemoteSmtpLocalEndpointPolicy>(
+        new RemoteSmtpLocalEndpointPolicy(() =>
+        {
+            var listeners = new List<IPEndPoint>(3);
+            if (imapOptions.Enabled)
+            {
+                listeners.Add(new IPEndPoint(imapOptions.ListenAddress, imapOptions.Port));
+            }
+            if (smtpOptions.Enabled)
+            {
+                listeners.Add(new IPEndPoint(smtpOptions.ListenAddress, smtpOptions.Port));
+            }
+            if (pop3Options.Enabled)
+            {
+                listeners.Add(new IPEndPoint(pop3Options.ListenAddress, pop3Options.Port));
+            }
+
+            return listeners;
+        }));
     builder.Services.AddSingleton(externalFetchProcessorOptions);
     builder.Services.AddSingleton(externalFetchHostedServiceOptions);
     builder.Services.AddSingleton(externalFetchPop3ClientOptions);
