@@ -16,12 +16,19 @@ with the same `(distributionlistid, distributionlistdomainid)` before removing
 recipient rows. Parent deletion remains owner-scoped. Focused SQL coverage is
 `8 passed, 0 failed`; full Net10 Debug is `2290 passed, 56 skipped, 0 failed`.
 
-This is an ownership-safety slice, not an atomicity completion. The two DELETE
-statements are still outside one SQL transaction, so a failure or concurrent
-change between them can leave a parent without recipients. The next SQL slice
-is transactional direct-list deletion with rollback/concurrency coverage.
-COM identity, direct activation, schema, SMTP expansion, and unrelated Admin
-collections are unchanged. Release remains **RED**.
+Code/test commit `1e90198e4` completes the bounded atomicity slice. The
+recipient and parent DELETEs now share one `SqlTransaction` with `XACT_ABORT
+ON`; the owner-scoped parent lookup uses `UPDLOCK, HOLDLOCK`, and a zero-row
+parent delete rolls back the transaction. The explicit disposable SQL test
+`SqlServerDistributionListAdministrationStoreIntegrationTests.DeleteDistributionList_UsesOwnerScopeAndRollsBackWhenParentDeleteAffectsZeroRows`
+passed `1/1` against local MSSQLSERVER and left no test database behind.
+
+Focused SQL contract coverage is `8/8`; full Net10 Debug is `2290 passed,
+57 skipped, 0 failed` in the default environment because the destructive SQL
+opt-in is not exported. COM identity, direct activation, schema, SMTP
+expansion, and unrelated Admin collections are unchanged. Release remains
+**RED** for the independent restore, paired C++, SEC-18, migration, and soak
+gates.
 
 ## Current authoritative performance gate (2026-08-14)
 

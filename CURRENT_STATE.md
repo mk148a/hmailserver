@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T23:32:00Z / 2026-08-14T02:32:00+03:00
+- UTC/local timestamp: 2026-08-13T23:58:00Z / 2026-08-14T02:58:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `143db0bb4` (owner-scoped distribution-list recipient deletion)
-- Last successfully pushed commit: `6b4b4696d`
-- Latest focused-test result: SQL distribution-list administration store `8 passed, 0 failed`
-- Latest full Net10 result: normal Debug `2290 passed, 56 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: matched disposable SQL/Data start state and Net10 live protocol/SMTP/IMAP/FTS/queue/POP3 matrix passed; C++ paired launch, registry/COM, installer, AD/DC, SEC-18, restore round trip, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: owner-scoped distribution-list recipient deletion
+- Current HEAD: `1e90198e4` (transactional distribution-list deletion)
+- Last successfully pushed commit: `05eb99eaf`
+- Latest focused-test result: SQL distribution-list administration store `8 passed, 0 failed`; disposable SQL deletion integration `1 passed, 0 failed`
+- Latest full Net10 result: normal Debug `2290 passed, 57 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: disposable SQL distribution-list owner/delete/rollback acceptance passed; matched SQL/Data start state and Net10 live protocol/SMTP/IMAP/FTS/queue/POP3 matrix passed; C++ paired launch, registry/COM, installer, AD/DC, SEC-18, restore round trip, and 24-hour soak remain skipped or environment-blocked; no production resource was used
+- Current bounded slice: transactional distribution-list deletion completed; next slice is service-owned restore reinitialization architecture
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through distribution-list lifetime and owner-scoped UPDATE, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10 load evidence
-- Open production blockers: transactional distribution-list parent/recipient deletion; service-owned restore reinitialization wiring and isolated round-trip/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Open production blockers: service-owned restore reinitialization wiring and isolated round-trip/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host. Disposable SQL/Data staging is READY under `C:\hmail-perf-pair-run-20260813_223908`; evidence is under `artifacts/benchmarks/live-cpp-net10-20260813/`.
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: transactional distribution-list deletion; service-owned restore reinitialization architecture; isolated disposable restore/rollback round-trip
+- Next three independent slices: service-owned restore reinitialization architecture; isolated disposable restore/rollback round-trip; registry-isolated C++ paired benchmark evidence

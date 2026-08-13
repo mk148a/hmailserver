@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-14, transactional distribution-list deletion)
+
+Code/test commit `1e90198e4` completes direct distribution-list deletion
+atomicity. `SqlServerDistributionListAdministrationStore.DeleteDistributionListAsync`
+now runs the owner-scoped recipient and parent DELETEs in one `SqlTransaction`;
+`SET XACT_ABORT ON` and `UPDLOCK, HOLDLOCK` protect the parent ownership check,
+and a zero-row parent delete rolls back. Legacy references remain
+`PersistentDistributionList::DeleteObject`, `DeleteMembers`, and
+`PersistentDistributionListRecipient::DeleteByListID`; the legacy path is
+numeric-ID based and non-transactional, while Net10 preserves its stricter
+owner/failure contract.
+
+Focused SQL contract tests: `8/8`. The disposable MSSQLSERVER integration
+test passed `1/1` with owner delete, wrong-domain no-op, and injected parent
+failure rollback; its GUID database was removed. Default full Net10 Debug:
+`2290 passed, 57 skipped, 0 failed` because the destructive SQL opt-in is not
+exported. Release remains **RED** for restore/reinitialization, paired C++
+performance, SEC-18, migration/installer, and soak gates.
+
+Next independent slices: service-owned restore reinitialization architecture;
+isolated restore/rollback round trip; registry-isolated C++ paired benchmark.
+
 ## Current Authoritative Continuation (2026-08-14, owner-scoped distribution-list recipient deletion)
 
 Code/test commit `143db0bb4` adds an owner-domain `EXISTS` predicate to
