@@ -300,16 +300,10 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         }
     }
 
-        public void SetDefault()
+    public void SetDefault()
     {
         EnsureServerAdministrator();
-        var ports = GetPorts();
-        if (IsDefaultPorts(ports))
-        {
-            return;
-        }
-
-        if (_deleteAll is null || _insert is null || _reload is null)
+        if (_reload is null)
         {
             Unavailable();
             return;
@@ -317,9 +311,30 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
 
         try
         {
+            var refreshedPorts = _reload();
+            ArgumentNullException.ThrowIfNull(refreshedPorts);
+            Volatile.Write(ref _ports, refreshedPorts.ToArray());
+            var ports = refreshedPorts;
+            if (IsDefaultPorts(ports))
+            {
+                return;
+            }
+
+            if (_deleteAll is null || _insert is null)
+            {
+                Unavailable();
+                return;
+            }
+
             _deleteAll();
             InsertDefaultPorts();
-            Volatile.Write(ref _ports, _reload().ToArray());
+            var reloadedPorts = _reload();
+            ArgumentNullException.ThrowIfNull(reloadedPorts);
+            Volatile.Write(ref _ports, reloadedPorts.ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
         }
         catch (Exception)
         {
@@ -343,8 +358,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         int protocol) =>
         ports[index].PortNumber == portNumber
         && ports[index].Protocol == protocol
-        && ports[index].ConnectionSecurity == (int)ComConnectionSecurity.None
-        && ports[index].Address == "0.0.0.0";
+        && ports[index].ConnectionSecurity == (int)ComConnectionSecurity.None;
 
     private void InsertDefaultPorts()
     {

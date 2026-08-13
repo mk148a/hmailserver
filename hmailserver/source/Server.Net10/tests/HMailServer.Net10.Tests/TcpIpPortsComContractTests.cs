@@ -475,6 +475,13 @@ public sealed class TcpIpPortsComContractTests
                 Snapshot(3, ComSessionType.Imap, 143, "0.0.0.0", ComConnectionSecurity.None, 0),
                 Snapshot(4, ComSessionType.Smtp, 587, "0.0.0.0", ComConnectionSecurity.None, 0)
             },
+            reload: () => new[]
+            {
+                Snapshot(1, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0),
+                Snapshot(2, ComSessionType.Pop3, 110, "0.0.0.0", ComConnectionSecurity.None, 0),
+                Snapshot(3, ComSessionType.Imap, 143, "0.0.0.0", ComConnectionSecurity.None, 0),
+                Snapshot(4, ComSessionType.Smtp, 587, "0.0.0.0", ComConnectionSecurity.None, 0)
+            },
             insert: _ =>
             {
                 insertCalls++;
@@ -490,19 +497,82 @@ public sealed class TcpIpPortsComContractTests
     }
 
     [TestMethod]
+    public void SetDefault_NoOpsWhenLegacyDefaultsUseSpecificAddresses()
+    {
+        var deleteAllCalls = 0;
+        var insertCalls = 0;
+        IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
+            new[]
+            {
+                Snapshot(1, ComSessionType.Smtp, 25, "127.0.0.1", ComConnectionSecurity.None, 0),
+                Snapshot(2, ComSessionType.Pop3, 110, "127.0.0.1", ComConnectionSecurity.None, 0),
+                Snapshot(3, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.None, 0),
+                Snapshot(4, ComSessionType.Smtp, 587, "127.0.0.1", ComConnectionSecurity.None, 0)
+            },
+            reload: () => new[]
+            {
+                Snapshot(1, ComSessionType.Smtp, 25, "127.0.0.1", ComConnectionSecurity.None, 0),
+                Snapshot(2, ComSessionType.Pop3, 110, "127.0.0.1", ComConnectionSecurity.None, 0),
+                Snapshot(3, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.None, 0),
+                Snapshot(4, ComSessionType.Smtp, 587, "127.0.0.1", ComConnectionSecurity.None, 0)
+            },
+            insert: _ => ++insertCalls,
+            deleteAll: () => deleteAllCalls++);
+
+        ports.SetDefault();
+
+        Assert.AreEqual(0, deleteAllCalls);
+        Assert.AreEqual(0, insertCalls);
+        Assert.AreEqual("127.0.0.1", ports[0].Address);
+    }
+
+    [TestMethod]
+    public void SetDefault_RefreshesBeforeComparingAndMapsRefreshFailure()
+    {
+        var reloadCalls = 0;
+        IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
+            new[]
+            {
+                Snapshot(1, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0),
+                Snapshot(2, ComSessionType.Pop3, 110, "0.0.0.0", ComConnectionSecurity.None, 0),
+                Snapshot(3, ComSessionType.Imap, 143, "0.0.0.0", ComConnectionSecurity.None, 0),
+                Snapshot(4, ComSessionType.Smtp, 587, "0.0.0.0", ComConnectionSecurity.None, 0)
+            },
+            reload: () =>
+            {
+                reloadCalls++;
+                throw new InvalidOperationException("Simulated refresh failure.");
+            });
+
+        var error = Assert.ThrowsExactly<COMException>(ports.SetDefault);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, reloadCalls);
+        Assert.AreEqual(4, ports.Count);
+        Assert.AreEqual(25, ports[0].PortNumber);
+    }
+
+    [TestMethod]
     public void SetDefault_ResetsNonDefaultPortsToLegacyDefaults()
     {
         var deleteAllCalls = 0;
+        var reloadCalls = 0;
         var inserted = new List<TcpIpPortAdministrationSnapshot>();
         var nextId = 100;
         IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
             new[] { Snapshot(10, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.StartTlsRequired, 0) },
-            reload: () => new[]
+            reload: () =>
             {
-                new TcpIpPortAdministrationSnapshot(100, (int)ComSessionType.Smtp, 25, "0.0.0.0", 0, 0),
-                new TcpIpPortAdministrationSnapshot(101, (int)ComSessionType.Pop3, 110, "0.0.0.0", 0, 0),
-                new TcpIpPortAdministrationSnapshot(102, (int)ComSessionType.Imap, 143, "0.0.0.0", 0, 0),
-                new TcpIpPortAdministrationSnapshot(103, (int)ComSessionType.Smtp, 587, "0.0.0.0", 0, 0)
+                reloadCalls++;
+                return reloadCalls == 1
+                    ? new[] { Snapshot(10, ComSessionType.Imap, 143, "127.0.0.1", ComConnectionSecurity.StartTlsRequired, 0) }
+                    : new[]
+                    {
+                        new TcpIpPortAdministrationSnapshot(100, (int)ComSessionType.Smtp, 25, "0.0.0.0", 0, 0),
+                        new TcpIpPortAdministrationSnapshot(101, (int)ComSessionType.Pop3, 110, "0.0.0.0", 0, 0),
+                        new TcpIpPortAdministrationSnapshot(102, (int)ComSessionType.Imap, 143, "0.0.0.0", 0, 0),
+                        new TcpIpPortAdministrationSnapshot(103, (int)ComSessionType.Smtp, 587, "0.0.0.0", 0, 0)
+                    };
             },
             insert: port =>
             {
