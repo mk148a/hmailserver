@@ -22,6 +22,57 @@ internal sealed class DistributionListLifetime
     }
 }
 
+internal static class DistributionListLifetimeRegistry
+{
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<
+        (int DomainId, int DistributionListId),
+        DistributionListLifetime> Lifetimes = new();
+
+    internal static DistributionListLifetime Get(int domainId, int distributionListId) =>
+        Lifetimes.GetOrAdd((domainId, distributionListId), static _ => new DistributionListLifetime());
+
+    internal static void Invalidate(int domainId, int distributionListId)
+    {
+        if (Lifetimes.TryRemove((domainId, distributionListId), out var lifetime))
+        {
+            lifetime.Invalidate();
+        }
+    }
+
+    internal static void InvalidateDomain(int domainId)
+    {
+        foreach (var entry in Lifetimes.ToArray())
+        {
+            if (entry.Key.DomainId == domainId && Lifetimes.TryRemove(entry.Key, out var lifetime))
+            {
+                lifetime.Invalidate();
+            }
+        }
+    }
+
+    internal static void Register(int domainId, int distributionListId, DistributionListLifetime lifetime)
+    {
+        var key = (domainId, distributionListId);
+        if (Lifetimes.TryGetValue(key, out var previousLifetime) &&
+            !ReferenceEquals(previousLifetime, lifetime))
+        {
+            previousLifetime.Invalidate();
+        }
+
+        Lifetimes[key] = lifetime;
+    }
+
+    internal static void Reset()
+    {
+        foreach (var lifetime in Lifetimes.Values)
+        {
+            lifetime.Invalidate();
+        }
+
+        Lifetimes.Clear();
+    }
+}
+
 [ComVisible(true)]
 [Guid("8F0E22B8-0824-42DF-9260-F8B9ABFA8C61")]
 [InterfaceType(ComInterfaceType.InterfaceIsDual)]
@@ -134,8 +185,6 @@ public sealed class DistributionLists : IInterfaceDistributionLists
     private readonly Func<bool>? _isAuthenticated;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private readonly int _domainId;
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, DistributionListLifetime> _lifetimes = new();
-
     public DistributionLists()
     {
     }
@@ -297,12 +346,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
         {
             var lists = _reload();
             ArgumentNullException.ThrowIfNull(lists);
-            foreach (var lifetime in _lifetimes.Values)
-            {
-                lifetime.Invalidate();
-            }
-
-            _lifetimes.Clear();
+            DistributionListLifetimeRegistry.InvalidateDomain(_domainId);
             Volatile.Write(ref _lists, lists.ToArray());
         }
         catch (Exception)
@@ -390,24 +434,16 @@ public sealed class DistributionLists : IInterfaceDistributionLists
     }
 
     private DistributionListLifetime GetLifetime(int databaseId) =>
-        _lifetimes.GetOrAdd(databaseId, static _ => new DistributionListLifetime());
+        DistributionListLifetimeRegistry.Get(_domainId, databaseId);
 
     private void InvalidateLifetime(int databaseId)
     {
-        var lifetime = GetLifetime(databaseId);
-        _lifetimes.TryRemove(databaseId, out _);
-        lifetime.Invalidate();
+        DistributionListLifetimeRegistry.Invalidate(_domainId, databaseId);
     }
 
     private void RegisterLifetime(int databaseId, DistributionListLifetime lifetime)
     {
-        if (_lifetimes.TryGetValue(databaseId, out var previousLifetime) &&
-            !ReferenceEquals(previousLifetime, lifetime))
-        {
-            previousLifetime.Invalidate();
-        }
-
-        _lifetimes[databaseId] = lifetime;
+        DistributionListLifetimeRegistry.Register(_domainId, databaseId, lifetime);
     }
 
     private T Unavailable<T>()
@@ -699,6 +735,7 @@ public static class DistributionListAdministrationRuntimeHost
     public static void Configure(IDistributionListAdministrationStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
+        DistributionListLifetimeRegistry.Reset();
         Volatile.Write(ref _store, store);
     }
 

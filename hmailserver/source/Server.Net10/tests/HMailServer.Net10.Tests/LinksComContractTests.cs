@@ -438,6 +438,44 @@ public sealed class LinksComContractTests
         Assert.AreEqual(0, recipientStore.Inserted.Count);
     }
 
+    [TestMethod]
+    public void ApplicationLinks_DistributionList_SharesLifetimeWithDomainDeletion()
+    {
+        var listStore = new SharedDistributionListStore(
+            new DistributionListAdministrationSnapshot(
+                40,
+                10,
+                "team@alpha.example",
+                true,
+                RequireSmtpAuth: false,
+                RequireSenderAddress: string.Empty,
+                Mode: 0));
+        var recipientStore = new LinkDistributionListRecipientStore();
+        DistributionListAdministrationRuntimeHost.Configure(listStore);
+        DistributionListRecipientAdministrationRuntimeHost.Configure(recipientStore);
+        var domainStore = new RecordingDomainStore(new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) });
+        DomainAdministrationRuntimeHost.Configure(domainStore);
+        LinksAdministrationRuntimeHost.Configure(
+            domainStore,
+            new RecordingAccountStore(),
+            new RecordingAliasStore(),
+            listStore);
+
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        var linksList = application.Links.get_DistributionList(40);
+        _ = linksList.Recipients;
+        application.Domains[0].DistributionLists.DeleteByDBID(40);
+
+        var listError = Assert.ThrowsExactly<COMException>(() => _ = linksList.Address);
+        var recipientsError = Assert.ThrowsExactly<COMException>(() => _ = linksList.Recipients.Count);
+
+        Assert.AreEqual(EAccessDenied, listError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, recipientsError.ErrorCode);
+        Assert.AreEqual(0, recipientStore.Inserted.Count);
+    }
+
     private static void AssertAccessDenied(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
@@ -604,6 +642,37 @@ public sealed class LinksComContractTests
         {
             Inserted.Add(snapshot);
             return ValueTask.FromResult(901);
+        }
+    }
+
+    private sealed class SharedDistributionListStore(params DistributionListAdministrationSnapshot[] initial)
+        : IDistributionListAdministrationStore
+    {
+        private readonly List<DistributionListAdministrationSnapshot> _lists = initial.ToList();
+
+        public ValueTask<IReadOnlyList<DistributionListAdministrationSnapshot>> GetDistributionListsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DistributionListAdministrationSnapshot>>(
+                _lists.Where(list => list.DomainId == domainId).ToArray());
+
+        public ValueTask<int> InsertDistributionListAsync(
+            DistributionListAdministrationSnapshot distributionList,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(900 + _lists.Count);
+
+        public ValueTask<bool> UpdateDistributionListAsync(
+            DistributionListAdministrationSnapshot distributionList,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(true);
+
+        public ValueTask<bool> DeleteDistributionListAsync(
+            int owningDomainId,
+            int distributionListId,
+            CancellationToken cancellationToken)
+        {
+            var removed = _lists.RemoveAll(list => list.Id == distributionListId && list.DomainId == owningDomainId);
+            return ValueTask.FromResult(removed == 1);
         }
     }
 }

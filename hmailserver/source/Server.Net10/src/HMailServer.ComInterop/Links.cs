@@ -155,7 +155,8 @@ public sealed class Links : IInterfaceLinks
                     list,
                     isAuthenticated: _isServerAdministrator,
                     readAuthorization: _isServerAdministrator,
-                    authorizationLeaseFactory: _authorizationLeaseFactory);
+                    authorizationLeaseFactory: _authorizationLeaseFactory,
+                    lifetime: DistributionListLifetimeRegistry.Get(list.DomainId, list.Id));
             }
         }
 
@@ -228,6 +229,7 @@ public static class LinksAdministrationRuntimeHost
         ArgumentNullException.ThrowIfNull(aliasStore);
         ArgumentNullException.ThrowIfNull(distributionListStore);
 
+        DistributionListLifetimeRegistry.Reset();
         Volatile.Write(
             ref _stores,
             new Stores(domainStore, accountStore, aliasStore, distributionListStore));
