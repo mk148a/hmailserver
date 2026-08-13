@@ -1,8 +1,8 @@
 # Current State
 - UTC/local timestamp: 2026-08-13T15:54:44Z / 2026-08-13T18:54:44+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is ahead by one code commit, docs push pending
-- Current HEAD: `55c9473ac` (AntiSpam local target pinning and error parity)
-- Last successfully pushed commit: `5b085a7a3`
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
+- Current HEAD: `5f538a613` (AntiSpam local target pinning documentation)
+- Last successfully pushed commit: `5f538a613`
 - Latest focused-test result: AntiSpam COM contract `18 passed, 0 failed`
 - Latest full Net10 result: `2240 passed, 55 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL SecurityRanges integration remains skipped because the approved current-user `MSSQLLocalDB` connection and isolated-create approval are unset; paired C++ benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, live DNS/socket/TLS, and 24-hour soak remain skipped or environment-blocked
