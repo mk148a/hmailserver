@@ -366,6 +366,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
             return;
         }
 
+        EnsureServerAdministrator();
         try
         {
             _deleteById(ranges[index].Id);
@@ -396,6 +397,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
             return;
         }
 
+        EnsureServerAdministrator();
         try
         {
             _deleteById(databaseId);
@@ -466,6 +468,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
             return;
         }
 
+        EnsureServerAdministrator();
         try
         {
             Refresh();
@@ -603,6 +606,16 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
             ?? throw new COMException(
                 "SecurityRanges access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "SecurityRanges access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private T Unavailable<T>()

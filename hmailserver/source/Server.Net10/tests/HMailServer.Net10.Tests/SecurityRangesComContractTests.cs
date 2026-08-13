@@ -687,7 +687,6 @@ public sealed class SecurityRangesComContractTests
         IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: () => isServerAdministrator);
         var ranges = settings.SecurityRanges;
         store.Operations.Clear();
-        isServerAdministrator = false;
 
         ranges.SetDefault();
 
@@ -720,6 +719,32 @@ public sealed class SecurityRangesComContractTests
             10,
             96203,
             new DateTime(2001, 1, 1));
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_RetainedSecurityRangesDeniesCollectionMutationsAfterAdministratorRevocation()
+    {
+        var isServerAdministrator = true;
+        var store = new MutableSecurityRangeAdministrationStore(
+            new[]
+            {
+                Snapshot(10, "Internet", "0.0.0.0", "255.255.255.255", 10, AllOptions, false, new DateTime(2001, 1, 1))
+            });
+        SecurityRangeAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: () => isServerAdministrator);
+        var ranges = settings.SecurityRanges;
+        isServerAdministrator = false;
+
+        var indexDeleteError = Assert.ThrowsExactly<COMException>(() => ranges.Delete(0));
+        var deleteError = Assert.ThrowsExactly<COMException>(() => ranges.DeleteByDBID(10));
+        var defaultError = Assert.ThrowsExactly<COMException>(ranges.SetDefault);
+
+        Assert.AreEqual(EAccessDenied, indexDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, defaultError.ErrorCode);
+        CollectionAssert.AreEqual(Array.Empty<int>(), store.DeletedIds);
+        Assert.AreEqual(1, ranges.Count);
+        Assert.AreEqual(0, store.InsertedRanges.Count);
     }
 
     [TestMethod]

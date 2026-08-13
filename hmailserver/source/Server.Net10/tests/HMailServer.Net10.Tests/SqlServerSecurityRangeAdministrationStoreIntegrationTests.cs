@@ -17,13 +17,16 @@ public sealed class SqlServerSecurityRangeAdministrationStoreIntegrationTests
     {
         var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
         var databaseName = $"hmailserver_net10_securityrange_{Guid.NewGuid():N}";
+        var fixtureMarker = Guid.NewGuid().ToString("N");
         var masterConnectionString = WithDatabase(serverConnectionString, "master");
         var testConnectionString = WithDatabase(serverConnectionString, databaseName);
-        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        var databaseCreated = false;
 
         try
         {
-            await CreateSchemaAsync(testConnectionString).ConfigureAwait(false);
+            await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            databaseCreated = true;
+            await CreateSchemaAsync(testConnectionString, fixtureMarker).ConfigureAwait(false);
             var store = new SqlServerSecurityRangeAdministrationStore(
                 new SqlServerConnectionFactory(testConnectionString));
             var expectedExpiry = new DateTime(2026, 12, 31, 23, 59, 58);
@@ -75,8 +78,14 @@ public sealed class SqlServerSecurityRangeAdministrationStoreIntegrationTests
         }
         finally
         {
-            SqlConnection.ClearAllPools();
-            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (databaseCreated)
+            {
+                await DropDatabaseIfOwnedAsync(
+                    masterConnectionString,
+                    testConnectionString,
+                    databaseName,
+                    fixtureMarker).ConfigureAwait(false);
+            }
         }
     }
 
@@ -102,28 +111,18 @@ public sealed class SqlServerSecurityRangeAdministrationStoreIntegrationTests
             throw;
         }
 
-        if (!IsApprovedLocalDataSource(builder.DataSource) || !string.IsNullOrWhiteSpace(builder.AttachDBFilename))
+        if (!IsApprovedLocalDbDataSource(builder.DataSource) || !string.IsNullOrWhiteSpace(builder.AttachDBFilename))
         {
             Assert.Inconclusive(
-                "The SQL integration fixture only accepts a local SQL/LocalDB target without AttachDbFilename.");
+                "The destructive SQL integration fixture only accepts the current-user LocalDB target without AttachDbFilename.");
         }
 
         return builder.ConnectionString;
     }
 
-    private static bool IsApprovedLocalDataSource(string dataSource)
+    private static bool IsApprovedLocalDbDataSource(string dataSource)
     {
-        var normalized = dataSource.Trim();
-        return normalized.Equals(".", StringComparison.OrdinalIgnoreCase)
-            || normalized.Equals("(local)", StringComparison.OrdinalIgnoreCase)
-            || normalized.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-            || normalized.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
-            || normalized.Equals("::1", StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith(".\\", StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith("(localdb)\\", StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith("localhost\\", StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith("127.0.0.1,", StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith("localhost,", StringComparison.OrdinalIgnoreCase);
+        return dataSource.Trim().Equals("(localdb)\\MSSQLLocalDB", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string WithDatabase(string connectionString, string databaseName)
@@ -140,9 +139,14 @@ public sealed class SqlServerSecurityRangeAdministrationStoreIntegrationTests
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 
-    private static async Task CreateSchemaAsync(string connectionString)
+    private static async Task CreateSchemaAsync(string connectionString, string fixtureMarker)
     {
-        const string sql = """
+        const string markerSql = """
+            CREATE TABLE dbo.hm_net10_fixture_marker (
+                marker nvarchar(32) NOT NULL PRIMARY KEY
+            );
+            """;
+        const string schemaSql = """
             CREATE TABLE dbo.hm_securityranges (
                 rangeid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
                 rangename nvarchar(100) NOT NULL,
@@ -160,13 +164,35 @@ public sealed class SqlServerSecurityRangeAdministrationStoreIntegrationTests
 
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
-        await using var command = new SqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        await using var markerTableCommand = new SqlCommand(markerSql, connection);
+        await markerTableCommand.ExecuteNonQueryAsync().ConfigureAwait(false);
+        await using var markerCommand = new SqlCommand(
+            "INSERT INTO dbo.hm_net10_fixture_marker (marker) VALUES (@marker);",
+            connection);
+        markerCommand.Parameters.AddWithValue("@marker", fixtureMarker);
+        await markerCommand.ExecuteNonQueryAsync().ConfigureAwait(false);
+        await using var schemaCommand = new SqlCommand(schemaSql, connection);
+        await schemaCommand.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 
-    private static async Task DropDatabaseAsync(string connectionString, string databaseName)
+    private static async Task DropDatabaseIfOwnedAsync(
+        string masterConnectionString,
+        string testConnectionString,
+        string databaseName,
+        string fixtureMarker)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var ownershipConnection = new SqlConnection(testConnectionString);
+        await ownershipConnection.OpenAsync().ConfigureAwait(false);
+        await using var ownershipCommand = new SqlCommand(
+            "SELECT COUNT(*) FROM dbo.hm_net10_fixture_marker WHERE marker = @marker;",
+            ownershipConnection);
+        ownershipCommand.Parameters.AddWithValue("@marker", fixtureMarker);
+        if (Convert.ToInt32(await ownershipCommand.ExecuteScalarAsync().ConfigureAwait(false)) != 1)
+        {
+            return;
+        }
+
+        await using var connection = new SqlConnection(masterConnectionString);
         await connection.OpenAsync().ConfigureAwait(false);
         await using var command = new SqlCommand(
             $"ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{databaseName}];",
