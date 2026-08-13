@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, AntiSpam local target pinning)
+
+Legacy `SpamAssassinTestConnect::TestConnect`
+(`source/Server/Common/AntiSpam/SpamAssassin/SpamAssassinTestConnect.cpp`)
+resolves once via `DNSResolver::GetIpAddressesRecursive_` and connects to the
+first selected IP; `InterfaceAntiSpam::TestSpamAssassinConnection`
+(`source/Server/COM/InterfaceAntiSpam.cpp`, DISPID 36) preserves the COM
+boundary. Code/test commit `55c9473ac` makes Net10
+`AntiSpam.TestSpamAssassinConnection` pass the validated local IP literal to
+the existing runtime, catches malformed host arguments as `E_FAIL`, and uses
+IPv4-first selection when a dual-stack local result is available.
+
+Focused AntiSpam coverage: `18 passed, 0 failed`. Full Net10: `2240 passed,
+55 skipped, 0 failed`. No IID/DISPID, authentication/direct-activation,
+SQL/WebAdmin, SMTP trust, service, registry, or live scanner socket behavior
+changed. No live COM activation was demonstrated; release remains **RED**.
+Next independent slice: approved real DNS/socket/TLS acceptance or a
+registry-isolated C++ paired benchmark; otherwise continue the next
+legacy-anchored COM/Admin gap without claiming release readiness.
+
 ## Current Authoritative Continuation (2026-08-13, ordinary-MX partial DNS resolution)
 
 Legacy `DNSResolver::GetEmailServersRecursive_` in

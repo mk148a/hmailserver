@@ -1,6 +1,26 @@
 
 
-## Current next slice (2026-08-13, ordinary-MX partial DNS resolution; supersedes older entries)
+## Current next slice (2026-08-13, AntiSpam local target pinning; supersedes older entries)
+
+Legacy `SpamAssassinTestConnect::TestConnect`
+(`source/Server/Common/AntiSpam/SpamAssassin/SpamAssassinTestConnect.cpp`)
+resolves the configured host once through
+`DNSResolver::GetIpAddressesRecursive_` and connects to the selected IP;
+`InterfaceAntiSpam::TestSpamAssassinConnection`
+(`source/Server/COM/InterfaceAntiSpam.cpp`, DISPID 36) retains the COM error
+boundary. Code/test commit `55c9473ac` updates Net10
+`AntiSpam.TestSpamAssassinConnection` to pass the validated local IP literal,
+map malformed DNS arguments to the existing `E_FAIL`, and choose IPv4 first
+when a dual-stack local result is available.
+
+Focused AntiSpam coverage is `18/18`; full Net10 is `2240 passed, 55 skipped,
+0 failed`. COM identity, authenticated/direct activation boundaries, SQL,
+WebAdmin, SMTP trust, and scanner protocol behavior are unchanged. Live COM
+activation and real SpamAssassin socket acceptance remain unproven; release
+is RED. Next independent slice is approved disposable real DNS/socket/TLS
+acceptance or registry-isolated C++ execution for the paired performance gate.
+
+## Historical next slice (2026-08-13, ordinary-MX partial DNS resolution; superseded)
 
 Legacy `DNSResolver::GetEmailServersRecursive_`
 (`source/Server/Common/TCPIP/DNSResolver.cpp`) continues after an individual

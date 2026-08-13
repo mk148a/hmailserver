@@ -1,12 +1,12 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T15:30:00Z / 2026-08-13T18:30:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `1244551f0` (ordinary-MX partial DNS resolution documentation)
-- Last successfully pushed commit: `1244551f0`
-- Latest focused-test result: RemoteSmtpEndpointResolver `52 passed, 0 failed`
-- Latest full Net10 result: `2237 passed, 55 skipped, 0 failed`
+- UTC/local timestamp: 2026-08-13T15:54:44Z / 2026-08-13T18:54:44+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is ahead by one code commit, docs push pending
+- Current HEAD: `55c9473ac` (AntiSpam local target pinning and error parity)
+- Last successfully pushed commit: `5b085a7a3`
+- Latest focused-test result: AntiSpam COM contract `18 passed, 0 failed`
+- Latest full Net10 result: `2240 passed, 55 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL SecurityRanges integration remains skipped because the approved current-user `MSSQLLocalDB` connection and isolated-create approval are unset; paired C++ benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, live DNS/socket/TLS, and 24-hour soak remain skipped or environment-blocked
-- Current bounded slice: ordinary-MX resolver retains healthy candidates after per-host DNS failure, preserves transient all-failed behavior, and propagates caller cancellation/unexpected exceptions
+- Current bounded slice: authenticated AntiSpam local scanner validation is pinned to one validated IP, malformed host input fails closed as E_FAIL, and dual-stack local hostname selection is IPv4-first
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, no-MX CNAME planning, SecurityRanges managed parity coverage, IncomingRelays retained-collection authorization coverage, and IncomingRelays mutation lease coverage
 - Open production blockers: paired C++/.NET performance RED; legacy C++ external-fetch SSRF, live DNS/socket/TLS/SNI and certificate/revocation acceptance; scanner production egress and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; explicitly approved current-user LocalDB target; live DNS/socket/TLS fixture; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host

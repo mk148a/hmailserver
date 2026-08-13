@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current authoritative AntiSpam parity status (2026-08-13)
+
+Code/test commit `55c9473ac` closes the bounded local SpamAssassin target
+resolution gap. Legacy `SpamAssassinTestConnect::TestConnect` resolves the
+configured host once through `DNSResolver::GetIpAddressesRecursive_` and
+connects to the selected IP literal; `InterfaceAntiSpam::TestSpamAssassinConnection`
+preserves the COM error boundary. Net10
+`AntiSpam.TestSpamAssassinConnection` now passes the validated local IP to the
+existing runtime, catches malformed DNS arguments as the existing `E_FAIL`
+denial, and prefers IPv4 when a dual-stack local hostname provides one.
+
+Focused AntiSpam COM coverage is `18 passed, 0 failed`; full Net10 is
+`2240 passed, 55 skipped, 0 failed`. Installed COM identity, DISPID 36,
+authenticated access, direct activation denial, SQL settings, WebAdmin, and
+SpamAssassin protocol behavior were unchanged. No live COM activation or real
+SpamAssassin socket acceptance was performed; release remains **RED**.
+
 ## Current authoritative delivery parity status (2026-08-13)
 
 The bounded ordinary-MX DNS resolution slice is complete in code/test commit
