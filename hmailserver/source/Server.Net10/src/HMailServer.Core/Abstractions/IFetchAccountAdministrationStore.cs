@@ -15,6 +15,13 @@ public interface IFetchAccountAdministrationStore
         FetchAccountAdministrationDraft account,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateFetchAccountAsync(
+        int fetchAccountId,
+        FetchAccountAdministrationDraft account,
+        string? password,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Fetch-account updates are not available in this store.");
+
     ValueTask<int> InsertFetchAccountForRestoreAsync(
         FetchAccountAdministrationDraft account,
         string encryptedPassword,

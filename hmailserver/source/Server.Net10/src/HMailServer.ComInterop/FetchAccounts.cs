@@ -182,6 +182,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
     private readonly Func<int, int, ValueTask>? _retryNow;
     private readonly Func<int, int, ValueTask>? _delete;
     private readonly Func<FetchAccountAdministrationDraft, ValueTask<int>>? _insert;
+    private readonly Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? _update;
     private readonly int _accountId;
     private readonly Func<bool>? _isAuthenticated;
 
@@ -195,6 +196,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         Func<int, int, ValueTask>? retryNow,
         Func<int, int, ValueTask>? delete,
         Func<FetchAccountAdministrationDraft, ValueTask<int>>? insert,
+        Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update,
         int accountId,
         Func<bool>? isAuthenticated)
     {
@@ -203,6 +205,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         _retryNow = retryNow;
         _delete = delete;
         _insert = insert;
+        _update = update;
         _accountId = accountId;
         _isAuthenticated = isAuthenticated;
     }
@@ -215,11 +218,12 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         Func<int, int, ValueTask>? retryNow = null,
         Func<int, int, ValueTask>? delete = null,
         Func<FetchAccountAdministrationDraft, ValueTask<int>>? insert = null,
+        Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update = null,
         int accountId = 0,
         Func<bool>? isAuthenticated = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
-        return new FetchAccounts(accounts, reload, retryNow, delete, insert, accountId, isAuthenticated);
+        return new FetchAccounts(accounts, reload, retryNow, delete, insert, update, accountId, isAuthenticated);
     }
 
     public IInterfaceFetchAccount get_ItemByDBID(int databaseId)
@@ -232,7 +236,8 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
                 match,
                 _retryNow,
                 _delete is null ? null : DeleteSelectedAsync,
-                _isAuthenticated);
+                _isAuthenticated,
+                _update is null ? null : UpdateSelectedAsync);
     }
 
     public IInterfaceFetchAccount this[int index]
@@ -249,7 +254,8 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
                 accounts[index],
                 _retryNow,
                 _delete is null ? null : DeleteSelectedAsync,
-                _isAuthenticated);
+                _isAuthenticated,
+                _update is null ? null : UpdateSelectedAsync);
         }
     }
 
@@ -274,6 +280,55 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
             accounts
                 .Where(account => account.AccountId != accountId || account.Id != fetchAccountId)
                 .ToArray());
+    }
+
+    private async ValueTask<bool> UpdateSelectedAsync(
+        int fetchAccountId,
+        FetchAccountAdministrationDraft draft,
+        string? password)
+    {
+        if (_update is null)
+        {
+            Unavailable();
+            return false;
+        }
+
+        if (draft.AccountId != _accountId
+            || !GetAccounts().Any(account => account.AccountId == _accountId && account.Id == fetchAccountId))
+        {
+            throw new InvalidOperationException("The fetch account update is outside its owning account.");
+        }
+
+        var updated = await _update(fetchAccountId, draft, password).ConfigureAwait(false);
+        if (updated)
+        {
+            Volatile.Write(
+                ref _accounts,
+                GetAccounts()
+                    .Select(current => current.Id == fetchAccountId
+                        ? current with
+                        {
+                            Name = draft.Name,
+                            ServerAddress = draft.ServerAddress,
+                            Port = draft.Port,
+                            ServerType = draft.ServerType,
+                            Username = draft.Username,
+                            MinutesBetweenFetch = draft.MinutesBetweenFetch,
+                            DaysToKeepMessages = draft.DaysToKeepMessages,
+                            Enabled = draft.Enabled,
+                            ProcessMimeRecipients = draft.ProcessMimeRecipients,
+                            ProcessMimeDate = draft.ProcessMimeDate,
+                            ConnectionSecurity = draft.ConnectionSecurity,
+                            UseAntiSpam = draft.UseAntiSpam,
+                            UseAntiVirus = draft.UseAntiVirus,
+                            EnableRouteRecipients = draft.EnableRouteRecipients,
+                            MimeRecipientHeaders = draft.MimeRecipientHeaders
+                        }
+                        : current)
+                    .ToArray());
+        }
+
+        return updated;
     }
 
     public void Refresh()
@@ -454,7 +509,9 @@ public sealed class FetchAccount : IInterfaceFetchAccount
     private readonly Func<int, int, ValueTask>? _retryNow;
     private readonly Func<int, int, ValueTask>? _delete;
     private readonly Func<FetchAccountAdministrationDraft, ValueTask<FetchAccountAdministrationSnapshot>>? _insert;
+    private readonly Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? _update;
     private readonly Func<bool>? _isAuthenticated;
+    private bool _passwordModified;
 
     public FetchAccount()
     {
@@ -464,12 +521,14 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         FetchAccountAdministrationSnapshot account,
         Func<int, int, ValueTask>? retryNow,
         Func<int, int, ValueTask>? delete,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update)
     {
         _account = account;
         _retryNow = retryNow;
         _delete = delete;
         _isAuthenticated = isAuthenticated;
+        _update = update;
     }
 
     private FetchAccount(
@@ -499,7 +558,14 @@ public sealed class FetchAccount : IInterfaceFetchAccount
     string IInterfaceFetchAccount.Password
     {
         get => _draft?.Password ?? Unavailable<string>();
-        set => Stage(value, static (draft, value) => draft with { Password = value });
+        set
+        {
+            Stage(value, static (draft, value) => draft with { Password = value });
+            if (_account is not null)
+            {
+                _passwordModified = true;
+            }
+        }
     }
 
     public int MinutesBetweenFetch { get => _draft?.MinutesBetweenFetch ?? Snapshot.MinutesBetweenFetch; set => Stage(value, static (draft, value) => draft with { MinutesBetweenFetch = value }); }
@@ -538,7 +604,9 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         FetchAccountAdministrationSnapshot account,
         Func<int, int, ValueTask>? retryNow = null,
         Func<int, int, ValueTask>? delete = null,
-        Func<bool>? isAuthenticated = null) => new(account, retryNow, delete, isAuthenticated);
+        Func<bool>? isAuthenticated = null,
+        Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update = null) =>
+        new(account, retryNow, delete, isAuthenticated, update);
 
     internal static FetchAccount CreateAuthorized(
         FetchAccountAdministrationDraft draft,
@@ -550,6 +618,42 @@ public sealed class FetchAccount : IInterfaceFetchAccount
     {
         EnsureAuthenticated();
         var draft = _draft;
+        if (_account is { } existing)
+        {
+            if (_update is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            draft ??= ToDraft(existing);
+            try
+            {
+                if (!_update(existing.Id, draft, _passwordModified ? draft.Password : null)
+                    .GetAwaiter()
+                    .GetResult())
+                {
+                    throw new InvalidOperationException("The fetch-account update did not affect the selected row.");
+                }
+
+                _account = ToSnapshot(existing, draft);
+                _draft = null;
+                _passwordModified = false;
+            }
+            catch (COMException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new COMException(
+                    "It was not possible to save the fetch account to the database.",
+                    EFail);
+            }
+
+            return;
+        }
+
         if (draft is null || _insert is null)
         {
             Unavailable();
@@ -640,12 +744,59 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         var draft = _draft;
         if (draft is null)
         {
-            Unavailable();
-            return;
+            if (_update is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            draft = ToDraft(Snapshot);
         }
 
         _draft = update(draft, value);
     }
+
+    private static FetchAccountAdministrationDraft ToDraft(FetchAccountAdministrationSnapshot account) =>
+        new(
+            AccountId: account.AccountId,
+            Name: account.Name,
+            ServerAddress: account.ServerAddress,
+            Port: account.Port,
+            ServerType: account.ServerType,
+            Username: account.Username,
+            MinutesBetweenFetch: account.MinutesBetweenFetch,
+            DaysToKeepMessages: account.DaysToKeepMessages,
+            Enabled: account.Enabled,
+            ProcessMimeRecipients: account.ProcessMimeRecipients,
+            ProcessMimeDate: account.ProcessMimeDate,
+            ConnectionSecurity: account.ConnectionSecurity,
+            UseAntiSpam: account.UseAntiSpam,
+            UseAntiVirus: account.UseAntiVirus,
+            EnableRouteRecipients: account.EnableRouteRecipients,
+            MimeRecipientHeaders: account.MimeRecipientHeaders);
+
+    private static FetchAccountAdministrationSnapshot ToSnapshot(
+        FetchAccountAdministrationSnapshot existing,
+        FetchAccountAdministrationDraft draft) =>
+        existing with
+        {
+            AccountId = draft.AccountId,
+            Name = draft.Name,
+            ServerAddress = draft.ServerAddress,
+            Port = draft.Port,
+            ServerType = draft.ServerType,
+            Username = draft.Username,
+            MinutesBetweenFetch = draft.MinutesBetweenFetch,
+            DaysToKeepMessages = draft.DaysToKeepMessages,
+            Enabled = draft.Enabled,
+            ProcessMimeRecipients = draft.ProcessMimeRecipients,
+            ProcessMimeDate = draft.ProcessMimeDate,
+            ConnectionSecurity = draft.ConnectionSecurity,
+            UseAntiSpam = draft.UseAntiSpam,
+            UseAntiVirus = draft.UseAntiVirus,
+            EnableRouteRecipients = draft.EnableRouteRecipients,
+            MimeRecipientHeaders = draft.MimeRecipientHeaders
+        };
 
     private T Unavailable<T>()
     {
@@ -725,12 +876,32 @@ public static class FetchAccountAdministrationRuntimeHost
                 .ConfigureAwait(false);
         }
 
+        async ValueTask<bool> UpdateFetchAccount(
+            int fetchAccountId,
+            FetchAccountAdministrationDraft draft,
+            string? password)
+        {
+            if (draft.AccountId != accountId)
+            {
+                throw new InvalidOperationException("The fetch account update is outside its owning account.");
+            }
+
+            return await store
+                .UpdateFetchAccountAsync(
+                    fetchAccountId,
+                    draft,
+                    password,
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+
         return FetchAccounts.CreateAuthorized(
             LoadFetchAccounts(),
             LoadFetchAccounts,
             RetryNow,
             DeleteFetchAccount,
             InsertFetchAccount,
+            UpdateFetchAccount,
             accountId,
             isAuthenticated);
     }

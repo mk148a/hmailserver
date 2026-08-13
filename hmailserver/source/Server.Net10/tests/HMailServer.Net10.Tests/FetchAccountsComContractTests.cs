@@ -405,6 +405,87 @@ public sealed class FetchAccountsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedExistingFetchAccountSave_UpdatesOnlyOwningRowAndPublishesStagedValues()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var fetchAccount = account.FetchAccounts[0];
+
+        fetchAccount.Name = "Updated POP3";
+        fetchAccount.Port = 995;
+        fetchAccount.ConnectionSecurity = ComConnectionSecurity.StartTlsRequired;
+        fetchAccount.Password = "new-secret";
+        fetchAccount.Save();
+
+        Assert.AreEqual(1, store.UpdateCalls.Count);
+        Assert.AreEqual((10, 100), (store.UpdateCalls[0].FetchAccountId, store.UpdateCalls[0].Account.AccountId));
+        Assert.AreEqual("Updated POP3", store.UpdateCalls[0].Account.Name);
+        Assert.AreEqual("new-secret", store.UpdateCalls[0].Password);
+        Assert.AreEqual("Updated POP3", fetchAccount.Name);
+        Assert.AreEqual("Updated POP3", account.FetchAccounts[0].Name);
+        Assert.AreEqual(995, fetchAccount.Port);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, fetchAccount.ConnectionSecurity);
+    }
+
+    [TestMethod]
+    public void AuthorizedExistingFetchAccountSaveFailureRetainsStagedValuesAndSnapshot()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") })
+        {
+            FailUpdate = true
+        };
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var fetchAccount = account.FetchAccounts[0];
+        fetchAccount.Name = "Retry POP3";
+
+        var failure = Assert.ThrowsExactly<COMException>(fetchAccount.Save);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual("Retry POP3", fetchAccount.Name);
+        Assert.AreEqual("External POP3", account.FetchAccounts[0].Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedExistingFetchAccountSave_RechecksAuthenticationBeforeStore()
+    {
+        var authenticated = true;
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            () => authenticated);
+        var fetchAccount = account.FetchAccounts[0];
+        fetchAccount.Name = "Updated POP3";
+        authenticated = false;
+
+        var failure = Assert.ThrowsExactly<COMException>(fetchAccount.Save);
+
+        Assert.AreEqual(EAccessDenied, failure.ErrorCode);
+        Assert.AreEqual(0, store.UpdateCalls.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedExistingFetchAccountSave_RejectsCrossParentAccountBeforeStore()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var fetchAccount = account.FetchAccounts[0];
+        fetchAccount.AccountID = 200;
+
+        var failure = Assert.ThrowsExactly<COMException>(fetchAccount.Save);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(0, store.UpdateCalls.Count);
+    }
+
+    [TestMethod]
     public void FetchAccountDraft_SettersRecheckAuthenticationBeforeStaging()
     {
         var authenticated = true;
@@ -687,11 +768,15 @@ public sealed class FetchAccountsComContractTests
 
         public bool FailInsert { get; set; }
 
+        public bool FailUpdate { get; set; }
+
         public int NextFetchAccountId { get; set; } = 1000;
 
         public List<FetchAccountAdministrationDraft> InsertCalls { get; } = [];
 
         public List<(int AccountId, int FetchAccountId)> DeleteCalls { get; } = [];
+
+        public List<(int FetchAccountId, FetchAccountAdministrationDraft Account, string? Password)> UpdateCalls { get; } = [];
 
         public ValueTask<IReadOnlyList<FetchAccountAdministrationSnapshot>> GetFetchAccountsAsync(
             int accountId,
@@ -728,6 +813,43 @@ public sealed class FetchAccountsComContractTests
 
             InsertCalls.Add(account);
             return ValueTask.FromResult(NextFetchAccountId++);
+        }
+
+        public ValueTask<bool> UpdateFetchAccountAsync(
+            int fetchAccountId,
+            FetchAccountAdministrationDraft account,
+            string? password,
+            CancellationToken cancellationToken)
+        {
+            if (FailUpdate)
+            {
+                throw new InvalidOperationException("store failed");
+            }
+
+            UpdateCalls.Add((fetchAccountId, account, password));
+            Accounts = Accounts
+                .Select(current => current.Id == fetchAccountId && current.AccountId == account.AccountId
+                    ? current with
+                    {
+                        Name = account.Name,
+                        ServerAddress = account.ServerAddress,
+                        Port = account.Port,
+                        ServerType = account.ServerType,
+                        Username = account.Username,
+                        MinutesBetweenFetch = account.MinutesBetweenFetch,
+                        DaysToKeepMessages = account.DaysToKeepMessages,
+                        Enabled = account.Enabled,
+                        ProcessMimeRecipients = account.ProcessMimeRecipients,
+                        ProcessMimeDate = account.ProcessMimeDate,
+                        ConnectionSecurity = account.ConnectionSecurity,
+                        UseAntiSpam = account.UseAntiSpam,
+                        UseAntiVirus = account.UseAntiVirus,
+                        EnableRouteRecipients = account.EnableRouteRecipients,
+                        MimeRecipientHeaders = account.MimeRecipientHeaders
+                    }
+                    : current)
+                .ToArray();
+            return ValueTask.FromResult(true);
         }
 
         public ValueTask DeleteFetchAccountAsync(

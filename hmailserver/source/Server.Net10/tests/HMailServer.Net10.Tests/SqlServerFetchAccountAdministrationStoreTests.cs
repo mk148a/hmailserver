@@ -127,6 +127,21 @@ public sealed class SqlServerFetchAccountAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateFetchAccountSql_PreservesLegacyFieldsAndOwnerScope()
+    {
+        var sql = SqlServerFetchAccountAdministrationStore.UpdateFetchAccountSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_fetchaccounts");
+        StringAssert.Contains(sql, "fapassword = CASE WHEN @Password IS NULL THEN fapassword ELSE @Password END");
+        StringAssert.Contains(sql, "fanexttry = GETDATE()");
+        StringAssert.Contains(sql, "WHERE faid = @FetchAccountID");
+        StringAssert.Contains(sql, "AND faaccountid = @AccountID");
+        StringAssert.Contains(sql, "SELECT @@ROWCOUNT");
+        StringAssert.Contains(sql, "@MimeRecipientHeaders");
+        Assert.IsFalse(sql.Contains("DELETE FROM hm_fetchaccounts", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void InsertFetchAccountUidSql_UsesLegacyUidColumnsAndFetchAccountParent()
     {
         var sql = SqlServerFetchAccountAdministrationStore.InsertFetchAccountUidSql;
