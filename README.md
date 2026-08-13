@@ -1,6 +1,33 @@
 hMailServer
 ===========
 
+## Current authoritative indirect FetchAccount authorization status (2026-08-13)
+
+Code/test commit `53f13f5dd` completes the bounded indirect-account lease
+propagation slice. Legacy `InterfaceFetchAccounts::Add`, `Delete`, and
+`DeleteByDBID`, plus `InterfaceFetchAccount::Save`, `DownloadNow`, and
+`Delete`, are anchored in
+`hmailserver/source/Server/COM/InterfaceFetchAccounts.cpp` and
+`InterfaceFetchAccount.cpp`. Net10 now carries the authenticated
+generation-bound lease through `Application.Links`, `GroupMember.Account`,
+and `IMAPFolderPermission.Account` into the existing Account/FetchAccounts
+adapter. `DownloadNow` through each indirect route holds and disposes the
+lease; a null lease fails closed with `E_ACCESSDENIED`. `Application.Links`
+and its descendants are generation-bound, and permission-to-Group retains the
+lease delegate.
+
+Focused coverage is `81 passed, 0 failed`:
+`FetchAccountsComContractTests` 31, `LinksComContractTests` 11,
+`GroupMembersComContractTests` 13, and
+`IMAPFolderPermissionsComContractTests` 26. Full Net10 is
+`2258 passed, 55 skipped, 0 failed`. Installed COM identity/vtable/DISPID,
+direct activation denial, SMTP trust, and external-fetch runtime behavior
+were not broadened. Group/IMAP folder and permission mutations themselves
+still do not consume this lease and remain a separate high-risk blocker;
+`FetchAccount.Password` remains fenced. Live SQL/readback, registered COM,
+service/worker, paired C++/.NET performance, restore, SEC-18, and soak gates
+remain unavailable; release remains **RED**.
+
 ## Current authoritative FetchAccount mutation authorization status (2026-08-13)
 
 Code/test commit `0589d0862` closes the bounded direct authenticated

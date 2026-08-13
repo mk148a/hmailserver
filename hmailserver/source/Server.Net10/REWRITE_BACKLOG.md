@@ -4699,3 +4699,23 @@ normal administration snapshots do not retain plaintext credentials. Release
 remains RED. Next slice: approved disposable SQL UPDATE/readback with
 unchanged/changed password and wrong-owner cases, followed by registry-isolated
 C++ paired performance or isolated service/COM lifecycle.
+
+## Current next slice (2026-08-13, indirect FetchAccount authorization lease; supersedes older entries)
+
+Legacy `InterfaceFetchAccounts::Add`, `Delete`, and `DeleteByDBID`, and
+`InterfaceFetchAccount::Save`, `DownloadNow`, and `Delete`, are anchored in
+`source/Server/COM/InterfaceFetchAccounts.cpp` and
+`source/Server/COM/InterfaceFetchAccount.cpp`. The bounded slice carries the
+generation-bound authorization lease through `Application.Links`,
+`GroupMember.Account`, and `IMAPFolderPermission.Account` into the existing
+`Account -> FetchAccounts` adapter. Indirect `DownloadNow` holds/disposes the
+lease and null lease fails closed with `E_ACCESSDENIED`; retained Links objects
+are generation-bound and permission-to-Group retains the delegate.
+
+Focused coverage is `81/81`; full Net10 is `2258 passed, 55 skipped, 0 failed`.
+Installed COM identities/vtables/DISPIDs, direct activation denial, SMTP
+trust, and external-fetch runtime behavior were not broadened. Group,
+GroupMember, IMAP folder, and IMAP permission mutations themselves still do
+not consume the lease and are the next high-risk security slice. Live SQL,
+registered COM/service/worker, paired C++/.NET performance, restore, SEC-18,
+and soak gates remain unproven; release remains RED.

@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, indirect FetchAccount lease propagation)
+
+Legacy `InterfaceFetchAccounts::Add`, `Delete`, and `DeleteByDBID`, and
+`InterfaceFetchAccount::Save`, `DownloadNow`, and `Delete`, are in
+`source/Server/COM/InterfaceFetchAccounts.cpp` and
+`InterfaceFetchAccount.cpp`. The bounded code/test slice carries the
+generation-bound authorization lease through `Application.Links`,
+`GroupMember.Account`, and `IMAPFolderPermission.Account` into the existing
+`Account -> FetchAccounts` adapter. Indirect `DownloadNow` paths hold and
+dispose the lease; null lease acquisition returns `E_ACCESSDENIED`. Retained
+`Application.Links` objects and descendants are generation-bound, and the
+permission-to-Group child retains the delegate. COM identities/direct
+activation boundaries and SMTP/external-fetch behavior are unchanged.
+
+Focused coverage: `81 passed, 0 failed` (FetchAccounts 31, Links 11,
+GroupMembers 13, IMAPFolderPermissions 26). Full Net10:
+`2258 passed, 55 skipped, 0 failed`. Separate high-risk work remains for
+lease consumption by Group, GroupMember, IMAP folder, and IMAP permission
+mutations; existing-row `FetchAccount.Password` is still fenced. No live
+SQL/readback, registered COM/service/worker, paired performance, restore,
+SEC-18, or soak gate is proven. Release remains **RED**.
+
+Next independent slices: consume authorization leases across Group/GroupMember
+and IMAP folder/permission mutations; approved disposable SQL FetchAccount
+readback; registry-isolated C++ paired performance execution.
+
 ## Current Authoritative Continuation (2026-08-13, FetchAccount mutation authorization lease)
 
 Legacy `InterfaceFetchAccount::DownloadNow`, `Save`, and `Delete`, together
