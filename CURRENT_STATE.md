@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T18:34:00Z / 2026-08-13T21:34:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `ec0d8e9cb` (docs for pushed IMAP folder mutation authorization lease)
-- Last successfully pushed commit: `ec0d8e9cb`
-- Latest focused-test result: IMAP folder/permission/SQL-store set `60 passed, 0 failed`
-- Latest full Net10 result: `2266 passed, 55 skipped, 0 failed`
+- UTC/local timestamp: 2026-08-13T19:04:00Z / 2026-08-13T22:04:00+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is two commits ahead pending docs/push
+- Current HEAD: `23802be01` (IMAP folder-permission mutation authorization lease)
+- Last successfully pushed commit: `5f53861c4`
+- Latest focused-test result: IMAP folder-permission contract `29 passed, 0 failed`; combined IMAP folder/permission/SQL-store set `63 passed, 0 failed`
+- Latest full Net10 result: `2269 passed, 55 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL/Data, registry/COM, restore, installer, AD/DC, SEC-18, live protocol/load, paired C++ benchmark, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: IMAP folder Add/DeleteByDBID and retained-folder Save/Delete consume the generation-bound authorization lease around store callbacks; Add/Save also fail closed after logout without a lease factory
-- Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, DNS/MX safety slices, SecurityRanges managed parity coverage, IncomingRelays authorization and mutation lease coverage, AntiSpam local target pinning, Account.DeleteMessages parity, FetchAccount Save parity and mutation lease propagation, indirect FetchAccount lease propagation, Group/GroupMember mutation lease consumption, and IMAP folder mutation lease consumption
-- Open production blockers: IMAP folder-permission mutation lease consumption; paired C++/.NET performance RED; live SQL/Data readback; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Current bounded slice: IMAP folder-permission collection and retained-item mutations consume the generation-bound authorization lease around store callbacks; retained mutation facades fail closed after logout
+- Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, DNS/MX safety slices, SecurityRanges managed parity coverage, IncomingRelays authorization and mutation lease coverage, AntiSpam local target pinning, Account.DeleteMessages parity, FetchAccount Save parity and mutation lease propagation, indirect FetchAccount lease propagation, Group/GroupMember mutation lease consumption, IMAP folder mutation lease consumption, and IMAP folder-permission mutation lease consumption
+- Open production blockers: paired C++/.NET performance RED; live SQL/Data readback; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; retained-wrapper post-logout read/stage semantics; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; approved disposable SQL target; live DNS/socket/TLS fixture; restore/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: consume the lease across IMAP folder permissions; approved disposable SQL FetchAccount UPDATE/readback; registry-isolated C++ execution and paired benchmark evidence
+- Next three independent slices: approved disposable SQL FetchAccount UPDATE/readback; registry-isolated C++ execution and paired benchmark evidence; remaining legacy-anchored Admin/protocol parity selected by the production gate

@@ -4772,3 +4772,28 @@ gates remain open.
 Next independent slices: consume the lease across IMAP folder permissions;
 approved disposable SQL FetchAccount UPDATE/readback; registry-isolated C++
 execution and paired benchmark evidence.
+
+## Current next slice (2026-08-13, IMAP folder-permission authorization lease; supersedes older entries)
+
+Legacy `InterfaceIMAPFolderPermissions` collection deletion/add paths and
+`InterfaceIMAPFolderPermission::Save/Delete` are implemented in
+`source/Server/COM/InterfaceIMAPFolderPermissions.cpp` and
+`InterfaceIMAPFolderPermission.cpp`. Code/test commit `23802be01` consumes
+the existing generation-bound authorization lease across permission
+collection Delete/DeleteByDBID and item new/existing Save/Delete callbacks.
+New items retain the owning collection lease factory; by-name wrappers retain
+their delete/update delegates; null leases fail closed with `E_ACCESSDENIED`,
+and logout checks reject retained mutation facades before store callbacks.
+Installed COM identity, direct activation boundaries, owner/snapshot checks,
+SMTP trust, live reconfiguration, and SQL schema remain unchanged.
+
+Focused permission coverage is `29 passed, 0 failed`; combined IMAP
+folder/permission/SQL-store coverage is `63 passed, 0 failed`; full Net10 is
+`2269 passed, 55 skipped, 0 failed`. Retained wrappers can still read or stage
+in-memory values after logout; this is outside the persistence-mutation slice.
+Release remains **RED** because approved SQL/Data readback, paired C++/.NET
+performance, restore, installer/rollback, SEC-18, and soak gates remain open.
+
+Next independent slices: approved disposable SQL FetchAccount UPDATE/readback;
+registry-isolated C++ execution and paired benchmark evidence; remaining
+legacy-anchored Admin/protocol parity selected by the production gate.

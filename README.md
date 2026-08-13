@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current authoritative IMAP folder-permission authorization status (2026-08-13)
+
+Code/test commit `23802be01` closes the bounded generation-bound
+authorization-lease gap for IMAP folder-permission mutations. Legacy
+`InterfaceIMAPFolderPermissions` collection deletion/add paths and
+`InterfaceIMAPFolderPermission::Save/Delete` are anchored in
+`hmailserver/source/Server/COM/InterfaceIMAPFolderPermissions.cpp` and
+`InterfaceIMAPFolderPermission.cpp`. Net10 now holds the existing lease over
+permission collection Delete/DeleteByDBID and item new/existing Save/Delete;
+new items retain the owning collection lease factory, by-name wrappers retain
+their delete/update delegates, null leases fail closed with `E_ACCESSDENIED`,
+and logout checks reject retained mutation facades before store callbacks.
+
+Focused permission coverage is `29 passed, 0 failed`; the combined IMAP
+folder/permission/SQL-store set is `63 passed, 0 failed`; full Net10 is
+`2269 passed, 55 skipped, 0 failed`. COM identity, direct activation
+boundaries, owner/snapshot checks, SMTP trust, live reconfiguration, and SQL
+schema were unchanged. Retained wrappers may still read or stage in-memory
+values after logout; persistence mutation denial is complete for this slice.
+Paired C++/.NET performance, live SQL/Data, restore, SEC-18, and 24-hour soak
+gates remain unavailable; release remains **RED**.
+
+Next independent slices: approved disposable SQL FetchAccount UPDATE/readback;
+registry-isolated C++ execution and paired benchmark evidence; remaining
+legacy-anchored Admin/protocol parity selected by the production gate.
+
 ## Current authoritative IMAP folder authorization status (2026-08-13)
 
 Code/test commit `59dd1d7d1` closes the bounded generation-bound

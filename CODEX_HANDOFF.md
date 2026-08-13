@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, IMAP folder-permission authorization lease)
+
+Legacy `InterfaceIMAPFolderPermissions` collection deletion/add paths and
+`InterfaceIMAPFolderPermission::Save/Delete` are in
+`source/Server/COM/InterfaceIMAPFolderPermissions.cpp` and
+`InterfaceIMAPFolderPermission.cpp`. Code/test commit `23802be01` consumes
+the existing generation-bound authorization lease across permission
+collection Delete/DeleteByDBID and item new/existing Save/Delete callbacks.
+New items retain the owning collection lease factory; by-name wrappers retain
+their delete/update delegates; null leases fail closed with `E_ACCESSDENIED`;
+logout checks reject retained mutation facades before store callbacks. COM
+identity, direct activation denial, owner/snapshot checks, SMTP trust, live
+reconfiguration, and SQL schema were unchanged.
+
+Focused permission coverage: `29 passed, 0 failed`; combined IMAP
+folder/permission/SQL-store coverage: `63 passed, 0 failed`. Full Net10:
+`2269 passed, 55 skipped, 0 failed`. Retained wrappers can still read or stage
+in-memory values after logout; that is outside this persistence-mutation
+slice. Paired C++/.NET performance, live SQL/readback, registered
+COM/service/worker, restore, SEC-18, and soak gates remain unproven; release
+is **RED**.
+
+Next independent slices: approved disposable SQL FetchAccount UPDATE/readback;
+registry-isolated C++ paired performance execution; remaining
+legacy-anchored Admin/protocol parity selected by the production gate.
+
 ## Current Authoritative Continuation (2026-08-13, IMAP folder mutation authorization lease)
 
 Legacy `InterfaceIMAPFolders::Add/DeleteByDBID` and
