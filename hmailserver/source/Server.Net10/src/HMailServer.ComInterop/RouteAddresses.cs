@@ -74,6 +74,7 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
     private readonly Func<RouteAddressAdministrationSnapshot, bool>? _update;
     private readonly int? _owningRouteId;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public RouteAddresses()
     {
@@ -85,7 +86,8 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
         Func<RouteAddressAdministrationSnapshot, int>? insert,
         int? owningRouteId,
         Func<bool>? isServerAdministrator,
-        Func<RouteAddressAdministrationSnapshot, bool>? update)
+        Func<RouteAddressAdministrationSnapshot, bool>? update,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _addresses = addresses.ToArray();
         _deleteById = deleteById;
@@ -93,6 +95,7 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
         _update = update;
         _owningRouteId = owningRouteId;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetAddresses().Count;
@@ -122,7 +125,9 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
             : CreateAddress(match);
     }
 
-    public void DeleteByDBID(int databaseId)
+    public void DeleteByDBID(int databaseId) => DeleteByDBID(databaseId, acquireAuthorizationLease: true);
+
+    private void DeleteByDBID(int databaseId, bool acquireAuthorizationLease)
     {
         var addresses = GetAddresses();
         if (_deleteById is null)
@@ -138,10 +143,17 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
 
         try
         {
+            using var authorizationLease = acquireAuthorizationLease
+                ? AcquireAuthorizationLease()
+                : null;
             _deleteById(databaseId);
             Volatile.Write(
                 ref _addresses,
                 addresses.Where(address => address.Id != databaseId).ToArray());
+        }
+        catch (COMException)
+        {
+            throw;
         }
         catch (Exception)
         {
@@ -162,7 +174,8 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
         return RouteAddress.CreateAuthorized(
             new RouteAddressAdministrationSnapshot(0, _owningRouteId.Value, string.Empty),
             save: SaveRouteAddress,
-            isServerAdministrator: _isServerAdministrator);
+            isServerAdministrator: _isServerAdministrator,
+            authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public void DeleteByAddress(string address)
@@ -186,7 +199,8 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
         Func<bool>? isServerAdministrator = null,
         Func<RouteAddressAdministrationSnapshot, int>? insert = null,
         int? owningRouteId = null,
-        Func<RouteAddressAdministrationSnapshot, bool>? update = null)
+        Func<RouteAddressAdministrationSnapshot, bool>? update = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
         return new RouteAddresses(
@@ -195,7 +209,8 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
             insert,
             owningRouteId,
             isServerAdministrator,
-            update);
+            update,
+            authorizationLeaseFactory);
     }
 
     private IReadOnlyList<RouteAddressAdministrationSnapshot> GetAddresses()
@@ -211,8 +226,26 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
         return RouteAddress.CreateAuthorized(
             address,
             save: _update is null ? null : SaveRouteAddress,
-            delete: _deleteById is null ? null : DeleteByDBID,
-            isServerAdministrator: _isServerAdministrator);
+            delete: _deleteById is null ? null : DeleteRouteAddress,
+            isServerAdministrator: _isServerAdministrator,
+            authorizationLeaseFactory: _authorizationLeaseFactory);
+    }
+
+    private void DeleteRouteAddress(int databaseId) => DeleteByDBID(databaseId, acquireAuthorizationLease: false);
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "Route address access requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private RouteAddressAdministrationSnapshot SaveRouteAddress(RouteAddressAdministrationSnapshot address)
@@ -241,6 +274,10 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
                 Volatile.Write(ref _addresses, updatedAddresses);
                 return address;
             }
+            catch (COMException)
+            {
+                throw;
+            }
             catch (Exception)
             {
                 throw new COMException(
@@ -262,6 +299,10 @@ public sealed class RouteAddresses : IInterfaceRouteAddresses
             var insertedAddress = ownerScopedAddress with { Id = generatedId };
             Volatile.Write(ref _addresses, addresses.Concat([insertedAddress]).ToArray());
             return insertedAddress;
+        }
+        catch (COMException)
+        {
+            throw;
         }
         catch (Exception)
         {
@@ -302,6 +343,7 @@ public sealed class RouteAddress : IInterfaceRouteAddress
     private readonly Func<RouteAddressAdministrationSnapshot, RouteAddressAdministrationSnapshot>? _save;
     private readonly Action<int>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public RouteAddress()
     {
@@ -311,12 +353,14 @@ public sealed class RouteAddress : IInterfaceRouteAddress
         RouteAddressAdministrationSnapshot address,
         Func<RouteAddressAdministrationSnapshot, RouteAddressAdministrationSnapshot>? save,
         Action<int>? delete,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _address = address;
         _save = save;
         _delete = delete;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int ID => Snapshot.Id;
@@ -334,6 +378,7 @@ public sealed class RouteAddress : IInterfaceRouteAddress
         }
 
         EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         _address = _save(Snapshot);
     }
 
@@ -352,6 +397,7 @@ public sealed class RouteAddress : IInterfaceRouteAddress
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         _delete(Snapshot.Id);
     }
 
@@ -359,8 +405,9 @@ public sealed class RouteAddress : IInterfaceRouteAddress
         RouteAddressAdministrationSnapshot address,
         Func<RouteAddressAdministrationSnapshot, RouteAddressAdministrationSnapshot>? save = null,
         Action<int>? delete = null,
-        Func<bool>? isServerAdministrator = null) =>
-        new(address, save, delete, isServerAdministrator);
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        new(address, save, delete, isServerAdministrator, authorizationLeaseFactory);
 
     private RouteAddressAdministrationSnapshot Snapshot =>
         _address ?? throw new COMException(
@@ -396,6 +443,21 @@ public sealed class RouteAddress : IInterfaceRouteAddress
                 EAccessDenied);
         }
     }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "Route address access requires an authenticated server administrator.",
+                EAccessDenied);
+    }
 }
 
 [ComVisible(false)]
@@ -413,7 +475,8 @@ public static class RouteAddressAdministrationRuntimeHost
 
     internal static RouteAddresses CreateAuthorizedAdapter(
         int routeId,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -450,6 +513,7 @@ public static class RouteAddressAdministrationRuntimeHost
             isServerAdministrator,
             InsertRouteAddress,
             routeId,
-            UpdateRouteAddress);
+            UpdateRouteAddress,
+            authorizationLeaseFactory);
     }
 }

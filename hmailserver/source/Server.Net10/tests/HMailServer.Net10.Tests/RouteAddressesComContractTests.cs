@@ -394,6 +394,102 @@ public sealed class RouteAddressesComContractTests
     }
 
     [TestMethod]
+    public void MutationPaths_HoldAndDisposeAuthorizationLeaseAroundStoreCalls()
+    {
+        var events = new List<string>();
+        var leaseFactory = new Func<CancellationToken, ValueTask<IDisposable?>>(_ =>
+            ValueTask.FromResult<IDisposable?>(new TrackingLease(() => events.Add("dispose"))));
+
+        var updateAddresses = RouteAddresses.CreateAuthorized(
+            new[] { Snapshot(100, 10, "alpha@example.test") },
+            update: _ =>
+            {
+                events.Add("update");
+                return true;
+            },
+            owningRouteId: 10,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+        updateAddresses[0].Save();
+
+        var insertAddresses = RouteAddresses.CreateAuthorized(
+            Array.Empty<RouteAddressAdministrationSnapshot>(),
+            insert: _ =>
+            {
+                events.Add("insert");
+                return 200;
+            },
+            owningRouteId: 10,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+        insertAddresses.Add().Save();
+
+        var collectionDeleteAddresses = RouteAddresses.CreateAuthorized(
+            new[] { Snapshot(300, 10, "collection-delete@example.test") },
+            deleteById: _ =>
+            {
+                events.Add("collection-delete");
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+        collectionDeleteAddresses.DeleteByDBID(300);
+
+        var childDeleteAddresses = RouteAddresses.CreateAuthorized(
+            new[] { Snapshot(400, 10, "child-delete@example.test") },
+            deleteById: _ =>
+            {
+                events.Add("child-delete");
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+        childDeleteAddresses[0].Delete();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "update", "dispose",
+                "insert", "dispose",
+                "collection-delete", "dispose",
+                "child-delete", "dispose"
+            },
+            events);
+    }
+
+    [TestMethod]
+    public void MutationPaths_DenyWhenAuthorizationLeaseCannotBeAcquired()
+    {
+        var callbackCount = 0;
+        static ValueTask<IDisposable?> DenyLease(CancellationToken _) =>
+            ValueTask.FromResult<IDisposable?>(null);
+
+        var saveAddresses = RouteAddresses.CreateAuthorized(
+            new[] { Snapshot(100, 10, "alpha@example.test") },
+            update: _ =>
+            {
+                callbackCount++;
+                return true;
+            },
+            owningRouteId: 10,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: DenyLease);
+        var saveError = Assert.ThrowsExactly<COMException>(() => saveAddresses[0].Save());
+
+        var deleteAddresses = RouteAddresses.CreateAuthorized(
+            new[] { Snapshot(200, 10, "beta@example.test") },
+            deleteById: _ => callbackCount++,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: DenyLease);
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(
+            () => deleteAddresses.DeleteByDBID(200));
+        var childDeleteError = Assert.ThrowsExactly<COMException>(deleteAddresses[0].Delete);
+
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, childDeleteError.ErrorCode);
+        Assert.AreEqual(0, callbackCount);
+    }
+
+    [TestMethod]
     public void AuthorizedRoute_ExistingSaveUsesOwningRouteForStaleRowProtectionAndPreservesTargetRoute()
     {
         var store = new FixedRouteAddressAdministrationStore(
@@ -547,19 +643,20 @@ public sealed class RouteAddressesComContractTests
         var alpha = addresses.get_ItemByDBID(100);
 
         Assert.AreEqual(1, addressStore.ReadCount);
-        addresses.DeleteByDBID(200);
-        addresses.DeleteByAddress("GAMMA@example.test");
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(
+            () => addresses.DeleteByDBID(200));
+        var addressDeleteError = Assert.ThrowsExactly<COMException>(
+            () => addresses.DeleteByAddress("GAMMA@example.test"));
 
-        CollectionAssert.AreEqual(
-            new[] { (RouteId: 10, DatabaseId: 200), (RouteId: 10, DatabaseId: 300) },
-            addressStore.DeletedAddresses);
+        Assert.AreEqual(EAccessDenied, collectionDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, addressDeleteError.ErrorCode);
+
+        Assert.IsEmpty(addressStore.DeletedAddresses);
 
         var itemDeleteError = Assert.ThrowsExactly<COMException>(alpha.Delete);
 
         Assert.AreEqual(EAccessDenied, itemDeleteError.ErrorCode);
-        CollectionAssert.AreEqual(
-            new[] { (RouteId: 10, DatabaseId: 200), (RouteId: 10, DatabaseId: 300) },
-            addressStore.DeletedAddresses);
+        Assert.IsEmpty(addressStore.DeletedAddresses);
 
         var setterError = Assert.ThrowsExactly<COMException>(
             () => alpha.Address = "reauth@example.test");
@@ -619,6 +716,11 @@ public sealed class RouteAddressesComContractTests
         Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
         Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 
     private sealed class FixedRouteAddressAdministrationStore(

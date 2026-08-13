@@ -518,7 +518,8 @@ public sealed class Route : IInterfaceRoute
     public IInterfaceRouteAddresses Addresses =>
         RouteAddressAdministrationRuntimeHost.CreateAuthorizedAdapter(
             Snapshot.Id,
-            _isServerAdministrator);
+            _isServerAdministrator,
+            _authorizationLeaseFactory);
 
     public bool RelayerRequiresAuth { get => Snapshot.RelayerRequiresAuth; set => Mutate(route => route with { RelayerRequiresAuth = value }); }
 
