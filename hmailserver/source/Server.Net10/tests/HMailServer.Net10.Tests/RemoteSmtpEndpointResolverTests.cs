@@ -838,7 +838,10 @@ public sealed class RemoteSmtpEndpointResolverTests
         var cnameResolver = new FakeMxAndCnameResolver(cnameRecords);
         var resolver = new RemoteSmtpEndpointResolver(
             cnameResolver,
-            new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>()),
+            new FakeAddressResolver(new Dictionary<string, IReadOnlyList<IPAddress>>
+            {
+                ["alias10.example.net"] = []
+            }),
             RemoteSmtpEndpointResolverOptions.Default);
 
         await Assert.ThrowsExactlyAsync<IOException>(
@@ -902,6 +905,150 @@ public sealed class RemoteSmtpEndpointResolverTests
             () => resolver.ResolveAsync(
                 new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
                 CancellationToken.None).AsTask());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_RetainsSuccessfulMxHostsAfterPartialAddressLookupFailure()
+    {
+        var addressResolver = new FakeAddressResolver(
+            new Dictionary<string, IReadOnlyList<IPAddress>>
+            {
+                ["mx10.example.net"] = [IPAddress.Parse("192.0.2.10")],
+                ["mx30.example.net"] = [IPAddress.Parse("192.0.2.30")]
+            },
+            new Dictionary<string, Exception>
+            {
+                ["mx20.example.net"] = new IOException("DNS failure")
+            });
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(
+                new DnsMxRecord("mx30.example.net.", 30, TimeSpan.FromMinutes(10)),
+                new DnsMxRecord("mx10.example.net.", 10, TimeSpan.FromMinutes(10)),
+                new DnsMxRecord("mx20.example.net.", 20, TimeSpan.FromMinutes(10))),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(
+                DeliveryTargetKind.RemoteDomain,
+                "remote:example.net",
+                "example.net",
+                RemoteConnectionSecurity: (int)RemoteSmtpConnectionSecurity.StartTlsRequired,
+                VerifyRemoteSslCertificate: true),
+            CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "mx10.example.net", "mx30.example.net" },
+            endpoint.GetCandidates().Select(static candidate => candidate.Host).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "192.0.2.10", "192.0.2.30" },
+            endpoint.GetCandidates().Select(static candidate => candidate.ConnectionAddress).ToArray());
+        Assert.IsTrue(endpoint.GetCandidates().All(static candidate =>
+            candidate.ConnectionSecurity == RemoteSmtpConnectionSecurity.StartTlsRequired &&
+            candidate.VerifyRemoteSslCertificate));
+        CollectionAssert.AreEqual(
+            new[] { "mx10.example.net", "mx20.example.net", "mx30.example.net" },
+            addressResolver.RequestedHosts.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_NonRequestedOperationCanceledExceptionRetainsLaterMxHost()
+    {
+        var addressResolver = new FakeAddressResolver(
+            new Dictionary<string, IReadOnlyList<IPAddress>>
+            {
+                ["mx20.example.net"] = [IPAddress.Parse("192.0.2.20")]
+            },
+            new Dictionary<string, Exception>
+            {
+                ["mx10.example.net"] = new OperationCanceledException("DNS timeout")
+            });
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(
+                new DnsMxRecord("mx20.example.net.", 20, TimeSpan.FromMinutes(10)),
+                new DnsMxRecord("mx10.example.net.", 10, TimeSpan.FromMinutes(10))),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var endpoint = await resolver.ResolveAsync(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+            CancellationToken.None);
+
+        Assert.AreEqual("mx20.example.net", endpoint.Host);
+        Assert.AreEqual("192.0.2.20", endpoint.ConnectionAddress);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_UnexpectedAddressLookupFailurePropagates()
+    {
+        var unexpectedFailure = new InvalidOperationException("unexpected DNS failure");
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            new FakeAddressResolver(
+                new Dictionary<string, IReadOnlyList<IPAddress>>(),
+                new Dictionary<string, Exception>
+                {
+                    ["mx.example.net"] = unexpectedFailure
+                }),
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => resolver.ResolveAsync(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+                CancellationToken.None).AsTask());
+
+        Assert.AreSame(unexpectedFailure, exception);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_CallerRequestedOperationCanceledExceptionPropagates()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var callerCancellation = new OperationCanceledException("caller cancellation", cancellation.Token);
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(new DnsMxRecord("mx.example.net.", 10, TimeSpan.FromMinutes(10))),
+            new FakeAddressResolver(
+                new Dictionary<string, IReadOnlyList<IPAddress>>(),
+                new Dictionary<string, Exception>
+                {
+                    ["mx.example.net"] = callerCancellation
+                }),
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        var exception = await Assert.ThrowsExactlyAsync<OperationCanceledException>(
+            () => resolver.ResolveAsync(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+                cancellation.Token).AsTask());
+
+        Assert.AreSame(callerCancellation, exception);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_AllMxAddressLookupsFailReturnsIOException()
+    {
+        var addressResolver = new FakeAddressResolver(
+            new Dictionary<string, IReadOnlyList<IPAddress>>(),
+            new Dictionary<string, Exception>
+            {
+                ["mx10.example.net"] = new IOException("first DNS failure"),
+                ["mx20.example.net"] = new IOException("second DNS failure")
+            });
+        var resolver = new RemoteSmtpEndpointResolver(
+            new FakeMxResolver(
+                new DnsMxRecord("mx20.example.net.", 20, TimeSpan.FromMinutes(10)),
+                new DnsMxRecord("mx10.example.net.", 10, TimeSpan.FromMinutes(10))),
+            addressResolver,
+            RemoteSmtpEndpointResolverOptions.Default);
+
+        await Assert.ThrowsExactlyAsync<IOException>(
+            () => resolver.ResolveAsync(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+                CancellationToken.None).AsTask());
+
+        CollectionAssert.AreEqual(
+            new[] { "mx10.example.net", "mx20.example.net" },
+            addressResolver.RequestedHosts.ToArray());
     }
 
     [TestMethod]

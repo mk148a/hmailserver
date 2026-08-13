@@ -320,9 +320,25 @@ public sealed class RemoteSmtpEndpointResolver : IRemoteSmtpEndpointResolver
             {
                 throw;
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
-                throw new IOException($"SMTP host address resolution failed for '{host}'.", ex);
+                continue;
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+            catch (SocketException)
+            {
+                continue;
+            }
+            catch (TimeoutException)
+            {
+                continue;
+            }
+            catch (ArgumentException)
+            {
+                continue;
             }
 
             foreach (var address in addresses)
