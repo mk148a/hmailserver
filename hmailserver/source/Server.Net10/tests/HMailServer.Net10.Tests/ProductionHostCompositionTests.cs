@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using HMailServer.Core.Abstractions;
 using HMailServer.ComInterop;
 using HMailServer.Delivery;
+using HMailServer.Protocols.Pop3;
 using HMailServer.Protocols.Smtp;
 using HMailServer.Service;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,43 @@ namespace HMailServer.Net10.Tests;
 [TestClass]
 public sealed class ProductionHostCompositionTests
 {
+    [TestMethod]
+    public void HostBuild_ExternalFetchEgressPolicyDefaultsToEnforcedAndHonorsExplicitOverride()
+    {
+        foreach (var (egressEnforce, expected) in new (string? Value, bool Expected)[]
+        {
+            (null, true),
+            ("false", false)
+        })
+        {
+            var dataDirectory = Path.Combine(
+                Path.GetTempPath(),
+                $"hmailserver-net10-host-external-fetch-egress-{Guid.NewGuid():N}");
+            var initializationFile = Path.Combine(dataDirectory, "hMailServer.ini");
+            var args = new List<string>
+            {
+                "--ConnectionStrings:hMailServer=Server=127.0.0.1;Database=NeverOpened;Integrated Security=False;User Id=never;Password=never;TrustServerCertificate=True",
+                $"--DataDirectory={dataDirectory}",
+                $"--InitializationFile={initializationFile}",
+                "--Imap:Enabled=false",
+                "--Pop3:Enabled=false",
+                "--Smtp:Enabled=false",
+                "--ExternalFetch:Enabled=false"
+            };
+            if (egressEnforce is not null)
+            {
+                args.Add($"--ExternalFetch:EgressEnforce={egressEnforce}");
+            }
+
+            var composition = HMailServer.Service.Host.Build(args.ToArray());
+
+            using var host = composition.Host;
+            Assert.AreEqual(
+                expected,
+                host.Services.GetRequiredService<ExternalFetchPop3ClientOptions>().EnforceEgressPolicy);
+        }
+    }
+
     [TestMethod]
     public void HostBuild_WiresAccountSizeInvalidationIntoImapMutationStores()
     {

@@ -152,7 +152,7 @@ public static class Host
             defaultValue: true),
         EnforceEgressPolicy = ReadBool(
             builder.Configuration["ExternalFetch:EgressEnforce"] ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_EGRESS_ENFORCE"],
-            defaultValue: false),
+            defaultValue: true),
         AllowedPrivateCidrs = ReadList(
             builder.Configuration["ExternalFetch:AllowedPrivateCidrs"] ?? builder.Configuration["HMAILSERVER_EXTERNAL_FETCH_ALLOWED_PRIVATE_CIDRS"])
     };
