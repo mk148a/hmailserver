@@ -4,10 +4,12 @@ hMailServer
 ## Current security gate (2026-08-13)
 
 The .NET 10 external-fetch path now enforces its endpoint egress policy by
-default. Explicit `ExternalFetch:EgressEnforce=false` remains available for
-controlled audit-only operation, but is not the default. The policy protects
-external POP3 fetch connections; scanner production traffic and live
-diagnostics remain separate, open security/parity work. The release gate is
+default, including direct `ExternalFetchPop3ClientOptions` and
+`TcpExternalFetchSessionFactory` construction. Explicit
+`ExternalFetch:EgressEnforce=false` remains available for controlled audit-only
+operation, but is not the default. The policy protects .NET external POP3
+fetch connections; legacy C++ external fetch, scanner production traffic, and
+live diagnostics remain separate security/parity work. The release gate is
 still **RED** pending paired C++ performance evidence, live DNS/socket/TLS
 acceptance, restore/migration, COM/IIS, and soak gates.
 

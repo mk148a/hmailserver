@@ -1,5 +1,20 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, external-fetch library default)
+
+Code/test commit `bf2f2c2dd` makes
+`ExternalFetchPop3ClientOptions.EnforceEgressPolicy` default to `true`, so
+direct `TcpExternalFetchSessionFactory` construction is fail-closed as well as
+the production `Host.Build` path. Existing loopback protocol fixtures now
+declare the explicit `false` audit/test opt-out. Focused external-fetch
+coverage is `49/49`; full Net10 is `2222 passed, 54 skipped, 0 failed`.
+
+Legacy `ExternalFetch::Start` and `POP3ClientConnection` remain unrestricted,
+and the explicit .NET `false` override remains a security risk unless limited
+operationally to controlled audit/test use. Release reality remains **RED**.
+Next slice: registry-isolated C++ execution for the paired performance gate,
+or the approved disposable real DNS/socket/TLS matrix.
+
 ## Current Authoritative Continuation (2026-08-13, external-fetch egress default)
 
 Code/test commit `54694e852` changes `Host.Build` so

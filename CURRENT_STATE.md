@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T13:50:00Z / 2026-08-13T16:50:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local HEAD equals upstream
-- Current HEAD: `94d9aaacc` (external-fetch egress gate documentation)
-- Last successfully pushed commit: `94d9aaacc`
-- Latest focused-test result: external-fetch host/policy/session tests passed; full runner reported `2220 passed, 54 skipped, 0 failed`
-- Latest full Net10 result: `2220 passed, 54 skipped, 0 failed`
+- UTC/local timestamp: 2026-08-13T14:15:00Z / 2026-08-13T17:15:00+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is one code/docs slice ahead, push pending
+- Current HEAD: `bf2f2c2dd` (external-fetch library default)
+- Last successfully pushed commit: `ea4981bd7`
+- Latest focused-test result: external-fetch session/default tests `49 passed, 0 failed, 0 skipped`
+- Latest full Net10 result: `2222 passed, 54 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL TCPIPPorts integration `1 skipped` because isolated-create approval variables are unset; real DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
-- Current bounded slice: external-fetch egress enforcement now defaults to fail-closed; explicit audit-only override remains supported
+- Current bounded slice: external-fetch egress enforcement now defaults to fail-closed in Host and direct client options; explicit audit-only override remains supported
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, and no-MX CNAME planning
-- Open production blockers: paired C++/.NET performance RED; live DNS/socket/TLS/SNI and certificate/revocation acceptance; shared outbound egress/SSRF and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Open production blockers: paired C++/.NET performance RED; legacy C++ external-fetch SSRF, live DNS/socket/TLS/SNI and certificate/revocation acceptance; scanner production egress and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
 - Next three independent slices: registry-isolated C++ execution and paired benchmark evidence; approved disposable real DNS/socket/TLS acceptance; isolated Windows service/out-of-process COM lifecycle

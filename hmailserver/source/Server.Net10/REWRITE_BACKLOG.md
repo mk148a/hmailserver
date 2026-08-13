@@ -4471,3 +4471,22 @@ and long-soak evidence remain unavailable.
 
 Next independent slice: registry-isolated C++ execution on the clean paired
 fixture. If unavailable, run the approved disposable DNS/socket/TLS matrix.
+## Current next slice (2026-08-13, external-fetch library default)
+
+Code/test commit `bf2f2c2dd` changes
+`ExternalFetchPop3ClientOptions.EnforceEgressPolicy` to default to `true`.
+This makes direct `TcpExternalFetchSessionFactory` construction fail-closed,
+matching the production `Host.Build` default from `54694e852`. Existing
+loopback protocol fixtures explicitly set `EnforceEgressPolicy=false` because
+they are controlled audit/test fixtures; the explicit production override
+remains a residual risk. Focused external-fetch coverage is `49/49`; full
+Net10 is `2222 passed, 54 skipped, 0 failed`.
+
+The change is limited to the .NET external POP3 client. Legacy
+`ExternalFetch::Start`/`POP3ClientConnection` remains unrestricted, scanner
+production traffic and Diagnostics remain separate gaps, and no SMTP trust,
+COM identity, SQL schema, or live reconfiguration behavior changed.
+
+Next independent slice: registry-isolated C++ execution on the clean paired
+fixture; if unavailable, run the approved disposable DNS/socket/TLS/SNI and
+certificate/revocation matrix.
