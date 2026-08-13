@@ -18,6 +18,12 @@ public sealed class TcpExternalFetchSessionFactoryTests
     }
 
     [TestMethod]
+    public void Options_DefaultEgressPolicyIsEnforced()
+    {
+        Assert.IsTrue(new ExternalFetchPop3ClientOptions().EnforceEgressPolicy);
+    }
+
+    [TestMethod]
     public async Task ConnectAsync_ResolvesOnceAndPinsTheSelectedEndpoint()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -37,6 +43,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         try
         {
             var factory = new TcpExternalFetchSessionFactory(
+                new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false },
                 addressResolver: resolver,
                 endpointDecisionObserver: value => decision = value);
             await using var session = await factory
@@ -76,6 +83,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         try
         {
             var factory = new TcpExternalFetchSessionFactory(
+                new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false },
                 addressResolver: resolver,
                 tlsStreamFactory: (stream, targetHost, _) =>
                 {
@@ -118,11 +126,23 @@ public sealed class TcpExternalFetchSessionFactoryTests
     }
 
     [TestMethod]
+    public async Task ConnectAsync_DefaultOptionsRejectLoopbackBeforeConnect()
+    {
+        var resolver = new RecordingAddressResolver([IPAddress.Loopback]);
+        var factory = new TcpExternalFetchSessionFactory(addressResolver: resolver);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await factory.ConnectAsync(CreateAccount(1), CancellationToken.None).ConfigureAwait(false));
+
+        Assert.AreEqual(1, resolver.CallCount);
+    }
+
+    [TestMethod]
     public async Task ConnectAsync_StalledAddressResolutionExpiresAsTimeoutFailure()
     {
         using var testTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var factory = new TcpExternalFetchSessionFactory(
-            new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100) },
+            new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100), EnforceEgressPolicy = false },
             new StallingAddressResolver());
 
         await Assert.ThrowsExactlyAsync<TimeoutException>(
@@ -146,7 +166,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         try
         {
             var factory = new TcpExternalFetchSessionFactory(
-                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100) },
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100), EnforceEgressPolicy = false },
                 tlsStreamFactory: async (stream, _, cancellationToken) =>
                 {
                     await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
@@ -183,7 +203,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         try
         {
             var factory = new TcpExternalFetchSessionFactory(
-                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100) });
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100), EnforceEgressPolicy = false });
 
             await Assert.ThrowsExactlyAsync<TimeoutException>(
                 async () => await factory.ConnectAsync(CreateAccount(endpoint.Port), testTimeout.Token).ConfigureAwait(false));
@@ -213,7 +233,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         try
         {
             var factory = new TcpExternalFetchSessionFactory(
-                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100) });
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100), EnforceEgressPolicy = false });
 
             await Assert.ThrowsExactlyAsync<TimeoutException>(
                 async () => await factory.ConnectAsync(CreateAccount(endpoint.Port), testTimeout.Token).ConfigureAwait(false));
@@ -243,7 +263,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         try
         {
             var factory = new TcpExternalFetchSessionFactory(
-                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromSeconds(20) });
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromSeconds(20), EnforceEgressPolicy = false });
             await using var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port), testTimeout.Token)
                 .ConfigureAwait(false);
@@ -273,7 +293,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         try
         {
             var factory = new TcpExternalFetchSessionFactory(
-                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromSeconds(20) });
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromSeconds(20), EnforceEgressPolicy = false });
 
             await Assert.ThrowsExactlyAsync<IOException>(
                 async () => await factory.ConnectAsync(CreateAccount(endpoint.Port), testTimeout.Token).ConfigureAwait(false));
@@ -303,7 +323,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         try
         {
             var factory = new TcpExternalFetchSessionFactory(
-                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100) });
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromMilliseconds(100), EnforceEgressPolicy = false });
             var session = await factory.ConnectAsync(CreateAccount(endpoint.Port), testTimeout.Token).ConfigureAwait(false);
             var stopwatch = Stopwatch.StartNew();
 
@@ -337,7 +357,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         try
         {
             var factory = new TcpExternalFetchSessionFactory(
-                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromSeconds(5) });
+                new ExternalFetchPop3ClientOptions { OperationTimeout = TimeSpan.FromSeconds(5), EnforceEgressPolicy = false });
 
             await Assert.ThrowsExactlyAsync<OperationCanceledException>(
                 async () => await factory.ConnectAsync(CreateAccount(endpoint.Port), callerCancellation.Token).ConfigureAwait(false));
@@ -367,7 +387,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port), timeout.Token)
                 .ConfigureAwait(false);
@@ -422,7 +442,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             emptyRetrBody: true);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port), timeout.Token)
                 .ConfigureAwait(false);
@@ -467,7 +487,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using var session = await factory
                 .ConnectAsync(
                     CreateAccount(endpoint.Port, ExternalFetchConnectionSecurity.StartTlsOptional),
@@ -508,7 +528,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                 async () => await factory
                     .ConnectAsync(
@@ -544,7 +564,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using var session = await factory
                 .ConnectAsync(
                     CreateAccount(endpoint.Port, ExternalFetchConnectionSecurity.StartTlsOptional),
@@ -585,7 +605,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                 async () => await factory
                     .ConnectAsync(
@@ -619,7 +639,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         var serverTask = RunPop3ServerRejectingStlsAsync(listener, commands, timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                 async () => await factory
                     .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
@@ -651,7 +671,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
         var serverTask = RunPop3ServerRejectingGreetingAsync(listener, timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                 async () => await factory
                     .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
@@ -686,7 +706,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                 async () => await factory
                     .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
@@ -726,7 +746,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                 async () => await factory
                     .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
@@ -766,7 +786,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using (var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
                 .ConfigureAwait(false))
@@ -810,7 +830,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             disconnectDuringUidlListing: true);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using (var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
                 .ConfigureAwait(false))
@@ -854,7 +874,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             uidlResponse: "+OK\r\nmissing-sequence\r\nx uid-invalid-sequence\r\n2\r\n3 \r\n1 uid-1\r\n4 uid-4\r\n.\r\n");
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using (var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
                 .ConfigureAwait(false))
@@ -903,7 +923,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             uidlResponse: "+OK\r\n.\r\n");
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using (var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
                 .ConfigureAwait(false))
@@ -947,7 +967,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using (var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
                 .ConfigureAwait(false))
@@ -993,7 +1013,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             disconnectDuringRetrBody: true);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using (var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
                 .ConfigureAwait(false))
@@ -1038,7 +1058,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using (var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
                 .ConfigureAwait(false))
@@ -1083,7 +1103,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             timeout.Token);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using (var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
                 .ConfigureAwait(false))
@@ -1130,7 +1150,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             rejectQuit: true);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using (var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
                 .ConfigureAwait(false))
@@ -1175,7 +1195,7 @@ public sealed class TcpExternalFetchSessionFactoryTests
             disconnectOnQuit: true);
         try
         {
-            var factory = new TcpExternalFetchSessionFactory();
+            var factory = new TcpExternalFetchSessionFactory(new ExternalFetchPop3ClientOptions { EnforceEgressPolicy = false });
             await using (var session = await factory
                 .ConnectAsync(CreateAccount(endpoint.Port, connectionSecurity), timeout.Token)
                 .ConfigureAwait(false))

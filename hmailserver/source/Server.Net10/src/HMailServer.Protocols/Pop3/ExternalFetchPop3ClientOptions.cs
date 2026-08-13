@@ -10,7 +10,7 @@ public sealed record ExternalFetchPop3ClientOptions
 
     public bool NoDelay { get; init; } = true;
 
-    public bool EnforceEgressPolicy { get; init; }
+    public bool EnforceEgressPolicy { get; init; } = true;
 
     public IReadOnlyList<string> AllowedPrivateCidrs { get; init; } = [];
 }
