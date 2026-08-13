@@ -72,6 +72,7 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
     private readonly int? _owningListId;
     private readonly Func<bool>? _isAuthenticated;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
+    private readonly DistributionListLifetime _lifetime = new();
 
     public DistributionListRecipients()
     {
@@ -84,7 +85,8 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         Func<DistributionListRecipientAdministrationSnapshot, bool>? delete,
         int? owningListId,
         Func<bool>? isAuthenticated,
-        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
+        DistributionListLifetime? lifetime)
     {
         _recipients = recipients.ToArray();
         _insert = insert;
@@ -93,6 +95,7 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         _owningListId = owningListId;
         _isAuthenticated = isAuthenticated;
         _authorizationLeaseFactory = authorizationLeaseFactory;
+        _lifetime = lifetime ?? new DistributionListLifetime();
     }
 
     public int Count => GetRecipients().Count;
@@ -104,7 +107,8 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         Func<DistributionListRecipientAdministrationSnapshot, bool>? delete = null,
         int? owningListId = null,
         Func<bool>? isAuthenticated = null,
-        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
+        DistributionListLifetime? lifetime = null)
     {
         ArgumentNullException.ThrowIfNull(recipients);
         return new DistributionListRecipients(
@@ -114,7 +118,8 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
             delete,
             owningListId,
             isAuthenticated,
-            authorizationLeaseFactory);
+            authorizationLeaseFactory,
+            lifetime);
     }
 
     public IInterfaceDistributionListRecipient this[int index]
@@ -132,7 +137,8 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
                 update: _update is null ? null : recipient => UpdateRecipient(recipient, authorizationLeaseAlreadyHeld: true),
                 delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId, acquireAuthorizationLease: false),
                 isAuthenticated: _isAuthenticated,
-                authorizationLeaseFactory: _authorizationLeaseFactory);
+                authorizationLeaseFactory: _authorizationLeaseFactory,
+                lifetime: _lifetime);
         }
     }
 
@@ -147,7 +153,8 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
                 update: _update is null ? null : recipient => UpdateRecipient(recipient, authorizationLeaseAlreadyHeld: true),
                 delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId, acquireAuthorizationLease: false),
                 isAuthenticated: _isAuthenticated,
-                authorizationLeaseFactory: _authorizationLeaseFactory);
+                authorizationLeaseFactory: _authorizationLeaseFactory,
+                lifetime: _lifetime);
     }
 
     public IInterfaceDistributionListRecipient Add()
@@ -164,7 +171,8 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
             save: recipient => SaveRecipient(recipient, authorizationLeaseAlreadyHeld: true),
             delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId, acquireAuthorizationLease: false),
             isAuthenticated: _isAuthenticated,
-            authorizationLeaseFactory: _authorizationLeaseFactory);
+            authorizationLeaseFactory: _authorizationLeaseFactory,
+            lifetime: _lifetime);
     }
 
     public void DeleteByDBID(int databaseId) => DeleteByDBID(databaseId, acquireAuthorizationLease: true);
@@ -216,6 +224,7 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
 
     private IReadOnlyList<DistributionListRecipientAdministrationSnapshot> GetRecipients()
     {
+        _lifetime.EnsureAttached();
         EnsureAuthenticated();
         return Volatile.Read(ref _recipients)
             ?? throw new COMException(
@@ -316,11 +325,14 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         }
     }
 
-    private IReadOnlyList<DistributionListRecipientAdministrationSnapshot> GetRecipientsWithoutAuthentication() =>
-        Volatile.Read(ref _recipients)
+    private IReadOnlyList<DistributionListRecipientAdministrationSnapshot> GetRecipientsWithoutAuthentication()
+    {
+        _lifetime.EnsureAttached();
+        return Volatile.Read(ref _recipients)
             ?? throw new COMException(
                 "DistributionListRecipients access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
 
     private IDisposable? AcquireAuthorizationLease()
     {
@@ -370,6 +382,7 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
     private readonly Action<int>? _delete;
     private readonly Func<bool>? _isAuthenticated;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
+    private readonly DistributionListLifetime _lifetime = new();
 
     public DistributionListRecipient()
     {
@@ -381,7 +394,8 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? update,
         Action<int>? delete,
         Func<bool>? isAuthenticated,
-        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
+        DistributionListLifetime? lifetime)
     {
         _recipient = recipient;
         _save = save;
@@ -389,6 +403,7 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
         _delete = delete;
         _isAuthenticated = isAuthenticated;
         _authorizationLeaseFactory = authorizationLeaseFactory;
+        _lifetime = lifetime ?? new DistributionListLifetime();
     }
 
     public int ID => Snapshot.Id;
@@ -405,8 +420,9 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? update = null,
         Action<int>? delete = null,
         Func<bool>? isAuthenticated = null,
-        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
-        new(recipient, save, update, delete, isAuthenticated, authorizationLeaseFactory);
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
+        DistributionListLifetime? lifetime = null) =>
+        new(recipient, save, update, delete, isAuthenticated, authorizationLeaseFactory, lifetime);
 
     public void Delete()
     {
@@ -448,10 +464,16 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
         _recipient = _update(snapshot);
     }
 
-    private DistributionListRecipientAdministrationSnapshot Snapshot =>
-        _recipient ?? throw new COMException(
-            "DistributionListRecipient access requires an authenticated server administrator.",
-            EAccessDenied);
+    private DistributionListRecipientAdministrationSnapshot Snapshot
+    {
+        get
+        {
+            _lifetime.EnsureAttached();
+            return _recipient ?? throw new COMException(
+                "DistributionListRecipient access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
 
     private void Unavailable()
     {
@@ -529,7 +551,8 @@ public static class DistributionListRecipientAdministrationRuntimeHost
     internal static DistributionListRecipients CreateAuthorizedAdapter(
         int distributionListId,
         Func<bool>? isAuthenticated = null,
-        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
+        DistributionListLifetime? lifetime = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -567,6 +590,7 @@ public static class DistributionListRecipientAdministrationRuntimeHost
             DeleteRecipient,
             distributionListId,
             isAuthenticated,
-            authorizationLeaseFactory);
+            authorizationLeaseFactory,
+            lifetime);
     }
 }

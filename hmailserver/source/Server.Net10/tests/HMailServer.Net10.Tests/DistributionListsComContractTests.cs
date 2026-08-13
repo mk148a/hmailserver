@@ -625,7 +625,8 @@ public sealed class DistributionListsComContractTests
         Assert.AreEqual(70, store.Deleted[0].DistributionListId);
         Assert.AreEqual(0, lists.Count);
 
-        attached.Delete();
+        var deletedAttachedError = Assert.ThrowsExactly<COMException>(attached.Delete);
+        Assert.AreEqual(EAccessDenied, deletedAttachedError.ErrorCode);
         Assert.AreEqual(1, store.Deleted.Count);
 
         lists.DeleteByDBID(71);
@@ -653,6 +654,85 @@ public sealed class DistributionListsComContractTests
         Assert.AreEqual(700, secondStore.Deleted[0].OwningDomainId);
         Assert.AreEqual(80, secondStore.Deleted[0].DistributionListId);
         Assert.AreEqual(0, secondLists.Count);
+    }
+
+    [TestMethod]
+    public void DistributionListDelete_InvalidatesRetainedRecipientFacades()
+    {
+        var listStore = new MutableDistributionListAdministrationStore(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    70,
+                    700,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            });
+        var recipientStore = new RetainedDistributionListRecipientStore(
+            new[] { new DistributionListRecipientAdministrationSnapshot(501, 70, "member@example.test") });
+        DistributionListAdministrationRuntimeHost.Configure(listStore);
+        DistributionListRecipientAdministrationRuntimeHost.Configure(recipientStore);
+
+        var lists = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(700, "example.test", true),
+            () => true).DistributionLists;
+        var list = lists.get_ItemByDBID(70);
+        var recipients = list.Recipients;
+        var retained = recipients[0];
+        var pending = recipients.Add();
+        pending.RecipientAddress = "pending@example.test";
+
+        list.Delete();
+
+        var recipientsError = Assert.ThrowsExactly<COMException>(() => _ = recipients.Count);
+        var retainedError = Assert.ThrowsExactly<COMException>(retained.Save);
+        var pendingError = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(EAccessDenied, recipientsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, retainedError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, pendingError.ErrorCode);
+        Assert.AreEqual(0, recipientStore.Inserted.Count);
+    }
+
+    [TestMethod]
+    public void DistributionListsRefresh_InvalidatesRetainedListAndRecipientFacades()
+    {
+        var authenticated = true;
+        var store = new MutableDistributionListAdministrationStore(
+            new[]
+            {
+                new DistributionListAdministrationSnapshot(
+                    70,
+                    700,
+                    "announce@example.test",
+                    true,
+                    false,
+                    string.Empty,
+                    (int)ComDistributionListMode.Public)
+            });
+        DistributionListAdministrationRuntimeHost.Configure(store);
+        DistributionListRecipientAdministrationRuntimeHost.Configure(
+            new RetainedDistributionListRecipientStore(
+                new[] { new DistributionListRecipientAdministrationSnapshot(501, 70, "member@example.test") }));
+
+        var lists = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(700, "example.test", true),
+            () => authenticated).DistributionLists;
+        var list = lists.get_ItemByDBID(70);
+        var recipients = list.Recipients;
+
+        store.Replace(Array.Empty<DistributionListAdministrationSnapshot>());
+        lists.Refresh();
+
+        var listError = Assert.ThrowsExactly<COMException>(() => _ = list.Address);
+        var recipientsError = Assert.ThrowsExactly<COMException>(() => _ = recipients.Count);
+
+        Assert.AreEqual(EAccessDenied, listError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, recipientsError.ErrorCode);
+        Assert.IsTrue(authenticated);
     }
 
     [TestMethod]
@@ -842,6 +922,29 @@ public sealed class DistributionListsComContractTests
         {
             Deleted.Add((owningDomainId, distributionListId));
             return ValueTask.FromResult(DeleteSucceeds);
+        }
+    }
+
+    private sealed class RetainedDistributionListRecipientStore(
+        IReadOnlyList<DistributionListRecipientAdministrationSnapshot> recipients)
+        : IDistributionListRecipientAdministrationStore
+    {
+        private readonly IReadOnlyList<DistributionListRecipientAdministrationSnapshot> _recipients = recipients;
+
+        public List<DistributionListRecipientAdministrationSnapshot> Inserted { get; } = [];
+
+        public ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
+            int distributionListId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>(
+                _recipients.Where(recipient => recipient.ListId == distributionListId).ToArray());
+
+        public ValueTask<int> InsertDistributionListRecipientAsync(
+            DistributionListRecipientAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
+            Inserted.Add(snapshot);
+            return ValueTask.FromResult(900 + Inserted.Count);
         }
     }
 }

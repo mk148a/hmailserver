@@ -4,6 +4,24 @@ using HMailServer.Core.Abstractions;
 
 namespace HMailServer.ComInterop;
 
+internal sealed class DistributionListLifetime
+{
+    private const int EAccessDenied = unchecked((int)0x80070005);
+    private int _invalidated;
+
+    internal void Invalidate() => Interlocked.Exchange(ref _invalidated, 1);
+
+    internal void EnsureAttached()
+    {
+        if (Volatile.Read(ref _invalidated) != 0)
+        {
+            throw new COMException(
+                "The distribution list has been deleted and is no longer available.",
+                EAccessDenied);
+        }
+    }
+}
+
 [ComVisible(true)]
 [Guid("8F0E22B8-0824-42DF-9260-F8B9ABFA8C61")]
 [InterfaceType(ComInterfaceType.InterfaceIsDual)]
@@ -116,6 +134,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
     private readonly Func<bool>? _isAuthenticated;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private readonly int _domainId;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, DistributionListLifetime> _lifetimes = new();
 
     public DistributionLists()
     {
@@ -181,7 +200,9 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 replace: Replace,
                 delete: _delete is null ? null : DeleteExistingList,
                 isAuthenticated: _isAuthenticated,
-                authorizationLeaseFactory: _authorizationLeaseFactory);
+                authorizationLeaseFactory: _authorizationLeaseFactory,
+                lifetime: GetLifetime(lists[index].Id),
+                registerLifetime: RegisterLifetime);
         }
     }
 
@@ -197,7 +218,9 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 replace: Replace,
                 delete: _delete is null ? null : DeleteExistingList,
                 isAuthenticated: _isAuthenticated,
-                authorizationLeaseFactory: _authorizationLeaseFactory);
+                authorizationLeaseFactory: _authorizationLeaseFactory,
+                lifetime: GetLifetime(match.Id),
+                registerLifetime: RegisterLifetime);
     }
 
     public IInterfaceDistributionList Add()
@@ -222,7 +245,9 @@ public sealed class DistributionLists : IInterfaceDistributionLists
             append: Append,
             delete: _delete is null ? null : DeleteExistingList,
             isAuthenticated: _isAuthenticated,
-            authorizationLeaseFactory: _authorizationLeaseFactory);
+            authorizationLeaseFactory: _authorizationLeaseFactory,
+            lifetime: new DistributionListLifetime(),
+            registerLifetime: RegisterLifetime);
     }
 
     public void DeleteByDBID(int databaseId)
@@ -254,7 +279,9 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 update: _update,
                 replace: Replace,
                 isAuthenticated: _isAuthenticated,
-                authorizationLeaseFactory: _authorizationLeaseFactory);
+                authorizationLeaseFactory: _authorizationLeaseFactory,
+                lifetime: GetLifetime(match.Id),
+                registerLifetime: RegisterLifetime);
     }
 
     public void Refresh()
@@ -270,6 +297,12 @@ public sealed class DistributionLists : IInterfaceDistributionLists
         {
             var lists = _reload();
             ArgumentNullException.ThrowIfNull(lists);
+            foreach (var lifetime in _lifetimes.Values)
+            {
+                lifetime.Invalidate();
+            }
+
+            _lifetimes.Clear();
             Volatile.Write(ref _lists, lists.ToArray());
         }
         catch (Exception)
@@ -332,6 +365,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
             Volatile.Write(
                 ref _lists,
                 lists.Where(list => list.Id != databaseId).ToArray());
+            InvalidateLifetime(databaseId);
         }
         catch (COMException)
         {
@@ -353,6 +387,27 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 "DistributionLists access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private DistributionListLifetime GetLifetime(int databaseId) =>
+        _lifetimes.GetOrAdd(databaseId, static _ => new DistributionListLifetime());
+
+    private void InvalidateLifetime(int databaseId)
+    {
+        var lifetime = GetLifetime(databaseId);
+        _lifetimes.TryRemove(databaseId, out _);
+        lifetime.Invalidate();
+    }
+
+    private void RegisterLifetime(int databaseId, DistributionListLifetime lifetime)
+    {
+        if (_lifetimes.TryGetValue(databaseId, out var previousLifetime) &&
+            !ReferenceEquals(previousLifetime, lifetime))
+        {
+            previousLifetime.Invalidate();
+        }
+
+        _lifetimes[databaseId] = lifetime;
     }
 
     private T Unavailable<T>()
@@ -391,6 +446,8 @@ public sealed class DistributionList : IInterfaceDistributionList
     private readonly Func<bool>? _isAuthenticated;
     private readonly Func<bool>? _readAuthorization;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
+    private readonly DistributionListLifetime _lifetime = new();
+    private readonly Action<int, DistributionListLifetime>? _registerLifetime;
 
     public DistributionList()
     {
@@ -405,7 +462,9 @@ public sealed class DistributionList : IInterfaceDistributionList
         Action<int>? delete,
         Func<bool>? isAuthenticated,
         Func<bool>? readAuthorization,
-        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
+        DistributionListLifetime? lifetime,
+        Action<int, DistributionListLifetime>? registerLifetime)
     {
         _list = list;
         _insert = insert;
@@ -416,6 +475,8 @@ public sealed class DistributionList : IInterfaceDistributionList
         _isAuthenticated = isAuthenticated;
         _readAuthorization = readAuthorization;
         _authorizationLeaseFactory = authorizationLeaseFactory;
+        _lifetime = lifetime ?? new DistributionListLifetime();
+        _registerLifetime = registerLifetime;
     }
 
     public int ID => Snapshot.Id;
@@ -431,10 +492,12 @@ public sealed class DistributionList : IInterfaceDistributionList
         get
         {
             EnsureAuthenticated();
+            _lifetime.EnsureAttached();
             return DistributionListRecipientAdministrationRuntimeHost.CreateAuthorizedAdapter(
                 Snapshot.Id,
                 _isAuthenticated,
-                _authorizationLeaseFactory);
+                _authorizationLeaseFactory,
+                _lifetime);
         }
     }
 
@@ -471,7 +534,9 @@ public sealed class DistributionList : IInterfaceDistributionList
         Action<int>? delete = null,
         Func<bool>? isAuthenticated = null,
         Func<bool>? readAuthorization = null,
-        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
+        DistributionListLifetime? lifetime = null,
+        Action<int, DistributionListLifetime>? registerLifetime = null) =>
         new(
             list,
             insert,
@@ -481,7 +546,9 @@ public sealed class DistributionList : IInterfaceDistributionList
             delete,
             isAuthenticated,
             readAuthorization,
-            authorizationLeaseFactory);
+            authorizationLeaseFactory,
+            lifetime,
+            registerLifetime);
 
     public void Delete()
     {
@@ -495,6 +562,7 @@ public sealed class DistributionList : IInterfaceDistributionList
         try
         {
             _delete(Snapshot.Id);
+            _lifetime.Invalidate();
         }
         catch (COMException)
         {
@@ -533,6 +601,7 @@ public sealed class DistributionList : IInterfaceDistributionList
                 var saved = snapshot with { Id = insertedId };
                 _list = saved;
                 _append?.Invoke(saved);
+                _registerLifetime?.Invoke(insertedId, _lifetime);
                 return;
             }
 
@@ -560,6 +629,7 @@ public sealed class DistributionList : IInterfaceDistributionList
     {
         get
         {
+            _lifetime.EnsureAttached();
             EnsureReadAuthorized();
             return _list ?? throw new COMException(
                 "DistributionList access requires an authenticated server administrator.",
