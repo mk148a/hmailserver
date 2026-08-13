@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, clean paired performance rerun)
+
+The fresh disposable C++/.NET 10 SQL/Data pair was verified equivalent before
+testing: 37 table row counts, 1,000 equal-SHA-256 Data files, active fixture,
+Full-Text readiness, and `127.0.0.1:2525/1143/25110` matched. Net10 passed
+SMTP acceptance `25/25`, SMTP/IMAP/POP3 protocol `25/25` each, IMAP-1000
+`1000/1000`, FTS SEARCH `25/25`, queue `50/50`, and POP3 large-mailbox `5/5`.
+
+The C++ process was not started. The read-only preflight rejects the target
+because Registry32 still points at installed `C:\hMailServer57-Test\Bin`,
+and legacy `/Debug` startup could write the installed Application AppID.
+Consequently the performance gate remains RED: no ratio, regression
+percentage, or winner is valid. No production service, DB/Data, COM identity,
+DCOM ACL, or firewall state was changed.
+
+Next slice: registry-isolated C++ execution on the same clean fixture and
+identical workload matrix, or document the separate-VM prerequisite as the
+release-gate blocker.
+
 ## Current Authoritative Continuation (2026-08-13, TCP/IP DEFAULT RESET)
 
 Code/test commit `8440f7fc9` aligns `Settings.TCPIPPorts.SetDefault()` with

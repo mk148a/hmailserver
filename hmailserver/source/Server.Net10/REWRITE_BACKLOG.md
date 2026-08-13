@@ -1,5 +1,22 @@
 
-## Current next slice (2026-08-11, ordinary-MX SMTP security runtime; supersedes older entries)
+## Current next slice (2026-08-13, clean paired performance evidence; supersedes older entries)
+
+The clean disposable SQL/Data pair was recreated and verified before the
+Net10-only rerun: equal 37-table row counts, equal 1,000-file Data SHA-256
+manifests, Full-Text readiness, and identical loopback ports. Net10 passed the
+same-shape SMTP, IMAP, POP3, FTS, queue, concurrent-IMAP, and large-mailbox
+workloads. The legacy C++ launch remains blocked by the read-only Registry32
+path check (`C:\hMailServer57-Test\Bin` versus the disposable target), so the
+performance release gate remains RED and no ratio or winner is valid.
+
+Evidence: `hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`
+and `artifacts/benchmarks/live-cpp-net10-20260813/`.
+
+Next independent slice: obtain a registry-isolated C++ installation or
+separate staging VM, rerun the identical clean fixture and workload matrix,
+then independently review the comparison before any performance claim.
+
+## Historical current next slice (2026-08-11, ordinary-MX SMTP security runtime; supersedes older entries)
 
 Code/test commit `921f31064` carries persisted global
 `SmtpDeliveryConnectionSecurity` into ordinary-MX delivery. Legacy

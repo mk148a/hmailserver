@@ -1,6 +1,33 @@
 hMailServer
 ===========
 
+## Current performance gate (2026-08-13)
+
+The clean disposable pair was prepared and verified before measurement:
+identical SQL row counts, 1,000 equal-SHA-256 Data files per side, Full-Text
+ready, and loopback SMTP/IMAP/POP3 ports `2525/1143/25110`. Net10 completed
+SMTP acceptance `25/25`, SMTP/IMAP/POP3 protocol `25/25` each, IMAP-1000
+`1000/1000`, FTS SEARCH `25/25`, delivery queue `50/50`, and POP3 large-mailbox
+`5/5`.
+
+```mermaid
+xychart-beta
+    title "Net10 clean-pair latency percentiles (diagnostic only)"
+    x-axis [SMTP-accept, SMTP, IMAP, POP3, IMAP-1000, FTS, Queue, POP3-large]
+    y-axis "milliseconds" 0 --> 3700
+    bar [5.507, 0.714, 11.394, 13.346, 2411.337, 9.168, 5.580, 77.263]
+    bar [6.783, 1.282, 16.292, 25.311, 3597.804, 12.803, 11.050, 357.381]
+```
+
+Legend: first bar series is p50 and second is p95. These are Net10-only
+observations, not C++ comparisons. The legacy C++ launch was refused by the
+read-only Registry32 isolation preflight because installed hMailServer points
+to `C:\hMailServer57-Test\Bin`; no C++ workload sample exists. No speed-up
+ratio or winner is claimed. The release performance gate remains **RED**.
+Full evidence and artifact paths are in
+`hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md` and
+`artifacts/benchmarks/live-cpp-net10-20260813/`.
+
 ## Current authoritative TCP/IP default reset status (2026-08-13)
 
 Code/test commit `8440f7fc9` aligns authenticated `Settings.TCPIPPorts.SetDefault()`

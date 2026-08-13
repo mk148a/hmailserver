@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T12:50:00Z / 2026-08-13T15:50:00+03:00
+- UTC/local timestamp: 2026-08-13T13:00:00Z / 2026-08-13T16:00:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local HEAD equals upstream
-- Current HEAD: `828ca676f` (TCP/IP default reset parity docs)
-- Last successfully pushed commit: `828ca676f`
+- Current HEAD: `ad8c33d85` (clean paired performance rerun docs)
+- Last successfully pushed commit: `8b6d280e5` (before current docs commit)
 - Latest focused-test result: TCPIPPorts COM `23/23`; SQL store `5 passed, 1 opt-in skipped`
 - Latest full Net10 result: `2219 passed, 54 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL TCPIPPorts integration `1 skipped` because isolated-create approval variables are unset; real DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
-- Current bounded slice: legacy TCP/IP port save and default-reset parity; code/test `e0abbba3d` and `8440f7fc9`, docs `912571094` and `828ca676f`; paired performance gate remains RED
+- Current bounded slice: clean paired performance rerun; Net10-only workloads passed on equivalent disposable SQL/Data/message state, but C++ Registry32 isolation preflight refused launch, so the paired performance gate remains RED
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, and no-MX CNAME planning
 - Open production blockers: paired C++/.NET performance RED; live DNS/socket/TLS/SNI and certificate/revocation acceptance; shared outbound egress/SSRF and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
-- Environment-blocked work: disposable SQL/DNS/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
+- Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: approved disposable real DNS/socket/TLS acceptance; registry-isolated C++ execution and paired benchmark evidence; isolated Windows service/out-of-process COM lifecycle
+- Next three independent slices: registry-isolated C++ execution and paired benchmark evidence; approved disposable real DNS/socket/TLS acceptance; isolated Windows service/out-of-process COM lifecycle

@@ -1,5 +1,29 @@
 # .NET 10 Benchmark Pack
 
+## Clean paired-fixture rerun (2026-08-13)
+
+The fresh disposable pair
+`hmail_perf_pair_cpp_clean_20260813_1300` /
+`hmail_perf_pair_net10_clean_20260813_1300` was equivalent at start state:
+37 table row counts equal, 1,000 equal-SHA-256 Data files per side, active
+domain/account/Inbox, Full-Text ready, and SMTP/IMAP/POP3 on
+`127.0.0.1:2525/1143/25110`.
+
+Net10 passed the paired-shape workloads: SMTP acceptance `25/25`, protocol
+SMTP/IMAP/POP3 `25/25` each, IMAP-1000 `1000/1000`, FTS SEARCH `25/25`, queue
+`50/50`, and POP3 large mailbox `5/5`. The current raw Net10 p50/p95 values
+are `5.507/6.783` SMTP acceptance, `0.714/1.282` SMTP, `11.394/16.292` IMAP,
+`13.346/25.311` POP3, `2411.337/3597.804` IMAP-1000,
+`9.168/12.803` FTS, `5.580/11.050` queue, and `77.263/357.381` POP3-large.
+
+The C++ process was not started: Registry32 still resolves the installed
+legacy path `C:\hMailServer57-Test\Bin`, and the safe preflight refuses a
+disposable target because `/Debug` startup can write the installed AppID
+registration. The release gate is **RED**; no ratio or winner is valid.
+
+See `PERFORMANCE_COMPARISON_REPORT.md` for the full gate decision and
+`artifacts/benchmarks/live-cpp-net10-20260813/` for JSON/CSV/Markdown output.
+
 ## Current authoritative live gate (2026-08-11)
 
 Code/test commit `2737ff625` also corrected live protocol process-resource

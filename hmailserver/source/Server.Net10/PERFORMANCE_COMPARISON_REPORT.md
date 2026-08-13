@@ -1,8 +1,45 @@
 # C++ / .NET 10 Performance Gate Report
 
-Date: 2026-08-11
-Measurement harness commit: `2737ff625`; current parity HEAD: `1ffc564cb`
+Date: 2026-08-13
+Measurement harness commit: `2737ff625`; current parity HEAD: `8b6d280e5`
 Decision: **RED**
+
+## Clean Pair Rerun (2026-08-13)
+
+The benchmark pack was rerun against a fresh disposable pair created from the
+existing disposable fixture backup. No production service, database, Data
+directory, installed COM registration, DCOM ACL, or public listener was used.
+
+- SQL databases: `hmail_perf_pair_cpp_clean_20260813_1300` and `hmail_perf_pair_net10_clean_20260813_1300`
+- Data roots: `C:\hmail-perf-pair-clean-20260813_1300\cpp\Data` and `C:\hmail-perf-pair-clean-20260813_1300\net10\Data`
+- Start state: `EQUIVALENT_START_STATE`; 37 tables/row counts equal, 1,000 Data files per side, equal SHA-256 manifest, Full-Text ready
+- Loopback ports: SMTP `2525`, IMAP `1143`, POP3 `25110` on `127.0.0.1`
+- Net10 workloads: SMTP acceptance `25/25`, SMTP/IMAP/POP3 protocol `25/25` each, IMAP-1000 `1000/1000`, FTS SEARCH `25/25`, queue `50/50`, POP3 large mailbox `5/5`
+
+Net10-only measurements from this clean pair:
+
+| Scenario | p50 | p95 | p99 | Throughput |
+| --- | ---: | ---: | ---: | ---: |
+| SMTP acceptance, 25 messages | 5.507 ms | 6.783 ms | 204.391 ms | 6.229 msg/s |
+| SMTP protocol, 25 sessions | 0.714 ms | 1.282 ms | 18.728 ms | n/a |
+| IMAP protocol, 25 sessions | 11.394 ms | 16.292 ms | 303.088 ms | n/a |
+| POP3 protocol, 25 sessions | 13.346 ms | 25.311 ms | 40.470 ms | n/a |
+| IMAP, 1,000 concurrent sessions | 2,411.337 ms | 3,597.804 ms | 3,651.514 ms | 81.242 sessions/s |
+| IMAP FTS SEARCH, 25 sessions | 9.168 ms | 12.803 ms | 22.177 ms | n/a |
+| Delivery queue, 50 messages | 5.580 ms | 11.050 ms | 61.614 ms | 54.891 msg/s |
+| POP3 large mailbox, 1,000 messages | 77.263 ms | 357.381 ms | 409.000 ms | n/a |
+
+The C++ run was not started. The read-only preflight found Registry32
+`HKLM\SOFTWARE\hMailServer\InstallLocation = C:\hMailServer57-Test`, while
+the disposable C++ executable is under `C:\hmail-perf-cpp-ascii-20260810\Bin`.
+Legacy `/Debug` startup can write the installed Application AppID
+registration, so the harness refused to launch it. The service was stopped,
+no C++ listener was created, and no C++ latency or throughput sample exists.
+
+Therefore no C++/.NET 10 ratio, regression percentage, or performance winner
+is valid. The performance release gate remains **RED** until the same clean
+fixture and workloads run in a registry-isolated C++ installation or separate
+staging VM.
 
 ## Latest Verification
 
