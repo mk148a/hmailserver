@@ -2,7 +2,7 @@
 - UTC/local timestamp: 2026-08-13T23:58:00Z / 2026-08-14T02:58:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
 - Current HEAD: `1e90198e4` (transactional distribution-list deletion)
-- Last successfully pushed commit: `05eb99eaf`
+- Last successfully pushed commit: `8006f5b49`
 - Latest focused-test result: SQL distribution-list administration store `8 passed, 0 failed`; disposable SQL deletion integration `1 passed, 0 failed`
 - Latest full Net10 result: normal Debug `2290 passed, 57 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: disposable SQL distribution-list owner/delete/rollback acceptance passed; matched SQL/Data start state and Net10 live protocol/SMTP/IMAP/FTS/queue/POP3 matrix passed; C++ paired launch, registry/COM, installer, AD/DC, SEC-18, restore round trip, and 24-hour soak remain skipped or environment-blocked; no production resource was used
