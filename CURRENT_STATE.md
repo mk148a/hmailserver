@@ -1,8 +1,8 @@
 # Current State
 - UTC/local timestamp: 2026-08-13T15:30:00Z / 2026-08-13T18:30:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is ahead by two commits, docs push pending
-- Current HEAD: `575734089` (ordinary-MX partial DNS resolution and exception classification)
-- Last successfully pushed commit: `13e16d029`
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
+- Current HEAD: `1244551f0` (ordinary-MX partial DNS resolution documentation)
+- Last successfully pushed commit: `1244551f0`
 - Latest focused-test result: RemoteSmtpEndpointResolver `52 passed, 0 failed`
 - Latest full Net10 result: `2237 passed, 55 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL SecurityRanges integration remains skipped because the approved current-user `MSSQLLocalDB` connection and isolated-create approval are unset; paired C++ benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, live DNS/socket/TLS, and 24-hour soak remain skipped or environment-blocked
