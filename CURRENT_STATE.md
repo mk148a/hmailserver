@@ -1,8 +1,8 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T16:10:00Z / 2026-08-13T19:10:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local ahead by one code commit until push
-- Current HEAD: `0da667302` (Account.DeleteMessages parity code/test)
-- Last successfully pushed commit: `76beb7f5a`
+- UTC/local timestamp: 2026-08-13T16:36:56Z / 2026-08-13T19:36:56+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
+- Current HEAD: `1ebaf447b` (Account.DeleteMessages parity documentation)
+- Last successfully pushed commit: `1ebaf447b`
 - Latest focused-test result: Account/IMAP/SQL contract tests `97 passed, 0 failed`
 - Latest full Net10 result: `2247 passed, 55 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL SecurityRanges integration remains skipped because the approved current-user `MSSQLLocalDB` connection and isolated-create approval are unset; paired C++ benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, live DNS/socket/TLS, and 24-hour soak remain skipped or environment-blocked
