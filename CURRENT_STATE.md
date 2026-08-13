@@ -1,9 +1,9 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T13:00:00Z / 2026-08-13T16:00:00+03:00
+- UTC/local timestamp: 2026-08-13T13:08:00Z / 2026-08-13T16:08:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local HEAD equals upstream
-- Current HEAD: `ad8c33d85` (clean paired performance rerun docs)
-- Last successfully pushed commit: `8b6d280e5` (before current docs commit)
-- Latest focused-test result: TCPIPPorts COM `23/23`; SQL store `5 passed, 1 opt-in skipped`
+- Current HEAD: `bc8a9048a` (clean paired performance rerun docs; this state update follows it)
+- Last successfully pushed commit: `bc8a9048a`
+- Latest focused-test result: clean disposable pair Net10 SMTP/IMAP/POP3 `25/25` each, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; fixture validator passed
 - Latest full Net10 result: `2219 passed, 54 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL TCPIPPorts integration `1 skipped` because isolated-create approval variables are unset; real DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
 - Current bounded slice: clean paired performance rerun; Net10-only workloads passed on equivalent disposable SQL/Data/message state, but C++ Registry32 isolation preflight refused launch, so the paired performance gate remains RED
