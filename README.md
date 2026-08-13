@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current authoritative restore reinitialization status (2026-08-13)
+
+Code/test commit `24405daa6` closes the legacy restore ordering gap at the
+execution boundary. Legacy `BackupExecuter::StartRestore` in
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp` restores
+domains/data/settings and then calls
+`Reinitializator::Instance()->ReInitialize()` before reporting success;
+`InterfaceBackup::StartRestore` dispatches that work asynchronously.
+
+Net10 `MetadataBackupRestoreExecutor.ExecuteAsync` now invokes an injected
+reinitialization callback exactly once after a successful settings-only,
+DB-only, non-DB, or full restore. Focused restore coverage passed `35/35`;
+full Net10 Debug passed `2282`, skipped `56`, failed `0`. Failure and rollback
+paths do not invoke the callback, and the production archive runtime now fails
+closed before mutation when no service-owned callback is configured.
+
+The actual service-owned reinitialization coordinator is still an open
+production blocker. No public `Application.Reinitialize` or COM identity was
+changed, and no restore/rollback release gate is claimed complete until the
+callback is wired to a real runtime reinitialization and isolated round-trip
+evidence passes.
+
 ## Current authoritative DomainAliases mutation status (2026-08-13)
 
 Code/test commit `baa50bd4a` closes the generation-bound authorization lease

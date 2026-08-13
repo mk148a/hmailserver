@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, restore reinitialization)
+
+Code/test commit `24405daa6` closes the execution-boundary gap identified by
+legacy `BackupExecuter::StartRestore` in
+`source/Server/Common/Application/BackupExecuter.cpp`: after restoring
+domains/data/settings, legacy calls
+`Reinitializator::Instance()->ReInitialize()` before success. Net10
+`MetadataBackupRestoreExecutor.ExecuteAsync` now invokes one injected
+reinitialization callback after successful restore completion for all supported
+restore branches. Focused restore tests are `35 passed, 0 failed`; full Net10
+Debug is `2282 passed, 56 skipped, 0 failed`.
+
+The production archive runtime requires that callback and fails closed before
+mutation when it is absent. Tests cover success-once, failure-no-invocation,
+and missing-production-callback denial. The callback is not yet wired to a
+real service-owned coordinator, so restore/rollback remains an open release
+blocker. The paired C++/.NET performance gate remains **RED** and no ratio is
+claimed. Next independent slices: wire and test isolated service-owned
+reinitialization, then disposable restore round-trip/rollback acceptance, then
+registry-isolated C++ paired performance.
+
 ## Current Authoritative Continuation (2026-08-13, DomainAliases mutation lease)
 
 Code/test commit `baa50bd4a` extends the generation-bound authorization lease

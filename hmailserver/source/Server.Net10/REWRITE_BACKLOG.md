@@ -1,5 +1,32 @@
 
-## Current next slice (2026-08-13, registry-isolated C++ performance gate; DomainAliases lease superseded)
+## Current next slice (2026-08-13, restore reinitialization callback; DomainAliases lease superseded)
+
+Completed code/test commit `24405daa6` implements the missing execution hook
+for legacy restore reinitialization. Legacy references are
+`InterfaceBackup::StartRestore` in `source/Server/COM/InterfaceBackup.cpp`,
+`BackupManager::StartRestore` in `source/Server/Common/Application/BackupManager.cpp`,
+and `BackupExecuter::StartRestore` in
+`source/Server/Common/Application/BackupExecuter.cpp`. Legacy ordering is
+domain cleanup, optional public-folder cleanup, optional Data directory
+restore, domain XML load, settings XML load, then
+`Reinitializator::Instance()->ReInitialize()` before success.
+
+Net10 `MetadataBackupRestoreExecutor.ExecuteAsync` now invokes an injected
+callback once after successful settings-only, DB-only, non-DB, and full restore
+completion. Focused restore coverage is `35 passed, 0 failed`; full Net10
+Debug is `2282 passed, 56 skipped, 0 failed`. Failure paths do not invoke the
+callback. The production `BackupArchiveRuntime.ConfigureRestoreRuntime` path
+requires a callback and fails closed before mutation when none is wired.
+Installed COM identity, `Application.Reinitialize`, SQL/Data mutation order,
+and rollback boundaries are unchanged.
+
+The callback is not yet connected to a service-owned reinitialization
+coordinator. Therefore restore/rollback is not complete and release remains
+**RED**. The next slice is the smallest isolated service-owned reinitialization
+adapter and test, followed by disposable SQL/Data round-trip and rollback
+acceptance. The C++/.NET paired performance gate remains RED independently.
+
+## Historical next slice (2026-08-13, registry-isolated C++ performance gate; DomainAliases lease superseded)
 
 Completed code/test commit `baa50bd4a`: the generation-bound authorization
 lease now covers legacy domain-alias collection deletion and child
