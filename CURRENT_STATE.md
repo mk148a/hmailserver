@@ -1,8 +1,8 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T17:20:00Z / 2026-08-13T20:20:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local ahead by one code commit until push
-- Current HEAD: `6573fdeda` (FetchAccount existing-row Save parity code/test)
-- Last successfully pushed commit: `e2453eb3b`
+- UTC/local timestamp: 2026-08-13T17:26:00Z / 2026-08-13T20:26:00+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
+- Current HEAD: `9829cf9cd` (FetchAccount existing-row Save parity documentation)
+- Last successfully pushed commit: `9829cf9cd`
 - Latest focused-test result: FetchAccounts/SQL-store contract tests `36 passed, 0 failed`
 - Latest full Net10 result: `2252 passed, 55 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL SecurityRanges integration remains skipped because the approved current-user `MSSQLLocalDB` connection and isolated-create approval are unset; paired C++ benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, live DNS/socket/TLS, and 24-hour soak remain skipped or environment-blocked
