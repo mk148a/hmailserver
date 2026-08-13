@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, RouteAddress mutation authorization lease)
+
+Code/test commit `cd2146e45` extends the generation-bound authorization lease
+to legacy `Settings.Routes[...].Addresses` mutations. The legacy anchors are
+`InterfaceRouteAddresses::DeleteByDBID/Add/DeleteByAddress`,
+`InterfaceRouteAddress::Save/Delete`, and
+`PersistentRouteAddress::SaveObject/DeleteObject` in
+`source/Server/COM/InterfaceRouteAddresses.cpp`,
+`InterfaceRouteAddress.cpp`, and
+`source/Server/Common/Persistence/PersistentRouteAddress.cpp`. Net10 leases
+collection deletion and child Save/Delete, avoids nested child-delete leases,
+preserves owner-scoped snapshots, and passes lease denial as
+`E_ACCESSDENIED`. COM identity/direct activation, SMTP route behavior, and SQL
+schema are unchanged.
+
+Focused Route/RouteAddress plus SQL store coverage: `40 passed, 0 failed`.
+Full Net10 Debug: `2275 passed, 56 skipped, 0 failed`. Paired C++/.NET
+performance remains **RED** because equivalent registry-isolated legacy
+execution is unavailable; no speedup claim is made. Next: the next
+legacy-anchored Admin/protocol mutation gap; registry-isolated C++ benchmark,
+restore/rollback, SEC-18, and soak gates remain open.
+
 ## Current Authoritative Continuation (2026-08-13, Route mutation authorization lease)
 
 Code/test commits `6567adc72` and `f2c63c5fe` close the bounded

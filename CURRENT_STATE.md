@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T20:25:00Z / 2026-08-13T23:25:00+03:00
+- UTC/local timestamp: 2026-08-13T20:45:00Z / 2026-08-13T23:45:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `f2c63c5fe` (Route authorization lease reentrancy fix)
-- Last successfully pushed commit: `bc06bbe3d`
-- Latest focused-test result: Route COM contract `20 passed, 0 failed`; Route plus SQL store `23 passed, 0 failed`
-- Latest full Net10 result: normal Debug `2273 passed, 56 skipped, 0 failed`
+- Current HEAD: `cd2146e45` (RouteAddress mutation authorization lease)
+- Last successfully pushed commit: `ca8fd40a4`
+- Latest focused-test result: Route/RouteAddress plus SQL store `40 passed, 0 failed`
+- Latest full Net10 result: normal Debug `2275 passed, 56 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: disposable SQL/Data FetchAccount acceptance passed; registry/COM, installer, AD/DC, SEC-18, live protocol/load, paired C++ benchmark, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: Route authorization lease propagation and reentrancy fix; next is RouteAddresses
+- Current bounded slice: RouteAddress mutation authorization lease propagation
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, DNS/MX safety slices, SecurityRanges managed parity coverage, IncomingRelays authorization and mutation lease coverage, AntiSpam local target pinning, Account.DeleteMessages parity, FetchAccount Save parity and mutation lease propagation, indirect FetchAccount lease propagation, Group/GroupMember mutation lease consumption, IMAP folder mutation lease consumption, and IMAP folder-permission mutation lease consumption
 - Open production blockers: paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host. User-owned LocalDB disposable SQL/Data staging is READY under `artifacts/net10-disposable/run-20260813-imap-permission/`.
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: registry-isolated C++ execution and paired benchmark evidence; isolated restore/rollback acceptance; remaining legacy-anchored Admin/protocol parity selected by the production gate
+- Next three independent slices: next legacy-anchored Admin/protocol mutation gap; registry-isolated C++ paired benchmark evidence; isolated restore/rollback acceptance

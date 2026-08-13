@@ -1,6 +1,31 @@
 hMailServer
 ===========
 
+## Current authoritative RouteAddress mutation authorization status (2026-08-13)
+
+Code/test commit `cd2146e45` extends the generation-bound authorization lease
+to legacy `Settings.Routes[...].Addresses` mutations. The legacy anchors are
+`InterfaceRouteAddresses::DeleteByDBID/Add/DeleteByAddress`,
+`InterfaceRouteAddress::Save/Delete`, and
+`PersistentRouteAddress::SaveObject/DeleteObject` in
+`hmailserver/source/Server/COM/InterfaceRouteAddresses.cpp`,
+`InterfaceRouteAddress.cpp`, and
+`hmailserver/source/Server/Common/Persistence/PersistentRouteAddress.cpp`.
+Net10 leases collection deletion and child Save/Delete, avoids nested child
+delete leases, preserves owner-scoped snapshots, and propagates
+`E_ACCESSDENIED` without remapping it to `E_FAIL`. Installed RouteAddress COM
+IIDs/DISPIDs/class identity, direct activation boundaries, SMTP behavior, and
+SQL schema are unchanged.
+
+Focused Route/RouteAddress plus SQL store coverage is `40 passed, 0 failed`;
+full Net10 Debug is `2275 passed, 56 skipped, 0 failed`. The paired C++/.NET
+performance gate remains **RED** because equivalent registry-isolated legacy
+execution is unavailable; no speedup or ratio is claimed.
+
+Next independent slices: the next legacy-anchored Admin/protocol mutation gap;
+registry-isolated C++ paired benchmark, restore/rollback, SEC-18, and soak
+gates remain open.
+
 ## Current authoritative Route mutation authorization status (2026-08-13)
 
 Code/test commits `6567adc72` and `f2c63c5fe` close the bounded

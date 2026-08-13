@@ -1,5 +1,26 @@
 
-## Current next slice (2026-08-13, Route mutation authorization lease; supersedes older entries)
+## Current next slice (2026-08-13, RouteAddress mutation authorization lease; supersedes older entries)
+
+Legacy `InterfaceRouteAddresses::DeleteByDBID/Add/DeleteByAddress`,
+`InterfaceRouteAddress::Save/Delete`, and
+`PersistentRouteAddress::SaveObject/DeleteObject` are implemented in
+`source/Server/COM/InterfaceRouteAddresses.cpp`,
+`source/Server/COM/InterfaceRouteAddress.cpp`, and
+`source/Server/Common/Persistence/PersistentRouteAddress.cpp`. Code/test
+commit `cd2146e45` extends the generation-bound authorization lease to
+collection deletion and child Save/Delete under `Settings.Routes[...].Addresses`.
+Child deletion avoids nested lease acquisition; owner-scoped snapshots are
+updated only after store success; lease denial remains `E_ACCESSDENIED`.
+Installed RouteAddress IID/vtable/DISPID/class identity, direct activation,
+SMTP behavior, and SQL schema remain unchanged.
+
+Focused Route/RouteAddress plus SQL store coverage is `40 passed, 0 failed`;
+full Net10 Debug is `2275 passed, 56 skipped, 0 failed`. Release remains
+**RED** because paired C++/.NET performance, restore/rollback, SEC-18,
+installer, and soak gates remain open. Next independent slice: the next
+legacy-anchored Admin/protocol mutation gap.
+
+## Historical next slice (2026-08-13, Route mutation authorization lease; superseded)
 
 Legacy `InterfaceRoute::Save`/`Delete` and `PersistentRoute::SaveObject` are
 implemented in `source/Server/COM/InterfaceRoute.cpp` and
