@@ -378,6 +378,170 @@ public sealed class IMAPFolderPermissionsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedPermissionMutations_HoldAuthorizationLeaseAcrossStoreCallbacks()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        var callbackCount = 0;
+        var observedLeaseCounts = new List<int>();
+        var snapshots = new[]
+        {
+            new ImapFolderPermissionAdministrationSnapshot(10, 50, 0, 0, 100, 1),
+            new ImapFolderPermissionAdministrationSnapshot(20, 50, 1, 200, 0, 1),
+            new ImapFolderPermissionAdministrationSnapshot(30, 50, 0, 0, 200, 1)
+        };
+
+        void Probe()
+        {
+            observedLeaseCounts.Add(activeLeases);
+            callbackCount++;
+        }
+
+        Func<CancellationToken, ValueTask<IDisposable?>> leaseFactory = _ =>
+        {
+            activeLeases++;
+            return ValueTask.FromResult<IDisposable?>(
+                new TrackingLease(() =>
+                {
+                    activeLeases--;
+                    disposedLeases++;
+                }));
+        };
+
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            50,
+            snapshots,
+            () => snapshots,
+            delete: (_, _) =>
+            {
+                Probe();
+                return ValueTask.FromResult(true);
+            },
+            insert: (type, groupId, accountId, value) =>
+            {
+                Probe();
+                return ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(
+                    new ImapFolderPermissionAdministrationSnapshot(77, 50, type, groupId, accountId, value));
+            },
+            update: (_, _, _, _, _) =>
+            {
+                Probe();
+                return ValueTask.FromResult(true);
+            },
+            authorizationLeaseFactory: leaseFactory);
+
+        var added = permissions.Add();
+        added.PermissionAccountID = 300;
+        added.Save();
+        permissions[0].Save();
+        permissions[1].Delete();
+        permissions.DeleteByDBID(30);
+        permissions.Delete(0);
+
+        Assert.AreEqual(5, callbackCount);
+        CollectionAssert.AreEqual(new[] { 1, 1, 1, 1, 1 }, observedLeaseCounts);
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(5, disposedLeases);
+    }
+
+    [TestMethod]
+    public void AuthorizedPermissionMutations_DenyBeforeStoreWhenAuthorizationLeaseIsUnavailable()
+    {
+        var leaseRequests = 0;
+        var callbackCount = 0;
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            50,
+            new[]
+            {
+                new ImapFolderPermissionAdministrationSnapshot(10, 50, 0, 0, 100, 1),
+                new ImapFolderPermissionAdministrationSnapshot(20, 50, 1, 200, 0, 1)
+            },
+            () => Array.Empty<ImapFolderPermissionAdministrationSnapshot>(),
+            delete: (_, _) =>
+            {
+                callbackCount++;
+                return ValueTask.FromResult(true);
+            },
+            insert: (_, _, _, _) =>
+            {
+                callbackCount++;
+                return ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(null);
+            },
+            update: (_, _, _, _, _) =>
+            {
+                callbackCount++;
+                return ValueTask.FromResult(true);
+            },
+            authorizationLeaseFactory: _ =>
+            {
+                leaseRequests++;
+                return ValueTask.FromResult<IDisposable?>(null);
+            });
+
+        var added = permissions.Add();
+        added.PermissionAccountID = 300;
+        var newSaveError = Assert.ThrowsExactly<COMException>(added.Save);
+        var existingSaveError = Assert.ThrowsExactly<COMException>(permissions[0].Save);
+        var itemDeleteError = Assert.ThrowsExactly<COMException>(permissions[0].Delete);
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(() => permissions.Delete(0));
+        var databaseDeleteError = Assert.ThrowsExactly<COMException>(() => permissions.DeleteByDBID(10));
+
+        Assert.AreEqual(EAccessDenied, newSaveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, existingSaveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, itemDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, databaseDeleteError.ErrorCode);
+        Assert.AreEqual(5, leaseRequests);
+        Assert.AreEqual(0, callbackCount);
+        Assert.AreEqual(2, permissions.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedPermissionMutations_DenyAfterLogoutWithoutLeaseFactory()
+    {
+        var authenticated = true;
+        var callbackCount = 0;
+        var snapshot = new ImapFolderPermissionAdministrationSnapshot(10, 50, 0, 0, 100, 1);
+        IInterfaceIMAPFolderPermissions permissions = IMAPFolderPermissions.CreateAuthorized(
+            50,
+            new[] { snapshot },
+            () => new[] { snapshot },
+            delete: (_, _) =>
+            {
+                callbackCount++;
+                return ValueTask.FromResult(true);
+            },
+            insert: (_, _, _, _) =>
+            {
+                callbackCount++;
+                return ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(null);
+            },
+            update: (_, _, _, _, _) =>
+            {
+                callbackCount++;
+                return ValueTask.FromResult(true);
+            },
+            isAuthenticated: () => authenticated);
+
+        var retained = permissions[0];
+        retained.Value = 2;
+        authenticated = false;
+
+        var errors = new[]
+        {
+            Assert.ThrowsExactly<COMException>(permissions.Add),
+            Assert.ThrowsExactly<COMException>(retained.Save),
+            Assert.ThrowsExactly<COMException>(retained.Delete),
+            Assert.ThrowsExactly<COMException>(() => permissions.Delete(0)),
+            Assert.ThrowsExactly<COMException>(() => permissions.DeleteByDBID(10))
+        };
+
+        Assert.IsTrue(errors.All(error => error.ErrorCode == EAccessDenied));
+        Assert.AreEqual(0, callbackCount);
+        Assert.AreEqual(1, permissions.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_AddStagesNewPermissionAndAppendsOnlyAfterValidatedSave()
     {
         var calls = new List<(int Type, int GroupId, int AccountId, int Value)>();
@@ -877,6 +1041,13 @@ public sealed class IMAPFolderPermissionsComContractTests
         Assert.AreEqual(groupId, permission.PermissionGroupID);
         Assert.AreEqual(accountId, permission.PermissionAccountID);
         Assert.AreEqual(value, permission.Value);
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        private Action? _onDispose = onDispose;
+
+        public void Dispose() => Interlocked.Exchange(ref _onDispose, null)?.Invoke();
     }
 
     private sealed class PublicFolderPermissionStore :

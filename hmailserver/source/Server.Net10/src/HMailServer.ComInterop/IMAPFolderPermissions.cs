@@ -184,7 +184,7 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
             : IMAPFolderPermission.CreateAuthorized(
                 match,
                 _folderId,
-                delete: null,
+                delete: _delete is null ? null : DeleteSelectedAsync,
                 update: _update is null || match.ShareFolderId != _folderId
                     ? null
                     : UpdateSelectedAsync,
@@ -194,6 +194,7 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
 
     public void Delete(int index)
     {
+        EnsureAuthenticated();
         var permissions = GetPermissions();
         if (index < 0 || index >= permissions.Count)
         {
@@ -207,6 +208,7 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         bool deleted;
         try
         {
@@ -252,17 +254,24 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
 
     public IInterfaceIMAPFolderPermission Add()
     {
+        EnsureAuthenticated();
         _ = GetPermissions();
         if (_insert is null)
         {
             Unavailable();
         }
 
-        return IMAPFolderPermission.CreateNew(_folderId, _insert!, AppendInserted, _isAuthenticated);
+        return IMAPFolderPermission.CreateNew(
+            _folderId,
+            _insert!,
+            AppendInserted,
+            _isAuthenticated,
+            _authorizationLeaseFactory);
     }
 
     public void DeleteByDBID(int databaseId)
     {
+        EnsureAuthenticated();
         var permissions = GetPermissions();
         var selected = permissions.FirstOrDefault(permission => permission.Id == databaseId);
         if (selected is null)
@@ -276,6 +285,7 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         bool deleted;
         try
         {
@@ -417,12 +427,37 @@ public sealed class IMAPFolderPermissions : IInterfaceIMAPFolderPermissions
     private static string LegacyName(ImapFolderPermissionAdministrationSnapshot permission) =>
         "ACLPermission-" + permission.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "IMAP folder permission access requires an authenticated server administrator.",
+                EAccessDenied);
+    }
+
     private IReadOnlyList<ImapFolderPermissionAdministrationSnapshot> GetPermissions()
     {
         return Volatile.Read(ref _permissions)
             ?? throw new COMException(
                 "IMAPFolderPermissions access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "IMAP folder permission access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private T Unavailable<T>()
@@ -567,6 +602,7 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
     public void Save()
     {
         var permission = Snapshot;
+        EnsureAuthenticated();
         if (permission.Id != 0)
         {
             SaveExisting(permission);
@@ -588,6 +624,7 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
             FailSave();
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         ImapFolderPermissionAdministrationSnapshot? inserted;
         try
         {
@@ -648,6 +685,7 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
             FailSave();
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         bool updated;
         try
         {
@@ -660,8 +698,13 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
                 .GetAwaiter()
                 .GetResult();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            if (ex is COMException { ErrorCode: EAccessDenied })
+            {
+                throw;
+            }
+
             FailSave();
             return;
         }
@@ -687,18 +730,25 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
     public void Delete()
     {
         var permission = Snapshot;
+        EnsureAuthenticated();
         if (_delete is null)
         {
             Unavailable();
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             _delete(_folderId, permission.Id).GetAwaiter().GetResult();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            if (ex is COMException { ErrorCode: EAccessDenied })
+            {
+                throw;
+            }
+
             throw new COMException(
                 "It was not possible to delete the IMAP folder permission from the database.",
                 EFail);
@@ -786,6 +836,31 @@ public sealed class IMAPFolderPermission : IInterfaceIMAPFolderPermission
         _permission ?? throw new COMException(
             "IMAPFolderPermission access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private void EnsureAuthenticated()
+    {
+        if (_isAuthenticated is not null && !_isAuthenticated())
+        {
+            throw new COMException(
+                "IMAP folder permission access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "IMAP folder permission access requires an authenticated server administrator.",
+                EAccessDenied);
+    }
 
     private T Unavailable<T>()
     {
