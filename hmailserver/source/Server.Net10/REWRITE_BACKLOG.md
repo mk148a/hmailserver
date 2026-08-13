@@ -4339,7 +4339,32 @@ Next independent slices, in order: propagate route MX caps through the SQL
 target resolver; repair global-relayer partial DNS fallback; then approved
 disposable DNS/socket/TLS acceptance or registry-isolated C++ execution.
 
-## Current authoritative next slice (2026-08-12, after global-relayer partial DNS)
+## Current authoritative next slice (2026-08-13, after listener ownership)
+
+Code/test commit `fb09dba17` closes only the production DI ownership gap for
+the SMTP local-endpoint guard. `Host` supplies enabled Net10 IMAP, SMTP, and
+POP3 configured endpoints to `RemoteSmtpLocalEndpointPolicy`; unrelated active
+machine listeners are no longer considered by that production instance.
+Legacy `LocalIPAddresses::LoadIPAddresses` / `IsLocalPort`
+(`hmailserver/source/Server/Common/TCPIP/LocalIPAddresses.cpp:28-133`)
+uses configured hMailServer `TCPIPPorts` rows.
+
+Focused tests passed: Host composition `4/4`, listener policy `8/8`, remote
+transport `20/20`, and the new Host listener test `1/1`. Full Net10 after the
+commit was not clean: `2213 passed, 54 skipped, 2 failed`; ClamWin and custom
+scanner cleanup received `UnauthorizedAccessException` for antivirus-held
+`.eml` files. Release remains **RED**.
+
+Remaining listener parity is explicit: multiple same-protocol
+`hm_tcpipports` rows, runtime bind success/failure ownership, port `0`, and
+live TCPIPPorts refresh are not implemented. Do not claim full listener parity
+or production readiness from this slice.
+
+Next independent slices, in order: multiple configured TCPIPPorts endpoint
+planning with no live refresh claim; approved disposable DNS/socket/TLS
+acceptance; registry-isolated C++ execution and paired benchmark evidence.
+
+## Historical continuation (2026-08-12, global-relayer partial DNS)
 
 Code/test commit `85ab61f04` closes the global-relayer partial DNS fallback
 gap. Legacy `ExternalDelivery::ResolveRecipientServers_`

@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-12T06:30:00Z / 2026-08-12T09:30:00+03:00
+- UTC/local timestamp: 2026-08-13T06:30:00Z / 2026-08-13T09:30:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; docs commit is ready and push is pending
-- Current HEAD: `85ab61f04` (global-relayer partial DNS fallback code/test)
-- Last successfully pushed commit: `4a1d10f9d`
-- Latest focused-test result: global-relayer resolver coverage `47 passed, 0 failed, 0 skipped`
-- Latest full Net10 result: `2214 passed, 54 skipped, 0 failed`
+- Current HEAD: `fb09dba17` (configured listener ownership code/test)
+- Last successfully pushed commit: `d8818ad6f`
+- Latest focused-test result: Host composition `4`, listener policy `8`, remote transport `20`, new Host listener test `1`; all passed
+- Latest full Net10 result: `2213 passed, 54 skipped, 2 failed` (ClamWin/CustomScanner antivirus-held `.eml` cleanup)
 - Opt-in tests passed/skipped/blocked: existing disposable Net10 evidence passed; real SQL/DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
-- Current bounded slice: global-relayer partial DNS fallback; code/test is committed in `85ab61f04`, docs commit is pending, paired performance gate remains RED
+- Current bounded slice: configured listener ownership; code/test is committed in `fb09dba17`, docs commit is pending, paired performance gate remains RED
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, and no-MX CNAME planning
 - Open production blockers: paired C++/.NET performance RED; live DNS/socket/TLS/SNI and certificate/revocation acceptance; shared outbound egress/SSRF and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: disposable SQL/DNS/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: exact hMailServer listener ownership for self-connect parity; approved disposable real DNS/socket/TLS acceptance; registry-isolated C++ execution and paired benchmark evidence
+- Next three independent slices: multiple configured TCPIPPorts endpoint planning without live reconfiguration; approved disposable real DNS/socket/TLS acceptance; registry-isolated C++ execution and paired benchmark evidence

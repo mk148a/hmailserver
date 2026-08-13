@@ -2259,7 +2259,31 @@ Route `MaxNumberOfMXHosts` SQL propagation, global-relayer partial failure,
 hMailServer listener ownership, live DNS/socket/TLS, shared SMTP SSRF policy,
 and paired C++/.NET performance remain open. Release remains **RED**.
 
-## Current authoritative continuation (2026-08-12, global-relayer partial DNS)
+## Current authoritative continuation (2026-08-13, listener ownership)
+
+Code/test commit `fb09dba17` wires the production `Host` composition's
+`RemoteSmtpLocalEndpointPolicy` to the enabled Net10 listener options rather
+than the default machine-wide `IPGlobalProperties.GetActiveTcpListeners()`.
+Legacy `LocalIPAddresses::LoadIPAddresses` and `IsLocalPort`
+(`hmailserver/source/Server/Common/TCPIP/LocalIPAddresses.cpp:28-133`)
+derive the self-connect guard from configured hMailServer `TCPIPPorts`.
+
+Focused evidence: Host composition `4/4`, listener policy `8/8`, remote
+transport `20/20`, and the new Host listener test `1/1`. The post-commit full
+suite result was `2213 passed, 54 skipped, 2 failed`; both failures were
+ClamWin/CustomScanner cleanup `UnauthorizedAccessException` errors for files
+held by the installed antivirus.
+
+This remains bounded parity only. Net10 still models one endpoint per
+protocol in `Host`, does not consume multiple `hm_tcpipports` rows, and has no
+live listener refresh or runtime bind-ownership evidence. Release remains
+**RED**.
+
+Next independent slices: multiple configured `hm_tcpipports` endpoint
+planning without live reconfiguration; approved disposable DNS/socket/TLS
+acceptance; registry-isolated C++ execution and paired benchmarking.
+
+## Historical continuation (2026-08-12, global-relayer partial DNS)
 
 Code/test commit `85ab61f04` restores the legacy global-relayer fallback in
 `RemoteSmtpEndpointResolver.ResolveGlobalRelayerAsync`. Legacy

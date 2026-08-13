@@ -1,6 +1,30 @@
 hMailServer
 ===========
 
+## Current authoritative listener-ownership status (2026-08-13)
+
+Code/test commit `fb09dba17` scopes the production DI instance of
+`RemoteSmtpLocalEndpointPolicy` to the enabled Net10 IMAP, SMTP, and POP3
+listener options in `HMailServer.Service.Host`. This removes unrelated
+machine-wide TCP listeners from that production policy. The legacy reference
+is `LocalIPAddresses::LoadIPAddresses` and `IsLocalPort`
+(`hmailserver/source/Server/Common/TCPIP/LocalIPAddresses.cpp:28-133`),
+which derives self-connect checks from hMailServer's configured
+`TCPIPPorts`, not every process on the machine.
+
+Focused evidence: Host composition `4 passed`, listener policy `8 passed`,
+remote transport `20 passed`, and the new Host listener test `1 passed`. The
+full suite after this commit did not complete cleanly: `2213 passed`, `54
+skipped`, `2 failed` because ClamWin/CustomScanner cleanup hit
+`UnauthorizedAccessException` on `.eml` files held by the installed antivirus.
+This is environment evidence, not a listener regression.
+
+The slice intentionally does not claim full `hm_tcpipports` parity: Net10 Host
+currently exposes one configured endpoint per protocol and has no live refresh
+path. Multiple same-protocol rows, bind-failure/runtime ownership, live
+reconfiguration, real DNS/socket/TLS evidence, SSRF/DNS validation, and paired
+C++/.NET performance remain open. Performance is **RED**.
+
 ## Current authoritative global-relayer DNS status (2026-08-12)
 
 Code/test commit `85ab61f04` restores legacy partial-resolution behavior for

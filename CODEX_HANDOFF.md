@@ -4410,7 +4410,33 @@ partial-DNS fallback, and (3) approved disposable DNS/socket/TLS acceptance or
 registry-isolated C++ listener/benchmark execution. Preserve dirty `AGENTS.md`,
 backup/Smtp WIP, and untracked SEC-18/benchmark/disposable artifacts.
 
-## Current Authoritative Continuation (2026-08-12, GLOBAL-RELAYER PARTIAL DNS)
+## Current Authoritative Continuation (2026-08-13, LISTENER OWNERSHIP)
+
+Code/test commit `fb09dba17` implements the bounded listener-ownership slice.
+Legacy `LocalIPAddresses::LoadIPAddresses` / `IsLocalPort`
+(`hmailserver/source/Server/Common/TCPIP/LocalIPAddresses.cpp:28-133`)
+builds self-connect checks from configured hMailServer `TCPIPPorts`, while the
+old Net10 production DI path used every active machine TCP listener. `Host`
+now gives the production `RemoteSmtpLocalEndpointPolicy` the enabled Net10
+IMAP, SMTP, and POP3 listener endpoints only.
+
+Focused results: Host composition `4/4`, listener policy `8/8`, remote
+transport `20/20`, and new Host listener test `1/1`. The post-commit full suite
+was `2213 passed, 54 skipped, 2 failed`; both failures were existing
+ClamWin/CustomScanner cleanup failures caused by antivirus-held `.eml` files.
+
+Residual scope: one endpoint per protocol in Host, no multiple
+`hm_tcpipports` rows, no live refresh, no runtime bind-ownership evidence,
+and no paired C++/.NET performance evidence. Security/reality status remains
+RED. Preserve dirty `AGENTS.md`, backup/Smtp WIP, and untracked SEC-18,
+benchmark, and disposable artifacts.
+
+Next three slices: (1) multiple configured TCPIPPorts endpoint planning
+without live reconfiguration, (2) approved disposable DNS/socket/TLS
+acceptance, and (3) registry-isolated C++ execution with paired benchmark
+evidence.
+
+## Historical continuation (2026-08-12, GLOBAL-RELAYER PARTIAL DNS)
 
 Code/test commit `85ab61f04` implements one bounded legacy parity slice.
 `hmail_parity_explorer` verified
