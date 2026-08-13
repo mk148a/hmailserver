@@ -1,5 +1,25 @@
 
 
+## Current next slice (2026-08-13, IncomingRelays mutation authorization lease; supersedes older entries)
+
+Legacy `InterfaceIncomingRelays::Delete` and `DeleteByDBID`, and child
+`InterfaceIncomingRelay::Save` and `Delete`, are anchored in
+`source/Server/COM/InterfaceIncomingRelays.cpp` and
+`source/Server/COM/InterfaceIncomingRelay.cpp`. Code/test commit `339df5867`
+threads the existing generation-bound authorization lease through the
+authenticated `Settings.IncomingRelays` adapter and holds it across insert,
+update, collection delete, child delete, and local snapshot publication.
+
+Focused IncomingRelays coverage is `23/23`; full Net10 coverage is `2232
+passed, 55 skipped, 0 failed`. Null lease paths fail closed and failure-path
+tests verify lease disposal. COM identity, direct activation, SQL store
+contracts, SMTP trust behavior, and live reconfiguration were not changed.
+
+Release remains RED. The next independent slice is registry-isolated C++
+execution against the already verified identical SQL/Data/message fixture,
+using the same SMTP/IMAP/POP3 workload matrix. No performance ratio or winner
+may be claimed until both implementations run.
+
 ## Current next slice (2026-08-13, IncomingRelays retained authorization; supersedes older entries)
 
 Legacy `InterfaceIncomingRelays::Delete` and `DeleteByDBID`

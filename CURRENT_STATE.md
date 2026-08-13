@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T14:15:23Z / 2026-08-13T17:15:23+03:00
+- UTC/local timestamp: 2026-08-13T14:46:50Z / 2026-08-13T17:46:50+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is ahead by two commits, push pending
-- Current HEAD: `b9b09b623` (IncomingRelays authorization gate documentation)
-- Last successfully pushed commit: `e2927347a`
-- Latest focused-test result: IncomingRelays COM contract/authorization `14 passed, 0 failed`
-- Latest full Net10 result: `2223 passed, 55 skipped, 0 failed`
+- Current HEAD: `8797de386` (IncomingRelays authorization lease documentation)
+- Last successfully pushed commit: `8f4bfb226`
+- Latest focused-test result: IncomingRelays COM contract/authorization `23 passed, 0 failed`
+- Latest full Net10 result: `2232 passed, 55 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL SecurityRanges integration remains skipped because the approved current-user `MSSQLLocalDB` connection and isolated-create approval are unset; paired C++ benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, live DNS/socket/TLS, and 24-hour soak remain skipped or environment-blocked
-- Current bounded slice: retained authenticated `Settings.IncomingRelays` collection rechecks server-administrator authorization before `Delete` and `DeleteByDBID` store mutation, preserving snapshot/index behavior
-- Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, no-MX CNAME planning, SecurityRanges managed parity coverage, and IncomingRelays retained-collection authorization coverage
-- Open production blockers: non-atomic retained COM authorization check versus store mutation; paired C++/.NET performance RED; legacy C++ external-fetch SSRF, live DNS/socket/TLS/SNI and certificate/revocation acceptance; scanner production egress and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Current bounded slice: existing authorization lease is threaded through authenticated `Settings.IncomingRelays` and held across insert, update, collection delete, child delete, and snapshot publication
+- Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, no-MX CNAME planning, SecurityRanges managed parity coverage, IncomingRelays retained-collection authorization coverage, and IncomingRelays mutation lease coverage
+- Open production blockers: paired C++/.NET performance RED; legacy C++ external-fetch SSRF, live DNS/socket/TLS/SNI and certificate/revocation acceptance; scanner production egress and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; explicitly approved current-user LocalDB target; live DNS/socket/TLS fixture; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: hold the existing authorization lease across IncomingRelays insert/update/delete; registry-isolated C++ execution and paired benchmark evidence; approved disposable SQL/DNS/socket/TLS delivery acceptance
+- Next three independent slices: registry-isolated C++ execution and paired benchmark evidence; approved disposable SQL/DNS/socket/TLS delivery acceptance; isolated Windows service/out-of-process COM lifecycle

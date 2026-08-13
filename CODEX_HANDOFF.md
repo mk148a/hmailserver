@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, IncomingRelays mutation authorization lease)
+
+Legacy `InterfaceIncomingRelays::Delete` and `DeleteByDBID`, and child
+`InterfaceIncomingRelay::Save` and `Delete`, are anchored in
+`hmailserver/source/Server/COM/InterfaceIncomingRelays.cpp` and
+`InterfaceIncomingRelay.cpp`. Code/test commit `339df5867` threads the
+existing generation-bound authorization lease from `Application.Settings`
+through `Settings.IncomingRelays` and holds it across IncomingRelays insert,
+update, collection delete, child delete, and local snapshot publication.
+
+The installed IncomingRelays/IncomingRelay IIDs, CLSIDs, ProgIDs, DISPIDs,
+vtable order, direct activation denial, SQL store interface, SMTP trust
+behavior, and live reconfiguration boundary are unchanged. Null leases fail
+closed with `E_ACCESSDENIED`; store failures retain the existing `E_FAIL`
+mapping and dispose the lease.
+
+Focused IncomingRelays coverage is `23/23`; full Net10 is `2232 passed, 55
+skipped, 0 failed`. Release remains **RED**: paired C++ performance,
+restore/migration, service/out-of-process COM, SEC-18, live network, and
+long-soak evidence are still unavailable or incomplete. Next independent slice:
+registry-isolated C++ execution and the identical paired performance matrix.
+
 ## Current Authoritative Continuation (2026-08-13, IncomingRelays retained authorization)
 
 Legacy `InterfaceIncomingRelays::Delete` and `DeleteByDBID`
