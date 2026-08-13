@@ -1,5 +1,34 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, Group/GroupMember mutation authorization lease)
+
+Legacy `InterfaceGroup::Save/Delete`, `InterfaceGroupMembers::DeleteByDBID`,
+`InterfaceGroupMember::Save/Delete`, and
+`InterfaceGroupMembers::DeleteByDBID` are in
+`source/Server/COM/InterfaceGroup.cpp`, `InterfaceGroupMembers.cpp`, and
+`InterfaceGroupMember.cpp`; collection ownership is defined by the legacy
+`Collection::DeleteItemByDBID` path. Code/test commit `90b68a7fa` consumes the
+existing generation-bound authorization lease immediately around Group and
+GroupMember insert/update/delete store callbacks. Direct retained child
+mutations and direct collection deletion both fail closed when lease
+acquisition returns null; retained Group facades revalidate that their
+owning group is still present before exposing or mutating GroupMembers;
+unknown collection IDs remain no-ops without a store call or lease
+acquisition. COM identity, direct activation denial,
+existing server-administrator checks, owner scoping, SMTP trust, and live
+reconfiguration were unchanged.
+
+Focused Group/GroupMember coverage: `31 passed, 0 failed`; with the related
+SQL group-store classes: `39 passed, 0 failed`. Full Net10:
+`2263 passed, 55 skipped, 0 failed`. Security review remains required for the
+next IMAP folder/permission mutation slice. No live SQL/readback, registered
+COM/service/worker, paired C++/.NET performance, restore, SEC-18, or soak gate
+is proven; release remains **RED**.
+
+Next independent slices: consume authorization leases across IMAP folder and
+IMAP folder-permission mutations; approved disposable SQL FetchAccount
+UPDATE/readback; registry-isolated C++ paired performance execution.
+
 ## Current Authoritative Continuation (2026-08-13, indirect FetchAccount lease propagation)
 
 Legacy `InterfaceFetchAccounts::Add`, `Delete`, and `DeleteByDBID`, and

@@ -1,6 +1,36 @@
 hMailServer
 ===========
 
+## Current authoritative Group/GroupMember authorization status (2026-08-13)
+
+Code/test commit `90b68a7fa` closes the bounded generation-bound
+authorization-lease gap for Group and GroupMember mutations. Legacy
+`InterfaceGroup::Save/Delete`, `InterfaceGroupMembers::DeleteByDBID`,
+`InterfaceGroupMember::Save/Delete`, and
+`InterfaceGroupMembers::DeleteByDBID` are anchored in
+`hmailserver/source/Server/COM/InterfaceGroup.cpp`,
+`InterfaceGroupMembers.cpp`, `InterfaceGroupMember.cpp`, and the legacy
+`Collection::DeleteItemByDBID` path. Net10 now holds the existing lease across
+the actual insert/update/delete callbacks for retained children and direct
+collection deletion; retained Group facades revalidate that their owning
+group is still present before exposing or mutating GroupMembers. Null leases
+fail closed with `E_ACCESSDENIED`, and
+unknown collection IDs do not invoke a store callback or acquire a lease.
+
+Focused Group/GroupMember coverage is `31 passed, 0 failed`; focused tests
+including the two SQL group-store classes are `39 passed, 0 failed`. Full
+Net10 is `2263 passed, 55 skipped, 0 failed`. Installed COM IID/vtable/DISPID
+and direct activation boundaries, SMTP trust, live reconfiguration, SQL
+schema, and broader Admin collections were unchanged. IMAP folder/permission
+mutation lease consumption remains the next security slice. Live SQL/Data,
+registered COM/service, paired C++/.NET performance, restore, SEC-18, and
+24-hour soak gates remain unavailable; release remains **RED**.
+
+Next independent slices: consume authorization leases across IMAP folder and
+IMAP folder-permission mutations; run approved disposable SQL FetchAccount
+UPDATE/readback acceptance; obtain registry-isolated C++ execution for the
+paired performance matrix.
+
 ## Current authoritative indirect FetchAccount authorization status (2026-08-13)
 
 Code/test commit `53f13f5dd` completes the bounded indirect-account lease
