@@ -44,7 +44,12 @@ WHERE distributionlistid = @ID
 
     public const string DeleteDistributionListRecipientsSql = """
 DELETE FROM hm_distributionlistsrecipients
-WHERE distributionlistrecipientlistid = @LISTID;
+WHERE distributionlistrecipientlistid = @LISTID
+  AND EXISTS
+      (SELECT 1
+       FROM hm_distributionlists
+       WHERE distributionlistid = @LISTID
+         AND distributionlistdomainid = @DomainID);
 """;
 
     public const string DeleteDistributionListSql = """
@@ -159,6 +164,7 @@ WHERE distributionlistdomainid = @DomainID
 
         await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var recipientsCommand = new SqlCommand(DeleteDistributionListRecipientsSql, connection);
+        recipientsCommand.Parameters.Add("@DomainID", SqlDbType.Int).Value = owningDomainId;
         recipientsCommand.Parameters.Add("@LISTID", SqlDbType.Int).Value = distributionListId;
         _ = await recipientsCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
