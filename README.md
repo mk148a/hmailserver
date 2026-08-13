@@ -1,6 +1,33 @@
 hMailServer
 ===========
 
+## Current authoritative DomainAliases mutation status (2026-08-13)
+
+Code/test commit `baa50bd4a` closes the generation-bound authorization lease
+gap for legacy domain-alias mutations. The legacy anchors are
+`InterfaceDomain::get_DomainAliases`,
+`InterfaceDomainAliases::{Add,Delete,DeleteByDBID,get_Item,get_ItemByDBID}`,
+`InterfaceDomainAlias::{AliasName,Save,Delete}`, and
+`PersistentDomainAlias::{SaveObject,DeleteObject}` in
+`hmailserver/source/Server/COM/` and
+`hmailserver/source/Server/Common/Persistence/`. Net10 now propagates the
+existing authenticated lease from `Domain.DomainAliases` into
+`DomainAliases`/`DomainAlias`, holds it across insert/update/delete store
+callbacks, avoids nested child-delete leases and reentrant authority checks,
+and publishes snapshots only after successful persistence.
+
+Focused DomainAliases plus related SQL/protocol tests passed `28/28`; full
+Net10 Debug passed `2279`, skipped `56`, failed `0`. Null lease results fail
+closed with `E_ACCESSDENIED`; owner-domain SQL predicates, installed COM
+IIDs/DISPIDs/ProgIDs, direct activation boundaries, SMTP alias behavior, and
+schema were unchanged. The paired C++/.NET performance gate remains **RED**;
+the exact next slice is registry-isolated legacy execution, not a speedup
+claim.
+
+Next independent slices: registry-isolated C++ paired benchmark; isolated
+restore/rollback acceptance; then the next legacy-anchored Admin/protocol
+mutation gap.
+
 ## Current authoritative performance gate (2026-08-13)
 
 The matched disposable fixture is now reproducible and validated: SQL row

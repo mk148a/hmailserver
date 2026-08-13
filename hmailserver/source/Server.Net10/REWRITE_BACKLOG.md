@@ -1,5 +1,30 @@
 
-## Current next slice (2026-08-13, registry-isolated C++ performance gate; supersedes older entries)
+## Current next slice (2026-08-13, registry-isolated C++ performance gate; DomainAliases lease superseded)
+
+Completed code/test commit `baa50bd4a`: the generation-bound authorization
+lease now covers legacy domain-alias collection deletion and child
+insert/update/delete. Legacy references are
+`InterfaceDomain::get_DomainAliases`,
+`InterfaceDomainAliases::{Add,Delete,DeleteByDBID,get_Item,get_ItemByDBID}`,
+`InterfaceDomainAlias::{Save,Delete}`, and
+`PersistentDomainAlias::{SaveObject,DeleteObject}`. Net10 propagates the
+lease from `Domain.DomainAliases` through `DomainAliases` and `DomainAlias`,
+avoids nested child-delete acquisition and callback reentrancy, fails closed
+with `E_ACCESSDENIED` when the lease is unavailable, and updates snapshots
+only after successful SQL mutation.
+
+Focused DomainAliases plus related SQL/protocol coverage is `28 passed, 0
+failed`; full Net10 Debug is `2279 passed, 56 skipped, 0 failed`. Security
+review is GREEN. COM identity, direct activation, owner scope, SQL schema,
+SMTP alias behavior, and broader collections remain unchanged.
+
+The next independent slice is still the registry-isolated C++ performance
+matrix. The disposable pair and Net10 workloads are proven, but C++ launch is
+refused because Registry32 points to `C:\hMailServer57-Test\Bin` and legacy
+startup may write the installed AppID. Release remains **RED** until the same
+fixture/workloads run on a separate staging VM or registry-isolated install.
+
+## Historical next slice (2026-08-13, matched performance fixture; superseded)
 
 The matched disposable fixture is now proven: SQL row counts match across 37
 tables, both sides have the same 1,000-message SHA-256 Data corpus, Full-Text

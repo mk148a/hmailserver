@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, DomainAliases mutation lease)
+
+Code/test commit `baa50bd4a` extends the generation-bound authorization lease
+to legacy `DomainAliases` mutations. Legacy anchors:
+`InterfaceDomain::get_DomainAliases`,
+`InterfaceDomainAliases::{Add,Delete,DeleteByDBID,get_Item,get_ItemByDBID}`,
+`InterfaceDomainAlias::{AliasName,Save,Delete}`, and
+`PersistentDomainAlias::{SaveObject,DeleteObject}`. Net10 propagates the
+lease through `Domain.DomainAliases`, holds it across new/existing child
+Save/Delete and collection deletion store calls, avoids nested child-delete
+acquisition and callback authority reentrancy, and preserves owner-scoped
+snapshots and `E_ACCESSDENIED`.
+
+Focused DomainAliases plus related SQL/protocol coverage: `28 passed, 0
+failed`. Full Net10 Debug: `2279 passed, 56 skipped, 0 failed`. Security review:
+GREEN. Installed COM identity/direct activation, SMTP alias resolution, SQL
+schema/parameterization, and broader collections were unchanged.
+
+Paired C++/.NET performance remains **RED**: the disposable fixture and Net10
+matrix are valid, but legacy startup is blocked on this host by installed
+Registry32 identity. Next: run the same matrix in a registry-isolated C++ VM;
+then isolated restore/rollback; then the next legacy-anchored Admin/protocol
+gap. Do not claim a performance ratio.
+
 ## Current Authoritative Continuation (2026-08-13, matched performance fixture)
 
 The disposable C++/.NET 10 start state is now equivalent: 37 SQL tables and
