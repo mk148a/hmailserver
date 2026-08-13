@@ -1,8 +1,8 @@
 # Current State
 - UTC/local timestamp: 2026-08-13T17:52:37Z / 2026-08-13T20:52:37+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; code commit `53f13f5dd` and docs commit pending push
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
 - Current HEAD: `53f13f5dd` (indirect FetchAccount authorization lease)
-- Last successfully pushed commit: `1611abbf2`
+- Last successfully pushed commit: `f503fc6a6`
 - Latest focused-test result: indirect FetchAccount contract set `81 passed, 0 failed` (31 + 11 + 13 + 26)
 - Latest full Net10 result: `2258 passed, 55 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL SecurityRanges integration remains skipped because the approved current-user `MSSQLLocalDB` connection and isolated-create approval are unset; paired C++ benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, live DNS/socket/TLS, and 24-hour soak remain skipped or environment-blocked
