@@ -4401,3 +4401,22 @@ and paired C++/.NET performance remain open. Release remains **RED**.
 Next independent slices, in order: global-relayer partial DNS fallback;
 listener ownership boundary for self-connect parity; approved disposable
 DNS/socket/TLS acceptance; then registry-isolated C++ execution.
+## Current next slice (2026-08-13, TCP/IP port certificate save parity)
+
+Code/test commit `e0abbba3d` implements the bounded authenticated
+`TCPIPPort.Save()` validation documented by legacy
+`PersistentTCPIPPort::SaveObject` and `InterfaceTCPIPPort::Save`
+(`source/Server/Common/Persistence/PersistentTCPIPPort.cpp` and
+`source/Server/COM/InterfaceTCPIPPort.cpp`). For TLS, optional STARTTLS, and
+required STARTTLS, a zero `SSLCertificateID` now fails with the legacy COM
+interface error before SQL mutation. New-item drafts remain unsaved and
+existing collection snapshots remain unchanged on failure. Focused coverage
+is `21/21`; full Net10 is `2217 passed, 54 skipped, 0 failed`.
+
+This slice does not implement multiple SQL `hm_tcpipports` listener rows,
+live listener reconfiguration, certificate lookup, or service lifecycle
+changes. Next independent work is the approved disposable SQL/DNS/socket/TLS
+acceptance, then registry-isolated C++ paired benchmark execution. The paired
+performance gate, restore/rollback, migration/installer, out-of-process COM,
+SEC-18, AD/DC, DKIM/DMARC/SPF/greylisting, and long-soak gates remain RED or
+environment-blocked.

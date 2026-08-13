@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current authoritative TCP/IP port save status (2026-08-13)
+
+Code/test commit `e0abbba3d` closes the bounded legacy certificate-validation
+gap for authenticated `Settings.TCPIPPorts` item saves. Legacy
+`PersistentTCPIPPort::SaveObject` (`hmailserver/source/Server/Common/Persistence/
+PersistentTCPIPPort.cpp`) rejects normal saves with `CSSSL`,
+`CSSTARTTLSOptional`, or `CSSTARTTLSRequired` when `SSLCertificateID == 0`,
+and `InterfaceTCPIPPort::Save` returns the COM interface error. Net10 now
+performs the same save-time check for new and existing items before invoking
+the administration store, preserving staged values and the owning snapshot on
+failure. COM identity, direct activation boundaries, and runtime listener
+configuration are unchanged.
+
+Focused TCPIPPorts coverage is `21/21`; related SQL-store coverage is `5
+passed, 1 opt-in skipped`; full Net10 is `2217 passed, 54 skipped, 0 failed`.
+The paired C++/.NET 10 performance gate remains **RED**: identical disposable
+SQL/Data/message start state exists, but the C++ Registry32 preflight still
+refuses safe launch, so no speed-up ratio or winner is claimed.
+
 ## Current authoritative listener-ownership status (2026-08-13)
 
 Code/test commit `fb09dba17` scopes the production DI instance of

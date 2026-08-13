@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, TCP/IP PORT CERTIFICATE SAVE)
+
+Code/test commit `e0abbba3d` implements the smallest remaining authenticated
+`TCPIPPort.Save()` parity slice. Legacy
+`PersistentTCPIPPort::SaveObject` (`hmailserver/source/Server/Common/
+Persistence/PersistentTCPIPPort.cpp`) rejects normal saves when connection
+security is SSL, optional STARTTLS, or required STARTTLS and the certificate ID
+is zero; `InterfaceTCPIPPort::Save` returns the legacy interface error. Net10
+now applies that check for new and existing items before store mutation,
+retaining the draft/owning snapshot on failure. Focused TCPIPPorts tests pass
+`21/21`; related SQL tests pass `5` with `1` explicit opt-in skip; full Net10
+passes `2217`, skips `54`, and has `0` failures.
+
+The current docs commit records this slice separately. Do not broaden it into
+runtime listener creation or live reconfiguration. The paired C++/.NET 10
+performance gate remains **RED** because the disposable C++ target is still
+blocked by the read-only Registry32 preflight; no ratio or winner is valid.
+Next slices: disposable SQL/DNS/socket/TLS delivery evidence, registry-isolated
+C++ paired execution, and isolated Windows service/out-of-process COM lifecycle.
+
 ## Current Authoritative Continuation (2026-08-12, NORMAL-MX ADDRESSES)
 
 Code/test commit `1ffc564cb` implements normal-MX address candidate parity.
