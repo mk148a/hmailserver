@@ -74,6 +74,7 @@ public sealed class Groups : IInterfaceGroups
     private readonly Func<GroupAdministrationSnapshot, bool>? _update;
     private readonly Action<int>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public Groups()
     {
@@ -85,7 +86,8 @@ public sealed class Groups : IInterfaceGroups
         Func<GroupAdministrationSnapshot, int>? insert,
         Func<bool>? isServerAdministrator,
         Func<GroupAdministrationSnapshot, bool>? update,
-        Action<int>? delete)
+        Action<int>? delete,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _groups = groups.ToArray();
         _reload = reload;
@@ -93,6 +95,7 @@ public sealed class Groups : IInterfaceGroups
         _isServerAdministrator = isServerAdministrator;
         _update = update;
         _delete = delete;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetGroups().Count;
@@ -103,10 +106,11 @@ public sealed class Groups : IInterfaceGroups
         Func<GroupAdministrationSnapshot, int>? insert = null,
         Func<bool>? isServerAdministrator = null,
         Func<GroupAdministrationSnapshot, bool>? update = null,
-        Action<int>? delete = null)
+        Action<int>? delete = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(groups);
-        return new Groups(groups, reload, insert, isServerAdministrator, update, delete);
+        return new Groups(groups, reload, insert, isServerAdministrator, update, delete, authorizationLeaseFactory);
     }
 
     public IInterfaceGroup this[int index]
@@ -123,7 +127,8 @@ public sealed class Groups : IInterfaceGroups
                 groups[index],
                 saveExisting: _update is null ? null : SaveExistingGroup,
                 delete: _delete is null ? null : DeleteExistingGroup,
-                isServerAdministrator: _isServerAdministrator);
+                isServerAdministrator: _isServerAdministrator,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
         }
     }
 
@@ -137,7 +142,8 @@ public sealed class Groups : IInterfaceGroups
                 match,
                 saveExisting: _update is null ? null : SaveExistingGroup,
                 delete: _delete is null ? null : DeleteExistingGroup,
-                isServerAdministrator: _isServerAdministrator);
+                isServerAdministrator: _isServerAdministrator,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public IInterfaceGroup get_ItemByName(string name)
@@ -151,7 +157,8 @@ public sealed class Groups : IInterfaceGroups
                 match,
                 saveExisting: _update is null ? null : SaveExistingGroup,
                 delete: _delete is null ? null : DeleteExistingGroup,
-                isServerAdministrator: _isServerAdministrator);
+                isServerAdministrator: _isServerAdministrator,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public void DeleteByDBID(int databaseId)
@@ -174,7 +181,8 @@ public sealed class Groups : IInterfaceGroups
             new GroupAdministrationSnapshot(Id: 0, Name: string.Empty),
             insert: _insert,
             publish: Publish,
-            isServerAdministrator: _isServerAdministrator);
+            isServerAdministrator: _isServerAdministrator,
+            authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public void Refresh()
@@ -316,6 +324,7 @@ public sealed class Group : IInterfaceGroup
     private readonly Func<GroupAdministrationSnapshot, GroupAdministrationSnapshot>? _saveExisting;
     private readonly Action<int>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public Group()
     {
@@ -327,7 +336,8 @@ public sealed class Group : IInterfaceGroup
         Action<GroupAdministrationSnapshot>? publish,
         Func<bool>? isServerAdministrator,
         Func<GroupAdministrationSnapshot, GroupAdministrationSnapshot>? saveExisting,
-        Action<int>? delete)
+        Action<int>? delete,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _group = group;
         _insert = insert;
@@ -335,6 +345,7 @@ public sealed class Group : IInterfaceGroup
         _isServerAdministrator = isServerAdministrator;
         _saveExisting = saveExisting;
         _delete = delete;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int ID => Snapshot.Id;
@@ -359,7 +370,10 @@ public sealed class Group : IInterfaceGroup
     public IInterfaceGroupMembers Members =>
         Snapshot.Id == 0
             ? Unavailable<IInterfaceGroupMembers>()
-            : GroupMemberAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _isServerAdministrator);
+            : GroupMemberAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                Snapshot.Id,
+                _isServerAdministrator,
+                _authorizationLeaseFactory);
 
     internal static Group CreateAuthorized(
         GroupAdministrationSnapshot group,
@@ -367,8 +381,9 @@ public sealed class Group : IInterfaceGroup
         Action<GroupAdministrationSnapshot>? publish = null,
         Func<bool>? isServerAdministrator = null,
         Func<GroupAdministrationSnapshot, GroupAdministrationSnapshot>? saveExisting = null,
-        Action<int>? delete = null) =>
-        new(group, insert, publish, isServerAdministrator, saveExisting, delete);
+        Action<int>? delete = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        new(group, insert, publish, isServerAdministrator, saveExisting, delete, authorizationLeaseFactory);
 
     public void Save()
     {
@@ -471,7 +486,9 @@ public static class GroupAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static Groups CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
+    internal static Groups CreateAuthorizedAdapter(
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -515,12 +532,14 @@ public static class GroupAdministrationRuntimeHost
             InsertGroup,
             isServerAdministrator,
             UpdateGroup,
-            DeleteGroup);
+            DeleteGroup,
+            authorizationLeaseFactory);
     }
 
     internal static Group CreateAuthorizedGroupByIdAdapter(
         int groupId,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -536,6 +555,9 @@ public static class GroupAdministrationRuntimeHost
 
         return group is null
             ? throw new COMException("No group with the specified database identifier exists.", DispEBadIndex)
-            : Group.CreateAuthorized(group, isServerAdministrator: isServerAdministrator);
+            : Group.CreateAuthorized(
+                group,
+                isServerAdministrator: isServerAdministrator,
+                authorizationLeaseFactory: authorizationLeaseFactory);
     }
 }

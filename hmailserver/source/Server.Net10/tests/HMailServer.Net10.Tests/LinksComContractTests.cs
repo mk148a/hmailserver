@@ -100,6 +100,54 @@ public sealed class LinksComContractTests
     }
 
     [TestMethod]
+    public void ApplicationLinksAccount_PropagatesAuthorizationLeaseToFetchMutation()
+    {
+        var fetchStore = new LinkFetchStore(
+            new[]
+            {
+                new FetchAccountAdministrationSnapshot(
+                    Id: 10,
+                    AccountId: 20,
+                    Name: "External POP3",
+                    ServerAddress: "pop.example.test",
+                    Port: 110,
+                    ServerType: 0,
+                    Username: "user",
+                    MinutesBetweenFetch: 5,
+                    DaysToKeepMessages: 0,
+                    Enabled: true,
+                    ProcessMimeRecipients: false,
+                    ProcessMimeDate: false,
+                    ConnectionSecurity: 0,
+                    UseAntiSpam: false,
+                    UseAntiVirus: false,
+                    EnableRouteRecipients: false,
+                    MimeRecipientHeaders: string.Empty,
+                    NextDownloadTime: string.Empty,
+                    IsLocked: false)
+            });
+        var wakeSignal = new LinkWakeSignal();
+        FetchAccountAdministrationRuntimeHost.Configure(fetchStore, wakeSignal);
+        LinksAdministrationRuntimeHost.Configure(
+            new RecordingDomainStore(new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) }),
+            new RecordingAccountStore(
+                new AccountAdministrationSnapshot(20, 10, "user@alpha.example", true, AdminLevel: 0)),
+            new RecordingAliasStore(),
+            new RecordingDistributionListStore());
+
+        var disposed = 0;
+        var links = LinksAdministrationRuntimeHost.CreateAuthorizedAdapter(
+            () => true,
+            _ => ValueTask.FromResult<IDisposable?>(new Lease(() => disposed++)));
+
+        links.get_Account(20).FetchAccounts[0].DownloadNow();
+
+        Assert.AreEqual(1, disposed);
+        Assert.AreEqual(1, wakeSignal.SignalCount);
+        Assert.AreEqual(10, fetchStore.RetryFetchAccountId);
+    }
+
+    [TestMethod]
     public void AuthorizedAdapter_ReturnsLegacyBadIndexForUnknownDatabaseIdentifiers()
     {
         var domains = new RecordingDomainStore(
@@ -217,10 +265,16 @@ public sealed class LinksComContractTests
 
         Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
 
-        Assert.AreEqual(10, links.get_Domain(10).ID);
-        Assert.AreEqual(20, links.get_Account(20).ID);
-        Assert.AreEqual(30, links.get_Alias(30).ID);
-        Assert.AreEqual(40, links.get_DistributionList(40).ID);
+        AssertLegacyComError(() => _ = links.get_Domain(10));
+        AssertLegacyComError(() => _ = links.get_Account(20));
+        AssertLegacyComError(() => _ = links.get_Alias(30));
+        AssertLegacyComError(() => _ = links.get_DistributionList(40));
+
+        var newLinks = application.Links;
+        Assert.AreEqual(10, newLinks.get_Domain(10).ID);
+        Assert.AreEqual(20, newLinks.get_Account(20).ID);
+        Assert.AreEqual(30, newLinks.get_Alias(30).ID);
+        Assert.AreEqual(40, newLinks.get_DistributionList(40).ID);
     }
 
     [TestMethod]
@@ -294,11 +348,18 @@ public sealed class LinksComContractTests
 
         Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
 
-        Assert.AreEqual("alpha.example", domain.Name);
-        Assert.AreEqual("user@alpha.example", account.Address);
-        Assert.AreEqual(ComAdminLevel.Normal, account.AdminLevel);
-        Assert.AreEqual("sales@alpha.example", alias.Name);
-        Assert.AreEqual("team@alpha.example", list.Address);
+        AssertAccessDenied(() => _ = domain.Name);
+        AssertAccessDenied(() => _ = account.Address);
+        AssertAccessDenied(() => _ = account.AdminLevel);
+        AssertAccessDenied(() => _ = alias.Name);
+        AssertAccessDenied(() => _ = list.Address);
+
+        var newLinks = application.Links;
+        Assert.AreEqual("alpha.example", newLinks.get_Domain(10).Name);
+        Assert.AreEqual("user@alpha.example", newLinks.get_Account(20).Address);
+        Assert.AreEqual(ComAdminLevel.Normal, newLinks.get_Account(20).AdminLevel);
+        Assert.AreEqual("sales@alpha.example", newLinks.get_Alias(30).Name);
+        Assert.AreEqual("team@alpha.example", newLinks.get_DistributionList(40).Address);
     }
 
     [TestMethod]
@@ -438,5 +499,59 @@ public sealed class LinksComContractTests
             return ValueTask.FromResult<IReadOnlyList<DistributionListAdministrationSnapshot>>(
                 lists.Where(list => list.DomainId == domainId).ToArray());
         }
+    }
+
+    private sealed class LinkFetchStore(IReadOnlyList<FetchAccountAdministrationSnapshot> accounts)
+        : IFetchAccountAdministrationStore
+    {
+        public int? RetryFetchAccountId { get; private set; }
+
+        public ValueTask<IReadOnlyList<FetchAccountAdministrationSnapshot>> GetFetchAccountsAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<FetchAccountAdministrationSnapshot>>(
+                accounts.Where(account => account.AccountId == accountId).ToArray());
+
+        public ValueTask SetRetryNowAsync(
+            int accountId,
+            int fetchAccountId,
+            CancellationToken cancellationToken)
+        {
+            RetryFetchAccountId = fetchAccountId;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<int> InsertFetchAccountAsync(
+            FetchAccountAdministrationDraft account,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<int>(new NotSupportedException());
+
+        public ValueTask<bool> UpdateFetchAccountAsync(
+            int fetchAccountId,
+            FetchAccountAdministrationDraft account,
+            string? password,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<bool>(new NotSupportedException());
+
+        public ValueTask DeleteFetchAccountAsync(
+            int accountId,
+            int fetchAccountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException(new NotSupportedException());
+    }
+
+    private sealed class LinkWakeSignal : IExternalFetchWakeSignal
+    {
+        public int SignalCount { get; private set; }
+
+        public void Signal() => SignalCount++;
+
+        public ValueTask<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(false);
+    }
+
+    private sealed class Lease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 }

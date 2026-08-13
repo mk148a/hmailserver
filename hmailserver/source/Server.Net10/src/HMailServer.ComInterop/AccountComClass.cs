@@ -229,7 +229,8 @@ public sealed class Account : IInterfaceAccount
                     foldersState,
                     account.Id,
                     -1,
-                    _isAuthenticated)
+                    _isAuthenticated,
+                    _authorizationLeaseFactory)
                 : NotImplemented<IInterfaceIMAPFolders>();
         }
     }

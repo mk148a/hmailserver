@@ -185,7 +185,10 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return LinksAdministrationRuntimeHost.CreateAuthorizedAdapter(() => IsServerAdministrator);
+            var generation = _authorizationAuthority.CurrentGeneration;
+            return LinksAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                () => _authorizationAuthority.IsCurrentAdministrator(generation),
+                cancellationToken => _authorizationAuthority.AcquireLeaseAsync(generation, cancellationToken));
         }
     }
 

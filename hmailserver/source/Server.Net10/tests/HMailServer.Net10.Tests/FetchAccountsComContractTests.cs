@@ -594,6 +594,73 @@ public sealed class FetchAccountsComContractTests
     }
 
     [TestMethod]
+    public void GroupMemberAndImapPermissionAccounts_PropagateAuthorizationLeaseToFetchMutations()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        var wakeSignal = new RecordingExternalFetchWakeSignal();
+        FetchAccountAdministrationRuntimeHost.Configure(store, wakeSignal);
+        AccountAdministrationRuntimeHost.Configure(
+            new FixedAccountAdministrationStore(
+                new[] { new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2) }));
+
+        var leaseCount = 0;
+        Func<CancellationToken, ValueTask<IDisposable?>> leaseFactory = _ =>
+            ValueTask.FromResult<IDisposable?>(new TrackingLease(() => leaseCount++));
+
+        var member = GroupMember.CreateAuthorized(
+            new GroupMemberAdministrationSnapshot(1, 20, 100),
+            isServerAdministrator: () => true,
+            authorizationLeaseFactory: leaseFactory);
+        member.Account.FetchAccounts[0].DownloadNow();
+
+        var permission = IMAPFolderPermission.CreateAuthorized(
+            new ImapFolderPermissionAdministrationSnapshot(2, 50, 1, 0, 100, 1),
+            50,
+            delete: null,
+            isAuthenticated: () => true,
+            authorizationLeaseFactory: leaseFactory);
+        permission.Account.FetchAccounts[0].DownloadNow();
+
+        Assert.AreEqual(2, leaseCount);
+        Assert.AreEqual(2, wakeSignal.SignalCount);
+        Assert.AreEqual(100, store.RetryAccountId);
+    }
+
+    [TestMethod]
+    public void IndirectAccountAdapters_DenyFetchMutationWhenAuthorizationLeaseIsNull()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        AccountAdministrationRuntimeHost.Configure(
+            new FixedAccountAdministrationStore(
+                new[] { new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2) }));
+        Func<CancellationToken, ValueTask<IDisposable?>> deniedLease = _ =>
+            ValueTask.FromResult<IDisposable?>(null);
+
+        var member = GroupMember.CreateAuthorized(
+            new GroupMemberAdministrationSnapshot(1, 20, 100),
+            isServerAdministrator: () => true,
+            authorizationLeaseFactory: deniedLease);
+        var memberFailure = Assert.ThrowsExactly<COMException>(
+            () => member.Account.FetchAccounts[0].DownloadNow());
+
+        var permission = IMAPFolderPermission.CreateAuthorized(
+            new ImapFolderPermissionAdministrationSnapshot(2, 50, 1, 0, 100, 1),
+            50,
+            delete: null,
+            isAuthenticated: () => true,
+            authorizationLeaseFactory: deniedLease);
+        var permissionFailure = Assert.ThrowsExactly<COMException>(
+            () => permission.Account.FetchAccounts[0].DownloadNow());
+
+        Assert.AreEqual(EAccessDenied, memberFailure.ErrorCode);
+        Assert.AreEqual(EAccessDenied, permissionFailure.ErrorCode);
+        Assert.IsNull(store.RetryAccountId);
+    }
+
+    [TestMethod]
     public void AuthorizedDelete_RemovesOnlySelectedItemAndPropagatesOwningAccountId()
     {
         var store = new MutableFetchAccountAdministrationStore(
@@ -931,6 +998,22 @@ public sealed class FetchAccountsComContractTests
     private sealed class TrackingLease(Action onDispose) : IDisposable
     {
         public void Dispose() => onDispose();
+    }
+
+    private sealed class FixedAccountAdministrationStore(
+        IReadOnlyList<AccountAdministrationSnapshot> accounts)
+        : IAccountAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>(
+                accounts.Where(account => account.DomainId == domainId).ToArray());
+
+        public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(accounts.FirstOrDefault(account => account.Id == accountId));
     }
 
     private sealed class RecordingExternalFetchWakeSignal : IExternalFetchWakeSignal

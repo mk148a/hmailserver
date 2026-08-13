@@ -44,6 +44,7 @@ public sealed class Links : IInterfaceLinks
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly Func<int, IInterfaceAccount>? _accountFactory;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public Links()
     {
@@ -55,7 +56,8 @@ public sealed class Links : IInterfaceLinks
         IAliasAdministrationStore aliasStore,
         IDistributionListAdministrationStore distributionListStore,
         Func<int, IInterfaceAccount>? accountFactory,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _domainStore = domainStore;
         _accountStore = accountStore;
@@ -63,6 +65,7 @@ public sealed class Links : IInterfaceLinks
         _distributionListStore = distributionListStore;
         _accountFactory = accountFactory;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     internal static Links CreateAuthorized(
@@ -71,7 +74,8 @@ public sealed class Links : IInterfaceLinks
         IAliasAdministrationStore aliasStore,
         IDistributionListAdministrationStore distributionListStore,
         Func<int, IInterfaceAccount>? accountFactory = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(domainStore);
         ArgumentNullException.ThrowIfNull(accountStore);
@@ -84,7 +88,8 @@ public sealed class Links : IInterfaceLinks
             aliasStore,
             distributionListStore,
             accountFactory,
-            isServerAdministrator);
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 
     public IInterfaceDomain get_Domain(int databaseId)
@@ -110,7 +115,8 @@ public sealed class Links : IInterfaceLinks
                     ?? Account.CreateAuthorized(
                         account,
                         _isServerAdministrator,
-                        AccountAdministrationRuntimeHost.UnlockMailboxCallback);
+                        AccountAdministrationRuntimeHost.UnlockMailboxCallback,
+                        authorizationLeaseFactory: _authorizationLeaseFactory);
             }
         }
 
@@ -226,7 +232,9 @@ public static class LinksAdministrationRuntimeHost
             new Stores(domainStore, accountStore, aliasStore, distributionListStore));
     }
 
-    internal static Links CreateAuthorizedAdapter(Func<bool> isServerAdministrator)
+    internal static Links CreateAuthorizedAdapter(
+        Func<bool> isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(isServerAdministrator);
 
@@ -243,8 +251,10 @@ public static class LinksAdministrationRuntimeHost
             accountFactory: accountId => AccountAdministrationRuntimeHost.CreateAuthorizedAccountAdapter(
                 stores.AccountStore,
                 accountId,
-                isServerAdministrator),
-            isServerAdministrator: isServerAdministrator);
+                isServerAdministrator,
+                authorizationLeaseFactory),
+            isServerAdministrator: isServerAdministrator,
+            authorizationLeaseFactory: authorizationLeaseFactory);
     }
 
     private sealed record Stores(

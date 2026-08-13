@@ -2257,7 +2257,8 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
             EnsureAuthorized();
             return ImapFolderAdministrationRuntimeHost.CreateAuthorizedAdapter(
                 accountId: 0,
-                isAuthenticated: _isServerAdministrator);
+                isAuthenticated: _isServerAdministrator,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
         }
     }
 
@@ -2338,7 +2339,9 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         {
             EnsureAuthorized();
             EnsureServerAdministrator();
-            return GroupAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
+            return GroupAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                _isServerAdministrator,
+                _authorizationLeaseFactory);
         }
     }
 

@@ -513,20 +513,22 @@ public static class AccountAdministrationRuntimeHost
 
     internal static Account CreateAuthorizedAccountByIdAdapter(
         int accountId,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
                 "The hMailServer account administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        return CreateAuthorizedAccountAdapter(store, accountId, isAuthenticated);
+        return CreateAuthorizedAccountAdapter(store, accountId, isAuthenticated, authorizationLeaseFactory);
     }
 
     internal static Account CreateAuthorizedAccountAdapter(
         IAccountAdministrationStore store,
         int accountId,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(store);
 
@@ -557,6 +559,7 @@ public static class AccountAdministrationRuntimeHost
             _unlockMailbox,
             null,
             null,
-            PasswordVerifierCallback);
+            PasswordVerifierCallback,
+            authorizationLeaseFactory);
     }
 }
