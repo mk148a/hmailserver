@@ -60,6 +60,7 @@ public sealed class Accounts : IInterfaceAccounts
     private readonly Func<bool>? _isAuthenticated;
     private readonly Action<int>? _unlockMailbox;
     private readonly Func<int, string, bool>? _passwordVerifier;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private readonly object _accountSizeRegistrationOwner = new();
 
     public Accounts()
@@ -77,7 +78,8 @@ public sealed class Accounts : IInterfaceAccounts
         AccountSizeInvalidator? accountSizeInvalidator,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback,
         Action<int>? unlockMailbox,
-        Func<int, string, bool>? passwordVerifier)
+        Func<int, string, bool>? passwordVerifier,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _accounts = CreateEntries(accounts);
         _domainId = domainId;
@@ -90,6 +92,7 @@ public sealed class Accounts : IInterfaceAccounts
         _isAuthenticated = isAuthenticated;
         _unlockMailbox = unlockMailbox;
         _passwordVerifier = passwordVerifier;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
         foreach (var account in accounts)
         {
             _accountSizeInvalidator?.Register(_accountSizeRegistrationOwner, account.Id);
@@ -109,7 +112,8 @@ public sealed class Accounts : IInterfaceAccounts
         AccountSizeInvalidator? accountSizeInvalidator = null,
         Func<int, AccountAdministrationSnapshot?>? accountSizeReadback = null,
         Action<int>? unlockMailbox = null,
-        Func<int, string, bool>? passwordVerifier = null)
+        Func<int, string, bool>? passwordVerifier = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
         return new Accounts(
@@ -123,7 +127,8 @@ public sealed class Accounts : IInterfaceAccounts
             accountSizeInvalidator,
             accountSizeReadback,
             unlockMailbox,
-            passwordVerifier);
+            passwordVerifier,
+            authorizationLeaseFactory);
     }
 
     public IInterfaceAccount this[int index]
@@ -147,7 +152,8 @@ public sealed class Accounts : IInterfaceAccounts
                 _delete is null ? null : DeleteAccount,
                 _update is null ? null : UpdateAccount,
                 _unlockMailbox,
-                _passwordVerifier);
+                _passwordVerifier,
+                _authorizationLeaseFactory);
         }
     }
 
@@ -269,7 +275,8 @@ public sealed class Accounts : IInterfaceAccounts
                 _delete is null ? null : DeleteAccount,
                 _update is null ? null : UpdateAccount,
                 _unlockMailbox,
-                _passwordVerifier);
+                _passwordVerifier,
+                _authorizationLeaseFactory);
     }
 
     public IInterfaceAccount get_ItemByAddress(string address)
@@ -290,7 +297,8 @@ public sealed class Accounts : IInterfaceAccounts
                 _delete is null ? null : DeleteAccount,
                 _update is null ? null : UpdateAccount,
                 _unlockMailbox,
-                _passwordVerifier);
+                _passwordVerifier,
+                _authorizationLeaseFactory);
     }
 
         public void DeleteByDBID(int databaseId)
@@ -448,7 +456,10 @@ public static class AccountAdministrationRuntimeHost
     internal static Func<int, string, bool>? PasswordVerifierCallback =>
         Volatile.Read(ref _passwordVerifier);
 
-    internal static Accounts CreateAuthorizedAdapter(int domainId, Func<bool>? isAuthenticated = null)
+    internal static Accounts CreateAuthorizedAdapter(
+        int domainId,
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -496,7 +507,8 @@ public static class AccountAdministrationRuntimeHost
             _accountSizeInvalidator,
             ReadAccount,
             _unlockMailbox,
-            PasswordVerifierCallback);
+            PasswordVerifierCallback,
+            authorizationLeaseFactory);
     }
 
     internal static Account CreateAuthorizedAccountByIdAdapter(

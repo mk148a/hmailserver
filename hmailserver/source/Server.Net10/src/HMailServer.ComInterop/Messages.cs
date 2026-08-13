@@ -1024,6 +1024,8 @@ internal sealed class AccountMessageAdministrationState(int accountId)
             return messages;
         }
     }
+
+    internal void Clear() => Volatile.Write(ref _messages, Array.Empty<MessageAdministrationSnapshot>());
 }
 
 [ComVisible(false)]

@@ -5,6 +5,12 @@ public interface IImapFolderAdministrationDeletionStore
     ValueTask<ImapFolderAdministrationDeletionResult> DeleteFolderAsync(
         ImapFolderAdministrationSnapshot folder,
         CancellationToken cancellationToken);
+
+    ValueTask<ImapFolderAdministrationDeletionResult> DeleteAllForAccountAsync(
+        int accountId,
+        int domainId,
+        string accountAddress,
+        CancellationToken cancellationToken);
 }
 
 public interface IImapFolderMessageFileDeletionRuntime

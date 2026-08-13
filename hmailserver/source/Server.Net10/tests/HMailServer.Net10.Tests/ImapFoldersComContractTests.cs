@@ -855,6 +855,14 @@ public sealed class ImapFoldersComContractTests
             return ValueTask.FromResult(
                 new ImapFolderAdministrationDeletionResult(ReturnDeleteSuccess, DeletedMessages));
         }
+
+        public ValueTask<ImapFolderAdministrationDeletionResult> DeleteAllForAccountAsync(
+            int accountId,
+            int domainId,
+            string accountAddress,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(
+                new ImapFolderAdministrationDeletionResult(ReturnDeleteSuccess, DeletedMessages));
     }
 
     private sealed class RecordingMessageFileDeletionRuntime : IImapFolderMessageFileDeletionRuntime

@@ -594,6 +594,18 @@ internal sealed class ImapFolderAdministrationState
                 .ToArray();
         }
     }
+
+    public void RemoveAllExceptInbox(int accountId)
+    {
+        lock (_sync)
+        {
+            _snapshot = GetFolders()
+                .Where(folder => folder.AccountId != accountId
+                    || (folder.ParentId == -1
+                        && string.Equals(folder.Name, "INBOX", StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+        }
+    }
 }
 
 [ComVisible(false)]
@@ -687,6 +699,45 @@ public static class ImapFolderAdministrationRuntimeHost
             catch
             {
                 // Legacy folder deletion keeps the database result authoritative when file cleanup fails.
+            }
+        }
+
+        return result;
+    }
+
+    internal static async ValueTask<ImapFolderAdministrationDeletionResult> DeleteAllForAccountAuthorized(
+        int accountId,
+        int domainId,
+        string accountAddress)
+    {
+        var store = Volatile.Read(ref _store)
+            ?? throw new COMException(
+                "The hMailServer IMAP folder administration runtime has not been initialized.",
+                CoENotInitialized);
+        if (store is not IImapFolderAdministrationDeletionStore deletionStore)
+        {
+            throw new COMException(
+                "Account message deletion is not available in the configured administration store.",
+                unchecked((int)0x80004001));
+        }
+
+        var result = await deletionStore
+            .DeleteAllForAccountAsync(accountId, domainId, accountAddress, CancellationToken.None)
+            .ConfigureAwait(false);
+        if (result.Succeeded)
+        {
+            try
+            {
+                _ = Volatile.Read(ref _messageFileDeletionRuntime)?.TryDeleteAll(result);
+            }
+            catch
+            {
+                // Legacy account message deletion keeps the database result authoritative when file cleanup fails.
+            }
+
+            if (_states.TryGetValue(accountId, out var state))
+            {
+                state.RemoveAllExceptInbox(accountId);
             }
         }
 

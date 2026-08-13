@@ -294,6 +294,125 @@ FROM @RemovedMessages
 ORDER BY messageid;
 """;
 
+    public const string DeleteAllForAccountSql = """
+SET XACT_ABORT ON;
+DECLARE @Folders TABLE
+(
+    folderid int NOT NULL PRIMARY KEY,
+    folderaccountid int NOT NULL,
+    folderparentid int NOT NULL,
+    foldername nvarchar(255) NOT NULL
+);
+
+DECLARE @RemovedMessages TABLE
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messagefilename nvarchar(255) NOT NULL,
+    messageaccountid int NOT NULL,
+    messagefolderid int NOT NULL,
+    accountaddress nvarchar(255) NULL,
+    messagetype tinyint NOT NULL
+);
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    INSERT INTO @Folders (folderid, folderaccountid, folderparentid, foldername)
+    SELECT folderid, folderaccountid, folderparentid, foldername
+    FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)
+    WHERE folderaccountid = @AccountID
+      AND @AccountID > 0;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM hm_accounts WITH (UPDLOCK, HOLDLOCK)
+        WHERE accountid = @AccountID
+          AND accountdomainid = @DomainID
+          AND accountaddress = @AccountAddress
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        SELECT CONVERT(bit, 0);
+        SELECT messagefilename, messageaccountid, messagefolderid, accountaddress, messagetype
+        FROM @RemovedMessages
+        WHERE 1 = 0;
+        RETURN;
+    END;
+
+    INSERT INTO @RemovedMessages
+        (messageid, messagefilename, messageaccountid, messagefolderid, accountaddress, messagetype)
+    SELECT messages.messageid,
+           messages.messagefilename,
+           messages.messageaccountid,
+           messages.messagefolderid,
+           accounts.accountaddress,
+           messages.messagetype
+    FROM hm_messages AS messages WITH (UPDLOCK, HOLDLOCK)
+    INNER JOIN @Folders AS folders
+        ON folders.folderid = messages.messagefolderid
+    LEFT JOIN hm_accounts AS accounts
+        ON accounts.accountid = messages.messageaccountid
+    WHERE messages.messageaccountid = @AccountID
+      AND @AccountID > 0;
+
+    DELETE recipients
+    FROM hm_messagerecipients AS recipients
+    INNER JOIN @RemovedMessages AS removed
+        ON removed.messageid = recipients.recipientmessageid
+    WHERE removed.messagetype <> 2;
+
+    DELETE queue
+    FROM hm_message_search_queue AS queue
+    INNER JOIN @RemovedMessages AS removed
+        ON removed.messageid = queue.messageid;
+
+    DELETE documents
+    FROM hm_message_search_documents AS documents
+    INNER JOIN @RemovedMessages AS removed
+        ON removed.messageid = documents.messageid;
+
+    DELETE metadata
+    FROM hm_message_metadata AS metadata
+    INNER JOIN @RemovedMessages AS removed
+        ON removed.messageid = metadata.metadata_messageid
+    WHERE removed.messagetype = 2;
+
+    DELETE permissions
+    FROM hm_acl AS permissions
+    INNER JOIN @Folders AS selected
+        ON selected.folderid = permissions.aclsharefolderid;
+
+    DELETE messages
+    FROM hm_messages AS messages
+    INNER JOIN @RemovedMessages AS removed
+        ON removed.messageid = messages.messageid;
+
+    DELETE folders
+    FROM hm_imapfolders AS folders
+    INNER JOIN @Folders AS selected
+        ON selected.folderid = folders.folderid
+    WHERE NOT
+    (
+        folders.folderparentid = -1
+        AND UPPER(folders.foldername) = N'INBOX'
+    );
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE() <> 0
+        ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
+
+SELECT CONVERT(bit, 1);
+
+SELECT messagefilename, messageaccountid, messagefolderid, accountaddress, messagetype
+FROM @RemovedMessages
+ORDER BY messageid;
+""";
+
     public const string DeleteRestoredFolderTreeSql = """
 SET XACT_ABORT ON;
 ;WITH FolderTree AS
@@ -658,6 +777,47 @@ WHERE NOT
         command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folder.Id;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = folder.AccountId;
         command.Parameters.Add("@ParentFolderID", SqlDbType.Int).Value = folder.ParentId;
+
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return new ImapFolderAdministrationDeletionResult(false, Array.Empty<ImapFolderAdministrationDeletedMessage>());
+        }
+
+        var succeeded = reader.GetBoolean(0);
+        if (!await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return new ImapFolderAdministrationDeletionResult(succeeded, Array.Empty<ImapFolderAdministrationDeletedMessage>());
+        }
+
+        var messages = new List<ImapFolderAdministrationDeletedMessage>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            messages.Add(
+                new ImapFolderAdministrationDeletedMessage(
+                    reader.GetString(0),
+                    reader.GetInt32(1),
+                    reader.GetInt32(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.GetByte(4)));
+        }
+
+        return new ImapFolderAdministrationDeletionResult(succeeded, messages);
+    }
+
+    public async ValueTask<ImapFolderAdministrationDeletionResult> DeleteAllForAccountAsync(
+        int accountId,
+        int domainId,
+        string accountAddress,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(DeleteAllForAccountSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
+        command.Parameters.Add("@AccountAddress", SqlDbType.NVarChar, 255).Value = accountAddress;
 
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,

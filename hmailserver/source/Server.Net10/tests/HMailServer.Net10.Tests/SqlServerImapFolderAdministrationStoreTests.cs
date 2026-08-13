@@ -193,6 +193,36 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
     }
 
     [TestMethod]
+    public void DeleteAllForAccountSql_CleansMessagesAndFoldersTransactionallyWithinAccountScope()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.DeleteAllForAccountSql;
+
+        StringAssert.Contains(sql, "SET XACT_ABORT ON");
+        StringAssert.Contains(sql, "BEGIN TRANSACTION");
+        StringAssert.Contains(sql, "COMMIT TRANSACTION");
+        StringAssert.Contains(sql, "ROLLBACK TRANSACTION");
+        StringAssert.Contains(sql, "FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)");
+        StringAssert.Contains(sql, "WHERE folderaccountid = @AccountID");
+        StringAssert.Contains(sql, "accountdomainid = @DomainID");
+        StringAssert.Contains(sql, "accountaddress = @AccountAddress");
+        StringAssert.Contains(sql, "WHERE messages.messageaccountid = @AccountID");
+        StringAssert.Contains(sql, "INNER JOIN @Folders AS folders");
+        StringAssert.Contains(sql, "hm_messagerecipients");
+        StringAssert.Contains(sql, "hm_message_search_queue");
+        StringAssert.Contains(sql, "hm_message_search_documents");
+        StringAssert.Contains(sql, "hm_message_metadata");
+        StringAssert.Contains(sql, "hm_acl");
+        StringAssert.Contains(sql, "messagefilename");
+        StringAssert.Contains(sql, "accountaddress");
+        StringAssert.Contains(sql, "folderparentid = -1");
+        StringAssert.Contains(sql, "UPPER(folders.foldername) = N'INBOX'");
+        Assert.IsFalse(sql.Contains("DELETE FROM hm_accounts", StringComparison.OrdinalIgnoreCase));
+        Assert.IsTrue(
+            sql.IndexOf("DELETE messages", StringComparison.OrdinalIgnoreCase)
+                < sql.IndexOf("DELETE folders", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void DeleteAllPublicFoldersForRestoreSql_IsTransactionScopedAndDeletesLegacyDependentsInOrder()
     {
         var sql = SqlServerImapFolderAdministrationStore.DeleteAllPublicFoldersForRestoreSql;

@@ -94,7 +94,10 @@ public sealed class Application : IInterfaceApplication
         get
         {
             EnsureServerAdministrator();
-            return DomainAdministrationRuntimeHost.CreateAuthorizedAdapter(() => IsServerAdministrator);
+            var generation = _authorizationAuthority.CurrentGeneration;
+            return DomainAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                () => _authorizationAuthority.IsCurrentAdministrator(generation),
+                cancellationToken => _authorizationAuthority.AcquireLeaseAsync(generation, cancellationToken));
         }
     }
 

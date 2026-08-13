@@ -312,6 +312,7 @@ public sealed class Domains : IInterfaceDomains
     private readonly Func<DomainAdministrationSnapshot, bool>? _update;
     private readonly Func<int, bool>? _delete;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public Domains()
     {
@@ -323,7 +324,8 @@ public sealed class Domains : IInterfaceDomains
         Func<DomainAdministrationSnapshot, int>? insert,
         Func<DomainAdministrationSnapshot, bool>? update,
         Func<int, bool>? delete,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _domains = domains.ToArray();
         _reload = reload;
@@ -331,6 +333,7 @@ public sealed class Domains : IInterfaceDomains
         _update = update;
         _delete = delete;
         _isAuthenticated = isAuthenticated;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetDomains().Count;
@@ -344,10 +347,11 @@ public sealed class Domains : IInterfaceDomains
         Func<DomainAdministrationSnapshot, int>? insert = null,
         Func<DomainAdministrationSnapshot, bool>? update = null,
         Func<int, bool>? delete = null,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(domains);
-        return new Domains(domains, reload, insert, update, delete, isAuthenticated);
+        return new Domains(domains, reload, insert, update, delete, isAuthenticated, authorizationLeaseFactory);
     }
 
     public IInterfaceDomain this[int index]
@@ -360,7 +364,7 @@ public sealed class Domains : IInterfaceDomains
                 throw new COMException("Domain index was outside the collection.", DispEBadIndex);
             }
 
-            return Domain.CreateAuthorized(domains[index], _isAuthenticated, _insert is null && _update is null ? null : SaveDomain, delete: _delete is null ? null : DeleteDomain);
+            return Domain.CreateAuthorized(domains[index], _isAuthenticated, _insert is null && _update is null ? null : SaveDomain, delete: _delete is null ? null : DeleteDomain, authorizationLeaseFactory: _authorizationLeaseFactory);
         }
     }
 
@@ -432,7 +436,8 @@ public sealed class Domains : IInterfaceDomains
                 DkimSignAliasesEnabled: false),
             save: SaveDomain,
             delete: _delete is null ? null : DeleteDomain,
-            isAuthenticated: _isAuthenticated);
+            isAuthenticated: _isAuthenticated,
+            authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public IInterfaceDomain get_ItemByName(string itemName)
@@ -442,7 +447,7 @@ public sealed class Domains : IInterfaceDomains
 
         return match is null
             ? throw new COMException("No domain with the specified name exists.", DispEBadIndex)
-            : Domain.CreateAuthorized(match, _isAuthenticated, _insert is null && _update is null ? null : SaveDomain, delete: _delete is null ? null : DeleteDomain);
+            : Domain.CreateAuthorized(match, _isAuthenticated, _insert is null && _update is null ? null : SaveDomain, delete: _delete is null ? null : DeleteDomain, authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public IInterfaceDomain get_ItemByDBID(int databaseId)
@@ -451,7 +456,7 @@ public sealed class Domains : IInterfaceDomains
 
         return match is null
             ? throw new COMException("No domain with the specified database identifier exists.", DispEBadIndex)
-            : Domain.CreateAuthorized(match, _isAuthenticated, _insert is null && _update is null ? null : SaveDomain, delete: _delete is null ? null : DeleteDomain);
+            : Domain.CreateAuthorized(match, _isAuthenticated, _insert is null && _update is null ? null : SaveDomain, delete: _delete is null ? null : DeleteDomain, authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
         public void DeleteByDBID(int databaseId)
@@ -608,6 +613,7 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     private DomainAdministrationSnapshot? _domain;
     private readonly bool _authorized;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private readonly Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? _save;
     private readonly Action<int>? _delete;
 
@@ -619,11 +625,13 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         DomainAdministrationSnapshot domain,
         Func<bool>? isAuthenticated,
         Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? save = null,
-        Action<int>? delete = null)
+        Action<int>? delete = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         _domain = domain;
         _authorized = true;
         _isAuthenticated = isAuthenticated;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
         _save = save;
         _delete = delete;
     }
@@ -809,7 +817,10 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
     }
 
     public override IInterfaceAccounts Accounts =>
-        AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _isAuthenticated);
+        AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(
+            Snapshot.Id,
+            _isAuthenticated,
+            _authorizationLeaseFactory);
 
     public override IInterfaceAliases Aliases =>
         AliasAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _isAuthenticated);
@@ -824,8 +835,9 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         DomainAdministrationSnapshot domain,
         Func<bool>? isAuthenticated = null,
         Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot>? save = null,
-        Action<int>? delete = null) =>
-        new(domain, isAuthenticated, save, delete);
+        Action<int>? delete = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        new(domain, isAuthenticated, save, delete, authorizationLeaseFactory);
 
     public override void Save()
     {
@@ -998,7 +1010,9 @@ public static class DomainAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static Domains CreateAuthorizedAdapter(Func<bool>? isAuthenticated = null)
+    internal static Domains CreateAuthorizedAdapter(
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -1035,6 +1049,7 @@ public static class DomainAdministrationRuntimeHost
             InsertDomain,
             UpdateDomain,
             DeleteDomain,
-            isAuthenticated);
+            isAuthenticated,
+            authorizationLeaseFactory);
     }
 }

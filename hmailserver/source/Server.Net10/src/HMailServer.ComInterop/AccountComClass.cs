@@ -57,6 +57,7 @@ public sealed class Account : IInterfaceAccount
     private readonly Func<AccountAdministrationSnapshot, string?, bool>? _update;
     private readonly Action<int>? _unlockMailbox;
     private readonly Func<int, string, bool>? _passwordVerifier;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private bool _passwordModified;
 
     public Account()
@@ -96,7 +97,8 @@ public sealed class Account : IInterfaceAccount
         Action<int>? delete = null,
         Func<AccountAdministrationSnapshot, string?, bool>? update = null,
         Action<int>? unlockMailbox = null,
-        Func<int, string, bool>? passwordVerifier = null)
+        Func<int, string, bool>? passwordVerifier = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         _update = update;
         _attached = true;
@@ -111,6 +113,7 @@ public sealed class Account : IInterfaceAccount
         _isAuthenticated = isAuthenticated;
         _unlockMailbox = unlockMailbox;
         _passwordVerifier = passwordVerifier;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public bool Active
@@ -275,7 +278,8 @@ public sealed class Account : IInterfaceAccount
         AccountAdministrationSnapshot account,
         Func<bool>? isAuthenticated = null,
         Action<int>? unlockMailbox = null,
-        Func<int, string, bool>? passwordVerifier = null) =>
+        Func<int, string, bool>? passwordVerifier = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
         new(
             account,
             RuleAdministrationRuntimeHost.CreateAuthorizedState(account.Id),
@@ -287,12 +291,14 @@ public sealed class Account : IInterfaceAccount
             null,
             null,
             unlockMailbox,
-            passwordVerifier);
+            passwordVerifier,
+            authorizationLeaseFactory);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
         RuleAdministrationState rulesState,
-        Func<int, string, bool>? passwordVerifier = null) =>
+        Func<int, string, bool>? passwordVerifier = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
         new(
             account,
             rulesState,
@@ -304,13 +310,15 @@ public sealed class Account : IInterfaceAccount
             null,
             null,
             null,
-            passwordVerifier);
+            passwordVerifier,
+            authorizationLeaseFactory);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
         RuleAdministrationState rulesState,
         AccountMessageAdministrationState messagesState,
-        Func<int, string, bool>? passwordVerifier = null) =>
+        Func<int, string, bool>? passwordVerifier = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
         new(
             account,
             rulesState,
@@ -322,7 +330,8 @@ public sealed class Account : IInterfaceAccount
             null,
             null,
             null,
-            passwordVerifier);
+            passwordVerifier,
+            authorizationLeaseFactory);
 
     internal static Account CreateAuthorized(
         AccountAdministrationSnapshot account,
@@ -335,7 +344,8 @@ public sealed class Account : IInterfaceAccount
         Action<int>? delete = null,
         Func<AccountAdministrationSnapshot, string?, bool>? update = null,
         Action<int>? unlockMailbox = null,
-        Func<int, string, bool>? passwordVerifier = null) =>
+        Func<int, string, bool>? passwordVerifier = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
         new(
             account,
             rulesState,
@@ -347,7 +357,8 @@ public sealed class Account : IInterfaceAccount
             delete,
             update,
             unlockMailbox,
-            passwordVerifier);
+            passwordVerifier,
+            authorizationLeaseFactory);
 
     internal static Account CreateAuthorizedDraft(
         string address,
@@ -452,7 +463,68 @@ public sealed class Account : IInterfaceAccount
             SignaturePlainText: _signaturePlainText,
             SignatureHtml: _signatureHtml);
 
-    public void DeleteMessages() => NotImplemented();
+    public void DeleteMessages()
+    {
+        EnsureAttached();
+        EnsureAuthenticated();
+        using var authorizationLease = AcquireAuthorizationLease();
+        if (_administrationSnapshot is not { } account)
+        {
+            return;
+        }
+
+        if (account.Id <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = ImapFolderAdministrationRuntimeHost
+                .DeleteAllForAccountAuthorized(account.Id, account.DomainId, account.Address)
+                .GetAwaiter()
+                .GetResult();
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    "The account message deletion did not complete successfully.");
+            }
+
+            AccountAdministrationRuntimeHost.InvalidateAccountSize(account.Id);
+            _messagesState?.Clear();
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the account messages from the database.",
+                EFail);
+        }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        var lease = _authorizationLeaseFactory(CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+        if (lease is null)
+        {
+            throw new COMException(
+                "The account authorization is no longer valid.",
+                EAccessDenied);
+        }
+
+        return lease;
+    }
 
     public bool ValidatePassword(string password)
     {

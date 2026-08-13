@@ -65,6 +65,7 @@ public sealed class AccountsComContractTests
         var validatePasswordError = Assert.ThrowsExactly<COMException>(
             () => new Account().ValidatePassword("candidate-password"));
         var unlockMailboxError = Assert.ThrowsExactly<COMException>(new Account().UnlockMailbox);
+        var deleteMessagesError = Assert.ThrowsExactly<COMException>(new Account().DeleteMessages);
 
         Assert.AreEqual(EAccessDenied, accountsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, refreshError.ErrorCode);
@@ -80,6 +81,155 @@ public sealed class AccountsComContractTests
         Assert.AreEqual(EAccessDenied, imapFoldersError.ErrorCode);
         Assert.AreEqual(EAccessDenied, validatePasswordError.ErrorCode);
         Assert.AreEqual(EAccessDenied, unlockMailboxError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deleteMessagesError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void DeleteMessages_DeletesAccountContentPreservesInboxAndInvalidatesSnapshots()
+    {
+        MessageAdministrationRuntimeHost.Configure(
+            new MutableMessageAdministrationStore(
+                [MessageSnapshot(1000, "inbox.eml"), MessageSnapshot(1001, "archive.eml")]));
+        var folderStore = new MutableImapFolderAdministrationStore(
+            [
+                new ImapFolderAdministrationSnapshot(100, 10, -1, "INBOX", true, 42, "2026-07-01 01:02:03"),
+                new ImapFolderAdministrationSnapshot(101, 10, 100, "Child", true, 8, "2026-07-01 01:02:04"),
+                new ImapFolderAdministrationSnapshot(200, 10, -1, "Archive", true, 2, "2026-07-01 01:02:05"),
+                new ImapFolderAdministrationSnapshot(300, 20, -1, "Other", true, 1, "2026-07-01 01:02:06")
+            ])
+        {
+            DeleteAllResult = new ImapFolderAdministrationDeletionResult(
+                true,
+                [new ImapFolderAdministrationDeletedMessage("inbox.eml", 10, 100, "account@example.test", 2)])
+        };
+        var fileDeletion = new RecordingMessageFileDeletionRuntime();
+        ImapFolderAdministrationRuntimeHost.Configure(folderStore, fileDeletion);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(10, 100, "account@example.test", true, 0));
+
+        Assert.AreEqual(2, account.Messages.Count);
+        Assert.AreEqual(2, account.IMAPFolders.Count);
+
+        account.DeleteMessages();
+
+        Assert.AreEqual(1, folderStore.DeleteAllCount);
+        Assert.AreEqual(10, folderStore.LastDeletedAccountId);
+        Assert.AreEqual(1, fileDeletion.CallCount);
+        Assert.AreEqual(1, fileDeletion.LastResult!.DeletedMessages.Count);
+        Assert.AreEqual(0, account.Messages.Count);
+        Assert.AreEqual(1, account.IMAPFolders.Count);
+        Assert.AreEqual(100, account.IMAPFolders[0].ID);
+        Assert.AreEqual(0, account.IMAPFolders[0].SubFolders.Count);
+    }
+
+    [TestMethod]
+    public void DeleteMessages_RechecksAuthenticationBeforeStoreAccess()
+    {
+        var authenticated = true;
+        var folderStore = new MutableImapFolderAdministrationStore(
+            [new ImapFolderAdministrationSnapshot(100, 10, -1, "INBOX", true, 42, "2026-07-01 01:02:03")]);
+        ImapFolderAdministrationRuntimeHost.Configure(folderStore);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(10, 100, "account@example.test", true, 0),
+            isAuthenticated: () => authenticated);
+
+        authenticated = false;
+        var error = Assert.ThrowsExactly<COMException>(account.DeleteMessages);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, folderStore.DeleteAllCount);
+    }
+
+    [TestMethod]
+    public void DeleteMessages_ZeroIdAccountIsAnAuthenticatedNoOp()
+    {
+        var folderStore = new MutableImapFolderAdministrationStore(
+            [new ImapFolderAdministrationSnapshot(100, 10, -1, "INBOX", true, 42, "2026-07-01 01:02:03")]);
+        ImapFolderAdministrationRuntimeHost.Configure(folderStore);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(0, 100, "draft@example.test", true, 0));
+
+        account.DeleteMessages();
+
+        Assert.AreEqual(0, folderStore.DeleteAllCount);
+    }
+
+    [TestMethod]
+    public void DeleteMessages_FailureMapsToEFailAndRetainsSnapshots()
+    {
+        MessageAdministrationRuntimeHost.Configure(
+            new MutableMessageAdministrationStore([MessageSnapshot(1000, "inbox.eml")]));
+        var folderStore = new MutableImapFolderAdministrationStore(
+            [
+                new ImapFolderAdministrationSnapshot(100, 10, -1, "INBOX", true, 42, "2026-07-01 01:02:03"),
+                new ImapFolderAdministrationSnapshot(200, 10, -1, "Archive", true, 2, "2026-07-01 01:02:05")
+            ])
+        {
+            DeleteAllResult = new ImapFolderAdministrationDeletionResult(false, Array.Empty<ImapFolderAdministrationDeletedMessage>())
+        };
+        var fileDeletion = new RecordingMessageFileDeletionRuntime();
+        ImapFolderAdministrationRuntimeHost.Configure(folderStore, fileDeletion);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(10, 100, "account@example.test", true, 0));
+
+        Assert.AreEqual(1, account.Messages.Count);
+        Assert.AreEqual(2, account.IMAPFolders.Count);
+
+        var error = Assert.ThrowsExactly<COMException>(account.DeleteMessages);
+
+        Assert.AreEqual(unchecked((int)0x80004005), error.ErrorCode);
+        Assert.AreEqual(1, account.Messages.Count);
+        Assert.AreEqual(2, account.IMAPFolders.Count);
+        Assert.AreEqual(0, fileDeletion.CallCount);
+    }
+
+    [TestMethod]
+    public void DeleteMessages_InvalidatesAccountSizeCacheAfterSuccessfulPurge()
+    {
+        var initial = new AccountAdministrationSnapshot(
+            10,
+            100,
+            "account@example.test",
+            true,
+            0,
+            Size: 12.5f,
+            QuotaUsed: 125);
+        var refreshed = initial with { Size = 0, QuotaUsed = 0 };
+        var accountStore = new MutableAccountAdministrationStore([initial])
+        {
+            AccountReadOverride = _ => refreshed
+        };
+        AccountAdministrationRuntimeHost.Configure(accountStore);
+        var folderStore = new MutableImapFolderAdministrationStore(
+            [new ImapFolderAdministrationSnapshot(100, 10, -1, "INBOX", true, 42, "2026-07-01 01:02:03")]);
+        ImapFolderAdministrationRuntimeHost.Configure(folderStore);
+        var account = AccountAdministrationRuntimeHost.CreateAuthorizedAdapter(100)[0];
+
+        Assert.AreEqual(12.5f, account.Size, 0.0001f);
+        account.DeleteMessages();
+
+        Assert.AreEqual(0, account.Size, 0.0001f);
+        Assert.AreEqual(0, account.QuotaUsed);
+        Assert.AreEqual(1, accountStore.AccountReadCount);
+    }
+
+    [TestMethod]
+    public void DeleteMessages_HoldsAndDisposesAuthorizationLease()
+    {
+        var leaseDisposed = false;
+        var folderStore = new MutableImapFolderAdministrationStore(
+            [new ImapFolderAdministrationSnapshot(100, 10, -1, "INBOX", true, 42, "2026-07-01 01:02:03")]);
+        ImapFolderAdministrationRuntimeHost.Configure(folderStore);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(10, 100, "account@example.test", true, 0),
+            isAuthenticated: () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(
+                new TrackingLease(() => leaseDisposed = true)));
+
+        account.DeleteMessages();
+
+        Assert.IsTrue(leaseDisposed);
+        Assert.AreEqual(1, folderStore.DeleteAllCount);
     }
 
     [TestMethod]
@@ -1273,11 +1423,18 @@ public sealed class AccountsComContractTests
     }
 
     private sealed class MutableImapFolderAdministrationStore(
-        IReadOnlyList<ImapFolderAdministrationSnapshot> folders) : IImapFolderAdministrationStore
+        IReadOnlyList<ImapFolderAdministrationSnapshot> folders) : IImapFolderAdministrationStore, IImapFolderAdministrationDeletionStore
     {
         public IReadOnlyList<ImapFolderAdministrationSnapshot> Folders { get; set; } = folders;
 
         public int ReadCount { get; private set; }
+
+        public int DeleteAllCount { get; private set; }
+
+        public int LastDeletedAccountId { get; private set; }
+
+        public ImapFolderAdministrationDeletionResult DeleteAllResult { get; set; } =
+            new(true, Array.Empty<ImapFolderAdministrationDeletedMessage>());
 
         public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetFoldersForAccountAsync(
             int accountId,
@@ -1310,5 +1467,41 @@ public sealed class AccountsComContractTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>(
                 Array.Empty<ImapFolderPermissionAdministrationSnapshot>());
+
+        public ValueTask<ImapFolderAdministrationDeletionResult> DeleteFolderAsync(
+            ImapFolderAdministrationSnapshot folder,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(
+                new ImapFolderAdministrationDeletionResult(true, Array.Empty<ImapFolderAdministrationDeletedMessage>()));
+
+        public ValueTask<ImapFolderAdministrationDeletionResult> DeleteAllForAccountAsync(
+            int accountId,
+            int domainId,
+            string accountAddress,
+            CancellationToken cancellationToken)
+        {
+            DeleteAllCount++;
+            LastDeletedAccountId = accountId;
+            return ValueTask.FromResult(DeleteAllResult);
+        }
+    }
+
+    private sealed class RecordingMessageFileDeletionRuntime : IImapFolderMessageFileDeletionRuntime
+    {
+        public int CallCount { get; private set; }
+
+        public ImapFolderAdministrationDeletionResult? LastResult { get; private set; }
+
+        public bool TryDeleteAll(ImapFolderAdministrationDeletionResult result)
+        {
+            CallCount++;
+            LastResult = result;
+            return true;
+        }
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 }
