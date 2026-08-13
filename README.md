@@ -14,7 +14,7 @@ new items retain the owning collection lease factory, by-name wrappers retain
 their delete/update delegates, null leases fail closed with `E_ACCESSDENIED`,
 and logout checks reject retained mutation facades before store callbacks.
 
-Focused permission coverage is `29 passed, 0 failed`; the combined IMAP
+Focused permission coverage is `30 passed, 0 failed`; the combined IMAP
 folder/permission/SQL-store set is `63 passed, 0 failed`; full Net10 is
 `2269 passed, 55 skipped, 0 failed`. COM identity, direct activation
 boundaries, owner/snapshot checks, SMTP trust, live reconfiguration, and SQL
@@ -23,7 +23,9 @@ values after logout; persistence mutation denial is complete for this slice.
 Paired C++/.NET performance, live SQL/Data, restore, SEC-18, and 24-hour soak
 gates remain unavailable; release remains **RED**.
 
-Next independent slices: approved disposable SQL FetchAccount UPDATE/readback;
+Parity clarification commit `5cb18f4b2` proves retained permission wrappers
+keep legacy read/stage behavior after logout while persistence Save remains
+denied. Next independent slices: approved disposable SQL FetchAccount UPDATE/readback;
 registry-isolated C++ execution and paired benchmark evidence; remaining
 legacy-anchored Admin/protocol parity selected by the production gate.
 

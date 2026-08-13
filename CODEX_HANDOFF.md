@@ -14,7 +14,7 @@ logout checks reject retained mutation facades before store callbacks. COM
 identity, direct activation denial, owner/snapshot checks, SMTP trust, live
 reconfiguration, and SQL schema were unchanged.
 
-Focused permission coverage: `29 passed, 0 failed`; combined IMAP
+Focused permission coverage: `30 passed, 0 failed`; combined IMAP
 folder/permission/SQL-store coverage: `63 passed, 0 failed`. Full Net10:
 `2269 passed, 55 skipped, 0 failed`. Retained wrappers can still read or stage
 in-memory values after logout; that is outside this persistence-mutation
@@ -22,7 +22,9 @@ slice. Paired C++/.NET performance, live SQL/readback, registered
 COM/service/worker, restore, SEC-18, and soak gates remain unproven; release
 is **RED**.
 
-Next independent slices: approved disposable SQL FetchAccount UPDATE/readback;
+Parity clarification commit `5cb18f4b2` proves retained permission wrappers
+keep legacy read/stage behavior after logout while persistence Save remains
+denied. Next independent slices: approved disposable SQL FetchAccount UPDATE/readback;
 registry-isolated C++ paired performance execution; remaining
 legacy-anchored Admin/protocol parity selected by the production gate.
 
