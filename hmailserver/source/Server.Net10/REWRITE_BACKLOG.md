@@ -4,20 +4,26 @@
 Legacy `InterfaceRoute::Save`/`Delete` and `PersistentRoute::SaveObject` are
 implemented in `source/Server/COM/InterfaceRoute.cpp` and
 `source/Server/Common/Persistence/PersistentRoute.cpp`. Code/test commit
-`6567adc72` consumes the existing generation-bound authorization lease across
+`6567adc72` and `f2c63c5fe` consume the existing generation-bound
+authorization lease across
 new/existing `Route.Save`, child `Route.Delete`, and direct collection
 `Routes.DeleteByDBID`. Child deletion uses the owning collection callback
 without acquiring a nested lease; collection snapshots are updated only after
-the store succeeds. Null leases fail closed with `E_ACCESSDENIED`.
+the store succeeds. The second commit removes the duplicate authority check
+inside the lease-held save callback, preventing an Application-backed
+deadlock. Null leases fail closed with `E_ACCESSDENIED`.
 Installed Routes/Route IID/vtable/DISPID/class identity, direct activation
 denial, SMTP trust/runtime behavior, and SQL schema remain unchanged.
 
-Focused Route plus SQL store coverage is `23 passed, 0 failed`; full Net10
-Debug is `2272 passed, 56 skipped, 0 failed`. Release remains **RED** because
+Focused Route coverage is `20 passed, 0 failed`; Route plus SQL store coverage
+is `23 passed, 0 failed`; full Net10 Debug is `2273 passed, 56 skipped,
+0 failed`. Release remains **RED** because
 paired C++/.NET performance, restore/rollback, SEC-18, installer, and soak
 gates remain open. Next independent slices: registry-isolated C++ paired
 benchmark execution; isolated restore/rollback acceptance; next
-legacy-anchored Admin/protocol parity.
+legacy-anchored `RouteAddresses` mutation authorization leasing; registry-
+isolated C++ paired benchmark, restore/rollback, and other release gates
+remain open.
 
 ## Historical next slice (2026-08-13, IMAP folder-permission authorization lease; superseded)
 

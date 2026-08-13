@@ -2,8 +2,10 @@
 
 ## Current Authoritative Continuation (2026-08-13, Route mutation authorization lease)
 
-Code/test commit `6567adc72` closes the bounded generation-bound authorization
-lease gap for legacy `Settings.Routes` mutations. The legacy anchors are
+Code/test commits `6567adc72` and `f2c63c5fe` close the bounded
+generation-bound authorization lease gap for legacy `Settings.Routes`
+mutations and remove a reentrant authority check that could deadlock a real
+Application-backed save. The legacy anchors are
 `InterfaceRoute::Save`/`Delete` in
 `source/Server/COM/InterfaceRoute.cpp` and persistence in
 `source/Server/Common/Persistence/PersistentRoute.cpp`. Net10 holds the
@@ -14,12 +16,13 @@ Null leases fail closed with `E_ACCESSDENIED`. Installed COM identity,
 direct activation boundaries, SMTP route runtime behavior, and SQL schema are
 unchanged.
 
-Focused Route plus SQL store coverage: `23 passed, 0 failed`. Full Net10
-Debug: `2272 passed, 56 skipped, 0 failed`. Paired C++/.NET performance remains
+Focused Route coverage: `20 passed, 0 failed`; Route plus SQL store coverage:
+`23 passed, 0 failed`. Full Net10 Debug: `2273 passed, 56 skipped, 0 failed`.
+Paired C++/.NET performance remains
 **RED** because the equivalent registry-isolated legacy run is unavailable;
-no speedup claim is made. Next: registry-isolated C++ paired benchmark,
-isolated restore/rollback acceptance, then the next legacy-anchored
-Admin/protocol slice.
+no speedup claim is made. Next: the adjacent legacy-anchored `RouteAddresses`
+lease slice; registry-isolated C++ paired benchmark, isolated restore/rollback,
+and the remaining release gates remain open.
 
 ## Current Authoritative Continuation (2026-08-13, FetchAccount SQL UPDATE/readback acceptance)
 
