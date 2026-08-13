@@ -1,5 +1,33 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, Account.DeleteMessages parity)
+
+Legacy `InterfaceAccount::DeleteMessages`
+(`source/Server/COM/InterfaceAccount.cpp`, DISPID 11) delegates to
+`PersistentAccount::DeleteMessages`, which traverses
+`PersistentIMAPFolder::DeleteByAccount` and `DeleteObject` to remove
+account-owned IMAP content while retaining the Inbox root. Code/test commit
+`0da667302` implements the bounded authenticated Net10 equivalent through the
+existing `Application -> Domains -> Accounts` boundary. The store transaction
+rechecks account ID/domain/address ownership, scopes message deletion to the
+account's folder set, removes dependencies and ACL rows, preserves Inbox,
+invalidates the account-size cache, deletes owned files, and publishes only
+the owning snapshot. The existing authorization lease is held through the
+store call; direct activation remains denied and no SMTP trust or live
+reconfiguration behavior changed.
+
+Focused Account/IMAP/SQL coverage: `97 passed, 0 failed`. Full Net10:
+`2247 passed, 55 skipped, 0 failed`. No live disposable SQL/Data deletion,
+real COM activation, or post-commit manifest-recovery drill is proven. A
+manifest read failure after SQL commit can still leave committed rows without
+file/snapshot cleanup; this is a documented residual requiring durable
+reconciliation or an isolated live drill. Release remains **RED**.
+
+Next independent slices: approved disposable SQL/Data Account.DeleteMessages
+acceptance with rollback/recovery evidence; registry-isolated C++ execution
+and the identical paired performance matrix; isolated Windows
+service/out-of-process COM lifecycle.
+
 ## Current Authoritative Continuation (2026-08-13, AntiSpam local target pinning)
 
 Legacy `SpamAssassinTestConnect::TestConnect`

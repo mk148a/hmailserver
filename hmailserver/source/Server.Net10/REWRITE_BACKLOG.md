@@ -4620,3 +4620,33 @@ Next independent slice: registry-isolated C++ execution on the clean paired
 SQL/Data/message fixture; if unavailable, the separate staging VM remains the
 performance release-gate prerequisite. The paired performance gate remains
 RED.
+
+## Current next slice (2026-08-13, Account.DeleteMessages parity; supersedes older entries)
+
+Legacy `InterfaceAccount::DeleteMessages`
+(`source/Server/COM/InterfaceAccount.cpp`, DISPID 11) delegates to
+`PersistentAccount::DeleteMessages` and the
+`PersistentIMAPFolder::DeleteByAccount`/`DeleteObject` traversal in
+`source/Server/Common/Persistence`. It removes account-owned IMAP messages,
+retains the Inbox root, removes non-Inbox folders, and completes through the
+COM boundary without changing installed identity.
+
+Code/test commit `0da667302` implements this bounded authenticated path in
+Net10. `AccountComClass.DeleteMessages` preserves direct-activation denial,
+requires the retained administrator boundary, holds the generation-bound
+authorization lease through the store call, invalidates account-size state,
+and clears only the owning snapshots. The SQL administration store rechecks
+ID/domain/address ownership inside a transaction, scopes deletion to the
+account folder set, cleans message dependencies and ACL rows, preserves the
+Inbox root, and returns an owned message manifest for file cleanup.
+
+Focused Account/IMAP/SQL coverage is `97/97`; full Net10 is `2247 passed, 55
+skipped, 0 failed`. No live disposable SQL/Data deletion or real COM
+activation has been run. A failure while reading the post-commit manifest can
+still leave committed SQL rows without file/snapshot cleanup; durable
+reconciliation or isolated live evidence is required before this area is
+release-green. Release remains RED.
+
+Next independent slice: run the approved disposable SQL/Data Account deletion
+acceptance and rollback/recovery drill, then continue with registry-isolated
+C++ paired performance or isolated service/out-of-process COM lifecycle.

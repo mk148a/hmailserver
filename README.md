@@ -1,6 +1,35 @@
 hMailServer
 ===========
 
+## Current authoritative Account.DeleteMessages parity status (2026-08-13)
+
+Code/test commit `0da667302` closes the bounded authenticated
+`Account.DeleteMessages` slice. Legacy `InterfaceAccount::DeleteMessages`
+(`hmailserver/source/Server/COM/InterfaceAccount.cpp`) delegates to
+`PersistentAccount::DeleteMessages` and its
+`PersistentIMAPFolder::DeleteByAccount`/`DeleteObject` traversal
+(`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp` and
+`PersistentIMAPFolder.cpp`): account-owned IMAP messages are removed, the
+Inbox root is retained, non-Inbox folders are removed, and the COM call returns
+success when the persistence operation completes.
+
+Net10 now keeps the installed `IInterfaceAccount` identity and DISPID 11,
+requires the existing authenticated `Application -> Domains -> Accounts`
+boundary, holds the generation-bound authorization lease through the store
+call, revalidates the account owner by ID/domain/address inside one SQL
+transaction, removes only messages belonging to that account's IMAP folders,
+cleans message dependencies and ACL rows, preserves the Inbox root, deletes
+owned message files, invalidates the account-size cache, and updates only the
+owning retained snapshots. Direct activation remains denied and SMTP trust,
+live reconfiguration, and unrelated Admin collections are unchanged.
+
+Focused Account/IMAP/SQL coverage is `97 passed, 0 failed`; full Net10 is
+`2247 passed, 55 skipped, 0 failed`. No live SQL/Data deletion, real COM
+activation, or post-commit manifest-recovery drill was run. Release remains
+**RED** until disposable SQL/Data acceptance, out-of-process COM lifecycle,
+paired C++/.NET performance, restore/rollback, SEC-18, and soak gates are
+proven.
+
 ## Current authoritative AntiSpam parity status (2026-08-13)
 
 Code/test commit `55c9473ac` closes the bounded local SpamAssassin target
