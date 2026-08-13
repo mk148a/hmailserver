@@ -296,6 +296,44 @@ public sealed class TcpIpPortsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_NewPortSaveRejectsTlsWithoutCertificateLikeLegacy()
+    {
+        var store = new MutableTcpIpPortAdministrationStore(Array.Empty<TcpIpPortAdministrationSnapshot>());
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ports = settings.TCPIPPorts;
+        var pending = ports.Add();
+        pending.ConnectionSecurity = ComConnectionSecurity.StartTlsRequired;
+
+        var error = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(ELegacyComError, error.ErrorCode);
+        Assert.AreEqual(0, pending.ID);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsRequired, pending.ConnectionSecurity);
+        Assert.AreEqual(0, store.InsertedPorts.Count);
+        Assert.AreEqual(0, ports.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ExistingPortSaveRejectsTlsWithoutCertificateAndRetainsSnapshot()
+    {
+        var store = new MutableTcpIpPortAdministrationStore(
+            new[] { Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0) });
+        TcpIpPortAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(isServerAdministrator: static () => true);
+        var ports = settings.TCPIPPorts;
+        var port = ports[0];
+        port.ConnectionSecurity = ComConnectionSecurity.StartTlsOptional;
+
+        var error = Assert.ThrowsExactly<COMException>(port.Save);
+
+        Assert.AreEqual(ELegacyComError, error.ErrorCode);
+        Assert.AreEqual(ComConnectionSecurity.StartTlsOptional, port.ConnectionSecurity);
+        Assert.AreEqual(ComConnectionSecurity.None, ports[0].ConnectionSecurity);
+        Assert.AreEqual(0, store.UpdatedPorts.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_RetainedNewPortSaveRechecksServerAdministrator()
     {
         var isServerAdministrator = true;

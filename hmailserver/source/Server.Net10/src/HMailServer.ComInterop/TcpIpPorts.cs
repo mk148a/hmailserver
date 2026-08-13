@@ -215,6 +215,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
     private TcpIpPortAdministrationSnapshot SaveNewPort(TcpIpPortAdministrationSnapshot port)
     {
         EnsureServerAdministrator();
+        ValidateLegacyCertificateRequirement(port);
         var ports = GetPorts();
         if (_insert is null)
         {
@@ -249,6 +250,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
     private TcpIpPortAdministrationSnapshot SaveExistingPort(TcpIpPortAdministrationSnapshot port)
     {
         EnsureServerAdministrator();
+        ValidateLegacyCertificateRequirement(port);
         var ports = GetPorts();
         if (_update is null)
         {
@@ -382,6 +384,19 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
             throw new COMException(
                 "TCPIPPorts access requires an authenticated server administrator.",
                 EAccessDenied);
+        }
+    }
+
+    private static void ValidateLegacyCertificateRequirement(TcpIpPortAdministrationSnapshot port)
+    {
+        if (port.SslCertificateId == 0 && port.ConnectionSecurity is
+            (int)ComConnectionSecurity.Tls or
+            (int)ComConnectionSecurity.StartTlsOptional or
+            (int)ComConnectionSecurity.StartTlsRequired)
+        {
+            throw new COMException(
+                "Certificate must be specified.",
+                ELegacyComError);
         }
     }
 
