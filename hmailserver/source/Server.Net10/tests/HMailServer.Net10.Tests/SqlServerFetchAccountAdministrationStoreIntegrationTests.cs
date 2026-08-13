@@ -76,6 +76,81 @@ public sealed class SqlServerFetchAccountAdministrationStoreIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task ExistingFetchAccountUpdate_ReadsBackOwnerScopedFieldsAndCiphertext()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_fetch_update_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateSchemaAsync(testConnectionString).ConfigureAwait(false);
+            var store = new SqlServerFetchAccountAdministrationStore(
+                new SqlServerConnectionFactory(testConnectionString));
+            var originalPassword = LegacyBlowfishPasswordCipher.Encrypt("original-secret");
+            var fetchAccountId = await store.InsertFetchAccountForRestoreAsync(
+                new FetchAccountAdministrationDraft(
+                    AccountId: 42,
+                    Name: "before",
+                    ServerAddress: "before.example.test",
+                    Port: 110,
+                    Username: "before-user",
+                    MinutesBetweenFetch: 5,
+                    DaysToKeepMessages: 7,
+                    Enabled: true,
+                    ConnectionSecurity: 0),
+                originalPassword,
+                CancellationToken.None).ConfigureAwait(false);
+
+            var updated = await store.UpdateFetchAccountAsync(
+                fetchAccountId,
+                new FetchAccountAdministrationDraft(
+                    AccountId: 42,
+                    Name: "after",
+                    ServerAddress: "after.example.test",
+                    Port: 995,
+                    Username: "after-user",
+                    MinutesBetweenFetch: 15,
+                    DaysToKeepMessages: 30,
+                    Enabled: false,
+                    ConnectionSecurity: 1),
+                "updated-secret",
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.IsTrue(updated);
+            var readBack = await store.GetFetchAccountsAsync(42, CancellationToken.None).ConfigureAwait(false);
+            Assert.AreEqual(1, readBack.Count);
+            Assert.AreEqual(fetchAccountId, readBack[0].Id);
+            Assert.AreEqual("after", readBack[0].Name);
+            Assert.AreEqual("after.example.test", readBack[0].ServerAddress);
+            Assert.AreEqual(995, readBack[0].Port);
+            Assert.AreEqual("after-user", readBack[0].Username);
+            Assert.AreEqual(15, readBack[0].MinutesBetweenFetch);
+            Assert.AreEqual(30, readBack[0].DaysToKeepMessages);
+            Assert.IsFalse(readBack[0].Enabled);
+            Assert.AreEqual(1, readBack[0].ConnectionSecurity);
+            Assert.AreEqual(
+                LegacyBlowfishPasswordCipher.Encrypt("updated-secret"),
+                await ReadPasswordAsync(testConnectionString, fetchAccountId).ConfigureAwait(false));
+
+            Assert.IsFalse(
+                await store.UpdateFetchAccountAsync(
+                    fetchAccountId,
+                    new FetchAccountAdministrationDraft(AccountId: 99, Name: "wrong-owner"),
+                    null,
+                    CancellationToken.None).ConfigureAwait(false));
+            Assert.AreEqual(1, (await store.GetFetchAccountsAsync(42, CancellationToken.None).ConfigureAwait(false)).Count);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task TransactionScopedRestore_RollsBackFetchAccountAndUidRowsTogether()
     {
         var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
