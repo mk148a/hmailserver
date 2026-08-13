@@ -826,7 +826,10 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         AliasAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _isAuthenticated);
 
     public override IInterfaceDistributionLists DistributionLists =>
-        DistributionListAdministrationRuntimeHost.CreateAuthorizedAdapter(Snapshot.Id, _isAuthenticated);
+        DistributionListAdministrationRuntimeHost.CreateAuthorizedAdapter(
+            Snapshot.Id,
+            _isAuthenticated,
+            _authorizationLeaseFactory);
 
     public override IInterfaceDomainAliases DomainAliases =>
         DomainAliasAdministrationRuntimeHost.CreateAuthorizedAdapter(

@@ -463,6 +463,115 @@ public sealed class DistributionListRecipientsComContractTests
         Assert.AreEqual(0, store.Deleted.Count);
     }
 
+    [TestMethod]
+    public void DistributionListRecipients_Save_HoldsLeaseAcrossStoreAndPublishesAfterSuccess()
+    {
+        var events = new List<string>();
+        var lease = new TrackingLease(() => events.Add("lease-disposed"));
+        var recipients = DistributionListRecipients.CreateAuthorized(
+            Array.Empty<DistributionListRecipientAdministrationSnapshot>(),
+            insert: snapshot =>
+            {
+                Assert.IsTrue(lease.IsActive);
+                events.Add("insert");
+                return 901;
+            },
+            owningListId: 100,
+            isAuthenticated: static () => true,
+            authorizationLeaseFactory: _ =>
+            {
+                lease.IsActive = true;
+                events.Add("lease-acquired");
+                return ValueTask.FromResult<IDisposable?>(lease);
+            });
+        var pending = recipients.Add();
+        pending.RecipientAddress = "member@example.test";
+
+        pending.Save();
+
+        CollectionAssert.AreEqual(
+            new[] { "lease-acquired", "insert", "lease-disposed" },
+            events);
+        Assert.AreEqual(1, recipients.Count);
+        Assert.AreEqual(901, recipients[0].ID);
+    }
+
+    [TestMethod]
+    public void DistributionListRecipients_Save_FailsClosedWhenLeaseIsUnavailable()
+    {
+        var insertCount = 0;
+        var recipients = DistributionListRecipients.CreateAuthorized(
+            Array.Empty<DistributionListRecipientAdministrationSnapshot>(),
+            insert: _ => ++insertCount,
+            owningListId: 100,
+            isAuthenticated: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+        var pending = recipients.Add();
+        pending.RecipientAddress = "denied@example.test";
+
+        var error = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, insertCount);
+        Assert.AreEqual(0, pending.ID);
+        Assert.AreEqual(0, recipients.Count);
+    }
+
+    [TestMethod]
+    public void DistributionListRecipients_UpdateFailure_ReleasesLeaseAndRetainsSnapshot()
+    {
+        var leaseDisposed = false;
+        var recipients = DistributionListRecipients.CreateAuthorized(
+            new[] { new DistributionListRecipientAdministrationSnapshot(902, 100, "original@example.test") },
+            update: _ => throw new InvalidOperationException("Simulated update failure."),
+            owningListId: 100,
+            isAuthenticated: static () => true,
+            authorizationLeaseFactory: _ =>
+            {
+                return ValueTask.FromResult<IDisposable?>(
+                    new TrackingLease(() => leaseDisposed = true) { IsActive = true });
+            });
+        var existing = recipients[0];
+        existing.RecipientAddress = "staged@example.test";
+
+        var error = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.IsTrue(leaseDisposed);
+        Assert.AreEqual("staged@example.test", existing.RecipientAddress);
+        Assert.AreEqual("original@example.test", recipients[0].RecipientAddress);
+    }
+
+    [TestMethod]
+    public void DistributionList_PropagatesLeaseToRecipientCollection()
+    {
+        var store = new MutableDistributionListRecipientAdministrationStore(Array.Empty<DistributionListRecipientAdministrationSnapshot>());
+        DistributionListRecipientAdministrationRuntimeHost.Configure(store);
+        var leaseCount = 0;
+        var list = DistributionList.CreateAuthorized(
+            new DistributionListAdministrationSnapshot(
+                100,
+                10,
+                "announce@example.test",
+                true,
+                false,
+                string.Empty,
+                (int)ComDistributionListMode.Public),
+            isAuthenticated: static () => true,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseCount++;
+                return ValueTask.FromResult<IDisposable?>(new TrackingLease(static () => { }));
+            });
+        var pending = list.Recipients.Add();
+        pending.RecipientAddress = "member@example.test";
+
+        pending.Save();
+
+        Assert.AreEqual(1, leaseCount);
+        Assert.AreEqual(1, store.Inserted.Count);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -493,6 +602,22 @@ public sealed class DistributionListRecipientsComContractTests
     {
         Assert.AreEqual(id, recipient.ID);
         Assert.AreEqual(address, recipient.RecipientAddress);
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        private int _disposed;
+
+        public bool IsActive { get; set; }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                IsActive = false;
+                onDispose();
+            }
+        }
     }
 
     private sealed class FixedDistributionListRecipientAdministrationStore(

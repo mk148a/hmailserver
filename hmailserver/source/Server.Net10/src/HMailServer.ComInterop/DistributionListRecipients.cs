@@ -71,6 +71,7 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
     private readonly Func<DistributionListRecipientAdministrationSnapshot, bool>? _delete;
     private readonly int? _owningListId;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public DistributionListRecipients()
     {
@@ -82,7 +83,8 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         Func<DistributionListRecipientAdministrationSnapshot, bool>? update,
         Func<DistributionListRecipientAdministrationSnapshot, bool>? delete,
         int? owningListId,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _recipients = recipients.ToArray();
         _insert = insert;
@@ -90,6 +92,7 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         _delete = delete;
         _owningListId = owningListId;
         _isAuthenticated = isAuthenticated;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetRecipients().Count;
@@ -100,10 +103,18 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         Func<DistributionListRecipientAdministrationSnapshot, bool>? update = null,
         Func<DistributionListRecipientAdministrationSnapshot, bool>? delete = null,
         int? owningListId = null,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(recipients);
-        return new DistributionListRecipients(recipients, insert, update, delete, owningListId, isAuthenticated);
+        return new DistributionListRecipients(
+            recipients,
+            insert,
+            update,
+            delete,
+            owningListId,
+            isAuthenticated,
+            authorizationLeaseFactory);
     }
 
     public IInterfaceDistributionListRecipient this[int index]
@@ -118,9 +129,10 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
 
             return DistributionListRecipient.CreateAuthorized(
                 recipients[index],
-                update: _update is null ? null : UpdateRecipient,
-                delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId),
-                isAuthenticated: _isAuthenticated);
+                update: _update is null ? null : recipient => UpdateRecipient(recipient, authorizationLeaseAlreadyHeld: true),
+                delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId, acquireAuthorizationLease: false),
+                isAuthenticated: _isAuthenticated,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
         }
     }
 
@@ -132,9 +144,10 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
             ? throw new COMException("No distribution-list recipient with the specified database identifier exists.", DispEBadIndex)
             : DistributionListRecipient.CreateAuthorized(
                 match,
-                update: _update is null ? null : UpdateRecipient,
-                delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId),
-                isAuthenticated: _isAuthenticated);
+                update: _update is null ? null : recipient => UpdateRecipient(recipient, authorizationLeaseAlreadyHeld: true),
+                delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId, acquireAuthorizationLease: false),
+                isAuthenticated: _isAuthenticated,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public IInterfaceDistributionListRecipient Add()
@@ -148,14 +161,19 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
 
         return DistributionListRecipient.CreateAuthorized(
             new DistributionListRecipientAdministrationSnapshot(0, _owningListId.Value, string.Empty),
-            save: SaveRecipient,
-            delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId),
-            isAuthenticated: _isAuthenticated);
+            save: recipient => SaveRecipient(recipient, authorizationLeaseAlreadyHeld: true),
+            delete: _delete is null ? null : databaseId => DeleteByDBID(databaseId, acquireAuthorizationLease: false),
+            isAuthenticated: _isAuthenticated,
+            authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
-    public void DeleteByDBID(int databaseId)
+    public void DeleteByDBID(int databaseId) => DeleteByDBID(databaseId, acquireAuthorizationLease: true);
+
+    private void DeleteByDBID(int databaseId, bool acquireAuthorizationLease)
     {
-        var recipients = GetRecipients();
+        var recipients = acquireAuthorizationLease
+            ? GetRecipients()
+            : GetRecipientsWithoutAuthentication();
         if (_delete is null || _owningListId is null)
         {
             Unavailable();
@@ -170,6 +188,9 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
 
         try
         {
+            using var authorizationLease = acquireAuthorizationLease
+                ? AcquireAuthorizationLease()
+                : null;
             var ownerScopedRecipient = match with { ListId = _owningListId.Value };
             if (!_delete!(ownerScopedRecipient))
             {
@@ -203,10 +224,12 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
     }
 
     private DistributionListRecipientAdministrationSnapshot SaveRecipient(
-        DistributionListRecipientAdministrationSnapshot recipient)
+        DistributionListRecipientAdministrationSnapshot recipient,
+        bool authorizationLeaseAlreadyHeld)
     {
-        EnsureAuthenticated();
-        var recipients = GetRecipients();
+        var recipients = authorizationLeaseAlreadyHeld
+            ? GetRecipientsWithoutAuthentication()
+            : GetRecipients();
         if (recipient.Id != 0 || _insert is null || _owningListId is null)
         {
             Unavailable();
@@ -240,10 +263,12 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
     }
 
     private DistributionListRecipientAdministrationSnapshot UpdateRecipient(
-        DistributionListRecipientAdministrationSnapshot recipient)
+        DistributionListRecipientAdministrationSnapshot recipient,
+        bool authorizationLeaseAlreadyHeld)
     {
-        EnsureAuthenticated();
-        var recipients = GetRecipients();
+        var recipients = authorizationLeaseAlreadyHeld
+            ? GetRecipientsWithoutAuthentication()
+            : GetRecipients();
         if (recipient.Id == 0 || _update is null || _owningListId is null)
         {
             Unavailable();
@@ -291,6 +316,27 @@ public sealed class DistributionListRecipients : IInterfaceDistributionListRecip
         }
     }
 
+    private IReadOnlyList<DistributionListRecipientAdministrationSnapshot> GetRecipientsWithoutAuthentication() =>
+        Volatile.Read(ref _recipients)
+            ?? throw new COMException(
+                "DistributionListRecipients access requires an authenticated server administrator.",
+                EAccessDenied);
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "DistributionListRecipients access requires an authenticated server administrator.",
+                EAccessDenied);
+    }
+
     private T Unavailable<T>()
     {
         _ = GetRecipients();
@@ -323,6 +369,7 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
     private readonly Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? _update;
     private readonly Action<int>? _delete;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public DistributionListRecipient()
     {
@@ -333,13 +380,15 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? save,
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? update,
         Action<int>? delete,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _recipient = recipient;
         _save = save;
         _update = update;
         _delete = delete;
         _isAuthenticated = isAuthenticated;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int ID => Snapshot.Id;
@@ -355,8 +404,9 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? save = null,
         Func<DistributionListRecipientAdministrationSnapshot, DistributionListRecipientAdministrationSnapshot>? update = null,
         Action<int>? delete = null,
-        Func<bool>? isAuthenticated = null) =>
-        new(recipient, save, update, delete, isAuthenticated);
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        new(recipient, save, update, delete, isAuthenticated, authorizationLeaseFactory);
 
     public void Delete()
     {
@@ -368,6 +418,7 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         _delete(snapshot.Id);
     }
 
@@ -375,6 +426,7 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
     {
         EnsureAuthenticated();
         var snapshot = Snapshot;
+        using var authorizationLease = AcquireAuthorizationLease();
         if (snapshot.Id == 0)
         {
             if (_save is null)
@@ -444,6 +496,21 @@ public sealed class DistributionListRecipient : IInterfaceDistributionListRecipi
                 EAccessDenied);
         }
     }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "DistributionListRecipient access requires an authenticated server administrator.",
+                EAccessDenied);
+    }
 }
 
 [ComVisible(false)]
@@ -461,7 +528,8 @@ public static class DistributionListRecipientAdministrationRuntimeHost
 
     internal static DistributionListRecipients CreateAuthorizedAdapter(
         int distributionListId,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -498,6 +566,7 @@ public static class DistributionListRecipientAdministrationRuntimeHost
             UpdateRecipient,
             DeleteRecipient,
             distributionListId,
-            isAuthenticated);
+            isAuthenticated,
+            authorizationLeaseFactory);
     }
 }

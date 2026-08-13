@@ -114,6 +114,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
     private readonly Func<DistributionListAdministrationSnapshot, bool>? _update;
     private readonly Func<int, bool>? _delete;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private readonly int _domainId;
 
     public DistributionLists()
@@ -127,6 +128,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
         Func<DistributionListAdministrationSnapshot, bool>? update,
         Func<int, bool>? delete,
         Func<bool>? isAuthenticated,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
         int domainId)
     {
         _lists = lists.ToArray();
@@ -135,6 +137,7 @@ public sealed class DistributionLists : IInterfaceDistributionLists
         _update = update;
         _delete = delete;
         _isAuthenticated = isAuthenticated;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
         _domainId = domainId;
     }
 
@@ -147,10 +150,19 @@ public sealed class DistributionLists : IInterfaceDistributionLists
         Func<DistributionListAdministrationSnapshot, bool>? update = null,
         Func<int, bool>? delete = null,
         Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
         int domainId = 0)
     {
         ArgumentNullException.ThrowIfNull(lists);
-        return new DistributionLists(lists, reload, insert, update, delete, isAuthenticated, domainId);
+        return new DistributionLists(
+            lists,
+            reload,
+            insert,
+            update,
+            delete,
+            isAuthenticated,
+            authorizationLeaseFactory,
+            domainId);
     }
 
     public IInterfaceDistributionList this[int index]
@@ -168,7 +180,8 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 update: _update,
                 replace: Replace,
                 delete: _delete is null ? null : DeleteExistingList,
-                isAuthenticated: _isAuthenticated);
+                isAuthenticated: _isAuthenticated,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
         }
     }
 
@@ -183,7 +196,8 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 update: _update,
                 replace: Replace,
                 delete: _delete is null ? null : DeleteExistingList,
-                isAuthenticated: _isAuthenticated);
+                isAuthenticated: _isAuthenticated,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public IInterfaceDistributionList Add()
@@ -207,7 +221,8 @@ public sealed class DistributionLists : IInterfaceDistributionLists
             insert: _insert,
             append: Append,
             delete: _delete is null ? null : DeleteExistingList,
-            isAuthenticated: _isAuthenticated);
+            isAuthenticated: _isAuthenticated,
+            authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public void DeleteByDBID(int databaseId)
@@ -238,7 +253,8 @@ public sealed class DistributionLists : IInterfaceDistributionLists
                 match,
                 update: _update,
                 replace: Replace,
-                isAuthenticated: _isAuthenticated);
+                isAuthenticated: _isAuthenticated,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public void Refresh()
@@ -374,6 +390,7 @@ public sealed class DistributionList : IInterfaceDistributionList
     private readonly Action<int>? _delete;
     private readonly Func<bool>? _isAuthenticated;
     private readonly Func<bool>? _readAuthorization;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public DistributionList()
     {
@@ -387,7 +404,8 @@ public sealed class DistributionList : IInterfaceDistributionList
         Action<DistributionListAdministrationSnapshot>? replace,
         Action<int>? delete,
         Func<bool>? isAuthenticated,
-        Func<bool>? readAuthorization)
+        Func<bool>? readAuthorization,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _list = list;
         _insert = insert;
@@ -397,6 +415,7 @@ public sealed class DistributionList : IInterfaceDistributionList
         _delete = delete;
         _isAuthenticated = isAuthenticated;
         _readAuthorization = readAuthorization;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int ID => Snapshot.Id;
@@ -414,7 +433,8 @@ public sealed class DistributionList : IInterfaceDistributionList
             EnsureAuthenticated();
             return DistributionListRecipientAdministrationRuntimeHost.CreateAuthorizedAdapter(
                 Snapshot.Id,
-                _isAuthenticated);
+                _isAuthenticated,
+                _authorizationLeaseFactory);
         }
     }
 
@@ -450,8 +470,18 @@ public sealed class DistributionList : IInterfaceDistributionList
         Action<DistributionListAdministrationSnapshot>? replace = null,
         Action<int>? delete = null,
         Func<bool>? isAuthenticated = null,
-        Func<bool>? readAuthorization = null) =>
-        new(list, insert, update, append, replace, delete, isAuthenticated, readAuthorization);
+        Func<bool>? readAuthorization = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        new(
+            list,
+            insert,
+            update,
+            append,
+            replace,
+            delete,
+            isAuthenticated,
+            readAuthorization,
+            authorizationLeaseFactory);
 
     public void Delete()
     {
@@ -604,7 +634,8 @@ public static class DistributionListAdministrationRuntimeHost
 
     internal static DistributionLists CreateAuthorizedAdapter(
         int domainId,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -642,6 +673,7 @@ public static class DistributionListAdministrationRuntimeHost
             UpdateList,
             DeleteList,
             isAuthenticated,
+            authorizationLeaseFactory,
             domainId);
     }
 }
