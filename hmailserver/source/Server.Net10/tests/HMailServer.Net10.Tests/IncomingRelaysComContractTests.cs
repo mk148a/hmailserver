@@ -103,7 +103,7 @@ public sealed class IncomingRelaysComContractTests
     }
 
     [TestMethod]
-    public void FailedReauthentication_RevokesSettingsRelayAccessAndItemPersistenceOnly()
+    public void FailedReauthentication_RevokesSettingsRelayAccessAndRetainedCollectionMutations()
     {
         var store = new MutableIncomingRelayAdministrationStore(
             new[]
@@ -149,15 +149,19 @@ public sealed class IncomingRelaysComContractTests
         Assert.AreEqual(0, store.SavedRelays.Count);
         Assert.AreEqual(0, store.InsertedRelays.Count);
 
-        relays.DeleteByDBID(20);
+        var collectionDeleteByIdError = Assert.ThrowsExactly<COMException>(() => relays.DeleteByDBID(20));
         relays.Refresh();
-        relays.Delete(0);
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(() => relays.Delete(0));
 
-        CollectionAssert.AreEqual(new[] { 20, 10 }, store.DeletedIds);
+        Assert.AreEqual(EAccessDenied, collectionDeleteByIdError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionDeleteError.ErrorCode);
+        CollectionAssert.AreEqual(Array.Empty<int>(), store.DeletedIds);
         Assert.AreEqual(2, store.ReadCount);
         Assert.AreEqual(0, store.SavedRelays.Count);
         Assert.AreEqual(0, store.InsertedRelays.Count);
-        Assert.AreEqual(0, relays.Count);
+        Assert.AreEqual(2, relays.Count);
+        Assert.AreEqual(20, relays.get_ItemByDBID(20).ID);
+        Assert.AreEqual(10, relays.get_ItemByDBID(10).ID);
     }
 
     [TestMethod]

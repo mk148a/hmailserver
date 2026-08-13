@@ -163,7 +163,21 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
             return;
         }
 
-        DeleteByDBID(relays[index].Id);
+        EnsureServerAdministrator();
+        try
+        {
+            var databaseId = relays[index].Id;
+            _deleteById(databaseId);
+            Volatile.Write(
+                ref _relays,
+                relays.Where(relay => relay.Id != databaseId).ToArray());
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to delete the incoming relay from the database.",
+                EFail);
+        }
     }
 
     public void DeleteByDBID(int databaseId)
@@ -180,6 +194,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
             return;
         }
 
+        EnsureServerAdministrator();
         try
         {
             _deleteById(databaseId);
@@ -278,6 +293,16 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
             ?? throw new COMException(
                 "IncomingRelays access requires an authenticated server administrator.",
                 EAccessDenied);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "IncomingRelays access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
     }
 
     private IncomingRelay CreateRelay(IncomingRelayAdministrationSnapshot relay)
