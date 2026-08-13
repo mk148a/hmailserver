@@ -2839,3 +2839,19 @@ Without finding any serious issues:
 3. Enable Gflags (gflags /p /enable hmailserver.exe) and run all integration tests to check for memory issues
 4. Run for at least 1 week in production for hMailServer.com
 5. Wait for at least 500 downloads of the beta version
+## Current release-gate status (2026-08-13)
+
+SecurityRanges managed parity is implemented and now has a fail-closed,
+opt-in SQL evidence test in
+`hmailserver/source/Server.Net10/tests/HMailServer.Net10.Tests/SqlServerSecurityRangeAdministrationStoreIntegrationTests.cs`.
+The test creates and removes only a random local disposable database when
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION` and
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1` are
+explicitly configured. The current run skipped that destructive test because
+those approvals are absent; four SQL contract tests passed.
+
+Full Net10 is `2222 passed, 55 skipped, 0 failed`. The paired C++/.NET 10
+performance release gate remains **RED** because the C++ side has not safely
+run against the identical disposable SQL/Data/message fixture. No performance
+ratio or winner is claimed. The next slice is registry-isolated C++ execution
+or a separate staging VM.

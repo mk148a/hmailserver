@@ -4490,3 +4490,32 @@ COM identity, SQL schema, or live reconfiguration behavior changed.
 Next independent slice: registry-isolated C++ execution on the clean paired
 fixture; if unavailable, run the approved disposable DNS/socket/TLS/SNI and
 certificate/revocation matrix.
+## Current next slice (2026-08-13, SecurityRanges SQL identity/readback evidence)
+
+Legacy `InterfaceSecurityRanges::Add` (`source/Server/COM/
+InterfaceSecurityRanges.cpp`) creates an unsaved range attached to its owning
+collection. `InterfaceSecurityRange::Save`
+(`source/Server/COM/InterfaceSecurityRange.cpp`) persists through
+`PersistentSecurityRange::SaveObject`
+(`source/Server/Common/Persistence/PersistentSecurityRange.cpp`) and adds the
+item to the parent collection only after a successful insert. The .NET
+`SecurityRanges.Add`/`SecurityRange.Save` path already preserves that scope,
+the server-administrator boundary, and the installed COM contract.
+
+Code/test commit `b535f94b0` adds the fail-closed opt-in
+`SqlServerSecurityRangeAdministrationStoreIntegrationTests` fixture. It
+accepts only an explicitly approved local SQL/LocalDB connection with
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1`, creates a
+random disposable database, verifies `OUTPUT INSERTED.rangeid`, all legacy
+`hm_securityranges` columns, and store readback, then drops the database.
+The focused run passed the four SQL store contract tests and skipped the
+destructive integration test because the approval variables are unset. Full
+Net10 is `2222 passed, 55 skipped, 0 failed`.
+
+This is test evidence only; no production code, database, Data directory,
+COM registration, or DCOM ACL changed. The SQL evidence gate remains
+environment-blocked until a disposable target is explicitly approved.
+
+Next independent slice: obtain a registry-isolated C++ installation or
+separate staging VM and execute the identical disposable SQL/Data/message
+performance matrix; the paired performance release gate remains RED.

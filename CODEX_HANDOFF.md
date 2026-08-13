@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, SecurityRanges SQL evidence)
+
+Legacy `InterfaceSecurityRanges::Add`
+(`source/Server/COM/InterfaceSecurityRanges.cpp`) returns an unsaved item
+scoped to the owning collection. `InterfaceSecurityRange::Save`
+(`source/Server/COM/InterfaceSecurityRange.cpp`) calls
+`PersistentSecurityRange::SaveObject`
+(`source/Server/Common/Persistence/PersistentSecurityRange.cpp`) and appends
+only after the insert succeeds. The .NET implementation already matches this
+authenticated COM ownership and identity behavior.
+
+Code/test commit `b535f94b0` adds an opt-in, fail-closed SQL Server integration
+test that creates a random local disposable database, creates only the legacy
+`hm_securityranges` table, verifies generated identity and stored columns, and
+checks store readback before cleanup. Focused SQL tests are `4 passed, 1
+skipped`; the new integration test skipped because
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION` and
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1` are not
+configured. Full Net10 is `2222 passed, 55 skipped, 0 failed`.
+
+The test does not prove production database compatibility until it runs against
+an explicitly approved disposable SQL target. No production SQL/Data,
+registration, DCOM ACL, or SMTP trust behavior was changed. Release remains
+**RED**. Next slice: registry-isolated C++ execution for the paired
+performance gate, or a separate staging VM.
+
 ## Current Authoritative Continuation (2026-08-13, external-fetch library default)
 
 Code/test commit `bf2f2c2dd` makes
