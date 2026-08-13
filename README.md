@@ -1,6 +1,46 @@
 hMailServer
 ===========
 
+## Current authoritative performance gate (2026-08-14)
+
+The paired disposable fixture is valid at the start of the run: 37 SQL table
+row counts match, both sides contain the same 1,000-message SHA-256 Data
+corpus, Full-Text is ready, and both targets use `127.0.0.1:2525` SMTP,
+`:1143` IMAP, and `:25110` POP3. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260813/shared-baseline-run-20260813_223908/`.
+
+The .NET 10 matrix completed successfully on that fixture: protocol SMTP,
+IMAP, and POP3 `25/25` each; SMTP acceptance `25/25`; 1,000 concurrent IMAP
+`1000/1000`; FTS SEARCH `25/25`; local delivery queue `50/50`; and POP3 large
+mailbox `5/5`. Measurements and charts are in
+[`PERFORMANCE_COMPARISON_REPORT.md`](hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md).
+
+The C++ matrix was not started. Read-only preflight found Registry32
+`HKLM\SOFTWARE\hMailServer\InstallLocation = C:\hMailServer57-Test`, while
+the disposable binary is under
+`C:\hmail-perf-pair-run-20260813_223908\cpp\Bin`. Legacy `_tWinMain` calls
+`RegisterAppID()` before `/Debug` startup, so launching it here could alter
+the installed Application registration. Evidence:
+`artifacts/benchmarks/live-cpp-net10-20260813/cpp-preflight-same-fixture-20260813_223908.json`.
+
+Therefore no C++/.NET 10 speed-up, regression ratio, or performance winner is
+claimed. The performance release gate is **RED** until the identical fixture
+and workload matrix runs in a registry-isolated C++ staging environment. The
+current full Net10 result is `2290 passed, 56 skipped, 0 failed`; the latest
+SQL owner-scope focus is `8 passed, 0 failed`.
+
+```mermaid
+xychart-beta
+    title "Measured Net10 matched-fixture latency only"
+    x-axis [SMTP, IMAP, POP3, Accept, IMAP-1k, FTS, Queue, POP3-large]
+    y-axis "Milliseconds" 0 --> 3800
+    bar [1.254, 19.432, 19.007, 6.011, 2914.176, 10.348, 8.584, 60.214]
+    bar [3.311, 121.194, 34.755, 9.742, 3660.792, 17.463, 17.595, 318.506]
+    bar [24.569, 517.908, 54.679, 216.675, 3714.839, 27.586, 92.114, 370.136]
+```
+
+Legend: p50, p95, p99. This is not a C++ comparison chart.
+
 ## Current authoritative Links cross-facade lifetime status (2026-08-14)
 
 Code/test commit `88ef1006b` closes the lifetime inconsistency between

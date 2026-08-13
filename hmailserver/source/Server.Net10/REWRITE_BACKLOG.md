@@ -5055,3 +5055,20 @@ remain open.
 
 Next independent slices: registry-isolated C++ paired benchmark execution;
 then the next legacy-anchored Admin/protocol gap.
+## Current Next Slice (2026-08-14, SQL owner-scoped distribution-list update completed)
+
+Completed code/test commit `3383b0847`: `SqlServerDistributionListAdministrationStore.UpdateDistributionListSql`
+now requires both `distributionlistid = @ID` and
+`distributionlistdomainid = @DomainID`. The focused SQL contract passes `8/8`.
+This closes the bounded UPDATE ownership gap only. Legacy anchors are
+`PersistentDistributionList::SaveObject` and the `hm_distributionlists` DDL;
+COM identity, direct activation, SMTP behavior, schema, and unrelated Admin
+collections are unchanged.
+
+Remaining SQL risk: parent/recipient deletion is still non-transactional and
+recipient SQL still lacks parent-existence/domain predicates. The next
+independent production slice is the service-owned restore reinitialization
+architecture, followed by isolated restore/rollback and registry-isolated
+C++/.NET paired performance evidence. Performance and release remain **RED**.
+
+## Historical Next Slice (2026-08-14, Links cross-facade lifetime; superseded)

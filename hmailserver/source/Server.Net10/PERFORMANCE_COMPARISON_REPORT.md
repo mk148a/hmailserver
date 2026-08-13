@@ -1,5 +1,21 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Current verification (2026-08-14)
+
+Code/test HEAD: `3383b0847`. The disposable paired start state remains
+validated by the 2026-08-13 evidence: 37 SQL table row counts equal, 1,000
+Data files equal by SHA-256, Full-Text ready on both sides, and identical
+loopback ports `127.0.0.1:2525`, `:1143`, and `:25110`. The full Net10 suite
+passes `2290`, skips `56`, fails `0`; the SQL owner-scope focus passes `8/8`.
+
+The C++ executable was not launched. Read-only preflight found Registry32
+pointing to `C:\hMailServer57-Test\Bin`, while the disposable C++ target is
+`C:\hmail-perf-pair-run-20260813_223908\cpp\Bin`. Because legacy
+`hmailserver/source/Server/hMailServer/hMailServer.cpp::_tWinMain` calls
+`RegisterAppID()` before `/Debug`, launch on this host could modify the
+installed Application registration. Performance gate: **RED**. No ratio,
+speed-up, regression percentage, or winner is reported.
+
 ## Authoritative matched-fixture rerun (2026-08-13)
 
 Repository HEAD at evidence capture: `fad0a7f65ddb16310b5d19ba4194230d228c5fb4`.

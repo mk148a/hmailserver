@@ -1,6 +1,28 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-14, Links cross-facade lifetime)
+## Current Authoritative Continuation (2026-08-14, SQL owner-scoped distribution-list update)
+
+Code/test commit `3383b0847` adds `distributionlistdomainid = @DomainID` to
+the `hm_distributionlists` UPDATE predicate in
+`SqlServerDistributionListAdministrationStore.UpdateDistributionListSql`.
+The focused SQL contract now passes `8/8`, including all legacy update fields
+and the owner predicate. Legacy SQL ownership is anchored by
+`PersistentDistributionList::SaveObject` and the `hm_distributionlists`
+schema; no COM identity, SMTP, schema, or unrelated Admin collection changed.
+
+Full Net10 Debug passes `2290`, skips `56`, fails `0`.
+
+The matched disposable performance fixture remains valid and the Net10 matrix
+passes, but the C++ run is still refused by read-only registry preflight because
+legacy `_tWinMain` calls `RegisterAppID()` and Registry32 points to the installed
+`C:\hMailServer57-Test\Bin`. No C++ ratio or winner is valid. Performance and
+overall release remain **RED**. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260813/`.
+
+Next independent work: service-owned restore reinitialization architecture;
+isolated restore/rollback round trip; registry-isolated C++ paired benchmark.
+
+## Historical Continuation (2026-08-14, Links cross-facade lifetime; superseded)
 
 Code/test commit `88ef1006b` shares a process-local lifetime registry keyed by
 `(DomainId, DistributionListId)` between `Application.Links` and
