@@ -81,6 +81,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
     private readonly Action<IncomingRelayAdministrationSnapshot>? _save;
     private readonly Func<IncomingRelayAdministrationSnapshot, int>? _insert;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public IncomingRelays()
     {
@@ -92,7 +93,8 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
         Action<int>? deleteById,
         Action<IncomingRelayAdministrationSnapshot>? save,
         Func<IncomingRelayAdministrationSnapshot, int>? insert,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _relays = relays.ToArray();
         _reload = reload;
@@ -100,6 +102,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
         _save = save;
         _insert = insert;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetRelays().Count;
@@ -110,10 +113,18 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
         Action<int>? deleteById = null,
         Action<IncomingRelayAdministrationSnapshot>? save = null,
         Func<IncomingRelayAdministrationSnapshot, int>? insert = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(relays);
-        return new IncomingRelays(relays, reload, deleteById, save, insert, isServerAdministrator);
+        return new IncomingRelays(
+            relays,
+            reload,
+            deleteById,
+            save,
+            insert,
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 
     public IInterfaceIncomingRelay this[int index]
@@ -164,9 +175,10 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
         }
 
         EnsureServerAdministrator();
+        var databaseId = relays[index].Id;
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
-            var databaseId = relays[index].Id;
             _deleteById(databaseId);
             Volatile.Write(
                 ref _relays,
@@ -195,6 +207,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
         }
 
         EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             _deleteById(databaseId);
@@ -262,6 +275,7 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
             return relay;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             if (relay.Id == 0)
@@ -303,6 +317,21 @@ public sealed class IncomingRelays : IInterfaceIncomingRelays
                 "IncomingRelays access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "IncomingRelays access requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private IncomingRelay CreateRelay(IncomingRelayAdministrationSnapshot relay)
@@ -496,7 +525,9 @@ public static class IncomingRelayAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static IncomingRelays CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
+    internal static IncomingRelays CreateAuthorizedAdapter(
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -533,6 +564,7 @@ public static class IncomingRelayAdministrationRuntimeHost
             DeleteRelayById,
             SaveRelay,
             InsertRelay,
-            isServerAdministrator);
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 }

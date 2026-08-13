@@ -2326,7 +2326,9 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         {
             EnsureAuthorized();
             EnsureServerAdministrator();
-            return IncomingRelayAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
+            return IncomingRelayAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                _isServerAdministrator,
+                _authorizationLeaseFactory);
         }
     }
 

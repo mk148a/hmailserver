@@ -165,6 +165,241 @@ public sealed class IncomingRelaysComContractTests
     }
 
     [TestMethod]
+    public async Task ApplicationSettings_IncomingRelayUpdateLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") })
+        {
+            GateUpdateMutation = true
+        };
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
+        var application = Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var relays = application.Settings.IncomingRelays;
+        var relay = relays[0];
+        relay.Name = "Updated relay";
+
+        var mutation = Task.Run(relay.Save);
+        await store.UpdateMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.UpdateMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual(1, store.SavedRelays.Count);
+        Assert.AreEqual("Updated relay", relays[0].Name);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_IncomingRelayInsertLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") })
+        {
+            GateInsertMutation = true
+        };
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
+        var application = Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var relays = application.Settings.IncomingRelays;
+        var relay = relays.Add();
+        relay.Name = "Inserted relay";
+
+        var mutation = Task.Run(relay.Save);
+        await store.InsertMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.InsertMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual(30, relay.ID);
+        Assert.AreEqual(2, relays.Count);
+        Assert.AreEqual("Inserted relay", relays.get_ItemByDBID(30).Name);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_IncomingRelayCollectionDeleteLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") })
+        {
+            GateDeleteMutation = true
+        };
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
+        var application = Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var relays = application.Settings.IncomingRelays;
+
+        var mutation = Task.Run(() => relays.Delete(0));
+        await store.DeleteMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.DeleteMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual(0, relays.Count);
+        CollectionAssert.AreEqual(new[] { 10 }, store.DeletedIds);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSettings_IncomingRelayChildDeleteLeaseBlocksReauthenticationUntilMutationCompletes()
+    {
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") })
+        {
+            GateDeleteMutation = true
+        };
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
+        var application = Application.CreateForRuntime(new TestAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var relays = application.Settings.IncomingRelays;
+        var relay = relays[0];
+
+        var mutation = Task.Run(relay.Delete);
+        await store.DeleteMutationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(100);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        store.DeleteMutationRelease.TrySetResult(true);
+        await mutation;
+        Assert.IsNull(await reauthentication);
+        Assert.AreEqual(0, relays.Count);
+        CollectionAssert.AreEqual(new[] { 10 }, store.DeletedIds);
+    }
+
+    [TestMethod]
+    public void AuthorizedIncomingRelays_UnavailableAuthorizationLeaseReturnsAccessDeniedBeforeMutation()
+    {
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") });
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+        var relay = settings.IncomingRelays[0];
+        relay.Name = "Denied relay";
+
+        var denied = Assert.ThrowsExactly<COMException>(relay.Save);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.SavedRelays.Count);
+        Assert.AreEqual("Alpha relay", settings.IncomingRelays[0].Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedIncomingRelays_UnavailableAuthorizationLeaseDeniesInsertBeforeMutation()
+    {
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") });
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+        var relay = settings.IncomingRelays.Add();
+        relay.Name = "Denied insert";
+
+        var denied = Assert.ThrowsExactly<COMException>(relay.Save);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.InsertedRelays.Count);
+        Assert.AreEqual(1, settings.IncomingRelays.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedIncomingRelays_UnavailableAuthorizationLeaseDeniesCollectionDeleteBeforeMutation()
+    {
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") });
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+        var relays = settings.IncomingRelays;
+
+        var denied = Assert.ThrowsExactly<COMException>(() => relays.Delete(0));
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.DeletedIds.Count);
+        Assert.AreEqual(1, relays.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedIncomingRelays_UnavailableAuthorizationLeaseDeniesChildDeleteBeforeMutation()
+    {
+        var store = new MutableIncomingRelayAdministrationStore(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") });
+        IncomingRelayAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+        var relay = settings.IncomingRelays[0];
+
+        var denied = Assert.ThrowsExactly<COMException>(relay.Delete);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.DeletedIds.Count);
+        Assert.AreEqual(1, settings.IncomingRelays.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedIncomingRelays_MutationFailuresDisposeLeasesAcrossAllPersistentPaths()
+    {
+        var disposed = new List<string>();
+        var updateRelays = IncomingRelays.CreateAuthorized(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") },
+            save: _ => throw new InvalidOperationException("Simulated update failure."),
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(
+                new TrackingLease(() => disposed.Add("update"))));
+        var updateError = Assert.ThrowsExactly<COMException>(() => updateRelays[0].Save());
+
+        var insertRelays = IncomingRelays.CreateAuthorized(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") },
+            insert: _ => throw new InvalidOperationException("Simulated insert failure."),
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(
+                new TrackingLease(() => disposed.Add("insert"))));
+        var insertError = Assert.ThrowsExactly<COMException>(() => insertRelays.Add().Save());
+
+        var collectionDeleteRelays = IncomingRelays.CreateAuthorized(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") },
+            deleteById: _ => throw new InvalidOperationException("Simulated collection delete failure."),
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(
+                new TrackingLease(() => disposed.Add("collection-delete"))));
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(
+            () => collectionDeleteRelays.Delete(0));
+
+        var childDeleteRelays = IncomingRelays.CreateAuthorized(
+            new[] { Snapshot(10, "Alpha relay", "127.0.0.1", "127.0.0.1") },
+            deleteById: _ => throw new InvalidOperationException("Simulated child delete failure."),
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(
+                new TrackingLease(() => disposed.Add("child-delete"))));
+        var childDeleteError = Assert.ThrowsExactly<COMException>(
+            childDeleteRelays[0].Delete);
+
+        Assert.AreEqual(EFail, updateError.ErrorCode);
+        Assert.AreEqual(EFail, insertError.ErrorCode);
+        Assert.AreEqual(EFail, collectionDeleteError.ErrorCode);
+        Assert.AreEqual(EFail, childDeleteError.ErrorCode);
+        CollectionAssert.AreEqual(
+            new[] { "update", "insert", "collection-delete", "child-delete" },
+            disposed);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_ExposesReadOnlySnapshotsAndLegacyLookupErrors()
     {
         IInterfaceIncomingRelays relays = IncomingRelays.CreateAuthorized(
@@ -713,6 +948,30 @@ public sealed class IncomingRelaysComContractTests
 
         public List<IncomingRelayAdministrationSnapshot> InsertedRelays { get; } = [];
 
+        public bool GateUpdateMutation { get; set; }
+
+        public TaskCompletionSource<bool> UpdateMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> UpdateMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool GateInsertMutation { get; set; }
+
+        public TaskCompletionSource<bool> InsertMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> InsertMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool GateDeleteMutation { get; set; }
+
+        public TaskCompletionSource<bool> DeleteMutationEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> DeleteMutationRelease { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public void Replace(IReadOnlyList<IncomingRelayAdministrationSnapshot> relays)
         {
             _relays = relays;
@@ -726,39 +985,60 @@ public sealed class IncomingRelaysComContractTests
                 _relays.OrderBy(relay => relay.Name, StringComparer.OrdinalIgnoreCase).ToArray());
         }
 
-        public ValueTask DeleteIncomingRelayByIdAsync(
+        public async ValueTask DeleteIncomingRelayByIdAsync(
             int databaseId,
             CancellationToken cancellationToken)
         {
+            if (GateDeleteMutation)
+            {
+                DeleteMutationEntered.TrySetResult(true);
+                await DeleteMutationRelease.Task;
+            }
+
             DeletedIds.Add(databaseId);
             _relays = _relays
                 .Where(relay => relay.Id != databaseId)
                 .ToArray();
-            return ValueTask.CompletedTask;
         }
 
-        public ValueTask UpdateIncomingRelayAsync(
+        public async ValueTask UpdateIncomingRelayAsync(
             IncomingRelayAdministrationSnapshot relay,
             CancellationToken cancellationToken)
         {
+            if (GateUpdateMutation)
+            {
+                UpdateMutationEntered.TrySetResult(true);
+                await UpdateMutationRelease.Task;
+            }
+
             SavedRelays.Add(relay);
             _relays = _relays
                 .Select(existing => existing.Id == relay.Id ? relay : existing)
                 .ToArray();
-            return ValueTask.CompletedTask;
         }
 
-        public ValueTask<int> InsertIncomingRelayAsync(
+        public async ValueTask<int> InsertIncomingRelayAsync(
             IncomingRelayAdministrationSnapshot relay,
             CancellationToken cancellationToken)
         {
+            if (GateInsertMutation)
+            {
+                InsertMutationEntered.TrySetResult(true);
+                await InsertMutationRelease.Task;
+            }
+
             InsertedRelays.Add(relay);
             const int insertedId = 30;
             _relays = _relays
                 .Concat([relay with { Id = insertedId }])
                 .ToArray();
-            return ValueTask.FromResult(insertedId);
+            return insertedId;
         }
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 
     private sealed class TestAdministratorAuthenticationProvider(string password)
