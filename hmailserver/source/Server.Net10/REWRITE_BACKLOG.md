@@ -4650,3 +4650,33 @@ release-green. Release remains RED.
 Next independent slice: run the approved disposable SQL/Data Account deletion
 acceptance and rollback/recovery drill, then continue with registry-isolated
 C++ paired performance or isolated service/out-of-process COM lifecycle.
+
+## Current next slice (2026-08-13, FetchAccount existing-row Save UPDATE parity; supersedes older entries)
+
+Legacy `InterfaceFetchAccount::Save` in
+`source/Server/COM/InterfaceFetchAccount.cpp` delegates to
+`PersistentFetchAccount::SaveObject` in
+`source/Server/Common/Persistence/PersistentFetchAccount.cpp`. The existing
+row branch updates mutable `hm_fetchaccounts` fields by `faid`, writes the
+next retry timestamp, and encrypts the password using the legacy Blowfish
+implementation.
+
+Code/test commit `6573fdeda` implements the bounded authenticated Net10 path.
+Existing-row item setters are staged through the owning `Account ->
+FetchAccounts` collection; Save rechecks authentication, rejects cross-parent
+account changes, uses parameterized SQL scoped by `faid` and `faaccountid`,
+preserves stored ciphertext when the password was not set, and encrypts an
+explicit password change through the existing cipher boundary. Successful
+updates publish to both child and owning collection snapshots; failures retain
+staged child and previous collection state. Installed FetchAccount
+IID/vtable/DISPID/class identity, direct activation denial, DownloadNow,
+Delete, SMTP, and external-fetch runtime behavior remain unchanged.
+
+Focused FetchAccounts/SQL-store coverage is `36/36`; full Net10 is `2252
+passed, 55 skipped, 0 failed`. No disposable SQL update/readback, real COM,
+Administrator, or external-fetch worker acceptance is available. Existing-row
+`FetchAccount.Password` getter remains intentionally `E_NOTIMPL` because
+normal administration snapshots do not retain plaintext credentials. Release
+remains RED. Next slice: approved disposable SQL UPDATE/readback with
+unchanged/changed password and wrong-owner cases, followed by registry-isolated
+C++ paired performance or isolated service/COM lifecycle.

@@ -1,6 +1,35 @@
 hMailServer
 ===========
 
+## Current authoritative FetchAccount Save parity status (2026-08-13)
+
+Code/test commit `6573fdeda` closes the bounded authenticated existing-row
+`FetchAccount.Save()` UPDATE slice. Legacy
+`InterfaceFetchAccount::Save` (`hmailserver/source/Server/COM/InterfaceFetchAccount.cpp`)
+delegates to `PersistentFetchAccount::SaveObject`
+(`hmailserver/source/Server/Common/Persistence/PersistentFetchAccount.cpp`),
+which writes mutable `hm_fetchaccounts` fields by `faid`, sets the next-try
+timestamp, and encrypts the password through the legacy Blowfish path.
+
+Net10 now stages existing-row setters through the owning authenticated
+`Account -> FetchAccounts` collection, rechecks access, rejects a changed
+parent account before the store, and updates SQL only where `faid` and
+`faaccountid` both match. Unchanged passwords preserve stored ciphertext;
+explicit password setters pass a value to the existing encryption boundary.
+A successful update publishes the new values to the child and owning
+collection snapshots; a failed update retains staged child state and the prior
+collection snapshot. Installed FetchAccount identity/DISPIDs, direct
+activation denial, DownloadNow/Delete behavior, and external-fetch runtime
+behavior are unchanged.
+
+Focused FetchAccounts plus SQL-store coverage is `36 passed, 0 failed`; full
+Net10 is `2252 passed, 55 skipped, 0 failed`. No live SQL update/readback,
+real COM/Admin activation, or external-fetch worker acceptance was run. The
+existing-row `FetchAccount.Password` getter remains deliberately fenced
+because administration snapshots do not retain plaintext credentials; this
+and the live integration gates remain release residuals. Release remains
+**RED**.
+
 ## Current authoritative Account.DeleteMessages parity status (2026-08-13)
 
 Code/test commit `0da667302` closes the bounded authenticated

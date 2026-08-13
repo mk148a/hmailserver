@@ -1,5 +1,34 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, FetchAccount Save UPDATE parity)
+
+Legacy `InterfaceFetchAccount::Save` (`source/Server/COM/InterfaceFetchAccount.cpp`)
+calls `PersistentFetchAccount::SaveObject`
+(`source/Server/Common/Persistence/PersistentFetchAccount.cpp`), whose
+existing-row branch updates `hm_fetchaccounts` by `faid`, writes `fanexttry`,
+and encrypts `fapassword` through the legacy Blowfish cipher.
+
+Code/test commit `6573fdeda` adds the bounded Net10 equivalent. Existing-row
+setters are staged only through the owning authenticated `Account ->
+FetchAccounts` collection; Save rejects cross-parent account changes, SQL is
+parameterized and scoped by `faid` plus `faaccountid`, unchanged password
+ciphertext is preserved, and explicit password changes use the existing
+encryption boundary. Success updates retained child and collection snapshots;
+failures preserve staged child and old collection state. COM identity/DISPIDs,
+direct activation denial, DownloadNow/Delete, SMTP, and external-fetch runtime
+behavior are unchanged.
+
+Focused coverage: `36 passed, 0 failed`. Full Net10: `2252 passed, 55 skipped,
+0 failed`. No live SQL update/readback, registered out-of-process COM,
+Administrator, or worker-cycle evidence exists. Existing-row
+`FetchAccount.Password` getter remains `E_NOTIMPL` to avoid putting plaintext
+credentials in normal administration snapshots. Reality review is NEEDS WORK
+for those live gates; release remains **RED**.
+
+Next independent slices: approved disposable SQL FetchAccount UPDATE/readback
+with unchanged/changed password and wrong-owner cases; registry-isolated C++
+paired performance evidence; isolated service/out-of-process COM lifecycle.
+
 ## Current Authoritative Continuation (2026-08-13, Account.DeleteMessages parity)
 
 Legacy `InterfaceAccount::DeleteMessages`

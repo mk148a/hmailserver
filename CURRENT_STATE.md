@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T16:36:56Z / 2026-08-13T19:36:56+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `1ebaf447b` (Account.DeleteMessages parity documentation)
-- Last successfully pushed commit: `1ebaf447b`
-- Latest focused-test result: Account/IMAP/SQL contract tests `97 passed, 0 failed`
-- Latest full Net10 result: `2247 passed, 55 skipped, 0 failed`
+- UTC/local timestamp: 2026-08-13T17:20:00Z / 2026-08-13T20:20:00+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local ahead by one code commit until push
+- Current HEAD: `6573fdeda` (FetchAccount existing-row Save parity code/test)
+- Last successfully pushed commit: `e2453eb3b`
+- Latest focused-test result: FetchAccounts/SQL-store contract tests `36 passed, 0 failed`
+- Latest full Net10 result: `2252 passed, 55 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL SecurityRanges integration remains skipped because the approved current-user `MSSQLLocalDB` connection and isolated-create approval are unset; paired C++ benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, live DNS/socket/TLS, and 24-hour soak remain skipped or environment-blocked
-- Current bounded slice: authenticated `Account.DeleteMessages` now performs owner-scoped transactional IMAP deletion, preserves Inbox, invalidates the account-size cache, and holds the existing authorization lease through the store call
-- Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, no-MX CNAME planning, SecurityRanges managed parity coverage, IncomingRelays retained-collection authorization and mutation lease coverage, AntiSpam local target pinning, and authenticated Account.DeleteMessages parity
+- Current bounded slice: authenticated existing-row `FetchAccount.Save()` stages mutable fields, preserves unchanged password ciphertext, owner-scopes the SQL UPDATE, and publishes only the owning child/collection snapshot after success
+- Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, no-MX CNAME planning, SecurityRanges managed parity coverage, IncomingRelays retained-collection authorization and mutation lease coverage, AntiSpam local target pinning, authenticated Account.DeleteMessages parity, and FetchAccount existing-row Save parity
 - Open production blockers: paired C++/.NET performance RED; legacy C++ external-fetch SSRF, live DNS/socket/TLS/SNI and certificate/revocation acceptance; scanner production egress and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; explicitly approved current-user LocalDB target; live DNS/socket/TLS fixture; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: approved disposable SQL/Data Account.DeleteMessages acceptance with rollback/recovery evidence; registry-isolated C++ execution and paired benchmark evidence; isolated Windows service/out-of-process COM lifecycle
+- Next three independent slices: approved disposable SQL/Data FetchAccount UPDATE/readback acceptance; registry-isolated C++ execution and paired benchmark evidence; isolated Windows service/out-of-process COM lifecycle
