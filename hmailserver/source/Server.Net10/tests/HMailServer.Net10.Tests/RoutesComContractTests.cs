@@ -399,6 +399,106 @@ public sealed class RoutesComContractTests
     }
 
     [TestMethod]
+    public void MutationPaths_HoldAndDisposeAuthorizationLeaseAroundStoreCalls()
+    {
+        var events = new List<string>();
+        var leaseFactory = new Func<CancellationToken, ValueTask<IDisposable?>>(_ =>
+            ValueTask.FromResult<IDisposable?>(new TrackingLease(() => events.Add("dispose"))));
+
+        var updateRoutes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            update: _ =>
+            {
+                events.Add("update");
+                return true;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+        updateRoutes[0].DomainName = "changed.example";
+        updateRoutes[0].Save();
+
+        var insertRoutes = Routes.CreateAuthorized(
+            Array.Empty<RouteAdministrationSnapshot>(),
+            insert: _ =>
+            {
+                events.Add("insert");
+                return 20;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+        insertRoutes.Add().Save();
+
+        var collectionDeleteRoutes = Routes.CreateAuthorized(
+            new[] { Snapshot(30, "delete.example", ComConnectionSecurity.Tls) },
+            delete: _ =>
+            {
+                events.Add("collection-delete");
+                return true;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+        collectionDeleteRoutes.DeleteByDBID(30);
+
+        var childDeleteRoutes = Routes.CreateAuthorized(
+            new[] { Snapshot(40, "child-delete.example", ComConnectionSecurity.Tls) },
+            delete: _ =>
+            {
+                events.Add("child-delete");
+                return true;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+        childDeleteRoutes[0].Delete();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "update", "dispose",
+                "insert", "dispose",
+                "collection-delete", "dispose",
+                "child-delete", "dispose"
+            },
+            events);
+    }
+
+    [TestMethod]
+    public void MutationPaths_DenyWhenAuthorizationLeaseCannotBeAcquired()
+    {
+        var callbackCount = 0;
+        static ValueTask<IDisposable?> DenyLease(CancellationToken _) =>
+            ValueTask.FromResult<IDisposable?>(null);
+
+        var saveRoutes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            update: _ =>
+            {
+                callbackCount++;
+                return true;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: DenyLease);
+        var saveError = Assert.ThrowsExactly<COMException>(() => saveRoutes[0].Save());
+
+        var deleteRoutes = Routes.CreateAuthorized(
+            new[] { Snapshot(20, "beta.example", ComConnectionSecurity.Tls) },
+            delete: _ =>
+            {
+                callbackCount++;
+                return true;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: DenyLease);
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(
+            () => deleteRoutes.DeleteByDBID(20));
+        var childDeleteError = Assert.ThrowsExactly<COMException>(deleteRoutes[0].Delete);
+
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, childDeleteError.ErrorCode);
+        Assert.AreEqual(0, callbackCount);
+    }
+
+    [TestMethod]
     public void FailedUpdate_MapsToEFailAndRetainsStagedStateWithoutReplacingSnapshot()
     {
         var failUpdate = true;
@@ -588,6 +688,11 @@ public sealed class RoutesComContractTests
         Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
         Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 
     private sealed class MutableRouteAdministrationStore(IReadOnlyList<RouteAdministrationSnapshot> routes)
