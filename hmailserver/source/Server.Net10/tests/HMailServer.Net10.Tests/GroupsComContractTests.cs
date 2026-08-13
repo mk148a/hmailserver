@@ -374,6 +374,116 @@ public sealed class GroupsComContractTests
     }
 
     [TestMethod]
+    public void GroupMutations_HoldAuthorizationLeaseAcrossStoreCallbacks()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        var inserts = 0;
+        var updates = 0;
+        var deletes = 0;
+
+        IDisposable Lease() => new TrackingLease(() =>
+        {
+            activeLeases--;
+            disposedLeases++;
+        });
+
+        Func<CancellationToken, ValueTask<IDisposable?>> leaseFactory = _ =>
+        {
+            activeLeases++;
+            return ValueTask.FromResult<IDisposable?>(Lease());
+        };
+
+        IInterfaceGroups groups = Groups.CreateAuthorized(
+            new[] { Snapshot(10, "Administrators") },
+            insert: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                inserts++;
+                return 20;
+            },
+            update: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                updates++;
+                return true;
+            },
+            delete: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                deletes++;
+            },
+            authorizationLeaseFactory: leaseFactory);
+
+        var draft = groups.Add();
+        draft.Name = "Support";
+        draft.Save();
+        var existing = groups.get_ItemByDBID(20);
+        existing.Name = "Support Team";
+        existing.Save();
+        existing.Delete();
+
+        Assert.AreEqual(1, inserts);
+        Assert.AreEqual(1, updates);
+        Assert.AreEqual(1, deletes);
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(3, disposedLeases);
+    }
+
+    [TestMethod]
+    public void GroupMutations_DenyBeforeStoreWhenAuthorizationLeaseIsUnavailable()
+    {
+        var updates = 0;
+        var deletes = 0;
+        var leaseRequests = 0;
+        IInterfaceGroups groups = Groups.CreateAuthorized(
+            new[] { Snapshot(10, "Administrators") },
+            update: _ =>
+            {
+                updates++;
+                return true;
+            },
+            delete: _ => deletes++,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseRequests++;
+                return ValueTask.FromResult<IDisposable?>(null);
+            });
+
+        var group = groups[0];
+        group.Name = "Denied";
+        var saveError = Assert.ThrowsExactly<COMException>(group.Save);
+        var deleteError = Assert.ThrowsExactly<COMException>(group.Delete);
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(() => groups.DeleteByDBID(10));
+        groups.DeleteByDBID(999);
+
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionDeleteError.ErrorCode);
+        Assert.AreEqual(0, updates);
+        Assert.AreEqual(0, deletes);
+        Assert.AreEqual(3, leaseRequests);
+    }
+
+    [TestMethod]
+    public void RetainedGroupMembers_DenyMutationAfterOwningGroupLeavesSnapshot()
+    {
+        GroupMemberAdministrationRuntimeHost.Configure(new EmptyGroupMemberAdministrationStore());
+        var isCurrentGroup = true;
+        var group = Group.CreateAuthorized(
+            Snapshot(10, "Administrators"),
+            isServerAdministrator: () => true,
+            isCurrentGroup: _ => isCurrentGroup);
+        var members = group.Members;
+
+        isCurrentGroup = false;
+
+        var error = Assert.ThrowsExactly<COMException>(members.Add);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_UsesConfiguredGroupRuntime()
     {
         var store = new MutableGroupAdministrationStore(
@@ -438,6 +548,22 @@ public sealed class GroupsComContractTests
         Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
         Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        private Action? _onDispose = onDispose;
+
+        public void Dispose() => Interlocked.Exchange(ref _onDispose, null)?.Invoke();
+    }
+
+    private sealed class EmptyGroupMemberAdministrationStore : IGroupMemberAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<GroupMemberAdministrationSnapshot>> GetGroupMembersAsync(
+            int groupId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<GroupMemberAdministrationSnapshot>>(
+                Array.Empty<GroupMemberAdministrationSnapshot>());
     }
 
     private sealed class MutableGroupAdministrationStore(IReadOnlyList<GroupAdministrationSnapshot> groups)

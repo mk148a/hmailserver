@@ -75,6 +75,7 @@ public sealed class GroupMembers : IInterfaceGroupMembers
     private readonly Action<int>? _delete;
     private readonly Action<GroupMemberAdministrationSnapshot>? _publish;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<bool>? _isOwnerCurrent;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public GroupMembers()
@@ -89,6 +90,7 @@ public sealed class GroupMembers : IInterfaceGroupMembers
         Func<GroupMemberAdministrationSnapshot, GroupMemberAdministrationSnapshot>? saveExisting,
         Action<int>? delete,
         Func<bool>? isServerAdministrator,
+        Func<bool>? isOwnerCurrent,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _members = members.ToArray();
@@ -99,6 +101,7 @@ public sealed class GroupMembers : IInterfaceGroupMembers
         _delete = delete;
         _publish = Publish;
         _isServerAdministrator = isServerAdministrator;
+        _isOwnerCurrent = isOwnerCurrent;
         _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
@@ -112,7 +115,8 @@ public sealed class GroupMembers : IInterfaceGroupMembers
         Action<int>? delete = null,
         Func<bool>? isServerAdministrator = null,
         Func<GroupMemberAdministrationSnapshot, GroupMemberAdministrationSnapshot>? saveExisting = null,
-        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
+        Func<bool>? isOwnerCurrent = null)
     {
         ArgumentNullException.ThrowIfNull(members);
         return new GroupMembers(
@@ -123,6 +127,7 @@ public sealed class GroupMembers : IInterfaceGroupMembers
             saveExisting,
             delete,
             isServerAdministrator,
+            isOwnerCurrent,
             authorizationLeaseFactory);
     }
 
@@ -148,6 +153,7 @@ public sealed class GroupMembers : IInterfaceGroupMembers
                 delete: _delete is null ? null : DeleteMember,
                 ownerGroupId: _groupId,
                 isServerAdministrator: _isServerAdministrator,
+                isOwnerCurrent: _isOwnerCurrent,
                 authorizationLeaseFactory: _authorizationLeaseFactory);
         }
     }
@@ -166,13 +172,21 @@ public sealed class GroupMembers : IInterfaceGroupMembers
                 delete: _delete is null ? null : DeleteMember,
                 ownerGroupId: _groupId,
                 isServerAdministrator: _isServerAdministrator,
+                isOwnerCurrent: _isOwnerCurrent,
                 authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public void DeleteByDBID(int databaseId)
     {
-        _ = GetMembers();
+        var members = GetMembers();
         EnsureServerAdministrator();
+        EnsureOwnerCurrent();
+        if (!members.Any(member => member.Id == databaseId))
+        {
+            return;
+        }
+
+        using var authorizationLease = AcquireAuthorizationLease();
         DeleteMember(databaseId);
     }
 
@@ -180,6 +194,7 @@ public sealed class GroupMembers : IInterfaceGroupMembers
     {
         _ = GetMembers();
         EnsureServerAdministrator();
+        EnsureOwnerCurrent();
         if (_insert is null)
         {
             return Unavailable<IInterfaceGroupMember>();
@@ -193,6 +208,7 @@ public sealed class GroupMembers : IInterfaceGroupMembers
             delete: _delete is null ? null : DeleteMember,
             ownerGroupId: _groupId,
             isServerAdministrator: _isServerAdministrator,
+            isOwnerCurrent: _isOwnerCurrent,
             authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
@@ -237,6 +253,31 @@ public sealed class GroupMembers : IInterfaceGroupMembers
         }
     }
 
+    private void EnsureOwnerCurrent()
+    {
+        if (_isOwnerCurrent is not null && !_isOwnerCurrent())
+        {
+            throw new COMException(
+                "GroupMembers access requires a current owning group.",
+                EAccessDenied);
+        }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "GroupMembers access requires an authenticated server administrator.",
+                EAccessDenied);
+    }
+
     private void DeleteMember(int databaseId)
     {
         var members = GetMembers();
@@ -275,6 +316,8 @@ public sealed class GroupMembers : IInterfaceGroupMembers
                 "Group member mutation must remain within its owning group.",
                 EAccessDenied);
         }
+
+        EnsureOwnerCurrent();
 
         var members = GetMembers();
         if (!members.Any(existing => existing.Id == member.Id))
@@ -342,6 +385,7 @@ public sealed class GroupMember : IInterfaceGroupMember
     private readonly Action<GroupMemberAdministrationSnapshot>? _publish;
     private readonly int? _ownerGroupId;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<bool>? _isOwnerCurrent;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public GroupMember()
@@ -356,6 +400,7 @@ public sealed class GroupMember : IInterfaceGroupMember
         Action<int>? delete,
         int? ownerGroupId,
         Func<bool>? isServerAdministrator,
+        Func<bool>? isOwnerCurrent,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _member = member;
@@ -365,6 +410,7 @@ public sealed class GroupMember : IInterfaceGroupMember
         _delete = delete;
         _ownerGroupId = ownerGroupId;
         _isServerAdministrator = isServerAdministrator;
+        _isOwnerCurrent = isOwnerCurrent;
         _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
@@ -420,8 +466,9 @@ public sealed class GroupMember : IInterfaceGroupMember
         Action<int>? delete = null,
         int? ownerGroupId = null,
         Func<bool>? isServerAdministrator = null,
-        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
-        new(member, insert, publish, saveExisting, delete, ownerGroupId, isServerAdministrator, authorizationLeaseFactory);
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
+        Func<bool>? isOwnerCurrent = null) =>
+        new(member, insert, publish, saveExisting, delete, ownerGroupId, isServerAdministrator, isOwnerCurrent, authorizationLeaseFactory);
 
     public void Save()
     {
@@ -441,6 +488,9 @@ public sealed class GroupMember : IInterfaceGroupMember
                 EAccessDenied);
         }
 
+        EnsureOwnerCurrent();
+
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             if (snapshot.Id != 0)
@@ -475,12 +525,14 @@ public sealed class GroupMember : IInterfaceGroupMember
     public void Delete()
     {
         EnsureServerAdministrator();
+        EnsureOwnerCurrent();
         if (_delete is null)
         {
             Unavailable();
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         _delete(Snapshot.Id);
     }
 
@@ -497,6 +549,31 @@ public sealed class GroupMember : IInterfaceGroupMember
                 "Group member access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private void EnsureOwnerCurrent()
+    {
+        if (_isOwnerCurrent is not null && !_isOwnerCurrent())
+        {
+            throw new COMException(
+                "GroupMembers access requires a current owning group.",
+                EAccessDenied);
+        }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "Group member access requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private T Unavailable<T>()
@@ -532,7 +609,8 @@ public static class GroupMemberAdministrationRuntimeHost
     internal static GroupMembers CreateAuthorizedAdapter(
         int groupId,
         Func<bool>? isServerAdministrator = null,
-        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
+        Func<bool>? isOwnerCurrent = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -587,6 +665,7 @@ public static class GroupMemberAdministrationRuntimeHost
             DeleteMember,
             isServerAdministrator,
             UpdateMember,
-            authorizationLeaseFactory);
+            authorizationLeaseFactory,
+            isOwnerCurrent);
     }
 }

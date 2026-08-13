@@ -128,6 +128,7 @@ public sealed class Groups : IInterfaceGroups
                 saveExisting: _update is null ? null : SaveExistingGroup,
                 delete: _delete is null ? null : DeleteExistingGroup,
                 isServerAdministrator: _isServerAdministrator,
+                isCurrentGroup: IsCurrentGroup,
                 authorizationLeaseFactory: _authorizationLeaseFactory);
         }
     }
@@ -143,6 +144,7 @@ public sealed class Groups : IInterfaceGroups
                 saveExisting: _update is null ? null : SaveExistingGroup,
                 delete: _delete is null ? null : DeleteExistingGroup,
                 isServerAdministrator: _isServerAdministrator,
+                isCurrentGroup: IsCurrentGroup,
                 authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
@@ -158,13 +160,20 @@ public sealed class Groups : IInterfaceGroups
                 saveExisting: _update is null ? null : SaveExistingGroup,
                 delete: _delete is null ? null : DeleteExistingGroup,
                 isServerAdministrator: _isServerAdministrator,
+                isCurrentGroup: IsCurrentGroup,
                 authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public void DeleteByDBID(int databaseId)
     {
-        _ = GetGroups();
+        var groups = GetGroups();
         EnsureServerAdministrator();
+        if (!groups.Any(group => group.Id == databaseId))
+        {
+            return;
+        }
+
+        using var authorizationLease = AcquireAuthorizationLease();
         DeleteExistingGroup(databaseId);
     }
 
@@ -224,6 +233,24 @@ public sealed class Groups : IInterfaceGroups
                 "Groups access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private bool IsCurrentGroup(int groupId) =>
+        GetGroups().Any(group => group.Id == groupId);
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "Groups access requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private void Publish(GroupAdministrationSnapshot group)
@@ -324,6 +351,7 @@ public sealed class Group : IInterfaceGroup
     private readonly Func<GroupAdministrationSnapshot, GroupAdministrationSnapshot>? _saveExisting;
     private readonly Action<int>? _delete;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<int, bool>? _isCurrentGroup;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public Group()
@@ -337,6 +365,7 @@ public sealed class Group : IInterfaceGroup
         Func<bool>? isServerAdministrator,
         Func<GroupAdministrationSnapshot, GroupAdministrationSnapshot>? saveExisting,
         Action<int>? delete,
+        Func<int, bool>? isCurrentGroup,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _group = group;
@@ -345,6 +374,7 @@ public sealed class Group : IInterfaceGroup
         _isServerAdministrator = isServerAdministrator;
         _saveExisting = saveExisting;
         _delete = delete;
+        _isCurrentGroup = isCurrentGroup;
         _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
@@ -367,13 +397,24 @@ public sealed class Group : IInterfaceGroup
         }
     }
 
-    public IInterfaceGroupMembers Members =>
-        Snapshot.Id == 0
-            ? Unavailable<IInterfaceGroupMembers>()
-            : GroupMemberAdministrationRuntimeHost.CreateAuthorizedAdapter(
-                Snapshot.Id,
+    public IInterfaceGroupMembers Members
+    {
+        get
+        {
+            var snapshot = Snapshot;
+            if (snapshot.Id == 0)
+            {
+                return Unavailable<IInterfaceGroupMembers>();
+            }
+
+            EnsureCurrentGroup();
+            return GroupMemberAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                snapshot.Id,
                 _isServerAdministrator,
-                _authorizationLeaseFactory);
+                _authorizationLeaseFactory,
+                _isCurrentGroup is null ? null : () => _isCurrentGroup(snapshot.Id));
+        }
+    }
 
     internal static Group CreateAuthorized(
         GroupAdministrationSnapshot group,
@@ -382,8 +423,9 @@ public sealed class Group : IInterfaceGroup
         Func<bool>? isServerAdministrator = null,
         Func<GroupAdministrationSnapshot, GroupAdministrationSnapshot>? saveExisting = null,
         Action<int>? delete = null,
+        Func<int, bool>? isCurrentGroup = null,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
-        new(group, insert, publish, isServerAdministrator, saveExisting, delete, authorizationLeaseFactory);
+        new(group, insert, publish, isServerAdministrator, saveExisting, delete, isCurrentGroup, authorizationLeaseFactory);
 
     public void Save()
     {
@@ -396,6 +438,7 @@ public sealed class Group : IInterfaceGroup
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             if (snapshot.Id == 0)
@@ -437,6 +480,7 @@ public sealed class Group : IInterfaceGroup
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         _delete(Snapshot.Id);
     }
 
@@ -453,6 +497,31 @@ public sealed class Group : IInterfaceGroup
                 "Group access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private void EnsureCurrentGroup()
+    {
+        if (_isCurrentGroup is not null && !_isCurrentGroup(Snapshot.Id))
+        {
+            throw new COMException(
+                "Group access requires a current owning group.",
+                EAccessDenied);
+        }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "Group access requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private T Unavailable<T>()
@@ -558,6 +627,12 @@ public static class GroupAdministrationRuntimeHost
             : Group.CreateAuthorized(
                 group,
                 isServerAdministrator: isServerAdministrator,
+                isCurrentGroup: groupIdToCheck => store
+                    .GetGroupsAsync(CancellationToken.None)
+                    .AsTask()
+                    .GetAwaiter()
+                    .GetResult()
+                    .Any(item => item.Id == groupIdToCheck),
                 authorizationLeaseFactory: authorizationLeaseFactory);
     }
 }

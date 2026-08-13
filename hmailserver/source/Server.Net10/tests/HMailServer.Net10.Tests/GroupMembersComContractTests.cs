@@ -396,6 +396,100 @@ public sealed class GroupMembersComContractTests
     }
 
     [TestMethod]
+    public void GroupMemberMutations_HoldAuthorizationLeaseAcrossStoreCallbacks()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        var inserts = 0;
+        var updates = 0;
+        var deletes = 0;
+
+        IDisposable Lease() => new TrackingLease(() =>
+        {
+            activeLeases--;
+            disposedLeases++;
+        });
+
+        Func<CancellationToken, ValueTask<IDisposable?>> leaseFactory = _ =>
+        {
+            activeLeases++;
+            return ValueTask.FromResult<IDisposable?>(Lease());
+        };
+
+        IInterfaceGroupMembers members = GroupMembers.CreateAuthorized(
+            new[] { Snapshot(100, 10, 1000) },
+            groupId: 10,
+            insert: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                inserts++;
+                return 200;
+            },
+            saveExisting: member =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                updates++;
+                return member;
+            },
+            delete: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                deletes++;
+            },
+            authorizationLeaseFactory: leaseFactory);
+
+        var draft = members.Add();
+        draft.AccountID = 2000;
+        draft.Save();
+        var existing = members.get_ItemByDBID(200);
+        existing.AccountID = 3000;
+        existing.Save();
+        existing.Delete();
+
+        Assert.AreEqual(1, inserts);
+        Assert.AreEqual(1, updates);
+        Assert.AreEqual(1, deletes);
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(3, disposedLeases);
+    }
+
+    [TestMethod]
+    public void GroupMemberMutations_DenyBeforeStoreWhenAuthorizationLeaseIsUnavailable()
+    {
+        var updates = 0;
+        var deletes = 0;
+        var leaseRequests = 0;
+        IInterfaceGroupMembers members = GroupMembers.CreateAuthorized(
+            new[] { Snapshot(100, 10, 1000) },
+            groupId: 10,
+            saveExisting: _ =>
+            {
+                updates++;
+                return Snapshot(100, 10, 2000);
+            },
+            delete: _ => deletes++,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseRequests++;
+                return ValueTask.FromResult<IDisposable?>(null);
+            });
+
+        var member = members[0];
+        member.AccountID = 2000;
+        var saveError = Assert.ThrowsExactly<COMException>(member.Save);
+        var deleteError = Assert.ThrowsExactly<COMException>(member.Delete);
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(() => members.DeleteByDBID(100));
+        members.DeleteByDBID(999);
+
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionDeleteError.ErrorCode);
+        Assert.AreEqual(0, updates);
+        Assert.AreEqual(0, deletes);
+        Assert.AreEqual(3, leaseRequests);
+    }
+
+    [TestMethod]
     public void AuthorizedGroup_UsesConfiguredGroupMemberRuntime()
     {
         AccountAdministrationRuntimeHost.Configure(
@@ -482,6 +576,13 @@ public sealed class GroupMembersComContractTests
         Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
         Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        private Action? _onDispose = onDispose;
+
+        public void Dispose() => Interlocked.Exchange(ref _onDispose, null)?.Invoke();
     }
 
     private sealed class FixedAccountAdministrationStore(IReadOnlyList<AccountAdministrationSnapshot> accounts)
