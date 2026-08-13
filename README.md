@@ -1,6 +1,43 @@
 hMailServer
 ===========
 
+## Current authoritative performance gate (2026-08-13)
+
+The matched disposable fixture is now reproducible and validated: SQL row
+counts match across 37 tables, both sides contain the same 1,000-message
+SHA-256 Data corpus, SQL Full-Text is ready, and SMTP/IMAP/POP3 use the same
+loopback ports (`127.0.0.1:2525`, `:1143`, `:25110`). Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260813/shared-baseline-run-20260813_223908/`.
+
+The .NET 10 workload matrix passed on that fixture: SMTP protocol `25/25`,
+IMAP protocol `25/25`, POP3 protocol `25/25`, SMTP acceptance `25/25`, IMAP
+concurrency `1000/1000`, FTS SEARCH `25/25`, local delivery queue `50/50`, and
+POP3 large mailbox `5/5` with 1,000/1,000 mailbox rows verified. The detailed
+latency table and charts are in
+[`PERFORMANCE_COMPARISON_REPORT.md`](hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md).
+
+The legacy C++ run was deliberately refused before launch. Its startup would
+register the installed Application AppID, while Registry32 points to
+`C:\hMailServer57-Test\Bin` instead of the disposable C++ target. Same-fixture
+preflight evidence is in
+`artifacts/benchmarks/live-cpp-net10-20260813/cpp-preflight-same-fixture-20260813_223908.json`.
+The paired performance gate remains **RED**: no speed-up, regression ratio,
+or performance winner is claimed until the identical matrix runs on a
+registry-isolated C++ staging VM/installation.
+
+```mermaid
+xychart-beta
+    title "Net10 matched-fixture p50/p95/p99 latency"
+    x-axis [SMTP, IMAP, POP3, Accept, IMAP-1k, FTS, Queue, POP3-large]
+    y-axis "Milliseconds" 0 --> 3800
+    bar [1.254, 19.432, 19.007, 6.011, 2914.176, 10.348, 8.584, 60.214]
+    bar [3.311, 121.194, 34.755, 9.742, 3660.792, 17.463, 17.595, 318.506]
+    bar [24.569, 517.908, 54.679, 216.675, 3714.839, 27.586, 92.114, 370.136]
+```
+
+Legend: p50, p95, p99. C++ values are intentionally absent because the
+required safe legacy execution was not available on this host.
+
 ## Current authoritative RouteAddress mutation authorization status (2026-08-13)
 
 Code/test commit `cd2146e45` extends the generation-bound authorization lease

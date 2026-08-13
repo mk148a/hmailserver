@@ -1,5 +1,25 @@
 
-## Current next slice (2026-08-13, RouteAddress mutation authorization lease; supersedes older entries)
+## Current next slice (2026-08-13, registry-isolated C++ performance gate; supersedes older entries)
+
+The matched disposable fixture is now proven: SQL row counts match across 37
+tables, both sides have the same 1,000-message SHA-256 Data corpus, Full-Text
+is ready, and SMTP/IMAP/POP3 use `127.0.0.1:2525`, `:1143`, and `:25110`.
+Net10 completed the paired-fixture matrix: protocol `25/25` per protocol,
+SMTP acceptance `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, fresh local queue
+`50/50`, and POP3-large `5/5`. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260813/`; the detailed report is
+`hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`.
+
+The C++ binary was refused before launch because Registry32 still points at
+`C:\hMailServer57-Test\Bin`, and legacy startup can write the installed
+Application AppID. The exact same-fixture preflight is recorded in
+`artifacts/benchmarks/live-cpp-net10-20260813/cpp-preflight-same-fixture-20260813_223908.json`.
+No ratio or winner is valid. The next executable performance slice is the
+same matrix on a separate registry-isolated C++ staging VM/installation,
+including paired SMTP/IMAP/POP3, acceptance, FTS, queue, concurrency, and
+soak evidence. Release remains **RED**.
+
+## Historical next slice (2026-08-13, RouteAddress mutation authorization lease; superseded)
 
 Legacy `InterfaceRouteAddresses::DeleteByDBID/Add/DeleteByAddress`,
 `InterfaceRouteAddress::Save/Delete`, and

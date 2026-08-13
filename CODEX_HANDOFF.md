@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, matched performance fixture)
+
+The disposable C++/.NET 10 start state is now equivalent: 37 SQL tables and
+row counts match, 1,000 Data files have equal SHA-256 manifests, Full-Text is
+ready on both sides, and SMTP/IMAP/POP3 use identical loopback ports
+`127.0.0.1:2525`, `:1143`, and `:25110`. Net10 passed the current matrix:
+SMTP/IMAP/POP3 protocol `25/25` each, SMTP acceptance `25/25`, IMAP-1000
+`1000/1000`, FTS `25/25`, fresh delivery queue `50/50`, and POP3-large `5/5`.
+The full normal Net10 suite passed `2275`, skipped `56`, failed `0`.
+
+Evidence: `artifacts/benchmarks/live-cpp-net10-20260813/`; report:
+`hmailserver/source/Server.Net10/PERFORMANCE_COMPARISON_REPORT.md`.
+
+The C++ launch was refused before execution because Registry32 resolves the
+installed path to `C:\hMailServer57-Test\Bin`, while the disposable target is
+under `C:\hmail-perf-pair-run-20260813_223908\cpp\Bin`. Legacy `/Debug`
+startup can register the installed Application AppID, so changing that state
+on this host is prohibited. Exact same-fixture evidence:
+`artifacts/benchmarks/live-cpp-net10-20260813/cpp-preflight-same-fixture-20260813_223908.json`.
+Performance remains **RED**; no C++/.NET 10 ratio or winner is claimed.
+
+Next independent slice: run the same fixture and workload matrix on a separate
+registry-isolated C++ staging VM/installation, then complete paired soak and
+ratio validation. Restore/rollback, SEC-18, installer/out-of-process COM, and
+other release gates remain open.
+
 ## Current Authoritative Continuation (2026-08-13, RouteAddress mutation authorization lease)
 
 Code/test commit `cd2146e45` extends the generation-bound authorization lease

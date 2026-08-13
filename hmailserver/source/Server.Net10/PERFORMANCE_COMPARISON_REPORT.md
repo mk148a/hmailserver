@@ -1,5 +1,78 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Authoritative matched-fixture rerun (2026-08-13)
+
+Repository HEAD at evidence capture: `fad0a7f65ddb16310b5d19ba4194230d228c5fb4`.
+Decision: **RED**. No C++/.NET 10 speed-up, regression percentage, or winner
+is claimed.
+
+The paired disposable start state was created from the same SQL backup and
+message corpus, then validated by
+`build/collect-live-equivalence-evidence.ps1`:
+
+- SQL databases: `hmail_perf_pair_cpp_run_20260813_223908` and
+  `hmail_perf_pair_net10_run_20260813_223908`
+- Data roots: `C:\hmail-perf-pair-run-20260813_223908\cpp\Data` and
+  `C:\hmail-perf-pair-run-20260813_223908\net10\Data`
+- 37 tables and row counts equal; 1,000 Data files per side with equal
+  SHA-256 manifest; Full-Text catalog/table/index ready on both sides
+- Loopback only: SMTP `2525`, IMAP `1143`, POP3 `25110`
+- Evidence: `artifacts/benchmarks/live-cpp-net10-20260813/shared-baseline-run-20260813_223908/`
+
+Net10 completed the matched-fixture workload set:
+
+| Scenario | Result | p50 | p95 | p99 | Throughput |
+| --- | --- | ---: | ---: | ---: | ---: |
+| SMTP protocol, 25 sessions | 25/25 | 1.254 ms | 3.311 ms | 24.569 ms | n/a |
+| IMAP protocol, 25 sessions | 25/25 | 19.432 ms | 121.194 ms | 517.908 ms | n/a |
+| POP3 protocol, 25 sessions | 25/25 | 19.007 ms | 34.755 ms | 54.679 ms | n/a |
+| SMTP acceptance, 25 messages | 25/25 | 6.011 ms | 9.742 ms | 216.675 ms | 5.012 msg/s |
+| IMAP concurrent, 1,000 sessions | 1000/1000 | 2,914.176 ms | 3,660.792 ms | 3,714.839 ms | 69.452 sessions/s |
+| IMAP FTS SEARCH, 25 sessions | 25/25 | 10.348 ms search | 17.463 ms search | 27.586 ms search | n/a |
+| Local delivery queue, 50 messages | 50/50 | 8.584 ms | 17.595 ms | 92.114 ms | 44.008 msg/s |
+| POP3 large mailbox, 1,000 messages | 5/5 | 60.214 ms | 318.506 ms | 370.136 ms | n/a |
+
+The first delivery run against the already-mutated protocol/SMTP database
+failed its accounting assertion (`processed=51`, expected `50`) because the
+controlled retry row was present in the same target. It was not hidden or
+counted as a pass. A fresh disposable delivery database was then created and
+the isolated run passed `50/50`, with retry evidence persisted separately.
+
+The C++ run was **not launched**. Same-fixture preflight evidence is in
+`artifacts/benchmarks/live-cpp-net10-20260813/cpp-preflight-same-fixture-20260813_223908.json`:
+the 32-bit installed registry path is `C:\hMailServer57-Test\Bin`, not the
+disposable target. Legacy `/Debug` startup calls `RegisterAppID` before the
+workload and could change the installed Application registration, so the
+harness refused launch. This host therefore cannot produce a valid paired
+ratio without a separate registry-isolated staging VM or isolated Windows
+installation.
+
+```mermaid
+xychart-beta
+    title "Measured Net10 latency percentiles (matched disposable fixture)"
+    x-axis [SMTP, IMAP, POP3, SMTP-accept, IMAP-1k, FTS, Queue, POP3-large]
+    y-axis "Milliseconds" 0 --> 3800
+    bar [1.254, 19.432, 19.007, 6.011, 2914.176, 10.348, 8.584, 60.214]
+    bar [3.311, 121.194, 34.755, 9.742, 3660.792, 17.463, 17.595, 318.506]
+    bar [24.569, 517.908, 54.679, 216.675, 3714.839, 27.586, 92.114, 370.136]
+```
+
+Legend: p50, p95, p99. These are Net10-only measurements, not a C++
+comparison chart.
+
+```mermaid
+xychart-beta
+    title "Paired performance gate evidence"
+    x-axis [Fixture, Net10, C++]
+    y-axis "Completed required evidence" 0 --> 1
+    bar [1, 1, 0]
+```
+
+The required next step is to run this exact fixture and workload matrix on a
+separate staging VM or registry-isolated C++ installation, then publish paired
+JSON/CSV/Markdown results. Until that happens, the performance release gate
+is **RED**.
+
 Date: 2026-08-13
 Measurement harness commit: `2737ff625`; current parity HEAD: `8b6d280e5`
 Decision: **RED**
