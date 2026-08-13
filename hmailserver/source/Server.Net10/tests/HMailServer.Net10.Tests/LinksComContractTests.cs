@@ -404,6 +404,40 @@ public sealed class LinksComContractTests
         Assert.AreEqual(35, account.QuotaUsed);
     }
 
+    [TestMethod]
+    public void ApplicationLinks_DistributionList_PropagatesAuthorizationLeaseToRecipientMutation()
+    {
+        var recipientStore = new LinkDistributionListRecipientStore();
+        DistributionListRecipientAdministrationRuntimeHost.Configure(recipientStore);
+        LinksAdministrationRuntimeHost.Configure(
+            new RecordingDomainStore(new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) }),
+            new RecordingAccountStore(new AccountAdministrationSnapshot(20, 10, "user@alpha.example", true, AdminLevel: 0)),
+            new RecordingAliasStore(),
+            new RecordingDistributionListStore(
+                new DistributionListAdministrationSnapshot(
+                    40,
+                    10,
+                    "team@alpha.example",
+                    true,
+                    RequireSmtpAuth: false,
+                    RequireSenderAddress: string.Empty,
+                    Mode: 0)));
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        var list = application.Links.get_DistributionList(40);
+        var pending = list.Recipients.Add();
+        pending.RecipientAddress = "member@alpha.example";
+
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        var error = Assert.ThrowsExactly<COMException>(pending.Save);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, recipientStore.Inserted.Count);
+    }
+
     private static void AssertAccessDenied(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
@@ -553,5 +587,23 @@ public sealed class LinksComContractTests
     private sealed class Lease(Action onDispose) : IDisposable
     {
         public void Dispose() => onDispose();
+    }
+
+    private sealed class LinkDistributionListRecipientStore : IDistributionListRecipientAdministrationStore
+    {
+        public List<DistributionListRecipientAdministrationSnapshot> Inserted { get; } = [];
+
+        public ValueTask<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>> GetRecipientsAsync(
+            int distributionListId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>([]);
+
+        public ValueTask<int> InsertDistributionListRecipientAsync(
+            DistributionListRecipientAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
+            Inserted.Add(snapshot);
+            return ValueTask.FromResult(901);
+        }
     }
 }

@@ -154,7 +154,8 @@ public sealed class Links : IInterfaceLinks
                 return DistributionList.CreateAuthorized(
                     list,
                     isAuthenticated: _isServerAdministrator,
-                    readAuthorization: _isServerAdministrator);
+                    readAuthorization: _isServerAdministrator,
+                    authorizationLeaseFactory: _authorizationLeaseFactory);
             }
         }
 
