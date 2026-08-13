@@ -4420,3 +4420,18 @@ acceptance, then registry-isolated C++ paired benchmark execution. The paired
 performance gate, restore/rollback, migration/installer, out-of-process COM,
 SEC-18, AD/DC, DKIM/DMARC/SPF/greylisting, and long-soak gates remain RED or
 environment-blocked.
+## Current next slice (2026-08-13, TCP/IP default reset parity)
+
+Code/test commit `8440f7fc9` closes the bounded `TCPIPPorts.SetDefault()` gap.
+Legacy `TCPIPPorts::SetDefault` (`source/Server/Common/BO/TCPIPPorts.cpp`)
+refreshes first, compares only the four protocol/port/connection-security
+tuples, and resets only when needed. Net10 now follows that behavior: specific
+addresses do not force a reset, refresh failures map to `E_FAIL`, and the prior
+snapshot remains visible. Focused coverage is `23/23`; full Net10 is `2219
+passed, 54 skipped, 0 failed`.
+
+This does not create multiple protocol listeners or live-reconfigure running
+services. Next independent work is disposable SQL/DNS/socket/TLS acceptance;
+the C++ paired benchmark, restore/rollback, migration/installer, out-of-process
+COM, SEC-18, AD/DC, DKIM/DMARC/SPF/greylisting, and long-soak gates remain RED
+or environment-blocked.

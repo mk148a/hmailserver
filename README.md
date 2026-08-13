@@ -1,6 +1,16 @@
 hMailServer
 ===========
 
+## Current authoritative TCP/IP default reset status (2026-08-13)
+
+Code/test commit `8440f7fc9` aligns authenticated `Settings.TCPIPPorts.SetDefault()`
+with legacy `TCPIPPorts::SetDefault` (`hmailserver/source/Server/Common/BO/
+TCPIPPorts.cpp`): it refreshes before comparing, treats the four default
+protocol/port/security tuples as unchanged without requiring `0.0.0.0`, and
+maps refresh failures while retaining the prior snapshot. Focused TCPIPPorts
+coverage is `23/23`; full Net10 is `2219 passed, 54 skipped, 0 failed`.
+Runtime multi-listener creation and live reconfiguration remain out of scope.
+
 ## Current authoritative TCP/IP port save status (2026-08-13)
 
 Code/test commit `e0abbba3d` closes the bounded legacy certificate-validation

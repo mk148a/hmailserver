@@ -1,5 +1,21 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, TCP/IP DEFAULT RESET)
+
+Code/test commit `8440f7fc9` aligns `Settings.TCPIPPorts.SetDefault()` with
+legacy `TCPIPPorts::SetDefault` (`hmailserver/source/Server/Common/BO/
+TCPIPPorts.cpp`). The implementation refreshes before comparison, ignores
+address and certificate ID when deciding whether the four defaults already
+match, and preserves the current snapshot when refresh fails. Focused
+TCPIPPorts coverage is `23/23`; related SQL coverage is `5 passed, 1 explicit
+opt-in skip`; full Net10 is `2219 passed, 54 skipped, 0 failed`.
+
+The paired C++/.NET 10 performance gate remains **RED**. The disposable
+SQL/Data/message start state is equivalent, but safe C++ launch remains blocked
+by installed Registry32 ownership; no ratio or winner is valid. Next slices are
+disposable SQL/DNS/socket/TLS delivery evidence, registry-isolated C++ paired
+execution, and isolated service/out-of-process COM lifecycle.
+
 ## Current Authoritative Continuation (2026-08-13, TCP/IP PORT CERTIFICATE SAVE)
 
 Code/test commit `e0abbba3d` implements the smallest remaining authenticated

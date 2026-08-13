@@ -2333,3 +2333,12 @@ Focused TCPIPPorts coverage is `21/21`; related SQL-store coverage is `5
 passed, 1 opt-in skipped`; full Net10 is `2217 passed, 54 skipped, 0 failed`.
 The paired C++/.NET 10 performance gate remains **RED** because the C++
 Registry32 preflight still refuses safe launch.
+## Current authoritative TCP/IP default reset status (2026-08-13)
+
+Code/test commit `8440f7fc9` aligns authenticated `Settings.TCPIPPorts.SetDefault()`
+with legacy `TCPIPPorts::SetDefault` (`source/Server/Common/BO/TCPIPPorts.cpp`):
+refresh-before-compare is preserved, the default check ignores address and SSL
+certificate ID like legacy, and refresh failures retain the prior snapshot.
+Focused TCPIPPorts coverage is `23/23`; full Net10 is `2219 passed, 54 skipped,
+0 failed`. Runtime multi-listener creation and live reconfiguration remain out
+of scope.

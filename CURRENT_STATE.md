@@ -1,12 +1,12 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T12:26:00Z / 2026-08-13T15:26:00+03:00
+- UTC/local timestamp: 2026-08-13T12:42:00Z / 2026-08-13T15:42:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local HEAD equals upstream
-- Current HEAD: `e0abbba3d` code/test commit; docs commit is the current continuation
-- Last successfully pushed commit: `2d6f45522`
-- Latest focused-test result: TCPIPPorts COM `21/21`; SQL store `5 passed, 1 opt-in skipped`
-- Latest full Net10 result: `2217 passed, 54 skipped, 0 failed`
+- Current HEAD: `8440f7fc9` code/test commit; docs commit is the current continuation
+- Last successfully pushed commit: `912571094`
+- Latest focused-test result: TCPIPPorts COM `23/23`; SQL store `5 passed, 1 opt-in skipped`
+- Latest full Net10 result: `2219 passed, 54 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL TCPIPPorts integration `1 skipped` because isolated-create approval variables are unset; real DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
-- Current bounded slice: legacy TCP/IP port certificate save parity; code/test `e0abbba3d`, docs continuation in this commit; paired performance gate remains RED
+- Current bounded slice: legacy TCP/IP port save and default-reset parity; code/test `e0abbba3d` and `8440f7fc9`, docs continuation in this commit; paired performance gate remains RED
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, and no-MX CNAME planning
 - Open production blockers: paired C++/.NET performance RED; live DNS/socket/TLS/SNI and certificate/revocation acceptance; shared outbound egress/SSRF and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: disposable SQL/DNS/socket/TLS fixture; registry-isolated C++ runner or separate staging VM; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
