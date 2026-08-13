@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, FetchAccount SQL UPDATE/readback acceptance)
+
+Code/test commit `abfed117e` adds isolated SQL acceptance for legacy
+`InterfaceFetchAccount::Save` existing-row behavior and
+`PersistentFetchAccount::SaveObject`, anchored in
+`source/Server/COM/InterfaceFetchAccount.cpp` and
+`source/Server/Common/Persistence/PersistentFetchAccount.cpp`. The fixture
+creates a GUID-named database on user-owned `(localdb)\MSSQLLocalDB`, uses a
+new marked TEMP Data root, verifies existing-row UPDATE/readback, owner-scope
+rejection, and updated legacy Blowfish ciphertext, and drops the database in
+`finally`.
+
+Focused integration: `3 passed, 0 failed`; related SQL store tests:
+`10 passed, 0 failed`. Full Net10 with disposable opt-in:
+`2316 passed, 10 skipped, 0 failed`. Evidence is under
+`artifacts/net10-disposable/run-20260813-imap-permission/`. MSSQLSERVER,
+`HmailDb_Test5700`, production Data, installed COM registration, and the
+production service were not used. The paired C++/.NET performance gate remains
+RED because the registry-isolated legacy run is unavailable.
+
+Next independent slices: registry-isolated C++ paired benchmark execution;
+then the next legacy-anchored Admin/protocol gap.
+
 ## Current Authoritative Continuation (2026-08-13, IMAP folder-permission authorization lease)
 
 Legacy `InterfaceIMAPFolderPermissions` collection deletion/add paths and

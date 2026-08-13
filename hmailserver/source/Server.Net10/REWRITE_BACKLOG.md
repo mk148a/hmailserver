@@ -4824,3 +4824,27 @@ performance, restore, installer/rollback, SEC-18, and soak gates remain open.
 Next independent slices: approved disposable SQL FetchAccount UPDATE/readback;
 registry-isolated C++ execution and paired benchmark evidence; remaining
 legacy-anchored Admin/protocol parity selected by the production gate.
+
+## Current next slice (2026-08-13, FetchAccount SQL UPDATE/readback acceptance; supersedes older entries)
+
+Code/test commit `abfed117e` adds isolated SQL acceptance for legacy
+`InterfaceFetchAccount::Save` existing-row behavior and
+`PersistentFetchAccount::SaveObject`, anchored in
+`source/Server/COM/InterfaceFetchAccount.cpp` and
+`source/Server/Common/Persistence/PersistentFetchAccount.cpp`. The fixture
+creates a GUID-named database on user-owned `(localdb)\MSSQLLocalDB`, uses a
+new marked TEMP Data root, verifies existing-row UPDATE/readback, owner-scope
+rejection, updated legacy Blowfish ciphertext, and drops the database in
+`finally`.
+
+Focused integration coverage is `3 passed, 0 failed`; related SQL store tests
+are `10 passed, 0 failed`; full Net10 with disposable opt-in is `2316 passed,
+10 skipped, 0 failed`. Evidence is under
+`artifacts/net10-disposable/run-20260813-imap-permission/`. MSSQLSERVER,
+`HmailDb_Test5700`, production Data, installed COM registration, and the
+production service were not used. Release remains **RED** because the paired
+C++/.NET performance gate, restore, installer/rollback, SEC-18, and soak gates
+remain open.
+
+Next independent slices: registry-isolated C++ paired benchmark execution;
+then the next legacy-anchored Admin/protocol gap.

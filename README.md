@@ -1,6 +1,29 @@
 hMailServer
 ===========
 
+## Current authoritative FetchAccount SQL acceptance status (2026-08-13)
+
+Code/test commit `abfed117e` adds the isolated SQL acceptance for the legacy
+`InterfaceFetchAccount::Save` existing-row path and
+`PersistentFetchAccount::SaveObject` behavior in
+`hmailserver/source/Server/COM/InterfaceFetchAccount.cpp` and
+`hmailserver/source/Server/Common/Persistence/PersistentFetchAccount.cpp`.
+The test creates a GUID-named database on the user-owned `(localdb)\MSSQLLocalDB`
+instance, uses a new marked TEMP Data root, updates an existing fetch account,
+reads all owner-scoped fields back, verifies updated legacy Blowfish ciphertext,
+and rejects a wrong owner. It drops the disposable database in `finally`.
+
+Focused integration coverage is `3 passed, 0 failed`; related SQL store tests
+are `10 passed, 0 failed`. Full Net10 with the disposable opt-in is `2316
+passed, 10 skipped, 0 failed`. Evidence is in
+`artifacts/net10-disposable/run-20260813-imap-permission/`; MSSQLSERVER,
+`HmailDb_Test5700`, production Data, installed COM registration, and production
+service state were not used. The paired C++/.NET performance gate remains
+**RED** because the legacy registry-isolated run is still unavailable.
+
+Next independent slices: obtain registry-isolated C++ execution for the paired
+benchmark matrix; then continue the next legacy-anchored Admin/protocol gap.
+
 ## Current authoritative IMAP folder-permission authorization status (2026-08-13)
 
 Code/test commit `23802be01` closes the bounded generation-bound

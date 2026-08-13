@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T19:27:00Z / 2026-08-13T22:27:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream for committed work; FetchAccount integration test remains uncommitted
-- Current HEAD: `247bf273d` (docs for retained IMAP permission logout parity)
-- Last successfully pushed commit: `247bf273d`
-- Latest focused-test result: IMAP folder-permission contract `30 passed, 0 failed`; combined IMAP folder/permission/SQL-store set `64 passed, 0 failed`
-- Latest full Net10 result: `2270 passed, 55 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: SQL/Data, registry/COM, restore, installer, AD/DC, SEC-18, live protocol/load, paired C++ benchmark, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: IMAP folder-permission lease mutations are complete; a parity regression test proves retained wrappers still read/stage after logout while Save remains fail-closed
+- UTC/local timestamp: 2026-08-13T19:41:00Z / 2026-08-13T22:41:00+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is one code commit ahead pending docs/push
+- Current HEAD: `abfed117e` (FetchAccount SQL UPDATE/readback acceptance)
+- Last successfully pushed commit: `f79f5f4be`
+- Latest focused-test result: FetchAccount SQL integration `3 passed, 0 failed`; related SQL store set `13 passed, 0 failed`
+- Latest full Net10 result: disposable opt-in `2316 passed, 10 skipped, 0 failed`; normal no-opt-in `2270 passed, 56 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: disposable SQL/Data FetchAccount acceptance passed; registry/COM, installer, AD/DC, SEC-18, live protocol/load, paired C++ benchmark, and 24-hour soak remain skipped or environment-blocked; no production resource was used
+- Current bounded slice: FetchAccount existing-row UPDATE/readback now has isolated LocalDB acceptance with owner-scope and ciphertext evidence
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, DNS/MX safety slices, SecurityRanges managed parity coverage, IncomingRelays authorization and mutation lease coverage, AntiSpam local target pinning, Account.DeleteMessages parity, FetchAccount Save parity and mutation lease propagation, indirect FetchAccount lease propagation, Group/GroupMember mutation lease consumption, IMAP folder mutation lease consumption, and IMAP folder-permission mutation lease consumption
-- Open production blockers: disposable SQL FetchAccount UPDATE/readback acceptance; paired C++/.NET performance RED; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Open production blockers: paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host. User-owned LocalDB disposable SQL/Data staging is READY under `artifacts/net10-disposable/run-20260813-imap-permission/`.
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: approved disposable SQL FetchAccount UPDATE/readback; registry-isolated C++ execution and paired benchmark evidence; remaining legacy-anchored Admin/protocol parity selected by the production gate
+- Next three independent slices: registry-isolated C++ execution and paired benchmark evidence; isolated restore/rollback acceptance; remaining legacy-anchored Admin/protocol parity selected by the production gate
