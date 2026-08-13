@@ -1,8 +1,8 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T19:41:00Z / 2026-08-13T22:41:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is one code commit ahead pending docs/push
-- Current HEAD: `abfed117e` (FetchAccount SQL UPDATE/readback acceptance)
-- Last successfully pushed commit: `f79f5f4be`
+- UTC/local timestamp: 2026-08-13T19:45:00Z / 2026-08-13T22:45:00+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
+- Current HEAD: `39fb6d526` (docs for pushed FetchAccount SQL acceptance)
+- Last successfully pushed commit: `39fb6d526`
 - Latest focused-test result: FetchAccount SQL integration `3 passed, 0 failed`; related SQL store set `13 passed, 0 failed`
 - Latest full Net10 result: disposable opt-in `2316 passed, 10 skipped, 0 failed`; normal no-opt-in `2270 passed, 56 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: disposable SQL/Data FetchAccount acceptance passed; registry/COM, installer, AD/DC, SEC-18, live protocol/load, paired C++ benchmark, and 24-hour soak remain skipped or environment-blocked; no production resource was used
