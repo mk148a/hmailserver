@@ -182,7 +182,10 @@ public sealed class Account : IInterfaceAccount
             EnsureAttached();
 
             return _administrationSnapshot is { } account
-                ? FetchAccountAdministrationRuntimeHost.CreateAuthorizedAdapter(account.Id, _isAuthenticated)
+                ? FetchAccountAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                    account.Id,
+                    _isAuthenticated,
+                    _authorizationLeaseFactory)
                 : NotImplemented<IInterfaceFetchAccounts>();
         }
     }

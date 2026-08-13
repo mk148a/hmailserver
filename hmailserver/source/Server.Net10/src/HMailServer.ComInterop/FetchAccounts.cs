@@ -185,6 +185,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
     private readonly Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? _update;
     private readonly int _accountId;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public FetchAccounts()
     {
@@ -198,7 +199,8 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         Func<FetchAccountAdministrationDraft, ValueTask<int>>? insert,
         Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update,
         int accountId,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _accounts = accounts.ToArray();
         _reload = reload;
@@ -208,6 +210,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         _update = update;
         _accountId = accountId;
         _isAuthenticated = isAuthenticated;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetAccounts().Count;
@@ -220,10 +223,20 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         Func<FetchAccountAdministrationDraft, ValueTask<int>>? insert = null,
         Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update = null,
         int accountId = 0,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
-        return new FetchAccounts(accounts, reload, retryNow, delete, insert, update, accountId, isAuthenticated);
+        return new FetchAccounts(
+            accounts,
+            reload,
+            retryNow,
+            delete,
+            insert,
+            update,
+            accountId,
+            isAuthenticated,
+            authorizationLeaseFactory);
     }
 
     public IInterfaceFetchAccount get_ItemByDBID(int databaseId)
@@ -273,6 +286,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
             return;
         }
 
+        using var authorizationLease = await AcquireAuthorizationLeaseAsync().ConfigureAwait(false);
         await _delete(accountId, fetchAccountId).ConfigureAwait(false);
 
         Volatile.Write(
@@ -299,6 +313,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
             throw new InvalidOperationException("The fetch account update is outside its owning account.");
         }
 
+        using var authorizationLease = await AcquireAuthorizationLeaseAsync().ConfigureAwait(false);
         var updated = await _update(fetchAccountId, draft, password).ConfigureAwait(false);
         if (updated)
         {
@@ -329,6 +344,19 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         }
 
         return updated;
+    }
+
+    private async ValueTask<IDisposable?> AcquireAuthorizationLeaseAsync()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        var lease = await _authorizationLeaseFactory(CancellationToken.None).ConfigureAwait(false);
+        return lease ?? throw new COMException(
+            "FetchAccounts access requires an authenticated server administrator.",
+            EAccessDenied);
     }
 
     public void Refresh()
@@ -373,6 +401,10 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         {
             DeleteSelectedAsync(selected.AccountId, selected.Id).GetAwaiter().GetResult();
         }
+        catch (COMException)
+        {
+            throw;
+        }
         catch (Exception)
         {
             throw new COMException(
@@ -399,6 +431,10 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         try
         {
             DeleteSelectedAsync(selected.AccountId, selected.Id).GetAwaiter().GetResult();
+        }
+        catch (COMException)
+        {
+            throw;
         }
         catch (Exception)
         {
@@ -429,6 +465,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
             "This FetchAccounts member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
 
+        using var authorizationLease = await AcquireAuthorizationLeaseAsync().ConfigureAwait(false);
         var id = await insert(draft).ConfigureAwait(false);
         if (id <= 0)
         {
@@ -665,6 +702,10 @@ public sealed class FetchAccount : IInterfaceFetchAccount
             _account = _insert(draft).GetAwaiter().GetResult();
             _draft = null;
         }
+        catch (COMException)
+        {
+            throw;
+        }
         catch (Exception)
         {
             throw new COMException(
@@ -686,6 +727,10 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         {
             _retryNow(account.AccountId, account.Id).GetAwaiter().GetResult();
         }
+        catch (COMException)
+        {
+            throw;
+        }
         catch (Exception)
         {
             throw new COMException(
@@ -706,6 +751,10 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         try
         {
             _delete(account.AccountId, account.Id).GetAwaiter().GetResult();
+        }
+        catch (COMException)
+        {
+            throw;
         }
         catch (Exception)
         {
@@ -834,7 +883,8 @@ public static class FetchAccountAdministrationRuntimeHost
 
     internal static FetchAccounts CreateAuthorizedAdapter(
         int accountId,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -851,6 +901,7 @@ public static class FetchAccountAdministrationRuntimeHost
 
         async ValueTask RetryNow(int owningAccountId, int fetchAccountId)
         {
+            using var authorizationLease = await AcquireAuthorizationLeaseAsync().ConfigureAwait(false);
             await store
                 .SetRetryNowAsync(owningAccountId, fetchAccountId, CancellationToken.None)
                 .ConfigureAwait(false);
@@ -903,6 +954,20 @@ public static class FetchAccountAdministrationRuntimeHost
             InsertFetchAccount,
             UpdateFetchAccount,
             accountId,
-            isAuthenticated);
+            isAuthenticated,
+            authorizationLeaseFactory);
+
+        async ValueTask<IDisposable?> AcquireAuthorizationLeaseAsync()
+        {
+            if (authorizationLeaseFactory is null)
+            {
+                return null;
+            }
+
+            var lease = await authorizationLeaseFactory(CancellationToken.None).ConfigureAwait(false);
+            return lease ?? throw new COMException(
+                "FetchAccounts access requires an authenticated server administrator.",
+                unchecked((int)0x80070005));
+        }
     }
 }

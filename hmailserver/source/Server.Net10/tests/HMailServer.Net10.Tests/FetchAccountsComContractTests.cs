@@ -536,6 +536,64 @@ public sealed class FetchAccountsComContractTests
     }
 
     [TestMethod]
+    public void FetchAccountMutations_HoldAndDisposeAuthorizationLeaseAcrossStoreCalls()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        var wakeSignal = new RecordingExternalFetchWakeSignal();
+        FetchAccountAdministrationRuntimeHost.Configure(store, wakeSignal);
+        var leaseCount = 0;
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(
+                new TrackingLease(() => leaseCount++)));
+
+        var fetchAccount = account.FetchAccounts[0];
+        fetchAccount.DownloadNow();
+        fetchAccount.Name = "Updated POP3";
+        fetchAccount.Save();
+        fetchAccount.Delete();
+
+        Assert.AreEqual(3, leaseCount);
+        Assert.AreEqual(1, store.UpdateCalls.Count);
+        Assert.AreEqual(1, store.DeleteCalls.Count);
+        Assert.AreEqual(1, wakeSignal.SignalCount);
+    }
+
+    [TestMethod]
+    public void FetchAccountMutations_DenyStoreWhenAuthorizationLeaseCannotBeAcquired()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+
+        var failure = Assert.ThrowsExactly<COMException>(() => account.FetchAccounts[0].DownloadNow());
+
+        Assert.AreEqual(EAccessDenied, failure.ErrorCode);
+        Assert.IsNull(store.RetryFetchAccountId);
+    }
+
+    [TestMethod]
+    public void FetchAccountDeleteByDbId_DeniesWhenAuthorizationLeaseCannotBeAcquired()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+
+        var failure = Assert.ThrowsExactly<COMException>(
+            () => account.FetchAccounts.DeleteByDBID(10));
+
+        Assert.AreEqual(EAccessDenied, failure.ErrorCode);
+        Assert.AreEqual(0, store.DeleteCalls.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedDelete_RemovesOnlySelectedItemAndPropagatesOwningAccountId()
     {
         var store = new MutableFetchAccountAdministrationStore(
@@ -868,6 +926,11 @@ public sealed class FetchAccountsComContractTests
                 .ToArray();
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 
     private sealed class RecordingExternalFetchWakeSignal : IExternalFetchWakeSignal
