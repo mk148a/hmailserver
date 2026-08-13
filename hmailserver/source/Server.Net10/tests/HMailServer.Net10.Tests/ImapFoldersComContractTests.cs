@@ -427,6 +427,113 @@ public sealed class ImapFoldersComContractTests
     }
 
     [TestMethod]
+    public void ImapFolderMutations_HoldAuthorizationLeaseAcrossStoreCallbacks()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-08-01 00:00:00"),
+                new ImapFolderAdministrationSnapshot(20, 100, -1, "Archive", true, 2, "2026-08-01 00:00:00")
+            });
+        store.MutationProbe = () => Assert.AreEqual(1, activeLeases);
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+
+        Func<CancellationToken, ValueTask<IDisposable?>> leaseFactory = _ =>
+        {
+            activeLeases++;
+            return ValueTask.FromResult<IDisposable?>(
+                new TrackingLease(() =>
+                {
+                    activeLeases--;
+                    disposedLeases++;
+                }));
+        };
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            authorizationLeaseFactory: leaseFactory);
+        var folders = account.IMAPFolders;
+
+        var added = folders.Add("Drafts");
+        added.Name = "Drafts2";
+        added.Save();
+        added.Delete();
+        folders.DeleteByDBID(20);
+
+        Assert.AreEqual(1, store.InsertCount);
+        Assert.AreEqual(1, store.UpdateCount);
+        Assert.AreEqual(2, store.DeleteCount);
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(4, disposedLeases);
+    }
+
+    [TestMethod]
+    public void ImapFolderMutations_DenyBeforeStoreWhenAuthorizationLeaseIsUnavailable()
+    {
+        var leaseRequests = 0;
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-08-01 00:00:00")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            authorizationLeaseFactory: _ =>
+            {
+                leaseRequests++;
+                return ValueTask.FromResult<IDisposable?>(null);
+            });
+        var folders = account.IMAPFolders;
+        var folder = folders[0];
+        folder.Name = "Denied";
+
+        var addError = Assert.ThrowsExactly<COMException>(() => folders.Add("New"));
+        var saveError = Assert.ThrowsExactly<COMException>(folder.Save);
+        var deleteError = Assert.ThrowsExactly<COMException>(folder.Delete);
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(() => folders.DeleteByDBID(10));
+        var unknownError = Assert.ThrowsExactly<COMException>(() => folders.DeleteByDBID(999));
+
+        Assert.AreEqual(EAccessDenied, addError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionDeleteError.ErrorCode);
+        Assert.AreEqual(DispEBadIndex, unknownError.ErrorCode);
+        Assert.AreEqual(0, store.InsertCount);
+        Assert.AreEqual(0, store.UpdateCount);
+        Assert.AreEqual(0, store.DeleteCount);
+        Assert.AreEqual(4, leaseRequests);
+    }
+
+    [TestMethod]
+    public void ImapFolderAddAndSave_DenyAfterLogoutWithoutLeaseFactory()
+    {
+        var authenticated = true;
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-08-01 00:00:00")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            isAuthenticated: () => authenticated);
+        var folders = account.IMAPFolders;
+        var folder = folders[0];
+        folder.Name = "Denied";
+        authenticated = false;
+
+        var addError = Assert.ThrowsExactly<COMException>(() => folders.Add("New"));
+        var saveError = Assert.ThrowsExactly<COMException>(folder.Save);
+
+        Assert.AreEqual(EAccessDenied, addError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(0, store.InsertCount);
+        Assert.AreEqual(0, store.UpdateCount);
+    }
+
+    [TestMethod]
     public void AccountImapFolders_ReusesOneAccountSnapshotAcrossFreshRootAndChildFacades()
     {
         var store = new FixedImapFolderAdministrationStore(
@@ -746,6 +853,7 @@ public sealed class ImapFoldersComContractTests
         public int LastInsertParentId { get; private set; }
         public string? LastInsertName { get; private set; }
         public bool ReturnMisScopedInsert { get; set; }
+        public Action? MutationProbe { get; set; }
         public bool ReturnUpdateSuccess { get; set; } = true;
         public int UpdateCount { get; private set; }
         public ImapFolderAdministrationSnapshot? LastUpdatedFolder { get; private set; }
@@ -808,6 +916,7 @@ public sealed class ImapFoldersComContractTests
             bool subscribed,
             CancellationToken cancellationToken)
         {
+            MutationProbe?.Invoke();
             InsertCount++;
             LastInsertAccountId = accountId;
             LastInsertParentId = parentFolderId;
@@ -828,6 +937,7 @@ public sealed class ImapFoldersComContractTests
             ImapFolderAdministrationSnapshot folder,
             CancellationToken cancellationToken)
         {
+            MutationProbe?.Invoke();
             UpdateCount++;
             LastUpdatedFolder = folder;
             if (!ReturnUpdateSuccess)
@@ -845,6 +955,7 @@ public sealed class ImapFoldersComContractTests
             ImapFolderAdministrationSnapshot folder,
             CancellationToken cancellationToken)
         {
+            MutationProbe?.Invoke();
             DeleteCount++;
             LastDeletedFolder = folder;
             if (ThrowDelete)
@@ -863,6 +974,13 @@ public sealed class ImapFoldersComContractTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(
                 new ImapFolderAdministrationDeletionResult(ReturnDeleteSuccess, DeletedMessages));
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        private Action? _onDispose = onDispose;
+
+        public void Dispose() => Interlocked.Exchange(ref _onDispose, null)?.Invoke();
     }
 
     private sealed class RecordingMessageFileDeletionRuntime : IImapFolderMessageFileDeletionRuntime

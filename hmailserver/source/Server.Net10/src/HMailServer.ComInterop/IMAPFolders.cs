@@ -183,6 +183,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
 
     public IInterfaceIMAPFolder Add(string name)
     {
+        EnsureAuthenticated();
         var folders = GetFolders();
         var encodedName = LegacyModifiedUtf7.Encode(name ?? string.Empty);
         if (folders.Any(folder =>
@@ -198,6 +199,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
                 ENotImplemented);
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         var snapshot = ImapFolderAdministrationRuntimeHost.InsertAuthorized(
                 _accountId,
                 _parentFolderId,
@@ -236,6 +238,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             var result = ImapFolderAdministrationRuntimeHost.DeleteAuthorized(selected)
@@ -277,6 +280,21 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
                 "IMAP folder access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "IMAP folder access requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private T Unavailable<T>()
@@ -432,6 +450,7 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
     public void Save()
     {
         var snapshot = Snapshot;
+        EnsureAuthenticated();
         if (_foldersState is not { } state)
         {
             Unavailable();
@@ -443,6 +462,7 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
             Name = _stagedName ?? snapshot.Name,
             Subscribed = _stagedSubscribed ?? snapshot.Subscribed
         };
+        using var authorizationLease = AcquireAuthorizationLease();
         var saved = ImapFolderAdministrationRuntimeHost.UpdateAuthorized(updated)
             .GetAwaiter()
             .GetResult();
@@ -468,6 +488,7 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         ImapFolderAdministrationDeletionResult result;
         try
         {
@@ -501,6 +522,21 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
                 "IMAP folder access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "IMAP folder access requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private T Unavailable<T>()
