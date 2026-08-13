@@ -361,7 +361,6 @@ public sealed class Routes : IInterfaceRoutes
 
     private RouteAdministrationSnapshot SaveRoute(RouteAdministrationSnapshot route)
     {
-        EnsureServerAdministrator();
         var routes = GetRoutes();
         if (route.Id == 0)
         {

@@ -499,6 +499,31 @@ public sealed class RoutesComContractTests
     }
 
     [TestMethod]
+    public void Save_DoesNotReenterAdministratorAuthorityWhileLeaseIsHeld()
+    {
+        var leaseHeld = false;
+        var administratorChecks = 0;
+        var routes = Routes.CreateAuthorized(
+            new[] { Snapshot(10, "alpha.example", ComConnectionSecurity.Tls) },
+            update: _ => true,
+            isServerAdministrator: () =>
+            {
+                administratorChecks++;
+                return !leaseHeld;
+            },
+            authorizationLeaseFactory: _ =>
+            {
+                leaseHeld = true;
+                return ValueTask.FromResult<IDisposable?>(new TrackingLease(() => leaseHeld = false));
+            });
+
+        routes[0].Save();
+
+        Assert.AreEqual(1, administratorChecks);
+        Assert.IsFalse(leaseHeld);
+    }
+
+    [TestMethod]
     public void FailedUpdate_MapsToEFailAndRetainsStagedStateWithoutReplacingSnapshot()
     {
         var failUpdate = true;
