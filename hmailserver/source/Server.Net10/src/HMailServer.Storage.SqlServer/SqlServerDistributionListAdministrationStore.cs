@@ -43,11 +43,13 @@ WHERE distributionlistid = @ID
 """;
 
     public const string DeleteDistributionListRecipientsSql = """
+SET XACT_ABORT ON;
 DELETE FROM hm_distributionlistsrecipients
 WHERE distributionlistrecipientlistid = @LISTID
   AND EXISTS
       (SELECT 1
        FROM hm_distributionlists
+       WITH (UPDLOCK, HOLDLOCK)
        WHERE distributionlistid = @LISTID
          AND distributionlistdomainid = @DomainID);
 """;
@@ -163,14 +165,28 @@ WHERE distributionlistdomainid = @DomainID
         }
 
         await using var connection = await connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var recipientsCommand = new SqlCommand(DeleteDistributionListRecipientsSql, connection);
+        await using var transaction = (SqlTransaction)await connection
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await using var recipientsCommand = new SqlCommand(
+            DeleteDistributionListRecipientsSql,
+            connection,
+            transaction);
         recipientsCommand.Parameters.Add("@DomainID", SqlDbType.Int).Value = owningDomainId;
         recipientsCommand.Parameters.Add("@LISTID", SqlDbType.Int).Value = distributionListId;
         _ = await recipientsCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        await using var listCommand = new SqlCommand(DeleteDistributionListSql, connection);
+        await using var listCommand = new SqlCommand(DeleteDistributionListSql, connection, transaction);
         listCommand.Parameters.Add("@DomainID", SqlDbType.Int).Value = owningDomainId;
         listCommand.Parameters.Add("@LISTID", SqlDbType.Int).Value = distributionListId;
-        return await listCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+        var deleted = await listCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+        if (!deleted)
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return true;
     }
 }

@@ -114,10 +114,13 @@ public sealed class SqlServerDistributionListAdministrationStoreTests
     {
         var sql = SqlServerDistributionListAdministrationStore.DeleteDistributionListRecipientsSql;
 
+        StringAssert.Contains(sql, "SET XACT_ABORT ON");
         StringAssert.Contains(sql, "DELETE FROM hm_distributionlistsrecipients");
         StringAssert.Contains(sql, "distributionlistrecipientlistid = @LISTID");
         StringAssert.Contains(sql, "EXISTS");
         StringAssert.Contains(sql, "FROM hm_distributionlists");
+        StringAssert.Contains(sql, "UPDLOCK");
+        StringAssert.Contains(sql, "HOLDLOCK");
         StringAssert.Contains(sql, "distributionlistid = @LISTID");
         StringAssert.Contains(sql, "distributionlistdomainid = @DomainID");
         Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
@@ -148,4 +151,5 @@ public sealed class SqlServerDistributionListAdministrationStoreTests
             new[] { typeof(int), typeof(int), typeof(CancellationToken) },
             method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
     }
+
 }
