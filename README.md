@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current authoritative DistributionListRecipients mutation status (2026-08-13)
+
+Code/test commit `b8227a1b2` closes the generation-bound authorization lease
+gap for legacy distribution-list recipient mutations. Legacy anchors are
+`InterfaceDistributionListRecipients::{Add,DeleteByDBID}`,
+`InterfaceDistributionListRecipient::{Save,Delete}`, and
+`PersistentDistributionListRecipient::{SaveObject,DeleteObject}`. Net10 now
+propagates the authenticated owner lease from `Domain.DistributionLists` into
+the recipient collection and child facades, holds it across insert/update/
+delete store callbacks, fails closed when unavailable, and publishes snapshots
+only after successful persistence. COM identity, direct activation boundaries,
+SMTP trust behavior, and unrelated Admin collections are unchanged.
+
+Focused COM/SQL coverage passed `51/51`; full Net10 Debug passed `2286`,
+skipped `56`, failed `0`. This slice does not close the broader release gates:
+service-owned restore reinitialization, disposable restore/rollback,
+registry-isolated paired C++ performance, SEC-18, migration/installer, and
+long-run soak remain open.
+
 ## Current authoritative restore reinitialization status (2026-08-13)
 
 Code/test commit `24405daa6` closes the legacy restore ordering gap at the

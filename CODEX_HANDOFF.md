@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, DistributionListRecipients lease)
+
+Code/test commit `b8227a1b2` completes one bounded legacy-anchored mutation
+slice. Legacy references are
+`InterfaceDistributionListRecipients::{Add,DeleteByDBID}`,
+`InterfaceDistributionListRecipient::{Save,Delete}`, and
+`PersistentDistributionListRecipient::{SaveObject,DeleteObject}`. The Net10
+owner path now carries a generation-bound authorization lease through
+`Domain.DistributionLists` -> `DistributionLists` -> `DistributionList` ->
+`DistributionListRecipients`. Child and collection mutations hold the lease
+through SQL callbacks, fail closed on unavailable authorization, and publish
+only successful snapshots. COM identities and direct activation boundaries
+were not changed.
+
+Focused COM/SQL coverage: `51 passed, 0 failed`. Full Net10 Debug:
+`2286 passed, 56 skipped, 0 failed`. Release remains **RED**. The next
+independent slices are service-owned restore reinitialization, isolated
+restore/rollback acceptance, and registry-isolated C++/.NET paired
+performance. No performance ratio is valid until both implementations run
+the same fixture and workloads.
+
 ## Current Authoritative Continuation (2026-08-13, restore reinitialization)
 
 Code/test commit `24405daa6` closes the execution-boundary gap identified by

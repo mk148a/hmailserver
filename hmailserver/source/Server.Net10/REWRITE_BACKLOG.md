@@ -1,5 +1,28 @@
 
-## Current next slice (2026-08-13, restore reinitialization callback; DomainAliases lease superseded)
+## Current next slice (2026-08-13, DistributionListRecipients lease completed)
+
+Completed code/test commit `b8227a1b2` closes the generation-bound
+authorization lease gap for legacy distribution-list recipient mutations.
+Legacy references are `InterfaceDistributionListRecipients::{Add,DeleteByDBID}`
+in `source/Server/COM/InterfaceDistributionListRecipients.cpp`,
+`InterfaceDistributionListRecipient::{Save,Delete}` in
+`source/Server/COM/InterfaceDistributionListRecipient.cpp`, and
+`PersistentDistributionListRecipient::{SaveObject,DeleteObject}` in
+`source/Server/Common/Persistence/PersistentDistributionListRecipient.cpp`.
+Net10 propagates the lease from `Domain.DistributionLists` through the owning
+collection and child facades, holds it over insert/update/delete store calls,
+fails closed when unavailable, and publishes only successful snapshots.
+Focused COM/SQL coverage is `51 passed, 0 failed`; full Net10 Debug is
+`2286 passed, 56 skipped, 0 failed`.
+
+The next independent slice is the service-owned restore reinitialization
+adapter. The previous callback/fail-closed execution hook remains necessary,
+but restore is not release-complete until the callback is connected to a real
+restartable service lifecycle and isolated round-trip/rollback evidence passes.
+The following slices remain disposable restore/rollback acceptance and a
+registry-isolated C++/.NET paired performance matrix. Release remains **RED**.
+
+## Historical next slice (2026-08-13, restore reinitialization callback; superseded)
 
 Completed code/test commit `24405daa6` implements the missing execution hook
 for legacy restore reinitialization. Legacy references are
