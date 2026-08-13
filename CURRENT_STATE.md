@@ -1,8 +1,8 @@
 # Current State
 - UTC/local timestamp: 2026-08-13T13:10:00Z / 2026-08-13T16:10:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local HEAD equals upstream
-- Current HEAD: `a4137d59e` (current-state benchmark result update)
-- Last successfully pushed commit: `a4137d59e`
+- Current HEAD: `494622242` (final benchmark push state)
+- Last successfully pushed commit: `494622242`
 - Latest focused-test result: clean disposable pair Net10 SMTP/IMAP/POP3 `25/25` each, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; fixture validator passed
 - Latest full Net10 result: `2219 passed, 54 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL TCPIPPorts integration `1 skipped` because isolated-create approval variables are unset; real DNS/socket/TLS/authentication, certificate/revocation, C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, and 24-hour soak skipped or environment-blocked
