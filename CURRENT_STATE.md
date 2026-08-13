@@ -1,8 +1,8 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T18:31:00Z / 2026-08-13T21:31:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is one code commit ahead pending docs/push
-- Current HEAD: `59dd1d7d1` (IMAP folder mutation authorization lease)
-- Last successfully pushed commit: `c5163774a`
+- UTC/local timestamp: 2026-08-13T18:34:00Z / 2026-08-13T21:34:00+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
+- Current HEAD: `ec0d8e9cb` (docs for pushed IMAP folder mutation authorization lease)
+- Last successfully pushed commit: `ec0d8e9cb`
 - Latest focused-test result: IMAP folder/permission/SQL-store set `60 passed, 0 failed`
 - Latest full Net10 result: `2266 passed, 55 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: SQL/Data, registry/COM, restore, installer, AD/DC, SEC-18, live protocol/load, paired C++ benchmark, and 24-hour soak remain skipped or environment-blocked; no production resource was used
