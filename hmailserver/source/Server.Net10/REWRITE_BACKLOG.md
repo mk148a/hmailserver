@@ -1,5 +1,27 @@
 
-## Current next slice (2026-08-13, DistributionListRecipients lease completed)
+## Current next slice (2026-08-14, Links recipient lease propagation completed)
+
+Completed code/test commit `6e3bf3d5f` closes the generation-bound
+authorization lease gap on the retained
+`Application.Links -> DistributionList -> Recipients` path. Legacy anchors
+are `InterfaceLinks::get_DistributionList`,
+`InterfaceDistributionList::get_Recipients`,
+`InterfaceDistributionListRecipients::{Add,DeleteByDBID}`, and
+`InterfaceDistributionListRecipient::{Save,Delete}`. Legacy child wrappers do
+not reauthenticate, while Net10 intentionally keeps the stricter live
+generation boundary. `Links.get_DistributionList` now forwards the lease
+factory through the owning list and recipient collection; retained children
+fail closed after reauthentication invalidates their generation. Focused
+Links/recipient/SQL coverage is `36 passed, 0 failed`; full Net10 Debug is
+`2287 passed, 56 skipped, 0 failed`.
+
+The stale parent deletion/numeric list-ID reuse risk remains open and must be
+reviewed separately; this slice does not add foreign keys, parent existence
+transactions, or broader Admin changes. Next independent work remains the
+service-owned restore reinitialization adapter, isolated restore/rollback, and
+registry-isolated C++/.NET paired performance. Release remains **RED**.
+
+## Historical next slice (2026-08-13, DistributionListRecipients lease completed; superseded)
 
 Completed code/test commit `b8227a1b2` closes the generation-bound
 authorization lease gap for legacy distribution-list recipient mutations.

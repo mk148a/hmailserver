@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current authoritative Links recipient authorization status (2026-08-14)
+
+Code/test commit `6e3bf3d5f` closes a lease-propagation gap in the retained
+`Application.Links -> DistributionList -> Recipients` path. Legacy
+`InterfaceLinks::get_DistributionList`, `InterfaceDistributionList::get_Recipients`,
+`InterfaceDistributionListRecipients::{Add,DeleteByDBID}`, and
+`InterfaceDistributionListRecipient::{Save,Delete}` retain the shared COM
+object path without child reauthentication. Net10 intentionally remains
+stricter: `Links.get_DistributionList` now passes the generation-bound lease
+factory through the owner list to recipient mutations, so a retained list
+cannot write after reauthentication invalidates its generation.
+
+Focused Links/recipient/SQL coverage passed `36/36`; full Net10 Debug passed
+`2287`, skipped `56`, failed `0`. The stale parent deletion/ID-reuse risk is
+not solved by this slice and remains a separate production review item.
+
 ## Current authoritative DistributionListRecipients mutation status (2026-08-13)
 
 Code/test commit `b8227a1b2` closes the generation-bound authorization lease

@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-14, Links recipient lease propagation)
+
+Code/test commit `6e3bf3d5f` fixes the retained-object authorization gap in
+`Application.Links -> DistributionList -> Recipients`. Legacy references are
+`InterfaceLinks::get_DistributionList`,
+`InterfaceDistributionList::get_Recipients`,
+`InterfaceDistributionListRecipients::{Add,DeleteByDBID}`, and
+`InterfaceDistributionListRecipient::{Save,Delete}`. Legacy child wrappers do
+not reauthenticate; Net10 intentionally remains stricter. `Links.get_DistributionList`
+now forwards the generation-bound authorization lease factory to the owning
+list and recipient collection. A retained list obtained before failed/successful
+reauthentication now fails closed before its recipient store is called.
+
+Focused Links/recipient/SQL coverage: `36 passed, 0 failed`. Full Net10 Debug:
+`2287 passed, 56 skipped, 0 failed`. The separate stale-parent deletion or
+numeric list-ID reuse risk remains open and is not claimed solved. Release
+remains **RED**; restore/reinitialization, isolated rollback, paired C++
+performance, SEC-18, migration/installer, and soak gates remain open.
+
 ## Current Authoritative Continuation (2026-08-13, DistributionListRecipients lease)
 
 Code/test commit `b8227a1b2` completes one bounded legacy-anchored mutation
