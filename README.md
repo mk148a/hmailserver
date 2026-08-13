@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current authoritative distribution-list deletion status (2026-08-14)
+
+Code/test commit `143db0bb4` closes the owner-scope gap in direct distribution
+list deletion. Legacy `PersistentDistributionList::DeleteObject` calls
+`PersistentDistributionListRecipient::DeleteByListID` and deletes recipients
+by numeric list ID before deleting the parent (`hmailserver/source/Server/Common/Persistence/PersistentDistributionList.cpp:35-54,160-164`; `PersistentDistributionListRecipient.cpp:49-56`).
+The legacy schema has no parent foreign key
+(`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:314-340`).
+
+Net10 `SqlServerDistributionListAdministrationStore.DeleteDistributionListAsync`
+now binds `@DomainID` to the recipient DELETE and requires an existing parent
+with the same `(distributionlistid, distributionlistdomainid)` before removing
+recipient rows. Parent deletion remains owner-scoped. Focused SQL coverage is
+`8 passed, 0 failed`; full Net10 Debug is `2290 passed, 56 skipped, 0 failed`.
+
+This is an ownership-safety slice, not an atomicity completion. The two DELETE
+statements are still outside one SQL transaction, so a failure or concurrent
+change between them can leave a parent without recipients. The next SQL slice
+is transactional direct-list deletion with rollback/concurrency coverage.
+COM identity, direct activation, schema, SMTP expansion, and unrelated Admin
+collections are unchanged. Release remains **RED**.
+
 ## Current authoritative performance gate (2026-08-14)
 
 The paired disposable fixture is valid at the start of the run: 37 SQL table

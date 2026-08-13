@@ -1,6 +1,26 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-14, SQL owner-scoped distribution-list update)
+## Current Authoritative Continuation (2026-08-14, owner-scoped distribution-list recipient deletion)
+
+Code/test commit `143db0bb4` adds an owner-domain `EXISTS` predicate to
+`SqlServerDistributionListAdministrationStore.DeleteDistributionListRecipientsSql`
+and binds `@DomainID` in `DeleteDistributionListAsync`. Legacy references are
+`PersistentDistributionList::DeleteObject`,
+`PersistentDistributionList::DeleteMembers`, and
+`PersistentDistributionListRecipient::DeleteByListID` in
+`hmailserver/source/Server/Common/Persistence/`; those paths delete recipient
+rows by numeric list ID and are non-transactional. Net10 now prevents a stable
+wrong-domain direct deletion from removing another domain's recipients.
+
+Focused SQL tests: `8 passed, 0 failed`. Full Net10 Debug: `2290 passed,
+56 skipped, 0 failed`. Security review: **YELLOW** because parent/recipient
+deletion remains two non-transactional commands; a failure or concurrent parent
+change can still leave partial state. Next slice: explicit transaction,
+rollback, and concurrency acceptance for direct distribution-list deletion.
+No COM identity, direct activation, schema, SMTP, or unrelated Admin behavior
+changed. Release remains **RED**.
+
+## Historical Continuation (2026-08-14, SQL owner-scoped distribution-list update; superseded)
 
 Code/test commit `3383b0847` adds `distributionlistdomainid = @DomainID` to
 the `hm_distributionlists` UPDATE predicate in

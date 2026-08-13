@@ -5072,3 +5072,19 @@ architecture, followed by isolated restore/rollback and registry-isolated
 C++/.NET paired performance evidence. Performance and release remain **RED**.
 
 ## Historical Next Slice (2026-08-14, Links cross-facade lifetime; superseded)
+## Current Next Slice (2026-08-14, transactional distribution-list deletion)
+
+Completed code/test commit `143db0bb4` adds the owner-domain predicate to
+`SqlServerDistributionListAdministrationStore.DeleteDistributionListRecipientsSql`;
+wrong-domain direct deletion no longer removes recipient rows. Legacy behavior
+is anchored by `PersistentDistributionList::DeleteObject`,
+`PersistentDistributionList::DeleteMembers`, and
+`PersistentDistributionListRecipient::DeleteByListID` in the legacy persistence
+tree. Focused SQL tests pass `8/8`; full Net10 Debug passes `2290/56/0`.
+
+The remaining bounded SQL blocker is atomicity: recipient and parent DELETEs
+are separate commands. Implement one explicit transaction with rollback and
+owner/concurrency tests. Preserve COM identity, direct activation, legacy
+schema, SMTP behavior, and unrelated Admin collections. Release remains **RED**.
+
+## Historical Next Slice (2026-08-14, SQL owner-scoped distribution-list update; superseded)
