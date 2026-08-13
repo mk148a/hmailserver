@@ -1,5 +1,27 @@
 
-## Current next slice (2026-08-14, Links recipient lease propagation completed)
+## Current next slice (2026-08-14, stale DistributionList facade invalidation completed)
+
+Completed code/test commit `7e5afe134` adds a process-local parent lifetime
+boundary for authenticated distribution-list facades. Legacy anchors are
+`InterfaceDistributionList::Delete`, `InterfaceDistributionLists::DeleteByDBID`,
+`DistributionList::GetMembers`, and
+`PersistentDistributionListRecipient::{DeleteObject,DeleteByListID}`. Net10
+invalidates the shared lifetime after successful parent deletion, invalidates
+retained facades removed by collection `Refresh`, and invalidates a displaced
+token when a same-ID facade is registered. Retained list, recipient collection,
+and child Save/Delete calls fail closed with `E_ACCESSDENIED`. Focused coverage
+is `53 passed, 0 failed`; full Net10 Debug is `2289 passed, 56 skipped,
+0 failed`.
+
+This bounded slice does not change COM identity, SQL schema, SMTP expansion,
+or direct activation. Production blockers remain: SQL parent/recipient delete
+ordering is non-transactional, recipient SQL lacks domain/parent-existence
+predicates, and the separate `Links` facade registry is not shared with domain
+collections. Next independent work is the service-owned restore
+reinitialization adapter, then isolated restore/rollback and registry-isolated
+C++/.NET paired performance. Release remains **RED**.
+
+## Historical next slice (2026-08-14, Links recipient lease propagation; superseded)
 
 Completed code/test commit `6e3bf3d5f` closes the generation-bound
 authorization lease gap on the retained

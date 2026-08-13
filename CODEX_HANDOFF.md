@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-14, stale DistributionList facades)
+
+Code/test commit `7e5afe134` closes one bounded stale-object safety gap for
+`Application/Domains -> DistributionLists -> DistributionList -> Recipients`.
+Legacy anchors are `InterfaceDistributionList::Delete`,
+`InterfaceDistributionLists::DeleteByDBID`, `DistributionList::GetMembers`,
+and `PersistentDistributionListRecipient::{DeleteObject,DeleteByListID}`;
+legacy wrappers remain numeric-ID based. Net10 now shares a process-local
+parent lifetime with recipient facades, invalidates it after successful delete,
+invalidates retained facades removed by `Refresh`, and invalidates a displaced
+token on same-ID registration. Retained list/recipient access and child
+mutations fail closed with `E_ACCESSDENIED`.
+
+Focused coverage: `53 passed, 0 failed`. Full Net10 Debug:
+`2289 passed, 56 skipped, 0 failed`. Residual risks are deliberately open:
+SQL parent/recipient deletion is still non-transactional, recipient SQL lacks
+domain/parent-existence predicates, and the separate `Links` facade registry
+is not shared with domain collections. Release remains **RED**; restore,
+rollback, paired C++ performance, SEC-18, installer/migration, and soak gates
+remain open.
+
 ## Current Authoritative Continuation (2026-08-14, Links recipient lease propagation)
 
 Code/test commit `6e3bf3d5f` fixes the retained-object authorization gap in

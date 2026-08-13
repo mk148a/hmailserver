@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current authoritative stale DistributionList facade status (2026-08-14)
+
+Code/test commit `7e5afe134` adds a process-local lifetime boundary for
+authenticated distribution-list facades. Legacy
+`InterfaceDistributionList::Delete`, `InterfaceDistributionLists::DeleteByDBID`,
+`DistributionList::GetMembers`, and
+`PersistentDistributionListRecipient::{DeleteObject,DeleteByListID}` are
+numeric-ID based and permit retained stale wrappers. Net10 now invalidates the
+shared lifetime after successful parent deletion, invalidates all retained
+facades when the owning collection refreshes, and invalidates a displaced
+token before a same-ID facade is registered. Retained list, recipient
+collection, and child Save/Delete calls fail closed with `E_ACCESSDENIED`.
+
+Focused distribution-list/recipient/Links coverage passed `53/53`; full
+Net10 Debug passed `2289`, skipped `56`, failed `0`. This is not a complete
+SQL identity fix: parent/recipient deletion ordering is still non-transactional,
+recipient SQL remains numeric-list-ID scoped, and `Links` creates a separate
+facade registry. Those are separate production blockers; COM identities,
+schema, SMTP expansion, and direct activation boundaries were unchanged.
+
 ## Current authoritative Links recipient authorization status (2026-08-14)
 
 Code/test commit `6e3bf3d5f` closes a lease-propagation gap in the retained
