@@ -4519,3 +4519,25 @@ environment-blocked until a disposable target is explicitly approved.
 Next independent slice: obtain a registry-isolated C++ installation or
 separate staging VM and execute the identical disposable SQL/Data/message
 performance matrix; the paired performance release gate remains RED.
+## Current next slice (2026-08-13, SecurityRanges retained authorization)
+
+Legacy `InterfaceSecurityRanges::Delete`, `DeleteByDBID`, and `SetDefault`
+(`source/Server/COM/InterfaceSecurityRanges.cpp`) are available only through
+an acquired server-administrator collection. The .NET implementation now
+rechecks current administrator authorization before each retained collection
+mutation, closing stale-collection mutation without changing the installed COM
+identity or direct activation boundary.
+
+Code/test commit `c4b417035` adds denial tests for index delete, DBID delete,
+and SetDefault after administrator revocation. SecurityRanges coverage is
+`26/26`; full Net10 is `2223 passed, 55 skipped, 0 failed`.
+
+The disposable SQL evidence fixture now accepts only the current-user
+`(localdb)\\MSSQLLocalDB` instance, stamps a GUID ownership marker before
+schema creation, and verifies that marker before cleanup. Its destructive
+integration test remains skipped because explicit LocalDB approval is absent.
+
+Next independent slice: registry-isolated C++ execution on the clean paired
+SQL/Data/message fixture; if unavailable, the separate staging VM remains the
+performance release-gate prerequisite. The paired performance gate remains
+RED.

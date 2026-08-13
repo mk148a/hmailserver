@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-13T13:45:33Z / 2026-08-13T16:45:33+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is ahead by two commits, push pending
-- Current HEAD: `b535f94b0` (SecurityRanges SQL identity/readback evidence)
+- UTC/local timestamp: 2026-08-13T13:56:15Z / 2026-08-13T16:56:15+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is ahead by four commits, push pending
+- Current HEAD: `f6730a844` (SecurityRanges retained-collection authorization documentation)
 - Last successfully pushed commit: `bfeb02940`
-- Latest focused-test result: SQL SecurityRanges store tests `4 passed, 1 skipped, 0 failed`; skip requires explicit disposable SQL approval
-- Latest full Net10 result: `2222 passed, 55 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: SecurityRanges SQL integration skipped because approved connection and isolated-create approval are unset; C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, live DNS/socket/TLS, and 24-hour soak remain skipped or environment-blocked
-- Current bounded slice: SecurityRanges SQL Server insert identity and legacy-column readback evidence; production implementation was unchanged
+- Latest focused-test result: SecurityRanges COM contract/authorization `26 passed, 0 failed`; SQL SecurityRanges store tests `4 passed, 1 skipped, 0 failed`; skip requires explicit LocalDB approval
+- Latest full Net10 result: `2223 passed, 55 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: SecurityRanges SQL integration skipped because the approved current-user `MSSQLLocalDB` connection and isolated-create approval are unset; C++ paired benchmark, restore lifecycle, installer, registry/COM, AD/DC, SEC-18, live DNS/socket/TLS, and 24-hour soak remain skipped or environment-blocked
+- Current bounded slice: SecurityRanges retained-collection authorization recheck plus hardened disposable SQL identity/readback fixture
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through SMTP relayer password persistence, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, global relayer failover/address planning, outbound TLS verification wiring, normal-MX host/address ordering/cap, implicit A/AAAA fallback, null-MX rejection, no-MX CNAME planning, and SecurityRanges managed parity coverage
 - Open production blockers: paired C++/.NET performance RED; legacy C++ external-fetch SSRF, live DNS/socket/TLS/SNI and certificate/revocation acceptance; scanner production egress and DNS-response validation; per-recipient queue parity; restore protocol drain/reinitialize; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
-- Environment-blocked work: registry-isolated C++ runner or separate staging VM; explicitly approved disposable SQL target; live DNS/socket/TLS fixture; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
+- Environment-blocked work: registry-isolated C++ runner or separate staging VM; explicitly approved current-user LocalDB target; live DNS/socket/TLS fixture; restore lifecycle/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
 - Next three independent slices: registry-isolated C++ execution and paired benchmark evidence; approved disposable SQL/DNS/socket/TLS delivery acceptance; isolated Windows service/out-of-process COM lifecycle

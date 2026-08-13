@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-13, SecurityRanges retained authorization)
+
+Legacy `InterfaceSecurityRanges::Delete`, `DeleteByDBID`, and `SetDefault`
+(`source/Server/COM/InterfaceSecurityRanges.cpp`) operate on an acquired
+server-admin collection. The .NET retained collection now rechecks the current
+server-admin callback immediately before each of those store mutation paths,
+while `SecurityRange.Delete` and `Save` retain their existing item-level
+checks. This closes the stale-authorized-collection mutation gap without
+changing the installed IIDs, DISPIDs, vtable order, class identities, direct
+activation boundary, or SMTP behavior.
+
+Code/test commit `c4b417035` adds focused denial coverage for index delete,
+DBID delete, and SetDefault after administrator revocation. SecurityRanges
+coverage is `26/26`; full Net10 is `2223 passed, 55 skipped, 0 failed`.
+
+The same commit hardens the opt-in SQL identity/readback fixture: only the
+current-user `(localdb)\\MSSQLLocalDB` target is accepted, a GUID marker is
+written before schema creation, and cleanup verifies that marker before using
+`WITH ROLLBACK IMMEDIATE`. The real SQL integration remains skipped because
+the explicit disposable LocalDB approval variables are unset.
+
+Release remains **RED**. Next slice: registry-isolated C++ execution for the
+paired performance gate, or a separate staging VM.
+
 ## Current Authoritative Continuation (2026-08-13, SecurityRanges SQL evidence)
 
 Legacy `InterfaceSecurityRanges::Add`

@@ -2850,7 +2850,13 @@ The test creates and removes only a random local disposable database when
 explicitly configured. The current run skipped that destructive test because
 those approvals are absent; four SQL contract tests passed.
 
-Full Net10 is `2222 passed, 55 skipped, 0 failed`. The paired C++/.NET 10
+The retained `Settings.SecurityRanges` collection now rechecks server
+administrator authorization before `Delete`, `DeleteByDBID`, and `SetDefault`,
+so revoking the administrator session cannot continue those mutations through
+an already-obtained collection. This preserves the existing COM identities and
+direct-activation boundaries.
+
+Full Net10 is `2223 passed, 55 skipped, 0 failed`. The paired C++/.NET 10
 performance release gate remains **RED** because the C++ side has not safely
 run against the identical disposable SQL/Data/message fixture. No performance
 ratio or winner is claimed. The next slice is registry-isolated C++ execution
