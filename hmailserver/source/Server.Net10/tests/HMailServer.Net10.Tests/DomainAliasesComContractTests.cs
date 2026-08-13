@@ -426,6 +426,184 @@ public sealed class DomainAliasesComContractTests
         Assert.AreEqual(1, aliases.Count);
     }
 
+    [TestMethod]
+    public void DomainAliasMutations_HoldLeaseAcrossStoreCallbacksWithoutNesting()
+    {
+        var activeLeases = 0;
+        var leaseRequests = 0;
+        var disposedLeases = 0;
+        var events = new List<string>();
+        Func<CancellationToken, ValueTask<IDisposable?>> leaseFactory = _ =>
+        {
+            leaseRequests++;
+            activeLeases++;
+            events.Add("acquire");
+            return ValueTask.FromResult<IDisposable?>(new TrackingLease(() =>
+            {
+                activeLeases--;
+                disposedLeases++;
+                events.Add("dispose");
+            }));
+        };
+
+        IInterfaceDomainAliases aliases = DomainAliases.CreateAuthorized(
+            new[] { new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test") },
+            insert: (_, _) =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                events.Add("insert");
+                return 20;
+            },
+            update: (_, _) =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                events.Add("update");
+            },
+            delete: (_, _) =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                events.Add("delete");
+                return true;
+            },
+            owningDomainId: 100,
+            isAuthenticated: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+
+        var existing = aliases[0];
+        existing.AliasName = "alias-updated.test";
+        existing.Save();
+
+        var pending = aliases.Add();
+        pending.AliasName = "alias-new.test";
+        pending.Save();
+
+        existing.Delete();
+        aliases.DeleteByDBID(20);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "acquire", "update", "dispose",
+                "acquire", "insert", "dispose",
+                "acquire", "delete", "dispose",
+                "acquire", "delete", "dispose"
+            },
+            events);
+        Assert.AreEqual(4, leaseRequests);
+        Assert.AreEqual(4, disposedLeases);
+        Assert.AreEqual(0, activeLeases);
+    }
+
+    [TestMethod]
+    public void DomainAliasMutations_DenyBeforeStoreWhenLeaseIsUnavailable()
+    {
+        var callbacks = 0;
+        var leaseRequests = 0;
+        IInterfaceDomainAliases aliases = DomainAliases.CreateAuthorized(
+            new[] { new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test") },
+            insert: (_, _) =>
+            {
+                callbacks++;
+                return 20;
+            },
+            update: (_, _) => callbacks++,
+            delete: (_, _) =>
+            {
+                callbacks++;
+                return true;
+            },
+            owningDomainId: 100,
+            isAuthenticated: static () => true,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseRequests++;
+                return ValueTask.FromResult<IDisposable?>(null);
+            });
+
+        var pending = aliases.Add();
+        var newSaveError = Assert.ThrowsExactly<COMException>(pending.Save);
+        var existing = aliases[0];
+        var existingSaveError = Assert.ThrowsExactly<COMException>(existing.Save);
+        var childDeleteError = Assert.ThrowsExactly<COMException>(existing.Delete);
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(() => aliases.DeleteByDBID(10));
+
+        Assert.AreEqual(EAccessDenied, newSaveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, existingSaveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, childDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionDeleteError.ErrorCode);
+        Assert.AreEqual(4, leaseRequests);
+        Assert.AreEqual(0, callbacks);
+    }
+
+    [TestMethod]
+    public void DomainAliasMutationFailure_ReleasesLeaseAndRetainsPublishedSnapshot()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        IInterfaceDomainAliases aliases = DomainAliases.CreateAuthorized(
+            new[] { new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test") },
+            update: (_, _) =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                throw new InvalidOperationException("Simulated store failure.");
+            },
+            owningDomainId: 100,
+            isAuthenticated: static () => true,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLeases++;
+                return ValueTask.FromResult<IDisposable?>(new TrackingLease(() =>
+                {
+                    activeLeases--;
+                    disposedLeases++;
+                }));
+            });
+
+        var existing = aliases[0];
+        existing.AliasName = "alias-failed.test";
+
+        var error = Assert.ThrowsExactly<COMException>(existing.Save);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(1, disposedLeases);
+        Assert.AreEqual("alias-failed.test", existing.AliasName);
+        Assert.AreEqual("alias-one.test", aliases[0].AliasName);
+    }
+
+    [TestMethod]
+    public void RetainedDomainAlias_DeniesAfterAuthorizationGenerationChangesBeforeStore()
+    {
+        var authority = new ApplicationAuthorizationAuthority();
+        var initialAttempt = authority.BeginAuthentication();
+        Assert.IsTrue(authority.CompleteAuthentication(initialAttempt, isServerAdministrator: true));
+
+        var store = new MutableDomainAliasAdministrationStore(
+            new[] { new DomainAliasAdministrationSnapshot(10, 100, "alias-one.test") });
+        DomainAliasAdministrationRuntimeHost.Configure(store);
+        var domain = Domain.CreateAuthorized(
+            new DomainAdministrationSnapshot(100, "example.test", true),
+            isAuthenticated: () => authority.IsCurrentAdministrator(initialAttempt.Generation),
+            authorizationLeaseFactory: cancellationToken =>
+                authority.AcquireLeaseAsync(initialAttempt.Generation, cancellationToken));
+        var aliases = domain.DomainAliases;
+        var retained = aliases[0];
+        retained.AliasName = "alias-updated.test";
+        retained.Save();
+        retained.AliasName = "alias-revoked.test";
+
+        var nextAttempt = authority.BeginAuthentication();
+        Assert.IsTrue(authority.CompleteAuthentication(nextAttempt, isServerAdministrator: false));
+
+        var childError = Assert.ThrowsExactly<COMException>(retained.Save);
+        var collectionError = Assert.ThrowsExactly<COMException>(() => aliases.DeleteByDBID(10));
+
+        Assert.AreEqual(EAccessDenied, childError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, collectionError.ErrorCode);
+        Assert.AreEqual(1, store.UpdatedAliases.Count);
+        Assert.AreEqual(0, store.DeletedAliases.Count);
+    }
+
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
     {
         Assert.AreEqual(new Guid(interfaceId), contract.GUID);
@@ -458,6 +636,11 @@ public sealed class DomainAliasesComContractTests
         Assert.AreEqual(id, alias.ID);
         Assert.AreEqual(domainId, alias.DomainID);
         Assert.AreEqual(aliasName, alias.AliasName);
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 
     private sealed class MutableDomainAliasAdministrationStore(IReadOnlyList<DomainAliasAdministrationSnapshot> aliases)

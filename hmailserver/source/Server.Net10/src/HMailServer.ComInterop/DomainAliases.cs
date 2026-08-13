@@ -81,6 +81,7 @@ public sealed class DomainAliases : IInterfaceDomainAliases
     private readonly Func<int, int, bool>? _delete;
     private readonly int? _owningDomainId;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public DomainAliases()
     {
@@ -93,7 +94,8 @@ public sealed class DomainAliases : IInterfaceDomainAliases
         Action<int, DomainAliasAdministrationSnapshot>? update,
         Func<int, int, bool>? delete,
         int? owningDomainId,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _aliases = aliases.ToArray();
         _reload = reload;
@@ -102,6 +104,7 @@ public sealed class DomainAliases : IInterfaceDomainAliases
         _delete = delete;
         _owningDomainId = owningDomainId;
         _isAuthenticated = isAuthenticated;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetAliases().Count;
@@ -113,10 +116,19 @@ public sealed class DomainAliases : IInterfaceDomainAliases
         Action<int, DomainAliasAdministrationSnapshot>? update = null,
         Func<int, int, bool>? delete = null,
         int? owningDomainId = null,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(aliases);
-        return new DomainAliases(aliases, reload, insert, update, delete, owningDomainId, isAuthenticated);
+        return new DomainAliases(
+            aliases,
+            reload,
+            insert,
+            update,
+            delete,
+            owningDomainId,
+            isAuthenticated,
+            authorizationLeaseFactory);
     }
 
     public IInterfaceDomainAlias this[int index]
@@ -178,7 +190,7 @@ public sealed class DomainAliases : IInterfaceDomainAliases
             return;
         }
 
-        DeleteExistingDomainAlias(aliases[index].Id);
+        DeleteExistingDomainAlias(aliases[index].Id, acquireAuthorizationLease: true);
     }
 
     public void DeleteByDBID(int databaseId)
@@ -194,7 +206,7 @@ public sealed class DomainAliases : IInterfaceDomainAliases
             return;
         }
 
-        DeleteExistingDomainAlias(databaseId);
+        DeleteExistingDomainAlias(databaseId, acquireAuthorizationLease: true);
     }
 
     public IInterfaceDomainAlias Add()
@@ -209,9 +221,10 @@ public sealed class DomainAliases : IInterfaceDomainAliases
             new DomainAliasAdministrationSnapshot(0, _owningDomainId.Value, string.Empty));
         return DomainAlias.CreateAuthorized(
             entry,
-            save: _update is null ? null : alias => SaveExistingDomainAlias(entry, alias),
-            saveNew: alias => SaveNewDomainAlias(entry, alias),
-            isAuthenticated: _isAuthenticated);
+            save: _update is null ? null : alias => SaveExistingDomainAlias(entry, alias, authorizationLeaseAlreadyHeld: true),
+            saveNew: alias => SaveNewDomainAlias(entry, alias, authorizationLeaseAlreadyHeld: true),
+            isAuthenticated: _isAuthenticated,
+            authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     private IInterfaceDomainAlias CreateExistingAlias(DomainAliasAdministrationSnapshot alias)
@@ -219,9 +232,10 @@ public sealed class DomainAliases : IInterfaceDomainAliases
         var entry = new DomainAliasAdministrationEntry(alias);
         return DomainAlias.CreateAuthorized(
             entry,
-            save: _update is null ? null : snapshot => SaveExistingDomainAlias(entry, snapshot),
-            delete: _delete is null ? null : DeleteExistingDomainAlias,
-            isAuthenticated: _isAuthenticated);
+            save: _update is null ? null : snapshot => SaveExistingDomainAlias(entry, snapshot, authorizationLeaseAlreadyHeld: true),
+            delete: _delete is null ? null : aliasId => DeleteExistingDomainAlias(aliasId, acquireAuthorizationLease: false),
+            isAuthenticated: _isAuthenticated,
+            authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     private IReadOnlyList<DomainAliasAdministrationSnapshot> GetAliases()
@@ -235,10 +249,12 @@ public sealed class DomainAliases : IInterfaceDomainAliases
 
     private DomainAliasAdministrationSnapshot SaveNewDomainAlias(
         DomainAliasAdministrationEntry entry,
-        DomainAliasAdministrationSnapshot alias)
+        DomainAliasAdministrationSnapshot alias,
+        bool authorizationLeaseAlreadyHeld)
     {
-        EnsureAuthenticated();
-        var aliases = GetAliases();
+        var aliases = authorizationLeaseAlreadyHeld
+            ? GetAliasesWithoutAuthentication()
+            : GetAliases();
         if (_insert is null || _owningDomainId is null)
         {
             Unavailable();
@@ -286,10 +302,11 @@ public sealed class DomainAliases : IInterfaceDomainAliases
         }
     }
 
-    private void DeleteExistingDomainAlias(int aliasId)
+    private void DeleteExistingDomainAlias(int aliasId, bool acquireAuthorizationLease)
     {
-        EnsureAuthenticated();
-        var aliases = GetAliases();
+        var aliases = acquireAuthorizationLease
+            ? GetAliases()
+            : GetAliasesWithoutAuthentication();
         if (_delete is null || _owningDomainId is null)
         {
             Unavailable();
@@ -302,6 +319,9 @@ public sealed class DomainAliases : IInterfaceDomainAliases
 
         try
         {
+            using var authorizationLease = acquireAuthorizationLease
+                ? AcquireAuthorizationLease()
+                : null;
             if (!_delete!(_owningDomainId.GetValueOrDefault(), aliasId))
             {
                 throw new InvalidOperationException(
@@ -326,10 +346,12 @@ public sealed class DomainAliases : IInterfaceDomainAliases
 
     private void SaveExistingDomainAlias(
         DomainAliasAdministrationEntry entry,
-        DomainAliasAdministrationSnapshot alias)
+        DomainAliasAdministrationSnapshot alias,
+        bool authorizationLeaseAlreadyHeld)
     {
-        EnsureAuthenticated();
-        var aliases = GetAliases();
+        var aliases = authorizationLeaseAlreadyHeld
+            ? GetAliasesWithoutAuthentication()
+            : GetAliases();
         if (_update is null || _owningDomainId is null)
         {
             Unavailable();
@@ -376,6 +398,27 @@ public sealed class DomainAliases : IInterfaceDomainAliases
             "This DomainAliases member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
     }
+
+    private IReadOnlyList<DomainAliasAdministrationSnapshot> GetAliasesWithoutAuthentication() =>
+        Volatile.Read(ref _aliases)
+            ?? throw new COMException(
+                "DomainAliases access requires an authenticated server administrator.",
+                EAccessDenied);
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "DomainAliases access requires an authenticated server administrator.",
+                EAccessDenied);
+    }
 }
 
 [ComVisible(false)]
@@ -406,6 +449,7 @@ public sealed class DomainAlias : IInterfaceDomainAlias
     private readonly Func<DomainAliasAdministrationSnapshot, DomainAliasAdministrationSnapshot>? _saveNew;
     private readonly Action<int>? _delete;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public DomainAlias()
     {
@@ -416,13 +460,15 @@ public sealed class DomainAlias : IInterfaceDomainAlias
         Action<DomainAliasAdministrationSnapshot>? save,
         Func<DomainAliasAdministrationSnapshot, DomainAliasAdministrationSnapshot>? saveNew,
         Action<int>? delete,
-        Func<bool>? isAuthenticated)
+        Func<bool>? isAuthenticated,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _entry = entry;
         _save = save;
         _saveNew = saveNew;
         _delete = delete;
         _isAuthenticated = isAuthenticated;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int ID => Snapshot.Id;
@@ -441,25 +487,29 @@ public sealed class DomainAlias : IInterfaceDomainAlias
 
     internal static DomainAlias CreateAuthorized(
         DomainAliasAdministrationSnapshot alias,
-        Func<bool>? isAuthenticated = null) =>
-        new(new DomainAliasAdministrationEntry(alias), null, null, null, isAuthenticated);
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        new(new DomainAliasAdministrationEntry(alias), null, null, null, isAuthenticated, authorizationLeaseFactory);
 
     internal static DomainAlias CreateAuthorized(
         DomainAliasAdministrationEntry entry,
         Action<DomainAliasAdministrationSnapshot>? save = null,
         Func<DomainAliasAdministrationSnapshot, DomainAliasAdministrationSnapshot>? saveNew = null,
         Action<int>? delete = null,
-        Func<bool>? isAuthenticated = null) =>
-        new(entry, save, saveNew, delete, isAuthenticated);
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        new(entry, save, saveNew, delete, isAuthenticated, authorizationLeaseFactory);
 
     public void Save()
     {
         EnsureAuthenticated();
-        if (Snapshot.Id == 0 && _saveNew is not null)
+        var snapshot = Snapshot;
+        if (snapshot.Id == 0 && _saveNew is not null)
         {
             try
             {
-                _entry!.Snapshot = _saveNew(Snapshot);
+                using var authorizationLease = AcquireAuthorizationLease();
+                _entry!.Snapshot = _saveNew(snapshot);
             }
             catch (COMException)
             {
@@ -475,11 +525,12 @@ public sealed class DomainAlias : IInterfaceDomainAlias
             return;
         }
 
-        if (Snapshot.Id > 0 && _save is not null)
+        if (snapshot.Id > 0 && _save is not null)
         {
             try
             {
-                _save(Snapshot);
+                using var authorizationLease = AcquireAuthorizationLease();
+                _save(snapshot);
             }
             catch (COMException)
             {
@@ -505,6 +556,7 @@ public sealed class DomainAlias : IInterfaceDomainAlias
     public void Delete()
     {
         EnsureAuthenticated();
+        var snapshot = Snapshot;
         if (_delete is null)
         {
             Unavailable();
@@ -513,7 +565,8 @@ public sealed class DomainAlias : IInterfaceDomainAlias
 
         try
         {
-            _delete(Snapshot.Id);
+            using var authorizationLease = AcquireAuthorizationLease();
+            _delete(snapshot.Id);
         }
         catch (COMException)
         {
@@ -560,6 +613,21 @@ public sealed class DomainAlias : IInterfaceDomainAlias
         }
     }
 
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "DomainAlias access requires an authenticated server administrator.",
+                EAccessDenied);
+    }
+
     private void Unavailable()
     {
         _ = Snapshot;
@@ -584,7 +652,8 @@ public static class DomainAliasAdministrationRuntimeHost
 
     internal static DomainAliases CreateAuthorizedAdapter(
         int domainId,
-        Func<bool>? isAuthenticated = null)
+        Func<bool>? isAuthenticated = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -622,6 +691,7 @@ public static class DomainAliasAdministrationRuntimeHost
             UpdateDomainAlias,
             DeleteDomainAlias,
             domainId,
-            isAuthenticated);
+            isAuthenticated,
+            authorizationLeaseFactory);
     }
 }
