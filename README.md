@@ -35,6 +35,12 @@ passed, 0 failed`). The hosted services and production restore coordinator are
 not wired to these callbacks yet; this is lifecycle preparation, not a live
 reinitialization claim. Full Net10 is now `2300 passed, 57 skipped, 0 failed`.
 
+The internal `RestartableListenerLifecycle` primitive (`4cb46e777`) now
+serializes Start/Stop transitions, waits for the actual run to drain, rejects
+concurrent starts, and cleans up failed binds. Focused coverage is `3 passed,
+0 failed`; full Net10 is `2303 passed, 57 skipped, 0 failed`. It is not wired
+to production hosted services, restore, or COM yet.
+
 ## Current authoritative distribution-list deletion status (2026-08-14)
 
 Code/test commit `143db0bb4` closes the owner-scope gap in direct distribution

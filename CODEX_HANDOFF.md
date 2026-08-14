@@ -39,6 +39,14 @@ No hosted-service participant, readiness generation, restore callback, or COM
 integration is wired. Next slice: explicit hosted-service stop/start adapter
 and drain/readiness ordering. Release remains **RED**.
 
+## Current Authoritative Continuation (2026-08-14, restartable listener primitive)
+
+Code/test commit `4cb46e777` adds internal `RestartableListenerLifecycle`.
+Focused coverage is `3/3`; full Net10 Debug is `2303 passed, 57 skipped,
+0 failed`. The primitive serializes transitions, waits for drain, and cleans
+up failed starts, but is not wired to hosted services, readiness, restore, or
+COM. Next slice: the three hosted-service adapters. Release remains **RED**.
+
 ## Current Authoritative Continuation (2026-08-14, transactional distribution-list deletion)
 
 Code/test commit `1e90198e4` completes direct distribution-list deletion

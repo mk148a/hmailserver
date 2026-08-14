@@ -55,6 +55,19 @@ the readiness generation, restore, or COM. The next slice is the hosted-service
 participant adapter with explicit drain/readiness ordering. Release remains
 **RED**.
 
+## Current hosted-service lifecycle continuation (2026-08-14)
+
+Code/test commit `4cb46e777` adds internal `RestartableListenerLifecycle`.
+It serializes Start/Stop transitions, waits for the listener task to drain,
+rejects concurrent starts, propagates bind failure, and cleans up a failed
+start. Focused coverage is `3 passed, 0 failed`; full Net10 Debug is `2303
+passed, 57 skipped, 0 failed`.
+
+The helper is not wired to IMAP/POP3/SMTP hosted services or the readiness
+generation. Restore, COM, and live reinitialization remain untouched. Next
+slice: adapters for the three hosted services with explicit stop/drain/start
+readiness ordering. Release remains **RED**.
+
 ## Historical next slice (2026-08-14, Links cross-facade lifetime completed)
 
 Completed code/test commit `88ef1006b` closes the lifetime inconsistency

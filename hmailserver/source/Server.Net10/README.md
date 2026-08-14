@@ -6,6 +6,11 @@ lifecycle coverage is `20/20`; full Net10 Debug is `2300 passed, 57 skipped,
 0 failed`. This remains preparation only: hosted-service and restore/COM
 wiring are open, and release remains **RED**.
 
+Commit `4cb46e777` adds the internal `RestartableListenerLifecycle` helper
+with serialized transitions and failed-start cleanup. Focused helper coverage
+is `3/3`; full Net10 Debug is `2303 passed, 57 skipped, 0 failed`. It is not
+yet wired to hosted services, restore, or COM.
+
 ## Current performance evidence (2026-08-14)
 
 The benchmark pack now creates an independent disposable SQL/Data pair per
