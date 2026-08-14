@@ -1,8 +1,8 @@
 # Current State
-- UTC/local timestamp: 2026-08-14T03:40:05Z / 2026-08-14T06:40:05+03:00
+- UTC/local timestamp: 2026-08-14T03:41:10Z / 2026-08-14T06:41:10+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `5c0c24c88` (fresh paired benchmark evidence and authoritative docs)
-- Last successfully pushed commit: `9722dfac199fdcb7db900e6f97047146be2feeda`
+- Current HEAD: `bc2e451cb` (fresh paired benchmark evidence and authoritative docs)
+- Last successfully pushed commit: `bc2e451cb`
 - Latest focused-test result: COM contract `16 passed, 0 failed`
 - Latest full Net10 result: normal Debug `2313 passed, 57 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: fresh disposable paired fixture `EQUIVALENT_START_STATE`; Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; first reused-DB queue attempt correctly failed `51 != 50`; C++ launch refused by fresh read-only preflight; registry/COM, installer, AD/DC, SEC-18, restore round trip, and 24-hour soak remain skipped or environment-blocked; no production resource was used
