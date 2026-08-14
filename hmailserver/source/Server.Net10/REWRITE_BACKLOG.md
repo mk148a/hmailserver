@@ -1,7 +1,8 @@
 
 ## Current next slice (2026-08-14, disposable migration/installer rollback drill)
 
-Code/test commit `3fe4cb513` completes the smallest safe installer guard before
+Code/test commits `3fe4cb513` and `ff100f32a` complete the smallest safe
+installer guards before
 the real drill. `build/install-net10-service.ps1` now snapshots the stopped
 legacy service's executable command line, start mode, error control, display
 name, description, and dependencies; it requires the legacy executable and an
@@ -10,6 +11,9 @@ mutation compensates service configuration and invokes the legacy `/Register`
 path to restore the prior COM registration. New service creation preserves the
 legacy `RPCSS` dependency. Focused PowerShell rollback/preflight tests pass;
 full Net10 Debug is `2313 passed, 58 skipped, 0 failed`.
+
+The uninstaller also snapshots the owned service before deletion and restores
+it if COM unregister fails, preserving legacy service-then-COM ordering.
 
 Legacy anchors are `hMailServer.cpp::_tWinMain` and
 `ServiceManager::{RegisterService,ReconfigureService_,UnregisterService}` in

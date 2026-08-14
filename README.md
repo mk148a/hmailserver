@@ -3,7 +3,8 @@ hMailServer
 
 ## Current authoritative migration/installer status (2026-08-14)
 
-Code/test commit `3fe4cb513` adds a bounded replacement rollback guard to
+Code/test commits `3fe4cb513` and `ff100f32a` add bounded installer rollback
+guards. The replacement guard in
 `build/install-net10-service.ps1`. Before replacing a stopped legacy service,
 the installer snapshots the original service path, start mode, error control,
 display name, description, and dependencies; it requires the legacy
@@ -12,6 +13,10 @@ post-mutation failure it restores the captured service configuration and
 invokes the legacy executable's `/Register` path to restore prior COM
 registration. New services retain the legacy `RPCSS` dependency. The helper is
 `build/net10-service-rollback.ps1`.
+
+The uninstall path now snapshots the owned service before deletion and restores
+it if the subsequent COM unregister operation fails, while preserving the
+legacy service-then-COM ordering.
 
 Legacy anchors are `hMailServer.cpp::_tWinMain`,
 `ServiceManager::RegisterService`, `ServiceManager::ReconfigureService_`, and

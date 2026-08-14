@@ -1,9 +1,9 @@
 # Current State
 - UTC/local timestamp: 2026-08-14T05:05:00Z / 2026-08-14T08:05:00+03:00
 - Branch/upstream: detached continuation worktree from `origin/net10-modernization`; original branch remains PUSH-BLOCKED at 1 ahead / 1 behind
-- Current HEAD: `3fe4cb513` (installer replacement rollback compensation guard)
+- Current HEAD: `ff100f32a` (installer replacement and uninstall rollback guards)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and not pushed
-- Latest focused-test result: `BackupRestoreRoundTripIntegrationTests` 21 passed, 0 failed; COM contract 16 passed, 0 failed
+- Latest focused-test result: rollback/preflight PowerShell test passed; BackupRestoreRoundTripIntegrationTests 21 passed, 0 failed; COM contract 16 passed, 0 failed
 - Latest full Net10 result: normal Debug `2313 passed, 58 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: fresh disposable paired fixture `EQUIVALENT_START_STATE`; Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; isolated restore/rollback and backup -> restore -> backup semantic round trip `21/21`; first reused-DB queue attempt correctly failed `51 != 50`; C++ launch refused by fresh read-only preflight; registry/COM, installer, AD/DC, SEC-18, and 24-hour soak remain skipped or environment-blocked; no production resource was used
 - Current bounded slice: disposable legacy-to-Net10 migration/installer replacement and forced-failure rollback drill

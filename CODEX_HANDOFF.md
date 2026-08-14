@@ -2,7 +2,8 @@
 
 ## Current Authoritative Continuation (2026-08-14, installer rollback compensation)
 
-Code/test commit `3fe4cb513` adds `build/net10-service-rollback.ps1` and wires
+Code/test commits `3fe4cb513` and `ff100f32a` add
+`build/net10-service-rollback.ps1` and wire
 it into `build/install-net10-service.ps1`. Replacement of a stopped legacy
 service now snapshots the original `PathName` (including `RunAsService`),
 start mode, error control, display name, description, and dependencies; it
@@ -12,6 +13,10 @@ service snapshot and invokes the legacy executable's `/Register` path to
 restore the previous COM registration. New service creation includes the
 legacy `RPCSS` dependency. Focused rollback/preflight tests pass and full
 Net10 Debug is `2313 passed, 58 skipped, 0 failed`.
+
+The uninstaller also snapshots the owned service before deletion and restores
+it when the later COM unregister fails, preserving legacy service-then-COM
+ordering while closing the post-delete failure window.
 
 Legacy anchors: `hMailServer.cpp::_tWinMain`,
 `ServiceManager::RegisterService`, `ServiceManager::ReconfigureService_`,
