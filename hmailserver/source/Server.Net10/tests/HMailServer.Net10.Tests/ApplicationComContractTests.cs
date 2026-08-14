@@ -365,6 +365,34 @@ public sealed class ApplicationComContractTests
     }
 
     [TestMethod]
+    public async Task Application_ReinitializeHoldsAuthorizationLeaseAcrossRuntimeCall()
+    {
+        var entered = new TaskCompletionSource<object?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<object?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var application = Application.CreateForRuntime(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            reinitializeAsync: async _ =>
+            {
+                entered.SetResult(null);
+                await release.Task.ConfigureAwait(false);
+            });
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var reinitialize = Task.Run(application.Reinitialize);
+        await entered.Task;
+
+        var reauthentication = Task.Run(() => application.Authenticate("Administrator", "wrong"));
+        await Task.Delay(50);
+        Assert.IsFalse(reauthentication.IsCompleted);
+
+        release.SetResult(null);
+        await reinitialize;
+        Assert.IsNull(await reauthentication);
+    }
+
+    [TestMethod]
     public void Application_ReinitializePreservesLegacyContractIdentity()
     {
         Assert.AreEqual(new Guid("2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8"), typeof(IInterfaceApplication).GUID);

@@ -219,6 +219,16 @@ public sealed class Application : IInterfaceApplication
     public void Reinitialize()
     {
         EnsureServerAdministrator();
+        var generation = _authorizationAuthority.CurrentGeneration;
+        using var authorizationLease = _authorizationAuthority
+            .AcquireLeaseAsync(generation, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "You do not have access to this property / method. Ensure that hMailServer.Application.Authenticate() is called with proper login credentials.",
+                EAccessDenied);
+
         if (_reinitializeAsync is null)
         {
             NotImplemented();
