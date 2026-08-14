@@ -96,6 +96,7 @@ public sealed class ServiceReinitializationCoordinator
                 throw;
             }
 
+            generation?.SetBootstrapComplete();
             generation?.SetReady();
         }
         catch (Exception exception)

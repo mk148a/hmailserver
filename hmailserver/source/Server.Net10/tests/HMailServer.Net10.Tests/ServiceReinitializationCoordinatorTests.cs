@@ -47,6 +47,7 @@ public sealed class ServiceReinitializationCoordinatorTests
 
         releaseStart.SetResult(null);
         await reinitialize;
+        await signal.WaitForBootstrapAsync(CancellationToken.None);
         await readiness;
     }
 

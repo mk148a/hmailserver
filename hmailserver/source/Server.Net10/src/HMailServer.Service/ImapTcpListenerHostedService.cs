@@ -14,6 +14,7 @@ public sealed class ImapTcpListenerHostedService : BackgroundService
     private readonly TaskCompletionSource<object?> _unexpectedStop = new(
         TaskCreationOptions.RunContinuationsAsynchronously);
     private int _expectedStops;
+    private CancellationToken _hostStoppingToken;
 
     public ImapTcpListenerHostedService(
         ImapTcpListener listener,
@@ -37,6 +38,7 @@ public sealed class ImapTcpListenerHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _hostStoppingToken = stoppingToken;
         try
         {
             if (!_options.Enabled)
@@ -77,6 +79,14 @@ public sealed class ImapTcpListenerHostedService : BackgroundService
         if (!_options.Enabled)
         {
             return;
+        }
+
+        _hostStoppingToken.ThrowIfCancellationRequested();
+        if (_unexpectedStop.Task.IsFaulted)
+        {
+            throw new InvalidOperationException(
+                "IMAP TCP listener supervision has faulted and cannot be restarted by reinitialization.",
+                _unexpectedStop.Task.Exception?.GetBaseException());
         }
 
         await StartListenerAsync(cancellationToken).ConfigureAwait(false);
