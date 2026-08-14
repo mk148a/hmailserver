@@ -55,7 +55,16 @@ the readiness generation, restore, or COM. The next slice is the hosted-service
 participant adapter with explicit drain/readiness ordering. Release remains
 **RED**.
 
-## Current IMAP hosted-service continuation (2026-08-14)
+## Current POP3 hosted-service continuation (2026-08-14)
+
+Code/test commit `9500dbee4` wires `Pop3TcpListenerHostedService` through the
+restartable participant adapter. Focused coverage is `9 passed, 0 failed`;
+full Net10 Debug is `2305 passed, 57 skipped, 0 failed`. SMTP remains on the
+one-shot path and protocol participants are not yet registered with readiness
+or the reinitialization coordinator. Next slice: SMTP adapter. Release remains
+**RED**.
+
+## Historical IMAP hosted-service continuation (2026-08-14)
 
 Code/test commit `5d44dd4f0` wires `ImapTcpListenerHostedService` through the
 restartable participant adapter. The service reports the actual endpoint,

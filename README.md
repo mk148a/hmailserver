@@ -54,6 +54,14 @@ and shutdown drains through the adapter. Focused IMAP/participant coverage is
 POP3, SMTP, readiness-generation registration, restore, and COM wiring remain
 separate and release remains **RED**.
 
+## Current POP3 hosted-service continuation (2026-08-14)
+
+Commit `9500dbee4` wires the POP3 hosted service through the restartable
+participant adapter. Focused POP3/participant coverage is `9 passed, 0
+failed`; full Net10 is `2305 passed, 57 skipped, 0 failed`. SMTP, readiness
+generation registration, restore, and COM wiring remain open; release remains
+**RED**.
+
 ## Current authoritative distribution-list deletion status (2026-08-14)
 
 Code/test commit `143db0bb4` closes the owner-scope gap in direct distribution

@@ -16,7 +16,14 @@ Focused participant coverage is `4/4`; full Net10 Debug is `2304 passed, 57
 skipped, 0 failed`. Hosted-service registration and readiness transition remain
 open.
 
-## Current IMAP hosted-service continuation (2026-08-14)
+## Current POP3 hosted-service continuation (2026-08-14)
+
+Commit `9500dbee4` wires the POP3 hosted service through the restartable
+participant adapter. Focused POP3/participant coverage is `9/9`; full Net10
+Debug is `2305 passed, 57 skipped, 0 failed`. SMTP and readiness/restore/COM
+wiring remain open.
+
+## Historical IMAP hosted-service continuation (2026-08-14)
 
 Commit `5d44dd4f0` wires the IMAP hosted service through the restartable
 participant adapter. Focused IMAP/participant coverage is `8/8`; full Net10

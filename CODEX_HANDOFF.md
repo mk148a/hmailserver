@@ -47,7 +47,15 @@ Focused coverage is `3/3`; full Net10 Debug is `2303 passed, 57 skipped,
 up failed starts, but is not wired to hosted services, readiness, restore, or
 COM. Next slice: the three hosted-service adapters. Release remains **RED**.
 
-## Current Authoritative Continuation (2026-08-14, IMAP hosted-service adapter)
+## Current Authoritative Continuation (2026-08-14, POP3 hosted-service adapter)
+
+Code/test commit `9500dbee4` wires the POP3 hosted service through the
+restartable participant facade. Focused coverage is `9/9`; full Net10 Debug is
+`2305 passed, 57 skipped, 0 failed`. SMTP remains one-shot and all readiness,
+participant registration, restore, and COM integration remain open. Next slice:
+SMTP hosted-service adapter. Release remains **RED**.
+
+## Historical IMAP hosted-service adapter (2026-08-14)
 
 Code/test commit `5d44dd4f0` wires the IMAP hosted service through the
 restartable participant facade. Focused coverage is `8/8`; full Net10 Debug is
