@@ -47,6 +47,13 @@ participant coverage is `4 passed, 0 failed`; full Net10 is `2304 passed, 57
 skipped, 0 failed`. Actual hosted-service registration and readiness transition
 remain open.
 
+The IMAP hosted service now uses the restartable participant adapter
+(`5d44dd4f0`): startup reports the actual endpoint, the active run is observed,
+and shutdown drains through the adapter. Focused IMAP/participant coverage is
+`8 passed, 0 failed`; full Net10 is `2305 passed, 57 skipped, 0 failed`.
+POP3, SMTP, readiness-generation registration, restore, and COM wiring remain
+separate and release remains **RED**.
+
 ## Current authoritative distribution-list deletion status (2026-08-14)
 
 Code/test commit `143db0bb4` closes the owner-scope gap in direct distribution

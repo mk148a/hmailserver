@@ -47,7 +47,15 @@ Focused coverage is `3/3`; full Net10 Debug is `2303 passed, 57 skipped,
 up failed starts, but is not wired to hosted services, readiness, restore, or
 COM. Next slice: the three hosted-service adapters. Release remains **RED**.
 
-## Current Authoritative Continuation (2026-08-14, listener participant facade)
+## Current Authoritative Continuation (2026-08-14, IMAP hosted-service adapter)
+
+Code/test commit `5d44dd4f0` wires the IMAP hosted service through the
+restartable participant facade. Focused coverage is `8/8`; full Net10 Debug is
+`2305 passed, 57 skipped, 0 failed`. POP3/SMTP remain one-shot, all participant
+registration and readiness integration remain open, and restore/COM are still
+fail-closed. Next slice: POP3 hosted-service adapter. Release remains **RED**.
+
+## Historical listener participant facade (2026-08-14)
 
 Code/test commit `2aa8d32ee` adds `RestartableListenerParticipant` over the
 listener lifecycle helper. Focused coverage is `4/4`; full Net10 Debug is

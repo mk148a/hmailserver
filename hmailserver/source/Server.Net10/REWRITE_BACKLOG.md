@@ -55,7 +55,19 @@ the readiness generation, restore, or COM. The next slice is the hosted-service
 participant adapter with explicit drain/readiness ordering. Release remains
 **RED**.
 
-## Current participant continuation (2026-08-14)
+## Current IMAP hosted-service continuation (2026-08-14)
+
+Code/test commit `5d44dd4f0` wires `ImapTcpListenerHostedService` through the
+restartable participant adapter. The service reports the actual endpoint,
+observes the active run, and drains it during shutdown. Focused coverage is
+`8 passed, 0 failed`; full Net10 Debug is `2305 passed, 57 skipped, 0 failed`.
+
+POP3 and SMTP remain on the prior one-shot hosted-service path. The participant
+set is not registered with the reinitialization coordinator and readiness
+generation, and restore/COM remain unwired. Next slice: POP3 adapter. Release
+remains **RED**.
+
+## Historical participant continuation (2026-08-14)
 
 Code/test commit `2aa8d32ee` adds the internal
 `RestartableListenerParticipant` facade over the lifecycle helper. It exposes
