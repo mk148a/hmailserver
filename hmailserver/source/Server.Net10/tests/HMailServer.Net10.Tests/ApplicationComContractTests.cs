@@ -10,6 +10,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class ApplicationComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     [TestMethod]
@@ -317,6 +318,61 @@ public sealed class ApplicationComContractTests
         AssertOperationPending(application.Connect);
         AssertOperationPending(application.Reinitialize);
         AssertOperationPending(application.SubmitEMail);
+    }
+
+    [TestMethod]
+    public void Application_ReinitializeRequiresAuthenticatedAdministrator()
+    {
+        var application = Application.CreateForRuntime(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            reinitializeAsync: static _ => ValueTask.CompletedTask);
+
+        var denied = Assert.ThrowsExactly<COMException>(application.Reinitialize);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+    }
+
+    [TestMethod]
+    public void Application_ReinitializeDelegatesToRuntimeExactlyOnce()
+    {
+        var calls = 0;
+        var application = Application.CreateForRuntime(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            reinitializeAsync: _ =>
+            {
+                calls++;
+                return ValueTask.CompletedTask;
+            });
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        application.Reinitialize();
+
+        Assert.AreEqual(1, calls);
+    }
+
+    [TestMethod]
+    public void Application_ReinitializeMapsRuntimeFailureToEFail()
+    {
+        var application = Application.CreateForRuntime(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            reinitializeAsync: static _ =>
+                ValueTask.FromException(new InvalidOperationException("coordinator failed")));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var failure = Assert.ThrowsExactly<COMException>(application.Reinitialize);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+    }
+
+    [TestMethod]
+    public void Application_ReinitializePreservesLegacyContractIdentity()
+    {
+        Assert.AreEqual(new Guid("2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8"), typeof(IInterfaceApplication).GUID);
+        Assert.AreEqual(new Guid("D6567EF8-0A6C-48E7-9288-A2463123C2F3"), typeof(Application).GUID);
+        Assert.AreEqual("hMailServer.Application.1", typeof(Application).GetCustomAttribute<ProgIdAttribute>()?.Value);
+        Assert.AreEqual(13, typeof(IInterfaceApplication)
+            .GetMethod(nameof(IInterfaceApplication.Reinitialize))?
+            .GetCustomAttribute<DispIdAttribute>()?.Value);
     }
 
     [TestMethod]

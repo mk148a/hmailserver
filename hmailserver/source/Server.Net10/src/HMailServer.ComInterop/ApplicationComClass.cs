@@ -24,6 +24,7 @@ public sealed class Application : IInterfaceApplication
     private readonly IServiceDependencyRuntime? _serviceDependencyRuntime;
     private readonly IEmailAllAccountsRuntime? _emailAllAccountsRuntime;
     private readonly IImportMessageFromFileRuntime? _importMessageFromFileRuntime;
+    private readonly Func<CancellationToken, ValueTask>? _reinitializeAsync;
     private readonly ApplicationAuthorizationAuthority _authorizationAuthority = new();
 
     public Application()
@@ -40,7 +41,8 @@ public sealed class Application : IInterfaceApplication
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
         IServiceDependencyRuntime? serviceDependencyRuntime = null,
         IEmailAllAccountsRuntime? emailAllAccountsRuntime = null,
-        IImportMessageFromFileRuntime? importMessageFromFileRuntime = null)
+        IImportMessageFromFileRuntime? importMessageFromFileRuntime = null,
+        Func<CancellationToken, ValueTask>? reinitializeAsync = null)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
@@ -53,6 +55,7 @@ public sealed class Application : IInterfaceApplication
         _serviceDependencyRuntime = serviceDependencyRuntime;
         _emailAllAccountsRuntime = emailAllAccountsRuntime;
         _importMessageFromFileRuntime = importMessageFromFileRuntime;
+        _reinitializeAsync = reinitializeAsync;
     }
 
     [ComVisible(false)]
@@ -65,7 +68,8 @@ public sealed class Application : IInterfaceApplication
         IImapFolderUidMaintenanceStore? imapFolderUidMaintenanceStore = null,
         IServiceDependencyRuntime? serviceDependencyRuntime = null,
         IEmailAllAccountsRuntime? emailAllAccountsRuntime = null,
-        IImportMessageFromFileRuntime? importMessageFromFileRuntime = null) =>
+        IImportMessageFromFileRuntime? importMessageFromFileRuntime = null,
+        Func<CancellationToken, ValueTask>? reinitializeAsync = null) =>
         new(
             authenticationProvider,
             legacyBlowfishCipher: legacyBlowfishCipher,
@@ -75,7 +79,8 @@ public sealed class Application : IInterfaceApplication
             imapFolderUidMaintenanceStore: imapFolderUidMaintenanceStore,
             serviceDependencyRuntime: serviceDependencyRuntime,
             emailAllAccountsRuntime: emailAllAccountsRuntime,
-            importMessageFromFileRuntime: importMessageFromFileRuntime);
+            importMessageFromFileRuntime: importMessageFromFileRuntime,
+            reinitializeAsync: reinitializeAsync);
 
     public IInterfaceSettings Settings
     {
@@ -211,7 +216,30 @@ public sealed class Application : IInterfaceApplication
 
     public void Connect() => NotImplemented();
 
-    public void Reinitialize() => NotImplemented();
+    public void Reinitialize()
+    {
+        EnsureServerAdministrator();
+        if (_reinitializeAsync is null)
+        {
+            NotImplemented();
+            return;
+        }
+
+        try
+        {
+            _reinitializeAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult();
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to reinitialize the hMailServer service.",
+                unchecked((int)0x80004005));
+        }
+    }
 
     public IInterfaceAccount? Authenticate(string username, string password)
     {

@@ -20,7 +20,8 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
         IImapFolderUidMaintenanceStore imapFolderUidMaintenanceStore,
         IServiceDependencyRuntime serviceDependencyRuntime,
         IEmailAllAccountsRuntime emailAllAccountsRuntime,
-        IImportMessageFromFileRuntime importMessageFromFileRuntime)
+        IImportMessageFromFileRuntime importMessageFromFileRuntime,
+        ServiceReinitializationCoordinator reinitializationCoordinator)
     {
         ArgumentNullException.ThrowIfNull(serverReadinessSignal);
         ArgumentNullException.ThrowIfNull(authenticationProvider);
@@ -32,6 +33,7 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
         ArgumentNullException.ThrowIfNull(serviceDependencyRuntime);
         ArgumentNullException.ThrowIfNull(emailAllAccountsRuntime);
         ArgumentNullException.ThrowIfNull(importMessageFromFileRuntime);
+        ArgumentNullException.ThrowIfNull(reinitializationCoordinator);
 
         _serverReadinessSignal = serverReadinessSignal;
         _host = new ComLocalServerHost(
@@ -46,7 +48,8 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                     imapFolderUidMaintenanceStore,
                     serviceDependencyRuntime,
                     emailAllAccountsRuntime,
-                    importMessageFromFileRuntime)),
+                    importMessageFromFileRuntime,
+                    reinitializeAsync: reinitializationCoordinator.ReinitializeAsync)),
             new ComLocalServerRegistration(
                 typeof(Database).GUID,
                 static () => new Database()),
