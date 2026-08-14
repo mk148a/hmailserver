@@ -1,6 +1,32 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-14, isolated backup/restore semantic round trip)
+## Current Authoritative Continuation (2026-08-14, installer rollback compensation)
+
+Code/test commit `3fe4cb513` adds `build/net10-service-rollback.ps1` and wires
+it into `build/install-net10-service.ps1`. Replacement of a stopped legacy
+service now snapshots the original `PathName` (including `RunAsService`),
+start mode, error control, display name, description, and dependencies; it
+requires the legacy executable and a valid explicit rollback archive before
+`--register-com` or `sc.exe` mutation. A post-mutation failure restores the
+service snapshot and invokes the legacy executable's `/Register` path to
+restore the previous COM registration. New service creation includes the
+legacy `RPCSS` dependency. Focused rollback/preflight tests pass and full
+Net10 Debug is `2313 passed, 58 skipped, 0 failed`.
+
+Legacy anchors: `hMailServer.cpp::_tWinMain`,
+`ServiceManager::RegisterService`, `ServiceManager::ReconfigureService_`,
+and `ServiceManager::UnregisterService` in
+`hmailserver/source/Server/Common`; installer anchors are
+`hmailserver/installation/hMailServerInnoExtension.iss:536-663`.
+
+No Windows service, registry, COM, SQL, or Data mutation was run. The real
+disposable replacement/rollback drill, DB setup/upgrade parity, and forced
+failure evidence remain environment-blocked. Release remains **RED**.
+
+Next slice: run the disposable legacy-to-Net10 replacement drill on a
+registry-isolated VM and verify service, COM, SQL, and Data rollback together.
+
+## Historical Continuation (2026-08-14, isolated backup/restore semantic round trip)
 
 Code/test commits `3288249ad` and `83c77b86d` delegate runtime-created
 `Application.Reinitialize` synchronously to the existing coordinator after

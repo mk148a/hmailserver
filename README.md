@@ -1,6 +1,30 @@
 hMailServer
 ===========
 
+## Current authoritative migration/installer status (2026-08-14)
+
+Code/test commit `3fe4cb513` adds a bounded replacement rollback guard to
+`build/install-net10-service.ps1`. Before replacing a stopped legacy service,
+the installer snapshots the original service path, start mode, error control,
+display name, description, and dependencies; it requires the legacy
+executable and explicit rollback archive before COM or service mutation. On a
+post-mutation failure it restores the captured service configuration and
+invokes the legacy executable's `/Register` path to restore prior COM
+registration. New services retain the legacy `RPCSS` dependency. The helper is
+`build/net10-service-rollback.ps1`.
+
+Legacy anchors are `hMailServer.cpp::_tWinMain`,
+`ServiceManager::RegisterService`, `ServiceManager::ReconfigureService_`, and
+`ServiceManager::UnregisterService` in `hmailserver/source/Server/Common`.
+Focused rollback/preflight coverage passes; full Net10 Debug is `2313 passed,
+58 skipped, 0 failed`.
+
+This is a compensating-rollback guard only. No Windows service, registry, COM,
+SQL, or Data mutation was run. The real disposable legacy-to-Net10 replacement
+drill, database setup parity, COM byte-preservation, and forced-failure
+evidence remain open. Release remains **RED**. Next slice: execute the drill on
+a disposable VM or registry-isolated staging host.
+
 ## Current authoritative protocol reinitialization status (2026-08-14)
 
 Code/test commits `0e9164404`, `63f512752`, `894affe5f`, `3288249ad`, and
@@ -49,8 +73,9 @@ The slice also corrects two parity defects exposed by the round trip: recipient
 containers now serialize as `Recipients`, and backup fetch rows are read in
 monotonic `SequentialAccess` order. This proves bounded isolated semantic
 equivalence only; it does not prove a cloned legacy production backup, service
-replacement, installer rollback, or the remaining release gates. Next slice:
-isolated migration/installer rollback planning and disposable drill.
+replacement, installer rollback, or the remaining release gates. The planning
+guard is now implemented; the next slice is the isolated disposable
+migration/installer replacement and rollback drill.
 
 ## Historical restore lifecycle seam (superseded 2026-08-14)
 

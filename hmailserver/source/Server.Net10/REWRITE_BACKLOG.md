@@ -1,5 +1,30 @@
 
-## Current next slice (2026-08-14, migration/installer rollback)
+## Current next slice (2026-08-14, disposable migration/installer rollback drill)
+
+Code/test commit `3fe4cb513` completes the smallest safe installer guard before
+the real drill. `build/install-net10-service.ps1` now snapshots the stopped
+legacy service's executable command line, start mode, error control, display
+name, description, and dependencies; it requires the legacy executable and an
+explicit valid rollback archive before COM/service mutation. A failure after
+mutation compensates service configuration and invokes the legacy `/Register`
+path to restore the prior COM registration. New service creation preserves the
+legacy `RPCSS` dependency. Focused PowerShell rollback/preflight tests pass;
+full Net10 Debug is `2313 passed, 58 skipped, 0 failed`.
+
+Legacy anchors are `hMailServer.cpp::_tWinMain` and
+`ServiceManager::{RegisterService,ReconfigureService_,UnregisterService}` in
+`hmailserver/source/Server/Common`, plus
+`hmailserver/installation/hMailServerInnoExtension.iss:536-663`.
+
+No service, registry, COM, SQL, or Data mutation was run. The guard does not
+prove database setup/upgrade parity, installer execution, COM graph
+byte-preservation, or rollback under a forced failure. Those require a
+disposable VM or registry-isolated staging host.
+
+Next slice: execute the isolated legacy-to-Net10 replacement and forced-failure
+rollback drill, then compare service/COM/SQL/Data state before and after.
+
+## Historical next slice (2026-08-14, isolated backup/restore semantic round trip)
 
 Code/test commits `894affe5f`, `3288249ad`, and `83c77b86d` wire the production restore
 runtime callback and authenticated COM reinitialize:
