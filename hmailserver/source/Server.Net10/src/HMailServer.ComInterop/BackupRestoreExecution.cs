@@ -61,6 +61,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
     private readonly Func<CancellationToken, ValueTask> _reinitialize;
     private readonly bool _reinitializeConfigured;
 
+    internal bool ReinitializeConfigured => _reinitializeConfigured;
+
     internal MetadataBackupRestoreExecutor(
         string sevenZipExecutablePath,
         string dataDirectory,

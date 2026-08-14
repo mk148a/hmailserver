@@ -29,6 +29,8 @@ BackupRestoreRecoveryJournal.EnsureNoPendingRecovery(dataDirectory);
 var backupMessagesDbOnly = hostComposition.BackupMessagesDbOnly;
 var userInterfaceLanguage = hostComposition.UserInterfaceLanguage;
 var rewriteEnvelopeFromWhenForwarding = hostComposition.RewriteEnvelopeFromWhenForwarding;
+var reinitializationCoordinator =
+    host.Services.GetRequiredService<ServiceReinitializationCoordinator>();
 
 var directoryAdministrationStore = host.Services.GetRequiredService<IDirectoryAdministrationStore>();
 var directoryAdministrationSnapshot = await directoryAdministrationStore
@@ -74,8 +76,9 @@ BackupManagerRuntimeHost.Configure(
                     .GetRequiredService<IBackupRestoreMetadataTransactionFactory>(),
                 requireSqlTransaction: true)
                 .GetPayloadAsync,
-            dataDirectory: dataDirectory)
-            .CreateAsync));
+             dataDirectory: dataDirectory,
+             restoreReinitializer: reinitializationCoordinator.ReinitializeAsync)
+             .CreateAsync));
 if (host.Services.GetService<IBackupEventScriptExecutor>() is { } backupEventExecutor)
 {
     BackupEventDispatcherRuntimeHost.Configure(backupEventExecutor);

@@ -9,6 +9,46 @@ namespace HMailServer.Net10.Tests;
 public sealed class BackupArchiveRuntimeTests
 {
     [TestMethod]
+    public void ProductionArchiveRuntime_CarriesRestoreReinitializerIntoExecutor()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        var dataDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-restore-runtime-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dataDirectory);
+        try
+        {
+            var payloadRuntime = new BackupXmlPayloadRuntime(
+                new FixedSettingsAdministrationStore(),
+                new FixedDomainAdministrationStore(Array.Empty<DomainAdministrationSnapshot>()),
+                new RecordingDomainAliasAdministrationStore(new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>()),
+                new RecordingAccountAdministrationStore(new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>()),
+                new RecordingAliasAdministrationStore(new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
+                new RecordingDistributionListAdministrationStore(new Dictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>()),
+                new RecordingDistributionListRecipientAdministrationStore(new Dictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>()));
+
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                payloadProvider: payloadRuntime.GetPayloadAsync,
+                dataDirectory: dataDirectory,
+                restoreReinitializer: _ => ValueTask.CompletedTask);
+
+            var executor = BackupRestoreRuntimeHost.Runtime as MetadataBackupRestoreExecutor;
+            Assert.IsNotNull(executor);
+            Assert.IsTrue(executor.ReinitializeConfigured);
+        }
+        finally
+        {
+            BackupRestoreRuntimeHost.ResetForTests();
+            Directory.Delete(dataDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task CreatesLegacyMetadataArchiveAndRemovesTemporaryXml()
     {
         if (!OperatingSystem.IsWindows())

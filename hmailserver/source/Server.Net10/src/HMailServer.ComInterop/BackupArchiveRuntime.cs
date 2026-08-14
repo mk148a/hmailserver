@@ -25,7 +25,8 @@ public sealed class SevenZipBackupArchiveRuntime
         string applicationVersion,
         Func<DateTime>? localNow = null,
         Func<BackupStartPlanEvidence, CancellationToken, ValueTask<BackupArchiveXmlPayload>>? payloadProvider = null,
-        string? dataDirectory = null)
+        string? dataDirectory = null,
+        Func<CancellationToken, ValueTask>? restoreReinitializer = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentNullException.ThrowIfNull(applicationVersion);
@@ -38,7 +39,10 @@ public sealed class SevenZipBackupArchiveRuntime
         if (_dataDirectory is not null
             && _payloadProvider?.Target is BackupXmlPayloadRuntime payloadRuntime)
         {
-            payloadRuntime.ConfigureRestoreRuntime(_sevenZipExecutablePath, _dataDirectory);
+            payloadRuntime.ConfigureRestoreRuntime(
+                _sevenZipExecutablePath,
+                _dataDirectory,
+                restoreReinitializer);
         }
     }
 
@@ -1450,7 +1454,10 @@ public sealed class BackupXmlPayloadRuntime
             folderMessages);
     }
 
-    internal void ConfigureRestoreRuntime(string sevenZipExecutablePath, string dataDirectory)
+    internal void ConfigureRestoreRuntime(
+        string sevenZipExecutablePath,
+        string dataDirectory,
+        Func<CancellationToken, ValueTask>? restoreReinitializer = null)
     {
         if (_distributionListStore is null || _distributionListRecipientStore is null)
         {
@@ -1476,6 +1483,7 @@ public sealed class BackupXmlPayloadRuntime
                 folderRestoreDeletionStore: _folderStore as IImapFolderAdministrationRestoreDeletionStore,
                 messageRestoreStore: _messageStore as IMessageAdministrationRestoreStore,
                 messageStore: _messageStore,
+                reinitialize: restoreReinitializer,
                 requireReinitialize: true));
     }
 }
