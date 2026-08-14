@@ -1,5 +1,56 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Current authoritative rerun (2026-08-14)
+
+Repository HEAD: `a09818dfa3cf1e6713d63ce08af966a0e1f67b14`.
+Decision: **RED**. No C++/.NET 10 ratio, speed-up, regression percentage, or
+winner is claimed.
+
+The disposable fixture provisioner is now `build/provision-paired-benchmark-fixture.ps1`.
+It restores the approved SQL backup into two new disposable databases, copies
+the same 1,000-message Data tree to both sides, rewrites message filenames to
+the new Data roots, and emits isolated C++/Net10 INI roots. Each mutating
+workload below used its own fresh pair; no production service, database, Data
+directory, COM registration, DCOM ACL, or public listener was used.
+
+| Scenario | Net10 result | p50 | p95 | p99 | Throughput | C++ launch |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| SMTP/IMAP/POP3 protocol, 25 each | 75/75 | 1.102 / 13.339 / 20.325 ms | 41.375 / 21.887 / 38.402 ms | 58.893 / 264.195 / 40.821 ms | n/a | refused preflight |
+| SMTP message acceptance, 25 | 25/25 | 6.011 ms | 18.449 ms | 203.811 ms | 5.984 msg/s | refused preflight |
+| IMAP concurrent, 1,000 | 1000/1000 | 4075.439 ms | 4928.655 ms | 4955.660 ms | 70.169 sessions/s | refused preflight |
+| IMAP FTS SEARCH, 25 | 25/25 | 6.521 ms search | 11.050 ms search | 44.737 ms search | n/a | refused preflight |
+| Local delivery queue, 50 | 50/50 | 4.835 ms | 14.257 ms | 74.724 ms | 53.758 msg/s | refused preflight |
+| POP3 large mailbox, 1,000 messages, 5 | 5/5 | 80.468 ms | 330.576 ms | 378.321 ms | n/a | refused preflight |
+
+```mermaid
+xychart-beta
+    title "Net10-only p95 latency per independent disposable scenario"
+    x-axis [SMTP, IMAP, POP3, SMTP-accept, IMAP-1k, FTS, Queue, POP3-large]
+    y-axis "Milliseconds" 0 --> 5000
+    bar [41.375, 21.887, 38.402, 18.449, 4928.655, 11.050, 14.257, 330.576]
+```
+
+The legacy C++ executable was not started in any scenario. Its `_tWinMain`
+unconditionally calls `RegisterAppID()` before `/Debug`, while this host's
+Registry32 `HKLM\SOFTWARE\hMailServer\InstallLocation` resolves to
+`C:\hMailServer57-Test`, not the disposable C++ root. The six matching
+preflight records under
+`artifacts/benchmarks/live-cpp-net10-20260814/cpp-preflight-matrix/` all show
+`launchAttempted=false`. This is a safety refusal, not a C++ performance
+result. A registry-isolated C++ staging VM/install is still required.
+
+Evidence:
+
+- Start-state equivalence: `artifacts/benchmarks/live-cpp-net10-20260814/shared-baseline-001020/`
+- Net10 independent scenarios: `artifacts/benchmarks/live-cpp-net10-20260814/scenario-*/`
+- C++ preflight matrix: `artifacts/benchmarks/live-cpp-net10-20260814/cpp-preflight-matrix/`
+- Full Net10 Debug: `2290 passed, 57 skipped, 0 failed`
+
+The performance release gate remains **RED**. The current evidence proves
+bounded Net10 behavior and safe refusal of an unsafe C++ launch. It does not
+prove C++/.NET 10 performance parity, 24-hour leak freedom, live 100k SQL
+mailbox SEARCH/SORT, remote-delivery comparison, or release readiness.
+
 ## Current verification (2026-08-14)
 
 Code/test HEAD: `3383b0847`. The disposable paired start state remains

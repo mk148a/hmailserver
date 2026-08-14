@@ -5089,3 +5089,27 @@ round-trip work. Preserve COM identity, direct activation, schema, SMTP, and
 unrelated Admin collections. Release remains **RED**.
 
 ## Historical Next Slice (2026-08-14, SQL owner-scoped distribution-list update; superseded)
+## Current next slice (2026-08-14, independent paired benchmark provisioning completed)
+
+`build/provision-paired-benchmark-fixture.ps1` now creates a fresh disposable
+SQL/Data pair per mutating workload, including the required message-filename
+rewrite into each new Data root. The 2026-08-14 Net10 rerun passed protocol
+`75/75`, SMTP acceptance `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue
+`50/50`, and POP3-large `5/5`. The same C++ targets were checked by read-only
+preflight, but all six launches were refused because legacy `/Debug` writes the
+installed Application AppID and Registry32 points to `C:\hMailServer57-Test`.
+
+This closes the fixture-provisioning gap, not the paired performance gate.
+No C++ latency, throughput, ratio, winner, 24-hour soak, or production claim
+is valid. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260814/`; the detailed report is
+`PERFORMANCE_COMPARISON_REPORT.md`. Full Net10 Debug is `2290 passed, 57
+skipped, 0 failed`.
+
+Next independent slices, in order:
+
+1. Run the exact per-scenario fixture matrix in a registry-isolated C++ staging VM/install.
+2. Implement service-owned restore reinitialization and isolated restore/rollback acceptance.
+3. Continue migration/installer, SEC-18, out-of-process COM, and 24-hour soak gates.
+
+Release remains **RED**.

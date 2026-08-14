@@ -1,3 +1,32 @@
+## Current performance evidence (2026-08-14)
+
+The benchmark pack now creates an independent disposable SQL/Data pair per
+mutating workload with `build/provision-paired-benchmark-fixture.ps1`. The
+same 1,000-message corpus and loopback ports `127.0.0.1:2525/1143/25110` are
+used on each C++/Net10 pair. Net10 passed protocol `75/75`, SMTP acceptance
+`25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, and POP3-large
+`5/5`.
+
+```mermaid
+xychart-beta
+    title "Net10-only p95 latency (ms)"
+    x-axis [SMTP, IMAP, POP3, Accept, IMAP-1k, FTS, Queue, POP3-large]
+    y-axis "Milliseconds" 0 --> 5000
+    bar [41.375, 21.887, 38.402, 18.449, 4928.655, 11.050, 14.257, 330.576]
+```
+
+The legacy C++ process was safely refused before launch for all six scenarios:
+`/Debug` calls `RegisterAppID()` before workload startup and Registry32 points
+to the installed `C:\hMailServer57-Test` tree rather than the disposable C++
+root. Therefore no C++ latency, throughput, ratio, or winner is reported.
+The performance release gate is **RED** until this exact matrix runs in a
+registry-isolated C++ staging installation or VM.
+
+Full Net10 Debug at current HEAD: `2290 passed, 57 skipped, 0 failed`.
+Detailed evidence is in
+`PERFORMANCE_COMPARISON_REPORT.md` and
+`artifacts/benchmarks/live-cpp-net10-20260814/`.
+
 ## Current authoritative continuation (2026-08-11, SMTP relayer password persistence)
 
 Code/test commit `b518c8e83` implements authenticated Administrator
