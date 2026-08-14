@@ -5,6 +5,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $helperPath = Join-Path $PSScriptRoot 'net10-rollback-archive-preflight.ps1'
+$serviceRollbackPath = Join-Path $PSScriptRoot 'net10-service-rollback.ps1'
 $installerPath = Join-Path $PSScriptRoot 'install-net10-service.ps1'
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 $trackedSevenZip = Join-Path $repoRoot 'hmailserver\installation\Extras\7za.exe'
@@ -90,6 +91,7 @@ if (-not (Test-Path -LiteralPath $trackedSevenZip -PathType Leaf)) {
 }
 
 $null = . $helperPath
+$null = . $serviceRollbackPath
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "hmailserver-rollback-preflight-$([Guid]::NewGuid().ToString('N'))"
 $binDirectory = Join-Path $tempRoot 'bin'
 $sevenZipPath = Join-Path $binDirectory '7za.exe'
@@ -195,6 +197,25 @@ try {
     Assert-ThrowsLike { Assert-Net10RollbackArchivePreflight -BackupArchive $validArchive -SevenZipPath (Join-Path $binDirectory 'missing-7za.exe') } '*7za.exe*not found*'
 
     $installerSource = Get-Content -LiteralPath $installerPath -Raw
+    $legacyService = [pscustomobject]@{
+        Name = 'hMailServer'
+        PathName = '"C:\Legacy\Bin\hMailServer.exe" RunAsService'
+        StartMode = 'Auto'
+        ErrorControl = 'Normal'
+        DisplayName = 'hMailServer'
+        Description = 'Legacy hMailServer'
+        Dependencies = @('RPCSS')
+    }
+    $snapshot = New-Net10ServiceRollbackSnapshot -Service $legacyService
+    Assert-True ((Get-Net10ServiceExecutablePath -PathName $snapshot.PathName) -ceq 'C:\Legacy\Bin\hMailServer.exe') 'Service executable parsing lost the legacy quoted path.'
+    Assert-True ($snapshot.Dependencies -contains 'RPCSS') 'Service rollback snapshot lost dependencies.'
+    Assert-True ((Get-Net10ScStartMode $snapshot.StartMode) -ceq 'auto') 'Service start mode mapping is incorrect.'
+    Assert-True ((Get-Net10ScErrorControl $snapshot.ErrorControl) -ceq 'normal') 'Service error control mapping is incorrect.'
+    Assert-True ($installerSource -match "net10-service-rollback\.ps1") 'Installer does not load the service rollback helper.'
+    Assert-True ($installerSource -match 'New-Net10ServiceRollbackSnapshot') 'Installer does not snapshot the existing service.'
+    Assert-True ($installerSource -match 'Invoke-Net10ServiceRollback') 'Installer does not invoke compensating rollback.'
+    Assert-True ($installerSource -match "depend= RPCSS") 'New service registration does not preserve the legacy RPCSS dependency.'
+    Assert-True ($installerSource -match 'Legacy executable for rollback') 'Replacement preflight does not require the legacy executable for rollback.'
     Assert-True ($installerSource -match '\[string\]\$BackupArchive') 'Installer does not declare an explicit -BackupArchive parameter.'
     $stateCheckIndex = $installerSource.IndexOf("`$existingService.State -ne 'Stopped'", [StringComparison]::Ordinal)
     $preflightIndex = $installerSource.IndexOf('Assert-Net10RollbackArchivePreflight', [StringComparison]::Ordinal)
@@ -205,7 +226,7 @@ try {
     Assert-True ($serviceMutationIndex -gt $preflightIndex) 'Rollback preflight does not precede sc.exe mutations.'
     Assert-True ($installerSource -match '(?s)if \(\$requiresRollbackArchive\).*?Assert-Net10RollbackArchivePreflight') 'Rollback preflight is not guarded by the replacement requirement.'
 
-    foreach ($path in @($helperPath, $installerPath, $PSCommandPath)) {
+    foreach ($path in @($helperPath, $serviceRollbackPath, $installerPath, $PSCommandPath)) {
         $tokens = $null
         $errors = $null
         $null = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)

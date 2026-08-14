@@ -9,6 +9,7 @@ Param(
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'net10-rollback-archive-preflight.ps1')
+. (Join-Path $PSScriptRoot 'net10-service-rollback.ps1')
 
 function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -39,8 +40,10 @@ $serviceName = 'hMailServer'
 $existingService = Get-CimInstance -ClassName Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
 $serviceExists = $null -ne $existingService
 $requiresRollbackArchive = $false
+$rollbackSnapshot = $null
+$legacyExecutable = $null
 if ($serviceExists) {
-    $existingExecutable = $existingService.PathName.Trim().Trim('"')
+    $existingExecutable = Get-Net10ServiceExecutablePath -PathName $existingService.PathName
     if (-not $existingExecutable.Equals($executable, [StringComparison]::OrdinalIgnoreCase)) {
         if (-not $ReplaceExisting) {
             throw "Service '$serviceName' already points to '$existingExecutable'. Use -ReplaceExisting only after backing up and stopping the legacy installation."
@@ -49,6 +52,11 @@ if ($serviceExists) {
             throw "Stop service '$serviceName' before using -ReplaceExisting."
         }
         $requiresRollbackArchive = $true
+        $rollbackSnapshot = New-Net10ServiceRollbackSnapshot -Service $existingService
+        $legacyExecutable = $existingExecutable
+        if (-not (Test-Path -LiteralPath $legacyExecutable -PathType Leaf)) {
+            throw "Legacy executable for rollback was not found: $legacyExecutable"
+        }
     }
 }
 
@@ -61,18 +69,23 @@ if ($requiresRollbackArchive) {
     Assert-Net10RollbackArchivePreflight -BackupArchive $BackupArchive -SevenZipPath $sevenZip
 }
 
-& $executable --register-com
-if ($LASTEXITCODE -ne 0) {
-    throw "COM registration failed with exit code $LASTEXITCODE."
-}
-
+$comRegistrationAttempted = $false
+$serviceMutationAttempted = $false
 try {
+    $comRegistrationAttempted = $true
+    & $executable --register-com
+    if ($LASTEXITCODE -ne 0) {
+        throw "COM registration failed with exit code $LASTEXITCODE."
+    }
+
     $quotedExecutable = '"{0}"' -f $executable
     if ($serviceExists) {
+        $serviceMutationAttempted = $true
         & sc.exe config $serviceName "binPath= $quotedExecutable" 'start= auto' 'DisplayName= hMailServer'
     }
     else {
-        & sc.exe create $serviceName "binPath= $quotedExecutable" 'start= auto' 'DisplayName= hMailServer'
+        $serviceMutationAttempted = $true
+        & sc.exe create $serviceName "binPath= $quotedExecutable" 'start= auto' 'error= normal' 'DisplayName= hMailServer' 'depend= RPCSS'
     }
     if ($LASTEXITCODE -ne 0) {
         throw "Windows service registration failed with exit code $LASTEXITCODE."
@@ -88,9 +101,27 @@ try {
     }
 }
 catch {
-    if (-not $serviceExists) {
-        & sc.exe delete $serviceName | Out-Null
+    $rollbackErrors = [System.Collections.Generic.List[string]]::new()
+    if ($requiresRollbackArchive -and $null -ne $rollbackSnapshot -and ($serviceMutationAttempted -or $comRegistrationAttempted)) {
+        try {
+            Invoke-Net10ServiceRollback -Snapshot $rollbackSnapshot -LegacyExecutable $legacyExecutable
+        }
+        catch {
+            $rollbackErrors.Add($_.Exception.Message)
+        }
     }
-    & $executable --unregister-com
+    elseif (-not $serviceExists) {
+        if ($serviceMutationAttempted) {
+            & sc.exe delete $serviceName | Out-Null
+        }
+        if ($comRegistrationAttempted) {
+            & $executable --unregister-com | Out-Null
+        }
+    }
+
+    if ($rollbackErrors.Count -gt 0) {
+        throw "Installer failed: $($_.Exception.Message) Rollback failed: $($rollbackErrors -join ' | ')"
+    }
+
     throw
 }
