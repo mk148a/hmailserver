@@ -28,6 +28,17 @@ The seam is not wired to listeners, hosted-service participants, restore, or
 COM. Next slice: restartable participant adapters and a real readiness barrier.
 Release remains **RED**.
 
+## Current Authoritative Continuation (2026-08-14, listener start callback seam)
+
+Code/test commit `c9937dd87` adds additive per-run endpoint callbacks to the
+IMAP, POP3, and SMTP TCP listeners. Existing startup paths are unchanged; the
+new tests bind each listener object twice. Focused coverage is `20/20`; full
+Net10 Debug is `2300 passed, 57 skipped, 0 failed`.
+
+No hosted-service participant, readiness generation, restore callback, or COM
+integration is wired. Next slice: explicit hosted-service stop/start adapter
+and drain/readiness ordering. Release remains **RED**.
+
 ## Current Authoritative Continuation (2026-08-14, transactional distribution-list deletion)
 
 Code/test commit `1e90198e4` completes direct distribution-list deletion

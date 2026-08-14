@@ -42,6 +42,19 @@ and `ApplicationComClass.Reinitialize` remains `E_NOTIMPL`. Next slice is the
 restartable listener/runtime participant adapter and readiness barrier. Release
 remains **RED**.
 
+## Current listener lifecycle continuation (2026-08-14)
+
+Code/test commit `c9937dd87` adds an additive `RunAsync` overload to IMAP,
+POP3, and SMTP TCP listeners that reports the endpoint for each individual
+run. Existing callers continue using `RunAsync(CancellationToken)` and the
+installed COM/protocol contracts are unchanged. Focused listener coverage is
+`20 passed, 0 failed`; full Net10 Debug is `2300 passed, 57 skipped, 0 failed`.
+
+The callbacks are not yet connected to hosted-service stop/start participants,
+the readiness generation, restore, or COM. The next slice is the hosted-service
+participant adapter with explicit drain/readiness ordering. Release remains
+**RED**.
+
 ## Historical next slice (2026-08-14, Links cross-facade lifetime completed)
 
 Completed code/test commit `88ef1006b` closes the lifetime inconsistency

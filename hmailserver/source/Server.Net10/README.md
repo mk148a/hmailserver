@@ -1,3 +1,11 @@
+## Current listener lifecycle continuation (2026-08-14)
+
+Commit `c9937dd87` adds a per-run endpoint callback to the IMAP, POP3, and
+SMTP listeners and tests a second bind on each listener object. Focused
+lifecycle coverage is `20/20`; full Net10 Debug is `2300 passed, 57 skipped,
+0 failed`. This remains preparation only: hosted-service and restore/COM
+wiring are open, and release remains **RED**.
+
 ## Current performance evidence (2026-08-14)
 
 The benchmark pack now creates an independent disposable SQL/Data pair per

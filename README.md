@@ -29,6 +29,12 @@ behavior; a new generation starts non-ready and becomes usable only after its
 bootstrap and listener completion. Focused readiness coverage is `5 passed, 0
 failed`; full Net10 Debug is `2297 passed, 57 skipped, 0 failed`.
 
+The three protocol listeners now expose an additive per-run start callback and
+are proven to bind twice on the same listener object in focused tests (`20
+passed, 0 failed`). The hosted services and production restore coordinator are
+not wired to these callbacks yet; this is lifecycle preparation, not a live
+reinitialization claim. Full Net10 is now `2300 passed, 57 skipped, 0 failed`.
+
 ## Current authoritative distribution-list deletion status (2026-08-14)
 
 Code/test commit `143db0bb4` closes the owner-scope gap in direct distribution
