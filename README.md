@@ -3,13 +3,13 @@ hMailServer
 
 ## Current authoritative protocol reinitialization status (2026-08-14)
 
-Code/test commit `0e9164404` registers the IMAP, POP3, and SMTP restartable
+Code/test commits `0e9164404` and `63f512752` register the IMAP, POP3, and SMTP restartable
 listener participants in `AddProductionHostedServices` through the singleton
 `ServiceReinitializationCoordinator`. The hosted services remain alive while
 the coordinator performs reverse-order stop and registration-order start, so
 host shutdown still owns the final drain. A reinitialization creates a fresh
-`ServerReadinessSignal` generation, publishes readiness only after all
-participants restart, and fails the new generation on lifecycle failure.
+`ServerReadinessSignal` generation, publishes bootstrap/readiness only after
+all participants restart, and fails closed on lifecycle or supervision failure.
 
 Focused lifecycle/registration coverage is `25 passed, 0 failed`; full Net10
 Debug is `2307 passed, 57 skipped, 0 failed`. Legacy anchors are

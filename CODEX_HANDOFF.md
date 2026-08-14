@@ -2,11 +2,13 @@
 
 ## Current Authoritative Continuation (2026-08-14, protocol participant registration)
 
-Code/test commit `0e9164404` registers IMAP, POP3, and SMTP restartable
+Code/test commits `0e9164404` and `63f512752` register IMAP, POP3, and SMTP restartable
 listener participants in production DI. The hosted services retain ownership
 of their long-running tasks across coordinator stop/start transitions;
 `ServiceReinitializationCoordinator` performs reverse stop and forward start,
-and `ServerReadinessSignal` publishes a fresh generation only after success.
+and `ServerReadinessSignal` publishes bootstrap/readiness for a fresh
+generation only after success; faulted supervision and host shutdown are
+fail-closed.
 Focused coverage is `25/25`; full Net10 Debug is `2307 passed, 57 skipped,
 0 failed`.
 

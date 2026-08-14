@@ -2436,11 +2436,11 @@ restartable listener/runtime participants, restore callback wiring, and
 and release remains **RED**. Next slice: participant adapters and readiness.
 ## Current authoritative protocol reinitialization status (2026-08-14)
 
-Code/test commit `0e9164404` registers IMAP, POP3, and SMTP restartable
+Code/test commits `0e9164404` and `63f512752` register IMAP, POP3, and SMTP restartable
 listener participants with `ServiceReinitializationCoordinator` in production
 DI. The coordinator preserves reverse stop/forward start ordering, keeps the
-host-owned listener tasks alive across a reinitialization, and publishes a new
-readiness generation only after successful restart.
+host-owned listener tasks alive across a reinitialization, and publishes
+bootstrap/readiness only after successful restart.
 
 Focused lifecycle/registration coverage is `25 passed, 0 failed`; full Net10
 Debug is `2307 passed, 57 skipped, 0 failed`. Restore callback wiring and

@@ -5254,3 +5254,30 @@ Next slice: connect `BackupArchiveRuntime.ConfigureRestoreRuntime` to the
 service-owned coordinator and implement the bounded COM
 `Application.Reinitialize` call path, with failure/rollback tests. Keep
 isolated restore round-trip acceptance as a separate follow-on slice.
+## Current next slice (2026-08-14, protocol participant readiness follow-up)
+
+Code/test commits `0e9164404` and `63f512752` complete the bounded protocol
+lifecycle slice and its readiness/supervision follow-up. `AddProductionHostedServices`
+registers IMAP, POP3, and SMTP owned callbacks in that order; reinitialization
+stops them in reverse order, starts them forward, and completes both bootstrap
+and readiness only after successful restart. Faulted listener supervision and
+host-stopping cancellation fail closed. Focused coverage is `25 passed, 0
+failed`; full Net10 Debug is `2307 passed, 57 skipped, 0 failed`.
+
+Legacy references: `Reinitializator::{ReInitialize,WorkerFunc}`
+(`hmailserver/source/Server/Common/Application/Reinitializator.cpp:35-57`),
+`Application::{StopServers,Reinitialize,StartServers}`
+(`hmailserver/source/Server/Common/Application/Application.cpp:290-343,394-449`),
+and listener creation in `IOService::DoWork`
+(`hmailserver/source/Server/Common/TCPIP/IOService.cpp:65-133`).
+
+This does not implement SQL-driven `hm_tcpipports` discovery, the production
+restore callback, or `ApplicationComClass.Reinitialize`; COM identity and
+SMTP trust behavior are unchanged. Restore/rollback, paired C++/.NET
+performance, SEC-18, migration/installer, out-of-process COM, and soak gates
+remain open; release remains **RED**.
+
+Next slice: connect `BackupArchiveRuntime.ConfigureRestoreRuntime` to the
+service-owned coordinator, keeping the public COM `Application.Reinitialize`
+implementation as a separate bounded follow-up. Then run isolated restore and
+rollback acceptance.

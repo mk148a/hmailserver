@@ -1,12 +1,12 @@
 # Current State
 - UTC/local timestamp: 2026-08-14T04:25:00Z / 2026-08-14T07:25:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `ed6183bd969e86b1c1aa1f7157d36cbf7b97f4c4` (protocol participant registration plus authoritative docs)
-- Last successfully pushed commit: `ed6183bd969e86b1c1aa1f7157d36cbf7b97f4c4`
+- Current HEAD: `63f512752` (readiness/supervision follow-up; docs commit pending)
+- Last successfully pushed commit: `ee2d8fb636007a5df28effa4a53f7aa77da34b78`
 - Latest focused-test result: lifecycle/registration `25 passed, 0 failed`
 - Latest full Net10 result: normal Debug `2307 passed, 57 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: disposable SQL distribution-list owner/delete/rollback acceptance passed; independent disposable Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; C++ launch refused by six safe preflights; registry/COM, installer, AD/DC, SEC-18, restore round trip, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: IMAP, POP3, and SMTP hosted services register owned restartable Start/Stop callbacks with the coordinator; readiness generations fail closed on restart failure and host shutdown retains ownership
+- Current bounded slice: IMAP, POP3, and SMTP hosted services register owned restartable Start/Stop callbacks with the coordinator; bootstrap/readiness generations complete only after restart and faulted/host-stopping cases fail closed
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through distribution-list lifetime and owner-scoped UPDATE, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10 load evidence
 - Open production blockers: service-owned restore reinitialization wiring and isolated round-trip/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host. Disposable SQL/Data provisioning is READY via `build/provision-paired-benchmark-fixture.ps1`; current evidence is under `artifacts/benchmarks/live-cpp-net10-20260814/`.
