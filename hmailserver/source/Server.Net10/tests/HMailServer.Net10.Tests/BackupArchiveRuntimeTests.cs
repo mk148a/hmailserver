@@ -1773,13 +1773,13 @@ public sealed class BackupArchiveRuntimeTests
         Assert.IsNull(lists[0].Attribute("ID"));
         Assert.IsNull(lists[0].Attribute("DomainID"));
 
-        var recipientsContainer = lists[0].Element("DistributionList")!;
+        var recipientsContainer = lists[0].Element("Recipients")!;
         var recipient = recipientsContainer.Element("Recipient")!;
         CollectionAssert.AreEqual(
             new[] { "Name" },
             recipient.Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
         Assert.AreEqual("recipient<&\"'@example.test", recipient.Attribute("Name")?.Value);
-        Assert.IsNull(lists[1].Element("DistributionList"));
+        Assert.IsNull(lists[1].Element("Recipients"));
         Assert.IsNull(domains[1].Element("DistributionLists"));
         Assert.IsTrue(xml.Contains("Name=\"list&lt;&amp;&quot;'@example.test\"", StringComparison.Ordinal));
         Assert.IsTrue(xml.Contains("Name=\"recipient&lt;&amp;&quot;'@example.test\"", StringComparison.Ordinal));

@@ -1,6 +1,7 @@
 using System.Data;
 using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 using HMailServer.Security;
@@ -528,6 +529,128 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 finally
                 {
                     backup.CleanupArchiveBinding();
+                    await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task BackupManager_BackupRestoreBackupPreservesNormalizedSqlAndDataSemantics()
+    {
+        await WithFullRestoreTargetAsync(
+            "manager_backup_restore_backup_semantics",
+            FullRestoreArchiveXml,
+            async fixture =>
+            {
+                await fixture.CreateExecutor().ExecuteAsync(fixture.Backup, CancellationToken.None).ConfigureAwait(false);
+
+                var factory = new SqlServerConnectionFactory(fixture.ConnectionString);
+                var settingsStore = new SqlServerSettingsAdministrationStore(factory);
+                var domainAliasStore = new SqlServerDomainAliasAdministrationStore(factory);
+                var fetchAccountStore = new SqlServerFetchAccountAdministrationStore(factory);
+                var backupFetchAccountStore = new SqlServerBackupFetchAccountAdministrationStore(factory);
+                var ruleStore = new SqlServerRuleAdministrationStore(factory);
+                var criteriaStore = new SqlServerRuleCriteriaAdministrationStore(factory);
+                var actionStore = new SqlServerRuleActionAdministrationStore(factory);
+                var folderStore = new SqlServerImapFolderAdministrationStore(factory);
+                var messageStore = new SqlServerMessageAdministrationStore(factory);
+                var payloadRuntime = new BackupXmlPayloadRuntime(
+                    settingsStore,
+                    fixture.DomainStore,
+                    domainAliasStore,
+                    fixture.AccountStore,
+                    fixture.AliasStore,
+                    fixture.ListStore,
+                    fixture.RecipientStore,
+                    backupAccountStore: fixture.AccountStore,
+                    fetchAccountStore: fetchAccountStore,
+                    backupFetchAccountStore: backupFetchAccountStore,
+                    backupRuleStore: ruleStore,
+                    ruleStore: ruleStore,
+                    ruleCriteriaStore: criteriaStore,
+                    ruleActionStore: actionStore,
+                    folderStore: folderStore,
+                    folderRestoreStore: folderStore,
+                    messageStore: messageStore);
+                var firstDestination = Path.Combine(Directory.GetParent(fixture.GetDataDirectory())!.FullName, "backup-one");
+                var secondDestination = Path.Combine(Directory.GetParent(fixture.GetDataDirectory())!.FullName, "backup-two");
+                Directory.CreateDirectory(firstDestination);
+                Directory.CreateDirectory(secondDestination);
+                var currentDestination = firstDestination;
+                var evidence = new BackupStartPlanEvidence(
+                    currentDestination,
+                    BackupOptions: 1 | 2 | 4,
+                    BackupMessagesDbOnly: false,
+                    AllMessageFilesInDataDirectory: true,
+                    DestinationExists: true,
+                    Settings: new SettingsAdministrationSnapshot(
+                        "roundtrip.example",
+                        "restored smtp",
+                        "restored pop3",
+                        "restored imap"));
+                var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+                var archiveRuntime = new SevenZipBackupArchiveRuntime(
+                    sevenZipPath,
+                    "10.0.0-B0",
+                    localNow: static () => new DateTime(2026, 8, 14, 4, 5, 7),
+                    payloadProvider: payloadRuntime.GetPayloadAsync,
+                    dataDirectory: fixture.GetDataDirectory());
+
+                using var queue = new BackupTaskQueue();
+                using var service = new BackupTaskHostedService(queue, NullLogger<BackupTaskHostedService>.Instance);
+                var dispatcher = new RecordingBackupEventDispatcher();
+                var operationRuntime = new BackupOperationRuntime(
+                    queue,
+                    startPlanEvidence: _ => ValueTask.FromResult(evidence with { Destination = currentDestination }),
+                    executeBackupAsync: (startEvidence, cancellationToken) =>
+                        archiveRuntime.CreateAsync(startEvidence, cancellationToken));
+                var manager = BackupManager.CreateAuthorized(
+                    new SevenZipBackupArchiveMetadataReader(sevenZipPath),
+                    operationRuntime,
+                    eventDispatcher: dispatcher,
+                    restoreExecutor: fixture.CreateExecutor());
+
+                await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    manager.StartBackup();
+                    await WaitForBackupCompletionAsync(dispatcher.Completed.Task, dispatcher.Failed.Task).ConfigureAwait(false);
+                    var firstArchive = Directory.GetFiles(firstDestination, "HMBackup *.7z").Single();
+
+                    var backup = (Backup)manager.LoadBackup(firstArchive);
+                    try
+                    {
+                        backup.RestoreSettings = true;
+                        backup.RestoreDomains = true;
+                        backup.RestoreMessages = true;
+                        backup.StartRestore();
+                        await WaitForBackupCompletionAsync(dispatcher.SecondCompleted.Task, dispatcher.Failed.Task).ConfigureAwait(false);
+
+                        currentDestination = secondDestination;
+                        manager.StartBackup();
+                        await WaitForBackupCompletionAsync(dispatcher.ThirdCompleted.Task, dispatcher.Failed.Task).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        backup.CleanupArchiveBinding();
+                    }
+
+                    var secondArchive = Directory.GetFiles(secondDestination, "HMBackup *.7z").Single();
+                    var metadataReader = new SevenZipBackupArchiveMetadataReader(sevenZipPath);
+                    Assert.AreEqual(
+                        NormalizeBackupXml(metadataReader.ReadMetadataXml(firstArchive)),
+                        NormalizeBackupXml(metadataReader.ReadMetadataXml(secondArchive)));
+
+                    var firstDataBackup = Path.Combine(firstDestination, "DataBackup");
+                    var secondDataBackup = Path.Combine(secondDestination, "DataBackup");
+                    CollectionAssert.AreEqual(
+                        GetDataBackupEvidence(firstDataBackup),
+                        GetDataBackupEvidence(secondDataBackup));
+                    Assert.IsTrue(GetDataBackupEvidence(firstDataBackup).Length > 0);
+                }
+                finally
+                {
                     await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
                 }
             }).ConfigureAwait(false);
@@ -1508,22 +1631,79 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         internal TaskCompletionSource<object?> SecondCompleted { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        internal TaskCompletionSource<object?> ThirdCompleted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         internal TaskCompletionSource<string> Failed { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public void OnBackupCompleted()
         {
-            if (Interlocked.Increment(ref _completedCount) == 1)
+            switch (Interlocked.Increment(ref _completedCount))
             {
-                Completed.TrySetResult(null);
-            }
-            else
-            {
-                SecondCompleted.TrySetResult(null);
+                case 1:
+                    Completed.TrySetResult(null);
+                    break;
+                case 2:
+                    SecondCompleted.TrySetResult(null);
+                    break;
+                default:
+                    ThirdCompleted.TrySetResult(null);
+                    break;
             }
         }
 
         public void OnBackupFailed(string reason) => Failed.TrySetResult(reason);
+    }
+
+    private static async Task WaitForBackupCompletionAsync(
+        Task completed,
+        Task<string> failed)
+    {
+        var result = await Task.WhenAny(completed, failed).ConfigureAwait(false);
+        if (ReferenceEquals(result, failed))
+        {
+            Assert.Fail("The backup/restore operation failed: " + failed.Result);
+        }
+    }
+
+    private static string NormalizeBackupXml(string xml)
+    {
+        var document = System.Xml.Linq.XDocument.Parse(xml);
+        foreach (var element in document.Descendants())
+        {
+            var attributes = element
+                .Attributes()
+                .Where(static attribute =>
+                    !attribute.Name.LocalName.Equals("Version", StringComparison.OrdinalIgnoreCase)
+                    && !attribute.Name.LocalName.Equals("ID", StringComparison.OrdinalIgnoreCase)
+                    && !attribute.Name.LocalName.Equals("CreateTime", StringComparison.OrdinalIgnoreCase)
+                    && !attribute.Name.LocalName.Equals("LastLogonTime", StringComparison.OrdinalIgnoreCase)
+                    && !attribute.Name.LocalName.Equals("Date", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(static attribute => attribute.Name.LocalName, StringComparer.Ordinal)
+                .Select(static attribute => new System.Xml.Linq.XAttribute(attribute.Name, attribute.Value))
+                .ToArray();
+            element.ReplaceAttributes(attributes);
+        }
+
+        return document.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
+    }
+
+    private static string[] GetDataBackupEvidence(string dataBackupRoot)
+    {
+        Assert.IsTrue(
+            Directory.Exists(dataBackupRoot),
+            dataBackupRoot);
+        return Directory
+            .EnumerateFiles(dataBackupRoot, "*", SearchOption.AllDirectories)
+            .Select(path =>
+            {
+                var relativePath = Path.GetRelativePath(dataBackupRoot, path).Replace('\\', '/');
+                var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+                return relativePath + ":" + hash;
+            })
+            .OrderBy(static evidence => evidence, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private sealed class FailingMetadataTransactionFactory(
@@ -1920,7 +2100,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 distributionlistrecipientaddress nvarchar(255) NOT NULL
             );
             CREATE TABLE dbo.hm_domain_aliases (
-                dadomainid int NOT NULL
+                daid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                dadomainid int NOT NULL,
+                daalias nvarchar(255) NOT NULL
             );
             CREATE TABLE dbo.hm_rules (
                 ruleid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,

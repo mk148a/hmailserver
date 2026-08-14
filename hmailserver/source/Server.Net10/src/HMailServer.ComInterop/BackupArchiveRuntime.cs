@@ -724,7 +724,7 @@ public sealed class SevenZipBackupArchiveRuntime
                         && distributionListRecipients.TryGetValue(distributionList.Id, out var recipients)
                         && recipients.Count > 0)
                     {
-                        writer.WriteStartElement("DistributionList");
+                        writer.WriteStartElement("Recipients");
                         foreach (var recipient in recipients)
                         {
                             writer.WriteStartElement("Recipient");

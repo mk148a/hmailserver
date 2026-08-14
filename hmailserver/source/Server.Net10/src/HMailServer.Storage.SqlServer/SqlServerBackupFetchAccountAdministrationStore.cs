@@ -65,7 +65,7 @@ WHERE uidfaid = @FetchAccountID;
         {
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                rows.Add((ReadFetchAccountSnapshot(reader), reader.GetString(7)));
+                rows.Add(ReadFetchAccountSnapshot(reader));
             }
         }
 
@@ -104,27 +104,53 @@ WHERE uidfaid = @FetchAccountID;
         return uids;
     }
 
-    private static FetchAccountAdministrationSnapshot ReadFetchAccountSnapshot(SqlDataReader reader) =>
-        new(
-            Id: reader.GetInt32(0),
-            AccountId: reader.GetInt32(1),
-            Name: reader.GetString(2),
-            ServerAddress: reader.GetString(3),
-            Port: reader.GetInt32(4),
-            ServerType: Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture),
-            Username: reader.GetString(6),
-            MinutesBetweenFetch: reader.GetInt32(8),
-            DaysToKeepMessages: reader.GetInt32(9),
-            Enabled: ReadLegacyBoolean(reader, 10),
-            ProcessMimeRecipients: ReadLegacyBoolean(reader, 11),
-            ProcessMimeDate: ReadLegacyBoolean(reader, 12),
-            ConnectionSecurity: Convert.ToInt32(reader.GetValue(13), CultureInfo.InvariantCulture),
-            UseAntiSpam: ReadLegacyBoolean(reader, 14),
-            UseAntiVirus: ReadLegacyBoolean(reader, 15),
-            EnableRouteRecipients: ReadLegacyBoolean(reader, 16),
-            MimeRecipientHeaders: reader.GetString(17),
-            NextDownloadTime: reader.GetString(18),
-            IsLocked: ReadLegacyBoolean(reader, 19));
+    private static (FetchAccountAdministrationSnapshot Account, string Password) ReadFetchAccountSnapshot(
+        SqlDataReader reader)
+    {
+        var id = reader.GetInt32(0);
+        var accountId = reader.GetInt32(1);
+        var name = reader.GetString(2);
+        var serverAddress = reader.GetString(3);
+        var port = reader.GetInt32(4);
+        var serverType = Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture);
+        var username = reader.GetString(6);
+        var password = reader.GetString(7);
+        var minutesBetweenFetch = reader.GetInt32(8);
+        var daysToKeepMessages = reader.GetInt32(9);
+        var enabled = ReadLegacyBoolean(reader, 10);
+        var processMimeRecipients = ReadLegacyBoolean(reader, 11);
+        var processMimeDate = ReadLegacyBoolean(reader, 12);
+        var connectionSecurity = Convert.ToInt32(reader.GetValue(13), CultureInfo.InvariantCulture);
+        var useAntiSpam = ReadLegacyBoolean(reader, 14);
+        var useAntiVirus = ReadLegacyBoolean(reader, 15);
+        var enableRouteRecipients = ReadLegacyBoolean(reader, 16);
+        var mimeRecipientHeaders = reader.GetString(17);
+        var nextDownloadTime = reader.GetString(18);
+        var isLocked = ReadLegacyBoolean(reader, 19);
+
+        return (
+            new FetchAccountAdministrationSnapshot(
+                Id: id,
+                AccountId: accountId,
+                Name: name,
+                ServerAddress: serverAddress,
+                Port: port,
+                ServerType: serverType,
+                Username: username,
+                MinutesBetweenFetch: minutesBetweenFetch,
+                DaysToKeepMessages: daysToKeepMessages,
+                Enabled: enabled,
+                ProcessMimeRecipients: processMimeRecipients,
+                ProcessMimeDate: processMimeDate,
+                ConnectionSecurity: connectionSecurity,
+                UseAntiSpam: useAntiSpam,
+                UseAntiVirus: useAntiVirus,
+                EnableRouteRecipients: enableRouteRecipients,
+                MimeRecipientHeaders: mimeRecipientHeaders,
+                NextDownloadTime: nextDownloadTime,
+                IsLocked: isLocked),
+            password);
+    }
 
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
         Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) != 0;
