@@ -13,6 +13,27 @@ namespace HMailServer.Net10.Tests;
 public sealed class ImapTcpListenerTests
 {
     [TestMethod]
+    public async Task RunAsync_ReportsEachRunThroughTheLifecycleCallback()
+    {
+        using var firstCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = CreateListener(maxConcurrentConnections: 10);
+        var firstRun = listener.RunAsync(firstCancellation.Token);
+        await listener.Started.WaitAsync(firstCancellation.Token);
+        await StopListenerAsync(firstRun, firstCancellation);
+
+        using var secondCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var secondEndpoint = new TaskCompletionSource<IPEndPoint>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondRun = listener.RunAsync(
+            secondCancellation.Token,
+            endpoint => secondEndpoint.TrySetResult(endpoint));
+
+        var endpoint = await secondEndpoint.Task.WaitAsync(secondCancellation.Token);
+        Assert.AreEqual(IPAddress.Loopback, endpoint.Address);
+        await StopListenerAsync(secondRun, secondCancellation);
+    }
+
+    [TestMethod]
     public async Task RunAsync_AcceptsTcpClientAndDispatchesUidSearch()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));

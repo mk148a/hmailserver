@@ -41,12 +41,19 @@ public sealed class Pop3TcpListener
     public Task<IPEndPoint> Started => _started.Task;
 
     public async Task RunAsync(CancellationToken cancellationToken)
+        => await RunAsync(cancellationToken, startedEndpoint: null).ConfigureAwait(false);
+
+    public async Task RunAsync(
+        CancellationToken cancellationToken,
+        Action<IPEndPoint>? startedEndpoint)
     {
         var listener = new TcpListener(_options.ListenAddress, _options.Port);
         try
         {
             listener.Start(_options.Backlog);
-            _started.TrySetResult((IPEndPoint)listener.LocalEndpoint);
+            var endpoint = (IPEndPoint)listener.LocalEndpoint;
+            _started.TrySetResult(endpoint);
+            startedEndpoint?.Invoke(endpoint);
 
             while (!cancellationToken.IsCancellationRequested)
             {
