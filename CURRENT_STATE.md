@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: 2026-08-14T03:38:15Z / 2026-08-14T06:38:15+03:00
+- UTC/local timestamp: 2026-08-14T03:40:05Z / 2026-08-14T06:40:05+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `9722dfac199fdcb7db900e6f97047146be2feeda` (authenticated COM Reinitialize plus authorization lease and authoritative docs)
+- Current HEAD: `5c0c24c88` (fresh paired benchmark evidence and authoritative docs)
 - Last successfully pushed commit: `9722dfac199fdcb7db900e6f97047146be2feeda`
 - Latest focused-test result: COM contract `16 passed, 0 failed`
 - Latest full Net10 result: normal Debug `2313 passed, 57 skipped, 0 failed`
