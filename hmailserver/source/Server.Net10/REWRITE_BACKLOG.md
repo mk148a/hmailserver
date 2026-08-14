@@ -55,7 +55,16 @@ the readiness generation, restore, or COM. The next slice is the hosted-service
 participant adapter with explicit drain/readiness ordering. Release remains
 **RED**.
 
-## Current POP3 hosted-service continuation (2026-08-14)
+## Current SMTP hosted-service continuation (2026-08-14)
+
+Code/test commit `0633bd2cb` wires `SmtpTcpListenerHostedService` through the
+restartable participant adapter. Focused coverage is `9 passed, 0 failed`;
+full Net10 Debug is `2305 passed, 57 skipped, 0 failed`. All three protocol
+hosted services now use the helper. Registration with readiness/coordinator,
+restore and COM remains open. Next slice: protocol participant registration.
+Release remains **RED**.
+
+## Historical POP3 hosted-service continuation (2026-08-14)
 
 Code/test commit `9500dbee4` wires `Pop3TcpListenerHostedService` through the
 restartable participant adapter. Focused coverage is `9 passed, 0 failed`;
