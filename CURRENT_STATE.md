@@ -1,8 +1,8 @@
 # Current State
-- UTC/local timestamp: 2026-08-14T02:05:00Z / 2026-08-14T05:05:00+03:00
+- UTC/local timestamp: 2026-08-14T02:17:00Z / 2026-08-14T05:17:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `4cb46e777` (restartable listener lifecycle helper code/test)
-- Last successfully pushed commit: `eb5d10765938d42041fea9291276de2988d0809f`
+- Current HEAD: `a845aaec20a7c4cf3ac3c83dcd542a6fc208259f` (verified lifecycle helper/docs push)
+- Last successfully pushed commit: `a845aaec20a7c4cf3ac3c83dcd542a6fc208259f`
 - Latest focused-test result: restartable listener lifecycle `3 passed, 0 failed`; prior IMAP/POP3/SMTP lifecycle `20 passed, 0 failed`
 - Latest full Net10 result: normal Debug `2303 passed, 57 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: disposable SQL distribution-list owner/delete/rollback acceptance passed; independent disposable Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; C++ launch refused by six safe preflights; registry/COM, installer, AD/DC, SEC-18, restore round trip, and 24-hour soak remain skipped or environment-blocked; no production resource was used
