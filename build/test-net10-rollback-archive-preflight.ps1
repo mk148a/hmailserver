@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $helperPath = Join-Path $PSScriptRoot 'net10-rollback-archive-preflight.ps1'
 $serviceRollbackPath = Join-Path $PSScriptRoot 'net10-service-rollback.ps1'
 $installerPath = Join-Path $PSScriptRoot 'install-net10-service.ps1'
+$uninstallerPath = Join-Path $PSScriptRoot 'uninstall-net10-service.ps1'
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 $trackedSevenZip = Join-Path $repoRoot 'hmailserver\installation\Extras\7za.exe'
 
@@ -226,7 +227,13 @@ try {
     Assert-True ($serviceMutationIndex -gt $preflightIndex) 'Rollback preflight does not precede sc.exe mutations.'
     Assert-True ($installerSource -match '(?s)if \(\$requiresRollbackArchive\).*?Assert-Net10RollbackArchivePreflight') 'Rollback preflight is not guarded by the replacement requirement.'
 
-    foreach ($path in @($helperPath, $serviceRollbackPath, $installerPath, $PSCommandPath)) {
+    $uninstallerSource = Get-Content -LiteralPath $uninstallerPath -Raw
+    Assert-True ($uninstallerSource -match 'New-Net10ServiceRollbackSnapshot') 'Uninstaller does not snapshot the owned service before deletion.'
+    Assert-True ($uninstallerSource -match '\$serviceDeleted') 'Uninstaller does not track whether service deletion completed.'
+    Assert-True ($uninstallerSource -match 'Restore-Net10ServiceRollbackSnapshot') 'Uninstaller does not compensate a post-delete COM failure.'
+    Assert-True ($uninstallerSource -match '(?s)sc\.exe delete.*?--unregister-com') 'Uninstaller no longer preserves legacy service-then-COM ordering.'
+
+    foreach ($path in @($helperPath, $serviceRollbackPath, $installerPath, $uninstallerPath, $PSCommandPath)) {
         $tokens = $null
         $errors = $null
         $null = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
