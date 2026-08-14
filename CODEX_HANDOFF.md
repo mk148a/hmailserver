@@ -18,6 +18,17 @@ release remains **RED**.
 
 Next slice: isolated restore/rollback acceptance.
 
+## Current paired performance evidence (2026-08-14)
+
+Fresh disposable SQL/Data equivalence passed with 37 equal table row counts,
+1,000 identical message files, Full-Text readiness, and loopback SMTP/IMAP/POP3
+ports. Net10 passed the protocol, SMTP acceptance, 1,000-session IMAP, FTS,
+delivery queue, and POP3-large scenarios. The C++ binary was refused by the
+read-only Registry32 isolation preflight because its installed path resolves to
+`C:\hMailServer57-Test\Bin`; no C++ process was launched. Performance remains
+**RED** with no ratio or winner. Evidence is under
+`artifacts/benchmarks/live-cpp-net10-20260814/`.
+
 ## Historical production restore callback (2026-08-14)
 
 Code/test commit `894affe5f` carries the production restore reinitializer from

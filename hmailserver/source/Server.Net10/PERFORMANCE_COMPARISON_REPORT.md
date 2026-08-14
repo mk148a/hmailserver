@@ -2,7 +2,7 @@
 
 ## Current authoritative rerun (2026-08-14)
 
-Repository code HEAD: `a84c1a032a6fd16ef08c3e4a58173bab32a59a20`.
+Repository code HEAD: `9722dfac199fdcb7db900e6f97047146be2feeda`.
 Decision: **RED**. No C++/.NET 10 ratio, speed-up, regression percentage, or
 winner is claimed.
 
@@ -15,19 +15,19 @@ directory, COM registration, DCOM ACL, or public listener was used.
 
 | Scenario | Net10 result | p50 | p95 | p99 | Throughput | C++ launch |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| SMTP/IMAP/POP3 protocol, 25 each | 75/75 | 1.102 / 13.339 / 20.325 ms | 41.375 / 21.887 / 38.402 ms | 58.893 / 264.195 / 40.821 ms | n/a | refused preflight |
-| SMTP message acceptance, 25 | 25/25 | 6.011 ms | 18.449 ms | 203.811 ms | 5.984 msg/s | refused preflight |
-| IMAP concurrent, 1,000 | 1000/1000 | 4075.439 ms | 4928.655 ms | 4955.660 ms | 70.169 sessions/s | refused preflight |
-| IMAP FTS SEARCH, 25 | 25/25 | 6.521 ms search | 11.050 ms search | 44.737 ms search | n/a | refused preflight |
-| Local delivery queue, 50 | 50/50 | 4.835 ms | 14.257 ms | 74.724 ms | 53.758 msg/s | refused preflight |
-| POP3 large mailbox, 1,000 messages, 5 | 5/5 | 80.468 ms | 330.576 ms | 378.321 ms | n/a | refused preflight |
+| SMTP/IMAP/POP3 protocol, 25 each | 75/75 | 0.724 / 12.463 / 17.781 ms | 1.330 / 19.775 / 27.875 ms | 18.543 / 424.364 / 36.395 ms | n/a | refused preflight |
+| SMTP message acceptance, 25 | 25/25 | 5.995 ms | 7.031 ms | 198.675 ms | 4.469 msg/s | refused preflight |
+| IMAP concurrent, 1,000 | 1000/1000 | 2610.928 ms | 3536.025 ms | 3585.298 ms | 77.040 sessions/s | refused preflight |
+| IMAP FTS SEARCH, 25 | 25/25 | 6.903 ms search | 17.852 ms search | 24.119 ms search | n/a | refused preflight |
+| Local delivery queue, 50 | 50/50 | 5.267 ms | 43.910 ms | 126.114 ms | 34.820 msg/s | refused preflight |
+| POP3 large mailbox, 1,000 messages, 5 | 5/5 | 61.354 ms | 275.177 ms | 313.342 ms | n/a | refused preflight |
 
 ```mermaid
 xychart-beta
     title "Net10-only p95 latency per independent disposable scenario"
     x-axis [SMTP, IMAP, POP3, SMTP-accept, IMAP-1k, FTS, Queue, POP3-large]
     y-axis "Milliseconds" 0 --> 5000
-    bar [41.375, 21.887, 38.402, 18.449, 4928.655, 11.050, 14.257, 330.576]
+    bar [1.330, 19.775, 27.875, 7.031, 3536.025, 17.852, 43.910, 275.177]
 ```
 
 The legacy C++ executable was not started in any scenario. Its `_tWinMain`
@@ -35,16 +35,18 @@ unconditionally calls `RegisterAppID()` before `/Debug`, while this host's
 Registry32 `HKLM\SOFTWARE\hMailServer\InstallLocation` resolves to
 `C:\hMailServer57-Test`, not the disposable C++ root. The six matching
 preflight records under
-`artifacts/benchmarks/live-cpp-net10-20260814/cpp-preflight-matrix/` all show
+`artifacts/benchmarks/live-cpp-net10-20260814/cpp-preflight-fresh-041500.json`
+and the matching matrix all show
 `launchAttempted=false`. This is a safety refusal, not a C++ performance
 result. A registry-isolated C++ staging VM/install is still required.
 
 Evidence:
 
-- Start-state equivalence: `artifacts/benchmarks/live-cpp-net10-20260814/shared-baseline-001020/`
-- Net10 independent scenarios: `artifacts/benchmarks/live-cpp-net10-20260814/scenario-*/`
-- C++ preflight matrix: `artifacts/benchmarks/live-cpp-net10-20260814/cpp-preflight-matrix/`
-- Full Net10 Debug: `2297 passed, 57 skipped, 0 failed`
+- Start-state equivalence: `artifacts/benchmarks/live-cpp-net10-20260814/shared-baseline-041500/`
+- Net10 independent scenarios: `artifacts/benchmarks/live-cpp-net10-20260814/fresh-net10-*/`
+- Queue fresh-pair evidence: `artifacts/benchmarks/live-cpp-net10-20260814/shared-baseline-041700/`
+- C++ preflight: `artifacts/benchmarks/live-cpp-net10-20260814/cpp-preflight-fresh-041500.json`
+- Full Net10 Debug: `2313 passed, 57 skipped, 0 failed`
 
 The performance release gate remains **RED**. The current evidence proves
 bounded Net10 behavior and safe refusal of an unsafe C++ launch. It does not

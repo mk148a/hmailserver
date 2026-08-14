@@ -25,6 +25,13 @@ changed. Isolated restore/rollback, paired C++/.NET performance, SEC-18,
 migration/installer, out-of-process COM, and soak remain open; release remains
 **RED**.
 
+Fresh paired performance evidence is now available under
+`artifacts/benchmarks/live-cpp-net10-20260814/shared-baseline-041500/`:
+disposable SQL/Data/message state is equivalent and the Net10 workload matrix
+passes. The legacy C++ matrix remains unrun because the read-only Registry32
+preflight rejects the disposable binary before process creation; no ratio or
+winner is valid. A registry-isolated C++ host remains a release blocker.
+
 Next slice: run isolated restore/rollback acceptance using disposable SQL/Data
 targets only.
 
