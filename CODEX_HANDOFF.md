@@ -47,6 +47,14 @@ Focused coverage is `3/3`; full Net10 Debug is `2303 passed, 57 skipped,
 up failed starts, but is not wired to hosted services, readiness, restore, or
 COM. Next slice: the three hosted-service adapters. Release remains **RED**.
 
+## Current Authoritative Continuation (2026-08-14, listener participant facade)
+
+Code/test commit `2aa8d32ee` adds `RestartableListenerParticipant` over the
+listener lifecycle helper. Focused coverage is `4/4`; full Net10 Debug is
+`2304 passed, 57 skipped, 0 failed`. The facade is still not registered in
+production hosted services. Next slice: three adapter registrations with
+readiness-generation ordering. Release remains **RED**.
+
 ## Current Authoritative Continuation (2026-08-14, transactional distribution-list deletion)
 
 Code/test commit `1e90198e4` completes direct distribution-list deletion

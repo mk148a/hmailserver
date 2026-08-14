@@ -41,6 +41,12 @@ concurrent starts, and cleans up failed binds. Focused coverage is `3 passed,
 0 failed`; full Net10 is `2303 passed, 57 skipped, 0 failed`. It is not wired
 to production hosted services, restore, or COM yet.
 
+The internal `RestartableListenerParticipant` facade (`2aa8d32ee`) now exposes
+coordinator-compatible Start/Stop plus per-run endpoint evidence. Focused
+participant coverage is `4 passed, 0 failed`; full Net10 is `2304 passed, 57
+skipped, 0 failed`. Actual hosted-service registration and readiness transition
+remain open.
+
 ## Current authoritative distribution-list deletion status (2026-08-14)
 
 Code/test commit `143db0bb4` closes the owner-scope gap in direct distribution

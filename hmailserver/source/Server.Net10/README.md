@@ -11,6 +11,11 @@ with serialized transitions and failed-start cleanup. Focused helper coverage
 is `3/3`; full Net10 Debug is `2303 passed, 57 skipped, 0 failed`. It is not
 yet wired to hosted services, restore, or COM.
 
+Commit `2aa8d32ee` adds the internal `RestartableListenerParticipant` facade.
+Focused participant coverage is `4/4`; full Net10 Debug is `2304 passed, 57
+skipped, 0 failed`. Hosted-service registration and readiness transition remain
+open.
+
 ## Current performance evidence (2026-08-14)
 
 The benchmark pack now creates an independent disposable SQL/Data pair per

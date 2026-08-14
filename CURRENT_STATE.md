@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-14T02:17:00Z / 2026-08-14T05:17:00+03:00
+- UTC/local timestamp: 2026-08-14T02:35:00Z / 2026-08-14T05:35:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `a845aaec20a7c4cf3ac3c83dcd542a6fc208259f` (verified lifecycle helper/docs push)
-- Last successfully pushed commit: `a845aaec20a7c4cf3ac3c83dcd542a6fc208259f`
-- Latest focused-test result: restartable listener lifecycle `3 passed, 0 failed`; prior IMAP/POP3/SMTP lifecycle `20 passed, 0 failed`
-- Latest full Net10 result: normal Debug `2303 passed, 57 skipped, 0 failed`
+- Current HEAD: `2aa8d32ee` (listener participant lifecycle code/test)
+- Last successfully pushed commit: `475dc1bda5cbd084c59ecc678d539540d6072b34`
+- Latest focused-test result: restartable listener participant/lifecycle `4 passed, 0 failed`; prior IMAP/POP3/SMTP lifecycle `20 passed, 0 failed`
+- Latest full Net10 result: normal Debug `2304 passed, 57 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: disposable SQL distribution-list owner/delete/rollback acceptance passed; independent disposable Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; C++ launch refused by six safe preflights; registry/COM, installer, AD/DC, SEC-18, restore round trip, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: restartable listener lifecycle helper with serialized Start/Stop and failure cleanup tested; production wiring remains intentionally absent
+- Current bounded slice: listener participant facade exposes coordinator-compatible Start/Stop and per-run endpoint evidence; production wiring remains intentionally absent
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through distribution-list lifetime and owner-scoped UPDATE, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10 load evidence
 - Open production blockers: service-owned restore reinitialization wiring and isolated round-trip/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host. Disposable SQL/Data provisioning is READY via `build/provision-paired-benchmark-fixture.ps1`; current evidence is under `artifacts/benchmarks/live-cpp-net10-20260814/`.
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: wire the helper into IMAP/POP3/SMTP hosted-service adapters and readiness generations; production restore callback plus COM Reinitialize wiring; isolated disposable restore/rollback round-trip
+- Next three independent slices: wire participant facades into IMAP/POP3/SMTP hosted-service adapters and readiness generations; production restore callback plus COM Reinitialize wiring; isolated disposable restore/rollback round-trip

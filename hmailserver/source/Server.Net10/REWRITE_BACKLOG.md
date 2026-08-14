@@ -55,6 +55,19 @@ the readiness generation, restore, or COM. The next slice is the hosted-service
 participant adapter with explicit drain/readiness ordering. Release remains
 **RED**.
 
+## Current participant continuation (2026-08-14)
+
+Code/test commit `2aa8d32ee` adds the internal
+`RestartableListenerParticipant` facade over the lifecycle helper. It exposes
+coordinator-compatible Start/Stop operations and preserves per-run endpoint
+evidence. Focused coverage is `4 passed, 0 failed`; full Net10 Debug is
+`2304 passed, 57 skipped, 0 failed`.
+
+The facade is not registered in `AddProductionHostedServices`; no real IMAP,
+POP3, or SMTP hosted-service transition is claimed. Next slice: register and
+test the three adapters with readiness-generation ordering. Release remains
+**RED**.
+
 ## Current hosted-service lifecycle continuation (2026-08-14)
 
 Code/test commit `4cb46e777` adds internal `RestartableListenerLifecycle`.
