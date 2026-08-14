@@ -21,6 +21,57 @@ public sealed class ServiceReinitializationCoordinatorTests
     }
 
     [TestMethod]
+    public async Task ReinitializeAsync_HoldsReadinessUntilAllParticipantsRestart()
+    {
+        var signal = new ServerReadinessSignal();
+        signal.SetReady();
+        var startEntered = new TaskCompletionSource<object?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseStart = new TaskCompletionSource<object?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var coordinator = new ServiceReinitializationCoordinator(signal);
+        coordinator.Register(
+            "listeners",
+            _ => ValueTask.CompletedTask,
+            async _ =>
+            {
+                startEntered.SetResult(null);
+                await releaseStart.Task.ConfigureAwait(false);
+            });
+
+        var reinitialize = coordinator.ReinitializeAsync(CancellationToken.None).AsTask();
+        await startEntered.Task;
+
+        var readiness = signal.WaitAsync(CancellationToken.None);
+        Assert.IsFalse(readiness.IsCompleted);
+
+        releaseStart.SetResult(null);
+        await reinitialize;
+        await readiness;
+    }
+
+    [TestMethod]
+    public async Task ReinitializeAsync_PublishesFailureToTheNewReadinessGeneration()
+    {
+        var signal = new ServerReadinessSignal();
+        signal.SetReady();
+        var expected = new InvalidOperationException("listener restart failed");
+        var coordinator = new ServiceReinitializationCoordinator(signal);
+        coordinator.Register(
+            "listeners",
+            _ => ValueTask.CompletedTask,
+            _ => ValueTask.FromException(expected));
+
+        var actual = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => coordinator.ReinitializeAsync(CancellationToken.None).AsTask());
+        Assert.AreSame(expected, actual);
+
+        var readinessFailure = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => signal.WaitAsync(CancellationToken.None));
+        Assert.AreSame(expected, readinessFailure);
+    }
+
+    [TestMethod]
     public void Register_RejectsDuplicateNames()
     {
         var coordinator = new ServiceReinitializationCoordinator();

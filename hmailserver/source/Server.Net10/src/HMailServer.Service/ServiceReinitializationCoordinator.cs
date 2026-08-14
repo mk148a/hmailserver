@@ -1,11 +1,21 @@
 namespace HMailServer.Service;
 
-internal sealed class ServiceReinitializationCoordinator
+public sealed class ServiceReinitializationCoordinator
 {
+    private readonly ServerReadinessSignal? _serverReadinessSignal;
     private readonly object _gate = new();
     private readonly List<Participant> _participants = [];
     private readonly SemaphoreSlim _reinitializeGate = new(1, 1);
     private bool _started;
+
+    internal ServiceReinitializationCoordinator()
+    {
+    }
+
+    internal ServiceReinitializationCoordinator(ServerReadinessSignal serverReadinessSignal)
+    {
+        _serverReadinessSignal = serverReadinessSignal ?? throw new ArgumentNullException(nameof(serverReadinessSignal));
+    }
 
     internal void Register(
         string name,
@@ -39,6 +49,7 @@ internal sealed class ServiceReinitializationCoordinator
     {
         await _reinitializeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         Participant[] participants;
+        ServerReadinessGeneration? generation = null;
         try
         {
             lock (_gate)
@@ -52,6 +63,8 @@ internal sealed class ServiceReinitializationCoordinator
                 _started = true;
                 participants = _participants.ToArray();
             }
+
+            generation = _serverReadinessSignal?.BeginReinitialization();
 
             var stopped = new List<Participant>(participants.Length);
             try
@@ -82,6 +95,13 @@ internal sealed class ServiceReinitializationCoordinator
                 await CompensateStopsAsync(started, startException).ConfigureAwait(false);
                 throw;
             }
+
+            generation?.SetReady();
+        }
+        catch (Exception exception)
+        {
+            generation?.SetFailure(exception);
+            throw;
         }
         finally
         {

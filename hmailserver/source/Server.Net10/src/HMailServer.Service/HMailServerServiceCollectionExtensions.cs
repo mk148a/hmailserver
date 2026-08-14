@@ -15,6 +15,9 @@ public static class HMailServerServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddSingleton<ServerReadinessSignal>();
+        services.AddSingleton<ServiceReinitializationCoordinator>(provider =>
+            new ServiceReinitializationCoordinator(
+                provider.GetRequiredService<ServerReadinessSignal>()));
         services.AddHostedService<ServerBootstrapper>();
         services.AddHostedService<BackupTaskHostedService>();
         services.AddHostedService<MessageSearchBackfillHostedService>();

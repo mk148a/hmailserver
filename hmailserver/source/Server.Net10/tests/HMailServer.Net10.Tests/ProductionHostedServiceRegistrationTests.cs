@@ -16,6 +16,10 @@ public sealed class ProductionHostedServiceRegistrationTests
 
             services.AddProductionHostedServices(externalFetchEnabled);
 
+            var coordinator = services.Single(descriptor =>
+                descriptor.ServiceType == typeof(ServiceReinitializationCoordinator));
+            Assert.AreEqual(ServiceLifetime.Singleton, coordinator.Lifetime);
+
             var descriptors = services
                 .Where(descriptor => descriptor.ServiceType == typeof(IHostedService))
                 .ToArray();
