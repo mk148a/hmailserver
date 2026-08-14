@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current authoritative protocol reinitialization status (2026-08-14)
+
+Code/test commit `0e9164404` registers the IMAP, POP3, and SMTP restartable
+listener participants in `AddProductionHostedServices` through the singleton
+`ServiceReinitializationCoordinator`. The hosted services remain alive while
+the coordinator performs reverse-order stop and registration-order start, so
+host shutdown still owns the final drain. A reinitialization creates a fresh
+`ServerReadinessSignal` generation, publishes readiness only after all
+participants restart, and fails the new generation on lifecycle failure.
+
+Focused lifecycle/registration coverage is `25 passed, 0 failed`; full Net10
+Debug is `2307 passed, 57 skipped, 0 failed`. Legacy anchors are
+`Reinitializator::{ReInitialize,WorkerFunc}` and
+`Application::{StopServers,Reinitialize,StartServers}` in
+`hmailserver/source/Server/Common/Application`.
+
+This slice does not connect `BackupArchiveRuntime` to the coordinator and does
+not implement `ApplicationComClass.Reinitialize`; restore remains fail-closed,
+paired C++/.NET performance remains **RED**, and the overall release gate
+remains **RED**. Next slice: wire the service-owned restore callback and COM
+`Application.Reinitialize`, with isolated restore/rollback tests kept separate.
+
 ## Current authoritative restore lifecycle status (2026-08-14)
 
 Code/test commit `a84c1a032` adds the internal service reinitialization

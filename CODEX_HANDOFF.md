@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-14, protocol participant registration)
+
+Code/test commit `0e9164404` registers IMAP, POP3, and SMTP restartable
+listener participants in production DI. The hosted services retain ownership
+of their long-running tasks across coordinator stop/start transitions;
+`ServiceReinitializationCoordinator` performs reverse stop and forward start,
+and `ServerReadinessSignal` publishes a fresh generation only after success.
+Focused coverage is `25/25`; full Net10 Debug is `2307 passed, 57 skipped,
+0 failed`.
+
+Legacy anchors are `Reinitializator::{ReInitialize,WorkerFunc}` and
+`Application::{StopServers,Reinitialize,StartServers}`. The restore callback
+and `ApplicationComClass.Reinitialize` are still not wired, so restore remains
+fail-closed. Paired C++/.NET performance, isolated restore/rollback, SEC-18,
+migration/installer, out-of-process COM, and soak remain open; release remains
+**RED**.
+
+Next slice: connect the service-owned restore callback and bounded COM
+`Application.Reinitialize` path, then prove isolated restore/rollback.
+
 ## Current Authoritative Continuation (2026-08-14, service reinitialization seam)
 
 Code/test commit `a84c1a032` adds and tests the internal
