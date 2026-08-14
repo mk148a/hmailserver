@@ -24,6 +24,24 @@ public sealed class RestartableListenerParticipantTests
         CollectionAssert.AreEqual(new[] { endpoint }, observed);
     }
 
+    [TestMethod]
+    public async Task WaitForStopAsyncObservesTheActiveListenerRun()
+    {
+        var lifecycle = new RestartableListenerLifecycle((cancellationToken, reportStarted) =>
+        {
+            reportStarted(new IPEndPoint(IPAddress.Loopback, 1143));
+            return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        });
+        var participant = new RestartableListenerParticipant(lifecycle);
+
+        await participant.StartAsync(CancellationToken.None, _ => { });
+        var stopTask = participant.WaitForStopAsync();
+        Assert.IsFalse(stopTask.IsCompleted);
+
+        await participant.StopAsync(CancellationToken.None);
+        await stopTask;
+    }
+
     private static async Task WaitForCancellationAsync(CancellationToken cancellationToken)
     {
         await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);

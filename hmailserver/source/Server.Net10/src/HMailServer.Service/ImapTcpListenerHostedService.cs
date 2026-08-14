@@ -10,6 +10,7 @@ public sealed class ImapTcpListenerHostedService : BackgroundService
     private readonly ImapTcpListenerOptions _options;
     private readonly ServerReadinessSignal _serverReadinessSignal;
     private readonly ILogger<ImapTcpListenerHostedService> _logger;
+    private readonly RestartableListenerParticipant _participant;
 
     public ImapTcpListenerHostedService(
         ImapTcpListener listener,
@@ -21,6 +22,9 @@ public sealed class ImapTcpListenerHostedService : BackgroundService
         _options = options;
         _serverReadinessSignal = serverReadinessSignal;
         _logger = logger;
+        _participant = new RestartableListenerParticipant(
+            new RestartableListenerLifecycle((cancellationToken, startedEndpoint) =>
+                _listener.RunAsync(cancellationToken, startedEndpoint)));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -34,10 +38,12 @@ public sealed class ImapTcpListenerHostedService : BackgroundService
                 return;
             }
 
-            var runTask = _listener.RunAsync(stoppingToken);
-            var endpoint = await _listener.Started.WaitAsync(stoppingToken).ConfigureAwait(false);
-            _logger.LogInformation("IMAP TCP listener is accepting connections on {Endpoint}.", endpoint);
-            await runTask.ConfigureAwait(false);
+            await _participant.StartAsync(
+                stoppingToken,
+                endpoint => _logger.LogInformation(
+                    "IMAP TCP listener is accepting connections on {Endpoint}.", endpoint))
+                .ConfigureAwait(false);
+            await _participant.WaitForStopAsync().ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -48,6 +54,10 @@ public sealed class ImapTcpListenerHostedService : BackgroundService
         {
             _serverReadinessSignal.SetFailure(exception);
             throw;
+        }
+        finally
+        {
+            await _participant.StopAsync(CancellationToken.None).ConfigureAwait(false);
         }
     }
 }

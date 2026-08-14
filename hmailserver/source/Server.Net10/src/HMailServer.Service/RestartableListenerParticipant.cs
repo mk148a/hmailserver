@@ -18,4 +18,6 @@ internal sealed class RestartableListenerParticipant
 
     internal Task StopAsync(CancellationToken cancellationToken) =>
         _lifecycle.StopAsync(cancellationToken);
+
+    internal Task WaitForStopAsync() => _lifecycle.WaitForStopAsync();
 }

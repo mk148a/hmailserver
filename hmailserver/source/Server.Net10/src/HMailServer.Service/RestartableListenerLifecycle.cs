@@ -89,6 +89,17 @@ internal sealed class RestartableListenerLifecycle : IAsyncDisposable
         }
     }
 
+    internal Task WaitForStopAsync()
+    {
+        Task runTask;
+        lock (_gate)
+        {
+            runTask = _runTask ?? Task.CompletedTask;
+        }
+
+        return ObserveStopAsync(runTask);
+    }
+
     private async Task StopCoreAsync()
     {
         CancellationTokenSource? runCancellation;
@@ -137,6 +148,17 @@ internal sealed class RestartableListenerLifecycle : IAsyncDisposable
         catch (Exception exception)
         {
             started.TrySetException(exception);
+        }
+    }
+
+    private static async Task ObserveStopAsync(Task runTask)
+    {
+        try
+        {
+            await runTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 }
