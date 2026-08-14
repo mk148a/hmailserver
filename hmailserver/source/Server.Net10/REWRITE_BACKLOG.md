@@ -1,5 +1,5 @@
 
-## Current next slice (2026-08-14, isolated restore and rollback)
+## Current next slice (2026-08-14, migration/installer rollback)
 
 Code/test commits `894affe5f`, `3288249ad`, and `83c77b86d` wire the production restore
 runtime callback and authenticated COM reinitialize:
@@ -10,7 +10,7 @@ delegates synchronously to the same coordinator after administrator
 authentication. The callback runs only after supported SQL/Data restore work
 succeeds. Focused COM/restore coverage is `25 passed, 0 failed` for COM and
 `82 passed, 1 skipped, 0 failed` for restore/runtime; full Net10 Debug is
-`2313 passed, 57 skipped, 0 failed`.
+`2313 passed, 58 skipped, 0 failed`.
 
 Legacy references: `BackupExecuter::StartRestore`
 (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-335`),
@@ -21,7 +21,11 @@ and authenticated `InterfaceApplication::Reinitialize`
 
 Parameterless/direct test activation remains `E_NOTIMPL` when no runtime
 delegate exists. No COM identity, authentication boundary, or SMTP behavior
-changed. Isolated restore/rollback, paired C++/.NET performance, SEC-18,
+changed. The bounded isolated restore/rollback and raw DataBackup backup ->
+restore -> backup semantic suite now passes `21/21` with unique local SQL
+databases, temporary Data roots, normalized metadata equality, and matching
+Data file hashes. The slice also fixes the `Recipients` XML container and
+monotonic sequential fetch-row reading. Paired C++/.NET performance, SEC-18,
 migration/installer, out-of-process COM, and soak remain open; release remains
 **RED**.
 
@@ -32,8 +36,8 @@ passes. The legacy C++ matrix remains unrun because the read-only Registry32
 preflight rejects the disposable binary before process creation; no ratio or
 winner is valid. A registry-isolated C++ host remains a release blocker.
 
-Next slice: run isolated restore/rollback acceptance using disposable SQL/Data
-targets only.
+Next slice: define and run the smallest disposable migration/installer rollback
+drill without touching production registration, service, SQL, or Data state.
 
 ## Historical service reinitialization coordinator seam (2026-08-14)
 

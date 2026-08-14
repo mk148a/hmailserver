@@ -13,7 +13,7 @@ host shutdown still owns the final drain. A reinitialization creates a fresh
 all participants restart, and fails closed on lifecycle or supervision failure.
 
 Focused lifecycle/registration coverage is `25 passed, 0 failed`; full Net10
-Debug is `2307 passed, 57 skipped, 0 failed`. Legacy anchors are
+Debug is `2313 passed, 58 skipped, 0 failed`. Legacy anchors are
 `Reinitializator::{ReInitialize,WorkerFunc}` and
 `Application::{StopServers,Reinitialize,StartServers}` in
 `hmailserver/source/Server/Common/Application`.
@@ -22,11 +22,37 @@ Production `BackupArchiveRuntime` now carries the coordinator callback into the
 restore executor after successful SQL/Data work, and runtime-created
 `Application.Reinitialize` delegates synchronously to the same coordinator
 after server-administrator authentication. Parameterless/direct test
-activation remains fail-closed. There is still no isolated end-to-end restore
-round-trip proof; paired C++/.NET performance and the overall release gate
-remain **RED**. Next slice: isolated restore/rollback acceptance.
+activation remains fail-closed. The bounded isolated restore/rollback suite
+and raw DataBackup semantic round trip now pass against unique local SQL
+databases and temporary Data roots; no production SQL/Data was used. The
+broader production-like backup matrix, migration/installer rollback, paired
+C++/.NET performance, and the overall release gate remain **RED**.
 
-## Current authoritative restore lifecycle status (2026-08-14)
+## Current authoritative isolated backup/restore status (2026-08-14)
+
+The opt-in `BackupRestoreRoundTripIntegrationTests` suite passed `21/21` with
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION` pointed at local `master`
+and `HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1`.
+Each test creates a unique disposable database and cleans it in `finally`.
+Coverage includes metadata restore, raw DataBackup staging, real archive
+dispatch, SQL transaction rollback, staged-file cleanup, failure containment,
+ambiguous-commit recovery journaling, and distribution-list/fetch/rule/message
+rollback paths. The new backup -> restore -> backup test compares normalized
+metadata XML plus every staged Data file's relative path and SHA-256. Raw mode
+intentionally leaves `DataBackup` beside each archive, matching legacy
+`BackupExecuter::StartBackup` / `BackupDataDirectory_`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209`).
+Legacy XML anchors are `Domain::XMLStore`, `DistributionList::XMLStore`, and
+`FetchAccount::XMLStore` in `hmailserver/source/Server/Common/BO`.
+
+The slice also corrects two parity defects exposed by the round trip: recipient
+containers now serialize as `Recipients`, and backup fetch rows are read in
+monotonic `SequentialAccess` order. This proves bounded isolated semantic
+equivalence only; it does not prove a cloned legacy production backup, service
+replacement, installer rollback, or the remaining release gates. Next slice:
+isolated migration/installer rollback planning and disposable drill.
+
+## Historical restore lifecycle seam (superseded 2026-08-14)
 
 Code/test commit `a84c1a032` adds the internal service reinitialization
 coordinator seam. It is covered by `6 passed, 0 failed` focused tests and the
@@ -151,7 +177,7 @@ the installed Application registration. Evidence:
 Therefore no C++/.NET 10 speed-up, regression ratio, or performance winner is
 claimed. The performance release gate is **RED** until the identical fixture
 and workload matrix runs in a registry-isolated C++ staging environment. The
-current full Net10 result is `2313 passed, 57 skipped, 0 failed`.
+current full Net10 result is `2313 passed, 58 skipped, 0 failed`.
 
 ```mermaid
 xychart-beta

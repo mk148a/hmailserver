@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-14T03:41:10Z / 2026-08-14T06:41:10+03:00
+- UTC/local timestamp: 2026-08-14T05:05:00Z / 2026-08-14T08:05:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `bc2e451cb` (fresh paired benchmark evidence and authoritative docs)
-- Last successfully pushed commit: `bc2e451cb`
-- Latest focused-test result: COM contract `16 passed, 0 failed`
-- Latest full Net10 result: normal Debug `2313 passed, 57 skipped, 0 failed`
-- Opt-in tests passed/skipped/blocked: fresh disposable paired fixture `EQUIVALENT_START_STATE`; Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; first reused-DB queue attempt correctly failed `51 != 50`; C++ launch refused by fresh read-only preflight; registry/COM, installer, AD/DC, SEC-18, restore round trip, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: fresh paired SQL/Data/1,000-message Net10 benchmark evidence; C++ comparison remains RED because registry-isolated launch is unavailable
+- Current HEAD: `c2163e042` (isolated backup/restore semantic round-trip and authoritative docs)
+- Last successfully pushed commit: `ccb51b325`
+- Latest focused-test result: `BackupRestoreRoundTripIntegrationTests` 21 passed, 0 failed; COM contract 16 passed, 0 failed
+- Latest full Net10 result: normal Debug `2313 passed, 58 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: fresh disposable paired fixture `EQUIVALENT_START_STATE`; Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; isolated restore/rollback and backup -> restore -> backup semantic round trip `21/21`; first reused-DB queue attempt correctly failed `51 != 50`; C++ launch refused by fresh read-only preflight; registry/COM, installer, AD/DC, SEC-18, and 24-hour soak remain skipped or environment-blocked; no production resource was used
+- Current bounded slice: isolated migration/installer rollback planning and disposable drill
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through distribution-list lifetime and owner-scoped UPDATE, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10 load evidence
-- Open production blockers: isolated restore/round-trip/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Open production blockers: broader production-like backup matrix and migration/installer/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host. Disposable SQL/Data provisioning is READY via `build/provision-paired-benchmark-fixture.ps1`; fresh equivalent-start evidence is under `artifacts/benchmarks/live-cpp-net10-20260814/shared-baseline-041500/`.
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: isolated restore/rollback round-trip; registry-isolated C++ paired performance rerun; SEC-18 final session reauthentication evidence
+- Next three independent slices: disposable migration/installer rollback drill; registry-isolated C++ paired performance rerun; SEC-18 final session reauthentication evidence

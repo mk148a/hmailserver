@@ -1,6 +1,6 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-14, authenticated COM reinitialize)
+## Current Authoritative Continuation (2026-08-14, isolated backup/restore semantic round trip)
 
 Code/test commits `3288249ad` and `83c77b86d` delegate runtime-created
 `Application.Reinitialize` synchronously to the existing coordinator after
@@ -9,14 +9,18 @@ their `E_NOTIMPL` behavior when no runtime delegate exists. COM identity,
 ProgID, DISPID 13, installed registration, and direct activation boundaries
 are unchanged. The authorization generation lease is held across the runtime
 call. Focused COM coverage is `16/16`; full Net10 Debug is `2313
-passed, 57 skipped, 0 failed`.
+passed, 58 skipped, 0 failed`.
 
-The production restore callback from `894affe5f` remains post-restore. No
-isolated restore/rollback round trip has passed; paired C++/.NET performance,
-SEC-18, migration/installer, out-of-process COM, and soak remain open, so
-release remains **RED**.
+The production restore callback from `894affe5f` remains post-restore. The
+bounded isolated restore/rollback and raw DataBackup semantic round-trip suite
+now passes `21/21` with unique local SQL databases and temporary Data roots;
+normalized metadata and staged Data file SHA-256 evidence match. The slice also
+corrects legacy `Recipients` XML nesting and sequential fetch-row reading. No
+production resource was used. Paired C++/.NET performance, SEC-18,
+migration/installer, out-of-process COM, and soak remain open, so release
+remains **RED**.
 
-Next slice: isolated restore/rollback acceptance.
+Next slice: isolated migration/installer rollback planning and disposable drill.
 
 ## Current paired performance evidence (2026-08-14)
 
