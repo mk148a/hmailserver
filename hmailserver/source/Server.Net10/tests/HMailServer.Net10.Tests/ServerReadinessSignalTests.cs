@@ -58,4 +58,25 @@ public sealed class ServerReadinessSignalTests
 
         await Assert.ThrowsExactlyAsync<TaskCanceledException>(() => waitTask);
     }
+
+    [TestMethod]
+    public async Task BeginReinitialization_ReplacesOnlyTheCurrentReadinessGeneration()
+    {
+        var signal = new HMailServer.Service.ServerReadinessSignal();
+        signal.SetBootstrapComplete();
+        signal.SetReady();
+        await signal.WaitAsync(CancellationToken.None);
+
+        var generation = signal.BeginReinitialization();
+        var newReadiness = signal.WaitAsync(CancellationToken.None);
+        var newBootstrap = signal.WaitForBootstrapAsync(CancellationToken.None);
+
+        Assert.IsFalse(newReadiness.IsCompleted);
+        Assert.IsFalse(newBootstrap.IsCompleted);
+
+        generation.SetBootstrapComplete();
+        await generation.BootstrapCompletion;
+        generation.SetReady();
+        await newReadiness;
+    }
 }
