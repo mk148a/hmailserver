@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-14T05:05:00Z / 2026-08-14T08:05:00+03:00
+- UTC/local timestamp: 2026-08-14T16:07:00Z / 2026-08-14T19:07:00+03:00
 - Branch/upstream: detached continuation worktree from `origin/net10-modernization`; original branch remains PUSH-BLOCKED at 1 ahead / 1 behind
-- Current HEAD: `ff100f32a` (installer replacement and uninstall rollback guards)
+- Current HEAD: `1d77cb208` (installer replacement and uninstall rollback guards documented)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and not pushed
 - Latest focused-test result: rollback/preflight PowerShell test passed; BackupRestoreRoundTripIntegrationTests 21 passed, 0 failed; COM contract 16 passed, 0 failed
 - Latest full Net10 result: normal Debug `2313 passed, 58 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: fresh disposable paired fixture `EQUIVALENT_START_STATE`; Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; isolated restore/rollback and backup -> restore -> backup semantic round trip `21/21`; first reused-DB queue attempt correctly failed `51 != 50`; C++ launch refused by fresh read-only preflight; registry/COM, installer, AD/DC, SEC-18, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: disposable legacy-to-Net10 migration/installer replacement and forced-failure rollback drill
+- Current bounded slice: environment-blocked disposable legacy-to-Net10 migration/installer replacement and forced-failure rollback drill
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through distribution-list lifetime and owner-scoped UPDATE, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10 load evidence
 - Open production blockers: real migration/installer/rollback drill and DB setup/upgrade parity; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: disposable VM/registry-isolated C++ runner; disposable legacy-to-Net10 service/COM/SQL/Data replacement drill; live DNS/socket/TLS fixture; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host. Disposable SQL/Data provisioning is READY via `build/provision-paired-benchmark-fixture.ps1`; fresh equivalent-start evidence is under `artifacts/benchmarks/live-cpp-net10-20260814/shared-baseline-041500/`.
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: disposable migration/installer forced-failure drill; registry-isolated C++ paired performance rerun; SEC-18 final session reauthentication evidence
+- Next three independent slices: disposable migration/installer forced-failure drill after a registry-isolated VM is available; registry-isolated C++ paired performance rerun after a separate legacy host is available; SEC-18 final session reauthentication evidence after isolated IIS/COM evidence is available
