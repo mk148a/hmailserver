@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: 2026-08-14T00:26:00Z / 2026-08-14T03:26:00+03:00
-- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `a09818dfa3cf1e6713d63ce08af966a0e1f67b14` (verified transactional-delete push)
-- Last successfully pushed commit: `a09818dfa3cf1e6713d63ce08af966a0e1f67b14`
-- Latest focused-test result: SQL distribution-list administration store `8 passed, 0 failed`; disposable SQL deletion integration `1 passed, 0 failed`
-- Latest full Net10 result: normal Debug `2290 passed, 57 skipped, 0 failed`
+- UTC/local timestamp: 2026-08-14T00:55:00Z / 2026-08-14T03:55:00+03:00
+- Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local is ahead by 1 commit until the next push
+- Current HEAD: `a84c1a032a6fd16ef08c3e4a58173bab32a59a20` (service reinitialization coordinator code/test)
+- Last successfully pushed commit: `03c34a4d9bbb3d610cf06791c0a3f8b0dacf92fa`
+- Latest focused-test result: service reinitialization coordinator `6 passed, 0 failed`; prior SQL owner-scope focus `8 passed, 0 failed`
+- Latest full Net10 result: normal Debug `2296 passed, 57 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: disposable SQL distribution-list owner/delete/rollback acceptance passed; independent disposable Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; C++ launch refused by six safe preflights; registry/COM, installer, AD/DC, SEC-18, restore round trip, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: independent disposable benchmark provisioning and Net10 rerun completed; next slice is registry-isolated C++ paired execution
+- Current bounded slice: fail-closed service reinitialization coordinator architecture and compensation tests completed; production wiring remains intentionally absent
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through distribution-list lifetime and owner-scoped UPDATE, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10 load evidence
 - Open production blockers: service-owned restore reinitialization wiring and isolated round-trip/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host. Disposable SQL/Data provisioning is READY via `build/provision-paired-benchmark-fixture.ps1`; current evidence is under `artifacts/benchmarks/live-cpp-net10-20260814/`.
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: registry-isolated C++ paired benchmark evidence; service-owned restore reinitialization architecture; isolated disposable restore/rollback round-trip
+- Next three independent slices: service-owned restartable participant adapters and readiness barrier; production restore callback plus COM Reinitialize wiring; isolated disposable restore/rollback round-trip

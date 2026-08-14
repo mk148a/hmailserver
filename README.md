@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current authoritative restore lifecycle status (2026-08-14)
+
+Code/test commit `a84c1a032` adds the internal service reinitialization
+coordinator seam. It is covered by `6 passed, 0 failed` focused tests and the
+full Net10 Debug suite is `2296 passed, 57 skipped, 0 failed`. The seam is
+fail-closed and compensates already-stopped or already-started participants
+when a later lifecycle callback fails.
+
+Legacy anchors are `BackupExecuter::StartRestore`,
+`Reinitializator::ReInitialize`, and `Application::StopServers` /
+`Reinitialize` / `StartServers` in the Common/Application tree. This commit
+does not register real service participants, connect the restore callback, or
+implement `ApplicationComClass.Reinitialize`; production restore remains
+fail-closed. Release remains **RED**. Next slice: restartable participant
+adapters plus a readiness barrier.
+
 ## Current authoritative distribution-list deletion status (2026-08-14)
 
 Code/test commit `143db0bb4` closes the owner-scope gap in direct distribution
@@ -55,7 +71,7 @@ the installed Application registration. Evidence:
 Therefore no C++/.NET 10 speed-up, regression ratio, or performance winner is
 claimed. The performance release gate is **RED** until the identical fixture
 and workload matrix runs in a registry-isolated C++ staging environment. The
-current full Net10 result is `2290 passed, 56 skipped, 0 failed`; the latest
+current full Net10 result is `2296 passed, 57 skipped, 0 failed`; the latest
 SQL owner-scope focus is `8 passed, 0 failed`.
 
 ```mermaid

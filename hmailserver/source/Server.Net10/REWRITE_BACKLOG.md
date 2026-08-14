@@ -1,5 +1,33 @@
 
-## Current next slice (2026-08-14, Links cross-facade lifetime completed)
+## Current next slice (2026-08-14, service reinitialization coordinator seam)
+
+Completed code/test commit `a84c1a032` adds an internal
+`ServiceReinitializationCoordinator` seam with reverse-order stop and
+registration-order start. It serializes transitions, rejects duplicate or
+late participant registration, fails closed without participants, and uses
+non-cancelable lifecycle callbacks after admission. Stop failures restart
+participants already stopped; start failures stop participants already
+started, and compensation failures are surfaced as an aggregate failure.
+Focused coverage is `6 passed, 0 failed`; full Net10 Debug is `2296 passed,
+57 skipped, 0 failed`.
+
+The legacy contract is anchored by `BackupExecuter::StartRestore`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-335`),
+`Reinitializator::{ReInitialize,WorkerFunc}`
+(`hmailserver/source/Server/Common/Application/Reinitializator.cpp:35-57`),
+and `Application::{StopServers,Reinitialize,StartServers}`
+(`hmailserver/source/Server/Common/Application/Application.cpp:290-343,393-450`).
+The seam is not registered in production DI, no hosted-service participants
+are connected, `BackupArchiveRuntime.ConfigureRestoreRuntime` still has no
+callback, and `ApplicationComClass.Reinitialize` remains `E_NOTIMPL`.
+Production restore therefore remains fail-closed and release remains **RED**.
+
+Next slice: implement restartable listener/runtime participant adapters and a
+readiness barrier; only after that wire the restore callback and COM
+`Application.Reinitialize`. Isolated restore/rollback, registry-isolated C++
+performance, SEC-18, migration/installer, and soak gates remain open.
+
+## Historical next slice (2026-08-14, Links cross-facade lifetime completed)
 
 Completed code/test commit `88ef1006b` closes the lifetime inconsistency
 between `Application.Links.get_DistributionList` and

@@ -1,5 +1,21 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-14, service reinitialization seam)
+
+Code/test commit `a84c1a032` adds and tests the internal
+`ServiceReinitializationCoordinator`. Focused coverage is `6/6`; full Net10
+Debug is `2296 passed, 57 skipped, 0 failed`. It preserves the legacy
+restore/reinitialize ordering anchored by `BackupExecuter::StartRestore`,
+`Reinitializator::ReInitialize`, and `Application::StopServers` /
+`Reinitialize` / `StartServers`, while compensating partial lifecycle failures.
+
+This is an architecture seam only. It is not registered in production DI,
+there are no restartable hosted-service participants or readiness barrier,
+`BackupArchiveRuntime` has no reinitialize callback, and
+`ApplicationComClass.Reinitialize` remains `E_NOTIMPL`. Restore remains
+fail-closed and release remains **RED**. Next slice: implement participant
+adapters/readiness, then connect restore and COM only after those are proven.
+
 ## Current Authoritative Continuation (2026-08-14, transactional distribution-list deletion)
 
 Code/test commit `1e90198e4` completes direct distribution-list deletion

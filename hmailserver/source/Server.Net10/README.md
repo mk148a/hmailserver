@@ -2371,3 +2371,17 @@ certificate ID like legacy, and refresh failures retain the prior snapshot.
 Focused TCPIPPorts coverage is `23/23`; full Net10 is `2219 passed, 54 skipped,
 0 failed`. Runtime multi-listener creation and live reconfiguration remain out
 of scope.
+## Current authoritative restore lifecycle status (2026-08-14)
+
+Code/test commit `a84c1a032` adds the internal fail-closed
+`ServiceReinitializationCoordinator` seam. It stops participants in reverse
+order, starts them in registration order, rejects late registration, and
+compensates partial stop/start failures. Focused coverage is `6/6`; full Net10
+Debug is `2296 passed, 57 skipped, 0 failed`.
+
+Legacy references are `BackupExecuter::StartRestore`,
+`Reinitializator::{ReInitialize,WorkerFunc}`, and
+`Application::{StopServers,Reinitialize,StartServers}`. Production DI,
+restartable listener/runtime participants, restore callback wiring, and
+`ApplicationComClass.Reinitialize` remain open; restore is still fail-closed
+and release remains **RED**. Next slice: participant adapters and readiness.

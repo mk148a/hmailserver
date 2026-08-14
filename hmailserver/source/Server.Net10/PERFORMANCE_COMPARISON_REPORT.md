@@ -2,7 +2,7 @@
 
 ## Current authoritative rerun (2026-08-14)
 
-Repository HEAD: `a09818dfa3cf1e6713d63ce08af966a0e1f67b14`.
+Repository code HEAD: `a84c1a032a6fd16ef08c3e4a58173bab32a59a20`.
 Decision: **RED**. No C++/.NET 10 ratio, speed-up, regression percentage, or
 winner is claimed.
 
@@ -44,7 +44,7 @@ Evidence:
 - Start-state equivalence: `artifacts/benchmarks/live-cpp-net10-20260814/shared-baseline-001020/`
 - Net10 independent scenarios: `artifacts/benchmarks/live-cpp-net10-20260814/scenario-*/`
 - C++ preflight matrix: `artifacts/benchmarks/live-cpp-net10-20260814/cpp-preflight-matrix/`
-- Full Net10 Debug: `2290 passed, 57 skipped, 0 failed`
+- Full Net10 Debug: `2296 passed, 57 skipped, 0 failed`
 
 The performance release gate remains **RED**. The current evidence proves
 bounded Net10 behavior and safe refusal of an unsafe C++ launch. It does not
