@@ -22,7 +22,17 @@ root. Therefore no C++ latency, throughput, ratio, or winner is reported.
 The performance release gate is **RED** until this exact matrix runs in a
 registry-isolated C++ staging installation or VM.
 
-Full Net10 Debug at current HEAD: `2290 passed, 57 skipped, 0 failed`.
+Full Net10 Debug at current HEAD: `2297 passed, 57 skipped, 0 failed`.
+
+## Current readiness continuation (2026-08-14)
+
+Code/test commit `a4323a102` adds a resettable internal readiness generation
+behind `ServerReadinessSignal`. Existing startup behavior is unchanged; future
+restart orchestration can begin a new bootstrap/readiness generation without
+releasing waiters for the prior generation. Focused coverage is `5/5`.
+
+No listener restart, hosted-service participant registration, restore callback,
+or COM `Application.Reinitialize` wiring is included. Release remains **RED**.
 Detailed evidence is in
 `PERFORMANCE_COMPARISON_REPORT.md` and
 `artifacts/benchmarks/live-cpp-net10-20260814/`.

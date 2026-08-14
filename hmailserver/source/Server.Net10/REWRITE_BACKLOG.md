@@ -27,6 +27,21 @@ readiness barrier; only after that wire the restore callback and COM
 `Application.Reinitialize`. Isolated restore/rollback, registry-isolated C++
 performance, SEC-18, migration/installer, and soak gates remain open.
 
+## Current readiness continuation (2026-08-14, resettable generation seam)
+
+Code/test commit `a4323a102` adds an internal `ServerReadinessGeneration` and
+`ServerReadinessSignal.BeginReinitialization()`. Existing startup methods keep
+their behavior, while a future lifecycle transition can create a new
+bootstrap/readiness pair without releasing waiters for the prior generation.
+Focused coverage is `5 passed, 0 failed`; full Net10 Debug is `2297 passed,
+57 skipped, 0 failed`.
+
+This remains an internal seam only: no listener can restart yet, no hosted
+service is registered as a coordinator participant, restore has no callback,
+and `ApplicationComClass.Reinitialize` remains `E_NOTIMPL`. Next slice is the
+restartable listener/runtime participant adapter and readiness barrier. Release
+remains **RED**.
+
 ## Historical next slice (2026-08-14, Links cross-facade lifetime completed)
 
 Completed code/test commit `88ef1006b` closes the lifetime inconsistency

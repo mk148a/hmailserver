@@ -16,6 +16,18 @@ there are no restartable hosted-service participants or readiness barrier,
 fail-closed and release remains **RED**. Next slice: implement participant
 adapters/readiness, then connect restore and COM only after those are proven.
 
+## Current Authoritative Continuation (2026-08-14, readiness generation seam)
+
+Code/test commit `a4323a102` adds `ServerReadinessGeneration` behind the
+existing `ServerReadinessSignal`. `BeginReinitialization()` creates a fresh
+bootstrap/readiness pair while preserving the completed prior generation.
+Focused coverage is `5/5`; full Net10 Debug is `2297 passed, 57 skipped,
+0 failed`.
+
+The seam is not wired to listeners, hosted-service participants, restore, or
+COM. Next slice: restartable participant adapters and a real readiness barrier.
+Release remains **RED**.
+
 ## Current Authoritative Continuation (2026-08-14, transactional distribution-list deletion)
 
 Code/test commit `1e90198e4` completes direct distribution-list deletion

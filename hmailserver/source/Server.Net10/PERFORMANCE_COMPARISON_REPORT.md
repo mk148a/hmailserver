@@ -44,7 +44,7 @@ Evidence:
 - Start-state equivalence: `artifacts/benchmarks/live-cpp-net10-20260814/shared-baseline-001020/`
 - Net10 independent scenarios: `artifacts/benchmarks/live-cpp-net10-20260814/scenario-*/`
 - C++ preflight matrix: `artifacts/benchmarks/live-cpp-net10-20260814/cpp-preflight-matrix/`
-- Full Net10 Debug: `2296 passed, 57 skipped, 0 failed`
+- Full Net10 Debug: `2297 passed, 57 skipped, 0 failed`
 
 The performance release gate remains **RED**. The current evidence proves
 bounded Net10 behavior and safe refusal of an unsafe C++ launch. It does not

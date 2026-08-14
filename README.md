@@ -17,6 +17,18 @@ implement `ApplicationComClass.Reinitialize`; production restore remains
 fail-closed. Release remains **RED**. Next slice: restartable participant
 adapters plus a readiness barrier.
 
+The readiness seam is now represented by a resettable internal generation in
+`ServerReadinessSignal` (`a4323a102`). Existing startup callers retain their
+behavior; a new generation starts non-ready and becomes usable only after its
+bootstrap and listener completion. Focused readiness coverage is `5 passed, 0
+failed`; full Net10 Debug is `2297 passed, 57 skipped, 0 failed`.
+
+The readiness seam is now represented by a resettable internal generation in
+`ServerReadinessSignal` (`a4323a102`). Existing startup callers retain their
+behavior; a new generation starts non-ready and becomes usable only after its
+bootstrap and listener completion. Focused readiness coverage is `5 passed, 0
+failed`; full Net10 Debug is `2297 passed, 57 skipped, 0 failed`.
+
 ## Current authoritative distribution-list deletion status (2026-08-14)
 
 Code/test commit `143db0bb4` closes the owner-scope gap in direct distribution
