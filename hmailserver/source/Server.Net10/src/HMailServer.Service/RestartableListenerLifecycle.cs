@@ -18,11 +18,17 @@ internal sealed class RestartableListenerLifecycle : IAsyncDisposable
     }
 
     internal async Task StartAsync(CancellationToken cancellationToken)
+        => await StartAsync(cancellationToken, static _ => { }).ConfigureAwait(false);
+
+    internal async Task StartAsync(
+        CancellationToken cancellationToken,
+        Action<IPEndPoint> startedEndpoint)
     {
+        ArgumentNullException.ThrowIfNull(startedEndpoint);
         await _transitionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await StartCoreAsync(cancellationToken).ConfigureAwait(false);
+            await StartCoreAsync(cancellationToken, startedEndpoint).ConfigureAwait(false);
         }
         finally
         {
@@ -30,7 +36,9 @@ internal sealed class RestartableListenerLifecycle : IAsyncDisposable
         }
     }
 
-    private async Task StartCoreAsync(CancellationToken cancellationToken)
+    private async Task StartCoreAsync(
+        CancellationToken cancellationToken,
+        Action<IPEndPoint> startedEndpoint)
     {
         TaskCompletionSource<IPEndPoint> started = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -47,7 +55,11 @@ internal sealed class RestartableListenerLifecycle : IAsyncDisposable
             runCancellation = new CancellationTokenSource();
             runTask = _runAsync(
                 runCancellation.Token,
-                endpoint => started.TrySetResult(endpoint));
+                endpoint =>
+                {
+                    started.TrySetResult(endpoint);
+                    startedEndpoint(endpoint);
+                });
             _runCancellation = runCancellation;
             _runTask = runTask;
         }
