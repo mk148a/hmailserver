@@ -1,4 +1,22 @@
-## Current listener lifecycle continuation (2026-08-14)
+## Current authoritative restore callback status (2026-08-14)
+
+Code/test commit `894affe5f` carries the production
+`ServiceReinitializationCoordinator.ReinitializeAsync` callback through
+`SevenZipBackupArchiveRuntime` and `BackupXmlPayloadRuntime` into
+`MetadataBackupRestoreExecutor`. The callback remains post-restore: it is
+invoked only after the supported SQL/Data restore path completes. Focused
+restore/runtime coverage is `82 passed, 1 skipped, 0 failed`; full Net10 Debug
+is `2308 passed, 57 skipped, 0 failed`.
+
+Legacy references are `BackupExecuter::StartRestore` and
+`Reinitializator::ReInitialize`; the legacy restore schedules reinitialization
+on its worker rather than synchronously reinitializing the owner thread.
+`ApplicationComClass.Reinitialize` remains `E_NOTIMPL`, isolated restore/
+rollback remains unproven, paired C++/.NET performance remains **RED**, and
+the release gate remains **RED**. Next slice: bounded authenticated COM
+`Application.Reinitialize` delegation.
+
+## Historical listener lifecycle continuation (2026-08-14)
 
 Commit `c9937dd87` adds a per-run endpoint callback to the IMAP, POP3, and
 SMTP listeners and tests a second bind on each listener object. Focused

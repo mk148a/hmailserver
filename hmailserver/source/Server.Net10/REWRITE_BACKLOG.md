@@ -1,5 +1,32 @@
 
-## Current next slice (2026-08-14, service reinitialization coordinator seam)
+## Current next slice (2026-08-14, authenticated COM reinitialize)
+
+Code/test commit `894affe5f` wires the production restore runtime callback:
+`Program.cs` passes `ServiceReinitializationCoordinator.ReinitializeAsync`
+through `SevenZipBackupArchiveRuntime` and `BackupXmlPayloadRuntime` into
+`MetadataBackupRestoreExecutor`. The callback runs only after supported
+SQL/Data restore work succeeds. Focused restore/runtime coverage is `82
+passed, 1 skipped, 0 failed`; full Net10 Debug is `2308 passed, 57 skipped,
+0 failed`.
+
+Legacy references: `BackupExecuter::StartRestore`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:230-335`),
+`Reinitializator::{ReInitialize,WorkerFunc}`
+(`hmailserver/source/Server/Common/Application/Reinitializator.cpp:35-57`),
+and authenticated `InterfaceApplication::Reinitialize`
+(`hmailserver/source/Server/COM/InterfaceApplication.cpp:91-108`).
+
+The public Net10 `ApplicationComClass.Reinitialize` remains `E_NOTIMPL` by
+design in this slice. No COM identity, authentication boundary, or SMTP
+behavior changed. Isolated restore/rollback, paired C++/.NET performance,
+SEC-18, migration/installer, out-of-process COM, and soak remain open; release
+remains **RED**.
+
+Next slice: implement bounded authenticated `ApplicationComClass.Reinitialize`
+delegation to the same coordinator, then run isolated restore/rollback
+acceptance.
+
+## Historical service reinitialization coordinator seam (2026-08-14)
 
 Completed code/test commit `a84c1a032` adds an internal
 `ServiceReinitializationCoordinator` seam with reverse-order stop and

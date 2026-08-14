@@ -1,6 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-14, protocol participant registration)
+## Current Authoritative Continuation (2026-08-14, production restore callback)
+
+Code/test commit `894affe5f` carries the production restore reinitializer from
+`Program.cs` through `SevenZipBackupArchiveRuntime` and
+`BackupXmlPayloadRuntime` into `MetadataBackupRestoreExecutor`. The callback is
+post-restore and is invoked only after supported SQL/Data restore work. Focused
+restore/runtime coverage is `82 passed, 1 skipped, 0 failed`; full Net10 Debug
+is `2308 passed, 57 skipped, 0 failed`.
+
+Legacy `BackupExecuter::StartRestore` schedules `Reinitializator::ReInitialize`
+on a worker after restore completion. COM `Application.Reinitialize` remains
+unimplemented in this slice; no installed COM identity, authentication
+boundary, or SMTP behavior changed. Isolated restore/rollback, paired
+C++/.NET performance, SEC-18, migration/installer, out-of-process COM, and
+soak remain open; release remains **RED**.
+
+Next slice: bounded authenticated `ApplicationComClass.Reinitialize`
+delegation, then isolated restore/rollback acceptance.
+
+## Historical protocol participant registration (2026-08-14)
 
 Code/test commits `0e9164404` and `63f512752` register IMAP, POP3, and SMTP restartable
 listener participants in production DI. The hosted services retain ownership
