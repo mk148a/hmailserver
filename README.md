@@ -3,7 +3,8 @@ hMailServer
 
 ## Current authoritative protocol reinitialization status (2026-08-14)
 
-Code/test commits `0e9164404`, `63f512752`, and `894affe5f` register the IMAP, POP3, and SMTP restartable
+Code/test commits `0e9164404`, `63f512752`, `894affe5f`, `3288249ad`, and
+`83c77b86d` register the IMAP, POP3, and SMTP restartable
 listener participants in `AddProductionHostedServices` through the singleton
 `ServiceReinitializationCoordinator`. The hosted services remain alive while
 the coordinator performs reverse-order stop and registration-order start, so
@@ -18,11 +19,12 @@ Debug is `2307 passed, 57 skipped, 0 failed`. Legacy anchors are
 `hmailserver/source/Server/Common/Application`.
 
 Production `BackupArchiveRuntime` now carries the coordinator callback into the
-restore executor after successful SQL/Data work. This slice does not implement
-`ApplicationComClass.Reinitialize` and has no isolated end-to-end restore
+restore executor after successful SQL/Data work, and runtime-created
+`Application.Reinitialize` delegates synchronously to the same coordinator
+after server-administrator authentication. Parameterless/direct test
+activation remains fail-closed. There is still no isolated end-to-end restore
 round-trip proof; paired C++/.NET performance and the overall release gate
-remain **RED**. Next slice: implement bounded authenticated COM
-`Application.Reinitialize` delegation, then prove isolated restore/rollback.
+remain **RED**. Next slice: isolated restore/rollback acceptance.
 
 ## Current authoritative restore lifecycle status (2026-08-14)
 

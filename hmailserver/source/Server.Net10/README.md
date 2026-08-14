@@ -1,4 +1,20 @@
-## Current authoritative restore callback status (2026-08-14)
+## Current authoritative COM reinitialize status (2026-08-14)
+
+Code/test commits `3288249ad` and `83c77b86d` carry the existing production coordinator into
+runtime-created `Application` instances. `Application.Reinitialize` preserves
+the legacy administrator-authentication boundary, delegates synchronously,
+maps runtime failures to `E_FAIL`, and leaves direct/parameterless instances
+`E_NOTIMPL` after authentication when no runtime delegate exists. GUID, ProgID,
+DISPID 13, and the installed COM registration graph are unchanged. Focused COM
+coverage is `16 passed, 0 failed`; full Net10 Debug is `2313 passed, 57
+skipped, 0 failed`.
+
+The restore callback from `894affe5f` remains post-SQL/Data-restore. Isolated
+restore/rollback, paired C++/.NET performance, SEC-18, migration/installer,
+out-of-process COM, and soak remain open; release remains **RED**. Next slice:
+isolated restore/rollback acceptance.
+
+## Historical restore callback status (2026-08-14)
 
 Code/test commit `894affe5f` carries the production
 `ServiceReinitializationCoordinator.ReinitializeAsync` callback through

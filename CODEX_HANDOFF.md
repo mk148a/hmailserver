@@ -1,6 +1,24 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-14, production restore callback)
+## Current Authoritative Continuation (2026-08-14, authenticated COM reinitialize)
+
+Code/test commits `3288249ad` and `83c77b86d` delegate runtime-created
+`Application.Reinitialize` synchronously to the existing coordinator after
+server-administrator authentication. Direct/parameterless instances retain
+their `E_NOTIMPL` behavior when no runtime delegate exists. COM identity,
+ProgID, DISPID 13, installed registration, and direct activation boundaries
+are unchanged. The authorization generation lease is held across the runtime
+call. Focused COM coverage is `16/16`; full Net10 Debug is `2313
+passed, 57 skipped, 0 failed`.
+
+The production restore callback from `894affe5f` remains post-restore. No
+isolated restore/rollback round trip has passed; paired C++/.NET performance,
+SEC-18, migration/installer, out-of-process COM, and soak remain open, so
+release remains **RED**.
+
+Next slice: isolated restore/rollback acceptance.
+
+## Historical production restore callback (2026-08-14)
 
 Code/test commit `894affe5f` carries the production restore reinitializer from
 `Program.cs` through `SevenZipBackupArchiveRuntime` and

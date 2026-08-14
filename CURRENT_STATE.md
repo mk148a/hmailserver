@@ -1,14 +1,14 @@
 # Current State
 - UTC/local timestamp: 2026-08-14T04:25:00Z / 2026-08-14T07:25:00+03:00
 - Branch/upstream: `net10-modernization` -> `origin/net10-modernization`; local equals upstream
-- Current HEAD: `82ea79d9e82ceb5e428c3536b65c914af4c3adbb` (production restore callback plus authoritative docs)
-- Last successfully pushed commit: `82ea79d9e82ceb5e428c3536b65c914af4c3adbb`
-- Latest focused-test result: restore/runtime `82 passed, 1 skipped, 0 failed`
-- Latest full Net10 result: normal Debug `2308 passed, 57 skipped, 0 failed`
+- Current HEAD: `83c77b86d` (authenticated COM Reinitialize plus authorization lease code/test; docs commit pending)
+- Last successfully pushed commit: `3e0099fa7b2d380593b20c8172c62631f5c02bed`
+- Latest focused-test result: COM contract `16 passed, 0 failed`
+- Latest full Net10 result: normal Debug `2313 passed, 57 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: disposable SQL distribution-list owner/delete/rollback acceptance passed; independent disposable Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; C++ launch refused by six safe preflights; registry/COM, installer, AD/DC, SEC-18, restore round trip, and 24-hour soak remain skipped or environment-blocked; no production resource was used
-- Current bounded slice: production restore runtime carries the coordinator callback after successful SQL/Data restore; public COM Reinitialize remains intentionally unimplemented
+- Current bounded slice: runtime-created authenticated Application.Reinitialize delegates to the coordinator; isolated restore/rollback remains unproven
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through distribution-list lifetime and owner-scoped UPDATE, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10 load evidence
-- Open production blockers: authenticated COM Reinitialize delegation and isolated restore/round-trip/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
+- Open production blockers: isolated restore/round-trip/rollback; paired C++/.NET performance RED; broader live SQL/Data matrix; legacy C++ external-fetch SSRF and live DNS/socket/TLS/SNI/certificate acceptance; scanner egress/response validation; queue parity; migration/installer/rollback; out-of-process COM; SEC-18; AD/DC; DKIM/DMARC/SPF/greylisting; and long-run leak evidence
 - Environment-blocked work: registry-isolated C++ runner or separate staging VM; live DNS/socket/TLS fixture; restore/installer drill; credential/AD evidence; IIS/SEC-18 cutover; and 24-hour soak host. Disposable SQL/Data provisioning is READY via `build/provision-paired-benchmark-fixture.ps1`; current evidence is under `artifacts/benchmarks/live-cpp-net10-20260814/`.
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md` and prior user changes, and untracked SEC-18/benchmark/disposable artifacts
-- Next three independent slices: bounded authenticated COM Reinitialize delegation; isolated restore/rollback round-trip; registry-isolated C++ paired performance rerun
+- Next three independent slices: isolated restore/rollback round-trip; registry-isolated C++ paired performance rerun; SEC-18 final session reauthentication evidence
