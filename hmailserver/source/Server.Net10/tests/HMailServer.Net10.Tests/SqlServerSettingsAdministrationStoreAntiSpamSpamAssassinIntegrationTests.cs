@@ -48,7 +48,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
 
             Assert.IsTrue(await store.UpdateAntiSpamSpamAssassinEnabledAsync(true, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamSpamAssassinScoreAsync(9, CancellationToken.None));
-            CollectionAssert.AreEqual(new[] { 1, 9 }, await ReadValuesAsync(testConnectionString));
+            Assert.IsTrue(await store.UpdateAntiSpamSpamAssassinMergeScoreAsync(true, CancellationToken.None));
+            CollectionAssert.AreEqual(new[] { 1, 1, 9 }, await ReadValuesAsync(testConnectionString));
 
             await DeleteRowAsync(testConnectionString, "spamassassinenabled");
             Assert.IsFalse(await store.UpdateAntiSpamSpamAssassinEnabledAsync(false, CancellationToken.None));
@@ -100,7 +101,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
                 settinginteger int NOT NULL
             );
             INSERT INTO dbo.hm_settings (settingname, settingstring, settinginteger)
-            VALUES (N'spamassassinenabled', N'', 0), (N'spamassassinscore', N'', 2);
+            VALUES (N'spamassassinenabled', N'', 0), (N'spamassassinscore', N'', 2),
+                (N'spamassassinmergescore', N'', 0);
             """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -114,7 +116,7 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
         const string sql = """
             SELECT settinginteger
             FROM dbo.hm_settings
-            WHERE settingname IN (N'spamassassinenabled', N'spamassassinscore')
+            WHERE settingname IN (N'spamassassinenabled', N'spamassassinscore', N'spamassassinmergescore')
             ORDER BY settingname;
             """;
 

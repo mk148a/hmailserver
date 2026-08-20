@@ -153,4 +153,8 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamSpamAssassinScoreAsync(
         int score,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamSpamAssassinMergeScoreAsync(
+        bool mergeScore,
+        CancellationToken cancellationToken);
 }

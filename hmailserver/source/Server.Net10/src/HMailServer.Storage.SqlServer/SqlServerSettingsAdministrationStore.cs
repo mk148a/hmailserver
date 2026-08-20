@@ -238,6 +238,12 @@ SET settinginteger = @SpamAssassinScore
 WHERE settingname = N'spamassassinscore';
 """;
 
+    public const string UpdateAntiSpamSpamAssassinMergeScoreSql = """
+UPDATE hm_settings
+SET settinginteger = @SpamAssassinMergeScore
+WHERE settingname = N'spamassassinmergescore';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -893,6 +899,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamSpamAssassinScoreSql, connection);
         command.Parameters.Add("@SpamAssassinScore", SqlDbType.Int).Value = score;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamSpamAssassinMergeScoreAsync(
+        bool mergeScore,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamSpamAssassinMergeScoreSql, connection);
+        command.Parameters.Add("@SpamAssassinMergeScore", SqlDbType.Int).Value = mergeScore ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

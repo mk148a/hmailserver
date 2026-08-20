@@ -3283,6 +3283,57 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamSpamAssassinMergeScoreSetterPersistsAndRefreshesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamSpamAssassinMergeScoreUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamSpamAssassinMergeScore: false)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+        var antiSpam = settings.AntiSpam;
+
+        antiSpam.SpamAssassinMergeScore = true;
+
+        Assert.AreEqual(1, store.AntiSpamSpamAssassinMergeScoreUpdateCount);
+        Assert.IsTrue(store.UpdatedAntiSpamSpamAssassinMergeScore);
+        Assert.IsTrue(antiSpam.SpamAssassinMergeScore);
+        Assert.IsTrue(settings.AntiSpam.SpamAssassinMergeScore);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamSpamAssassinMergeScoreSetterFailsClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamSpamAssassinMergeScoreUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.SpamAssassinMergeScore = true);
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamSpamAssassinMergeScoreUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -4595,6 +4646,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiSpamSpamAssassinScore { get; private set; }
 
+        public bool AntiSpamSpamAssassinMergeScoreUpdateResult { get; set; }
+
+        public int AntiSpamSpamAssassinMergeScoreUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamSpamAssassinMergeScore { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -5110,6 +5167,16 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamSpamAssassinScore = score;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamSpamAssassinScoreUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamSpamAssassinMergeScoreAsync(
+            bool mergeScore,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamSpamAssassinMergeScoreUpdateCount++;
+            UpdatedAntiSpamSpamAssassinMergeScore = mergeScore;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamSpamAssassinMergeScoreUpdateResult);
         }
 
     }

@@ -395,6 +395,14 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamSpamAssassinMergeScoreSql_UsesTheLegacyFixedRow()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @SpamAssassinMergeScore\nWHERE settingname = N'spamassassinmergescore';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamSpamAssassinMergeScoreSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;

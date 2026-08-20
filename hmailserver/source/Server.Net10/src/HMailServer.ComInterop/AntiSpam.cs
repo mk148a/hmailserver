@@ -208,6 +208,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<int>? _publishUseMxChecksScore;
     private readonly Action<bool>? _publishSpamAssassinEnabled;
     private readonly Action<int>? _publishSpamAssassinScore;
+    private readonly Action<bool>? _publishSpamAssassinMergeScore;
 
     public AntiSpam()
     {
@@ -226,7 +227,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishUseMxChecks,
         Action<int>? publishUseMxChecksScore,
         Action<bool>? publishSpamAssassinEnabled,
-        Action<int>? publishSpamAssassinScore)
+        Action<int>? publishSpamAssassinScore,
+        Action<bool>? publishSpamAssassinMergeScore)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -241,6 +243,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishUseMxChecksScore = publishUseMxChecksScore;
         _publishSpamAssassinEnabled = publishSpamAssassinEnabled;
         _publishSpamAssassinScore = publishSpamAssassinScore;
+        _publishSpamAssassinMergeScore = publishSpamAssassinMergeScore;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -345,7 +348,11 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         set => UpdateSpamAssassinScore(value);
     }
 
-    public bool SpamAssassinMergeScore { get => Snapshot.SpamAssassinMergeScore; set => Unavailable(); }
+    public bool SpamAssassinMergeScore
+    {
+        get => Snapshot.SpamAssassinMergeScore;
+        set => UpdateSpamAssassinMergeScore(value);
+    }
 
     public string SpamAssassinHost { get => Snapshot.SpamAssassinHost; set => Unavailable(); }
 
@@ -446,7 +453,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishUseMxChecks = null,
         Action<int>? publishUseMxChecksScore = null,
         Action<bool>? publishSpamAssassinEnabled = null,
-        Action<int>? publishSpamAssassinScore = null)
+        Action<int>? publishSpamAssassinScore = null,
+        Action<bool>? publishSpamAssassinMergeScore = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -462,7 +470,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishUseMxChecks,
             publishUseMxChecksScore,
             publishSpamAssassinEnabled,
-            publishSpamAssassinScore);
+            publishSpamAssassinScore,
+            publishSpamAssassinMergeScore);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -556,6 +565,20 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishSpamAssassinScore?.Invoke(value);
+    }
+
+    private void UpdateSpamAssassinMergeScore(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamSpamAssassinMergeScoreAsync(value, CancellationToken.None),
+            "The anti-spam SpamAssassin merge-score update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { SpamAssassinMergeScore = value };
+        }
+
+        _publishSpamAssassinMergeScore?.Invoke(value);
     }
 
     private void UpdateSetting(
