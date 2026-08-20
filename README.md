@@ -1,26 +1,26 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, AntiSpam SPF/MX mutation parity)
+## Current authoritative parity status (2026-08-20, AntiSpam scalar mutation parity)
 
-Code/test commit `2f975f6e3` implements the adjacent legacy Administrator
-`AntiSpam.UseMXChecks` and `UseMXChecksScore` setters through the existing
-authenticated Settings mutation boundary, following the completed SPF pair in
-`4fbe5d7c5`. The SQL store updates only the legacy `usemxchecks` and
-`usemxchecksscore` rows, reports contained missing-row failures, refreshes
-retained COM snapshots, and preserves direct activation/re-authentication
-denials. Focused COM/SQL coverage is `174 passed, 0 skipped, 0 failed`; the
-disposable SQL integration setter test passed; full disposable Net10 is
-`2455 passed, 10 skipped, 0 failed` (`2465` total).
+Code/test commit `a1357b3eb` implements the legacy Administrator
+`AntiSpam.SpamAssassinEnabled` and `SpamAssassinScore` setters through the
+existing authenticated Settings mutation boundary, following the SPF and MX
+checks pairs in `4fbe5d7c5` and `2f975f6e3`. The SQL store updates only the
+legacy `spamassassinenabled` and `spamassassinscore` rows, reports contained
+missing-row failures, refreshes retained COM snapshots, and preserves direct
+activation/re-authentication denials. Focused COM/SQL coverage is `178 passed,
+0 skipped, 0 failed`; the disposable SQL integration setter test passed; full
+disposable Net10 is `2459 passed, 10 skipped, 0 failed` (`2469` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_UseMXChecks/put_UseMXChecksScore`
-(`source/Server/COM/InterfaceAntiSpam.cpp:658-708`) and
-`AntiSpamConfiguration::SetUseMXChecks/SetUseMXChecksScore`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:254-274`). This
-slice does not add live SMTP anti-spam reconfiguration or broaden to other
-AntiSpam properties. Release remains **RED** because migration/installer,
-COM/DCOM, SEC-18, live anti-spam reconfiguration, DKIM/DMARC/SPF runtime
-wiring, paired C++ performance, and soak gates remain open.
+Legacy anchors are `InterfaceAntiSpam::put_SpamAssassinEnabled/put_SpamAssassinScore`
+(`source/Server/COM/InterfaceAntiSpam.cpp:811-856`) and
+`AntiSpamConfiguration::SetSpamAssassinEnabled/SetSpamAssassinScore`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:335-355`). This
+slice does not add scanner live reconfiguration or broaden to other AntiSpam
+properties. Release remains **RED** because migration/installer, COM/DCOM,
+SEC-18, live anti-spam reconfiguration, DKIM/DMARC/SPF runtime wiring, paired
+C++ performance, and soak gates remain open.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 

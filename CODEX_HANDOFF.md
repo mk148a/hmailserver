@@ -1,23 +1,24 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, AntiSpam SPF/MX mutation parity)
+## Current Authoritative Continuation (2026-08-20, AntiSpam scalar mutation parity)
 
-Code/test commit `2f975f6e3` implements the authenticated Administrator
-`AntiSpam.UseMXChecks` and `UseMXChecksScore` SQL mutation slice after the SPF
-pair in `4fbe5d7c5`. Focused COM/SQL coverage is `174 passed, 0 skipped, 0
-failed`; the disposable SQL integration setter test passed; the disposable
-LocalDB/Data full suite is `2455 passed, 10 skipped, 0 failed` (`2465` total).
-Direct activation, failed reauthentication, missing-row failure, retained
-object snapshots, and existing COM identity boundaries remain covered.
+Code/test commit `a1357b3eb` implements the authenticated Administrator
+`AntiSpam.SpamAssassinEnabled` and `SpamAssassinScore` SQL mutation slice after
+the SPF and MX checks pairs in `4fbe5d7c5` and `2f975f6e3`. Focused COM/SQL
+coverage is `178 passed, 0 skipped, 0 failed`; the disposable SQL integration
+setter test passed; the disposable LocalDB/Data full suite is `2459 passed, 10
+skipped, 0 failed` (`2469` total). Direct activation, failed
+reauthentication, missing-row failure, retained object snapshots, and existing
+COM identity boundaries remain covered.
 
-Legacy references are `InterfaceAntiSpam::put_UseMXChecks/put_UseMXChecksScore`
-(`source/Server/COM/InterfaceAntiSpam.cpp:658-708`) and
-`AntiSpamConfiguration::SetUseMXChecks/SetUseMXChecksScore`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:254-274`). The next
-unblocked parity slice is the adjacent legacy `AntiSpam.SpamAssassin` scalar
-pair; the migration/installer drill remains environment-gated because
-`Get-VM` is access-denied and the running MSSQLSERVER instance is not an
-approved disposable target. Live SMTP anti-spam reconfiguration is still
+Legacy references are `InterfaceAntiSpam::put_SpamAssassinEnabled/put_SpamAssassinScore`
+(`source/Server/COM/InterfaceAntiSpam.cpp:811-856`) and
+`AntiSpamConfiguration::SetSpamAssassinEnabled/SetSpamAssassinScore`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:335-355`). The next
+unblocked parity slice is `AntiSpam.SpamAssassinMergeScore`; the
+migration/installer drill remains environment-gated because `Get-VM` is
+access-denied and the running MSSQLSERVER instance is not an approved
+disposable target. Live scanner/SMTP anti-spam reconfiguration is still
 unproven. Release remains `RED`; no push was performed.
 
 ## Historical Authoritative Continuation (2026-08-20, transaction-scoped group/member restore)

@@ -1,26 +1,25 @@
 
-## Current next slice (2026-08-20, adjacent AntiSpam SpamAssassin mutation parity)
+## Current next slice (2026-08-20, AntiSpam SpamAssassinMergeScore mutation parity)
 
-Code/test commit `2f975f6e3` closes the legacy Administrator
-`AntiSpam.UseMXChecks`/`UseMXChecksScore` mutation gap after the SPF pair in
-`4fbe5d7c5`. The existing authenticated Settings boundary now persists only
-`usemxchecks` and `usemxchecksscore`, refreshes retained object snapshots, and
-fails closed on missing rows or reauthentication. Focused COM/SQL coverage is
-`174 passed, 0 skipped, 0 failed`; the disposable SQL integration setter test
-passed; full disposable LocalDB/Data is `2455 passed, 10 skipped, 0 failed`
-(`2465` total).
+Code/test commit `a1357b3eb` closes the legacy Administrator
+`AntiSpam.SpamAssassinEnabled`/`SpamAssassinScore` mutation gap after the SPF
+and MX checks pairs in `4fbe5d7c5` and `2f975f6e3`. The existing authenticated
+Settings boundary now persists only `spamassassinenabled` and
+`spamassassinscore`, refreshes retained object snapshots, and fails closed on
+missing rows or reauthentication. Focused COM/SQL coverage is `178 passed, 0
+skipped, 0 failed`; the disposable SQL integration setter test passed; full
+disposable LocalDB/Data is `2459 passed, 10 skipped, 0 failed` (`2469` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_UseMXChecks/put_UseMXChecksScore`
-(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:658-708`) and
-`AntiSpamConfiguration::SetUseMXChecks/SetUseMXChecksScore`
-(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:254-274`).
-The next bounded slice is the adjacent `SpamAssassinEnabled`/`SpamAssassinScore`
-pair; preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
-authenticated Settings boundary. Do not add scanner live reconfiguration in
-that slice. In parallel, the migration/installer drill remains
-environment-gated: `Get-VM` is access-denied and MSSQLSERVER is not approved as
-disposable. Do not touch production service, SQL/Data, registration, or DCOM.
-Release remains **RED**.
+Legacy anchors are `InterfaceAntiSpam::put_SpamAssassinEnabled/put_SpamAssassinScore`
+(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:811-856`) and
+`AntiSpamConfiguration::SetSpamAssassinEnabled/SetSpamAssassinScore`
+(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:335-355`).
+The next bounded slice is `SpamAssassinMergeScore`; preserve the installed
+AntiSpam IID/vtable/DISPID/class identity and the authenticated Settings
+boundary. Do not add scanner live reconfiguration in that slice. In parallel,
+the migration/installer drill remains environment-gated: `Get-VM` is
+access-denied and MSSQLSERVER is not approved as disposable. Do not touch
+production service, SQL/Data, registration, or DCOM. Release remains **RED**.
 
 The prior group-cleanup and migration-next entries below are historical and
 superseded by this continuation record.
