@@ -3232,7 +3232,7 @@ VALUES
     (30, N'ready.eml', 1, '1901-01-01T00:00:00', '1901-01-01T00:00:00', 0, 0, NULL, NULL),
     (40, N'expired.eml', 1, '1901-01-01T00:00:00', '1901-01-01T00:00:00', 1, 1, N'worker-expired', '2000-01-01T00:00:00'),
     (50, N'clear-a.eml', 1, '1901-01-01T00:00:00', '1901-01-01T00:00:00', 0, 0, NULL, NULL),
-    (60, N'clear-b.eml', 3, '1901-01-01T00:00:00', '1901-01-01T00:00:00', 2, 0, NULL, NULL);
+    (60, N'clear-b.eml', 1, '1901-01-01T00:00:00', '1901-01-01T00:00:00', 2, 0, NULL, NULL);
 
 INSERT INTO dbo.hm_messagerecipients
     (recipientid, recipientmessageid)
