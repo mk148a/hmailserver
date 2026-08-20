@@ -327,9 +327,20 @@ public sealed class CustomScannerTestRuntime : ICustomScannerTestRuntime
 
     private static void DeleteIfExists(string filePath)
     {
-        if (File.Exists(filePath))
+        for (var attempt = 0; attempt < 50 && File.Exists(filePath); attempt++)
         {
-            File.Delete(filePath);
+            try
+            {
+                File.Delete(filePath);
+            }
+            catch (IOException) when (attempt < 49)
+            {
+                Thread.Sleep(100);
+            }
+            catch (UnauthorizedAccessException) when (attempt < 49)
+            {
+                Thread.Sleep(100);
+            }
         }
     }
 
