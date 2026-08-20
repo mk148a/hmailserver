@@ -1,20 +1,20 @@
 
-## Current next slice (2026-08-20, AntiSpam SpamAssassinMergeScore mutation parity)
+## Current next slice (2026-08-20, AntiSpam host/port mutation parity)
 
-Code/test commit `a1357b3eb` closes the legacy Administrator
-`AntiSpam.SpamAssassinEnabled`/`SpamAssassinScore` mutation gap after the SPF
-and MX checks pairs in `4fbe5d7c5` and `2f975f6e3`. The existing authenticated
-Settings boundary now persists only `spamassassinenabled` and
-`spamassassinscore`, refreshes retained object snapshots, and fails closed on
-missing rows or reauthentication. Focused COM/SQL coverage is `178 passed, 0
-skipped, 0 failed`; the disposable SQL integration setter test passed; full
-disposable LocalDB/Data is `2459 passed, 10 skipped, 0 failed` (`2469` total).
+Code/test commit `b2fbfbf1e` closes the legacy Administrator
+`AntiSpam.SpamAssassinMergeScore` mutation gap after the SPF, MX checks, and
+enabled/score pairs. The existing authenticated Settings boundary now persists
+only `spamassassinmergescore`, refreshes retained object snapshots, and fails
+closed on missing rows or reauthentication. Focused COM/SQL coverage is `181
+passed, 0 skipped, 0 failed`; the disposable SQL integration setter test
+passed; full disposable LocalDB/Data is `2462 passed, 10 skipped, 0 failed`
+(`2472` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_SpamAssassinEnabled/put_SpamAssassinScore`
-(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:811-856`) and
-`AntiSpamConfiguration::SetSpamAssassinEnabled/SetSpamAssassinScore`
-(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:335-355`).
-The next bounded slice is `SpamAssassinMergeScore`; preserve the installed
+Legacy anchors are `InterfaceAntiSpam::put_SpamAssassinMergeScore`
+(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:827-842`) and
+`AntiSpamConfiguration::SetSpamAssassinMergeScore`
+(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:359-367`).
+The next bounded slice is `SpamAssassinHost`/`SpamAssassinPort`; preserve the installed
 AntiSpam IID/vtable/DISPID/class identity and the authenticated Settings
 boundary. Do not add scanner live reconfiguration in that slice. In parallel,
 the migration/installer drill remains environment-gated: `Get-VM` is

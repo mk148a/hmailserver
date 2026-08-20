@@ -3,20 +3,20 @@ hMailServer
 
 ## Current authoritative parity status (2026-08-20, AntiSpam scalar mutation parity)
 
-Code/test commit `a1357b3eb` implements the legacy Administrator
-`AntiSpam.SpamAssassinEnabled` and `SpamAssassinScore` setters through the
-existing authenticated Settings mutation boundary, following the SPF and MX
-checks pairs in `4fbe5d7c5` and `2f975f6e3`. The SQL store updates only the
-legacy `spamassassinenabled` and `spamassassinscore` rows, reports contained
-missing-row failures, refreshes retained COM snapshots, and preserves direct
-activation/re-authentication denials. Focused COM/SQL coverage is `178 passed,
+Code/test commit `b2fbfbf1e` implements the legacy Administrator
+`AntiSpam.SpamAssassinMergeScore` setter through the existing authenticated
+Settings mutation boundary, following the enabled/score scalar pair in
+`a1357b3eb`. The SQL store updates only the legacy
+`spamassassinmergescore` row, reports a contained missing-row failure,
+refreshes retained COM snapshots, and preserves direct
+activation/re-authentication denials. Focused COM/SQL coverage is `181 passed,
 0 skipped, 0 failed`; the disposable SQL integration setter test passed; full
-disposable Net10 is `2459 passed, 10 skipped, 0 failed` (`2469` total).
+disposable Net10 is `2462 passed, 10 skipped, 0 failed` (`2472` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_SpamAssassinEnabled/put_SpamAssassinScore`
-(`source/Server/COM/InterfaceAntiSpam.cpp:811-856`) and
-`AntiSpamConfiguration::SetSpamAssassinEnabled/SetSpamAssassinScore`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:335-355`). This
+Legacy anchors are `InterfaceAntiSpam::put_SpamAssassinMergeScore`
+(`source/Server/COM/InterfaceAntiSpam.cpp:827-842`) and
+`AntiSpamConfiguration::SetSpamAssassinMergeScore`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:359-367`). This
 slice does not add scanner live reconfiguration or broaden to other AntiSpam
 properties. Release remains **RED** because migration/installer, COM/DCOM,
 SEC-18, live anti-spam reconfiguration, DKIM/DMARC/SPF runtime wiring, paired

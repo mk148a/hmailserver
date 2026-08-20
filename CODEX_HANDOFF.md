@@ -2,20 +2,20 @@
 
 ## Current Authoritative Continuation (2026-08-20, AntiSpam scalar mutation parity)
 
-Code/test commit `a1357b3eb` implements the authenticated Administrator
-`AntiSpam.SpamAssassinEnabled` and `SpamAssassinScore` SQL mutation slice after
-the SPF and MX checks pairs in `4fbe5d7c5` and `2f975f6e3`. Focused COM/SQL
-coverage is `178 passed, 0 skipped, 0 failed`; the disposable SQL integration
-setter test passed; the disposable LocalDB/Data full suite is `2459 passed, 10
-skipped, 0 failed` (`2469` total). Direct activation, failed
-reauthentication, missing-row failure, retained object snapshots, and existing
-COM identity boundaries remain covered.
+Code/test commit `b2fbfbf1e` implements the authenticated Administrator
+`AntiSpam.SpamAssassinMergeScore` SQL mutation slice after the SPF, MX checks,
+and enabled/score scalar pairs. Focused COM/SQL coverage is `181 passed, 0
+skipped, 0 failed`; the disposable SQL integration setter test passed; the
+disposable LocalDB/Data full suite is `2462 passed, 10 skipped, 0 failed`
+(`2472` total). Direct activation, failed reauthentication, missing-row
+failure, retained object snapshots, and existing COM identity boundaries
+remain covered.
 
-Legacy references are `InterfaceAntiSpam::put_SpamAssassinEnabled/put_SpamAssassinScore`
-(`source/Server/COM/InterfaceAntiSpam.cpp:811-856`) and
-`AntiSpamConfiguration::SetSpamAssassinEnabled/SetSpamAssassinScore`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:335-355`). The next
-unblocked parity slice is `AntiSpam.SpamAssassinMergeScore`; the
+Legacy references are `InterfaceAntiSpam::put_SpamAssassinMergeScore`
+(`source/Server/COM/InterfaceAntiSpam.cpp:827-842`) and
+`AntiSpamConfiguration::SetSpamAssassinMergeScore`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:359-367`). The next
+unblocked parity slice is `AntiSpam.SpamAssassinHost`/`SpamAssassinPort`; the
 migration/installer drill remains environment-gated because `Get-VM` is
 access-denied and the running MSSQLSERVER instance is not an approved
 disposable target. Live scanner/SMTP anti-spam reconfiguration is still
