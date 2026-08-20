@@ -3,6 +3,20 @@ hMailServer
 
 ## Current authoritative isolated staging status (2026-08-20)
 
+Code/test commit `4d6ca8b50` completes the bounded public IMAP folder mutation
+slice. `Settings.PublicFolders` now uses the account-0 state-backed adapter,
+so `Add`, `Save`, `DeleteByDBID`, and item `Delete` preserve legacy ownership,
+parent scope, public auto-subscription, Inbox protection, failure retention,
+and authenticated lease checks. Installed IMAPFolders/IMAPFolder IID, vtable,
+DISPID, ProgID, class identity, and direct activation boundaries are unchanged.
+Focused public-folder/Settings/SQL coverage is `151/151`; full Debug is
+`2328 passed, 58 skipped, 0 failed`.
+
+Open risks for the next slice are retained public-folder read reauthentication,
+public ACL revocation and rename session refresh, stale-parent insertion,
+account-wide deletion, live SQL/Data readback, and out-of-process COM. Release
+remains **RED**.
+
 Code/test commit `279609c07` adds guarded Hyper-V staging tooling for the
 non-production release gates:
 `build/provision-sec18-disposable-hyperv.ps1`,

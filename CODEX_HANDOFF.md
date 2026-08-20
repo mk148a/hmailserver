@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, public IMAP folder mutation)
+
+Code/test commit `4d6ca8b50` completes the bounded public-folder COM mutation
+slice. `Settings.PublicFolders` now uses the shared account-0 state-backed
+adapter; root and nested `Add`, `Save`, `DeleteByDBID`, and item `Delete` keep
+legacy ownership, parent filtering, public auto-subscription, Inbox behavior,
+failure snapshot retention, and live authenticated lease checks. The installed
+IMAPFolders/IMAPFolder IID, vtable, DISPID, ProgID, class identity, and direct
+activation boundaries are unchanged. Focused public-folder, Settings, and SQL
+tests pass `151/151`; full Debug passes `2328`, skips `58`, and has `0` failures.
+
+Legacy anchors are `InterfaceIMAPFolders::{Add,DeleteByDBID}` and
+`InterfaceIMAPFolder::{Save,Delete}` in `source/Server/COM`, with persistence
+in `PersistentIMAPFolder::{SaveObject,DeleteObject}`. No SMTP trust, live
+reconfiguration, SQL/Data, registration, service, or protocol behavior was
+changed.
+
+Security review remains open for retained public-folder read reauthentication,
+public ACL revocation, public rename session refresh, and stale-parent insert
+scope. Live SQL/Data, registered service/out-of-process COM, migration/rollback,
+paired C++/.NET performance, and soak gates remain unproven; release is
+**RED**.
+
+Next slice: close retained public-folder read reauthentication and public
+rename invalidation with focused negative/session tests, then enforce stale
+parent/account scope at the SQL insert boundary.
+
 ## Current Authoritative Continuation (2026-08-20, isolated Hyper-V guest execution)
 
 Code/test commit `279609c07` adds guarded provisioning, inventory, rollback,

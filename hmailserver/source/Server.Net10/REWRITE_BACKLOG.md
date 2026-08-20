@@ -1,5 +1,26 @@
 
-## Current next slice (2026-08-20, isolated guest prerequisites before migration drill; IMAP folder session invalidation completed)
+## Current next slice (2026-08-20, retained public-folder authorization and stale-parent scope)
+
+Code/test commit `4d6ca8b50` completes one bounded public-folder COM mutation
+slice. `Settings.PublicFolders` now uses the shared account-0 state-backed
+adapter. Root and nested `Add`, `Save`, `DeleteByDBID`, and item `Delete`
+preserve the legacy `InterfaceIMAPFolders::{Add,DeleteByDBID}` and
+`InterfaceIMAPFolder::{Save,Delete}` ownership and parent scope, public
+auto-subscription, Inbox behavior, contained failure snapshots, and
+authenticated lease checks. Installed IMAPFolders/IMAPFolder IID, vtable,
+DISPID, ProgID, class identity, and direct activation boundaries are unchanged.
+Focused public-folder/Settings/SQL coverage is `151 passed, 0 failed`; full
+Debug is `2328 passed, 58 skipped, 0 failed`.
+
+The next security slice is retained public-folder read reauthentication plus
+public rename session invalidation. The following SQL/COM slice must reject
+stale child collections and enforce parent-account ownership at insert. Public
+ACL revocation, account-wide deletion, concurrent publication ordering, live
+SQL/Data readback, registered service/out-of-process COM, migration/rollback,
+paired C++/.NET performance, and soak evidence remain open. Release remains
+**RED**.
+
+## Historical completed slice (2026-08-20, isolated guest prerequisites before migration drill; IMAP folder session invalidation completed)
 
 Code/test commit `b278c212e` closes one bounded COM/protocol lifetime gap for
 authenticated IMAP folder mutations. Legacy anchors are
