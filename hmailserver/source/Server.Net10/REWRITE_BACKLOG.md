@@ -1,28 +1,28 @@
 
-## Current next slice (2026-08-21, AntiSpam threshold mutation parity)
+## Current next slice (2026-08-21, AntiSpam CheckPTR mutation parity)
 
-Code/test commit `671563121` closes the legacy Administrator
-`AntiSpam.PrependSubject` and `PrependSubjectText` mutation gap after the SPF,
+Code/test commit `75bf4c0ea` closes the legacy Administrator
+`AntiSpam.SpamMarkThreshold` and `SpamDeleteThreshold` mutation gap after the SPF,
 MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM verification,
 greylisting bypass, CheckHostInHelo, and AddHeader pairs. The existing
-authenticated Settings boundary now persists only
-`antispamprependsubject` and `antispamprependsubjecttext`, refreshes retained
+authenticated Settings boundary now persists only `spammarkthreshold` and
+`spamdeletethreshold`, refreshes retained
 object snapshots, and fails closed on missing rows or reauthentication.
 Focused COM/SQL coverage is `4 passed, 0 skipped, 0 failed`; the disposable
 SQL integration setter/readback and missing-row checks passed; full disposable
-LocalDB/Data is `2483 passed, 10 skipped, 0 failed` (`2493` total).
+LocalDB/Data is `2486 passed, 10 skipped, 0 failed` (`2496` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_PrependSubject` and
-`put_PrependSubjectText`
-(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:457-505`),
-`AntiSpamConfiguration::SetPrependSubject` and `SetPrependSubjectText`
-(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:169-187`),
-and keys `antispamprependsubject`/`antispamprependsubjecttext`. The next
-bounded slice is the `SpamMarkThreshold` and `SpamDeleteThreshold` mutation
-pair;
+Legacy anchors are `InterfaceAntiSpam::put_SpamMarkThreshold` and
+`put_SpamDeleteThreshold`
+(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:197-258`),
+`AntiSpamConfiguration::SetSpamMarkThreshold` and `SetSpamDeleteThreshold`
+(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:278-298`),
+and keys `spammarkthreshold`/`spamdeletethreshold`
+(`hmailserver/source/Server/Common/Application/Constants.h:96-97`). The next
+bounded slice is the `CheckPTR` and `CheckPTRScore` mutation pair;
 preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
 authenticated Settings boundary. Do not add DKIM signing, DNS verification,
-or live SMTP reconfiguration in that slice. In parallel, the migration/installer
+or live SMTP/POP3 threshold reconfiguration in that slice. In parallel, the migration/installer
 drill remains environment-gated: `Get-VM` is access-denied and MSSQLSERVER is
 not approved as disposable. Do not touch production service, SQL/Data,
 registration, or DCOM. Release remains **RED**.
