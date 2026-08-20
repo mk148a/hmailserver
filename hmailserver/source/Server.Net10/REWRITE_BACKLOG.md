@@ -1,4 +1,28 @@
 
+## Current next slice (2026-08-20, strict ACL restore parser foundation)
+
+Code/test commit `6ec5d23d7` adds the transaction-scoped
+`IImapFolderPermissionAdministrationRestoreStore` contract and wires the SQL
+transaction factory to `SqlServerImapFolderAdministrationStore`. The new SQL
+path enforces public-folder ownership (`folderaccountid = 0`), legacy ACL
+types user/group/anyone, matching principal IDs, and rights values `0..2047`.
+Focused ACL SQL coverage is `16 passed, 0 failed`; the related restore/parser/
+transaction group is `44 passed, 21 skipped, 0 failed`; disposable full Net10
+is `2414 passed, 10 skipped, 0 failed`.
+
+Legacy `IMAPFolder::XMLLoadSubItems` restores public-folder permissions and
+`ACLPermission::XMLLoad` resolves `Type`, `Rights`, and the `Holder` name. Net10
+still rejects `<Permissions>` in `BackupArchiveXmlSnapshotParser.ParseFolder`.
+The storage foundation is not a parity claim: public-folder backup/restore
+graph, account/group holder resolution, parser validation, and mid-batch
+rollback wiring remain open. Security review is `NO-GO` until those boundaries
+are proven.
+
+Next slice: add a strict `<Permissions>` parser/model preserving holder names,
+rejecting unknown types, missing holders, invalid rights, and duplicate entries;
+do not wire restore execution in that slice. Migration/installer, COM/DCOM,
+SEC-18, paired C++/.NET performance, and soak gates remain **RED**.
+
 ## Current next slice (2026-08-20, populated restore semantic equivalence)
 
 Code/test commit `1d38c85a2` closes the restore message retry metadata gap;

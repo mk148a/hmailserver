@@ -2525,3 +2525,18 @@ Debug is `2307 passed, 57 skipped, 0 failed`. Restore callback wiring and
 and the overall release gate remain **RED**. Next slice: service-owned restore
 callback plus COM reinitialize integration, followed by isolated rollback
 acceptance.
+## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
+
+HEAD `6ec5d23d7` adds a transaction-scoped public-folder ACL restore contract
+and SQL implementation. The insert is restricted to `folderaccountid = 0`,
+validates legacy types 0/1/2, matching user/group/anyone principals, and the
+legacy rights range. Focused ACL SQL tests pass `16/16`; the related restore
+group passes `44` with `21` environment-gated skips; the disposable full suite
+passes `2414`, skips `10`, and fails `0`.
+
+Legacy `IMAPFolder::XMLLoadSubItems` and `ACLPermission::XMLLoad` remain the
+behavioral references. Net10 still rejects ACL-bearing archive XML, and the
+new store is not yet called by restore execution. Holder-name resolution,
+public-folder graph ownership, strict parser validation, and rollback after a
+partial ACL batch remain open. Next slice: strict `<Permissions>` parser/model
+only. Release remains **RED**.

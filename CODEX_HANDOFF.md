@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, ACL restore storage foundation)
+
+HEAD is `6ec5d23d7`. The bounded code/test slice adds
+`IImapFolderPermissionAdministrationRestoreStore`, exposes it from the SQL
+backup transaction, and implements strict public-folder ACL insertion in
+`SqlServerImapFolderAdministrationStore`. Legacy references are
+`IMAPFolder::XMLLoadSubItems` (`source/Server/Common/BO/IMAPFolder.cpp:161-179`),
+`ACLPermission::XMLLoad` (`source/Server/Common/BO/ACLPermission.cpp:230-264`),
+and `PersistentACLPermission::{Validate,SaveObject}`
+(`source/Server/Common/Persistence/PersistentACLPermission.cpp:77-145`).
+
+Focused ACL SQL coverage is `16 passed, 0 failed`; restore/parser/transaction
+coverage is `44 passed, 21 skipped, 0 failed`; disposable full Net10 is
+`2414 passed, 10 skipped, 0 failed`. The parser still rejects ACL-bearing
+archives, so no ACL restore parity claim is made. Security review is `NO-GO`
+until holder-name resolution, public-folder graph ownership, malformed input,
+and rollback-after-mid-batch-failure are implemented and tested.
+
+Next slice: strict `<Permissions>` parser/model with holder-name validation,
+without wiring restore execution. No push was performed; release remains
+**RED**.
+
 ## Current Authoritative Continuation (2026-08-20, restore retry metadata)
 
 Current HEAD is `1d38c85a2`. The latest disposable LocalDB/Data full Net10

@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: `2026-08-20T16:27:50Z` / `2026-08-20T19:27:50+03:00`
+- UTC/local timestamp: `2026-08-20T16:48:52Z` / `2026-08-20T19:48:52+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `1d38c85a2` (`fix: preserve message retry count during restore`)
+- Current HEAD: `6ec5d23d7` (`feat: add transaction-scoped ACL restore store`)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: restore parser/store `23 passed, 0 failed`; disposable restore round-trip `21 passed, 0 failed`; ACL benchmark `80/80`, p50/p95/p99 `0.499/0.856/1.317 ms`
-- Latest full Net10 result: disposable LocalDB/Data Debug `2411 passed, 10 skipped, 0 failed` (`2421` total)
+- Latest focused-test result: ACL SQL store `16 passed, 0 failed`; restore/parser/transaction group `44 passed, 21 skipped, 0 failed`; disposable restore round-trip remains `21 passed, 0 failed`
+- Latest full Net10 result: disposable LocalDB/Data Debug `2414 passed, 10 skipped, 0 failed` (`2424` total)
 - Opt-in tests passed/skipped/blocked: disposable SQL/Data opt-in `2411/10/0`; paired C++ comparison, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
-- Current bounded slice: restore preserves legacy message `NoOfRetries` from XML through SQL readback; queued backup cleanup and raw non-DB-only staging remain complete
+- Current bounded slice: transaction-scoped public-folder ACL restore storage foundation; strict legacy type/principal/rights guards are tested, but parser/holder resolution and restore wiring remain intentionally closed
 - Completed milestones: backup raw/compressed staging and metadata foundations, guarded installer rollback code, COM/Admin slices through ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, Net10-only load evidence, ACL revalidation benchmark, and IMAP STORE/APPEND/COPY/EXPUNGE/FETCH rights parity slices
-- Open production blockers: isolated authenticated COM/service backup acceptance, full restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF/greylisting release wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains `RED`
+- Open production blockers: legacy public-folder ACL backup/restore graph and holder resolution, isolated authenticated COM/service backup acceptance, full restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF/greylisting release wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains `RED`
 - Environment-blocked work: Hyper-V disposable VM presence is still unproven (`Get-VM` access denied); LocalDB disposable SQL/Data is available and passed opt-in tests; registry-isolated C++ runner, live DNS/TLS, AD credentials, IIS/SEC-18 cutover, and long soak remain unavailable
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
-- Next three independent slices: broaden populated restore semantic-equivalence matrix and crash/recovery evidence; migration/installer rollback drill once a disposable VM is usable; next legacy-anchored Admin/COM mutation gap
+- Next three independent slices: strict legacy `<Permissions>` parser/model with holder-name validation; separate public-folder backup/restore graph wired to the transaction ACL store; migration/installer rollback drill once a disposable VM is usable

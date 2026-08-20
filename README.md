@@ -1,6 +1,30 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
+
+Current HEAD `6ec5d23d7` adds a transaction-scoped public-folder ACL restore
+store. The SQL path is restricted to `folderaccountid = 0`, accepts only the
+legacy ACL types user/group/anyone, enforces matching principal IDs and the
+legacy 11-bit rights range, and is exposed through the existing backup SQL
+transaction. Focused ACL SQL coverage is `16 passed, 0 failed`; the related
+restore/parser/transaction group is `44 passed, 21 skipped, 0 failed`; the
+disposable LocalDB/Data full suite is `2414 passed, 10 skipped, 0 failed`.
+
+This is a foundation only. Legacy `IMAPFolder::XMLLoadSubItems` and
+`ACLPermission::XMLLoad` in `hmailserver/source/Server/Common/BO/IMAPFolder.cpp`
+and `ACLPermission.cpp` restore public-folder `<Permissions>` by holder name.
+Net10 still rejects permission-bearing archives in
+`BackupArchiveXmlSnapshotParser.ParseFolder`; account/group holder resolution,
+public-folder graph backup/restore, and transaction-integrated ACL insertion
+are not yet wired. Security review remains `NO-GO` until unresolved holders,
+cross-account folders, malformed types, and mid-batch rollback are covered.
+
+Next slice: add a strict legacy `<Permissions>` parser/model that preserves
+holder names and fails closed on unknown or malformed entries, without yet
+changing restore execution. Release remains **RED** for ACL restore, migration,
+out-of-process COM/DCOM, SEC-18, paired C++/.NET performance, and soak gates.
+
 ## Current authoritative parity status (2026-08-20, restore retry metadata)
 
 Current HEAD `1d38c85a2` has `2411 passed, 10 skipped, 0 failed` in the
