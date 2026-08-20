@@ -9,4 +9,5 @@ public sealed record ImapMailboxSelection(
     long UidValidity,
     long UidNext,
     long? FirstUnseenUid,
-    bool IsReadOnly);
+    bool IsReadOnly,
+    bool RequestedReadOnly = false);

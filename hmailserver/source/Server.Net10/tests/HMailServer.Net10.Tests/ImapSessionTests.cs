@@ -129,6 +129,86 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_ACLWriteRevocationThenGrantRestoresSelectedMailboxWriteability()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var mailboxStore = new AclRevalidatingMailboxStore(
+            refreshedMailbox: null,
+            revalidationResults:
+            [
+                new ImapMailboxSelection(0, 20, "#Public", 1, 0, 1, 2, null, IsReadOnly: true),
+                new ImapMailboxSelection(0, 20, "#Public", 1, 0, 1, 2, null, IsReadOnly: false)
+            ]);
+        await using var stream = new DuplexMemoryStream(
+            "A001 STORE 1 +FLAGS (\\Seen)\r\nA002 STORE 1 +FLAGS (\\Seen)\r\n",
+            () => tracker.PublishAclChange(20));
+        var mutationStore = new FakeMutationStore();
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            mutationStore: mutationStore,
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "A001 NO Store command on read-only folder\r\n");
+        StringAssert.Contains(output, "A002 OK STORE completed\r\n");
+        Assert.IsNotNull(mutationStore.LastStoreRequest);
+        Assert.AreEqual(2, mailboxStore.RevalidationCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_EXAMINESelectionRemainsReadOnlyAfterWriteGrant()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var mailboxStore = new AclRevalidatingMailboxStore(
+            refreshedMailbox: null,
+            revalidationResults:
+            [
+                new ImapMailboxSelection(0, 20, "#Public", 1, 0, 1, 2, null, IsReadOnly: false)
+            ]);
+        await using var stream = new DuplexMemoryStream(
+            "A001 EXAMINE #Public\r\nA002 STORE 1 +FLAGS (\\Seen)\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            mutationStore: new FakeMutationStore(),
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100),
+            CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "A001 OK [READ-ONLY] EXAMINE completed\r\n");
+        StringAssert.Contains(output, "A002 NO Store command on read-only folder\r\n");
+        Assert.AreEqual(1, mailboxStore.RevalidationCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_EXAMINEWithoutAuthenticationIsDeniedBeforeMailboxAccess()
+    {
+        var mailboxStore = new AclRevalidatingMailboxStore(null);
+        await using var stream = new DuplexMemoryStream("A001 EXAMINE INBOX\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Authenticate first\r\n");
+        Assert.AreEqual(0, mailboxStore.RevalidationCount);
+    }
+
+    [TestMethod]
     public async Task RunAsync_ExternalACLRevocationIsRejectedWithoutTrackerPublication()
     {
         var tracker = new ImapFolderChangeTracker();
@@ -1494,10 +1574,16 @@ public sealed class ImapSessionTests
 
     private sealed class AclRevalidatingMailboxStore(
         ImapMailboxSelection? refreshedMailbox,
-        bool destinationReadOnly = false) :
+        bool destinationReadOnly = false,
+        IReadOnlyList<ImapMailboxSelection?>? revalidationResults = null) :
         IImapMailboxStore,
         IImapSelectedMailboxAuthorization
     {
+        private readonly IReadOnlyList<ImapMailboxSelection?> _revalidationResults =
+            revalidationResults ?? [refreshedMailbox];
+
+        private int _revalidationIndex;
+
         public int RevalidationCount { get; private set; }
 
         public ValueTask<ImapMailboxSelection?> SelectMailboxAsync(
@@ -1515,7 +1601,8 @@ public sealed class ImapSessionTests
                     1,
                     2,
                     null,
-                    readOnly || destinationReadOnly));
+                    readOnly || destinationReadOnly,
+                    RequestedReadOnly: readOnly));
 
         public ValueTask<ImapMailboxSelection?> RevalidateSelectedMailboxAsync(
             int requesterAccountId,
@@ -1523,7 +1610,15 @@ public sealed class ImapSessionTests
             CancellationToken cancellationToken)
         {
             RevalidationCount++;
-            return ValueTask.FromResult(refreshedMailbox);
+            var result = _revalidationResults[
+                Math.Min(_revalidationIndex++, _revalidationResults.Count - 1)];
+            return ValueTask.FromResult(
+                result is null
+                    ? null
+                    : result with
+                    {
+                        IsReadOnly = selectedMailbox.RequestedReadOnly || result.IsReadOnly
+                    });
         }
     }
 

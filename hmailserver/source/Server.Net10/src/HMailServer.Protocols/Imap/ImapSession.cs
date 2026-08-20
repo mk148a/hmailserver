@@ -990,7 +990,7 @@ public sealed class ImapSession
 
         state.SelectedMailbox = selectedMailbox with
         {
-            IsReadOnly = selectedMailbox.IsReadOnly || refreshedMailbox.IsReadOnly
+            IsReadOnly = refreshedMailbox.IsReadOnly
         };
     }
 
@@ -1176,6 +1176,8 @@ public sealed class ImapSession
             await WriteTaggedAsync(stream, commandLine.Tag, "BAD Folder could not be found.", cancellationToken).ConfigureAwait(false);
             return;
         }
+
+        mailbox = mailbox with { RequestedReadOnly = readOnly };
 
         var recentUids = await CaptureRecentUidsAsync(
             mailbox,
