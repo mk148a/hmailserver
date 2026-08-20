@@ -11,11 +11,16 @@ one adapter on the private-only switch `HMailServer-SEC18-Private`.
 Inventory evidence is at
 `C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
 
-The guest still needs manual first-boot Administrator setup. No legacy or
-Net10 service, SQL database, Data directory, COM registration, DCOM ACL, or
-firewall mutation has run. Release remains **RED**.
+The guest first boot is complete and SConfig is running as the disposable
+Administrator. Guest Services is enabled for the private VM channel. A
+host-built staging payload was copied to the guest at
+`C:\Windows\Temp\HMailServer-SEC18-Staging-Payload.zip`; source and transfer
+SHA-256 are `C16C00B65C13189130B548EFEDE587D50875CE6323B2A429ACD0BB559D6053A9`.
+No legacy or Net10 service, SQL database, Data directory, COM registration,
+DCOM ACL, or firewall mutation has run. Release remains **RED**.
 
-Next slice: finish guest setup, provision only disposable SQL/Data and legacy
+Next slice: exit SConfig to PowerShell, unpack only the staging payload,
+provision only disposable SQL/Data and legacy
 test state, then execute the already-guarded migration/installer replacement
 and forced-failure rollback drill.
 

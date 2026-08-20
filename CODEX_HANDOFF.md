@@ -13,9 +13,13 @@ has exactly one adapter on the **Private** switch
 `HMailServer-SEC18-Private`; inventory is recorded at
 `C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
 
-The guest still requires manual first-boot Administrator setup through
-VMConnect. The isolated hMailServer installation, disposable SQL/Data copy,
-legacy C++ registry isolation, and production migration/rollback drill have
+The guest first boot is complete and SConfig is running as the disposable
+Administrator. Guest Services is enabled for the private VM channel. The
+host-built staging payload was copied to
+`C:\Windows\Temp\HMailServer-SEC18-Staging-Payload.zip`; source and transfer
+SHA-256 are `C16C00B65C13189130B548EFEDE587D50875CE6323B2A429ACD0BB559D6053A9`.
+The isolated hMailServer installation, disposable SQL/Data copy, legacy C++
+registry isolation, and production migration/rollback drill have
 not run. Production service, database, Data directory, COM registration,
 DCOM ACLs, and firewall are untouched. Release remains **RED**.
 
