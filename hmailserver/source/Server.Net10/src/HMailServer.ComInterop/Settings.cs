@@ -2148,6 +2148,20 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         {
                             _administrationSnapshot = _administrationSnapshot with { AntiSpamUseMxChecksScore = value };
                         }
+                    },
+                    publishSpamAssassinEnabled: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamSpamAssassinEnabled = value };
+                        }
+                    },
+                    publishSpamAssassinScore: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamSpamAssassinScore = value };
+                        }
                     });
         }
     }

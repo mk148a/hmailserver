@@ -384,6 +384,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamSpamAssassinSql_UsesTheLegacyFixedRows()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @SpamAssassinEnabled\nWHERE settingname = N'spamassassinenabled';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamSpamAssassinEnabledSql);
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @SpamAssassinScore\nWHERE settingname = N'spamassassinscore';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamSpamAssassinScoreSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;

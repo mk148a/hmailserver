@@ -226,6 +226,18 @@ SET settinginteger = @UseMXChecksScore
 WHERE settingname = N'usemxchecksscore';
 """;
 
+    public const string UpdateAntiSpamSpamAssassinEnabledSql = """
+UPDATE hm_settings
+SET settinginteger = @SpamAssassinEnabled
+WHERE settingname = N'spamassassinenabled';
+""";
+
+    public const string UpdateAntiSpamSpamAssassinScoreSql = """
+UPDATE hm_settings
+SET settinginteger = @SpamAssassinScore
+WHERE settingname = N'spamassassinscore';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -859,6 +871,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamUseMxChecksScoreSql, connection);
         command.Parameters.Add("@UseMXChecksScore", SqlDbType.Int).Value = useMxChecksScore;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamSpamAssassinEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamSpamAssassinEnabledSql, connection);
+        command.Parameters.Add("@SpamAssassinEnabled", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamSpamAssassinScoreAsync(
+        int score,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamSpamAssassinScoreSql, connection);
+        command.Parameters.Add("@SpamAssassinScore", SqlDbType.Int).Value = score;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

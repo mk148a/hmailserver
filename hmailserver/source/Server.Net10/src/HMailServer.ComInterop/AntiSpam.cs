@@ -206,6 +206,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<int>? _publishUseSpfScore;
     private readonly Action<bool>? _publishUseMxChecks;
     private readonly Action<int>? _publishUseMxChecksScore;
+    private readonly Action<bool>? _publishSpamAssassinEnabled;
+    private readonly Action<int>? _publishSpamAssassinScore;
 
     public AntiSpam()
     {
@@ -222,7 +224,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishUseSpf,
         Action<int>? publishUseSpfScore,
         Action<bool>? publishUseMxChecks,
-        Action<int>? publishUseMxChecksScore)
+        Action<int>? publishUseMxChecksScore,
+        Action<bool>? publishSpamAssassinEnabled,
+        Action<int>? publishSpamAssassinScore)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -235,6 +239,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishUseSpfScore = publishUseSpfScore;
         _publishUseMxChecks = publishUseMxChecks;
         _publishUseMxChecksScore = publishUseMxChecksScore;
+        _publishSpamAssassinEnabled = publishSpamAssassinEnabled;
+        _publishSpamAssassinScore = publishSpamAssassinScore;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -327,9 +333,17 @@ public sealed class AntiSpam : IInterfaceAntiSpam
 
     public int TarpitCount { get { _ = Snapshot; return 0; } set => IgnoreObsoleteTarpitSetter(); }
 
-    public bool SpamAssassinEnabled { get => Snapshot.SpamAssassinEnabled; set => Unavailable(); }
+    public bool SpamAssassinEnabled
+    {
+        get => Snapshot.SpamAssassinEnabled;
+        set => UpdateSpamAssassinEnabled(value);
+    }
 
-    public int SpamAssassinScore { get => Snapshot.SpamAssassinScore; set => Unavailable(); }
+    public int SpamAssassinScore
+    {
+        get => Snapshot.SpamAssassinScore;
+        set => UpdateSpamAssassinScore(value);
+    }
 
     public bool SpamAssassinMergeScore { get => Snapshot.SpamAssassinMergeScore; set => Unavailable(); }
 
@@ -430,7 +444,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishUseSpf = null,
         Action<int>? publishUseSpfScore = null,
         Action<bool>? publishUseMxChecks = null,
-        Action<int>? publishUseMxChecksScore = null)
+        Action<int>? publishUseMxChecksScore = null,
+        Action<bool>? publishSpamAssassinEnabled = null,
+        Action<int>? publishSpamAssassinScore = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -444,7 +460,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishUseSpf,
             publishUseSpfScore,
             publishUseMxChecks,
-            publishUseMxChecksScore);
+            publishUseMxChecksScore,
+            publishSpamAssassinEnabled,
+            publishSpamAssassinScore);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -510,6 +528,34 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishUseMxChecksScore?.Invoke(value);
+    }
+
+    private void UpdateSpamAssassinEnabled(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamSpamAssassinEnabledAsync(value, CancellationToken.None),
+            "The anti-spam SpamAssassin enabled update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { SpamAssassinEnabled = value };
+        }
+
+        _publishSpamAssassinEnabled?.Invoke(value);
+    }
+
+    private void UpdateSpamAssassinScore(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamSpamAssassinScoreAsync(value, CancellationToken.None),
+            "The anti-spam SpamAssassin score update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { SpamAssassinScore = value };
+        }
+
+        _publishSpamAssassinScore?.Invoke(value);
     }
 
     private void UpdateSetting(

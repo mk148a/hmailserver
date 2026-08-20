@@ -145,4 +145,12 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamUseMxChecksScoreAsync(
         int useMxChecksScore,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamSpamAssassinEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamSpamAssassinScoreAsync(
+        int score,
+        CancellationToken cancellationToken);
 }

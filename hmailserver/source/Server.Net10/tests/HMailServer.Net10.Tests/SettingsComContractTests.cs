@@ -3220,6 +3220,69 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamSpamAssassinSettersPersistAndRefreshRetainedSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamSpamAssassinEnabledUpdateResult = true,
+            AntiSpamSpamAssassinScoreUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamSpamAssassinEnabled: false,
+                AntiSpamSpamAssassinScore: 2)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+        var antiSpam = settings.AntiSpam;
+
+        antiSpam.SpamAssassinEnabled = true;
+        antiSpam.SpamAssassinScore = 9;
+
+        Assert.AreEqual(1, store.AntiSpamSpamAssassinEnabledUpdateCount);
+        Assert.IsTrue(store.UpdatedAntiSpamSpamAssassinEnabled);
+        Assert.AreEqual(1, store.AntiSpamSpamAssassinScoreUpdateCount);
+        Assert.AreEqual(9, store.UpdatedAntiSpamSpamAssassinScore);
+        Assert.IsTrue(antiSpam.SpamAssassinEnabled);
+        Assert.AreEqual(9, antiSpam.SpamAssassinScore);
+        Assert.IsTrue(settings.AntiSpam.SpamAssassinEnabled);
+        Assert.AreEqual(9, settings.AntiSpam.SpamAssassinScore);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamSpamAssassinSettersFailClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamSpamAssassinEnabledUpdateResult = false,
+            AntiSpamSpamAssassinScoreUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failedEnabled = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.SpamAssassinEnabled = true);
+        var failedScore = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.SpamAssassinScore = 9);
+
+        Assert.AreEqual(EFail, failedEnabled.ErrorCode);
+        Assert.AreEqual(EFail, failedScore.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamSpamAssassinEnabledUpdateCount);
+        Assert.AreEqual(1, store.AntiSpamSpamAssassinScoreUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -4520,6 +4583,18 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiSpamUseMxChecksScore { get; private set; }
 
+        public bool AntiSpamSpamAssassinEnabledUpdateResult { get; set; }
+
+        public int AntiSpamSpamAssassinEnabledUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamSpamAssassinEnabled { get; private set; }
+
+        public bool AntiSpamSpamAssassinScoreUpdateResult { get; set; }
+
+        public int AntiSpamSpamAssassinScoreUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamSpamAssassinScore { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -5015,6 +5090,26 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamUseMxChecksScore = useMxChecksScore;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamUseMxChecksScoreUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamSpamAssassinEnabledAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamSpamAssassinEnabledUpdateCount++;
+            UpdatedAntiSpamSpamAssassinEnabled = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamSpamAssassinEnabledUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamSpamAssassinScoreAsync(
+            int score,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamSpamAssassinScoreUpdateCount++;
+            UpdatedAntiSpamSpamAssassinScore = score;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamSpamAssassinScoreUpdateResult);
         }
 
     }
