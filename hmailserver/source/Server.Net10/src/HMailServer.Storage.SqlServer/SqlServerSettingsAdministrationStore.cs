@@ -328,6 +328,12 @@ SET settinginteger = @GreyListingInitialDelete
 WHERE settingname = N'greylistinginitialdelete';
 """;
 
+    public const string UpdateAntiSpamGreyListingFinalDeleteSql = """
+UPDATE hm_settings
+SET settinginteger = @GreyListingFinalDelete
+WHERE settingname = N'greylistingfinaldelete';
+""";
+
     public const string UpdateAntiSpamAddHeaderSpamSql = """
 UPDATE hm_settings
 SET settinginteger = @AddHeaderSpam
@@ -1184,6 +1190,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamGreyListingInitialDeleteSql, connection);
         command.Parameters.Add("@GreyListingInitialDelete", SqlDbType.Int).Value = hours;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamGreyListingFinalDeleteAsync(
+        int hours,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamGreyListingFinalDeleteSql, connection);
+        command.Parameters.Add("@GreyListingFinalDelete", SqlDbType.Int).Value = hours;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

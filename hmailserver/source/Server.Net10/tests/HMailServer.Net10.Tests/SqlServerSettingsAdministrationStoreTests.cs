@@ -490,6 +490,14 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamGreyListingFinalDeleteSql_UsesTheLegacyFixedRow()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @GreyListingFinalDelete\nWHERE settingname = N'greylistingfinaldelete';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamGreyListingFinalDeleteSql);
+    }
+
+    [TestMethod]
     public void UpdateAntiSpamAddHeaderSql_UsesTheLegacyFixedRows()
     {
         StringAssert.Contains(

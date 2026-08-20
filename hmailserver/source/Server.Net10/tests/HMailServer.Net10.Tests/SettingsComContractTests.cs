@@ -4119,6 +4119,87 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamGreyListingFinalDeletePersistsRefreshesAndPublishesRuntimeState()
+    {
+        var published = new List<int>();
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamGreyListingFinalDeleteUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamGreyListingFinalDelete: 864)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            runtimeConfiguration: new SettingsRuntimeConfiguration(
+                GreyListingFinalDeletePublisher: published.Add),
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        settings.AntiSpam.GreyListingFinalDelete = 720;
+
+        Assert.AreEqual(1, store.AntiSpamGreyListingFinalDeleteUpdateCount);
+        Assert.AreEqual(720, store.UpdatedAntiSpamGreyListingFinalDelete);
+        Assert.AreEqual(720, settings.AntiSpam.GreyListingFinalDelete);
+        CollectionAssert.AreEqual(new[] { 720 }, published);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamGreyListingFinalDeleteFailsClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamGreyListingFinalDeleteUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamGreyListingFinalDelete: 864)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failure = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.GreyListingFinalDelete = 720);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamGreyListingFinalDeleteUpdateCount);
+        Assert.AreEqual(864, settings.AntiSpam.GreyListingFinalDelete);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamGreyListingFinalDeleteUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamGreyListingFinalDeleteUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamGreyListingFinalDelete: 864)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ => ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.GreyListingFinalDelete = 720);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.AntiSpamGreyListingFinalDeleteUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5521,6 +5602,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiSpamGreyListingInitialDelete { get; private set; }
 
+        public bool AntiSpamGreyListingFinalDeleteUpdateResult { get; set; }
+
+        public int AntiSpamGreyListingFinalDeleteUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamGreyListingFinalDelete { get; private set; }
+
         public bool AntiSpamAddHeaderSpamUpdateResult { get; set; }
 
         public int AntiSpamAddHeaderSpamUpdateCount { get; private set; }
@@ -6222,6 +6309,16 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamGreyListingInitialDelete = hours;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamGreyListingInitialDeleteUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamGreyListingFinalDeleteAsync(
+            int hours,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamGreyListingFinalDeleteUpdateCount++;
+            UpdatedAntiSpamGreyListingFinalDelete = hours;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamGreyListingFinalDeleteUpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamAddHeaderSpamAsync(

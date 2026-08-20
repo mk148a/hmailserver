@@ -214,6 +214,10 @@ public interface ISettingsAdministrationMutationStore
         int hours,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAntiSpamGreyListingFinalDeleteAsync(
+        int hours,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamAddHeaderSpamAsync(
         bool enabled,
         CancellationToken cancellationToken);

@@ -30,7 +30,13 @@ public sealed record SmtpGreylistingOptions
         set => Volatile.Write(ref _initialRecordLifetimeTicks, value.Ticks);
     }
 
-    public TimeSpan PassedRecordLifetime { get; init; } = TimeSpan.FromDays(36);
+    private long _passedRecordLifetimeTicks = TimeSpan.FromDays(36).Ticks;
+
+    public TimeSpan PassedRecordLifetime
+    {
+        get => TimeSpan.FromTicks(Volatile.Read(ref _passedRecordLifetimeTicks));
+        set => Volatile.Write(ref _passedRecordLifetimeTicks, value.Ticks);
+    }
 
     public string FailureResponse { get; init; } = "451 Please try again later.";
 }
