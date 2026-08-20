@@ -56,7 +56,7 @@ public sealed class ImapFetchCommandParserTests
     }
 
     [TestMethod]
-    public void Parse_MapsFullMacroToEnvelopeAndBodyStructure()
+    public void Parse_MapsFullMacroToEnvelopeBodyStructureAndBody()
     {
         var request = new ImapFetchCommandParser().Parse(
             accountId: 10,
@@ -72,7 +72,8 @@ public sealed class ImapFetchCommandParserTests
                 ImapFetchDataItem.InternalDate,
                 ImapFetchDataItem.Rfc822Size,
                 ImapFetchDataItem.Envelope,
-                ImapFetchDataItem.BodyStructure
+                ImapFetchDataItem.BodyStructure,
+                ImapFetchDataItem.Body
             },
             request.Items.ToArray());
     }

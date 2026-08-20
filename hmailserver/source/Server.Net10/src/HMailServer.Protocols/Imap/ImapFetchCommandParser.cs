@@ -105,6 +105,7 @@ public sealed class ImapFetchCommandParser
                 AddItem(items, ImapFetchDataItem.Rfc822Size);
                 AddItem(items, ImapFetchDataItem.Envelope);
                 AddItem(items, ImapFetchDataItem.BodyStructure);
+                AddItem(items, ImapFetchDataItem.Body);
                 break;
 
             case "FLAGS":
