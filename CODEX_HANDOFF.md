@@ -1,6 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, strict group/member restore parser/model)
+## Current Authoritative Continuation (2026-08-20, transaction-scoped group/member restore)
+
+Code/test commit `b834892dd` wires parsed legacy `Groups/GroupMembers` into the
+existing SQL metadata transaction. `RestoreGroupsAsync` resolves member
+addresses against newly inserted accounts, persists members using the
+generated group IDs, and feeds those restored IDs to public-folder ACL holder
+resolution. Focused writer coverage is `10 passed, 0 skipped, 0 failed`; the
+populated public-folder restore integration is `1 passed, 0 skipped, 0 failed`;
+the disposable LocalDB/Data full suite is `2442 passed, 10 skipped, 0 failed`
+(`2452` total).
+
+Legacy references are `GroupMembers::PreSaveObject/PostStoreObject`
+(`source/Server/Common/BO/GroupMembers.cpp:57-84`) and
+`IMAPConfiguration::XMLLoad` (`source/Server/IMAP/IMAPConfiguration.cpp:225-248`).
+The outer SQL transaction rolls back the inserted rows. Target group
+replacement/merge and settings-only group restore without recreated account
+IDs remain the next bounded slice. Release remains `RED`; no push was
+performed.
+
+## Historical Authoritative Continuation (2026-08-20, strict group/member restore parser/model)
 
 Code/test commit `28b6d6cf4` adds `RestoreGroupEntry` and strict
 `BackupArchiveXmlSnapshotParser.ParseGroupEntries` for legacy `Groups` and

@@ -1,5 +1,25 @@
 
-## Current next slice (2026-08-20, strict group/member restore parser/model)
+## Current next slice (2026-08-20, target group replacement/merge and settings-only group restore)
+
+Code/test commit `b834892dd` wires parsed legacy `Groups/GroupMembers` into the
+existing SQL restore transaction. `RestoreGroupsAsync` resolves member
+addresses against newly inserted accounts before the first group insert,
+persists members with the generated group ID, and feeds those IDs into public-
+folder ACL holder resolution. Focused writer coverage is `10 passed, 0 skipped,
+0 failed`; populated public-folder integration is `1 passed, 0 skipped, 0
+failed`; full disposable LocalDB/Data is `2442 passed, 10 skipped, 0 failed`
+(`2452` total).
+
+Legacy references are `GroupMembers::PreSaveObject/PostStoreObject` at
+`hmailserver/source/Server/Common/BO/GroupMembers.cpp:57-84` and
+`IMAPConfiguration::XMLLoad` at
+`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:225-248`. SQL transaction
+rollback covers the new rows. The next slice must define legacy replacement
+of target groups/members and restore settings-only archives where account IDs
+are not recreated; do not broaden to unrelated Admin collections. Release
+remains **RED**.
+
+## Historical current slice (2026-08-20, strict group/member restore parser/model)
 
 Code/test commit `28b6d6cf4` adds `RestoreGroupEntry` and strict
 `BackupArchiveXmlSnapshotParser.ParseGroupEntries`. It preserves legacy group

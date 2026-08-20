@@ -1,4 +1,16 @@
-## Current authoritative parity status (2026-08-20, strict group/member restore parser/model)
+## Current authoritative parity status (2026-08-20, transaction-scoped group/member restore)
+
+Code/test commit `b834892dd` wires legacy `Groups/GroupMembers` restore into
+the existing SQL metadata transaction. Member addresses resolve to newly
+restored account IDs, inserted group IDs are returned, and public-folder ACL
+holders use those restored IDs. Focused writer coverage is `10 passed, 0
+skipped, 0 failed`; populated public-folder restore integration is `1 passed,
+0 skipped, 0 failed`; the disposable LocalDB/Data full suite is `2442 passed,
+10 skipped, 0 failed` (`2452` total). Target group replacement/merge and
+settings-only group restore without recreated account IDs remain explicit gaps.
+Release remains **RED**.
+
+## Historical authoritative parity status (2026-08-20, strict group/member restore parser/model)
 
 Code/test commit `28b6d6cf4` adds strict parsing for legacy `Groups/GroupMembers`
 restore metadata through `RestoreGroupEntry` and
