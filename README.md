@@ -20,10 +20,10 @@ vCPUs on the private-only switch `HMailServer-SEC18-Private`. Inventory
 evidence is outside the repository at
 `C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
 
-Test-only commit `11129543f` makes SQL source-shape assertions independent of
-CRLF/LF checkout format. Focused coverage is `41 passed, 0 failed`; the full
-Debug suite is `2311 passed, 58 skipped, 2 failed`, with only the two known
-host-antivirus EICAR cleanup locks remaining.
+Test-only commits `11129543f` and `56eadeda4` make SQL source-shape assertions
+checkout-independent and retry scanner test-file cleanup across transient
+antivirus locks. Focused coverage is `41 + 7 passed, 0 failed`; the full Debug
+suite is `2313 passed, 58 skipped, 0 failed`.
 
 Windows guest first boot is complete, but the VMConnect console is currently
 at the disposable Administrator password prompt. The blank-password Enter
