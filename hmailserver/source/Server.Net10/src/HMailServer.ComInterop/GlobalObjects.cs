@@ -141,7 +141,7 @@ public sealed class DeliveryQueue : IInterfaceDeliveryQueue
             throw NotImplemented();
         }
 
-        _clearCoordinator.Schedule();
+        _clearCoordinator.Schedule(_authorizationGuard);
     }
 
     public void ResetDeliveryTime(long messageId)

@@ -273,6 +273,23 @@ public sealed class GlobalObjectsComContractTests
         Assert.AreEqual(1, wakeSignal.SignalCount);
     }
 
+    [TestMethod]
+    public async Task AuthorizedQueue_ClearPassesLiveAuthorizationGuardToCoordinator()
+    {
+        var isAuthorized = true;
+        var clearCoordinator = new RecordingDeliveryQueueClearCoordinator();
+        DeliveryQueueAdministrationRuntimeHost.Configure(
+            new RecordingDeliveryQueueAdministrationStore(),
+            clearCoordinator: clearCoordinator);
+        var queue = GlobalObjects.CreateAuthorized(() => isAuthorized).DeliveryQueue;
+
+        queue.Clear();
+        isAuthorized = false;
+
+        Assert.AreEqual(1, clearCoordinator.ScheduleCount);
+        Assert.IsFalse(clearCoordinator.LastAuthorizationGuard!());
+    }
+
     private static void AssertDualContract(Type contract, string iid)
     {
         Assert.AreEqual(new Guid(iid), contract.GUID);
@@ -330,6 +347,7 @@ public sealed class GlobalObjectsComContractTests
 
         public ValueTask<int> ClearBatchAsync(
             int batchSize,
+            DateTime clearStartedUtc,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
@@ -350,7 +368,13 @@ public sealed class GlobalObjectsComContractTests
     {
         public int ScheduleCount { get; private set; }
 
-        public void Schedule() => ScheduleCount++;
+        public Func<bool>? LastAuthorizationGuard { get; private set; }
+
+        public void Schedule(Func<bool>? authorizationGuard = null)
+        {
+            ScheduleCount++;
+            LastAuthorizationGuard = authorizationGuard;
+        }
     }
 
     private sealed class RecordingLanguageAdministrationStore : ILanguageAdministrationStore

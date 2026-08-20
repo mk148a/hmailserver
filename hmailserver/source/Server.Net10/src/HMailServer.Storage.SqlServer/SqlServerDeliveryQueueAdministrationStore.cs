@@ -70,7 +70,8 @@ DECLARE @Removed TABLE
 INSERT INTO @Candidates (MessageId)
 SELECT TOP (@BatchSize) messageid
 FROM hm_messages WITH (UPDLOCK, READPAST, ROWLOCK)
-WHERE messagetype IN (1, 3)
+WHERE messagetype = 1
+  AND messagecreatetime <= @ClearStartedUtc
   AND NOT
   (
       messagelocked = 1
@@ -92,7 +93,8 @@ INTO @Removed (MessageId, MessageFileName)
 FROM hm_messages AS messages
 INNER JOIN @Candidates AS candidates
     ON candidates.MessageId = messages.messageid
-WHERE messages.messagetype IN (1, 3);
+WHERE messages.messagetype = 1
+  AND messages.messagecreatetime <= @ClearStartedUtc;
 
 COMMIT TRANSACTION;
 
@@ -143,6 +145,7 @@ ORDER BY MessageId;
 
     public async ValueTask<int> ClearBatchAsync(
         int batchSize,
+        DateTime clearStartedUtc,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
@@ -150,6 +153,7 @@ ORDER BY MessageId;
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(ClearBatchSql, connection);
         command.Parameters.Add("@BatchSize", SqlDbType.Int).Value = batchSize;
+        command.Parameters.Add("@ClearStartedUtc", SqlDbType.DateTime2).Value = clearStartedUtc;
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var messageFileNames = new List<string>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))

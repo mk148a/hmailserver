@@ -841,6 +841,7 @@ public static class Host
     builder.Services.AddSingleton<DeliveryQueueWakeSignal>();
     builder.Services.AddSingleton<IDeliveryQueueWakeSignal>(static serviceProvider =>
         serviceProvider.GetRequiredService<DeliveryQueueWakeSignal>());
+    builder.Services.AddSingleton<DeliveryQueuePauseDrainGate>();
     builder.Services.AddSingleton<ExternalFetchWakeSignal>();
     builder.Services.AddSingleton<IExternalFetchWakeSignal>(static serviceProvider =>
         serviceProvider.GetRequiredService<ExternalFetchWakeSignal>());
@@ -882,6 +883,7 @@ public static class Host
             serviceProvider.GetRequiredService<DeliveryQueueClearOptions>(),
             serviceProvider.GetRequiredService<IDeliveryQueueAdministrationStore>(),
             serviceProvider.GetRequiredService<IDeliveryQueueClearObserver>(),
+            serviceProvider.GetRequiredService<DeliveryQueuePauseDrainGate>(),
             serviceProvider.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping));
     builder.Services.AddSingleton<IDeliveryQueueClearCoordinator>(static serviceProvider =>
         serviceProvider.GetRequiredService<DeliveryQueueClearCoordinator>());

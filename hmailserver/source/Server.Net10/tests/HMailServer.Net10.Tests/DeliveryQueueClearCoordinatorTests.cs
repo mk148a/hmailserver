@@ -11,10 +11,12 @@ public sealed class DeliveryQueueClearCoordinatorTests
     {
         var store = new ScriptedAdministrationStore(2, 2, 1);
         var observer = new RecordingObserver();
+        using var gate = new DeliveryQueuePauseDrainGate();
         var coordinator = new DeliveryQueueClearCoordinator(
             new DeliveryQueueClearOptions(BatchSize: 2),
             store,
             observer,
+            gate,
             CancellationToken.None);
 
         coordinator.Schedule();
@@ -22,6 +24,25 @@ public sealed class DeliveryQueueClearCoordinatorTests
         Assert.AreEqual(5, await observer.Completion.Task.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.AreEqual(3, store.ClearCallCount);
         CollectionAssert.AreEqual(new[] { 2, 2, 2 }, store.BatchSizes);
+    }
+
+    [TestMethod]
+    public async Task Schedule_ReusesSnapshotBoundaryAcrossBatches()
+    {
+        var store = new ScriptedAdministrationStore(2, 0);
+        var observer = new RecordingObserver();
+        using var gate = new DeliveryQueuePauseDrainGate();
+        var coordinator = new DeliveryQueueClearCoordinator(
+            new DeliveryQueueClearOptions(BatchSize: 2),
+            store,
+            observer,
+            gate,
+            CancellationToken.None);
+
+        coordinator.Schedule();
+
+        Assert.AreEqual(2, await observer.Completion.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual(store.ClearStartedUtc[0], store.ClearStartedUtc[1]);
     }
 
     [TestMethod]
@@ -36,10 +57,12 @@ public sealed class DeliveryQueueClearCoordinatorTests
             return 0;
         });
         var observer = new RecordingObserver();
+        using var gate = new DeliveryQueuePauseDrainGate();
         var coordinator = new DeliveryQueueClearCoordinator(
             new DeliveryQueueClearOptions(BatchSize: 10),
             store,
             observer,
+            gate,
             CancellationToken.None);
 
         coordinator.Schedule();
@@ -59,10 +82,12 @@ public sealed class DeliveryQueueClearCoordinatorTests
         var store = new ScriptedAdministrationStore(
             (_, _) => ValueTask.FromException<int>(expected));
         var observer = new RecordingObserver();
+        using var gate = new DeliveryQueuePauseDrainGate();
         var coordinator = new DeliveryQueueClearCoordinator(
             DeliveryQueueClearOptions.Default,
             store,
             observer,
+            gate,
             CancellationToken.None);
 
         coordinator.Schedule();
@@ -74,16 +99,99 @@ public sealed class DeliveryQueueClearCoordinatorTests
     }
 
     [TestMethod]
-    public void Schedule_DoesNothingAfterShutdownCancellation()
+    public async Task Schedule_WaitsForActiveWorkerBatchToDrain()
     {
-        using var shutdown = new CancellationTokenSource();
-        shutdown.Cancel();
+        using var gate = new DeliveryQueuePauseDrainGate();
+        using var workerLease = await gate.EnterWorkerAsync(CancellationToken.None);
         var store = new ScriptedAdministrationStore(0);
         var observer = new RecordingObserver();
         var coordinator = new DeliveryQueueClearCoordinator(
             DeliveryQueueClearOptions.Default,
             store,
             observer,
+            gate,
+            CancellationToken.None);
+
+        coordinator.Schedule();
+        await Task.Delay(50);
+
+        Assert.AreEqual(0, store.ClearCallCount);
+        workerLease.Dispose();
+
+        Assert.AreEqual(0, await observer.Completion.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual(1, store.ClearCallCount);
+    }
+
+    [TestMethod]
+    public async Task Schedule_ReleasesPauseAfterFailureSoClearCanRecover()
+    {
+        var expected = new InvalidOperationException("database unavailable");
+        var callCount = 0;
+        var store = new ScriptedAdministrationStore(
+            (_, _) => ++callCount == 1
+                ? ValueTask.FromException<int>(expected)
+                : ValueTask.FromResult(0));
+        var observer = new RecordingObserver();
+        using var gate = new DeliveryQueuePauseDrainGate();
+        var coordinator = new DeliveryQueueClearCoordinator(
+            DeliveryQueueClearOptions.Default,
+            store,
+            observer,
+            gate,
+            CancellationToken.None);
+
+        coordinator.Schedule();
+
+        Assert.AreSame(expected, await observer.Failure.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        coordinator.Schedule();
+
+        Assert.AreEqual(0, await observer.Completion.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual(2, store.ClearCallCount);
+    }
+
+    [TestMethod]
+    public async Task Schedule_StopsBeforeNextBatchWhenAuthorizationIsRevoked()
+    {
+        var isAuthorized = true;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new ScriptedAdministrationStore(async (_, cancellationToken) =>
+        {
+            entered.TrySetResult();
+            await release.Task.WaitAsync(cancellationToken);
+            return 1;
+        });
+        var observer = new RecordingObserver();
+        using var gate = new DeliveryQueuePauseDrainGate();
+        var coordinator = new DeliveryQueueClearCoordinator(
+            new DeliveryQueueClearOptions(BatchSize: 1),
+            store,
+            observer,
+            gate,
+            CancellationToken.None);
+
+        coordinator.Schedule(() => isAuthorized);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        isAuthorized = false;
+        release.TrySetResult();
+
+        await observer.Failure.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.AreEqual(1, store.ClearCallCount);
+    }
+
+    [TestMethod]
+    public void Schedule_DoesNothingAfterShutdownCancellation()
+    {
+        using var shutdown = new CancellationTokenSource();
+        shutdown.Cancel();
+        var store = new ScriptedAdministrationStore(0);
+        var observer = new RecordingObserver();
+        using var gate = new DeliveryQueuePauseDrainGate();
+        var coordinator = new DeliveryQueueClearCoordinator(
+            DeliveryQueueClearOptions.Default,
+            store,
+            observer,
+            gate,
             shutdown.Token);
 
         coordinator.Schedule();
@@ -113,6 +221,8 @@ public sealed class DeliveryQueueClearCoordinatorTests
 
         public int[] BatchSizes { get; private set; } = [];
 
+        public DateTime[] ClearStartedUtc { get; private set; } = [];
+
         public ValueTask<bool> ResetDeliveryTimeAsync(
             long messageId,
             CancellationToken cancellationToken) =>
@@ -125,10 +235,12 @@ public sealed class DeliveryQueueClearCoordinatorTests
 
         public ValueTask<int> ClearBatchAsync(
             int batchSize,
+            DateTime clearStartedUtc,
             CancellationToken cancellationToken)
         {
             ClearCallCount++;
             BatchSizes = [.. BatchSizes, batchSize];
+            ClearStartedUtc = [.. ClearStartedUtc, clearStartedUtc];
             if (_handler is not null)
             {
                 return _handler(batchSize, cancellationToken);

@@ -7,6 +7,7 @@ public sealed class DeliveryQueueClearCoordinator : IDeliveryQueueClearCoordinat
     private readonly DeliveryQueueClearOptions _options;
     private readonly IDeliveryQueueAdministrationStore _store;
     private readonly IDeliveryQueueClearObserver _observer;
+    private readonly DeliveryQueuePauseDrainGate _pauseDrainGate;
     private readonly CancellationToken _shutdownToken;
     private int _running;
 
@@ -14,20 +15,23 @@ public sealed class DeliveryQueueClearCoordinator : IDeliveryQueueClearCoordinat
         DeliveryQueueClearOptions options,
         IDeliveryQueueAdministrationStore store,
         IDeliveryQueueClearObserver observer,
+        DeliveryQueuePauseDrainGate pauseDrainGate,
         CancellationToken shutdownToken)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(observer);
+        ArgumentNullException.ThrowIfNull(pauseDrainGate);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BatchSize);
 
         _options = options;
         _store = store;
         _observer = observer;
+        _pauseDrainGate = pauseDrainGate;
         _shutdownToken = shutdownToken;
     }
 
-    public void Schedule()
+    public void Schedule(Func<bool>? authorizationGuard = null)
     {
         if (_shutdownToken.IsCancellationRequested ||
             Interlocked.CompareExchange(ref _running, 1, 0) != 0)
@@ -35,24 +39,36 @@ public sealed class DeliveryQueueClearCoordinator : IDeliveryQueueClearCoordinat
             return;
         }
 
-        _ = Task.Run(RunAsync);
+        _ = Task.Run(() => RunAsync(authorizationGuard));
     }
 
-    private async Task RunAsync()
+    private async Task RunAsync(Func<bool>? authorizationGuard)
     {
         var removedMessages = 0;
         try
         {
-            while (!_shutdownToken.IsCancellationRequested)
+            using (await _pauseDrainGate
+                .PauseAndDrainAsync(_shutdownToken)
+                .ConfigureAwait(false))
             {
-                var removed = await _store
-                    .ClearBatchAsync(_options.BatchSize, _shutdownToken)
-                    .ConfigureAwait(false);
-                removedMessages += removed;
-                if (removed < _options.BatchSize)
+                var clearStartedUtc = DateTime.UtcNow;
+                while (!_shutdownToken.IsCancellationRequested)
                 {
-                    NotifyCompleted(removedMessages);
-                    return;
+                    if (authorizationGuard is not null && !authorizationGuard())
+                    {
+                        throw new UnauthorizedAccessException(
+                            "Server administrator authorization was revoked during queue clear.");
+                    }
+
+                    var removed = await _store
+                        .ClearBatchAsync(_options.BatchSize, clearStartedUtc, _shutdownToken)
+                        .ConfigureAwait(false);
+                    removedMessages += removed;
+                    if (removed < _options.BatchSize)
+                    {
+                        NotifyCompleted(removedMessages);
+                        return;
+                    }
                 }
             }
         }

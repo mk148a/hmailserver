@@ -15,6 +15,7 @@ public sealed class DeliveryQueueProcessorHostedService : BackgroundService, IDe
         DeliveryQueueProcessorOptions processorOptions,
         IDeliveryQueueBatchProcessor processor,
         IDeliveryQueueWakeSignal wakeSignal,
+        DeliveryQueuePauseDrainGate pauseDrainGate,
         ILogger<DeliveryQueueProcessorHostedService> logger)
     {
         _worker = new DeliveryQueueWorker(
@@ -22,6 +23,7 @@ public sealed class DeliveryQueueProcessorHostedService : BackgroundService, IDe
             processorOptions,
             processor,
             wakeSignal,
+            pauseDrainGate,
             this);
         _logger = logger;
     }

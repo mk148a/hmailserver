@@ -993,6 +993,7 @@ WHERE recipientmessageid = @MessageId;
                     new DeliveryQueueClearOptions(BatchSize: 1),
                     administrationStore,
                     clearObserver,
+                    new DeliveryQueuePauseDrainGate(),
                     CancellationToken.None));
             var application = Application.CreateForRuntime(
                 new LegacyServerAdministratorAuthenticationProvider("5ebe2294ecd0e0f08eab7690d2a6ee69"));

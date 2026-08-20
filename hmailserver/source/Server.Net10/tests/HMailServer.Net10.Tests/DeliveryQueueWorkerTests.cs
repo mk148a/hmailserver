@@ -122,6 +122,35 @@ public sealed class DeliveryQueueWorkerTests
     }
 
     [TestMethod]
+    public async Task RunAsync_WaitsWhileClearOwnsPauseDrainGate()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var gate = new DeliveryQueuePauseDrainGate();
+        var processor = new ScriptedBatchProcessor(static _ => ValueTask.FromResult(0));
+        var signal = new RecordingWakeSignal((_, _, _) =>
+        {
+            cancellation.Cancel();
+            return ValueTask.FromResult(false);
+        });
+        var worker = CreateWorker(
+            processor,
+            signal,
+            new RecordingObserver(),
+            batchSize: 2,
+            pauseDrainGate: gate);
+        using var clearLease = await gate.PauseAndDrainAsync(CancellationToken.None);
+        var workerTask = worker.RunAsync(cancellation.Token);
+
+        await Task.Delay(50);
+        Assert.AreEqual(0, processor.CallCount);
+
+        clearLease.Dispose();
+        await workerTask;
+
+        Assert.AreEqual(1, processor.CallCount);
+    }
+
+    [TestMethod]
     public void Constructor_RejectsNonPositiveWaits()
     {
         var processor = new ScriptedBatchProcessor(static _ => ValueTask.FromResult(0));
@@ -135,6 +164,7 @@ public sealed class DeliveryQueueWorkerTests
                 processorOptions,
                 processor,
                 signal,
+                new DeliveryQueuePauseDrainGate(),
                 observer));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
             new DeliveryQueueWorker(
@@ -142,6 +172,7 @@ public sealed class DeliveryQueueWorkerTests
                 processorOptions,
                 processor,
                 signal,
+                new DeliveryQueuePauseDrainGate(),
                 observer));
     }
 
@@ -149,12 +180,14 @@ public sealed class DeliveryQueueWorkerTests
         IDeliveryQueueBatchProcessor processor,
         IDeliveryQueueWakeSignal signal,
         IDeliveryQueueWorkerObserver observer,
-        int batchSize) =>
+        int batchSize,
+        DeliveryQueuePauseDrainGate? pauseDrainGate = null) =>
         new(
             DeliveryQueueWorkerOptions.Default,
             CreateProcessorOptions(batchSize),
             processor,
             signal,
+            pauseDrainGate ?? new DeliveryQueuePauseDrainGate(),
             observer);
 
     private static DeliveryQueueProcessorOptions CreateProcessorOptions(int batchSize) =>

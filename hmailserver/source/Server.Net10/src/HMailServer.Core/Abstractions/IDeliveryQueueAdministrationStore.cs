@@ -12,5 +12,6 @@ public interface IDeliveryQueueAdministrationStore
 
     ValueTask<int> ClearBatchAsync(
         int batchSize,
+        DateTime clearStartedUtc,
         CancellationToken cancellationToken);
 }

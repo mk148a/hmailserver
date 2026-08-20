@@ -49,14 +49,17 @@ public sealed class SqlServerDeliveryQueueAdministrationStoreTests
     }
 
     [TestMethod]
-    public void ClearBatchSql_DeletesBoundedUnlockedOrExpiredQueueRowsAndRecipients()
+    public void ClearBatchSql_DeletesOnlyTypeOneUnlockedOrExpiredQueueRowsAndRecipients()
     {
         var sql = SqlServerDeliveryQueueAdministrationStore.ClearBatchSql;
 
         StringAssert.Contains(sql, "SET XACT_ABORT ON");
         StringAssert.Contains(sql, "SELECT TOP (@BatchSize) messageid");
         StringAssert.Contains(sql, "WITH (UPDLOCK, READPAST, ROWLOCK)");
-        StringAssert.Contains(sql, "messagetype IN (1, 3)");
+        StringAssert.Contains(sql, "WHERE messagetype = 1");
+        StringAssert.Contains(sql, "messagecreatetime <= @ClearStartedUtc");
+        StringAssert.Contains(sql, "WHERE messages.messagetype = 1");
+        Assert.IsFalse(sql.Contains("messagetype IN (1, 3)", StringComparison.OrdinalIgnoreCase));
         StringAssert.Contains(sql, "messagelocked = 1");
         StringAssert.Contains(sql, "messageleaseowner IS NOT NULL");
         StringAssert.Contains(sql, "messageleaseexpiresutc > SYSUTCDATETIME()");
