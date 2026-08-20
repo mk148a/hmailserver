@@ -1,13 +1,12 @@
 
-## Current next slice (2026-08-20, UID-zero restore allocation parity)
+## Current next slice (2026-08-20, target-preexisting group dependency parity)
 
-Code/test commit `8c2216888` matches the legacy restore defaults for account
-and public-folder messages: retry count is reset to `0` and stored flags
-include `ImapMessageFlags.Recent` (`32`). Disposable SQL/Data backup -> restore
--> backup coverage for a non-delivered `State=1` message and nested `.eml`
-remains green. Focused SQL/store/round-trip coverage is `31 passed, 0 skipped,
-0 failed`; the disposable LocalDB/Data Debug suite is `2433 passed, 10
-skipped, 0 failed` (`2443` total).
+Code/test commit `4843c59b8` completes the legacy restore defaults and
+owner-scoped UID-zero allocation. Restore resets retry count to `0`, adds
+`ImapMessageFlags.Recent` (`32`), allocates a new folder UID only when the
+archived UID is zero, and returns the effective UID. Focused SQL/store coverage
+is `9 unit passed, 2 integration passed, 0 failed`; the disposable LocalDB/Data
+Debug suite is `2434 passed, 10 skipped, 0 failed` (`2444` total).
 
 Legacy references are `Messages::Refresh` at
 `hmailserver/source/Server/Common/BO/Messages.cpp:165-197`,
@@ -18,14 +17,14 @@ Legacy references are `Messages::Refresh` at
 and `BackupExecuter::BackupDataDirectory_/RestoreDataDirectory_` at
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:196-216, 372-386`.
 They establish full folder-state serialization, nested file staging, and the
-legacy restore normalization now implemented by Net10. UID-zero allocation
-remains open: legacy calls `PersistentIMAPFolder::GetUniqueMessageID` while
-Net10 still inserts the archived UID directly.
+legacy restore normalization now implemented by Net10. UID-zero mailbox
+allocation now uses the SQL equivalent of
+`PersistentIMAPFolder::GetUniqueMessageID` and preserves explicit archived UIDs.
 
-Remaining restore risk: UID-zero folder messages do not yet use the legacy
-folder UID allocator or advance `foldercurrentuid`. Next slice: implement and
-test owner-scoped UID allocation, collision behavior, and rollback cleanup.
-Target-preexisting group dependency, migration/installer, COM/DCOM, SEC-18,
+Remaining restore risk: public-folder group ACLs still depend on target-
+preexisting groups, and unresolved group holders need explicit fail/rollback
+coverage. Next slice: implement and test that ownership dependency without
+broadening to other Admin collections. Migration/installer, COM/DCOM, SEC-18,
 paired C++/.NET performance, and soak gates remain **RED**.
 
 ## Current next slice (2026-08-20, populated restore semantic equivalence)

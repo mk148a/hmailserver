@@ -1,12 +1,11 @@
-## Current authoritative parity status (2026-08-20, legacy restore message defaults)
+## Current authoritative parity status (2026-08-20, legacy restore UID allocation)
 
-Code/test commit `8c2216888` matches the legacy restore defaults for account
-and public-folder messages: retry count is reset to `0` and stored flags
-include `ImapMessageFlags.Recent` (`32`). Disposable SQL/Data backup -> restore
--> backup coverage for a non-delivered `State=1` message and nested `.eml`
-remains green. Focused SQL/store/round-trip coverage is `31 passed, 0 skipped,
-0 failed`; the disposable LocalDB/Data full suite is `2433 passed, 10 skipped,
-0 failed` (`2443` total).
+Code/test commit `4843c59b8` completes the legacy restore defaults and
+owner-scoped UID-zero allocation. Restore resets retry count to `0`, adds
+`ImapMessageFlags.Recent` (`32`), allocates a new folder UID only when the
+archived UID is zero, and returns the effective UID. Focused SQL/store coverage
+is `9 unit passed, 2 integration passed, 0 failed`; the disposable LocalDB/Data
+full suite is `2434 passed, 10 skipped, 0 failed` (`2444` total).
 
 Legacy `Messages::Refresh` (`source/Server/Common/BO/Messages.cpp:165-197`),
 `Message::XMLStore/XMLLoad` (`source/Server/Common/BO/Message.cpp:200-230`),
@@ -14,15 +13,15 @@ Legacy `Messages::Refresh` (`source/Server/Common/BO/Messages.cpp:165-197`),
 and `BackupExecuter::BackupDataDirectory_/RestoreDataDirectory_`
 (`source/Server/Common/Application/BackupExecuter.cpp:196-216, 372-386`) show
 full folder-state serialization, nested file staging, and legacy restore
-normalization. Net10 now matches the legacy retry/flag defaults. UID=0 restore
-allocation remains open because legacy calls
-`PersistentIMAPFolder::GetUniqueMessageID` while Net10 still inserts the
-archived UID directly. No COM identity, SMTP behavior, shared IMAP/COM read
-behavior, or installed registration changed.
+normalization. Net10 now matches the legacy retry/flag defaults and uses the SQL
+equivalent of `PersistentIMAPFolder::GetUniqueMessageID` for zero-UID mailbox
+messages. No COM identity, SMTP behavior, shared IMAP/COM read behavior, or
+installed registration changed.
 
-Next slice: implement UID-zero folder allocation parity with owner-scope and
-rollback coverage. Paired C++/.NET performance, out-of-process COM/DCOM,
-migration/rollback, SEC-18, and 24-hour soak remain open; release is **RED**.
+Next slice: implement target-preexisting group dependency parity with explicit
+unresolved-group and restore rollback coverage. Paired C++/.NET performance,
+out-of-process COM/DCOM, migration/rollback, SEC-18, and 24-hour soak remain
+open; release is **RED**.
 
 ## Historical authoritative parity status (2026-08-20, reversible ACL read-only state)
 
