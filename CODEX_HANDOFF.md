@@ -52,6 +52,11 @@ implemented and the disposable Net10 acceptance matrix is recorded. Remaining
 gates are native AD evidence, a registry-isolated legacy C++ comparison, live
 100k-mailbox/SMTP/delivery thresholds, and the 24-hour leak soak.
 
+The latest parity audit also confirmed the legacy `BlockedAttachments` mutation
+path (`Add`, `Save`, `DeleteByDBID`, item `Delete`, and setters) against
+`InterfaceBlockedAttachments.cpp:75-145` and `InterfaceBlockedAttachment.cpp:14-143`;
+focused coverage is `15/15`.
+
 ## Current Authoritative Continuation (2026-08-14, installer rollback compensation)
 
 Code/test commits `3fe4cb513` and `ff100f32a` add

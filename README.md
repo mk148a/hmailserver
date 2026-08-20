@@ -44,6 +44,9 @@ The production-parity backlog now distinguishes the implemented IMAP master-user
 runtime and disposable Net10 acceptance evidence from the still-open native AD,
 legacy-C++ comparison, live 100k-mailbox, and 24-hour soak gates.
 
+It also records the already-implemented `BlockedAttachments` Add/Save/Delete
+mutation path and its `15/15` focused COM contract result.
+
 ## Current authoritative migration/installer status (2026-08-14)
 
 Code/test commits `3fe4cb513` and `ff100f32a` add bounded installer rollback
